@@ -103,7 +103,7 @@ where
                         core_processor::handle_journal(journal, &mut ext_manager);
 
                         // Adding id in on-init wake list.
-                        common::waiting_init_append_message_id(
+                        ProgramStorageOf::<T>::waiting_init_append_message_id(
                             dispatch.destination(),
                             dispatch.id(),
                         );
@@ -219,12 +219,13 @@ where
             let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
             let origin = ProgramId::from_origin(external.into_origin());
 
-            let journal = core_processor::process::<Ext, ExecutionEnvironment>(
+            let journal = core_processor::process::<ExecutionEnvironment>(
                 &block_config,
                 (context, code, balance, origin).into(),
                 (random.encode(), bn.unique_saturated_into()),
                 memory_pages,
-            );
+            )
+            .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
             core_processor::handle_journal(journal, &mut ext_manager);
         }
@@ -246,8 +247,8 @@ where
         dispatch_id: MessageId,
         reply: bool,
     ) -> ActorResult {
-        let maybe_active_program = match common::get_program(program_id.into_origin()) {
-            Some(p) => p,
+        let maybe_active_program = match ProgramStorageOf::<T>::get_program(program_id) {
+            Some((p, _bn)) => p,
             None => {
                 // When an actor sends messages, which is intended to be added to the queue
                 // it's destination existence is always checked. The only case this doesn't

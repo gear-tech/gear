@@ -43,6 +43,9 @@ mod exports {
 
     // Second reading state functions implementation
     pub use demo_meta_state_v2::{META_EXPORTS_V2, META_WASM_V2};
+
+    // Third reading state functions implementation
+    pub use demo_meta_state_v3::{META_EXPORTS_V3, META_WASM_V3};
 }
 
 // Public exports

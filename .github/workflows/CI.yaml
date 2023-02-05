@@ -21,7 +21,7 @@ jobs:
   #   steps:
   #     - name: Cancel Previous Runs
   #       if: ${{ github.event_name == 'pull_request' }}
-  #       uses: styfle/cancel-workflow-action@0.9.1
+  #       uses: styfle/cancel-workflow-action@0.11.0
   #       with:
   #         access_token: ${{ github.token }}
 
@@ -43,7 +43,7 @@ jobs:
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.9.1
+        uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
 
@@ -81,7 +81,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
           sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
@@ -132,7 +132,7 @@ jobs:
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.9.1
+        uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
 
@@ -168,7 +168,7 @@ jobs:
           ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Node.js"
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
           node-version: "16"
 
@@ -181,7 +181,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
           sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
@@ -242,8 +242,8 @@ jobs:
           cargo nextest run --release -p gear-program --features bin
           cargo nextest run --release -p gear-program --no-default-features --features bin,vara
 
-      # - name: "Test: Client tests"
-      #   run: ./scripts/gear.sh test client --run-node
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client --run-node
 
       - name: "Test: Process node runtime spec tests"
         run: |
@@ -256,18 +256,19 @@ jobs:
           ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
 
       - name: "Test: Runtime upgrade and queue processing"
+        if: github.ref != 'refs/heads/master' # to be deleted
         run: ./scripts/gear.sh test runtime-upgrade
 
-      - name: "Test: Runtime benchmarks work"
+      - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
           cargo build -p gear-cli --release --features runtime-benchmarks
           ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
+          # check also lazy-pages benchmarks tests for native runtime
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
 
       - name: "Test: Sys-calls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls
-
-      - name: "Test: Sys-calls Sandbox integrity"
-        run: ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_syscalls_integrity" --execution=wasm --wasm-execution=compiled --extra
 
       - name: "Coverage: Aggregate"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
@@ -365,7 +366,7 @@ jobs:
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.9.1
+        uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
 
@@ -446,7 +447,7 @@ jobs:
         shell: powershell
 
       - name: "Install: Node.js"
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
           node-version: "16"
 
@@ -505,7 +506,7 @@ jobs:
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.9.1
+        uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
 
@@ -556,60 +557,6 @@ jobs:
             -p gear-runtime-interface
             --features=lazy-pages
 
-  build-macos-x86:
-    if: github.ref == 'refs/heads/master'
-    runs-on: macos-latest
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.9.1
-        with:
-          access_token: ${{ github.token }}
-
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
-
-      - name: "ACTIONS: Setup caching"
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          target: wasm32-unknown-unknown
-
-      - name: "Install: cargo-nextest"
-        run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: "Build: Node"
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p gear-node --features=lazy-pages
-
-      - name: "Test: Lazy pages"
-        uses: actions-rs/cargo@v1
-        with:
-          command: nextest
-          args: >-
-            run
-            -p pallet-gear
-            -p pallet-gear-debug
-            -p pallet-gear-payment
-            -p gear-lazy-pages
-            -p gear-runtime-interface
-            --features=lazy-pages
-
   upload:
     if: github.event_name == 'push' && github.ref_name == 'master'
     runs-on: self-hosted
@@ -617,15 +564,15 @@ jobs:
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.9.1
+        uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
 
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
 
       - name: Delete previous release
-        uses: dev-drprasad/delete-tag-and-release@v0.1.3
+        uses: dev-drprasad/delete-tag-and-release@v0.2.0
         with:
           delete_release: true
           tag_name: build

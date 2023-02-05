@@ -18,9 +18,10 @@
 
 use super::*;
 
-use gear_core::memory::{PageNumber, PageU32Size, WasmPageNumber};
+use gear_core::memory::{PageU32Size, WasmPage};
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
+use sp_runtime::traits::Zero;
 use sp_std::borrow::ToOwned;
 
 pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> AccountId {
@@ -35,7 +36,7 @@ pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> 
 //     (import "env" "memory" (memory $num_pages))
 //     (func (type 0))
 //     (export "init" (func 0)))
-pub fn create_module(num_pages: WasmPageNumber) -> parity_wasm::elements::Module {
+pub fn create_module(num_pages: WasmPage) -> parity_wasm::elements::Module {
     parity_wasm::elements::Module::new(vec![
         Section::Type(TypeSection::with_types(vec![Type::Function(
             FunctionType::new(vec![], vec![]),
@@ -57,7 +58,7 @@ pub fn create_module(num_pages: WasmPageNumber) -> parity_wasm::elements::Module
     ])
 }
 
-pub fn generate_wasm(num_pages: WasmPageNumber) -> Result<Vec<u8>, &'static str> {
+pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     let module = create_module(num_pages);
     let code = parity_wasm::serialize(module).map_err(|_| "Failed to serialize module")?;
 
@@ -76,7 +77,7 @@ pub fn generate_wasm(num_pages: WasmPageNumber) -> Result<Vec<u8>, &'static str>
 //         (local.set $result (call $alloc (i32.const $num_pages)))
 //     )
 // )
-pub fn generate_wasm2(num_pages: WasmPageNumber) -> Result<Vec<u8>, &'static str> {
+pub fn generate_wasm2(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     let module = parity_wasm::elements::Module::new(vec![
         Section::Type(TypeSection::with_types(vec![
             Type::Function(FunctionType::new(
@@ -132,26 +133,39 @@ pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
     Ok(code)
 }
 
-pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: WasmPageNumber) {
+pub fn set_program<
+    ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
+    BlockNumber: Zero,
+>(
+    program_id: ProgramId,
+    code: Vec<u8>,
+    static_pages: WasmPage,
+) {
     let code_id = CodeId::generate(&code).into_origin();
-    let allocations: BTreeSet<WasmPageNumber> = static_pages.iter_from_zero().collect();
-    let persistent_pages_data: BTreeMap<PageNumber, PageBuf> = allocations
+    let allocations: BTreeSet<WasmPage> = static_pages.iter_from_zero().collect();
+    let persistent_pages_data: BTreeMap<GearPage, PageBuf> = allocations
         .iter()
         .flat_map(|p| p.to_pages_iter())
         .map(|p| (p, PageBuf::new_zeroed()))
         .collect();
-    super::set_program_and_pages_data(
+    let pages_with_data = persistent_pages_data.keys().copied().collect();
+
+    for (page, page_buf) in persistent_pages_data {
+        ProgramStorage::set_program_page_data(program_id, page, page_buf);
+    }
+
+    ProgramStorage::add_program(
         program_id,
         ActiveProgram {
             allocations,
-            pages_with_data: persistent_pages_data.keys().copied().collect(),
+            pages_with_data,
             code_hash: code_id,
             code_exports: Default::default(),
             static_pages,
             state: ProgramState::Initialized,
             gas_reservation_map: GasReservationMap::default(),
         },
-        persistent_pages_data,
+        Zero::zero(),
     )
-    .expect("invalid persistent_pages_data");
+    .expect("benchmarking; program duplicates should not exist");
 }

@@ -25,9 +25,7 @@
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use codec::{Decode, Encode};
-use frame_election_provider_support::{
-    onchain, ElectionDataProvider, ElectionProvider, ElectionProviderBase, SequentialPhragmen,
-};
+use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::weights::ConstantMultiplier;
 pub use frame_support::{
     construct_runtime,
@@ -36,7 +34,7 @@ pub use frame_support::{
     traits::{
         ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOfDiverse, EqualPrivilegeOnly,
         Everything, FindAuthor, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced, Randomness,
-        StorageInfo, U128CurrencyToVote,
+        StorageInfo, U128CurrencyToVote, WithdrawReasons,
     },
     weights::{
         constants::{
@@ -74,8 +72,8 @@ use sp_runtime::{
     curve::PiecewiseLinear,
     generic, impl_opaque_keys,
     traits::{
-        AccountIdLookup, BlakeTwo256, Block as BlockT, DispatchInfoOf, NumberFor, OpaqueKeys,
-        SignedExtension, Zero,
+        AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, NumberFor,
+        OpaqueKeys, SignedExtension, Zero,
     },
     transaction_validity::{
         InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
@@ -125,7 +123,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 110,
+    spec_version: 100,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -594,12 +592,7 @@ impl pallet_utility::Config for Runtime {
     type PalletsOrigin = OriginCaller;
 }
 
-impl pallet_gear_program::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = weights::pallet_gear_program::SubstrateWeight<Runtime>;
-    type Currency = Balances;
-    type Messenger = GearMessenger;
-}
+impl pallet_gear_program::Config for Runtime {}
 
 parameter_types! {
     pub const GasLimitMaxPercentage: Percent = Percent::from_percent(GAS_LIMIT_MIN_PERCENTAGE_NUM);
@@ -629,6 +622,7 @@ impl pallet_gear::Config for Runtime {
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
+    type ProgramStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
     type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;
@@ -643,6 +637,7 @@ impl pallet_gear_debug::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
     type CodeStorage = GearProgram;
+    type ProgramStorage = GearProgram;
     type Messenger = GearMessenger;
 }
 
@@ -695,6 +690,22 @@ where
     type OverarchingCall = RuntimeCall;
 }
 
+parameter_types! {
+    pub const MinVestedTransfer: Balance = 100 * CENTS;
+    pub UnvestedFundsAllowedWithdrawReasons: WithdrawReasons =
+        WithdrawReasons::except(WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE);
+}
+
+impl pallet_vesting::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type BlockNumberToBalance = ConvertInto;
+    type MinVestedTransfer = MinVestedTransfer;
+    type WeightInfo = pallet_vesting::weights::SubstrateWeight<Runtime>;
+    type UnvestedFundsAllowedWithdrawReasons = UnvestedFundsAllowedWithdrawReasons;
+    const MAX_VESTING_SCHEDULES: u32 = 28;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[cfg(feature = "debug-mode")]
 construct_runtime!(
@@ -710,6 +721,7 @@ construct_runtime!(
         Babe: pallet_babe,
         Grandpa: pallet_grandpa,
         Balances: pallet_balances,
+        Vesting: pallet_vesting,
         TransactionPayment: pallet_transaction_payment,
         BagsList: pallet_bags_list,
         ImOnline: pallet_im_online,
@@ -759,6 +771,7 @@ construct_runtime!(
         Babe: pallet_babe,
         Grandpa: pallet_grandpa,
         Balances: pallet_balances,
+        Vesting: pallet_vesting,
         TransactionPayment: pallet_transaction_payment,
         BagsList: pallet_bags_list,
         ImOnline: pallet_im_online,

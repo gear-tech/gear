@@ -34,7 +34,7 @@ use gear_backend_common::Environment;
 use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{GearPage, PageBuf, PageU32Size, WasmPage},
     message::*,
 };
 use log::{Log, Metadata, Record, SetLoggerError};
@@ -339,8 +339,8 @@ pub fn check_messages(
 
 pub struct ProgramAllocations<'a> {
     pub id: ProgramId,
-    pub static_pages: WasmPageNumber,
-    pub allocations: &'a BTreeSet<WasmPageNumber>,
+    pub static_pages: WasmPage,
+    pub allocations: &'a BTreeSet<WasmPage>,
 }
 
 pub fn check_allocations(
@@ -422,18 +422,14 @@ pub fn check_allocations(
 }
 
 pub fn check_memory(
-    actors_data: &Vec<(
-        ProgramId,
-        ExecutableActorData,
-        BTreeMap<PageNumber, PageBuf>,
-    )>,
+    actors_data: &Vec<(ProgramId, ExecutableActorData, BTreeMap<GearPage, PageBuf>)>,
     expected_memory: &[sample::BytesAt],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
         for (program_id, _data, memory) in actors_data {
             if *program_id == case.id.to_program_id() {
-                let page = PageNumber::from_offset(case.address as u32);
+                let page = GearPage::from_offset(case.address as u32);
                 if let Some(page_buf) = memory.get(&page) {
                     let begin_byte = case.address - page.offset() as usize;
                     let end_byte = begin_byte + case.bytes.len();
@@ -519,7 +515,7 @@ fn run_fixture<JH, E>(
 ) -> ColoredString
 where
     JH: JournalHandler + CollectState + ExecutionContext,
-    E: Environment<Ext>,
+    E: Environment<Ext = Ext>,
 {
     if let Err(err) = proc::init_fixture::<E, JH>(test, fixture_no, &mut journal_handler) {
         total_failed.fetch_add(1, Ordering::SeqCst);
@@ -681,8 +677,8 @@ pub fn check_main<JH, E, F>(
 ) -> anyhow::Result<()>
 where
     JH: JournalHandler + CollectState + ExecutionContext,
-    E: Environment<Ext>,
-    F: Fn() -> JH + std::marker::Sync + std::marker::Send,
+    E: Environment<Ext = Ext>,
+    F: Fn() -> JH + Sync + Send,
 {
     let map = Arc::new(RwLock::new(HashMap::new()));
     if let Err(e) = FixtureLogger::init(Arc::clone(&map)) {

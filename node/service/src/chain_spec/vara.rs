@@ -29,8 +29,8 @@ use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::Perbill;
 use vara_runtime::{
     constants::currency::UNITS as TOKEN, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig,
-    GearConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys,
-    StakerStatus, StakingConfig, SudoConfig, SystemConfig, WASM_BINARY,
+    GenesisConfig, GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
+    StakingConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
 };
 
 // The URL for the telemetry server.
@@ -133,7 +133,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
 }
 
 pub fn local_testnet_config() -> Result<ChainSpec, String> {
-    let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
+    let wasm_binary = WASM_BINARY.ok_or_else(|| "Local test wasm not available".to_string())?;
 
     Ok(ChainSpec::from_genesis(
         // Name
@@ -609,8 +609,6 @@ fn testnet_genesis(
         im_online: ImOnlineConfig { keys: vec![] },
         authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
         transaction_payment: Default::default(),
-        gear: GearConfig {
-            force_queue: Default::default(),
-        },
+        vesting: VestingConfig { vesting: vec![] },
     }
 }

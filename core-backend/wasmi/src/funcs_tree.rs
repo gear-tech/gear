@@ -18,9 +18,7 @@
 
 use crate::state::HostState;
 use alloc::collections::{BTreeMap, BTreeSet};
-use codec::Encode;
-use gear_backend_common::{error_processor::IntoExtError, AsTerminationReason, IntoExtInfo};
-use gear_core::env::Ext;
+use gear_backend_common::{BackendExt, BackendExtError};
 use gear_wasm_instrument::syscalls::SysCallName::{self, *};
 use wasmi::{Func, Memory, Store};
 
@@ -42,8 +40,8 @@ pub fn build<E>(
     forbidden_funcs: BTreeSet<SysCallName>,
 ) -> BTreeMap<SysCallName, Func>
 where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: Encode + AsTerminationReason + IntoExtError,
+    E: BackendExt + 'static,
+    E::Error: BackendExtError,
 {
     use crate::funcs::FuncsHandler as F;
 
@@ -67,7 +65,7 @@ where
             F::status_code(store, forbidden, memory)
         }),
         f.build(Alloc, |forbidden| F::alloc(store, forbidden, memory)),
-        f.build(Free, |forbidden| F::free(store, forbidden)),
+        f.build(Free, |forbidden| F::free(store, forbidden, memory)),
         f.build(BlockHeight, |forbidden| {
             F::block_height(store, forbidden, memory)
         }),
@@ -138,10 +136,12 @@ where
             F::value_available(store, forbidden, memory)
         }),
         f.build(Random, |forbidden| F::random(store, forbidden, memory)),
-        f.build(Leave, |forbidden| F::leave(store, forbidden)),
-        f.build(Wait, |forbidden| F::wait(store, forbidden)),
-        f.build(WaitFor, |forbidden| F::wait_for(store, forbidden)),
-        f.build(WaitUpTo, |forbidden| F::wait_up_to(store, forbidden)),
+        f.build(Leave, |forbidden| F::leave(store, forbidden, memory)),
+        f.build(Wait, |forbidden| F::wait(store, forbidden, memory)),
+        f.build(WaitFor, |forbidden| F::wait_for(store, forbidden, memory)),
+        f.build(WaitUpTo, |forbidden| {
+            F::wait_up_to(store, forbidden, memory)
+        }),
         f.build(Wake, |forbidden| F::wake(store, forbidden, memory)),
         f.build(CreateProgram, |forbidden| {
             F::create_program(store, forbidden, memory)

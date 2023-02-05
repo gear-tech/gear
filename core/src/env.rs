@@ -21,10 +21,10 @@
 use crate::{
     costs::RuntimeCosts,
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, WasmPageNumber},
+    memory::{Memory, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, string::String};
 use codec::{Decode, Encode};
 use gear_core_errors::CoreError;
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -48,11 +48,7 @@ pub trait Ext {
     /// Allocate number of pages.
     ///
     /// The resulting page number should point to `pages` consecutive memory pages.
-    fn alloc(
-        &mut self,
-        pages: WasmPageNumber,
-        mem: &mut impl Memory,
-    ) -> Result<WasmPageNumber, Self::Error>;
+    fn alloc(&mut self, pages: WasmPage, mem: &mut impl Memory) -> Result<WasmPage, Self::Error>;
 
     /// Get the current block height.
     fn block_height(&mut self) -> Result<u32, Self::Error>;
@@ -164,7 +160,7 @@ pub trait Ext {
     ///
     /// Unlike traditional allocator, if multiple pages allocated via `alloc`, all pages
     /// should be `free`-d separately.
-    fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error>;
+    fn free(&mut self, page: WasmPage) -> Result<(), Self::Error>;
 
     /// Send debug message.
     ///
@@ -178,7 +174,7 @@ pub trait Ext {
     fn leave(&mut self) -> Result<(), Self::Error>;
 
     /// Access currently handled message payload.
-    fn read(&mut self) -> Result<&[u8], Self::Error>;
+    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error>;
 
     /// Size of currently handled message payload.
     fn size(&mut self) -> Result<usize, Self::Error>;
@@ -250,4 +246,7 @@ pub trait Ext {
 
     /// Get runtime cost weight.
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64;
+
+    /// Get possible panic string.
+    fn maybe_panic(&self) -> Option<String>;
 }

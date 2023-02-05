@@ -81,6 +81,6 @@ runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", p
 [features]
 default = ["std"]
 std = []
-use-vara-runtime = [
-	"vara-runtime",
-]
+# use-vara-runtime = [
+# 	"vara-runtime",
+# ]

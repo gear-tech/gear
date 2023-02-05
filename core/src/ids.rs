@@ -57,6 +57,13 @@ macro_rules! declare_id {
         )]
         pub struct $name(Hash);
 
+        impl $name {
+            /// Returns id as bytes array.
+            pub fn into_bytes(self) -> Hash {
+                self.0
+            }
+        }
+
         impl From<$name> for Hash {
             fn from(val: $name) -> Hash {
                 val.0
@@ -217,14 +224,7 @@ impl ProgramId {
 
     /// Generate ProgramId from given CodeId and salt
     pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
-        let code_id = code_id.as_ref();
-
-        let len = code_id.len() + salt.len();
-
-        let mut argument = Vec::with_capacity(len);
-        argument.extend_from_slice(code_id);
-        argument.extend_from_slice(salt);
-
+        let argument = [code_id.as_ref(), salt].concat();
         hash(&argument).into()
     }
 }

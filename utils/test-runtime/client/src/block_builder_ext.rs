@@ -26,9 +26,9 @@ use sc_block_builder::BlockBuilderApi;
 // Extension trait for test block builder.
 pub trait BlockBuilderExt {
     // Add submit extrinsic to the block.
-    fn push_submit(&mut self, message: test_runtime::Message) -> Result<(), sp_blockchain::Error>;
+    fn push_signed(&mut self, message: test_runtime::Message) -> Result<(), sp_blockchain::Error>;
     // Add storage change extrinsic to the block.
-    fn push_storage_change(
+    fn push_custom(
         &mut self,
         key: Vec<u8>,
         value: Option<Vec<u8>>,
@@ -42,15 +42,15 @@ where
         + ApiExt<test_runtime::Block, StateBackend = backend::StateBackendFor<B, test_runtime::Block>>,
     B: backend::Backend<test_runtime::Block>,
 {
-    fn push_submit(&mut self, message: test_runtime::Message) -> Result<(), sp_blockchain::Error> {
+    fn push_signed(&mut self, message: test_runtime::Message) -> Result<(), sp_blockchain::Error> {
         self.push(message.into_signed_tx())
     }
 
-    fn push_storage_change(
+    fn push_custom(
         &mut self,
         key: Vec<u8>,
         value: Option<Vec<u8>>,
     ) -> Result<(), sp_blockchain::Error> {
-        self.push(test_runtime::Extrinsic::StorageChange(key, value))
+        self.push(test_runtime::Extrinsic::Custom(key, value))
     }
 }

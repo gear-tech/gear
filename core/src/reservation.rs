@@ -22,6 +22,7 @@ use crate::ids::{MessageId, ReservationId};
 use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
 use gear_core_errors::ExecutionError;
+use hashbrown::HashMap;
 use scale_info::TypeInfo;
 
 /// Gas reserver.
@@ -192,7 +193,7 @@ impl GasReserver {
 }
 
 /// Gas reservation states.
-pub type GasReservationStates = BTreeMap<ReservationId, GasReservationState>;
+pub type GasReservationStates = HashMap<ReservationId, GasReservationState>;
 
 /// Gas reservation state.
 ///

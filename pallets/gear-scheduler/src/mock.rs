@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_scheduler;
-use common::QueueRunner;
+use common::storage::Limiter;
 use frame_support::{
     construct_runtime,
     pallet_prelude::*,
@@ -26,8 +26,8 @@ use frame_support::{
     weights::constants::RocksDbWeight,
 };
 use frame_support_test::TestRandomness;
-use frame_system as system;
-use pallet_gear::BlockGasLimitOf;
+use frame_system::{self as system, limits::BlockWeights};
+use pallet_gear::GasAllowanceOf;
 use sp_core::{ConstU128, H256};
 use sp_runtime::{
     testing::Header,
@@ -54,7 +54,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
-        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
+        GearProgram: pallet_gear_program::{Pallet, Storage},
         GearMessenger: pallet_gear_messenger::{Pallet},
         GearScheduler: pallet_gear_scheduler::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
@@ -116,12 +116,7 @@ impl common::GasPrice for GasConverter {
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
-impl pallet_gear_program::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = ();
-    type Currency = Balances;
-    type Messenger = GearMessenger;
-}
+impl pallet_gear_program::Config for Test {}
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
@@ -139,6 +134,7 @@ impl pallet_gear::Config for Test {
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
+    type ProgramStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
     type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;
@@ -214,7 +210,6 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| {
-        Gear::force_always();
         System::set_block_number(1);
         Gear::on_initialize(System::block_number());
     });
@@ -230,15 +225,18 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
 
-        let remaining_weight = remaining_weight.unwrap_or(BlockGasLimitOf::<Test>::get());
-        log::debug!(
-            "🧱 Running run #{} with weight {}",
-            System::block_number(),
-            remaining_weight
-        );
+        if let Some(remaining_weight) = remaining_weight {
+            GasAllowanceOf::<Test>::put(remaining_weight);
+            let max_block_weight =
+                <<Test as frame_system::Config>::BlockWeights as Get<BlockWeights>>::get()
+                    .max_block;
+            System::register_extra_weight_unchecked(
+                max_block_weight.saturating_sub(Weight::from_ref_time(remaining_weight)),
+                DispatchClass::Normal,
+            );
+        }
 
-        Gear::run_queue(remaining_weight);
-        Gear::processing_completed();
+        Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
         Gear::on_finalize(System::block_number());
 
         assert!(!System::events().iter().any(|e| {

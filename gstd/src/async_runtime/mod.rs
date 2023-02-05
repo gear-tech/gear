@@ -26,7 +26,7 @@ mod waker;
 pub use self::futures::message_loop;
 
 use self::futures::FuturesMap;
-use crate::prelude::BTreeMap;
+use hashbrown::HashMap;
 pub(crate) use locks::Lock;
 use locks::LocksMap;
 pub(crate) use signals::ReplyPoll;
@@ -35,7 +35,7 @@ use signals::WakeSignals;
 static mut FUTURES: Option<FuturesMap> = None;
 
 pub(crate) fn futures() -> &'static mut FuturesMap {
-    unsafe { FUTURES.get_or_insert_with(BTreeMap::new) }
+    unsafe { FUTURES.get_or_insert_with(HashMap::new) }
 }
 
 static mut SIGNALS: Option<WakeSignals> = None;

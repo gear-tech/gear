@@ -37,14 +37,20 @@ async fn keyhasher_size_exceed() -> Result<()> {
 
     // Program initialization.
     let (mid, _pid, _) = api
-        .upload_program_bytes_by_path(PATH, gclient::bytes_now(), "", gas_limit, 0)
+        .upload_program_bytes_by_path(
+            PATH,
+            gclient::now_in_micros().to_le_bytes(),
+            "",
+            gas_limit,
+            0,
+        )
         .await?;
 
     // Asserting successful initialization.
     assert!(listener.message_processed(mid).await?.succeed());
 
     // Check no runtime panic occurred
-    assert!(!api.queue_processing_stopped().await?);
+    assert!(!api.queue_processing_stalled().await?);
 
     Ok(())
 }

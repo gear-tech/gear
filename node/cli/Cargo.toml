@@ -16,10 +16,10 @@ name = "gear"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.0.32", features = ["derive"] }
+clap = { version = "4.1.4", features = ["derive"] }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17" }
-futures = "0.3.21"
+futures = "0.3.26"
 
 # Gear
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
@@ -58,25 +58,25 @@ gear-program = { path = "../../program", features = [ "cli" ], optional = true }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 
 [features]
-default = ["gear-native", "vara-native", "lazy-pages", "program"]
+default = ["gear-native", "vara-native", "lazy-pages"]
 gear-native = [
 	"service/gear-native",
 	"gear-runtime-test-cli?/gear-native",
 	"gear-runtime",
-	"gear-program/gear"
+	"gear-program?/gear"
 ]
 vara-native = [
 	"service/vara-native",
 	"gear-runtime-test-cli?/vara-native",
 	"vara-runtime",
-	"gear-program/vara"
+	"gear-program?/vara"
 ]
 lazy-pages = [
 	"service/lazy-pages",
 	"gear-runtime-test-cli?/lazy-pages",
 	"vara-runtime?/lazy-pages",
 	"gear-runtime?/lazy-pages",
-	"gear-program/lazy-pages",
+	"gear-program?/lazy-pages",
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",
@@ -87,7 +87,7 @@ debug-mode = [
 	"service/debug-mode",
 	"gear-runtime?/debug-mode",
 	"vara-runtime?/debug-mode",
-	"gear-program/debug-mode",
+	"gear-program?/debug-mode",
 ]
 try-runtime = [
 	"service/try-runtime",

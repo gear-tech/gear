@@ -132,12 +132,7 @@ impl pallet_gear_messenger::Config for Test {
     type CurrentBlockNumber = Gear;
 }
 
-impl pallet_gear_program::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = ();
-    type Currency = Balances;
-    type Messenger = GearMessenger;
-}
+impl pallet_gear_program::Config for Test {}
 
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
@@ -154,6 +149,7 @@ impl pallet_gear::Config for Test {
     type Schedule = GearSchedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
+    type ProgramStorage = GearProgram;
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
     type ReservationsLimit = ConstU64<256>;

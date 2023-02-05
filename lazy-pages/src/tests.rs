@@ -62,7 +62,10 @@ fn read_write_flag_works() {
         }
     }
 
-    assert!(init_with_handler::<TestHandler>(LazyPagesVersion::Version1));
+    assert!(init_with_handler::<TestHandler>(
+        LazyPagesVersion::Version1,
+        Default::default()
+    ));
 
     let page_size = region::page::size();
     let addr = region::alloc(page_size, Protection::NONE).unwrap();
@@ -79,7 +82,7 @@ fn read_write_flag_works() {
 
 #[test]
 fn test_mprotect_pages() {
-    use gear_core::memory::{PageNumber, PageU32Size, WasmPageNumber};
+    use gear_core::memory::{GearPage, PageU32Size, WasmPage};
 
     const OLD_VALUE: u8 = 99;
     const NEW_VALUE: u8 = 100;
@@ -92,8 +95,8 @@ fn test_mprotect_pages() {
             let ps = region::page::size();
             let addr = region::page::floor(info.fault_addr);
             region::protect(addr, ps, region::Protection::READ_WRITE).unwrap();
-            for p in 0..ps / PageNumber::size() as usize {
-                *((mem + p * PageNumber::size() as usize) as *mut u8) = NEW_VALUE;
+            for p in 0..ps / GearPage::size() as usize {
+                *((mem + p * GearPage::size() as usize) as *mut u8) = NEW_VALUE;
             }
             region::protect(addr, ps, region::Protection::READ).unwrap();
 
@@ -103,23 +106,26 @@ fn test_mprotect_pages() {
 
     env_logger::init();
 
-    assert!(init_with_handler::<TestHandler>(LazyPagesVersion::Version1));
+    assert!(init_with_handler::<TestHandler>(
+        LazyPagesVersion::Version1,
+        Default::default()
+    ));
 
-    let mut v = vec![0u8; 3 * WasmPageNumber::size() as usize];
+    let mut v = vec![0u8; 3 * WasmPage::size() as usize];
     let buff = v.as_mut_ptr() as usize;
-    let page_begin = ((buff + WasmPageNumber::size() as usize) / WasmPageNumber::size() as usize)
-        * WasmPageNumber::size() as usize;
-    let mem_size = 2 * WasmPageNumber::size();
+    let page_begin = ((buff + WasmPage::size() as usize) / WasmPage::size() as usize)
+        * WasmPage::size() as usize;
+    let mem_size = 2 * WasmPage::size();
 
     // Gear pages in 2 wasm pages. Randomly choose pages, which will be protected,
     // but because macos with M1 has page size == 16kB, we should include all gear pages from 16kB interval.
     // This test can fail if page size is bigger than 16kB.
     let pages_protected =
-        [0, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23].map(|p| PageNumber::new(p).unwrap());
+        [0, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23].map(|p| GearPage::new(p).unwrap());
     let pages_unprotected = [
         4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31,
     ]
-    .map(|p| PageNumber::new(p).unwrap());
+    .map(|p| GearPage::new(p).unwrap());
 
     // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {

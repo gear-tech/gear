@@ -40,7 +40,7 @@ pub use iterable::{
     KeyIterableByKeyMap,
 };
 pub use key::{KeyFor, MailboxKeyGen, QueueKeyGen, WaitlistKeyGen};
-pub use map::MapStorage;
+pub use map::{AppendMapStorage, MapStorage};
 pub use value::ValueStorage;
 
 use codec::{Decode, Encode, MaxEncodedLen};

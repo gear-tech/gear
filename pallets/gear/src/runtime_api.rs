@@ -17,14 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use common::ActiveProgram;
 use core::convert::TryFrom;
-use gear_core::memory::WasmPageNumber;
+use gear_core::memory::WasmPage;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
-    pub allocations: BTreeSet<WasmPageNumber>,
-    pub program_pages: Option<BTreeMap<PageNumber, PageBuf>>,
+    pub allocations: BTreeSet<WasmPage>,
+    pub program_pages: Option<BTreeMap<GearPage, PageBuf>>,
 }
 
 impl<T: Config> Pallet<T>
@@ -230,12 +231,13 @@ where
                 let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
                 let origin = ProgramId::from_origin(source);
 
-                core_processor::process::<Ext, ExecutionEnvironment>(
+                core_processor::process::<ExecutionEnvironment>(
                     &block_config,
                     (context, code, balance, origin).into(),
                     (random.encode(), bn.unique_saturated_into()),
                     memory_pages,
                 )
+                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
             };
 
             let journal = build_journal();
@@ -306,7 +308,10 @@ where
     }
 
     fn code_with_memory(program_id: ProgramId) -> Result<CodeWithMemoryData, String> {
-        let program = common::get_active_program(program_id.into_origin())
+        let (program, _bn) = ProgramStorageOf::<T>::get_program(program_id)
+            .ok_or(String::from("Program not found"))?;
+
+        let program = ActiveProgram::try_from(program)
             .map_err(|e| format!("Get active program error: {e:?}"))?;
 
         let code_id = CodeId::from_origin(program.code_hash);
@@ -315,8 +320,11 @@ where
 
         #[cfg(not(feature = "lazy-pages"))]
         let program_pages = Some(
-            common::get_program_pages_data(program_id.into_origin(), &program)
-                .map_err(|e| format!("Get program pages data error: {e:?}"))?,
+            ProgramStorageOf::<T>::get_program_data_for_pages(
+                program_id,
+                program.pages_with_data.iter(),
+            )
+            .map_err(|e| format!("Get program pages data error: {e:?}"))?,
         );
 
         #[cfg(feature = "lazy-pages")]
@@ -338,7 +346,9 @@ where
         argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
-        assert!(lazy_pages::try_to_enable_lazy_pages());
+        assert!(lazy_pages::try_to_enable_lazy_pages(
+            ProgramStorageOf::<T>::pages_final_prefix()
+        ));
 
         let schedule = T::Schedule::get();
 
@@ -366,7 +376,12 @@ where
         let mut payload = argument.unwrap_or_default();
         payload.append(&mut Self::read_state_impl(program_id)?);
 
-        core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
+        let block_info = BlockInfo {
+            height: Self::block_number().unique_saturated_into(),
+            timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+        };
+
+        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             function.into(),
             instrumented_code,
             None,
@@ -374,12 +389,15 @@ where
             None,
             payload,
             BlockGasLimitOf::<T>::get() / 4,
+            block_info,
         )
     }
 
     pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
-        assert!(lazy_pages::try_to_enable_lazy_pages());
+        assert!(lazy_pages::try_to_enable_lazy_pages(
+            ProgramStorageOf::<T>::pages_final_prefix()
+        ));
 
         log::debug!("Reading state of {program_id:?}");
 
@@ -389,7 +407,12 @@ where
             program_pages,
         } = Self::code_with_memory(program_id)?;
 
-        core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
+        let block_info = BlockInfo {
+            height: Self::block_number().unique_saturated_into(),
+            timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+        };
+
+        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("state"),
             instrumented_code,
             program_pages,
@@ -397,12 +420,15 @@ where
             Some(program_id),
             Default::default(),
             BlockGasLimitOf::<T>::get() / 4,
+            block_info,
         )
     }
 
     pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
         #[cfg(feature = "lazy-pages")]
-        assert!(lazy_pages::try_to_enable_lazy_pages());
+        assert!(lazy_pages::try_to_enable_lazy_pages(
+            ProgramStorageOf::<T>::pages_final_prefix()
+        ));
 
         log::debug!("Reading metahash of {program_id:?}");
 
@@ -412,7 +438,12 @@ where
             program_pages,
         } = Self::code_with_memory(program_id)?;
 
-        core_processor::informational::execute_for_reply::<Ext, ExecutionEnvironment<String>, String>(
+        let block_info = BlockInfo {
+            height: Self::block_number().unique_saturated_into(),
+            timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+        };
+
+        core_processor::informational::execute_for_reply::<ExecutionEnvironment<String>, String>(
             String::from("metahash"),
             instrumented_code,
             program_pages,
@@ -420,6 +451,7 @@ where
             Some(program_id),
             Default::default(),
             BlockGasLimitOf::<T>::get() / 4,
+            block_info,
         )
         .and_then(|bytes| {
             H256::decode(&mut bytes.as_ref()).map_err(|_| "Failed to decode hash".into())

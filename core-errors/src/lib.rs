@@ -25,15 +25,12 @@ extern crate alloc;
 
 #[cfg(feature = "codec")]
 use codec::{Decode, Encode};
-use core::fmt;
+use core::fmt::{Debug, Display};
 #[cfg(feature = "codec")]
 use scale_info::TypeInfo;
 
 /// Core error.
-pub trait CoreError: fmt::Display + fmt::Debug + Sized {
-    /// Attempt to call forbidden sys-call.
-    fn forbidden_function() -> Self;
-}
+pub trait CoreError: Debug + Display + Sized {}
 
 /// Error using messages.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
@@ -42,6 +39,28 @@ pub enum MessageError {
     /// Message has bigger then allowed one message size
     #[display(fmt = "Max message size exceed")]
     MaxMessageSizeExceed,
+
+    /// Overflow in 'gr_read'
+    #[display(fmt = "Length is overflowed ({at} + {len}) to read payload")]
+    TooBigReadLen {
+        /// Range starts at
+        at: u32,
+        /// Range length
+        len: u32,
+    },
+
+    /// Cannot take data in payload range
+    #[display(
+        fmt = "Cannot take data in payload range [{start}; {end}) from message with size {msg_len}"
+    )]
+    ReadWrongRange {
+        /// Range starts at
+        start: u32,
+        /// Range ends at
+        end: u32,
+        /// Message length
+        msg_len: u32,
+    },
 
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages allowed within a single
@@ -112,10 +131,6 @@ pub enum MessageError {
         value_left: u128,
     },
 
-    /// The error occurs when program receives too big payload.
-    #[display(fmt = "Received message with abnormal payload size")]
-    IncomingPayloadTooBig,
-
     /// The error occurs when functions related to reply context, used without it.
     #[display(fmt = "Not running in reply context")]
     NoReplyContext,
@@ -160,11 +175,6 @@ pub enum MemoryError {
     #[display(fmt = "Access to the page not allocated to this program")]
     MemoryAccessError,
 
-    /// Invalid page data size.
-    // TODO: (issue #1956) change to u32.
-    #[display(fmt = "Page data has wrong size: {_0:#x}")]
-    InvalidPageDataSize(u64),
-
     /// Memory size cannot be zero after grow is applied for memory
     #[display(fmt = "Memory unexpectedly has zero size after grow")]
     MemSizeIsZeroAfterGrow,
@@ -188,6 +198,9 @@ pub enum ExecutionError {
     /// An error occurs in attempt to call forbidden sys-call.
     #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
+    /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
+    #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
+    InvalidDebugString,
     /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
     #[display(fmt = "Invalid reservation ID")]
     InvalidReservationId,
@@ -253,11 +266,5 @@ impl ExtError {
     /// Size of error encoded in SCALE codec
     pub fn encoded_size(&self) -> usize {
         Encode::encoded_size(self)
-    }
-}
-
-impl CoreError for ExtError {
-    fn forbidden_function() -> Self {
-        Self::Execution(ExecutionError::ForbiddenFunction)
     }
 }

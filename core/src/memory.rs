@@ -18,21 +18,16 @@
 
 //! Module for memory and allocations context.
 
+use crate::buffer::LimitedVec;
+use alloc::collections::BTreeSet;
+use codec::{Decode, Encode, EncodeLike, Input, Output};
 use core::{
-    convert::TryFrom,
+    fmt,
     fmt::Debug,
     iter,
     num::NonZeroU32,
     ops::{Deref, DerefMut},
 };
-
-use alloc::{
-    boxed::Box,
-    collections::{BTreeMap, BTreeSet},
-    vec::Vec,
-};
-use codec::{Decode, Encode};
-use core::fmt;
 use scale_info::TypeInfo;
 
 /// A WebAssembly page has a constant size of 64KiB.
@@ -64,70 +59,109 @@ pub const GEAR_PAGE_SIZE: usize = 0x1000;
 /// native page sizes. You can see an example of using in crate `gear-lazy-pages`.
 pub const PAGE_STORAGE_GRANULARITY: usize = 0x4000;
 
+static_assertions::const_assert!(WASM_PAGE_SIZE < u32::MAX as usize);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % PAGE_STORAGE_GRANULARITY, 0);
 static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY % GEAR_PAGE_SIZE, 0);
 
+/// Interval in wasm program memory.
+#[derive(Debug, Clone, Copy)]
+pub struct MemoryInterval {
+    /// Interval offset in bytes.
+    pub offset: u32,
+    /// Interval size in bytes.
+    pub size: u32,
+}
+
+impl From<(u32, u32)> for MemoryInterval {
+    fn from(val: (u32, u32)) -> Self {
+        MemoryInterval {
+            offset: val.0,
+            size: val.1,
+        }
+    }
+}
+
+impl From<MemoryInterval> for (u32, u32) {
+    fn from(val: MemoryInterval) -> Self {
+        (val.offset, val.size)
+    }
+}
+
+/// Alias for inner type of page buffer.
+pub type PageBufInner = LimitedVec<u8, (), GEAR_PAGE_SIZE>;
+
 /// Buffer for gear page data.
-#[derive(Clone, Encode, Decode, PartialEq, Eq)]
-pub struct PageBuf(Box<[u8; GEAR_PAGE_SIZE]>);
+#[derive(Clone, PartialEq, Eq, TypeInfo)]
+pub struct PageBuf(PageBufInner);
+
+// These traits are implemented intentionally by hand to achieve two goals:
+// - store PageBuf as fixed size array in a storage to eliminate extra bytes
+//      for length;
+// - work with PageBuf as with Vec. This is to workaround a limit in 2_048
+//      items for fixed length array in polkadot.js/metadata.
+//      Grep 'Only support for [[]Type' to get more details on that.
+impl Encode for PageBuf {
+    fn size_hint(&self) -> usize {
+        GEAR_PAGE_SIZE
+    }
+
+    fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
+        dest.write(self.0.get())
+    }
+}
+
+impl Decode for PageBuf {
+    #[inline]
+    fn decode<I: Input>(input: &mut I) -> Result<Self, codec::Error> {
+        let mut buffer = PageBufInner::new_default();
+        input.read(buffer.get_mut())?;
+        Ok(Self(buffer))
+    }
+}
+
+impl EncodeLike for PageBuf {}
 
 impl fmt::Debug for PageBuf {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
             "PageBuf({:?}..{:?})",
-            &self.0[0..10],
-            &self.0[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
+            &self.0.get()[0..10],
+            &self.0.get()[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
         )
     }
 }
 
 impl Deref for PageBuf {
-    type Target = Box<[u8; GEAR_PAGE_SIZE]>;
+    type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        &self.0
+        self.0.get()
     }
 }
 
 impl DerefMut for PageBuf {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        self.0.get_mut()
     }
 }
 
 impl PageBuf {
-    /// Tries to transform vec<u8> into page buffer.
-    /// Makes it without any reallocations or memcpy: vector's buffer becomes PageBuf without any changes,
-    /// except vector's buffer capacity, which is removed.
-    pub fn new_from_vec(v: Vec<u8>) -> Result<Self, Error> {
-        Box::<[u8; GEAR_PAGE_SIZE]>::try_from(v.into_boxed_slice())
-            .map_err(|data| Error::InvalidPageDataSize(data.len() as u64))
-            .map(Self)
-    }
-
     /// Returns new page buffer with zeroed data.
     pub fn new_zeroed() -> PageBuf {
-        Self(Box::<[u8; GEAR_PAGE_SIZE]>::new([0u8; GEAR_PAGE_SIZE]))
+        Self(PageBufInner::new_default())
     }
 
-    /// Convert page buffer into vector without reallocations.
-    pub fn into_vec(self) -> Vec<u8> {
-        (self.0 as Box<[_]>).into_vec()
+    /// Creates PageBuf from inner buffer. If the buffer has
+    /// the size of GEAR_PAGE_SIZE then no reallocations occur. In other
+    /// case it will be extended with zeros.
+    ///
+    /// The method is implemented intentionally instead of trait From to
+    /// highlight conversion cases in the source code.
+    pub fn from_inner(mut inner: PageBufInner) -> Self {
+        inner.extend_with(0);
+        Self(inner)
     }
-}
-
-/// Tries to convert vector data map to page buffer data map.
-/// Makes it without buffer reallocations.
-pub fn vec_page_data_map_to_page_buf_map(
-    pages_data: BTreeMap<PageNumber, Vec<u8>>,
-) -> Result<BTreeMap<PageNumber, PageBuf>, Error> {
-    let mut pages_data_res = BTreeMap::new();
-    for (page, data) in pages_data {
-        let data = PageBuf::new_from_vec(data)?;
-        pages_data_res.insert(page, data);
-    }
-    Ok(pages_data_res)
 }
 
 /// Errors when act with PageU32Size.
@@ -148,6 +182,7 @@ pub enum PageError {
 }
 
 /// U32 size pages iterator, to iterate continuously from one page to another.
+#[derive(Debug, Clone)]
 pub struct PagesIter<P: PageU32Size> {
     page: P,
     end: P,
@@ -170,6 +205,7 @@ impl<P: PageU32Size> Iterator for PagesIter<P> {
 }
 
 /// U32 size pages iterator, to iterate continuously from one page to another, including the last one.
+#[derive(Debug, Clone)]
 pub struct PagesIterInclusive<P: PageU32Size> {
     page: Option<P>,
     end: P,
@@ -365,9 +401,9 @@ pub use gear_core_errors::MemoryError as Error;
 #[derive(
     Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord, Hash, TypeInfo, Default,
 )]
-pub struct PageNumber(u32);
+pub struct GearPage(u32);
 
-impl PageU32Size for PageNumber {
+impl PageU32Size for GearPage {
     fn size_non_zero() -> NonZeroU32 {
         static_assertions::const_assert_ne!(GEAR_PAGE_SIZE, 0);
         unsafe { NonZeroU32::new_unchecked(GEAR_PAGE_SIZE as u32) }
@@ -384,9 +420,9 @@ impl PageU32Size for PageNumber {
 
 /// Wasm page number.
 #[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord, TypeInfo, Default)]
-pub struct WasmPageNumber(u32);
+pub struct WasmPage(u32);
 
-impl PageU32Size for WasmPageNumber {
+impl PageU32Size for WasmPage {
     fn size_non_zero() -> NonZeroU32 {
         static_assertions::const_assert_ne!(WASM_PAGE_SIZE, 0);
         unsafe { NonZeroU32::new_unchecked(WASM_PAGE_SIZE as u32) }
@@ -420,19 +456,19 @@ impl PageU32Size for GranularityPage {
     }
 }
 
-impl From<u16> for WasmPageNumber {
+impl From<u16> for WasmPage {
     fn from(value: u16) -> Self {
-        // u16::MAX * WasmPageNumber::size() - 1 == u32::MAX
+        // u16::MAX * WasmPage::size() - 1 == u32::MAX
         static_assertions::const_assert!(WASM_PAGE_SIZE == 0x10000);
-        WasmPageNumber(value as u32)
+        WasmPage(value as u32)
     }
 }
 
-impl From<u16> for PageNumber {
+impl From<u16> for GearPage {
     fn from(value: u16) -> Self {
-        // u16::MAX * PageNumber::size() - 1 <= u32::MAX
+        // u16::MAX * GearPage::size() - 1 <= u32::MAX
         static_assertions::const_assert!(GEAR_PAGE_SIZE <= 0x10000);
-        PageNumber(value as u32)
+        GearPage(value as u32)
     }
 }
 
@@ -447,10 +483,10 @@ static_assertions::const_assert!(
 /// Backend wasm memory interface.
 pub trait Memory {
     /// Grow memory by number of pages.
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error>;
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Error>;
 
     /// Return current size of the memory.
-    fn size(&self) -> WasmPageNumber;
+    fn size(&self) -> WasmPage;
 
     /// Set memory region at specific pointer.
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error>;
@@ -479,10 +515,10 @@ pub trait Memory {
 #[derive(Debug)]
 pub struct AllocationsContext {
     /// Pages which has been in storage before execution
-    init_allocations: BTreeSet<WasmPageNumber>,
-    allocations: BTreeSet<WasmPageNumber>,
-    max_pages: WasmPageNumber,
-    static_pages: WasmPageNumber,
+    init_allocations: BTreeSet<WasmPage>,
+    allocations: BTreeSet<WasmPage>,
+    max_pages: WasmPage,
+    static_pages: WasmPage,
 }
 
 /// Before and after memory grow actions.
@@ -494,11 +530,11 @@ pub trait GrowHandler {
 }
 
 /// Grow handler do nothing implementation
-pub struct GrowHandlerNothing;
+pub struct NoopGrowHandler;
 
-impl GrowHandler for GrowHandlerNothing {
+impl GrowHandler for NoopGrowHandler {
     fn before_grow_action(_mem: &mut impl Memory) -> Self {
-        GrowHandlerNothing
+        NoopGrowHandler
     }
     fn after_grow_action(self, _mem: &mut impl Memory) -> Result<(), Error> {
         Ok(())
@@ -509,9 +545,9 @@ impl GrowHandler for GrowHandlerNothing {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AllocInfo {
     /// Zero page of allocated interval.
-    pub page: WasmPageNumber,
+    pub page: WasmPage,
     /// Number of pages, which has been allocated inside already existing memory.
-    pub not_grown: WasmPageNumber,
+    pub not_grown: WasmPage,
 }
 
 impl AllocationsContext {
@@ -521,9 +557,9 @@ impl AllocationsContext {
     /// and allocation manager. Also configurable `static_pages` and `max_pages`
     /// are set.
     pub fn new(
-        allocations: BTreeSet<WasmPageNumber>,
-        static_pages: WasmPageNumber,
-        max_pages: WasmPageNumber,
+        allocations: BTreeSet<WasmPage>,
+        static_pages: WasmPage,
+        max_pages: WasmPage,
     ) -> Self {
         Self {
             init_allocations: allocations.clone(),
@@ -535,33 +571,33 @@ impl AllocationsContext {
 
     /// Return `true` if the page is the initial page,
     /// it means that the page was already in the storage.
-    pub fn is_init_page(&self, page: WasmPageNumber) -> bool {
+    pub fn is_init_page(&self, page: WasmPage) -> bool {
         self.init_allocations.contains(&page)
     }
 
     /// Alloc specific number of pages for the currently running program.
     pub fn alloc<G: GrowHandler>(
         &mut self,
-        pages: WasmPageNumber,
+        pages: WasmPage,
         mem: &mut impl Memory,
     ) -> Result<AllocInfo, Error> {
         let mem_size = mem.size();
-        let mut previous = self.static_pages;
-        let mut start = None;
-        for &page in self.allocations.iter().chain(iter::once(&mem_size)) {
-            if page
-                .sub(previous)
-                .map_err(|_| Error::IncorrectAllocationsSetOrMemSize)?
-                >= pages
-            {
-                start = Some(previous);
+        let mut start = self.static_pages;
+        let mut start_page = None;
+        for &end in self.allocations.iter().chain(iter::once(&mem_size)) {
+            let page_gap = end
+                .sub(start)
+                .map_err(|_| Error::IncorrectAllocationsSetOrMemSize)?;
+
+            if page_gap >= pages {
+                start_page = Some(start);
                 break;
             }
 
-            previous = page.inc().map_err(|_| Error::OutOfBounds)?;
+            start = end.inc().map_err(|_| Error::OutOfBounds)?;
         }
 
-        let (start, not_grown) = if let Some(start) = start {
+        let (start, not_grown) = if let Some(start) = start_page {
             (start, pages)
         } else {
             // If we cannot find interval between already allocated pages, then try to alloc new pages.
@@ -582,13 +618,13 @@ impl AllocationsContext {
             // Panic is impossible, because in loop above we checked it.
             let extra_grow = end.sub(mem_size).unwrap_or_else(|err| {
                 unreachable!(
-                    "`mem_size` must be bigger than all allocations or static pages, but get {}",
+                    "`mem_size` must be bigger than all allocations and static pages, but get {}",
                     err
                 )
             });
 
             // Panic is impossible, in other case we would found interval inside existing memory.
-            if extra_grow == WasmPageNumber::zero() {
+            if extra_grow == WasmPage::zero() {
                 unreachable!("`extra grow cannot be zero");
             }
 
@@ -623,7 +659,7 @@ impl AllocationsContext {
     /// Free specific page.
     ///
     /// Currently running program should own this page.
-    pub fn free(&mut self, page: WasmPageNumber) -> Result<(), Error> {
+    pub fn free(&mut self, page: WasmPage) -> Result<(), Error> {
         if page > self.max_pages {
             Err(Error::OutOfBounds)
         } else if page < self.static_pages || !self.allocations.remove(&page) {
@@ -634,46 +670,39 @@ impl AllocationsContext {
     }
 
     /// Decomposes this instance and returns allocations.
-    pub fn into_parts(
-        self,
-    ) -> (
-        WasmPageNumber,
-        BTreeSet<WasmPageNumber>,
-        BTreeSet<WasmPageNumber>,
-    ) {
+    pub fn into_parts(self) -> (WasmPage, BTreeSet<WasmPage>, BTreeSet<WasmPage>) {
         (self.static_pages, self.init_allocations, self.allocations)
     }
 }
 
 #[cfg(test)]
-/// This module contains tests of PageNumber struct
+/// This module contains tests of GearPage struct
 mod tests {
     use super::*;
 
-    use alloc::{vec, vec::Vec};
+    use alloc::vec::Vec;
 
     #[test]
-    /// Test that [PageNumber] add up correctly
+    /// Test that [GearPage] add up correctly
     fn page_number_addition() {
-        let sum = PageNumber(100).add(200.into()).unwrap();
-        assert_eq!(sum, PageNumber(300));
+        let sum = GearPage(100).add(200.into()).unwrap();
+        assert_eq!(sum, GearPage(300));
     }
 
     #[test]
-    /// Test that [PageNumber] subtract correctly
+    /// Test that [GearPage] subtract correctly
     fn page_number_subtraction() {
-        let subtraction = PageNumber(299).sub(199.into()).unwrap();
-        assert_eq!(subtraction, PageNumber(100))
+        let subtraction = GearPage(299).sub(199.into()).unwrap();
+        assert_eq!(subtraction, GearPage(100))
     }
 
     #[test]
-    /// Test that [WasmPageNumber] set transforms correctly to [PageNumber] set.
+    /// Test that [WasmPage] set transforms correctly to [GearPage] set.
     fn wasm_pages_to_gear_pages() {
-        let wasm_pages: Vec<WasmPageNumber> =
-            [0u32, 10u32].iter().copied().map(WasmPageNumber).collect();
+        let wasm_pages: Vec<WasmPage> = [0u32, 10u32].iter().copied().map(WasmPage).collect();
         let gear_pages: Vec<u32> = wasm_pages
             .iter()
-            .flat_map(|p| p.to_pages_iter::<PageNumber>())
+            .flat_map(|p| p.to_pages_iter::<GearPage>())
             .map(|p| p.0)
             .collect();
 
@@ -694,65 +723,55 @@ mod tests {
         .format_level(true)
         .try_init()
         .expect("cannot init logger");
-        let mut data = vec![199u8; PageNumber::size() as usize];
-        data[1] = 2;
-        let page_buf = PageBuf::new_from_vec(data).unwrap();
+
+        let mut data = PageBufInner::filled_with(199u8);
+        data.get_mut()[1] = 2;
+        let page_buf = PageBuf::from_inner(data);
         log::debug!("page buff = {:?}", page_buf);
     }
 
     #[test]
     fn free_fails() {
-        let mut ctx =
-            AllocationsContext::new(BTreeSet::default(), WasmPageNumber(0), WasmPageNumber(0));
-        assert_eq!(ctx.free(WasmPageNumber(1)), Err(Error::OutOfBounds));
+        let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(0), WasmPage(0));
+        assert_eq!(ctx.free(WasmPage(1)), Err(Error::OutOfBounds));
+
+        let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(1), WasmPage(0));
+        assert_eq!(ctx.free(WasmPage(0)), Err(Error::InvalidFree(0)));
 
         let mut ctx =
-            AllocationsContext::new(BTreeSet::default(), WasmPageNumber(1), WasmPageNumber(0));
-        assert_eq!(ctx.free(WasmPageNumber(0)), Err(Error::InvalidFree(0)));
-
-        let mut ctx = AllocationsContext::new(
-            BTreeSet::from([WasmPageNumber(0)]),
-            WasmPageNumber(1),
-            WasmPageNumber(1),
-        );
-        assert_eq!(ctx.free(WasmPageNumber(1)), Err(Error::InvalidFree(1)));
+            AllocationsContext::new(BTreeSet::from([WasmPage(0)]), WasmPage(1), WasmPage(1));
+        assert_eq!(ctx.free(WasmPage(1)), Err(Error::InvalidFree(1)));
     }
 
     #[test]
     fn page_iterator() {
         let test = |num1, num2| {
-            let p1 = PageNumber::from(num1);
-            let p2 = PageNumber::from(num2);
+            let p1 = GearPage::from(num1);
+            let p2 = GearPage::from(num2);
 
             assert_eq!(
-                p1.iter_end(p2).unwrap().collect::<Vec<PageNumber>>(),
-                (num1..num2)
-                    .map(PageNumber::from)
-                    .collect::<Vec<PageNumber>>(),
+                p1.iter_end(p2).unwrap().collect::<Vec<GearPage>>(),
+                (num1..num2).map(GearPage::from).collect::<Vec<GearPage>>(),
             );
             assert_eq!(
                 p1.iter_end_inclusive(p2)
                     .unwrap()
-                    .collect::<Vec<PageNumber>>(),
-                (num1..=num2)
-                    .map(PageNumber::from)
-                    .collect::<Vec<PageNumber>>(),
+                    .collect::<Vec<GearPage>>(),
+                (num1..=num2).map(GearPage::from).collect::<Vec<GearPage>>(),
             );
             assert_eq!(
-                p1.iter_count(p2).unwrap().collect::<Vec<PageNumber>>(),
+                p1.iter_count(p2).unwrap().collect::<Vec<GearPage>>(),
                 (num1..num1 + num2)
-                    .map(PageNumber::from)
-                    .collect::<Vec<PageNumber>>(),
+                    .map(GearPage::from)
+                    .collect::<Vec<GearPage>>(),
             );
             assert_eq!(
-                p1.iter_from_zero().collect::<Vec<PageNumber>>(),
-                (0..num1).map(PageNumber::from).collect::<Vec<PageNumber>>(),
+                p1.iter_from_zero().collect::<Vec<GearPage>>(),
+                (0..num1).map(GearPage::from).collect::<Vec<GearPage>>(),
             );
             assert_eq!(
-                p1.iter_from_zero_inclusive().collect::<Vec<PageNumber>>(),
-                (0..=num1)
-                    .map(PageNumber::from)
-                    .collect::<Vec<PageNumber>>(),
+                p1.iter_from_zero_inclusive().collect::<Vec<GearPage>>(),
+                (0..=num1).map(GearPage::from).collect::<Vec<GearPage>>(),
             );
         };
 

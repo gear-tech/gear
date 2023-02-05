@@ -18,30 +18,29 @@
 
 //! sp-sandbox extensions for memory.
 
-use gear_core::memory::{Error, HostPointer, Memory, PageU32Size, WasmPageNumber};
-use sp_sandbox::SandboxMemory;
+use gear_core::memory::{Error, HostPointer, Memory, PageU32Size, WasmPage};
+use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, SandboxMemory};
 
 /// Wrapper for sp_sandbox::Memory.
-pub struct MemoryWrap(sp_sandbox::default_executor::Memory);
+pub struct MemoryWrap(DefaultExecutorMemory);
 
 impl MemoryWrap {
-    /// Wrap sp_sandbox::Memory for Memory trait.
-    pub fn new(mem: sp_sandbox::default_executor::Memory) -> Self {
+    pub fn new(mem: DefaultExecutorMemory) -> Self {
         MemoryWrap(mem)
     }
 }
 
 /// Memory interface for the allocator.
 impl Memory for MemoryWrap {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Error> {
         self.0
             .grow(pages.raw())
             .map(|_| ())
             .map_err(|_| Error::OutOfBounds)
     }
 
-    fn size(&self) -> WasmPageNumber {
-        WasmPageNumber::new(self.0.size())
+    fn size(&self) -> WasmPage {
+        WasmPage::new(self.0.size())
             .expect("Unexpected backend behavior: size is bigger then u32::MAX")
     }
 
@@ -67,7 +66,7 @@ impl Memory for MemoryWrap {
 mod tests {
     use super::*;
     use gear_backend_common::{assert_err, assert_ok};
-    use gear_core::memory::{AllocInfo, AllocationsContext, GrowHandlerNothing};
+    use gear_core::memory::{AllocInfo, AllocationsContext, NoopGrowHandler};
 
     fn new_test_memory(static_pages: u16, max_pages: u16) -> (AllocationsContext, MemoryWrap) {
         use sp_sandbox::SandboxMemory as WasmMemory;
@@ -88,7 +87,7 @@ mod tests {
         let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
         assert_ok!(
-            ctx.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap),
             AllocInfo {
                 page: 16.into(),
                 not_grown: 0.into()
@@ -96,7 +95,7 @@ mod tests {
         );
 
         assert_ok!(
-            ctx.alloc::<GrowHandlerNothing>(0.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap),
             AllocInfo {
                 page: 16.into(),
                 not_grown: 0.into()
@@ -105,12 +104,12 @@ mod tests {
 
         // there is a space for 14 more
         for _ in 0..14 {
-            assert_ok!(ctx.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap));
+            assert_ok!(ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap));
         }
 
         // no more mem!
         assert_err!(
-            ctx.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
             Error::OutOfBounds
         );
 
@@ -119,7 +118,7 @@ mod tests {
 
         // and now can allocate page that was freed
         assert_ok!(
-            ctx.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
             AllocInfo {
                 page: 137.into(),
                 not_grown: 1.into()
@@ -131,7 +130,7 @@ mod tests {
         assert_ok!(ctx.free(118.into()));
 
         assert_ok!(
-            ctx.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
             AllocInfo {
                 page: 117.into(),
                 not_grown: 2.into()
@@ -143,7 +142,7 @@ mod tests {
         assert_ok!(ctx.free(158.into()));
 
         assert_err!(
-            ctx.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
             Error::OutOfBounds
         );
     }

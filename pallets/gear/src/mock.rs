@@ -18,20 +18,20 @@
 
 use crate as pallet_gear;
 use crate::*;
-use common::QueueRunner;
 use frame_support::{
     construct_runtime,
     pallet_prelude::*,
     parameter_types,
-    traits::{ConstU64, FindAuthor},
+    traits::{ConstU64, FindAuthor, Get},
     weights::RuntimeDbWeight,
 };
 use frame_support_test::TestRandomness;
-use frame_system as system;
+use frame_system::{self as system, limits::BlockWeights};
 use sp_core::{ConstU128, H256};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
+    Perbill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -39,11 +39,15 @@ type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
 
+type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
+
 pub(crate) const USER_1: AccountId = 1;
 pub(crate) const USER_2: AccountId = 2;
 pub(crate) const USER_3: AccountId = 3;
 pub(crate) const LOW_BALANCE_USER: AccountId = 4;
 pub(crate) const BLOCK_AUTHOR: AccountId = 255;
+const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+const MAX_BLOCK: u64 = 100_000_000_000;
 
 macro_rules! dry_run {
     (
@@ -93,6 +97,10 @@ impl pallet_balances::Config for Test {
 
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
+    pub RuntimeBlockWeights: BlockWeights = BlockWeights::with_sensible_defaults(
+        Weight::from_parts(MAX_BLOCK, u64::MAX),
+        NORMAL_DISPATCH_RATIO,
+    );
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: u64 = 500;
     pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 1110, write: 2300 };
@@ -100,7 +108,7 @@ parameter_types! {
 
 impl system::Config for Test {
     type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = ();
+    type BlockWeights = RuntimeBlockWeights;
     type BlockLength = ();
     type DbWeight = DbWeight;
     type RuntimeOrigin = RuntimeOrigin;
@@ -131,15 +139,11 @@ impl common::GasPrice for GasConverter {
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
-impl pallet_gear_program::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = ();
-    type Currency = Balances;
-    type Messenger = GearMessenger;
-}
+impl pallet_gear_program::Config for Test {}
 
 parameter_types! {
-    pub const BlockGasLimit: u64 = 100_000_000_000;
+    // Match the default `max_block` set in frame_system::limits::BlockWeights::with_sensible_defaults()
+    pub const BlockGasLimit: u64 = MAX_BLOCK;
     pub const OutgoingLimit: u32 = 1024;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
 }
@@ -154,6 +158,7 @@ impl pallet_gear::Config for Test {
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
+    type ProgramStorage = GearProgram;
     type MailboxThreshold = ConstU64<3000>;
     type ReservationsLimit = ConstU64<256>;
     type Messenger = GearMessenger;
@@ -229,7 +234,6 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| {
-        Gear::force_always();
         System::set_block_number(1);
         Gear::on_initialize(System::block_number());
     });
@@ -270,16 +274,16 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
 
-        let remaining_weight = remaining_weight.unwrap_or(BlockGasLimitOf::<Test>::get());
-        log::debug!(
-            "🧱 Running run #{} (gear #{}) with weight {}",
-            System::block_number(),
-            Gear::block_number(),
-            remaining_weight
-        );
+        if let Some(remaining_weight) = remaining_weight {
+            GasAllowanceOf::<Test>::put(remaining_weight);
+            let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
+            System::register_extra_weight_unchecked(
+                max_block_weight.saturating_sub(Weight::from_ref_time(remaining_weight)),
+                DispatchClass::Normal,
+            );
+        }
 
-        Gear::run_queue(remaining_weight);
-        Gear::processing_completed();
+        Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
         Gear::on_finalize(System::block_number());
 
         assert!(!System::events().iter().any(|e| {

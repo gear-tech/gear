@@ -17,6 +17,7 @@ codec = { package = "parity-scale-codec", version = "3.1.2", default-features = 
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
 log = { version = "0.4.17", default-features = false }
+hashbrown = "0.13.2"
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
@@ -25,19 +26,10 @@ gear-core = { path = "../../core", default-features = false }
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false, optional = true }
 sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
 sp-std = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
 sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
 sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
-pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
-
-[dev-dependencies]
-hex-literal = "0.3.3"
-env_logger = "0.10"
-pallet-gear-gas = { path = "../gas" }
-pallet-gear-messenger = { path = "../gear-messenger" }
-gear-wasm-instrument = { path = "../../utils/wasm-instrument" }
 
 [features]
 default = ['std']
@@ -45,7 +37,6 @@ std = [
 	"log/std",
 	"codec/std",
 	"common/std",
-	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
@@ -54,12 +45,6 @@ std = [
 	"sp-core/std",
 	"sp-runtime/std",
 	"primitive-types/std",
-	"pallet-balances/std",
-]
-runtime-benchmarks = [
-	"frame-benchmarking/runtime-benchmarks",
-	"frame-system/runtime-benchmarks",
-	"frame-support/runtime-benchmarks",
-	"common/runtime-benchmarks"
 ]
 try-runtime = ["frame-support/try-runtime"]
+debug-mode = []

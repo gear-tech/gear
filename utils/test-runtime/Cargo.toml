@@ -16,10 +16,10 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 memory-db = { version = "0.31.0", default-features = false }
-trie-db = { version = "0.24.0", default-features = false }
+trie-db = { version = "0.25.0", default-features = false }
 cfg-if = "1.0"
 log = { version = "0.4.17", default-features = false }
-serde = { version = "1.0.151", optional = true, features = ["derive"] }
+serde = { version = "1.0.152", optional = true, features = ["derive"] }
 
 # Substrate primitives
 sp-application-crypto = { version = "7.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
@@ -60,7 +60,7 @@ pallet-gear = { version = "2.0.0", default-features = false, path = "../../palle
 sc-block-builder = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
-futures = "0.3.25"
+futures = "0.3.26"
 test-client = { package = "gear-test-client", path = "./client" }
 
 [build-dependencies]

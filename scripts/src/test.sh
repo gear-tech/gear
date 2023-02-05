@@ -84,7 +84,6 @@ pallet_test() {
   cargo test -p pallet-gear-debug "$@"
   cargo test -p pallet-gear-payment "$@"
   cargo test -p pallet-gear-messenger "$@"
-  cargo test -p pallet-gear-program "$@"
   cargo test -p pallet-gear-gas "$@"
 }
 
@@ -97,7 +96,7 @@ runtime_upgrade_test() {
 
   # Run node
   RUST_LOG="pallet_gear=debug,gear::runtime=debug" $ROOT_DIR/target/release/gear \
-  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
+  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 15
 
   # Change dir to the js script dir
   cd "$TEST_SCRIPT_PATH"

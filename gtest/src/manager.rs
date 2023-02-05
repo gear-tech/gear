@@ -34,7 +34,7 @@ use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{GearPage, PageBuf, PageU32Size, WasmPage},
     message::{
         Dispatch, DispatchKind, MessageWaitedType, Payload, ReplyMessage, ReplyPacket,
         StoredDispatch, StoredMessage,
@@ -95,7 +95,7 @@ impl TestActor {
         matches!(self, TestActor::Uninitialized(..))
     }
 
-    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<PageNumber, PageBuf>> {
+    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
         match self {
             TestActor::Initialized(Program::Genuine { pages_data, .. })
             | TestActor::Uninitialized(_, Some(Program::Genuine { pages_data, .. })) => {
@@ -128,7 +128,7 @@ impl TestActor {
     ) -> Option<(
         ExecutableActorData,
         CoreProgram,
-        BTreeMap<PageNumber, PageBuf>,
+        BTreeMap<GearPage, PageBuf>,
     )> {
         let (program, pages_data, code_id, gas_reservation_map) = match self {
             TestActor::Initialized(Program::Genuine {
@@ -177,7 +177,7 @@ pub(crate) enum Program {
     Genuine {
         program: CoreProgram,
         code_id: CodeId,
-        pages_data: BTreeMap<PageNumber, PageBuf>,
+        pages_data: BTreeMap<GearPage, PageBuf>,
         gas_reservation_map: GasReservationMap,
     },
     // Contract: is always `Some`, option is used to take ownership
@@ -188,7 +188,7 @@ impl Program {
     pub(crate) fn new(
         program: CoreProgram,
         code_id: CodeId,
-        pages_data: BTreeMap<PageNumber, PageBuf>,
+        pages_data: BTreeMap<GearPage, PageBuf>,
         gas_reservation_map: GasReservationMap,
     ) -> Self {
         Program::Genuine {
@@ -612,7 +612,7 @@ impl ExtManager {
         balance: u128,
         data: ExecutableActorData,
         code: InstrumentedCode,
-        memory_pages: BTreeMap<PageNumber, PageBuf>,
+        memory_pages: BTreeMap<GearPage, PageBuf>,
         dispatch: StoredDispatch,
     ) {
         self.process_dispatch(balance, Some((data, code)), memory_pages, dispatch);
@@ -626,7 +626,7 @@ impl ExtManager {
         &mut self,
         balance: u128,
         data: Option<(ExecutableActorData, InstrumentedCode)>,
-        memory_pages: BTreeMap<PageNumber, PageBuf>,
+        memory_pages: BTreeMap<GearPage, PageBuf>,
         dispatch: StoredDispatch,
     ) {
         let dest = dispatch.destination();
@@ -637,7 +637,7 @@ impl ExtManager {
             .unwrap_or(u64::MAX);
         let block_config = BlockConfig {
             block_info: self.block_info,
-            allocations_config: Default::default(),
+            pages_config: Default::default(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
             outgoing_limit: OUTGOING_LIMIT,
             host_fn_weights: Default::default(),
@@ -698,12 +698,13 @@ impl ExtManager {
             }
         };
 
-        let journal = core_processor::process::<Ext, WasmiEnvironment<Ext>>(
+        let journal = core_processor::process::<WasmiEnvironment<Ext>>(
             &block_config,
             (context, code, balance, self.origin).into(),
             self.random_data.clone(),
             memory_pages,
-        );
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e));
 
         core_processor::handle_journal(journal, self);
     }
@@ -811,7 +812,7 @@ impl JournalHandler for ExtManager {
             let message = match message.status_code() {
                 Some(0) | None => message,
                 _ => message
-                    .with_string_payload::<ExecutionErrorReason>()
+                    .with_string_payload::<ActorExecutionErrorReason>()
                     .unwrap_or_else(|e| e),
             };
 
@@ -850,7 +851,7 @@ impl JournalHandler for ExtManager {
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        mut pages_data: BTreeMap<PageNumber, PageBuf>,
+        mut pages_data: BTreeMap<GearPage, PageBuf>,
     ) {
         let (actor, _) = self
             .actors
@@ -864,7 +865,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPageNumber>) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
         let (actor, _) = self
             .actors
             .get_mut(&program_id)
