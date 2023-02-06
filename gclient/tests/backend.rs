@@ -1,4 +1,3 @@
-
 // This file is part of Gear.
 
 // Copyright (C) 2021-2022 Gear Technologies Inc.
@@ -19,8 +18,8 @@
 
 //! Test for infinity loop, that it can't exceed block production time.
 
-use gclient::{EventProcessor, GearApi, Result};
 use demo_backend_error::WASM_BINARY;
+use gclient::{EventProcessor, GearApi, Result};
 
 #[tokio::test]
 async fn backend_errors_handled_by_sandbox() -> Result<()> {
