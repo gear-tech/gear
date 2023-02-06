@@ -89,50 +89,7 @@ where
             });
     }
 
-    pub(crate) fn run_fallible<T, G, GuardFn, BodyFn, PostFn>(
-        &mut self,
-        guard: GuardFn,
-        body: BodyFn,
-        post: PostFn,
-    ) -> SyscallOutput
-    where
-        GuardFn: FnOnce(&mut Self) -> WasmMemoryWriteAs<G>,
-        BodyFn: FnOnce(&mut Self) -> Result<Result<T, u32>, SyscallFuncError<E::Error>>,
-        PostFn: FnOnce(
-            &mut Self,
-            WasmMemoryWriteAs<G>,
-            Result<T, u32>,
-        ) -> Result<(), MemoryAccessError>,
-    {
-        self.prepare_run();
-
-        let write_guard = guard(self);
-
-        let mut body_res = body(self).map_err(|err| {
-            *self.err_mut() = err;
-        });
-
-        if body_res.is_err() {
-            if let Ok(to_be_returned) = self.last_err() {
-                body_res = Ok(Err(to_be_returned.encoded_size() as u32));
-            }
-        }
-
-        let body_res = body_res;
-
-        let result = body_res.map_err(|_err| HostError).and_then(|res| {
-            post(self, write_guard, res).map_err(|err| {
-                self.err = err.into();
-                HostError
-            })
-        });
-
-        self.update_globals();
-
-        result.map(|_| ReturnValue::Unit)
-    }
-
-    pub fn run_fallible_gsobol<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> SyscallOutput
+    pub fn run_fallible<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> SyscallOutput
     where
         F: FnOnce(&mut Self) -> Result<Result<T, u32>, SyscallFuncError<E::Error>>,
         R: From<Result<T, u32>> + Sized,
@@ -152,10 +109,12 @@ where
         }
 
         let res = if let Ok(res) = res {
-            self.write_as(write_res, R::from(res)).map_err(|err| {
-                *self.err_mut() = err.into();
-                HostError
-            }).map(|_| ReturnValue::Unit)
+            self.write_as(write_res, R::from(res))
+                .map_err(|err| {
+                    *self.err_mut() = err.into();
+                    HostError
+                })
+                .map(|_| ReturnValue::Unit)
         } else {
             Err(HostError)
         };

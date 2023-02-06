@@ -32,8 +32,8 @@ use gear_core::{
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
 use gsys::{
-    BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
-    LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue, LengthBytes,
+    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
+    LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
@@ -95,7 +95,7 @@ where
 
         let (pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run_fallible_gsobol::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_hash_val = ctx.register_read_as(pid_value_ptr);
             let read_payload = ctx.register_read(payload_ptr, len);
             let HashWithValue {
@@ -118,27 +118,23 @@ where
         let (pid_value_ptr, payload_ptr, len, gas_limit, delay, err_mid_ptr) =
             args.iter().read_6()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let read_hash_val = ctx.register_read_as(pid_value_ptr);
-                let read_payload = ctx.register_read(payload_ptr, len);
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_hash_val)?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let read_hash_val = ctx.register_read_as(pid_value_ptr);
+            let read_payload = ctx.register_read(payload_ptr, len);
+            let HashWithValue {
+                hash: destination,
+                value,
+            } = ctx.read_as(read_hash_val)?;
+            let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.ext
-                    .send(
-                        HandlePacket::new_with_gas(destination.into(), payload, gas_limit, value),
-                        delay,
-                    )
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            ctx.ext
+                .send(
+                    HandlePacket::new_with_gas(destination.into(), payload, gas_limit, value),
+                    delay,
+                )
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_send_commit` syscall.
@@ -147,26 +143,22 @@ where
 
         let (handle, pid_value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let read_pid_value = ctx.register_read_as(pid_value_ptr);
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_pid_value)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let read_pid_value = ctx.register_read_as(pid_value_ptr);
+            let HashWithValue {
+                hash: destination,
+                value,
+            } = ctx.read_as(read_pid_value)?;
 
-                ctx.ext
-                    .send_commit(
-                        handle,
-                        HandlePacket::new(destination.into(), Default::default(), value),
-                        delay,
-                    )
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            ctx.ext
+                .send_commit(
+                    handle,
+                    HandlePacket::new(destination.into(), Default::default(), value),
+                    delay,
+                )
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_send_commit_wgas` syscall.
@@ -175,31 +167,27 @@ where
 
         let (handle, pid_value_ptr, gas_limit, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let read_pid_value = ctx.register_read_as(pid_value_ptr);
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_pid_value)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let read_pid_value = ctx.register_read_as(pid_value_ptr);
+            let HashWithValue {
+                hash: destination,
+                value,
+            } = ctx.read_as(read_pid_value)?;
 
-                ctx.ext
-                    .send_commit(
-                        handle,
-                        HandlePacket::new_with_gas(
-                            destination.into(),
-                            Default::default(),
-                            gas_limit,
-                            value,
-                        ),
-                        delay,
-                    )
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            ctx.ext
+                .send_commit(
+                    handle,
+                    HandlePacket::new_with_gas(
+                        destination.into(),
+                        Default::default(),
+                        gas_limit,
+                        value,
+                    ),
+                    delay,
+                )
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_send_init` syscall.
@@ -208,18 +196,12 @@ where
 
         let err_handle_ptr = args.iter().read()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_handle_ptr),
-            |ctx| {
-                ctx.ext
-                    .send_init()
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_handle, res| {
-                ctx.write_as(write_err_handle, LengthWithHandle::from(res))
-            },
-        )
+        ctx.run_fallible::<_, _, LengthWithHandle>(err_handle_ptr, |ctx| {
+            ctx.ext
+                .send_init()
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_send_push` syscall.
@@ -228,7 +210,7 @@ where
 
         let (handle, payload_ptr, len, err_len_ptr) = args.iter().read_4()?;
 
-        ctx.run_fallible_gsobol::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
             let payload = ctx.read(read_payload)?;
 
@@ -245,29 +227,25 @@ where
 
         let (rid_pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
-                let read_payload = ctx.register_read(payload_ptr, len);
-                let TwoHashesWithValue {
-                    hash1: reservation_id,
-                    hash2: destination,
-                    value,
-                } = ctx.read_as(read_rid_pid_value)?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
+            let read_payload = ctx.register_read(payload_ptr, len);
+            let TwoHashesWithValue {
+                hash1: reservation_id,
+                hash2: destination,
+                value,
+            } = ctx.read_as(read_rid_pid_value)?;
+            let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.ext
-                    .reservation_send(
-                        reservation_id.into(),
-                        HandlePacket::new(destination.into(), payload, value),
-                        delay,
-                    )
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            ctx.ext
+                .reservation_send(
+                    reservation_id.into(),
+                    HandlePacket::new(destination.into(), payload, value),
+                    delay,
+                )
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reservation_send_commit` syscall.
@@ -276,28 +254,24 @@ where
 
         let (handle, rid_pid_value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
-                let TwoHashesWithValue {
-                    hash1: reservation_id,
-                    hash2: destination,
-                    value,
-                } = ctx.read_as(read_rid_pid_value)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
+            let TwoHashesWithValue {
+                hash1: reservation_id,
+                hash2: destination,
+                value,
+            } = ctx.read_as(read_rid_pid_value)?;
 
-                ctx.ext
-                    .reservation_send_commit(
-                        reservation_id.into(),
-                        handle,
-                        HandlePacket::new(destination.into(), Default::default(), value),
-                        delay,
-                    )
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            ctx.ext
+                .reservation_send_commit(
+                    reservation_id.into(),
+                    handle,
+                    HandlePacket::new(destination.into(), Default::default(), value),
+                    delay,
+                )
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_read` syscall.
@@ -306,26 +280,19 @@ where
 
         let (at, len, buffer_ptr, err_len_ptr) = args.iter().read_4()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_len_ptr),
-            |ctx| {
-                let res = ctx.ext.read(at, len);
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+            let res = ctx.ext.read(at, len);
 
-                match res.into_ext_error(&mut ctx.err)? {
-                    Ok(buf) => {
-                        let write_buffer = ctx.memory_manager.register_write(buffer_ptr, len);
-                        ctx.memory_manager
-                            .write(&mut ctx.memory, write_buffer, buf)?;
-                        Ok(Ok(()))
-                    }
-                    Err(err_len) => Ok(Err(err_len)),
+            match res.into_ext_error(&mut ctx.err)? {
+                Ok(buf) => {
+                    let write_buffer = ctx.memory_manager.register_write(buffer_ptr, len);
+                    ctx.memory_manager
+                        .write(&mut ctx.memory, write_buffer, buf)?;
+                    Ok(Ok(()))
                 }
-            },
-            |ctx, write_err_len, res| {
-                let length = res.err().unwrap_or(0);
-                ctx.write_as(write_err_len, length.to_le_bytes())
-            },
-        )
+                Err(err_len) => Ok(Err(err_len)),
+            }
+        })
     }
 
     /// Infallible `gr_size` syscall.
@@ -365,16 +332,12 @@ where
 
         let err_code_ptr = args.iter().read()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_code_ptr),
-            |ctx| {
-                ctx.ext
-                    .status_code()
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_code, res| ctx.write_as(write_err_code, LengthWithCode::from(res)),
-        )
+        ctx.run_fallible::<_, _, LengthWithCode>(err_code_ptr, |ctx| {
+            ctx.ext
+                .status_code()
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Infallible `alloc` syscall.
@@ -492,20 +455,16 @@ where
 
         let (payload_ptr, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let read_payload = ctx.register_read(payload_ptr, len);
-                let value = Self::register_and_read_value(ctx, value_ptr)?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let read_payload = ctx.register_read(payload_ptr, len);
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
+            let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.ext
-                    .reply(ReplyPacket::new(payload, value), delay)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            ctx.ext
+                .reply(ReplyPacket::new(payload, value), delay)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reply_wgas` syscall.
@@ -514,20 +473,16 @@ where
 
         let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let read_payload = ctx.register_read(payload_ptr, len);
-                let value = Self::register_and_read_value(ctx, value_ptr)?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let read_payload = ctx.register_read(payload_ptr, len);
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
+            let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.ext
-                    .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            ctx.ext
+                .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reply_commit` syscall.
@@ -536,18 +491,14 @@ where
 
         let (value_ptr, delay, err_mid_ptr) = args.iter().read_3()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let value = Self::register_and_read_value(ctx, value_ptr)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
 
-                ctx.ext
-                    .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            ctx.ext
+                .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reply_commit_wgas` syscall.
@@ -556,21 +507,17 @@ where
 
         let (gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let value = Self::register_and_read_value(ctx, value_ptr)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
 
-                ctx.ext
-                    .reply_commit(
-                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                        delay,
-                    )
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            ctx.ext
+                .reply_commit(
+                    ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                    delay,
+                )
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reservation_reply` syscall.
@@ -579,28 +526,24 @@ where
 
         let (rid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let read_rid_value = ctx.register_read_as(rid_value_ptr);
-                let read_payload = ctx.register_read(payload_ptr, len);
-                let HashWithValue {
-                    hash: reservation_id,
-                    value,
-                } = ctx.read_as(read_rid_value)?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let read_rid_value = ctx.register_read_as(rid_value_ptr);
+            let read_payload = ctx.register_read(payload_ptr, len);
+            let HashWithValue {
+                hash: reservation_id,
+                value,
+            } = ctx.read_as(read_rid_value)?;
+            let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.ext
-                    .reservation_reply(
-                        reservation_id.into(),
-                        ReplyPacket::new(payload, value),
-                        delay,
-                    )
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            ctx.ext
+                .reservation_reply(
+                    reservation_id.into(),
+                    ReplyPacket::new(payload, value),
+                    delay,
+                )
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reservation_reply_commit` syscall.
@@ -609,26 +552,22 @@ where
 
         let (rid_value_ptr, delay, err_mid_ptr) = args.iter().read_3()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let read_rid_value = ctx.register_read_as(rid_value_ptr);
-                let HashWithValue {
-                    hash: reservation_id,
-                    value,
-                } = ctx.read_as(read_rid_value)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let read_rid_value = ctx.register_read_as(rid_value_ptr);
+            let HashWithValue {
+                hash: reservation_id,
+                value,
+            } = ctx.read_as(read_rid_value)?;
 
-                ctx.ext
-                    .reservation_reply_commit(
-                        reservation_id.into(),
-                        ReplyPacket::new(Default::default(), value),
-                        delay,
-                    )
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            ctx.ext
+                .reservation_reply_commit(
+                    reservation_id.into(),
+                    ReplyPacket::new(Default::default(), value),
+                    delay,
+                )
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reply_to` syscall.
@@ -637,16 +576,12 @@ where
 
         let err_mid_ptr = args.iter().read()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                ctx.ext
-                    .reply_to()
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            ctx.ext
+                .reply_to()
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_signal_from` syscall.
@@ -655,16 +590,12 @@ where
 
         let err_mid_ptr = args.iter().read()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                ctx.ext
-                    .signal_from()
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            ctx.ext
+                .signal_from()
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reply_push` syscall.
@@ -673,23 +604,15 @@ where
 
         let (payload_ptr, len, err_len_ptr) = args.iter().read_3()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_len_ptr),
-            |ctx| {
-                let read_payload = ctx.register_read(payload_ptr, len);
-                let payload = ctx.read(read_payload)?;
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+            let read_payload = ctx.register_read(payload_ptr, len);
+            let payload = ctx.read(read_payload)?;
 
-                ctx.ext
-                    .reply_push(&payload)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_len, res| {
-                let len = res.err().unwrap_or(0);
-                ctx.write_as(write_err_len, len.to_le_bytes())
-                    .map_err(Into::into)
-            },
-        )
+            ctx.ext
+                .reply_push(&payload)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reply_input` syscall.
@@ -698,21 +621,17 @@ where
 
         let (offset, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let value = Self::register_and_read_value(ctx, value_ptr)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
 
-                let mut f = || {
-                    ctx.ext.reply_push_input(offset, len)?;
-                    ctx.ext
-                        .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-                };
+            let mut f = || {
+                ctx.ext.reply_push_input(offset, len)?;
+                ctx.ext
+                    .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+            };
 
-                f().into_ext_error(&mut ctx.err).map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            f().into_ext_error(&mut ctx.err).map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reply_push_input` syscall.
@@ -721,19 +640,12 @@ where
 
         let (offset, len, err_len_ptr) = args.iter().read_3()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_len_ptr),
-            |ctx| {
-                ctx.ext
-                    .reply_push_input(offset, len)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_len, res| {
-                let length = res.err().unwrap_or(0);
-                ctx.write_as(write_err_len, length.to_le_bytes())
-            },
-        )
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+            ctx.ext
+                .reply_push_input(offset, len)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reply_input_wgas` syscall.
@@ -742,23 +654,19 @@ where
 
         let (offset, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let value = Self::register_and_read_value(ctx, value_ptr)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
 
-                let mut f = || {
-                    ctx.ext.reply_push_input(offset, len)?;
-                    ctx.ext.reply_commit(
-                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                        delay,
-                    )
-                };
+            let mut f = || {
+                ctx.ext.reply_push_input(offset, len)?;
+                ctx.ext.reply_commit(
+                    ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                    delay,
+                )
+            };
 
-                f().into_ext_error(&mut ctx.err).map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            f().into_ext_error(&mut ctx.err).map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_send_input` syscall.
@@ -767,29 +675,25 @@ where
 
         let (pid_value_ptr, offset, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let read_pid_value = ctx.register_read_as(pid_value_ptr);
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_pid_value)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let read_pid_value = ctx.register_read_as(pid_value_ptr);
+            let HashWithValue {
+                hash: destination,
+                value,
+            } = ctx.read_as(read_pid_value)?;
 
-                let mut f = || {
-                    let handle = ctx.ext.send_init()?;
-                    ctx.ext.send_push_input(handle, offset, len)?;
-                    ctx.ext.send_commit(
-                        handle,
-                        HandlePacket::new(destination.into(), Default::default(), value),
-                        delay,
-                    )
-                };
+            let mut f = || {
+                let handle = ctx.ext.send_init()?;
+                ctx.ext.send_push_input(handle, offset, len)?;
+                ctx.ext.send_commit(
+                    handle,
+                    HandlePacket::new(destination.into(), Default::default(), value),
+                    delay,
+                )
+            };
 
-                f().into_ext_error(&mut ctx.err).map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            f().into_ext_error(&mut ctx.err).map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_send_push_input` syscall.
@@ -798,19 +702,12 @@ where
 
         let (handle, offset, len, err_len_ptr) = args.iter().read_4()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_len_ptr),
-            |ctx| {
-                ctx.ext
-                    .send_push_input(handle, offset, len)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_len, res| {
-                let length = res.err().unwrap_or(0);
-                ctx.write_as(write_err_len, length.to_le_bytes())
-            },
-        )
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+            ctx.ext
+                .send_push_input(handle, offset, len)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_send_push_input_wgas` syscall.
@@ -819,34 +716,30 @@ where
 
         let (pid_value_ptr, offset, len, gas_limit, delay, err_mid_ptr) = args.iter().read_6()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_ptr),
-            |ctx| {
-                let read_pid_value = ctx.register_read_as(pid_value_ptr);
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_pid_value)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let read_pid_value = ctx.register_read_as(pid_value_ptr);
+            let HashWithValue {
+                hash: destination,
+                value,
+            } = ctx.read_as(read_pid_value)?;
 
-                let mut f = || {
-                    let handle = ctx.ext.send_init()?;
-                    ctx.ext.send_push_input(handle, offset, len)?;
-                    ctx.ext.send_commit(
-                        handle,
-                        HandlePacket::new_with_gas(
-                            destination.into(),
-                            Default::default(),
-                            gas_limit,
-                            value,
-                        ),
-                        delay,
-                    )
-                };
+            let mut f = || {
+                let handle = ctx.ext.send_init()?;
+                ctx.ext.send_push_input(handle, offset, len)?;
+                ctx.ext.send_commit(
+                    handle,
+                    HandlePacket::new_with_gas(
+                        destination.into(),
+                        Default::default(),
+                        gas_limit,
+                        value,
+                    ),
+                    delay,
+                )
+            };
 
-                f().into_ext_error(&mut ctx.err).map_err(Into::into)
-            },
-            |ctx, write_err_mid, res| ctx.write_as(write_err_mid, LengthWithHash::from(res)),
-        )
+            f().into_ext_error(&mut ctx.err).map_err(Into::into)
+        })
     }
 
     /// Infallible `gr_debug` syscall.
@@ -872,16 +765,12 @@ where
 
         let (gas, duration, err_rid_ptr) = args.iter().read_3()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_rid_ptr),
-            |ctx| {
-                ctx.ext
-                    .reserve_gas(gas, duration)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_rid, res| ctx.write_as(write_err_rid, LengthWithHash::from(res)),
-        )
+        ctx.run_fallible::<_, _, LengthWithHash>(err_rid_ptr, |ctx| {
+            ctx.ext
+                .reserve_gas(gas, duration)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_unreserve_gas` syscall.
@@ -890,21 +779,15 @@ where
 
         let (reservation_id_ptr, err_unreserved_ptr) = args.iter().read_2()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_unreserved_ptr),
-            |ctx| {
-                let read_reservation_id = ctx.register_read_decoded(reservation_id_ptr);
-                let reservation_id = ctx.read_decoded(read_reservation_id)?;
+        ctx.run_fallible::<_, _, LengthWithGas>(err_unreserved_ptr, |ctx| {
+            let read_reservation_id = ctx.register_read_decoded(reservation_id_ptr);
+            let reservation_id = ctx.read_decoded(read_reservation_id)?;
 
-                ctx.ext
-                    .unreserve_gas(reservation_id)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_unreserved, res| {
-                ctx.write_as(write_err_unreserved, LengthWithGas::from(res))
-            },
-        )
+            ctx.ext
+                .unreserve_gas(reservation_id)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_system_reserve_gas` syscall.
@@ -913,19 +796,12 @@ where
 
         let (gas, err_len_ptr) = args.iter().read_2()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_len_ptr),
-            |ctx| {
-                ctx.ext
-                    .system_reserve_gas(gas)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_len, res| {
-                let length = res.err().unwrap_or(0);
-                ctx.write_as(write_err_len, length.to_le_bytes())
-            },
-        )
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+            ctx.ext
+                .system_reserve_gas(gas)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Infallible `gr_gas_available` syscall.
@@ -1110,22 +986,15 @@ where
 
         let (message_id_ptr, delay, err_len_ptr) = args.iter().read_3()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_len_ptr),
-            |ctx| {
-                let read_message_id = ctx.register_read_decoded(message_id_ptr);
-                let message_id = ctx.read_decoded(read_message_id)?;
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+            let read_message_id = ctx.register_read_decoded(message_id_ptr);
+            let message_id = ctx.read_decoded(read_message_id)?;
 
-                ctx.ext
-                    .wake(message_id, delay)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_len, res| {
-                let length = res.err().unwrap_or(0);
-                ctx.write_as(write_err_len, length.to_le_bytes())
-            },
-        )
+            ctx.ext
+                .wake(message_id, delay)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_create_program` syscall.
@@ -1135,28 +1004,22 @@ where
         let (cid_value_ptr, salt_ptr, salt_len, payload_ptr, payload_len, delay, err_mid_pid_ptr) =
             args.iter().read_7()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_pid_ptr),
-            |ctx| {
-                let read_cid_value = ctx.register_read_as(cid_value_ptr);
-                let read_salt = ctx.register_read(salt_ptr, salt_len);
-                let read_payload = ctx.register_read(payload_ptr, payload_len);
-                let HashWithValue {
-                    hash: code_id,
-                    value,
-                } = ctx.read_as(read_cid_value)?;
-                let salt = ctx.read(read_salt)?.try_into()?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+        ctx.run_fallible::<_, _, LengthWithTwoHashes>(err_mid_pid_ptr, |ctx| {
+            let read_cid_value = ctx.register_read_as(cid_value_ptr);
+            let read_salt = ctx.register_read(salt_ptr, salt_len);
+            let read_payload = ctx.register_read(payload_ptr, payload_len);
+            let HashWithValue {
+                hash: code_id,
+                value,
+            } = ctx.read_as(read_cid_value)?;
+            let salt = ctx.read(read_salt)?.try_into()?;
+            let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.ext
-                    .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid_pid, res| {
-                ctx.write_as(write_err_mid_pid, LengthWithTwoHashes::from(res))
-            },
-        )
+            ctx.ext
+                .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_create_program_wgas` syscall.
@@ -1174,31 +1037,25 @@ where
             err_mid_pid_ptr,
         ) = args.iter().read_8()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_mid_pid_ptr),
-            |ctx| {
-                let read_cid_value = ctx.register_read_as(cid_value_ptr);
-                let read_salt = ctx.register_read(salt_ptr, salt_len);
-                let read_payload = ctx.register_read(payload_ptr, payload_len);
-                let HashWithValue {
-                    hash: code_id,
-                    value,
-                } = ctx.read_as(read_cid_value)?;
-                let salt = ctx.read(read_salt)?.try_into()?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+        ctx.run_fallible::<_, _, LengthWithTwoHashes>(err_mid_pid_ptr, |ctx| {
+            let read_cid_value = ctx.register_read_as(cid_value_ptr);
+            let read_salt = ctx.register_read(salt_ptr, salt_len);
+            let read_payload = ctx.register_read(payload_ptr, payload_len);
+            let HashWithValue {
+                hash: code_id,
+                value,
+            } = ctx.read_as(read_cid_value)?;
+            let salt = ctx.read(read_salt)?.try_into()?;
+            let payload = ctx.read(read_payload)?.try_into()?;
 
-                ctx.ext
-                    .create_program(
-                        InitPacket::new_with_gas(code_id.into(), salt, payload, gas_limit, value),
-                        delay,
-                    )
-                    .into_ext_error(&mut ctx.err)
-                    .map_err(Into::into)
-            },
-            |ctx, write_err_mid_pid, res| {
-                ctx.write_as(write_err_mid_pid, LengthWithTwoHashes::from(res))
-            },
-        )
+            ctx.ext
+                .create_program(
+                    InitPacket::new_with_gas(code_id.into(), salt, payload, gas_limit, value),
+                    delay,
+                )
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_error` syscall.
@@ -1209,29 +1066,21 @@ where
         // err_len_ptr is ptr for len of the error occurred during this syscall
         let (error_bytes_ptr, err_len_ptr) = args.iter().read_2()?;
 
-        ctx.run_fallible(
-            |ctx| ctx.register_write_as(err_len_ptr),
-            |ctx| {
-                ctx.ext
-                    .charge_error()
-                    .map_err(ActorSyscallFuncError::Core)?;
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+            ctx.ext
+                .charge_error()
+                .map_err(ActorSyscallFuncError::Core)?;
 
-                match ctx.last_err() {
-                    Ok(err) => {
-                        let err = err.encode();
-                        let write_error_bytes =
-                            ctx.register_write(error_bytes_ptr, err.len() as u32);
-                        ctx.write(write_error_bytes, err.as_ref())?;
-                        Ok(Ok(()))
-                    }
-                    Err(err) => Ok(Err(err.encoded_size() as u32)),
+            match ctx.last_err() {
+                Ok(err) => {
+                    let err = err.encode();
+                    let write_error_bytes = ctx.register_write(error_bytes_ptr, err.len() as u32);
+                    ctx.write(write_error_bytes, err.as_ref())?;
+                    Ok(Ok(()))
                 }
-            },
-            |ctx, write_err_len, res| {
-                let length = res.err().unwrap_or(0);
-                ctx.write_as(write_err_len, length.to_le_bytes())
-            },
-        )
+                Err(err) => Ok(Err(err.encoded_size() as u32)),
+            }
+        })
     }
 
     /// Infallible `forbidden` syscall-placeholder.
