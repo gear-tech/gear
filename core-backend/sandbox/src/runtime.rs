@@ -96,8 +96,6 @@ where
     {
         self.prepare_run();
 
-        let write_res = self.memory_manager.register_write_as::<R>(res_ptr);
-
         let mut res = f(self).map_err(|err| {
             *self.err_mut() = err;
         });
@@ -109,6 +107,8 @@ where
         }
 
         let res = if let Ok(res) = res {
+            // TODO: move above or make normal process memory access.
+            let write_res = self.memory_manager.register_write_as::<R>(res_ptr);
             self.write_as(write_res, R::from(res))
                 .map_err(|err| {
                     *self.err_mut() = err.into();
