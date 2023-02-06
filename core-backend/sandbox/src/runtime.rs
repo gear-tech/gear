@@ -18,10 +18,7 @@
 
 //! sp-sandbox runtime (here it's contract execution state) realization.
 
-use crate::{
-    funcs::{FuncError, SyscallOutput},
-    MemoryWrap,
-};
+use crate::{funcs::SyscallOutput, MemoryWrap};
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
 use gear_backend_common::{
@@ -29,7 +26,7 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    IntoExtInfo,
+    BackendExt, BackendExtError, BackendState, SyscallFuncError,
 };
 use gear_core::env::Ext;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
@@ -42,19 +39,23 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
     }
 }
 
-pub(crate) struct Runtime<E: Ext + IntoExtInfo<E::Error>> {
+pub(crate) struct Runtime<E: Ext> {
     pub ext: E,
     pub memory: MemoryWrap,
-    pub err: FuncError<E::Error>,
+    pub err: SyscallFuncError<E::Error>,
     pub globals: sp_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
     pub memory_manager: MemoryAccessManager<E>,
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
+impl<E> Runtime<E>
+where
+    E: Ext,
+    E::Error: BackendExtError,
+{
     pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
     where
-        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
     {
         self.memory_manager = Default::default();
 
@@ -62,20 +63,13 @@ impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
             .and_then(as_i64)
-            .ok_or_else(|| {
-                self.err = FuncError::WrongInstrumentation;
-                HostError
-            })?;
+            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         let allowance = self
             .globals
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(as_i64)
-            .ok_or_else(|| {
-                // TODO #1979
-                self.err = FuncError::WrongInstrumentation;
-                HostError
-            })?;
+            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         self.ext.update_counters(gas as u64, allowance as u64);
 
@@ -88,31 +82,38 @@ impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
 
         self.globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .map_err(|_| {
-                self.err = FuncError::WrongInstrumentation;
-                HostError
-            })?;
+            .unwrap_or_else(|e| {
+                unreachable!("Globals must be checked during env creation: {:?}", e)
+            });
 
         self.globals
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .map_err(|_| {
-                // TODO #1979
-                self.err = FuncError::WrongInstrumentation;
-                HostError
-            })?;
+            .unwrap_or_else(|e| {
+                unreachable!("Globals must be checked during env creation: {:?}", e)
+            });
 
         result
     }
 
     pub(crate) fn run<F>(&mut self, f: F) -> SyscallOutput
     where
-        F: FnOnce(&mut Self) -> Result<(), FuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<(), SyscallFuncError<E::Error>>,
     {
         self.run_any(f).map(|_| ReturnValue::Unit)
     }
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessRecorder for Runtime<E> {
+impl<E> BackendState<E::Error> for Runtime<E>
+where
+    E: Ext,
+    E::Error: BackendExtError,
+{
+    fn err_mut(&mut self) -> &mut SyscallFuncError<E::Error> {
+        &mut self.err
+    }
+}
+
+impl<E: Ext> MemoryAccessRecorder for Runtime<E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.memory_manager.register_read(ptr, size)
     }
@@ -137,7 +138,10 @@ impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessRecorder for Runtime<E> {
     }
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> MemoryOwner for Runtime<E> {
+impl<E> MemoryOwner for Runtime<E>
+where
+    E: BackendExt,
+{
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.memory_manager.read(&self.memory, read)
     }

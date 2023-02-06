@@ -639,9 +639,10 @@ fn test_sys_calls_table() {
     let ext = MockExt::default();
     let env = WasmiEnvironment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into())
         .unwrap();
-    let res = env
+    let report = env
         .execute(|_, _, _| -> Result<(), u32> { Ok(()) })
         .unwrap();
+    let (termination_reason, _, _) = report.into_parts().unwrap();
 
-    assert_eq!(res.termination_reason, TerminationReason::Success);
+    assert_eq!(termination_reason, TerminationReason::Success);
 }

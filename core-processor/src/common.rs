@@ -18,14 +18,14 @@
 
 //! Common structures for processing.
 
-use crate::{executor::SystemPrepareMemoryError, precharge::GasOperation};
+use crate::{executor::SystemPrepareMemoryError, precharge::GasOperation, ActorPrepareMemoryError};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use gear_backend_common::{SystemReservationContext, TrapExplanation};
+use gear_backend_common::{SystemReservationContext, SystemSyscallFuncError, TrapExplanation};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -36,6 +36,7 @@ use gear_core::{
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
+use gear_core_errors::MemoryError;
 use scale_info::TypeInfo;
 
 /// Kind of the dispatch result.
@@ -424,9 +425,12 @@ pub enum ActorExecutionErrorReason {
     /// Not enough gas to perform an operation.
     #[display(fmt = "Not enough gas to {_0}")]
     GasExceeded(GasOperation),
-    /// Backend error
+    /// Prepare memory error
     #[display(fmt = "{_0}")]
-    Backend(String),
+    PrepareMemory(ActorPrepareMemoryError),
+    /// Module start error
+    #[display(fmt = "Failed to instantiate module because of trap in start function")]
+    ModuleStart,
     /// Ext error
     #[display(fmt = "{_0}")]
     Ext(TrapExplanation),
@@ -442,8 +446,19 @@ pub enum ActorExecutionErrorReason {
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SystemExecutionError {
     /// Prepare memory error
+    #[from]
     #[display(fmt = "Prepare memory: {_0}")]
     PrepareMemory(SystemPrepareMemoryError),
+    /// Environment error
+    #[display(fmt = "Backend error: {_0}")]
+    Environment(String),
+    /// Sys-call function error
+    #[from]
+    #[display(fmt = "Syscall function error: {_0}")]
+    SyscallFunc(SystemSyscallFuncError),
+    /// Error during `into_ext_info()` call
+    #[display(fmt = "`into_ext_info()` error: {_0}")]
+    IntoExtInfo(MemoryError),
 }
 
 /// Actor.
