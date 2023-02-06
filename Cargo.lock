@@ -1530,6 +1530,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-backend-error"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gsys",
+]
+
+[[package]]
 name = "demo-btree"
 version = "0.1.0"
 dependencies = [
@@ -6198,6 +6207,7 @@ dependencies = [
  "demo-async-custom-entry",
  "demo-async-signal-entry",
  "demo-async-tester",
+ "demo-backend-error",
  "demo-btree",
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
