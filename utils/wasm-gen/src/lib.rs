@@ -42,6 +42,7 @@ pub mod wasm;
 use wasm::{PageCount as WasmPageCount, PAGE_SIZE as WASM_PAGE_SIZE};
 
 const MEMORY_VALUE_SIZE: u32 = 100;
+const MEMORY_FIELD_NAME: &str = "memory";
 
 #[derive(Clone, Copy, Debug)]
 pub struct Ratio {
@@ -504,7 +505,7 @@ impl<'a> WasmGen<'a> {
         let module = builder::from_module(module)
             .import()
             .module("env")
-            .field("memory")
+            .field(MEMORY_FIELD_NAME)
             .external()
             .memory(mem_size, mem_size_upper_bound)
             .build()
@@ -824,7 +825,7 @@ impl<'a> WasmGen<'a> {
             .unwrap()
             .entries()
             .iter()
-            .find(|section| section.field() == "memory")
+            .find(|section| section.field() == MEMORY_FIELD_NAME)
             .unwrap()
             .external()
         {
@@ -857,22 +858,21 @@ impl<'a> WasmGen<'a> {
             .build()
             .build();
 
-        let gr_debug_import_no = module
+        let gr_debug_import_index = module
             .import_section()
             .unwrap()
             .entries()
             .iter()
+            .filter(|entry| entry.field() != MEMORY_FIELD_NAME)
             .position(|import| import.field() == "gr_debug")
             .unwrap() as u32;
-        let gr_debug_call_no = self
+        let gr_debug_call_index = self
             .calls_indexes
             .iter()
-            .position(|func_idx| {
-                if let FuncIdx::Import(import_no) = func_idx {
-                    *import_no == gr_debug_import_no - 1 // TODO: first is memory import, so need to do `- 1`.
-                                                         // Make more common solution.
-                } else {
-                    false
+            .position(|index| {
+                match index {
+                    FuncIdx::Import(import_index) if *import_index == gr_debug_import_index => true,
+                    _ => false,
                 }
             })
             .unwrap() as u32;
@@ -884,7 +884,7 @@ impl<'a> WasmGen<'a> {
         let print_code = [
             Instruction::I32Const(0),
             Instruction::I32Const(bytes.len() as i32),
-            Instruction::Call(gr_debug_call_no),
+            Instruction::Call(gr_debug_call_index),
         ];
 
         init_code.splice(0..0, print_code);
