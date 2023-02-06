@@ -50,13 +50,11 @@ pub(crate) struct Runtime<E: Ext> {
 
 impl<E> Runtime<E>
 where
-    E: Ext,
+    E: BackendExt,
     E::Error: BackendExtError,
 {
-    pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
-    where
-        F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
-    {
+    // Cleans `memory_manager`, updates ext counters based on globals.
+    pub(crate) fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
 
         let gas = self
@@ -72,12 +70,10 @@ where
             .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         self.ext.update_counters(gas as u64, allowance as u64);
+    }
 
-        let result = f(self).map_err(|err| {
-            self.err = err;
-            HostError
-        });
-
+    // Updates globals after execution.
+    pub(crate) fn update_globals(&mut self) {
         let (gas, allowance) = self.ext.counters();
 
         self.globals
@@ -91,6 +87,55 @@ where
             .unwrap_or_else(|e| {
                 unreachable!("Globals must be checked during env creation: {:?}", e)
             });
+    }
+
+    pub fn run_fallible<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> SyscallOutput
+    where
+        F: FnOnce(&mut Self) -> Result<Result<T, u32>, SyscallFuncError<E::Error>>,
+        R: From<Result<T, u32>> + Sized,
+    {
+        self.prepare_run();
+
+        let mut res = f(self).map_err(|err| {
+            *self.err_mut() = err;
+        });
+
+        if res.is_err() {
+            if let Ok(to_be_returned) = self.last_err() {
+                res = Ok(Err(to_be_returned.encoded_size() as u32));
+            }
+        }
+
+        let res = if let Ok(res) = res {
+            // TODO: move above or make normal process memory access.
+            let write_res = self.memory_manager.register_write_as::<R>(res_ptr);
+            self.write_as(write_res, R::from(res))
+                .map_err(|err| {
+                    *self.err_mut() = err.into();
+                    HostError
+                })
+                .map(|_| ReturnValue::Unit)
+        } else {
+            Err(HostError)
+        };
+
+        self.update_globals();
+
+        res
+    }
+
+    pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
+    where
+        F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
+    {
+        self.prepare_run();
+
+        let result = f(self).map_err(|err| {
+            self.err = err;
+            HostError
+        });
+
+        self.update_globals();
 
         result
     }

@@ -216,10 +216,13 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         if self.reads.is_empty() && self.writes.is_empty() {
             return Ok(());
         }
-        E::pre_process_memory_accesses(&self.reads, &self.writes)?;
+
+        let res = E::pre_process_memory_accesses(&self.reads, &self.writes);
+
         self.reads.clear();
         self.writes.clear();
-        Ok(())
+
+        res.map_err(Into::into)
     }
 
     /// Pre-process registered accesses if need and read data from `memory` to `buff`.

@@ -15,6 +15,7 @@ members = [
     "examples/binaries/async-custom-entry",
     "examples/binaries/async-signal-entry",
     "examples/binaries/async-tester",
+    "examples/binaries/backend-error",
     "examples/binaries/btree",
     "examples/binaries/calc-hash",
     "examples/binaries/compose",
