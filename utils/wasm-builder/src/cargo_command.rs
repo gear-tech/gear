@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{ensure, Result};
+use anyhow::{ensure, Context, Result};
 use std::{env, path::PathBuf, process::Command};
 
 use crate::builder_error::BuilderError;
@@ -83,7 +83,7 @@ impl CargoCommand {
 
         self.remove_cargo_encoded_rustflags(&mut cargo);
 
-        let status = cargo.status()?;
+        let status = cargo.status().context("unable to execute cargo command")?;
         ensure!(
             status.success(),
             BuilderError::CargoRunFailed(status.to_string())

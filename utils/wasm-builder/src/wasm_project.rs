@@ -182,14 +182,16 @@ impl WasmProject {
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
 
-        fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)?;
+        fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
+            .context("unable to write Cargo.toml")?;
 
         let src_dir = self.out_dir.join("src");
         fs::create_dir_all(&src_dir)?;
         fs::write(
             src_dir.join("lib.rs"),
             "#![no_std] pub use orig_project::*;",
-        )?;
+        )
+        .context("unable to write lib.rs")?;
 
         // Copy original `Cargo.lock` if any
         let from_lock = self.original_dir.join("Cargo.lock");
@@ -225,15 +227,21 @@ impl WasmProject {
         let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
 
         let include_bytes = |path| format!(r#"include_bytes!("{}")"#, display_path(path));
-        let (to_path, to_opt_path, to_meta_path) =
+        let (to_path, to_opt_path, to_meta_path, exports) =
             if let Some((to_path, to_opt_path, to_meta_path)) = paths {
                 (
-                    include_bytes(to_path),
-                    include_bytes(to_opt_path),
-                    include_bytes(to_meta_path),
+                    include_bytes(&to_path),
+                    include_bytes(&to_opt_path),
+                    include_bytes(&to_meta_path),
+                    Self::get_exports(to_meta_path)?,
                 )
             } else {
-                ("&[]".to_string(), "&[]".to_string(), "&[]".to_string())
+                (
+                    "&[]".to_string(),
+                    "&[]".to_string(),
+                    "&[]".to_string(),
+                    vec![],
+                )
             };
 
         if !self.project_type.is_metawasm() {
@@ -256,13 +264,11 @@ pub const WASM_BINARY_META: &[u8] = {to_meta_path};
                 wasm_binary_rs,
                 format!(
                     r#"#[allow(unused)]
-pub const WASM_BINARY: &[u8] = include_bytes!("{}");
+pub const WASM_BINARY: &[u8] = {to_meta_path};
 #[allow(unused)]
-pub const WASM_EXPORTS: &[&str] = &{:?};
+pub const WASM_EXPORTS: &[&str] = &{exports:?};
 
 "#,
-                    to_meta_path.clone(),
-                    Self::get_exports(to_meta_path)?,
                 ),
             )
             .context("unable to write `wasm_binary.rs`")?;
@@ -345,8 +351,8 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
         Ok(())
     }
 
-    fn get_exports(file: String) -> Result<Vec<String>> {
-        let module = parity_wasm::deserialize_file(file)?;
+    fn get_exports(file: PathBuf) -> Result<Vec<String>> {
+        let module = parity_wasm::deserialize_file(file).context("unable to deserialize module")?;
 
         let exports = module
             .export_section()
@@ -367,6 +373,6 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
 }
 
 // Windows has path like `path\to\somewhere` which is incorrect for `include_*` Rust's macros
-fn display_path(path: PathBuf) -> String {
+fn display_path(path: &Path) -> String {
     path.display().to_string().replace('\\', "/")
 }
