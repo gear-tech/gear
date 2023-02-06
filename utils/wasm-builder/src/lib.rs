@@ -65,20 +65,26 @@ impl WasmBuilder {
         }
     }
 
-    /// Build the program and produce an output WASM binary.
-    pub fn build(self) {
-        if env::var(self.cargo.skip_package_build_env()).is_ok()
-            || env::var("SKIP_WASM_BUILD").is_ok()
-        {
-            return;
-        }
-        if let Err(e) = self.build_project() {
+    fn exit(res: anyhow::Result<()>) {
+        if let Err(e) = res {
             eprintln!("error: {e}");
             e.chain()
                 .skip(1)
                 .for_each(|cause| eprintln!("|      {cause}"));
             process::exit(1);
         }
+    }
+
+    /// Build the program and produce an output WASM binary.
+    pub fn build(self) {
+        if env::var(self.cargo.skip_package_build_env()).is_ok()
+            || env::var("SKIP_WASM_BUILD").is_ok()
+        {
+            Self::exit(self.wasm_project.write_wasm_binary_file(None));
+            return;
+        }
+
+        Self::exit(self.build_project());
     }
 
     fn build_project(mut self) -> Result<()> {
