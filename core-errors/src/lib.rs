@@ -39,6 +39,7 @@ pub trait CoreError: Debug + Display + Sized {}
 /// Error using messages.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[non_exhaustive]
 pub enum MessageError {
     /// Message has bigger then allowed one message size
     #[display(fmt = "Max message size exceed")]
@@ -151,6 +152,7 @@ pub enum MessageError {
 /// Error using waiting syscalls.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[non_exhaustive]
 pub enum WaitError {
     /// An error occurs in attempt to wait duration greater than could be payed.
     #[display(fmt = "Not enough gas to cover holding in waitlist")]
@@ -163,6 +165,7 @@ pub enum WaitError {
 /// Memory error.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[non_exhaustive]
 pub enum MemoryError {
     /// The error occurs when a program tries to allocate more memory than
     /// allowed.
@@ -190,6 +193,7 @@ pub enum MemoryError {
 /// Reservation error.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[non_exhaustive]
 pub enum ReservationError {
     /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
     #[display(fmt = "Invalid reservation ID")]
@@ -211,6 +215,7 @@ pub enum ReservationError {
 /// Execution error.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[non_exhaustive]
 pub enum ExecutionError {
     // TODO: remove some errors in #2199
     /// An error occurs in attempt to charge more gas than available during execution.
@@ -232,6 +237,7 @@ pub enum ExecutionError {
     Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::From,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[non_exhaustive]
 pub enum ExtError {
     /// We got some error but don't know which exactly because of disabled gcore's `codec` feature
     #[cfg(not(feature = "codec"))]
