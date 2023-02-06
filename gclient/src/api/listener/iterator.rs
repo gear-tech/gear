@@ -22,7 +22,7 @@ use async_trait::async_trait;
 use gp::api::{
     config::GearConfig,
     generated::api::{gear::Event as GearEvent, Event},
-    types::FinalizedBlocks,
+    types::Blocks,
 };
 use subxt::{
     events::{Events, Phase},
@@ -46,7 +46,7 @@ use subxt::{
 ///     Ok(())
 /// }
 /// ```
-pub struct EventListener(pub(crate) FinalizedBlocks);
+pub struct EventListener(pub(crate) Blocks);
 
 #[async_trait(?Send)]
 impl EventProcessor for EventListener {

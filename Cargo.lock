@@ -3712,6 +3712,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-validator-checks"
+version = "0.1.0"
+dependencies = [
+ "clap 4.1.1",
+ "env_logger 0.10.0",
+ "futures-util",
+ "gear-program",
+ "log",
+ "parity-scale-codec",
+ "sp-consensus-babe",
+ "subxt",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "gear-wasm-builder"
 version = "0.1.2"
 dependencies = [
