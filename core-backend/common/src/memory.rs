@@ -37,9 +37,8 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError;
 
-/// Memory access error.
-#[derive(Debug, Clone, Copy, Encode, Decode, derive_more::Display)]
-#[display(fmt = "Out of memory access error")]
+/// Memory access error during sys-call that lazy-pages have caught.
+#[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct OutOfMemoryAccessError;
 
 #[derive(Debug, Clone, derive_more::Display, derive_more::From)]
@@ -61,8 +60,8 @@ impl From<RuntimeBufferSizeError> for MemoryAccessError {
 }
 
 impl From<OutOfMemoryAccessError> for MemoryAccessError {
-    fn from(err: OutOfMemoryAccessError) -> Self {
-        Self::System(err.into())
+    fn from(_err: OutOfMemoryAccessError) -> Self {
+        Self::Actor(MemoryError::MemoryAccessError.into())
     }
 }
 
@@ -76,11 +75,8 @@ pub enum ActorMemoryAccessError {
     RuntimeBuffer(RuntimeBufferSizeError),
 }
 
-#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
+#[derive(Debug, Clone, derive_more::Display)]
 pub enum SystemMemoryAccessError {
-    #[from]
-    #[display(fmt = "{_0}")]
-    OutOfBounds(OutOfMemoryAccessError),
     // TODO: remove #2164
     #[display(fmt = "Cannot decode read memory")]
     DecodeError,
