@@ -40,7 +40,7 @@ where
 
 impl<'a, E> CallerWrap<'a, E>
 where
-    E: Ext + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
 {
     #[track_caller]
@@ -124,6 +124,40 @@ where
     }
 
     #[track_caller]
+    pub fn run_fallible<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> Result<(), Trap>
+    where
+        F: FnOnce(&mut Self) -> Result<Result<T, u32>, SyscallFuncError<E::Error>>,
+        R: From<Result<T, u32>> + Sized,
+    {
+        let write_res = self.register_write_as::<R>(res_ptr);
+
+        let mut res = f(self).map_err(|err| {
+            self.host_state_mut().err = err;
+        });
+
+        if res.is_err() {
+            if let Ok(to_be_returned) = self.host_state_mut().last_err() {
+                res = Ok(Err(to_be_returned.encoded_size() as u32));
+            }
+        }
+
+        let res = if let Ok(res) = res {
+            self.write_as(write_res, R::from(res))
+                .map_err(|err| {
+                    self.host_state_mut().err = err.into();
+                    Trap::from(TrapCode::Unreachable)
+                })
+                .map(|_| ())
+        } else {
+            Err(Trap::from(TrapCode::Unreachable))
+        };
+
+        self.update_globals();
+
+        res
+    }
+
+    #[track_caller]
     pub fn run<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
         F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
@@ -136,6 +170,54 @@ where
         self.update_globals();
 
         result
+    }
+
+    #[track_caller]
+    pub fn run_fallible_state_taken<T: Sized, F, R>(
+        &mut self,
+        res_ptr: u32,
+        f: F,
+    ) -> Result<(), Trap>
+    where
+        F: FnOnce(&mut Self, &mut State<E>) -> Result<Result<T, u32>, SyscallFuncError<E::Error>>,
+        R: From<Result<T, u32>> + Sized,
+    {
+        let mut state = self
+            .caller
+            .host_data_mut()
+            .take()
+            .expect("State must be set before execution");
+
+        let write_res = self.register_write_as::<R>(res_ptr);
+
+        let res = f(self, &mut state);
+
+        self.caller.host_data_mut().replace(state);
+
+        let mut res = res.map_err(|err| {
+            self.host_state_mut().err = err;
+        });
+
+        if res.is_err() {
+            if let Ok(to_be_returned) = self.host_state_mut().last_err() {
+                res = Ok(Err(to_be_returned.encoded_size() as u32));
+            }
+        }
+
+        let res = if let Ok(res) = res {
+            self.write_as(write_res, R::from(res))
+                .map_err(|err| {
+                    self.host_state_mut().err = err.into();
+                    Trap::from(TrapCode::Unreachable)
+                })
+                .map(|_| ())
+        } else {
+            Err(Trap::from(TrapCode::Unreachable))
+        };
+
+        self.update_globals();
+
+        res
     }
 
     #[track_caller]
