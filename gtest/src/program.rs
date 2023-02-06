@@ -90,7 +90,7 @@ pub trait WasmProgram: Debug {
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle_reply(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
-    fn meta_state(&mut self, payload: Option<Vec<u8>>) -> Result<Vec<u8>, &'static str>;
+    fn state(&mut self) -> Result<Vec<u8>, &'static str>;
     fn debug(&mut self, data: &str) {
         logger::debug!(target: "gwasm", "DEBUG: {}", data);
     }

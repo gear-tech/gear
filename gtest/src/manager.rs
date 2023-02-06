@@ -399,21 +399,25 @@ impl ExtManager {
             .get_mut(program_id)
             .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
-        let (_, program, memory_pages) = actor
-            .get_executable_actor_data()
-            .ok_or_else(|| TestError::ActorIsNotExecutable(*program_id))?;
-
-        core_processor::informational::execute_for_reply::<WasmiEnvironment<Ext, _>, _>(
-            String::from("state"),
-            program.code().clone(),
-            Some(memory_pages),
-            Some(program.allocations().clone()),
-            Some(*program_id),
-            Default::default(),
-            u64::MAX,
-            self.block_info,
-        )
-        .map_err(TestError::ReadStateError)
+        if let Some((_, program, memory_pages)) = actor.get_executable_actor_data() {
+            core_processor::informational::execute_for_reply::<WasmiEnvironment<Ext, _>, _>(
+                String::from("state"),
+                program.code().clone(),
+                Some(memory_pages),
+                Some(program.allocations().clone()),
+                Some(*program_id),
+                Default::default(),
+                u64::MAX,
+                self.block_info,
+            )
+            .map_err(TestError::ReadStateError)
+        } else if let Some(mut program_mock) = actor.take_mock() {
+            program_mock
+                .state()
+                .map_err(|err| TestError::ReadStateError(err.into()))
+        } else {
+            Err(TestError::ActorIsNotExecutable(*program_id))
+        }
     }
 
     pub(crate) fn read_state_bytes_using_wasm(
