@@ -204,6 +204,30 @@ impl GearConfig {
     }
 }
 
+// Module and an optional index of gr_debug syscall.
+struct ModuleWithDebug {
+    module: Module,
+    debug_syscall_index: Option<u32>,
+}
+
+impl From<Module> for ModuleWithDebug {
+    fn from(module: Module) -> Self {
+        Self {
+            module,
+            debug_syscall_index: None,
+        }
+    }
+}
+
+impl From<(Module, Option<u32>)> for ModuleWithDebug {
+    fn from((module, debug_syscall_index): (Module, Option<u32>)) -> Self {
+        Self {
+            module,
+            debug_syscall_index,
+        }
+    }
+}
+
 pub fn default_swarm_config(u: &mut Unstructured, gear_config: &GearConfig) -> SwarmConfig {
     let mut cfg: SwarmConfig = u.arbitrary().unwrap();
 
@@ -662,16 +686,17 @@ impl<'a> WasmGen<'a> {
         )
     }
 
-    pub fn insert_sys_calls(&mut self, module: Module, memory_pages: WasmPageCount) -> Module {
+    pub fn insert_sys_calls(&mut self, module: Module, memory_pages: WasmPageCount) -> ModuleWithDebug {
         let code_size = if let Some(code) = module.code_section() {
             code.bodies()
                 .iter()
                 .fold(0, |sum, body| sum + body.code().elements().len())
         } else {
-            return module;
+            return module.into();
         };
 
         let mut source_call_index = None;
+        let mut debug_call_index = None;
 
         let import_count = module.import_count(ImportCountType::Function);
 
@@ -724,6 +749,10 @@ impl<'a> WasmGen<'a> {
                 source_call_index = Some(call_index);
             }
 
+            if name == SysCallName::Debug {
+                debug_call_index = Some(call_index);
+            }
+
             self.calls_indexes
                 .push(FuncIdx::Import((import_count + i) as u32));
             syscall_data.insert(
@@ -747,7 +776,7 @@ impl<'a> WasmGen<'a> {
             }
         }
 
-        module
+        (module, debug_call_index).into()
     }
 
     fn build_call_instructions(
@@ -813,12 +842,16 @@ impl<'a> WasmGen<'a> {
         instructions
     }
 
-    pub fn make_print_test_info(&mut self, mut module: Module) -> Module {
-        let text = if let Some(text) = &self.config.print_test_info {
-            text
-        } else {
-            return module;
+    pub fn make_print_test_info(&mut self, result: ModuleWithDebug) -> Module {
+        let text = match &self.config.print_test_info {
+            Some(text) => text,
+            None => return result.module,
         };
+
+        let ModuleWithDebug {
+            mut module,
+            debug_syscall_index,
+        } = result;
 
         if let External::Memory(mem_type) = module
             .import_section()
@@ -858,25 +891,6 @@ impl<'a> WasmGen<'a> {
             .build()
             .build();
 
-        let gr_debug_import_index = module
-            .import_section()
-            .unwrap()
-            .entries()
-            .iter()
-            .filter(|entry| entry.field() != MEMORY_FIELD_NAME)
-            .position(|import| import.field() == "gr_debug")
-            .unwrap() as u32;
-        let gr_debug_call_index = self
-            .calls_indexes
-            .iter()
-            .position(|index| {
-                match index {
-                    FuncIdx::Import(import_index) if *import_index == gr_debug_import_index => true,
-                    _ => false,
-                }
-            })
-            .unwrap() as u32;
-
         let init_code = module.code_section_mut().unwrap().bodies_mut()
             [init_func_no.unwrap() as usize]
             .code_mut()
@@ -884,7 +898,7 @@ impl<'a> WasmGen<'a> {
         let print_code = [
             Instruction::I32Const(0),
             Instruction::I32Const(bytes.len() as i32),
-            Instruction::Call(gr_debug_call_index),
+            Instruction::Call(debug_syscall_index.expect("debug data specified so do the call")),
         ];
 
         init_code.splice(0..0, print_code);
@@ -975,8 +989,8 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
     }
 
     module = gen.gen_handle(module).0;
-    module = gen.insert_sys_calls(module, memory_pages);
-    module = gen.make_print_test_info(module);
+    let module = gen.insert_sys_calls(module, memory_pages);
+    let module = gen.make_print_test_info(module);
 
     gen.resolves_calls_indexes(module)
 }
