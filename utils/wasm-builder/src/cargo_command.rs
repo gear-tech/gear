@@ -79,7 +79,7 @@ impl CargoCommand {
             .arg("--")
             .args(&self.rustc_flags)
             .env("CARGO_TARGET_DIR", &self.target_dir)
-            .env(self.skip_package_build_env(), ""); // Don't build the original crate recursively
+            .env(self.skip_package_build_env(), "1"); // Don't build the original crate recursively
 
         self.remove_cargo_encoded_rustflags(&mut cargo);
 

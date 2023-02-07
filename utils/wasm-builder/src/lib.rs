@@ -77,8 +77,14 @@ impl WasmBuilder {
 
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
-        if env::var(self.cargo.skip_package_build_env()).is_ok()
-            || env::var("SKIP_WASM_BUILD").is_ok()
+        println!(
+            "cargo:rerun-if-env-changed={}",
+            self.cargo.skip_package_build_env()
+        );
+        println!("cargo:rerun-if-env-changed=SKIP_WASM_BUILD");
+
+        if env::var(self.cargo.skip_package_build_env()) == Ok("1".to_string())
+            || env::var("SKIP_WASM_BUILD") == Ok("1".to_string())
         {
             Self::exit(self.wasm_project.write_wasm_binary_file(None));
             return;
