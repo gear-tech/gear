@@ -29,13 +29,6 @@
 use core::{alloc::Layout, arch::wasm32, panic::PanicInfo};
 
 #[cfg(target_arch = "wasm32")]
-#[alloc_error_handler]
-pub fn oom(_: Layout) -> ! {
-    // TODO(ark0f): introduce oom_panic
-    crate::ext::panic("Runtime memory exhausted. Aborting")
-}
-
-#[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(panic_info: &PanicInfo) -> ! {
     let msg = match (panic_info.message(), panic_info.location()) {
