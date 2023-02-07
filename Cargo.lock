@@ -3347,6 +3347,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
+ "sp-runtime",
  "static_assertions",
  "wabt",
  "wasmparser-nostd 0.91.0",
