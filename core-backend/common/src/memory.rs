@@ -32,16 +32,17 @@ use core::{
 };
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
+    gas::GasLeft,
     memory::{Memory, MemoryInterval},
 };
 use gear_core_errors::MemoryError;
 
-/// The type will be used some time soon to implement proper charging.
+/// Memory access error during sys-call that lazy-pages have caught.
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum ProcessAccessError {
     OutOfBounds,
     GasLimitExceeded,
-    GasAllowanceExceeded,
+    GasAllowanceExceed,
 }
 
 #[derive(Debug, Clone, derive_more::From)]
@@ -194,12 +195,15 @@ impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
 
 impl<E: BackendExt> MemoryAccessManager<E> {
     /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
-    fn pre_process_memory_accesses(&mut self) -> Result<(), MemoryAccessError> {
+    fn pre_process_memory_accesses(
+        &mut self,
+        gas_left: &mut GasLeft,
+    ) -> Result<(), MemoryAccessError> {
         if self.reads.is_empty() && self.writes.is_empty() {
             return Ok(());
         }
 
-        let res = E::pre_process_memory_accesses(&self.reads, &self.writes);
+        let res = E::pre_process_memory_accesses(&self.reads, &self.writes, gas_left);
 
         self.reads.clear();
         self.writes.clear();
@@ -213,8 +217,9 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         memory: &M,
         ptr: u32,
         buff: &mut [u8],
+        gas_left: &mut GasLeft,
     ) -> Result<(), MemoryAccessError> {
-        self.pre_process_memory_accesses()?;
+        self.pre_process_memory_accesses(gas_left)?;
         memory.read(ptr, buff).map_err(Into::into)
     }
 
@@ -223,10 +228,11 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         &mut self,
         memory: &M,
         read: WasmMemoryRead,
+        gas_left: &mut GasLeft,
     ) -> Result<Vec<u8>, MemoryAccessError> {
-        let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?;
-        self.read_into_buf(memory, read.ptr, buff.get_mut())?;
-        Ok(buff.into_vec())
+        let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
+        self.read_into_buf(memory, read.ptr, &mut buff, gas_left)?;
+        Ok(buff)
     }
 
     /// Pre-process registered accesses if need and read and decode data as `T` from `memory`.
@@ -234,9 +240,10 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         &mut self,
         memory: &M,
         read: WasmMemoryReadDecoded<T>,
+        gas_left: &mut GasLeft,
     ) -> Result<T, MemoryAccessError> {
         let mut buff = RuntimeBuffer::try_new_default(T::max_encoded_len())?.into_vec();
-        self.read_into_buf(memory, read.ptr, &mut buff)?;
+        self.read_into_buf(memory, read.ptr, &mut buff, gas_left)?;
         let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
         Ok(decoded)
     }
@@ -246,8 +253,9 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         &mut self,
         memory: &M,
         read: WasmMemoryReadAs<T>,
+        gas_left: &mut GasLeft,
     ) -> Result<T, MemoryAccessError> {
-        self.pre_process_memory_accesses()?;
+        self.pre_process_memory_accesses(gas_left)?;
         read_memory_as(memory, read.ptr).map_err(Into::into)
     }
 
@@ -257,11 +265,12 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         memory: &mut M,
         write: WasmMemoryWrite,
         buff: &[u8],
+        gas_left: &mut GasLeft,
     ) -> Result<(), MemoryAccessError> {
         if buff.len() != write.size as usize {
             unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
         }
-        self.pre_process_memory_accesses()?;
+        self.pre_process_memory_accesses(gas_left)?;
         memory.write(write.ptr, buff).map_err(Into::into)
     }
 
@@ -271,8 +280,9 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         memory: &mut M,
         write: WasmMemoryWriteAs<T>,
         obj: T,
+        gas_left: &mut GasLeft,
     ) -> Result<(), MemoryAccessError> {
-        self.pre_process_memory_accesses()?;
+        self.pre_process_memory_accesses(gas_left)?;
         write_memory_as(memory, write.ptr, obj).map_err(Into::into)
     }
 }

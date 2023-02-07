@@ -18,7 +18,10 @@
 
 //! Costs module.
 
+use core::{fmt::Debug, marker::PhantomData};
+
 use crate::{gas::Token, memory::PageU32Size};
+
 use codec::{Decode, Encode};
 use core::{fmt::Debug, marker::PhantomData};
 
@@ -55,6 +58,52 @@ impl<P: PageU32Size> CostPerPage<P> {
 impl<P: PageU32Size> From<u64> for CostPerPage<P> {
     fn from(cost: u64) -> Self {
         Self {
+            cost,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<P: PageU32Size> From<CostPerPage<P>> for u64 {
+    fn from(value: CostPerPage<P>) -> Self {
+        value.cost
+    }
+}
+
+impl<P: PageU32Size> Default for CostPerPage<P> {
+    fn default() -> Self {
+        Self {
+            cost: 0,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+/// Cost per one memory page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub struct CostPerPage<P: PageU32Size> {
+    cost: u64,
+    _phantom: PhantomData<P>,
+}
+
+impl<P: PageU32Size> CostPerPage<P> {
+    /// Calculate cost for `pages`.
+    pub fn calc(&self, pages: P) -> u64 {
+        self.cost.saturating_mul(pages.raw() as u64)
+    }
+    /// Cost for one page.
+    pub fn one(&self) -> u64 {
+        self.cost
+    }
+    /// Returns another [CostPerPage] with increased `cost` to `other.cost`.
+    pub fn add(&self, other: Self) -> Self {
+        self.cost.saturating_add(other.cost).into()
+    }
+}
+
+impl<P: PageU32Size> From<u64> for CostPerPage<P> {
+    fn from(cost: u64) -> Self {
+        CostPerPage {
             cost,
             _phantom: PhantomData,
         }

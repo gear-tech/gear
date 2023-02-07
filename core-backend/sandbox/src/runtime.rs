@@ -140,6 +140,20 @@ impl<E: BackendExt> Runtime<E> {
     {
         self.run_any(cost, f).map(|_| ReturnValue::Unit)
     }
+
+    fn with_memory<R>(
+        &mut self,
+        f: impl FnOnce(
+            &mut MemoryAccessManager<E>,
+            &mut MemoryWrap,
+            &mut GasLeft,
+        ) -> Result<R, MemoryAccessError>,
+    ) -> Result<R, MemoryAccessError> {
+        let mut gas_left = self.ext.counters().into();
+        let res = f(&mut self.memory_manager, &mut self.memory, &mut gas_left);
+        self.ext.update_counters(gas_left.gas, gas_left.allowance);
+        res
+    }
 }
 
 impl<E: BackendExt> MemoryAccessRecorder for Runtime<E> {
@@ -169,22 +183,26 @@ impl<E: BackendExt> MemoryAccessRecorder for Runtime<E> {
 
 impl<E: BackendExt> MemoryOwner for Runtime<E> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
-        self.memory_manager.read(&self.memory, read)
+        self.with_memory(move |manager, memory, gas_left| manager.read(memory, read, gas_left))
     }
 
     fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
-        self.memory_manager.read_as(&self.memory, read)
+        self.with_memory(move |manager, memory, gas_left| manager.read_as(memory, read, gas_left))
     }
 
     fn read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         read: WasmMemoryReadDecoded<T>,
     ) -> Result<T, MemoryAccessError> {
-        self.memory_manager.read_decoded(&self.memory, read)
+        self.with_memory(move |manager, memory, gas_left| {
+            manager.read_decoded(memory, read, gas_left)
+        })
     }
 
     fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError> {
-        self.memory_manager.write(&mut self.memory, write, buff)
+        self.with_memory(move |manager, memory, gas_left| {
+            manager.write(memory, write, buff, gas_left)
+        })
     }
 
     fn write_as<T: Sized>(
@@ -192,7 +210,9 @@ impl<E: BackendExt> MemoryOwner for Runtime<E> {
         write: WasmMemoryWriteAs<T>,
         obj: T,
     ) -> Result<(), MemoryAccessError> {
-        self.memory_manager.write_as(&mut self.memory, write, obj)
+        self.with_memory(move |manager, memory, gas_left| {
+            manager.write_as(memory, write, obj, gas_left)
+        })
     }
 }
 

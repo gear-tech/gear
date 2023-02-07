@@ -161,3 +161,10 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128, ProgramId)>
         }
     }
 }
+
+impl ProcessExecutionContext {
+    /// Returns ref to program.
+    pub fn program(&self) -> &Program {
+        &self.program
+    }
+}

@@ -45,7 +45,7 @@ use core::{
 use gear_core::{
     buffer::RuntimeBufferSizeError,
     env::Ext as EnvExt,
-    gas::{ChargeError, CountersOwner, GasAmount},
+    gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, IncorrectAllocationDataError, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
@@ -228,6 +228,7 @@ pub trait BackendExt: EnvExt + CountersOwner {
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
+        gas_left: &mut GasLeft,
     ) -> Result<(), ProcessAccessError>;
 }
 

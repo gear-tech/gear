@@ -76,11 +76,11 @@ where
     EXCEPTION_CONTINUE_EXECUTION
 }
 
-pub(crate) unsafe fn init_for_thread() -> Result<(), String> {
+pub unsafe fn init_for_thread() -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) unsafe fn setup_signal_handler<H>() -> io::Result<()>
+pub unsafe fn setup_signal_handler<H>() -> io::Result<()>
 where
     H: UserSignalHandler,
 {

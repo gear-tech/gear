@@ -59,7 +59,7 @@ use common::{
 use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
-    configs::{BlockConfig, BlockInfo, PagesConfig},
+    configs::{BlockConfig, BlockInfo},
     ContextChargedForInstrumentation,
 };
 use frame_support::{
@@ -73,7 +73,6 @@ use frame_support::{
     weights::Weight,
 };
 use frame_system::pallet_prelude::{BlockNumberFor, *};
-use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     costs::CostPerPage,
@@ -1001,36 +1000,10 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
-            let pages_config = PagesConfig {
-                max_pages: schedule.limits.memory_pages.into(),
-                lazy_pages_weights: LazyPagesWeights {
-                    signal_read: CostPerPage::new(schedule.memory_weights.lazy_pages_read),
-                    signal_write: CostPerPage::new(schedule.memory_weights.lazy_pages_write),
-                    signal_write_after_read: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_write_after_read,
-                    ),
-                    host_func_read_access: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_read,
-                    ),
-                    host_func_write_access: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_write,
-                    ),
-                    host_func_write_after_read_access: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_write_after_read,
-                    ),
-                    load_page_storage_data: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_read,
-                    ),
-                },
-                init_cost: schedule.memory_weights.initial_cost,
-                alloc_cost: schedule.memory_weights.allocation_cost,
-                mem_grow_cost: schedule.memory_weights.grow_cost,
-                load_page_cost: schedule.memory_weights.load_cost,
-            };
-
             BlockConfig {
                 block_info,
-                pages_config,
+                max_pages: schedule.limits.memory_pages.into(),
+                page_costs: schedule.memory_weights.clone().into(),
                 existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
                 host_fn_weights: schedule.host_fn_weights.into_core(),

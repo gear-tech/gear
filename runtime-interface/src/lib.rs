@@ -107,15 +107,13 @@ pub trait GearRI {
     fn pre_process_memory_accesses(
         reads: &[(u32, u32)],
         writes: &[(u32, u32)],
-        _gas_left: (GasLeft,), // to be used in #2216
+        gas_left: (GasLeft,),
     ) -> (GasLeft, Result<(), ProcessAccessError>) {
+        let mut gas_left = gas_left.0;
         let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
         let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
-        (
-            Default::default(),
-            lazy_pages::pre_process_memory_accesses(&reads, &writes)
-                .map_err(|_| ProcessAccessError::OutOfBounds),
-        )
+        let res = lazy_pages::pre_process_memory_accesses(&reads, &writes, &mut gas_left);
+        (gas_left, res)
     }
 
     fn get_lazy_pages_status() -> Option<Status> {

@@ -242,6 +242,13 @@ impl<P: PageU32Size> PagesIterInclusive<P> {
     pub fn end(&self) -> P {
         self.end
     }
+    /// Returns another page type iter, which pages intersect with `self` pages.
+    pub fn to_iter<P1: PageU32Size>(&self) -> PagesIterInclusive<P1> {
+        PagesIterInclusive::<P1> {
+            page: self.page.map(|p| p.to_page()),
+            end: self.end.to_last_page(),
+        }
+    }
 }
 
 /// Trait represents page with u32 size for u32 memory: max memory size is 2^32 bytes.
@@ -286,9 +293,13 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq + PartialOrd + Ord 
     fn end_offset(&self) -> u32 {
         self.raw() * Self::size() + (Self::size() - 1)
     }
-    /// Returns new page, which impls PageU32Size, and contains self zero byte.
-    fn to_page<PAGE: PageU32Size>(&self) -> PAGE {
-        PAGE::from_offset(self.offset())
+    /// Returns new page, which contains `self` zero byte.
+    fn to_page<P1: PageU32Size>(&self) -> P1 {
+        P1::from_offset(self.offset())
+    }
+    /// Returns new page, which contains `self` last byte.
+    fn to_last_page<P1: PageU32Size>(&self) -> P1 {
+        P1::from_offset(self.end_offset())
     }
     /// Returns page which has number `page.raw() + raw`, with checks.
     fn add_raw(&self, raw: u32) -> Result<Self, PageError> {
@@ -468,6 +479,14 @@ impl From<u16> for GearPage {
         // u16::MAX * GearPage::size() - 1 <= u32::MAX
         static_assertions::const_assert!(GEAR_PAGE_SIZE <= 0x10000);
         GearPage(value as u32)
+    }
+}
+
+impl From<u16> for GranularityPage {
+    fn from(value: u16) -> Self {
+        // u16::MAX * GranularityPage::size() - 1 <= u32::MAX
+        static_assertions::const_assert!(PAGE_STORAGE_GRANULARITY <= 0x10000);
+        GranularityPage(value as u32)
     }
 }
 

@@ -37,7 +37,7 @@ use core::{marker::PhantomData, mem, mem::size_of, ops::Range};
 use frame_system::RawOrigin;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
-    memory::WasmPage,
+    memory::{GearPage, PageBuf, PageBufInner, PageU32Size, WasmPage},
     message::Message,
     reservation::GasReservationSlot,
 };
@@ -1359,7 +1359,7 @@ where
         Self::prepare_handle(code, 0, err_len_ptrs)
     }
 
-    pub fn lazy_pages_read_access(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let instrs = body::read_access_all_pages_instrs(wasm_pages, vec![]);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1369,7 +1369,17 @@ where
         Self::prepare_handle(code, 0, 0..0)
     }
 
-    pub fn lazy_pages_write_access(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+        let instrs = body::write_access_all_pages_instrs(wasm_pages, vec![]);
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            handle_body: Some(body::from_instructions(instrs)),
+            ..Default::default()
+        });
+        Self::prepare_handle(code, 0, 0..0)
+    }
+
+    pub fn lazy_pages_write_after_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let mut instrs = body::read_access_all_pages_instrs(max_pages::<T>().into(), vec![]);
         instrs = body::write_access_all_pages_instrs(wasm_pages, instrs);
         let code = WasmModule::<T>::from(ModuleDefinition {
@@ -1378,5 +1388,21 @@ where
             ..Default::default()
         });
         Self::prepare_handle(code, 0, 0..0)
+    }
+
+    pub fn lazy_pages_read_storage_data(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+        let exec = Self::lazy_pages_read(wasm_pages)?;
+        let program_id = exec.context.program().id();
+        for page in wasm_pages
+            .iter_from_zero()
+            .flat_map(|p| p.to_pages_iter::<GearPage>())
+        {
+            ProgramStorageOf::<T>::set_program_page_data(
+                program_id,
+                page,
+                PageBuf::from_inner(PageBufInner::filled_with(1)),
+            );
+        }
+        Ok(exec)
     }
 }

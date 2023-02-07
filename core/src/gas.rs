@@ -301,6 +301,38 @@ pub trait CountersOwner {
     fn set_gas_left(&mut self, gas_left: GasLeft);
 }
 
+/// Provide functionality to safely make gas refund after charge,
+/// it checks, that it's not refunded more gas than has been charged.
+pub struct GasRefunder {
+    amount: u64,
+}
+
+/// [GasRefunder] error, in case somebody tries to refund more than was charged.
+#[derive(Debug, derive_more::Display)]
+#[display(fmt = "Trying to refund {_1}, but {_0} was charged")]
+pub struct RefundError(u64, u64);
+
+impl GasRefunder {
+    /// Charge gas.
+    pub fn charge<E: Ext>(ext: &mut E, amount: u64) -> Result<Self, E::Error> {
+        ext.charge_gas(amount)?;
+        Ok(Self { amount })
+    }
+
+    /// Refund gas.
+    pub fn refund<E: Ext>(
+        self,
+        ext: &mut E,
+        amount: u64,
+    ) -> Result<Result<(), E::Error>, RefundError> {
+        if self.amount < amount {
+            return Err(RefundError(self.amount, amount));
+        }
+
+        Ok(ext.refund_gas(amount))
+    }
+}
+
 /// Gas limit and gas allowance left.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct GasLeft {
