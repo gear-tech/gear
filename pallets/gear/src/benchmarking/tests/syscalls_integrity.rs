@@ -77,12 +77,12 @@ where
             SysCallName::GasAvailable => check_gr_gas_available::<T>(),
             SysCallName::ValueAvailable => check_gr_value_available::<T>(),
             SysCallName::Exit
-            | SysCallName::Leave 
-            | SysCallName::Wait 
-            | SysCallName::WaitFor 
-            | SysCallName::WaitUpTo 
-            | SysCallName::Wake 
-            | SysCallName::Debug 
+            | SysCallName::Leave
+            | SysCallName::Wait
+            | SysCallName::WaitFor
+            | SysCallName::WaitUpTo
+            | SysCallName::Wake
+            | SysCallName::Debug
             | SysCallName::Panic => {/* tests here aren't required, read module docs for more info */},
             SysCallName::Alloc => check_mem::<T>(false),
             SysCallName::Free => check_mem::<T>(true),
