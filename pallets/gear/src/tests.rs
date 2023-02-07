@@ -9333,3 +9333,37 @@ fn relay_messages() {
         }],
     );
 }
+
+#[test]
+fn data_out_of_bounds() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init)
+        (data (;0;) (i32.const -15186172) "\b9w\92")
+    )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        let prog_id = generate_program_id(&code, &salt);
+        let res = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            salt,
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .map(|_| prog_id);
+
+        assert_ok!(res);
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(prog_id));
+    });
+}
