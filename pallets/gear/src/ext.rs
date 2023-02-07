@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{collections::BTreeSet, string::String, vec::Vec};
+use alloc::{collections::BTreeSet, vec::Vec};
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
@@ -342,9 +342,5 @@ impl EnvExt for LazyPagesExt {
 
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
         self.inner.runtime_cost(costs)
-    }
-
-    fn maybe_panic(&self) -> Option<String> {
-        self.inner.maybe_panic()
     }
 }

@@ -28,53 +28,30 @@
 #[cfg(target_arch = "wasm32")]
 use core::{alloc::Layout, arch::wasm32, panic::PanicInfo};
 
-#[cfg(not(feature = "debug"))]
-#[cfg(not(debug_assertions))]
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]
 pub fn oom(_: Layout) -> ! {
-    wasm32::unreachable()
+    // TODO(ark0f): introduce oom_panic
+    crate::ext::panic("Runtime memory exhausted. Aborting")
 }
 
-#[cfg(any(feature = "debug", debug_assertions))]
-#[cfg(target_arch = "wasm32")]
-#[alloc_error_handler]
-pub fn oom(_: Layout) -> ! {
-    crate::debug!("Runtime memory exhausted. Aborting");
-    wasm32::unreachable()
-}
-
-#[cfg(not(feature = "debug"))]
-#[cfg(not(debug_assertions))]
-#[cfg(target_arch = "wasm32")]
-#[panic_handler]
-pub fn panic(_: &PanicInfo) -> ! {
-    wasm32::unreachable();
-}
-
-#[cfg(any(feature = "debug", debug_assertions))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(panic_info: &PanicInfo) -> ! {
-    match (panic_info.message(), panic_info.location()) {
-        (Some(msg), Some(loc)) => crate::debug!(
-            "panic occurred: '{:?}', {}:{}:{}",
+    let msg = match (panic_info.message(), panic_info.location()) {
+        (Some(msg), Some(loc)) => crate::prelude::format!(
+            "'{:?}', {}:{}:{}",
             msg,
             loc.file(),
             loc.line(),
             loc.column()
         ),
-        (Some(msg), None) => crate::debug!("panic occurred: '{:?}'", msg),
+        (Some(msg), None) => crate::prelude::format!("'{msg:?}'"),
         (None, Some(loc)) => {
-            crate::debug!(
-                "panic occurred: {}:{}:{}",
-                loc.file(),
-                loc.line(),
-                loc.column()
-            )
+            crate::prelude::format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
         }
-        _ => crate::debug!("panic occurred: no info"),
-    }
+        _ => crate::ext::panic("no info"),
+    };
 
-    wasm32::unreachable();
+    crate::ext::panic(&msg)
 }

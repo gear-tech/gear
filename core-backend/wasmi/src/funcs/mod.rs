@@ -25,7 +25,7 @@ use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
     ActorSyscallFuncError, BackendExt, BackendExtError, BackendState, IntoExtErrorForResult,
-    SyscallFuncError, TerminationReason,
+    SyscallFuncError, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::Ext,
@@ -1048,6 +1048,28 @@ where
                         .map_err(ActorSyscallFuncError::Core)?;
 
                     Ok(())
+                })
+            };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn panic(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
+        let func =
+            move |caller: Caller<'_, HostState<E>>, string_ptr: u32, len: u32| -> EmptyOutput {
+                let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
+
+                ctx.run(|ctx| {
+                    let read_data = ctx.register_read(string_ptr, len);
+
+                    let data = ctx.read(read_data)?;
+
+                    let s = String::from_utf8_lossy(&data).to_string();
+
+                    Err(ActorSyscallFuncError::Terminated(TerminationReason::Trap(
+                        TrapExplanation::Panic(s.into()),
+                    ))
+                    .into())
                 })
             };
 

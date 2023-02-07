@@ -24,7 +24,7 @@ use crate::{
     memory::{Memory, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
-use alloc::{collections::BTreeSet, string::String};
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use gear_core_errors::CoreError;
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -246,7 +246,4 @@ pub trait Ext {
 
     /// Get runtime cost weight.
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64;
-
-    /// Get possible panic string.
-    fn maybe_panic(&self) -> Option<String>;
 }

@@ -17,14 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::runtime::Runtime;
-use alloc::{format, string::String};
+use alloc::{
+    format,
+    string::{String, ToString},
+};
 use blake2_rfc::blake2b::blake2b;
 use codec::Encode;
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
     ActorSyscallFuncError, BackendExt, BackendExtError, BackendState, IntoExtErrorForResult,
-    TerminationReason,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::Ext,
@@ -756,6 +759,26 @@ where
             ctx.ext.debug(&s).map_err(ActorSyscallFuncError::Core)?;
 
             Ok(())
+        })
+    }
+
+    pub fn panic(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "panic, args = {}", args_to_str(args));
+
+        let (data_ptr, data_len): (_, u32) = args.iter().read_2()?;
+
+        ctx.run(|ctx| {
+            let read_data = ctx.register_read(data_ptr, data_len);
+            let data = ctx.read(read_data)?;
+
+            let s = String::from_utf8_lossy(&data).to_string();
+
+            Err(
+                ActorSyscallFuncError::Terminated(TerminationReason::Trap(TrapExplanation::Panic(
+                    s.into(),
+                )))
+                .into(),
+            )
         })
     }
 

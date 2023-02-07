@@ -149,6 +149,7 @@ where
         builder.add_func(CreateProgram, Funcs::create_program);
         builder.add_func(CreateProgramWGas, Funcs::create_program_wgas);
         builder.add_func(Debug, Funcs::debug);
+        builder.add_func(Panic, Funcs::panic);
         builder.add_func(Error, Funcs::error);
         builder.add_func(Exit, Funcs::exit);
         builder.add_func(StatusCode, Funcs::status_code);

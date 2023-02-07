@@ -115,6 +115,7 @@ where
             F::send_input_wgas(store, forbidden, memory)
         }),
         f.build(Debug, |forbidden| F::debug(store, forbidden, memory)),
+        f.build(Panic, |forbidden| F::panic(store, forbidden, memory)),
         f.build(GasAvailable, |forbidden| {
             F::gas_available(store, forbidden, memory)
         }),

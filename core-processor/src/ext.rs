@@ -19,7 +19,6 @@
 use crate::configs::{BlockInfo, PagesConfig};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::{String, ToString},
     vec::Vec,
 };
 use codec::{Decode, Encode};
@@ -219,8 +218,6 @@ impl ChargedAllocGas {
 pub struct Ext {
     /// Processor context.
     pub context: ProcessorContext,
-    /// Panic string if occurred
-    pub panic: Option<String>,
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
@@ -228,10 +225,7 @@ impl ProcessorExt for Ext {
     const LAZY_PAGES_ENABLED: bool = false;
 
     fn new(context: ProcessorContext) -> Self {
-        Self {
-            context,
-            panic: None,
-        }
+        Self { context }
     }
 
     fn lazy_pages_init_for_program(
@@ -599,12 +593,7 @@ impl EnvExt for Ext {
 
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Debug(data.len() as u32))?;
-
-        if let Some(data) = data.strip_prefix("panic occurred: ") {
-            self.panic = Some(data.to_string());
-        }
         log::debug!(target: "gwasm", "DEBUG: {}", data);
-
         Ok(())
     }
 
@@ -891,10 +880,6 @@ impl EnvExt for Ext {
 
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
         costs.token(&self.context.host_fn_weights).weight()
-    }
-
-    fn maybe_panic(&self) -> Option<String> {
-        self.panic.clone()
     }
 }
 

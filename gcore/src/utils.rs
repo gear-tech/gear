@@ -27,6 +27,7 @@ pub mod ext {
     mod sys {
         extern "C" {
             pub fn gr_debug(data_ptr: *const u8, data_len: u32);
+            pub fn gr_panic(data_ptr: *const u8, data_len: u32) -> !;
         }
     }
 
@@ -48,5 +49,23 @@ pub mod ext {
         unsafe { sys::gr_debug(data.as_ptr(), data_len) }
 
         Ok(())
+    }
+
+    /// Panic
+    ///
+    /// Function is completely free in terms of gas usage.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gcore::ext;
+    ///
+    /// #[no_mangle]
+    /// extern "C" fn handle() {
+    ///     ext::panic("I decided to panic");
+    /// }
+    /// ```
+    pub fn panic(data: &str) -> ! {
+        unsafe { sys::gr_panic(data.as_ptr(), data.len() as u32) }
     }
 }

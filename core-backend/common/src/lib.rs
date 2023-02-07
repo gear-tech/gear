@@ -212,7 +212,6 @@ where
     Ext::Error: BackendExtError,
 {
     fn termination_reason(
-        ext: &Ext,
         err: Option<SyscallFuncError<Ext::Error>>,
     ) -> Result<TerminationReason, SystemSyscallFuncError> {
         match err {
@@ -226,10 +225,7 @@ where
 
                 // success is unacceptable when there is error
                 if let TerminationReason::Success = reason {
-                    reason = ext
-                        .maybe_panic()
-                        .map(|s| TrapExplanation::Panic(s.into()).into())
-                        .unwrap_or(TerminationReason::Trap(TrapExplanation::Unknown));
+                    reason = TerminationReason::Trap(TrapExplanation::Unknown);
                 }
 
                 Ok(reason)
@@ -244,7 +240,7 @@ where
             memory_wrap,
             ext,
         } = self;
-        let reason = Self::termination_reason(&ext, err)?;
+        let reason = Self::termination_reason(err)?;
         Ok((reason, memory_wrap, ext))
     }
 }

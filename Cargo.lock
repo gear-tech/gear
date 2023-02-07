@@ -3723,7 +3723,7 @@ dependencies = [
 name = "gear-validator-checks"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.1",
+ "clap 4.1.4",
  "env_logger 0.10.0",
  "futures-util",
  "gear-program",
