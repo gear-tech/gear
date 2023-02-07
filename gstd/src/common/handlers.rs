@@ -26,7 +26,7 @@
 //! For `debug` mode it provides more extensive logging.
 
 #[cfg(target_arch = "wasm32")]
-use core::{alloc::Layout, arch::wasm32, panic::PanicInfo};
+use core::panic::PanicInfo;
 
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]

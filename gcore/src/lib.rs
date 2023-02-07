@@ -78,9 +78,7 @@ pub mod prog;
 mod general;
 pub use general::*;
 
-#[cfg(any(feature = "debug", debug_assertions))]
 mod utils;
-#[cfg(any(feature = "debug", debug_assertions))]
 pub use utils::ext;
 
 use core::mem::size_of;

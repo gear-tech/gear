@@ -45,7 +45,6 @@ pub use macros::util;
 
 pub use prelude::*;
 
-#[cfg(any(feature = "debug", debug_assertions))]
 pub use gcore::ext;
 
 use core::mem::size_of;
