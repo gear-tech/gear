@@ -37,7 +37,7 @@ impl GearApi {
     /// Get a message identified by `message_id` from the mailbox.
     pub async fn get_from_mailbox(
         &self,
-        message_id: impl Borrow<MessageId>,
+        message_id: MessageId,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
         self.get_from_account_mailbox(self.0.account_id(), message_id)
             .await
@@ -47,8 +47,8 @@ impl GearApi {
     /// mailbox.
     pub async fn get_from_account_mailbox(
         &self,
-        account_id: impl Borrow<AccountId32>,
-        message_id: impl Borrow<MessageId>,
+        account_id: &AccountId32,
+        message_id: MessageId,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
         let at = storage().gear_messenger().mailbox(
             account_id.borrow(),
