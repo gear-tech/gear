@@ -212,7 +212,7 @@ impl WasmProject {
         Ok(())
     }
 
-    pub fn write_wasm_binary_file(&self, paths: Option<(PathBuf, PathBuf, PathBuf)>) -> Result<()> {
+    pub fn write_wasm_binary_rs(&self, paths: Option<(PathBuf, PathBuf, PathBuf)>) -> Result<()> {
         let metadata = self
             .project_type
             .metadata()
@@ -326,7 +326,7 @@ pub const WASM_EXPORTS: &[&str] = &{exports:?};
                 .context("unable to write `.binpath`")?;
         }
 
-        self.write_wasm_binary_file(Some((to_path, to_opt_path, to_meta_path)))?;
+        self.write_wasm_binary_rs(Some((to_path, to_opt_path, to_meta_path)))?;
 
         Ok(())
     }

@@ -65,32 +65,34 @@ impl WasmBuilder {
         }
     }
 
-    fn exit(res: anyhow::Result<()>) {
-        if let Err(e) = res {
+    /// Build the program and produce an output WASM binary.
+    pub fn build(self) {
+        println!(
+            "cargo:rerun-if-env-changed={}",
+            self.cargo.skip_pkg_build_env()
+        );
+        println!("cargo:rerun-if-env-changed=SKIP_WASM_BUILD");
+
+        let check_env = |name: &str| {
+            let var = env::var(name).ok().as_deref().map(str::to_lowercase);
+            ["1", "true"].map(Some).contains(&var.as_deref())
+        };
+
+        let f = || {
+            if check_env(&self.cargo.skip_pkg_build_env()) || check_env("SKIP_WASM_BUILD") {
+                return self.wasm_project.write_wasm_binary_rs(None);
+            }
+
+            self.build_project()
+        };
+
+        if let Err(e) = f() {
             eprintln!("error: {e}");
             e.chain()
                 .skip(1)
                 .for_each(|cause| eprintln!("|      {cause}"));
             process::exit(1);
         }
-    }
-
-    /// Build the program and produce an output WASM binary.
-    pub fn build(self) {
-        println!(
-            "cargo:rerun-if-env-changed={}",
-            self.cargo.skip_package_build_env()
-        );
-        println!("cargo:rerun-if-env-changed=SKIP_WASM_BUILD");
-
-        if env::var(self.cargo.skip_package_build_env()) == Ok("1".to_string())
-            || env::var("SKIP_WASM_BUILD") == Ok("1".to_string())
-        {
-            Self::exit(self.wasm_project.write_wasm_binary_file(None));
-            return;
-        }
-
-        Self::exit(self.build_project());
     }
 
     fn build_project(mut self) -> Result<()> {
