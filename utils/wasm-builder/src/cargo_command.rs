@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{ensure, Result};
+use anyhow::{ensure, Context, Result};
 use std::{env, path::PathBuf, process::Command};
 
 use crate::builder_error::BuilderError;
@@ -79,11 +79,11 @@ impl CargoCommand {
             .arg("--")
             .args(&self.rustc_flags)
             .env("CARGO_TARGET_DIR", &self.target_dir)
-            .env(self.skip_build_env(), ""); // Don't build the original crate recursively
+            .env(self.skip_pkg_build_env(), "1"); // Don't build the original crate recursively
 
         self.remove_cargo_encoded_rustflags(&mut cargo);
 
-        let status = cargo.status()?;
+        let status = cargo.status().context("unable to execute cargo command")?;
         ensure!(
             status.success(),
             BuilderError::CargoRunFailed(status.to_string())
@@ -93,7 +93,7 @@ impl CargoCommand {
     }
 
     /// Generate a project specific environment variable that used to skip the build.
-    pub fn skip_build_env(&self) -> String {
+    pub fn skip_pkg_build_env(&self) -> String {
         format!(
             "SKIP_{}_WASM_BUILD",
             env::var("CARGO_PKG_NAME")
