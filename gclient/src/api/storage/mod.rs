@@ -30,7 +30,6 @@ use gp::api::generated::api::{
     },
     storage,
 };
-use std::borrow::Borrow;
 use subxt::ext::sp_runtime::AccountId32;
 
 impl GearApi {
@@ -50,10 +49,9 @@ impl GearApi {
         account_id: &AccountId32,
         message_id: MessageId,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
-        let at = storage().gear_messenger().mailbox(
-            account_id.borrow(),
-            generated_ids::MessageId::from(*message_id.borrow()),
-        );
+        let at = storage()
+            .gear_messenger()
+            .mailbox(account_id, generated_ids::MessageId::from(message_id));
         let data = self.0.storage().fetch(&at, None).await?;
 
         Ok(data.map(|(m, i)| (m.into(), i)))
