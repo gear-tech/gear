@@ -31,10 +31,7 @@ pub mod mock;
 
 pub mod memory;
 
-use crate::{
-    memory::{ActorMemoryAccessError, MemoryAccessError, SystemMemoryAccessError},
-    utils::TrimmedString,
-};
+use crate::{memory::MemoryAccessError, utils::TrimmedString};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::FromUtf8Error,
@@ -70,16 +67,28 @@ pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
-    #[from]
-    Trap(TrapExplanation),
     Wait(Option<u32>, MessageWaitedType),
     GasAllowanceExceeded,
+
+    #[from]
+    Trap(TrapExplanation),
 }
 
 #[derive(
-    Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
+    Decode,
+    Encode,
+    TypeInfo,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    derive_more::Display,
+    derive_more::From,
 )]
 pub enum TrapExplanation {
+    #[from]
     #[display(fmt = "{_0}")]
     Core(ExtError),
     #[display(fmt = "{_0}")]
@@ -147,106 +156,13 @@ pub trait BackendExtError: CoreError + Clone {
     fn into_termination_reason(self) -> TerminationReason;
 }
 
-pub trait BackendState<E: BackendExtError> {
-    fn err_mut(&mut self) -> &mut SyscallFuncError<E>;
-
-    fn last_err(&mut self) -> Result<ExtError, ExtError> {
-        let last_err = if let SyscallFuncError::Actor(ActorSyscallFuncError::Core(maybe_ext)) =
-            self.err_mut().clone()
-        {
-            maybe_ext
-                .into_ext_error()
-                .map_err(|_| ExtError::SyscallUsage)
-        } else {
-            Err(ExtError::SyscallUsage)
-        };
-
-        if let Err(err) = &last_err {
-            *self.err_mut() = ActorSyscallFuncError::Core(E::from_ext_error(err.clone())).into();
-        }
-
-        last_err
-    }
-}
-
-pub trait IntoExtErrorForResult<T, Err: Display> {
-    fn into_ext_error(
-        self,
-        state_err: &mut SyscallFuncError<Err>,
-    ) -> Result<Result<T, u32>, ActorSyscallFuncError<Err>>;
-}
-
-impl<T, Err> IntoExtErrorForResult<T, Err> for Result<T, Err>
-where
-    Err: BackendExtError + Display,
-{
-    fn into_ext_error(
-        self,
-        state_err: &mut SyscallFuncError<Err>,
-    ) -> Result<Result<T, u32>, ActorSyscallFuncError<Err>> {
-        match self {
-            Ok(value) => Ok(Ok(value)),
-            Err(err) => {
-                *state_err = ActorSyscallFuncError::Core(err.clone()).into();
-                match err.into_ext_error() {
-                    Ok(ext_err) => Ok(Err(ext_err.encoded_size() as u32)),
-                    Err(err) => Err(ActorSyscallFuncError::Core(err)),
-                }
-            }
-        }
-    }
-}
-
 pub struct BackendReport<MemWrap, Ext>
 where
     Ext: EnvExt,
 {
-    pub err: Option<SyscallFuncError<Ext::Error>>,
+    pub termination_reason: TerminationReason,
     pub memory_wrap: MemWrap,
     pub ext: Ext,
-}
-
-impl<MemWrap, Ext> BackendReport<MemWrap, Ext>
-where
-    Ext: EnvExt,
-    Ext::Error: BackendExtError,
-{
-    fn termination_reason(
-        ext: &Ext,
-        err: Option<SyscallFuncError<Ext::Error>>,
-    ) -> Result<TerminationReason, SystemSyscallFuncError> {
-        match err {
-            Some(runtime_err) => {
-                let err = match runtime_err {
-                    SyscallFuncError::Actor(err) => err,
-                    SyscallFuncError::System(err) => return Err(err),
-                };
-
-                let mut reason = err.into_termination_reason();
-
-                // success is unacceptable when there is error
-                if let TerminationReason::Success = reason {
-                    reason = ext
-                        .maybe_panic()
-                        .map(|s| TrapExplanation::Panic(s.into()).into())
-                        .unwrap_or(TerminationReason::Trap(TrapExplanation::Unknown));
-                }
-
-                Ok(reason)
-            }
-            None => Ok(TerminationReason::Success),
-        }
-    }
-
-    pub fn into_parts(self) -> Result<(TerminationReason, MemWrap, Ext), SystemSyscallFuncError> {
-        let Self {
-            err,
-            memory_wrap,
-            ext,
-        } = self;
-        let reason = Self::termination_reason(&ext, err)?;
-        Ok((reason, memory_wrap, ext))
-    }
 }
 
 #[derive(Debug, derive_more::Display)]
@@ -308,81 +224,121 @@ where
 }
 
 #[derive(Debug, Clone, derive_more::From)]
-pub enum SyscallFuncError<E: Display> {
-    Actor(ActorSyscallFuncError<E>),
-    System(SystemSyscallFuncError),
-}
-
-impl<E: Display + BackendExtError> From<MemoryAccessError> for SyscallFuncError<E> {
-    fn from(err: MemoryAccessError) -> Self {
-        match err {
-            MemoryAccessError::Actor(err) => ActorSyscallFuncError::from(err).into(),
-            MemoryAccessError::System(err) => SystemSyscallFuncError::from(err).into(),
-        }
-    }
-}
-
-impl<E: Display + BackendExtError> From<PayloadSizeError> for SyscallFuncError<E> {
-    fn from(err: PayloadSizeError) -> Self {
-        ActorSyscallFuncError::from(err).into()
-    }
-}
-
-impl<E: Display + BackendExtError> From<RuntimeBufferSizeError> for SyscallFuncError<E> {
-    fn from(err: RuntimeBufferSizeError) -> Self {
-        ActorSyscallFuncError::from(err).into()
-    }
-}
-
-impl<E: Display + BackendExtError> From<FromUtf8Error> for SyscallFuncError<E> {
-    fn from(_err: FromUtf8Error) -> Self {
-        ActorSyscallFuncError::Core(E::from_ext_error(ExecutionError::InvalidDebugString.into()))
-            .into()
-    }
-}
-
-#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
-pub enum ActorSyscallFuncError<E: Display> {
-    #[display(fmt = "{_0}")]
+pub enum FuncError<E: BackendExtError> {
+    #[from]
     Core(E),
     #[from]
-    #[display(fmt = "Terminated: {_0:?}")]
     Terminated(TerminationReason),
 }
 
-impl<E: Display + BackendExtError> From<PayloadSizeError> for ActorSyscallFuncError<E> {
-    fn from(_err: PayloadSizeError) -> Self {
-        Self::Core(E::from_ext_error(MessageError::MaxMessageSizeExceed.into()))
-    }
-}
-
-impl<E: Display + BackendExtError> From<RuntimeBufferSizeError> for ActorSyscallFuncError<E> {
-    fn from(_err: RuntimeBufferSizeError) -> Self {
-        Self::Core(E::from_ext_error(ExtError::SyscallUsage))
-    }
-}
-
-impl<E: Display + BackendExtError> From<ActorMemoryAccessError> for ActorSyscallFuncError<E> {
-    fn from(err: ActorMemoryAccessError) -> Self {
+impl<E: BackendExtError> From<MemoryAccessError> for FuncError<E> {
+    fn from(err: MemoryAccessError) -> Self {
         match err {
-            ActorMemoryAccessError::Memory(err) => Self::Core(E::from_ext_error(err.into())),
-            ActorMemoryAccessError::RuntimeBuffer(err) => Self::from(err),
+            MemoryAccessError::Memory(err) => E::from_ext_error(err.into()),
+            MemoryAccessError::RuntimeBuffer(_) => {
+                E::from_ext_error(MemoryError::RuntimeAllocOutOfBounds.into())
+            }
+            MemoryAccessError::Decode => E::from_ext_error(ExtError::Decode),
+        }
+        .into()
+    }
+}
+
+impl<E: BackendExtError> From<FuncError<E>> for TerminationReason {
+    fn from(err: FuncError<E>) -> Self {
+        match err {
+            FuncError::Core(err) => err.into_termination_reason(),
+            FuncError::Terminated(reason) => reason,
         }
     }
 }
 
-impl<E: Display + BackendExtError> ActorSyscallFuncError<E> {
-    pub fn into_termination_reason(self) -> TerminationReason {
-        match self {
-            Self::Core(err) => err.into_termination_reason(),
-            Self::Terminated(reason) => reason,
+impl<E: BackendExtError> From<PayloadSizeError> for FuncError<E> {
+    fn from(_: PayloadSizeError) -> Self {
+        E::from_ext_error(MessageError::MaxMessageSizeExceed.into()).into()
+    }
+}
+
+impl<E: BackendExtError> From<RuntimeBufferSizeError> for FuncError<E> {
+    fn from(_: RuntimeBufferSizeError) -> Self {
+        E::from_ext_error(MemoryError::RuntimeAllocOutOfBounds.into()).into()
+    }
+}
+
+impl<E: Display + BackendExtError> From<FromUtf8Error> for FuncError<E> {
+    fn from(_err: FromUtf8Error) -> Self {
+        E::from_ext_error(ExecutionError::InvalidDebugString.into()).into()
+    }
+}
+
+pub trait BackendState {
+    /// Set termination reason
+    fn set_termination_reason(&mut self, reason: TerminationReason);
+
+    /// Set fallible syscall error
+    fn set_fallible_syscall_error(&mut self, err: ExtError);
+
+    /// Process fallible syscall function result
+    fn process_fallible_func_result<Err: BackendExtError, T: Sized>(
+        &mut self,
+        res: Result<T, FuncError<Err>>,
+    ) -> Option<Result<T, u32>> {
+        match res {
+            Err(err) => match err {
+                FuncError::Core(err) => match err.into_ext_error() {
+                    Ok(ext_err) => {
+                        let len = ext_err.encoded_size() as u32;
+                        self.set_fallible_syscall_error(ext_err);
+                        Some(Err(len))
+                    }
+                    Err(err) => {
+                        self.set_termination_reason(err.into_termination_reason());
+                        None
+                    }
+                },
+                FuncError::Terminated(reason) => {
+                    self.set_termination_reason(reason);
+                    None
+                }
+            },
+            Ok(res) => Some(Ok(res)),
         }
     }
 }
 
-#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
-pub enum SystemSyscallFuncError {
-    #[from]
-    #[display(fmt = "Memory access error: {_0}")]
-    MemoryAccess(SystemMemoryAccessError),
+pub trait BackendTermination<E: EnvExt, M: Sized>: Sized {
+    /// Into parts
+    fn into_parts(self) -> (E, M, TerminationReason);
+
+    /// Terminate backend work after execution
+    fn terminate<T: Debug, Err: Debug>(
+        self,
+        res: Result<T, Err>,
+        gas: i64,
+        allowance: i64,
+    ) -> (E, M, TerminationReason) {
+        log::trace!("Execution result = {res:?}");
+
+        let (mut ext, memory, termination_reason) = self.into_parts();
+
+        ext.update_counters(gas as u64, allowance as u64);
+
+        let termination_reason = if res.is_err() {
+            if matches!(termination_reason, TerminationReason::Success) {
+                // TODO: Parse result error to identify termination reason
+                // in case termination occurred inside wasm code.
+                TerminationReason::Trap(TrapExplanation::Unknown)
+            } else {
+                termination_reason
+            }
+        } else if matches!(termination_reason, TerminationReason::Success) {
+            termination_reason
+        } else {
+            unreachable!(
+                "Termination reason is not success, but executor successfully ends execution"
+            )
+        };
+
+        (ext, memory, termination_reason)
+    }
 }

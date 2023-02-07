@@ -27,7 +27,7 @@ use alloc::{collections::BTreeSet, string::ToString};
 use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
-    ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
+    BackendExt, BackendExtError, BackendReport, BackendTermination, Environment,
     EnvironmentExecutionError, EnvironmentExecutionResult, TerminationReason,
     STACK_END_EXPORT_NAME,
 };
@@ -219,9 +219,10 @@ where
         let mut runtime = Runtime {
             ext,
             memory: MemoryWrap::new(memory),
-            err: ActorSyscallFuncError::Terminated(TerminationReason::Success).into(),
             globals: Default::default(),
             memory_manager: Default::default(),
+            fallible_syscall_error: None,
+            termination_reason: TerminationReason::Success,
         };
 
         match Instance::new(binary, &env_builder, &mut runtime) {
@@ -312,20 +313,11 @@ where
             .and_then(runtime::as_i64)
             .ok_or(Environment(WrongInjectedAllowance))?;
 
-        let Runtime {
-            err: runtime_err,
-            mut ext,
-            memory,
-            ..
-        } = runtime;
-
-        ext.update_counters(gas as u64, allowance as u64);
-
-        log::debug!("SandboxEnvironment::execute res = {res:?}");
+        let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gas, allowance);
 
         Ok(BackendReport {
-            err: (res.is_err()).then_some(runtime_err),
-            memory_wrap: memory,
+            termination_reason,
+            memory_wrap,
             ext,
         })
     }

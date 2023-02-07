@@ -66,7 +66,7 @@ pub enum MessageError {
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).
     #[display(fmt = "Message limit exceeded")]
-    LimitExceeded,
+    MessagesNumberLimitExceeded,
 
     /// The error occurs in case of attempt to send more than one replies.
     #[display(fmt = "Duplicate reply message")]
@@ -160,20 +160,23 @@ pub enum WaitError {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MemoryError {
-    /// The error occurs when a program tries to allocate more memory  than
+    /// The error occurs when a program tries to allocate more memory than
     /// allowed.
-    #[display(fmt = "Memory access out of bounds")]
-    OutOfBounds,
+    #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
+    ProgramAllocOutOfBounds,
+
+    /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
+    #[display(fmt = "Trying to allocate more memory in block-chain runtime than allowed")]
+    RuntimeAllocOutOfBounds,
 
     /// The error occurs in attempt to free-up a memory page from static area or
     /// outside additionally allocated for this program.
     #[display(fmt = "Page {_0} cannot be freed by the current program")]
     InvalidFree(u32),
 
-    /// The error occurs in attempt to access memory page outside pages area
-    /// allocated for this program.
-    #[display(fmt = "Access to the page not allocated to this program")]
-    MemoryAccessError,
+    /// The error occurs in attempt to access memory outside wasm program memory.
+    #[display(fmt = "Trying to access memory outside wasm program memory")]
+    AccessOutOfBounds,
 
     /// Memory size cannot be zero after grow is applied for memory
     #[display(fmt = "Memory unexpectedly has zero size after grow")]
@@ -189,6 +192,7 @@ pub enum MemoryError {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExecutionError {
+    // TODO: remove some errors in #2199
     /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,

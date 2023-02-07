@@ -35,7 +35,7 @@ impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
         self.memory
             .grow(&mut self.store, Pages(pages.raw() as usize))
             .map(|_| ())
-            .map_err(|_| Error::OutOfBounds)
+            .map_err(|_| Error::ProgramAllocOutOfBounds)
     }
 
     fn size(&self) -> WasmPage {
@@ -46,13 +46,13 @@ impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
         self.memory
             .write(&mut self.store, offset as usize, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| Error::AccessOutOfBounds)
     }
 
     fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
         self.memory
             .read(&self.store, offset as usize, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| Error::AccessOutOfBounds)
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
@@ -82,7 +82,7 @@ impl<E: Ext + 'static> Memory for MemoryWrap<E> {
         self.memory
             .grow(&mut self.store, Pages(pages.raw() as usize))
             .map(|_| ())
-            .map_err(|_| Error::OutOfBounds)
+            .map_err(|_| Error::ProgramAllocOutOfBounds)
     }
 
     fn size(&self) -> WasmPage {
@@ -93,13 +93,13 @@ impl<E: Ext + 'static> Memory for MemoryWrap<E> {
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
         self.memory
             .write(&mut self.store, offset as usize, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| Error::AccessOutOfBounds)
     }
 
     fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
         self.memory
             .read(&self.store, offset as usize, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| Error::AccessOutOfBounds)
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
@@ -112,10 +112,7 @@ mod tests {
     use crate::state::State;
 
     use super::*;
-    use gear_backend_common::{
-        assert_err, assert_ok, memory::SystemMemoryAccessError, mock::MockExt,
-        SystemSyscallFuncError,
-    };
+    use gear_backend_common::{assert_err, assert_ok, mock::MockExt, TerminationReason};
     use gear_core::memory::{AllocInfo, AllocationsContext, NoopGrowHandler};
     use wasmi::{Engine, Store};
 
@@ -132,8 +129,8 @@ mod tests {
             &engine,
             Some(State {
                 ext: MockExt::default(),
-                err: SystemSyscallFuncError::MemoryAccess(SystemMemoryAccessError::DecodeError)
-                    .into(),
+                fallible_syscall_error: None,
+                termination_reason: TerminationReason::Success,
             }),
         );
 
@@ -174,7 +171,7 @@ mod tests {
         // no more mem!
         assert_err!(
             ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
-            Error::OutOfBounds
+            Error::ProgramAllocOutOfBounds
         );
 
         // but we free some
@@ -207,7 +204,7 @@ mod tests {
 
         assert_err!(
             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
-            Error::OutOfBounds
+            Error::ProgramAllocOutOfBounds
         );
     }
 }

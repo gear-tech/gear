@@ -22,7 +22,7 @@ use gear_backend_common::{
         MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
         WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    ActorSyscallFuncError, BackendExt,
+    BackendExt, BackendState,
 };
 
 use super::*;
@@ -56,8 +56,8 @@ where
         };
 
         if forbidden {
-            wrapper.host_state_mut().err =
-                ActorSyscallFuncError::Core(E::Error::forbidden_function()).into();
+            wrapper.host_state_mut().termination_reason =
+                E::Error::forbidden_function().into_termination_reason();
             return Err(TrapCode::Unreachable.into());
         }
 
@@ -100,6 +100,24 @@ where
     }
 
     #[track_caller]
+    fn with_state_taken<F, T, Err>(&mut self, f: F) -> Result<T, Err>
+    where
+        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, Err>,
+    {
+        let mut state = self
+            .caller
+            .host_data_mut()
+            .take()
+            .expect("State must be set before execution");
+
+        let res = f(self, &mut state);
+
+        self.caller.host_data_mut().replace(state);
+
+        res
+    }
+
+    #[track_caller]
     fn update_globals(&mut self) {
         let (gas, allowance) = self.host_state_mut().ext.counters();
 
@@ -126,31 +144,22 @@ where
     #[track_caller]
     pub fn run_fallible<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> Result<(), Trap>
     where
-        F: FnOnce(&mut Self) -> Result<Result<T, u32>, SyscallFuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
         R: From<Result<T, u32>> + Sized,
     {
-        let mut res = f(self).map_err(|err| {
-            self.host_state_mut().err = err;
+        let res = f(self);
+        let res = self
+            .process_fallible_func_result(res)
+            .ok_or(Trap::from(TrapCode::Unreachable))?;
+
+        // TODO: move above or make normal process memory access.
+        let write_res = self.register_write_as::<R>(res_ptr);
+
+        let res = self.write_as(write_res, R::from(res)).map_err(|err| {
+            self.host_state_mut().termination_reason =
+                Into::<FuncError<E::Error>>::into(err).into();
+            Trap::from(TrapCode::Unreachable)
         });
-
-        if res.is_err() {
-            if let Ok(to_be_returned) = self.host_state_mut().last_err() {
-                res = Ok(Err(to_be_returned.encoded_size() as u32));
-            }
-        }
-
-        let res = if let Ok(res) = res {
-            // TODO: move above or make normal process memory access.
-            let write_res = self.register_write_as::<R>(res_ptr);
-            self.write_as(write_res, R::from(res))
-                .map_err(|err| {
-                    self.host_state_mut().err = err.into();
-                    Trap::from(TrapCode::Unreachable)
-                })
-                .map(|_| ())
-        } else {
-            Err(Trap::from(TrapCode::Unreachable))
-        };
 
         self.update_globals();
 
@@ -160,10 +169,10 @@ where
     #[track_caller]
     pub fn run<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
-        F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
     {
         let result = f(self).map_err(|err| {
-            self.host_state_mut().err = err;
+            self.host_state_mut().termination_reason = err.into();
             Trap::from(TrapCode::Unreachable)
         });
 
@@ -179,41 +188,22 @@ where
         f: F,
     ) -> Result<(), Trap>
     where
-        F: FnOnce(&mut Self, &mut State<E>) -> Result<Result<T, u32>, SyscallFuncError<E::Error>>,
+        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, FuncError<E::Error>>,
         R: From<Result<T, u32>> + Sized,
     {
-        let mut state = self
-            .caller
-            .host_data_mut()
-            .take()
-            .expect("State must be set before execution");
+        let res = self.with_state_taken(f);
+        let res = self
+            .process_fallible_func_result(res)
+            .ok_or(Trap::from(TrapCode::Unreachable))?;
 
-        let res = f(self, &mut state);
+        // TODO: move above or make normal process memory access.
+        let write_res = self.register_write_as::<R>(res_ptr);
 
-        self.caller.host_data_mut().replace(state);
-
-        let mut res = res.map_err(|err| {
-            self.host_state_mut().err = err;
+        let res = self.write_as(write_res, R::from(res)).map_err(|err| {
+            self.host_state_mut().termination_reason =
+                Into::<FuncError<E::Error>>::into(err).into();
+            Trap::from(TrapCode::Unreachable)
         });
-
-        if res.is_err() {
-            if let Ok(to_be_returned) = self.host_state_mut().last_err() {
-                res = Ok(Err(to_be_returned.encoded_size() as u32));
-            }
-        }
-
-        let res = if let Ok(res) = res {
-            // TODO: move above or make normal process memory access.
-            let write_res = self.register_write_as::<R>(res_ptr);
-            self.write_as(write_res, R::from(res))
-                .map_err(|err| {
-                    self.host_state_mut().err = err.into();
-                    Trap::from(TrapCode::Unreachable)
-                })
-                .map(|_| ())
-        } else {
-            Err(Trap::from(TrapCode::Unreachable))
-        };
 
         self.update_globals();
 
@@ -223,22 +213,14 @@ where
     #[track_caller]
     pub fn run_state_taken<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
-        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, SyscallFuncError<E::Error>>,
+        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, FuncError<E::Error>>,
     {
-        let mut state = self
-            .caller
-            .host_data_mut()
-            .take()
-            .expect("State must be set before execution");
-
-        let result = f(self, &mut state);
-
-        self.caller.host_data_mut().replace(state);
+        let res = self.with_state_taken(f);
 
         self.update_globals();
 
-        result.map_err(|err| {
-            self.host_state_mut().err = err;
+        res.map_err(|err| {
+            self.host_state_mut().termination_reason = err.into();
             Trap::from(TrapCode::Unreachable)
         })
     }
@@ -328,5 +310,19 @@ where
             store,
         };
         self.manager.write_as(&mut memory, write, obj)
+    }
+}
+
+impl<'a, E> BackendState for CallerWrap<'a, E>
+where
+    E: BackendExt + 'static,
+    E::Error: BackendExtError,
+{
+    fn set_termination_reason(&mut self, reason: TerminationReason) {
+        self.host_state_mut().termination_reason = reason;
+    }
+
+    fn set_fallible_syscall_error(&mut self, err: ExtError) {
+        self.host_state_mut().fallible_syscall_error = Some(err);
     }
 }
