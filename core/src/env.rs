@@ -19,6 +19,8 @@
 //! Environment for running a module.
 
 use crate::{
+    costs::RuntimeCosts,
+    gas::GasLeft,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
@@ -176,7 +178,7 @@ pub trait Ext {
     fn leave(&mut self) -> Result<(), Self::Error>;
 
     /// Access currently handled message payload.
-    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error>;
+    fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error>;
 
     /// Size of currently handled message payload.
     fn size(&mut self) -> Result<usize, Self::Error>;

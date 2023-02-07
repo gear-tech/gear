@@ -18,9 +18,11 @@
 
 //! Utils.
 
-use std::collections::BTreeSet;
+use std::{cell::RefMut, collections::BTreeSet};
 
-use gear_core::memory::{PageU32Size, PagesIterInclusive};
+use gear_core::memory::{GranularityPage, PageU32Size, PagesIterInclusive};
+
+use crate::common::{Error, LazyPage, LazyPagesExecutionContext, PagePrefix};
 
 /// Call `f` for all inclusive ranges from `indexes`.
 /// For example: `indexes` = {1,2,3,5,6,7,9}, then `f` will be called
@@ -66,35 +68,24 @@ pub fn with_inclusive_ranges<P: PageU32Size + Ord, E>(
     f(iter)
 }
 
-#[test]
-fn test_with_inclusive_range() {
-    use gear_core::memory::GearPage;
+pub fn handle_psg_case_one_page(
+    ctx: &mut RefMut<LazyPagesExecutionContext>,
+    page: LazyPage,
+) -> Result<PagesIterInclusive<LazyPage>, Error> {
+    // Accessed granularity page.
+    let granularity_page: GranularityPage = page.to_page();
+    // First gear page in accessed granularity page.
+    let gear_page = granularity_page.to_page();
 
-    let test = |pages: &[u16]| {
-        let mut inclusive_ranges: Vec<Vec<u32>> = Vec::new();
-        let slice_to_ranges = |iter: PagesIterInclusive<GearPage>| -> Result<(), ()> {
-            inclusive_ranges.push(iter.map(|p| p.raw()).collect());
-            Ok(())
-        };
+    let program_prefix = ctx
+        .program_storage_prefix
+        .as_ref()
+        .ok_or(Error::ProgramPrefixIsNotSet)?;
+    let prefix = PagePrefix::calc_once(program_prefix, gear_page);
 
-        with_inclusive_ranges(
-            &pages.iter().copied().map(GearPage::from).collect(),
-            slice_to_ranges,
-        )
-        .unwrap();
-        inclusive_ranges
-    };
-
-    let mut res = test([1, 2, 5, 6, 7, 11, 19].as_slice());
-    assert_eq!(res.pop().unwrap(), vec![19]);
-    assert_eq!(res.pop().unwrap(), vec![11]);
-    assert_eq!(res.pop().unwrap(), vec![5, 6, 7]);
-    assert_eq!(res.pop().unwrap(), vec![1, 2]);
-
-    let mut res = test([5, 6, 7, 8, 9, 10, 11].as_slice());
-    assert_eq!(res.pop().unwrap(), vec![5, 6, 7, 8, 9, 10, 11]);
-
-    let mut res = test([5, 6, 7, 8, 9, 10, 11, 90].as_slice());
-    assert_eq!(res.pop().unwrap(), vec![90]);
-    assert_eq!(res.pop().unwrap(), vec![5, 6, 7, 8, 9, 10, 11]);
+    if !sp_io::storage::exists(&prefix) {
+        Ok(granularity_page.to_pages_iter())
+    } else {
+        Ok(page.iter_once())
+    }
 }

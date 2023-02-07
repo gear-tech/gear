@@ -63,8 +63,9 @@ impl BackendExt for LazyPagesExt {
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
+        gas_left: &mut GasLeft,
     ) -> Result<(), ProcessAccessError> {
-        lazy_pages::pre_process_memory_accesses(reads, writes)
+        lazy_pages::pre_process_memory_accesses(reads, writes, gas_left)
     }
 }
 
@@ -267,7 +268,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.debug(data)
     }
 
-    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error> {
+    fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
         self.inner.read(at, len)
     }
 

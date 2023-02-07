@@ -119,9 +119,11 @@ where
             // todo #1987 : consider to make more common for use in process_queue too
             let build_journal = || {
                 let program_id = queued_dispatch.destination();
+                let gas_allowance = GasAllowanceOf::<T>::get();
+                log::trace!("gas allowance = {gas_allowance}");
                 let precharged_dispatch = match core_processor::precharge_for_program(
                     &block_config,
-                    GasAllowanceOf::<T>::get(),
+                    gas_allowance,
                     queued_dispatch.into_incoming(gas_limit),
                     actor_id,
                 ) {
@@ -198,29 +200,14 @@ where
                     }
                 };
 
-                let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
-                let context = match core_processor::precharge_for_memory(
-                    &block_config,
-                    context,
-                    subsequent_execution,
-                ) {
+                let context = match core_processor::precharge_for_memory(&block_config, context) {
                     Ok(c) => c,
                     Err(journal) => {
                         return journal;
                     }
                 };
 
-                let actor_data = context.actor_data();
-                // if it is subsequent execution => we burned 0 gas
-                // if it is NOT subsequent execution => we burned SOME gas
-                if !subsequent_execution {
-                    let amount = calculate_gas_for_non_subsequent_execution(
-                        &block_config.pages_config,
-                        &actor_data.allocations,
-                        actor_data.static_pages,
-                    );
-                    may_be_returned = may_be_returned.saturating_add(amount);
-                }
+                may_be_returned += 0;
 
                 let memory_pages = match Self::get_and_track_memory_pages(
                     &mut ext_manager,

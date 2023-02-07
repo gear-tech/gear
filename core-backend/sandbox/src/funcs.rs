@@ -283,12 +283,14 @@ where
         let (at, len, buffer_ptr, err_len_ptr) = args.iter().read_4()?;
 
         ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::Read, |ctx| {
-            let buffer = ctx.ext.read(at, len)?;
+            // Here `ctx.ext` is const borrowed, so we cannot use `ctx` mut methods.
+            let (buffer, mut gas_left) = ctx.ext.read(at, len)?;
 
             let write_buffer = ctx.memory_manager.register_write(buffer_ptr, len);
             ctx.memory_manager
-                .write(&mut ctx.memory, write_buffer, buffer)
-                .map_err(Into::into)
+                .write(&mut ctx.memory, write_buffer, buffer, &mut gas_left)?;
+            ctx.ext.update_counters(gas_left.gas, gas_left.allowance);
+            Ok(())
         })
     }
 

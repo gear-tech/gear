@@ -68,7 +68,7 @@ use common::{
 use core::ops::Range;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
-    configs::BlockConfig,
+    configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
     ProcessExecutionContext, ProcessorContext, ProcessorExt,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
@@ -172,7 +172,8 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
-        pages_config: Default::default(),
+        max_pages: TESTS_MAX_PAGES_NUMBER.into(),
+        page_costs: PageCosts::new_for_tests(),
         existential_deposit: 0,
         origin: Default::default(),
         program_id: Default::default(),
@@ -1143,10 +1144,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    lazy_pages_read_access {
+    lazy_pages_read {
         let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_read_access((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_read((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1154,10 +1155,32 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    lazy_pages_write_access {
+    lazy_pages_write {
         let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_write_access((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_write((p as u16).into())?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    lazy_pages_write_after_read {
+        let p in 0 .. code::max_pages::<T>() as u32;
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_write_after_read((p as u16).into())?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    lazy_pages_read_storage_data {
+        let p in 0 .. code::max_pages::<T>() as u32;
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_read_storage_data((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1167,14 +1190,12 @@ benchmarks! {
 
     // w_load = w_bench
     instr_i64load {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let mem_pages = code::max_pages::<T>() as u32;
-        // Warm up memory.
-        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
-        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+        let instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                         RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
                         Regular(Instruction::I64Load(3, 0)),
-                        Regular(Instruction::Drop)], instrs);
+                        Regular(Instruction::Drop)], vec![]);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory{min_pages: mem_pages}),
             handle_body: Some(body::from_instructions(instrs)),
@@ -1186,14 +1207,12 @@ benchmarks! {
 
     // w_store = w_bench - w_i64const
     instr_i64store {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let mem_pages = code::max_pages::<T>() as u32;
-        // Warm up memory.
-        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
-        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+        let instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                         RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
                         RandomI64Repeated(1),
-                        Regular(Instruction::I64Store(3, 0))], instrs);
+                        Regular(Instruction::I64Store(3, 0))], vec![]);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory{min_pages: mem_pages}),
             handle_body: Some(body::from_instructions(instrs)),

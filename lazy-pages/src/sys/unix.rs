@@ -19,8 +19,8 @@
  */
 
 use crate::{
-    sys::{ExceptionInfo, UserSignalHandler},
-    Error,
+    common::Error,
+    signal::{ExceptionInfo, UserSignalHandler},
 };
 use cfg_if::cfg_if;
 use nix::{
@@ -200,11 +200,11 @@ fn init_for_thread_internal() -> Result<(), ThreadInitError> {
     TLS.with(|tls| tls.as_ref().map(|_| ()).map_err(|err| *err))
 }
 
-pub(crate) unsafe fn init_for_thread() -> Result<(), String> {
+pub unsafe fn init_for_thread() -> Result<(), String> {
     init_for_thread_internal().map_err(|err| err.to_string())
 }
 
-pub(crate) unsafe fn setup_signal_handler<H>() -> io::Result<()>
+pub unsafe fn setup_signal_handler<H>() -> io::Result<()>
 where
     H: UserSignalHandler,
 {
