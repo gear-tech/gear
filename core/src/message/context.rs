@@ -549,11 +549,17 @@ mod tests {
             }
             // n + 1 should get first error.
             let limit_exceeded = message_context.send_init();
-            assert_eq!(limit_exceeded, Err(Error::OutgoingMessagesAmountLimitExceeded));
+            assert_eq!(
+                limit_exceeded,
+                Err(Error::OutgoingMessagesAmountLimitExceeded)
+            );
 
             // we can't send messages in this MessageContext.
             let limit_exceeded = message_context.init_program(Default::default(), 0);
-            assert_eq!(limit_exceeded, Err(Error::OutgoingMessagesAmountLimitExceeded));
+            assert_eq!(
+                limit_exceeded,
+                Err(Error::OutgoingMessagesAmountLimitExceeded)
+            );
         }
     }
 
