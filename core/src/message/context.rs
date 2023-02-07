@@ -246,7 +246,7 @@ impl MessageContext {
         let last = self.store.outgoing.len() as u32;
 
         if last >= self.settings.outgoing_limit {
-            return Err(Error::MessagesNumberLimitExceeded);
+            return Err(Error::OutgoingMessagesAmountLimitExceeded);
         }
 
         let message_id = MessageId::generate_outgoing(self.current.id(), last);
@@ -305,7 +305,7 @@ impl MessageContext {
 
             Ok(last)
         } else {
-            Err(Error::MessagesNumberLimitExceeded)
+            Err(Error::OutgoingMessagesAmountLimitExceeded)
         }
     }
 
@@ -549,11 +549,11 @@ mod tests {
             }
             // n + 1 should get first error.
             let limit_exceeded = message_context.send_init();
-            assert_eq!(limit_exceeded, Err(Error::MessagesNumberLimitExceeded));
+            assert_eq!(limit_exceeded, Err(Error::OutgoingMessagesAmountLimitExceeded));
 
             // we can't send messages in this MessageContext.
             let limit_exceeded = message_context.init_program(Default::default(), 0);
-            assert_eq!(limit_exceeded, Err(Error::MessagesNumberLimitExceeded));
+            assert_eq!(limit_exceeded, Err(Error::OutgoingMessagesAmountLimitExceeded));
         }
     }
 

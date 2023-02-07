@@ -156,8 +156,7 @@ where
         let write_res = self.register_write_as::<R>(res_ptr);
 
         let res = self.write_as(write_res, R::from(res)).map_err(|err| {
-            self.host_state_mut().termination_reason =
-                Into::<FuncError<E::Error>>::into(err).into();
+            self.host_state_mut().termination_reason = FuncError::<E::Error>::from(err).into();
             Trap::from(TrapCode::Unreachable)
         });
 
@@ -200,8 +199,7 @@ where
         let write_res = self.register_write_as::<R>(res_ptr);
 
         let res = self.write_as(write_res, R::from(res)).map_err(|err| {
-            self.host_state_mut().termination_reason =
-                Into::<FuncError<E::Error>>::into(err).into();
+            self.host_state_mut().termination_reason = FuncError::<E::Error>::from(err).into();
             Trap::from(TrapCode::Unreachable)
         });
 

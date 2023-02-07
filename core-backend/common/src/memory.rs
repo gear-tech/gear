@@ -47,6 +47,7 @@ pub enum MemoryAccessError {
     Memory(MemoryError),
     #[from]
     RuntimeBuffer(RuntimeBufferSizeError),
+    // TODO: remove #2164
     Decode,
 }
 

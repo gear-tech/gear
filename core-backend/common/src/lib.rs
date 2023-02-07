@@ -225,9 +225,7 @@ where
 
 #[derive(Debug, Clone, derive_more::From)]
 pub enum FuncError<E: BackendExtError> {
-    #[from]
     Core(E),
-    #[from]
     Terminated(TerminationReason),
 }
 

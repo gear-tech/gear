@@ -106,7 +106,7 @@ where
 
         self.write_as(write_res, R::from(res))
             .map_err(|err| {
-                self.termination_reason = Into::<FuncError<E::Error>>::into(err).into();
+                self.termination_reason = FuncError::<E::Error>::from(err).into();
                 HostError
             })
             .map(|_| ReturnValue::Unit)

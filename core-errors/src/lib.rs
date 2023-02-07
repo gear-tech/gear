@@ -66,7 +66,7 @@ pub enum MessageError {
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).
     #[display(fmt = "Message limit exceeded")]
-    MessagesNumberLimitExceeded,
+    OutgoingMessagesAmountLimitExceeded,
 
     /// The error occurs in case of attempt to send more than one replies.
     #[display(fmt = "Duplicate reply message")]
