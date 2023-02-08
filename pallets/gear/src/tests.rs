@@ -73,6 +73,29 @@ pub use utils::init_logger;
 use utils::*;
 
 #[test]
+fn backend_errors_handled_in_program() {
+    use demo_backend_error::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let mid = utils::get_last_message_id();
+
+        run_to_next_block(None);
+        // If nothing panicked, so program's logic and backend are correct.
+        utils::assert_succeed(mid);
+    })
+}
+
+#[test]
 fn non_existent_code_id_zero_gas() {
     init_logger();
 

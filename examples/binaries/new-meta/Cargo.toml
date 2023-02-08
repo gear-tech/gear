@@ -18,6 +18,9 @@ demo-meta-state-v3 = { path = "state-v3", default-features = false, optional = t
 demo-meta-io = { path = "io" }
 gear-wasm-builder = { path = "../../../utils/wasm-builder" }
 
+[dev-dependencies]
+gtest = { path = "../../../gtest" }
+
 [features]
 default = ["std"]
 std = [

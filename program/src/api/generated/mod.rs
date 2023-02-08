@@ -6,23 +6,16 @@
 pub mod api {
     include!(concat!(env!("OUT_DIR"), "/metadata.rs"));
 
-    #[cfg(any(
-        all(feature = "gear", feature = "vara"),
-        all(feature = "gear", not(feature = "vara"))
-    ))]
-    pub use gear_metadata::*;
+    pub use metadata::*;
 
     #[cfg(any(
-        all(feature = "gear", feature = "vara"),
-        all(feature = "gear", not(feature = "vara"))
+        all(feature = "gear", not(feature = "vara")),
+        all(feature = "gear", feature = "vara")
     ))]
-    pub use gear_metadata::runtime_types::gear_runtime::RuntimeEvent;
+    pub use metadata::runtime_types::gear_runtime::RuntimeEvent;
 
     #[cfg(all(feature = "vara", not(feature = "gear")))]
-    pub use vara_metadata::*;
-
-    #[cfg(all(feature = "vara", not(feature = "gear")))]
-    pub use vara_metadata::runtime_types::vara_runtime::RuntimeEvent;
+    pub use metadata::runtime_types::vara_runtime::RuntimeEvent;
 }
 
 mod impls;

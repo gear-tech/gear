@@ -169,10 +169,7 @@ pub trait BackendState<E: BackendExtError> {
     }
 }
 
-pub trait IntoExtErrorForResult<T, Err>
-where
-    Err: Display,
-{
+pub trait IntoExtErrorForResult<T, Err: Display> {
     fn into_ext_error(
         self,
         state_err: &mut SyscallFuncError<Err>,

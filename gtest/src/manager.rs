@@ -19,7 +19,6 @@
 use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
-    wasm_executor::WasmExecutor,
     Result, TestError, DISPATCH_HOLD_COST, EXISTENTIAL_DEPOSIT, INITIAL_RANDOM_SEED,
     MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
@@ -36,13 +35,13 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, PageBuf, PageU32Size, WasmPage},
     message::{
-        Dispatch, DispatchKind, MessageWaitedType, Payload, ReplyMessage, ReplyPacket,
-        StoredDispatch, StoredMessage,
+        Dispatch, DispatchKind, MessageWaitedType, ReplyMessage, ReplyPacket, StoredDispatch,
+        StoredMessage,
     },
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_wasm_instrument::{parity_wasm, wasm_instrument::gas_metering::ConstantCostRules};
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
@@ -110,14 +109,6 @@ impl TestActor {
         match self {
             TestActor::Initialized(Program::Mock(mock))
             | TestActor::Uninitialized(_, Some(Program::Mock(mock))) => mock.take(),
-            _ => None,
-        }
-    }
-
-    fn code_id(&self) -> Option<CodeId> {
-        match self {
-            TestActor::Initialized(Program::Genuine { code_id, .. })
-            | TestActor::Uninitialized(_, Some(Program::Genuine { code_id, .. })) => Some(*code_id),
             _ => None,
         }
     }
@@ -402,13 +393,62 @@ impl ExtManager {
 
     /// Call non-void meta function from actor stored in manager.
     /// Warning! This is a static call that doesn't change actors pages data.
-    pub(crate) fn call_meta(
+    pub(crate) fn read_state_bytes(&mut self, program_id: &ProgramId) -> Result<Vec<u8>> {
+        let (actor, _balance) = self
+            .actors
+            .get_mut(program_id)
+            .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
+
+        if let Some((_, program, memory_pages)) = actor.get_executable_actor_data() {
+            core_processor::informational::execute_for_reply::<WasmiEnvironment<Ext, _>, _>(
+                String::from("state"),
+                program.code().clone(),
+                Some(memory_pages),
+                Some(program.allocations().clone()),
+                Some(*program_id),
+                Default::default(),
+                u64::MAX,
+                self.block_info,
+            )
+            .map_err(TestError::ReadStateError)
+        } else if let Some(mut program_mock) = actor.take_mock() {
+            program_mock
+                .state()
+                .map_err(|err| TestError::ReadStateError(err.into()))
+        } else {
+            Err(TestError::ActorIsNotExecutable(*program_id))
+        }
+    }
+
+    pub(crate) fn read_state_bytes_using_wasm(
         &mut self,
         program_id: &ProgramId,
-        payload: Option<Payload>,
-        function_name: &str,
+        fn_name: &str,
+        wasm: Vec<u8>,
+        argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
-        self.execute(program_id, payload, function_name)
+        let mapping_code =
+            Code::new_raw(wasm, 1, None, true, false).map_err(|_| TestError::Instrumentation)?;
+
+        let mapping_code = InstrumentedCodeAndId::from(CodeAndId::new(mapping_code))
+            .into_parts()
+            .0;
+
+        // The `metawasm` macro knows how to decode this as a tuple
+        let mut mapping_code_payload = argument.unwrap_or_default();
+        mapping_code_payload.append(&mut self.read_state_bytes(program_id)?);
+
+        core_processor::informational::execute_for_reply::<WasmiEnvironment<Ext, _>, _>(
+            String::from(fn_name),
+            mapping_code,
+            None,
+            None,
+            None,
+            mapping_code_payload,
+            u64::MAX,
+            self.block_info,
+        )
+        .map_err(TestError::ReadStateError)
     }
 
     pub(crate) fn is_user(&self, id: &ProgramId) -> bool {
@@ -708,50 +748,6 @@ impl ExtManager {
         .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e));
 
         core_processor::handle_journal(journal, self);
-    }
-
-    fn execute(
-        &mut self,
-        program_id: &ProgramId,
-        payload: Option<Payload>,
-        function_name: &str,
-    ) -> Result<Vec<u8>> {
-        let (actor, _balance) = self
-            .actors
-            .get_mut(program_id)
-            .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
-
-        let code_id = actor.code_id();
-        let (_data, program, memory) = actor
-            .get_executable_actor_data()
-            .ok_or_else(|| TestError::ActorIsNotExecutable(*program_id))?;
-        let pages_initial_data = memory
-            .into_iter()
-            .map(|(page, data)| (page, Box::new(data)))
-            .collect();
-        let meta_binary = code_id
-            .and_then(|code_id| self.meta_binaries.get(&code_id))
-            .map(Vec::as_slice)
-            .ok_or(TestError::MetaBinaryNotProvided)?;
-
-        let mut ext = WasmExecutor::build_ext(&program, payload.unwrap_or_default());
-
-        WasmExecutor::update_ext(&mut ext, self);
-
-        let module =
-            parity_wasm::deserialize_buffer(meta_binary).map_err(|_| TestError::Instrumentation)?;
-        let module = gear_wasm_instrument::inject(module, &ConstantCostRules::default(), "env")
-            .map_err(|_| TestError::Instrumentation)?;
-        let instrumented =
-            parity_wasm::elements::serialize(module).map_err(|_| TestError::Instrumentation)?;
-
-        WasmExecutor::execute(
-            ext,
-            &program,
-            &instrumented,
-            &pages_initial_data,
-            function_name,
-        )
     }
 }
 
