@@ -137,20 +137,14 @@ where
     fn send_dispatch(&mut self, stashed_message_id: MessageId) {
         // No validation required. If program doesn't exist, then NotExecuted appears.
 
-        let (dispatch, stored_bn) = DispatchStashOf::<T>::take(stashed_message_id)
+        let (dispatch, hold_interval) = DispatchStashOf::<T>::take(stashed_message_id)
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
 
         // Unlocking gas for delayed sending rent payment.
         GasHandlerOf::<T>::unlock_all(dispatch.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        // Charging locked gas for holding in dispatch stash
-        // Charge gas for message save
-        let current_bn = Pallet::<T>::block_number();
-        let hold_interval = Interval {
-            start: stored_bn.start,
-            finish: current_bn,
-        };
+        // Charging locked gas for holding in dispatch stash.
         Pallet::<T>::charge_for_hold(
             dispatch.id(),
             hold_interval,
@@ -164,7 +158,7 @@ where
     fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) {
         // TODO: validate here destination and send error reply, if required.
         // Atm despite the fact that program may exist, message goes into mailbox / event.
-        let (message, stored_bn) = DispatchStashOf::<T>::take(stashed_message_id)
+        let (message, hold_interval) = DispatchStashOf::<T>::take(stashed_message_id)
             .map(|(dispatch, bn)| (dispatch.into_parts().1, bn))
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
 
@@ -172,14 +166,7 @@ where
         GasHandlerOf::<T>::unlock_all(message.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        // Charge gas for message save
-        let current_bn = Pallet::<T>::block_number();
-        let hold_interval = Interval {
-            start: stored_bn
-                .start
-                .saturating_sub(CostsPerBlockOf::<T>::reserve_for()),
-            finish: current_bn,
-        };
+        // Charge gas for message save.
         Pallet::<T>::charge_for_hold(
             message.id(),
             hold_interval,
