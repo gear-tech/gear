@@ -6,7 +6,7 @@ use parity_scale_codec::Decode;
 use std::{
     env, fs,
     io::Write,
-    path::{Path, PathBuf},
+    path::{self, Path, PathBuf},
     process::{Command, Stdio},
 };
 use substrate_wasm_builder::WasmBuilder;
@@ -96,10 +96,10 @@ impl Runtime {
 /// Get profile name.
 fn get_build_profile_name() -> String {
     // The profile name is always the 3rd last part of the path (with 1 based indexing).
-    // e.g. /code/core/target/cli/build/my-build-info-9f91ba6f99d7a061/out
+    // e.g. /gear/target/my_profile/build/my-build-info-9f91ba6f99d7a061/out
     env::var("OUT_DIR")
         .expect("Failed to get `OUT_DIR` env var")
-        .split(std::path::MAIN_SEPARATOR)
+        .split(path::MAIN_SEPARATOR)
         .nth_back(3)
         .expect("Failed to parse `OUT_DIR`")
         .to_string()
