@@ -86,6 +86,7 @@ pub enum SysCallName {
     WaitFor,
     WaitUpTo,
     Wake,
+    Panic,
 
     // Hard under the hood calls, serving proper program execution
     Alloc,
@@ -95,7 +96,6 @@ pub enum SysCallName {
 
     // Miscellaneous
     Debug,
-    Panic,
     Error,
     Random,
     ReserveGas,
