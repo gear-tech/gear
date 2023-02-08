@@ -57,7 +57,7 @@ impl Runtime {
         use sc_executor_common::runtime_blob::RuntimeBlob;
 
         // 1. Get the runtime binary.
-        let profile = env::var("PROFILE").expect("Unable to get build profile.");
+        let profile = get_build_profile_name();
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let root = manifest_dir.parent().expect("Invalid manifest directory.");
         let path = root.join(format!(
@@ -91,6 +91,18 @@ impl Runtime {
             .expect("Failed to extract runtime metadata")[WASM_MAGIC_NUMBER_PREFIX..]
             .to_vec()
     }
+}
+
+/// Get profile name.
+fn get_build_profile_name() -> String {
+    // The profile name is always the 3rd last part of the path (with 1 based indexing).
+    // e.g. /code/core/target/cli/build/my-build-info-9f91ba6f99d7a061/out
+    env::var("OUT_DIR")
+        .expect("Failed to get `OUT_DIR` env var")
+        .split(std::path::MAIN_SEPARATOR)
+        .nth_back(3)
+        .expect("Failed to parse `OUT_DIR`")
+        .to_string()
 }
 
 /// Generate API.
