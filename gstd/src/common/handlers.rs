@@ -36,10 +36,7 @@ use {
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(panic_info: &PanicInfo) -> ! {
-    match panic_info.location() {
-        Some(loc) => ext::panic(&format!("{}:{}:{}", loc.file(), loc.line(), loc.column())),
-        None => ext::panic("no info"),
-    }
+    ext::panic("no info")
 }
 
 #[cfg(any(feature = "debug", debug_assertions))]
