@@ -6,6 +6,8 @@ use syn::{
     Type, TypePath, Visibility,
 };
 
+static MODULE_NAME: &str = "metafns";
+
 fn error(spanned: impl Spanned, message: impl Display) -> TokenStream {
     Error::new(spanned.span(), message)
         .into_compile_error()
@@ -30,8 +32,13 @@ fn validate_if_private(spanned: impl Spanned, visibility: &Visibility) -> Result
     match visibility {
         Visibility::Public(_) => Ok(()),
         other => Err(match other {
-            Visibility::Inherited => error(spanned, "must be public, add the `pub` keyword"),
-            _ => error(other, "mustn't be restricted, use the `pub` keyword alone"),
+            Visibility::Inherited => {
+                error(spanned, "visibility must be public, add the `pub` keyword")
+            }
+            _ => error(
+                other,
+                "visibility mustn't be restricted, use the `pub` keyword alone",
+            ),
         }),
     }
 }
@@ -165,10 +172,10 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
         return error;
     }
 
-    if module.ident != "metafns" {
+    if module.ident != MODULE_NAME {
         error!(
             module.ident,
-            "name of a module with #[metawasm] must be `metafns`"
+            format_args!("name of a module with #[metawasm] must be `{MODULE_NAME}`")
         );
     }
 
@@ -409,8 +416,10 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
         });
     }
 
+    let module_ident = proc_macro2::Ident::new(MODULE_NAME, proc_macro2::Span::call_site());
+
     quote! {
-        pub mod metafns {
+        pub mod #module_ident {
             use super::*;
 
             mod r#extern {
