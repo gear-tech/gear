@@ -25,16 +25,14 @@ use gear_utils::{NonEmpty, RingGet};
 // code id, salt, payload, gas limit, value
 type CreateProgramArgsInner = (CodeId, Vec<u8>, Vec<u8>, u64, u128);
 
-/// Crate program args
+/// Create program args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::create_program` call.
 pub struct CreateProgramArgs(pub CreateProgramArgsInner);
 
 impl From<CreateProgramArgs> for CreateProgramArgsInner {
-    fn from(
-        CreateProgramArgs((code_id, salt, payload, gas_limit, value)): CreateProgramArgs,
-    ) -> Self {
-        (code_id, salt, payload, gas_limit, value)
+    fn from(args: CreateProgramArgs) -> Self {
+        args.0
     }
 }
 

@@ -29,8 +29,8 @@ type UploadProgramArgsInner = (Vec<u8>, Vec<u8>, Vec<u8>, u64, u128);
 pub struct UploadProgramArgs(pub UploadProgramArgsInner);
 
 impl From<UploadProgramArgs> for UploadProgramArgsInner {
-    fn from(UploadProgramArgs((code, salt, payload, gas_limit, value)): UploadProgramArgs) -> Self {
-        (code, salt, payload, gas_limit, value)
+    fn from(args: UploadProgramArgs) -> Self {
+        args.0
     }
 }
 

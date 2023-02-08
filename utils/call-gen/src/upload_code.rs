@@ -26,8 +26,8 @@ use crate::{CallGenRng, GearCall, Seed};
 pub struct UploadCodeArgs(pub Vec<u8>);
 
 impl From<UploadCodeArgs> for Vec<u8> {
-    fn from(UploadCodeArgs(code): UploadCodeArgs) -> Self {
-        code
+    fn from(args: UploadCodeArgs) -> Self {
+        args.0
     }
 }
 

@@ -31,8 +31,8 @@ type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);
 pub struct SendMessageArgs(pub SendMessageArgsInner);
 
 impl From<SendMessageArgs> for SendMessageArgsInner {
-    fn from(SendMessageArgs((destination, payload, gas_limit, value)): SendMessageArgs) -> Self {
-        (destination, payload, gas_limit, value)
+    fn from(args: SendMessageArgs) -> Self {
+        args.0
     }
 }
 
