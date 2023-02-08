@@ -28,6 +28,15 @@
 #[cfg(target_arch = "wasm32")]
 use core::panic::PanicInfo;
 
+#[cfg(not(feature = "debug"))]
+#[cfg(not(debug_assertions))]
+#[cfg(target_arch = "wasm32")]
+#[panic_handler]
+pub fn panic(_: &PanicInfo) -> ! {
+    crate::ext::panic("no info")
+}
+
+#[cfg(any(feature = "debug", debug_assertions))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(panic_info: &PanicInfo) -> ! {
