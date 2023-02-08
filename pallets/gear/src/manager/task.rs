@@ -37,7 +37,6 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::ReplyMessage,
 };
-use sp_runtime::Saturating;
 
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where

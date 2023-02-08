@@ -435,12 +435,12 @@ fn delayed_user_replacement() {
 fn delayed_send_user_message_payment() {
     use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    // Testing that correct gas amount will be reserved and payed for holding
+    // Testing that correct gas amount will be reserved and payed for holding.
     fn scenario(delay: u64) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
         let future_program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
 
-        // Upload program that sends message to any user
+        // Upload program that sends message to any user.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             PROXY_WGAS_WASM_BINARY.to_vec(),
@@ -467,7 +467,7 @@ fn delayed_send_user_message_payment() {
             0,
         ));
 
-        // Run blocks to make message get into dispatch stash
+        // Run blocks to make message get into dispatch stash.
         run_to_block(3, None);
 
         let delay_holding_fee = GasPrice::gas_price(
@@ -476,13 +476,13 @@ fn delayed_send_user_message_payment() {
                 .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
 
-        // Gas should be reserved until message is holding
+        // Gas should be reserved until message is holding.
         assert_eq!(Balances::reserved_balance(&USER_1), delay_holding_fee);
 
-        // Run blocks to release message
-        run_to_block(delay + 3, None);
+        // Run blocks to release message.
+        run_to_block(delay + 5, None);
 
-        // Gas should unlocked after message are sent
+        // Gas should be unlocked after message is sent.
         assert_eq!(Balances::reserved_balance(&USER_1), 0);
 
         print_gear_events();
@@ -499,7 +499,7 @@ fn delayed_send_user_message_payment() {
 fn delayed_send_program_message_payment() {
     use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    // Testing that correct gas amount will be reserved and payed for holding
+    // Testing that correct gas amount will be reserved and payed for holding.
     fn scenario(delay: u64) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
         let program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
@@ -516,7 +516,7 @@ fn delayed_send_program_message_payment() {
 
         assert_eq!(program_address, utils::get_last_program_id());
 
-        // Upload program that sends message to another program
+        // Upload program that sends message to another program.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             PROXY_WGAS_WASM_BINARY.to_vec(),
@@ -544,7 +544,7 @@ fn delayed_send_program_message_payment() {
             0,
         ));
 
-        // Run blocks to make message get into dispatch stash
+        // Run blocks to make message get into dispatch stash.
         run_to_block(3, None);
 
         let delay_holding_fee = GasPrice::gas_price(
@@ -553,13 +553,13 @@ fn delayed_send_program_message_payment() {
                 .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
 
-        // Gas should be reserved until message is holding
+        // Gas should be reserved until message is holding.
         assert_eq!(Balances::reserved_balance(&USER_1), delay_holding_fee);
 
-        // Run blocks to release message
+        // Run blocks to release message.
         run_to_block(delay + 3, None);
 
-        // Gas should unlocked after message are sent
+        // Gas should unlocked after message are sent.
         assert_eq!(Balances::reserved_balance(&USER_1), 0);
 
         print_gear_events();

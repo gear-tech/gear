@@ -626,10 +626,7 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if hold.expected_duration().is_zero() {
-                // TODO: Replace with unreachable call after:
-                // - `HoldBound` safety usage stabilized;
-                log::error!("Failed to figure out correct wait hold bound");
-                return;
+                unreachable!("Hold duration cannot be zero");
             }
 
             if !dispatch.value().is_zero() {
@@ -681,7 +678,7 @@ where
             // `HoldBound` cost builder.
             let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
 
-            // Calculating correct hold bound to lock gas
+            // Calculating correct hold bound to lock gas.
             let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
             let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
             let hold = hold_builder.duration(bn_delay).min(maximal_hold);
@@ -693,10 +690,7 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if hold.expected_duration().is_zero() {
-                // TODO: Replace with unreachable call after:
-                // - `HoldBound` safety usage stabilized;
-                log::error!("Failed to figure out correct wait hold bound");
-                return;
+                unreachable!("Hold duration cannot be zero");
             }
 
             if !dispatch.value().is_zero() {
@@ -709,7 +703,7 @@ where
         // Saving id to allow moving dispatch further.
         let message_id = dispatch.id();
 
-        // Add block number of insertation
+        // Add block number of insertation.
         let start_bn = Self::block_number();
         let delay_interval = Interval {
             start: start_bn,
