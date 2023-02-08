@@ -3,7 +3,7 @@ use gmeta::metawasm;
 use gstd::{exec, prelude::*};
 
 #[metawasm]
-pub mod metafuncs {
+pub mod metafns {
     pub type State = Vec<Wallet>;
 
     pub fn block_number(_: State) -> u32 {

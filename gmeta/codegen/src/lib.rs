@@ -26,7 +26,7 @@ macro_rules! if_some_error {
     };
 }
 
-fn is_public(spanned: impl Spanned, visibility: &Visibility) -> Result<(), TokenStream> {
+fn validate_if_private(spanned: impl Spanned, visibility: &Visibility) -> Result<(), TokenStream> {
     match visibility {
         Visibility::Public(_) => Ok(()),
         other => Err(match other {
@@ -36,7 +36,7 @@ fn is_public(spanned: impl Spanned, visibility: &Visibility) -> Result<(), Token
     }
 }
 
-fn has_attributes(
+fn validate_if_has_no_attributes(
     attributes: impl IntoIterator<Item = impl Borrow<Attribute>>,
     message: impl Display,
 ) -> Result<(), TokenStream> {
@@ -69,7 +69,7 @@ fn has_attributes(
 /// pub struct SomeArg;
 ///
 /// #[gmeta::metawasm]
-/// pub mod metafuncs {
+/// pub mod metafns {
 ///     pub type State = StateType;
 ///
 ///     /// Documentation...
@@ -81,7 +81,7 @@ fn has_attributes(
 ///         unimplemented!()
 ///     }
 ///
-///     /// DOCSdocsDoCsdOcSDoCS...
+///     /// Another doc...
 ///     pub fn function_with_multiple_args(
 ///         _state: State,
 ///         mut _arg1: SomeArg,
@@ -97,7 +97,7 @@ fn has_attributes(
 /// # Syntax
 ///
 /// - This attribute **must** be used on the `pub`lic `mod` container with the
-/// `metafuncs` identifier.
+/// `metafns` identifier.
 /// - The first item in the module **must** be a `pub`lic `type` alias with the
 /// `State` identifier. The type for which `State` will be an alias **must**
 /// implement [`Decode`] trait.
@@ -108,6 +108,9 @@ fn has_attributes(
 ///
 /// - The rest of items **must** be `pub`lic functions.
 /// - The first argument's type of metafunctions **must** be `State`.
+/// - If the first argument uses
+/// [the identifier pattern](https://doc.rust-lang.org/stable/reference/patterns.html#identifier-patterns),
+/// the identifier **must** be `state` or `_state`.
 ///
 /// In addition to the mandatory first argument, functions can have additional
 /// ones.
@@ -125,7 +128,7 @@ fn has_attributes(
 ///
 /// # Expansion result
 ///
-/// This attribute doesn't change the `metafuncs` module and items inside, but
+/// This attribute doesn't change the `metafns` module and items inside, but
 /// adds `use super::*;` inside the module because, in most cases, it'll be
 /// useful for importing items from an upper namespace. So every item in the
 /// same namespace where the module is located is accessible inside it.
@@ -151,52 +154,51 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
     let module: ItemMod = parse_macro_input!(item);
     let module_span = module.span();
 
-    if let Err(error) = has_attributes(
+    if let Err(error) = validate_if_has_no_attributes(
         module.attrs,
         "module with #[metawasm] mustn't have attributes",
     ) {
         return error;
     }
 
-    if let Err(error) = is_public(module_span, &module.vis) {
+    if let Err(error) = validate_if_private(module_span, &module.vis) {
         return error;
     }
 
-    if module.ident != "metafuncs" {
+    if module.ident != "metafns" {
         error!(
             module.ident,
-            "name of a module with #[metawasm] must be `metafuncs`"
+            "name of a module with #[metawasm] must be `metafns`"
         );
     }
 
-    let (potential_type_item, potential_functions) = if let Some((_, items)) = module.content {
-        if items.is_empty() {
-            return Default::default();
-        }
-
-        let mut items = items.into_iter();
-        let two_first_items = (items.next(), items.next());
-
-        if let (Some(first), Some(second)) = two_first_items {
-            (first, iter::once(second).chain(items))
-        } else {
-            error!(
-                module_span,
-                "module with #[metawasm] must contain at least 2 items"
-            );
-        }
-    } else {
+    let Some((_, items)) = module.content else {
         error!(
             module_span,
             "`#[metawasm]` doesn't work with modules without a body"
         );
     };
 
+    if items.is_empty() {
+        return Default::default();
+    }
+
+    let mut items = items.into_iter();
+    let two_first_items = (items.next(), items.next());
+
+    let (potential_type_item, potential_functions) =
+        if let (Some(first), Some(second)) = two_first_items {
+            (first, iter::once(second).chain(items))
+        } else {
+            error!(
+                module_span,
+                "module with #[metawasm] must contain the `State` type alias & at least 1 function"
+            );
+        };
+
     // Checking the `State` type
 
-    let type_item = if let Item::Type(type_item) = potential_type_item {
-        type_item
-    } else {
+    let Item::Type(type_item) = potential_type_item else {
         error!(
             potential_type_item,
             "first item of a module with `#[metawasm]` must be a type alias to a state type (e.g. `type State = StateType;`)"
@@ -205,7 +207,7 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
     let type_item_attributes = &type_item.attrs;
 
     let (state_type, state_type_inner) = if type_item.ident == "State" {
-        if let Err(error) = is_public(&type_item, &type_item.vis) {
+        if let Err(error) = validate_if_private(&type_item, &type_item.vis) {
             return error;
         }
 
@@ -233,16 +235,14 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
     let mut functions = vec![];
 
     for potential_function in potential_functions {
-        let function = if let Item::Fn(function) = potential_function {
-            function
-        } else {
+        let Item::Fn(function) = potential_function else {
             error!(
                 potential_function,
                 "rest of items in a module with `#[metawasm]` must be functions"
             );
         };
 
-        if let Err(error) = is_public(&function, &function.vis) {
+        if let Err(error) = validate_if_private(&function, &function.vis) {
             return error;
         }
 
@@ -269,7 +269,9 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
 
         let first = if let Some(first) = inputs.next() {
             if let FnArg::Typed(first) = first {
-                if let Err(error) = has_attributes(&first.attrs, "mustn't have attributes") {
+                if let Err(error) =
+                    validate_if_has_no_attributes(&first.attrs, "mustn't have attributes")
+                {
                     return error;
                 }
 
@@ -283,6 +285,14 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
                 "mustn't be empty, add `state: State` or `_: State`"
             );
         };
+
+        // Checking the first argument's name
+
+        if let Pat::Ident(pat_ident) = first.pat.as_ref() {
+            if pat_ident.ident != "state" && pat_ident.ident != "_state" {
+                error!(&pat_ident.ident, "must be `state` or `_state`");
+            }
+        }
 
         // Checking the first argument's type
 
@@ -320,7 +330,9 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
 
         for argument in inputs {
             if let FnArg::Typed(argument) = argument {
-                if let Err(error) = has_attributes(&argument.attrs, "mustn't have attributes") {
+                if let Err(error) =
+                    validate_if_has_no_attributes(&argument.attrs, "mustn't have attributes")
+                {
                     return error;
                 }
 
@@ -373,21 +385,21 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
             arguments,
         } = process_arguments(arguments, state_pattern);
 
-        let stringed_func_ident = function_identifier.to_string();
+        let stringed_fn_ident = function_identifier.to_string();
         let output = register_type(&return_type);
 
         type_registrations.push(quote! {
-            funcs.insert(#stringed_func_ident.into(), ::gmeta::TypesRepr { input: #input_type, output: #output });
+            funcs.insert(#stringed_fn_ident.into(), ::gmeta::TypesRepr { input: #input_type, output: #output });
         });
 
         extern_functions.push(quote! {
             #[no_mangle]
             extern "C" fn #function_identifier() {
                 let #variables: #variables_types = ::gstd::msg::load()
-                    .expect("failed to load or decode a payload");
+                    .expect("Failed to load or decode a payload");
 
                 ::gstd::msg::reply(super::#function_identifier(#variables_wo_parentheses), 0)
-                    .expect("failed to encode or reply with a result from a metawasm function");
+                    .expect("Failed to encode or reply with a result from a metawasm function");
             }
         });
 
@@ -398,7 +410,7 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     quote! {
-        pub mod metafuncs {
+        pub mod metafns {
             use super::*;
 
             mod r#extern {
@@ -416,7 +428,7 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
                         registry: ::gstd::Encode::encode(&::gmeta::PortableRegistry::from(registry)),
                     };
 
-                    ::gstd::msg::reply(metawasm_data, 0).expect("failed to encode or reply with metawasm data");
+                    ::gstd::msg::reply(metawasm_data, 0).expect("Failed to encode or reply with metawasm data");
                 }
 
                 #(#extern_functions)*
