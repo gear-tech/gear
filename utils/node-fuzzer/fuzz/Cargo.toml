@@ -1,0 +1,17 @@
+[package]
+name = "node-fuzzer-fuzz"
+version = "0.1.0"
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+node-fuzzer = { path = "..", features = ["lazy-pages"] }
+
+[[bin]]
+name = "main"
+path = "fuzz_targets/main.rs"
+test = false
+doc = false
