@@ -298,7 +298,7 @@ impl Ext {
         let mailbox_threshold = self.context.mailbox_threshold;
         let gas_limit = gas_limit.unwrap_or(0);
 
-        if gas_limit != 0 && gas_limit < mailbox_threshold {
+        if gas_limit < mailbox_threshold && gas_limit != 0 {
             Err(MessageError::InsufficientGasLimit {
                 message_gas_limit: gas_limit,
                 mailbox_threshold,
