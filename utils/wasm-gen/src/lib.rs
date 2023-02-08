@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::ops::RangeInclusive;
+use std::{collections::BTreeMap, ops::RangeInclusive};
 
 use arbitrary::Unstructured;
 use gear_wasm_instrument::{
     parity_wasm::{
         self, builder,
         elements::{
-            External, FunctionType, Instruction, Instructions, Internal, Module, Section, Type,
-            ValueType,
+            External, FunctionType, ImportCountType, Instruction, Instructions, Internal, Module,
+            Section, Type, ValueType,
         },
     },
     syscalls::SysCallName,
@@ -32,7 +32,7 @@ use gear_wasm_instrument::{
 use wasm_smith::{InstructionKind::*, InstructionKinds, Module as ModuleSmith, SwarmConfig};
 
 mod syscalls;
-use syscalls::{sys_calls_table, Parameter, SyscallsConfig};
+use syscalls::{sys_calls_table, Parameter, SysCallInfo, SyscallsConfig};
 
 #[cfg(test)]
 mod test;
@@ -133,6 +133,7 @@ pub struct GearConfig {
     pub print_test_info: Option<String>,
     pub max_percentage_seed: u32,
     pub unchecked_memory_access: Ratio,
+    pub use_message_source: Ratio,
 }
 
 impl GearConfig {
@@ -154,6 +155,7 @@ impl GearConfig {
             print_test_info: None,
             max_percentage_seed: 100,
             unchecked_memory_access: prob,
+            use_message_source: (50, 100).into(),
         }
     }
     pub fn new_for_rare_cases() -> Self {
@@ -174,6 +176,7 @@ impl GearConfig {
             print_test_info: None,
             max_percentage_seed: 5,
             unchecked_memory_access: prob,
+            use_message_source: prob,
         }
     }
     pub fn new_valid() -> Self {
@@ -195,6 +198,7 @@ impl GearConfig {
             print_test_info: None,
             max_percentage_seed: 100,
             unchecked_memory_access: zero_prob,
+            use_message_source: zero_prob,
         }
     }
 }
@@ -396,6 +400,12 @@ struct WasmGen<'a> {
 enum GearStackEndExportSeed {
     NotGenerate,
     GenerateValue(u32),
+}
+
+struct SyscallData {
+    info: SysCallInfo,
+    sys_call_amount: usize,
+    call_index: u32,
 }
 
 impl<'a> WasmGen<'a> {
@@ -651,7 +661,7 @@ impl<'a> WasmGen<'a> {
         )
     }
 
-    pub fn insert_sys_calls(&mut self, mut module: Module, memory_pages: WasmPageCount) -> Module {
+    pub fn insert_sys_calls(&mut self, module: Module, memory_pages: WasmPageCount) -> Module {
         let code_size = if let Some(code) = module.code_section() {
             code.bodies()
                 .iter()
@@ -660,64 +670,146 @@ impl<'a> WasmGen<'a> {
             return module;
         };
 
+        let mut source_call_index = None;
+
+        let import_count = module.import_count(ImportCountType::Function);
+
+        let mut builder = builder::from_module(module);
+
+        // generate corresponding import entries for syscalls
+        let mut syscall_data = BTreeMap::default();
         let sys_calls_table = sys_calls_table(&self.config);
-
-        for (name, info) in sys_calls_table {
-            let sys_call_max_amount = info.frequency.mult(code_size);
-            let sys_call_amount = self.u.int_in_range(0..=sys_call_max_amount).unwrap();
-            if sys_call_amount == 0
-                && !(name == SysCallName::Debug && self.config.print_test_info.is_some())
-            {
-                continue;
-            }
-
-            let types = module.type_section_mut().unwrap().types_mut();
-            let type_no = match types.iter().enumerate().find(|(_index, type_)| {
-                let Type::Function(type_) = type_;
-
-                *type_ == info.func_type()
-            }) {
-                Some((index, _type)) => index,
-                None => {
-                    let index = types.len();
-                    types.push(Type::Function(info.func_type()));
-
-                    index
+        for (i, (name, info, sys_call_amount)) in sys_calls_table
+            .into_iter()
+            .filter_map(|(name, info)| {
+                let sys_call_max_amount = info.frequency.mult(code_size);
+                let sys_call_amount = self.u.int_in_range(0..=sys_call_max_amount).unwrap();
+                if sys_call_amount == 0
+                    && !(name == SysCallName::Debug && self.config.print_test_info.is_some())
+                {
+                    None
+                } else {
+                    Some((name, info, sys_call_amount))
                 }
-            } as u32;
+            })
+            .enumerate()
+        {
+            let signature_index = {
+                let func_type = info.func_type();
+                let mut signature_builder = builder::signature();
+                for parameter in func_type.params() {
+                    signature_builder = signature_builder.with_param(*parameter);
+                }
+
+                for result in func_type.results() {
+                    signature_builder = signature_builder.with_result(*result);
+                }
+
+                builder.push_signature(signature_builder.build_sig())
+            };
 
             // make import
-            module = builder::from_module(module)
-                .import()
-                .module("env")
-                .external()
-                .func(type_no)
-                .field(name.to_str())
-                .build()
-                .build();
-
-            let import_func_no = module.import_section().unwrap().functions() as u32 - 1;
-
-            self.calls_indexes.push(FuncIdx::Import(import_func_no));
-
-            let func_no = self.calls_indexes.len() as u32 - 1;
-
-            // insert sys call anywhere in the code
-            let instructions = build_checked_call(
-                self.u,
-                &info.results,
-                &info.parameter_rules,
-                func_no,
-                memory_pages,
-                self.config.unchecked_memory_access,
+            builder.push_import(
+                builder::import()
+                    .module("env")
+                    .external()
+                    .func(signature_index)
+                    .field(name.to_str())
+                    .build(),
             );
 
-            for _ in 0..sys_call_amount {
+            let call_index = self.calls_indexes.len() as u32;
+            if name == SysCallName::Source {
+                source_call_index = Some(call_index);
+            }
+
+            self.calls_indexes
+                .push(FuncIdx::Import((import_count + i) as u32));
+            syscall_data.insert(
+                name,
+                SyscallData {
+                    info,
+                    sys_call_amount,
+                    call_index,
+                },
+            );
+        }
+
+        let mut module = builder.build();
+
+        // generate call instructions for syscalls and insert them somewhere into the code
+        for (name, data) in syscall_data {
+            let instructions =
+                self.build_call_instructions(name, &data, memory_pages, source_call_index);
+            for _ in 0..data.sys_call_amount {
                 module = self.insert_instructions_in_random_place(module, &instructions);
             }
         }
 
         module
+    }
+
+    fn build_call_instructions(
+        &mut self,
+        name: SysCallName,
+        data: &SyscallData,
+        memory_pages: WasmPageCount,
+        source_call_index: Option<u32>,
+    ) -> Vec<Instruction> {
+        let info = &data.info;
+        let use_message_source = self.config.use_message_source.get(self.u);
+        let source_call_index = match source_call_index {
+            // TODO #2206: send also using reserved gas
+            Some(i)
+                if use_message_source
+                    && [
+                        SysCallName::Send,
+                        SysCallName::SendWGas,
+                        SysCallName::SendInput,
+                        SysCallName::SendInputWGas,
+                    ]
+                    .contains(&name) =>
+            {
+                i
+            }
+            _ => {
+                return build_checked_call(
+                    self.u,
+                    &info.results,
+                    &info.parameter_rules,
+                    data.call_index,
+                    memory_pages,
+                    self.config.unchecked_memory_access,
+                )
+            }
+        };
+
+        let mut remaining_instructions = build_checked_call(
+            self.u,
+            &info.results,
+            &info.parameter_rules[1..],
+            data.call_index,
+            memory_pages,
+            self.config.unchecked_memory_access,
+        );
+
+        let mut instructions = Vec::with_capacity(3 + remaining_instructions.len());
+
+        let memory_size = memory_pages.memory_size();
+        let upper_limit = memory_size.saturating_sub(MEMORY_VALUE_SIZE);
+        let offset = self
+            .u
+            .int_in_range(0..=upper_limit)
+            .expect("build_call_instructions: Unstructured::int_in_range failed");
+
+        // call msg::source (gr_source) with a memory offset
+        instructions.push(Instruction::I32Const(offset as i32));
+        instructions.push(Instruction::Call(source_call_index));
+        // pass the offset as the first argument to the send-call
+        instructions.push(Instruction::I32Const(offset as i32));
+        instructions.append(&mut remaining_instructions);
+
+        instructions
     }
 
     pub fn make_print_test_info(&mut self, mut module: Module) -> Module {
