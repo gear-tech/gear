@@ -9,10 +9,8 @@ use futures::FutureExt;
 use gear_call_gen::{
     CallGenRng, CreateProgramArgs, SendMessageArgs, UploadCodeArgs, UploadProgramArgs,
 };
-use gear_core::{
-    ids::{CodeId, ProgramId},
-    utils::NonEmpty,
-};
+use gear_core::ids::{CodeId, ProgramId};
+use gear_utils::NonEmpty;
 use tracing::instrument;
 
 #[derive(Clone, Copy)]

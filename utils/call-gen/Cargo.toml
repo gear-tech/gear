@@ -7,6 +7,7 @@ edition = "2021"
 # Internal deps
 gear-wasm-gen = { path = "../wasm-gen" }
 gear-core = { path = "../../core" }
+gear-utils = { path = "../utils" }
 
 # External deps
 arbitrary = "1.2.3"

@@ -19,10 +19,8 @@
 //! Create program call generator.
 
 use crate::{CallGenRng, GearCall, Seed};
-use gear_core::{
-    ids::CodeId,
-    utils::{NonEmpty, RingGet},
-};
+use gear_core::ids::CodeId;
+use gear_utils::{NonEmpty, RingGet};
 
 // code id, salt, payload, gas limit, value
 type CreateProgramArgsInner = (CodeId, Vec<u8>, Vec<u8>, u64, u128);

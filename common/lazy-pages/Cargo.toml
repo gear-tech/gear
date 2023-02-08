@@ -9,7 +9,7 @@ license = "GPL-3.0"
 derive_more = "0.99.17"
 log = { version = "0.4.17", default-features = false }
 
-gear-core = { path = "../../core", default-features = false }
+gear-core = { path = "../../core" }
 gear-backend-common = { path = "../../core-backend/common", default-features = false }
 gear-common = { path = "..", default-features = false }
 gear-runtime-interface = { path = "../../runtime-interface", default-features = false }

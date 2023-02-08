@@ -3210,6 +3210,7 @@ dependencies = [
  "arbitrary",
  "dyn-clonable",
  "gear-core",
+ "gear-utils",
  "gear-wasm-gen",
  "hex",
  "log",
@@ -3258,6 +3259,7 @@ dependencies = [
  "frame-system",
  "gear-common-codegen",
  "gear-core",
+ "gear-utils",
  "gear-wasm-instrument",
  "hex-literal",
  "log",
@@ -3292,7 +3294,6 @@ dependencies = [
  "hashbrown 0.13.2",
  "hex",
  "log",
- "nonempty",
  "parity-scale-codec",
  "scale-info",
  "static_assertions",
@@ -3732,6 +3733,13 @@ dependencies = [
  "sp-version",
  "substrate-wasm-builder",
  "trie-db 0.25.0",
+]
+
+[[package]]
+name = "gear-utils"
+version = "0.1.0"
+dependencies = [
+ "nonempty",
 ]
 
 [[package]]
