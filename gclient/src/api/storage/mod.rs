@@ -16,13 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod account_id;
 mod block;
-mod into_account_id;
 
 pub use block::*;
 
 use super::{GearApi, Result};
 use crate::Error;
+use account_id::IntoAccountId32;
 use gear_core::{ids::*, message::StoredMessage};
 use gp::api::generated::api::{
     runtime_types::{
@@ -31,7 +32,6 @@ use gp::api::generated::api::{
     },
     storage,
 };
-use into_account_id::IntoAccountId32;
 
 impl GearApi {
     /// Get a message identified by `message_id` from the mailbox.

@@ -19,6 +19,7 @@
 use gear_core::ids::ProgramId;
 use subxt::ext::sp_runtime::AccountId32;
 
+/// A trait for convenient conversion into Substrate's AccountId32.
 pub trait IntoAccountId32 {
     fn into_account_id(self) -> AccountId32;
 }
@@ -36,6 +37,12 @@ impl IntoAccountId32 for &AccountId32 {
 }
 
 impl IntoAccountId32 for ProgramId {
+    fn into_account_id(self) -> AccountId32 {
+        AccountId32::new(self.into_bytes())
+    }
+}
+
+impl IntoAccountId32 for &ProgramId {
     fn into_account_id(self) -> AccountId32 {
         AccountId32::new(self.into_bytes())
     }
