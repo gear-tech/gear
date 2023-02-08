@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Generator of the `pallet-gear` calls
+//! Generator of the `pallet-gear` calls.
 
 mod create_program;
 mod rand_utils;
@@ -27,13 +27,12 @@ mod upload_program;
 pub type Seed = u64;
 
 pub use create_program::CreateProgramArgs;
-pub use rand_utils::CallGenRng;
+pub use rand_utils::{CallGenRng, CallGenRngCore};
 pub use send_message::SendMessageArgs;
 pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
 
 /// Set of `pallet_gear` calls supported by the crate.
-// todo [sab] possibly not needed?
 pub enum GearCall {
     /// Upload program call args.
     UploadProgram(UploadProgramArgs),

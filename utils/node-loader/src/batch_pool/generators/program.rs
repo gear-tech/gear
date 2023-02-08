@@ -1,7 +1,8 @@
-use crate::{batch_pool::Seed, utils::LoaderRng};
+use crate::batch_pool::Seed;
 use arbitrary::Unstructured;
+use gear_call_gen::CallGenRng;
 
-pub fn generate_gear_program<Rng: LoaderRng>(seed: Seed) -> Vec<u8> {
+pub fn generate_gear_program<Rng: CallGenRng>(seed: Seed) -> Vec<u8> {
     let mut rng = Rng::seed_from_u64(seed);
 
     let mut buf = vec![0; 100_000];

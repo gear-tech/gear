@@ -82,6 +82,7 @@ impl CreateProgramArgs {
             hex::encode(&payload)
         );
 
+        // TODO #2203
         let value = 0;
 
         Self((code, salt, payload, gas_limit, value))

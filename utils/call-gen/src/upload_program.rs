@@ -71,7 +71,7 @@ impl UploadProgramArgs {
             hex::encode(&payload)
         );
 
-        // todo generate value randomly too
+        // TODO #2203
         let value = 0;
 
         Self((code, salt, payload, gas_limit, value))

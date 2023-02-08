@@ -77,13 +77,6 @@ pub fn convert_iter<V, T: Into<V>>(args: Vec<T>) -> impl IntoIterator<Item = V> 
     args.into_iter().map(Into::into)
 }
 
-#[clonable]
-pub trait LoaderRngCore: RngCore + Clone {}
-impl<T: RngCore + Clone> LoaderRngCore for T {}
-
-pub trait LoaderRng: Rng + SeedableRng + 'static + Clone {}
-impl<T: Rng + SeedableRng + 'static + Clone> LoaderRng for T {}
-
 pub trait SwapResult {
     type SwappedOk;
     type SwappedErr;

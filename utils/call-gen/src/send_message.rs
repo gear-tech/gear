@@ -26,7 +26,7 @@ use gear_core::{
 
 // destination, payload, gas, value
 type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);
- 
+
 /// Send message args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::send_message` call.
@@ -44,7 +44,7 @@ impl From<SendMessageArgs> for GearCall {
         GearCall::SendMessage(args)
     }
 }
-    
+
 impl TryFrom<GearCall> for SendMessageArgs {
     type Error = ();
 
@@ -80,6 +80,7 @@ impl SendMessageArgs {
             hex::encode(&payload)
         );
 
+        // TODO #2203
         let value = 0;
 
         Self((destination, payload, gas_limit, value))

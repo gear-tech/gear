@@ -2,11 +2,13 @@ use super::seed;
 use crate::{
     args::SeedVariant,
     batch_pool::{api::GearApiFacade, context::Context, Seed},
-    utils::{self, LoaderRng, LoaderRngCore},
+    utils,
 };
 use anyhow::Result;
 use futures::FutureExt;
-use gear_call_gen::{CreateProgramArgs, SendMessageArgs, UploadCodeArgs, UploadProgramArgs};
+use gear_call_gen::{
+    CallGenRng, CreateProgramArgs, SendMessageArgs, UploadCodeArgs, UploadProgramArgs,
+};
 use gear_core::{
     ids::{CodeId, ProgramId},
     utils::NonEmpty,
@@ -28,13 +30,14 @@ impl RuntimeSettings {
     }
 }
 
-pub struct BatchGenerator<Rng: LoaderRng> {
+pub struct BatchGenerator<Rng> {
     pub batch_gen_rng: Rng,
     pub batch_size: usize,
-    code_seed_gen: Box<dyn LoaderRngCore>,
+    code_seed_gen: Box<dyn CallGenRngCore>,
     rt_settings: RuntimeSettings,
 }
 
+// TODO #2202 Change to use GearCall
 pub enum Batch {
     UploadProgram(Vec<UploadProgramArgs>),
     UploadCode(Vec<UploadCodeArgs>),
@@ -76,7 +79,7 @@ impl From<BatchWithSeed> for (Seed, Batch) {
     }
 }
 
-impl<Rng: LoaderRng> BatchGenerator<Rng> {
+impl<Rng: CallGenRng> BatchGenerator<Rng> {
     pub fn new(
         seed: Seed,
         batch_size: usize,
