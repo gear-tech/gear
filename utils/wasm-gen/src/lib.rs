@@ -759,6 +759,7 @@ impl<'a> WasmGen<'a> {
         let info = &data.info;
         let use_message_source = self.config.use_message_source.get(self.u);
         let source_call_index = match source_call_index {
+            // TODO #2206: send also using reserved gas
             Some(i)
                 if use_message_source
                     && [
@@ -801,7 +802,7 @@ impl<'a> WasmGen<'a> {
             .int_in_range(0..=upper_limit)
             .expect("build_call_instructions: Unstructured::int_in_range failed");
 
-        // call msg::source (gr_source) with an memory offset
+        // call msg::source (gr_source) with a memory offset
         instructions.push(Instruction::I32Const(offset as i32));
         instructions.push(Instruction::Call(source_call_index));
         // pass the offset as the first argument to the send-call
