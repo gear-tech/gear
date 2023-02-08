@@ -1,10 +1,8 @@
 use crate::{batch_pool::generators, SmallRng};
 use anyhow::{anyhow, Result};
-use dyn_clonable::*;
 use futures::Future;
 use futures_timer::Delay;
 use gclient::WSAddress;
-use rand::{Rng, RngCore, SeedableRng};
 use reqwest::Client;
 use std::{
     collections::HashMap,

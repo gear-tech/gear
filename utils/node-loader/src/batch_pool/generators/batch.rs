@@ -7,7 +7,8 @@ use crate::{
 use anyhow::Result;
 use futures::FutureExt;
 use gear_call_gen::{
-    CallGenRng, CreateProgramArgs, SendMessageArgs, UploadCodeArgs, UploadProgramArgs,
+    CallGenRng, CallGenRngCore, CreateProgramArgs, SendMessageArgs, UploadCodeArgs,
+    UploadProgramArgs,
 };
 use gear_core::ids::{CodeId, ProgramId};
 use gear_utils::NonEmpty;
