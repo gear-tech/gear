@@ -386,7 +386,7 @@ impl Ext {
 
             // Reduse gas for block waiting in dispatch stash
             if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
-                return Err(WaitError::NotEnoughGas.into());
+                return Err(MessageError::InsufficientGasForDelayedSending.into());
             }
         }
         Ok(())
@@ -485,9 +485,10 @@ impl EnvExt for Ext {
 
         self.charge_sending_fee(delay)?;
 
-        self.context.gas_reserver.mark_used(id)?;
-
         self.charge_for_dispatch_stash_hold(delay)?;
+
+
+        self.context.gas_reserver.mark_used(id)?;
 
         let msg_id = self
             .context
@@ -849,9 +850,9 @@ impl EnvExt for Ext {
         self.charge_expiring_resources(&packet)?;
         self.charge_sending_fee(delay)?;
 
-        let code_hash = packet.code_id();
-
         self.charge_for_dispatch_stash_hold(delay)?;
+
+        let code_hash = packet.code_id();
 
         // Send a message for program creation
         let (mid, pid) = self
