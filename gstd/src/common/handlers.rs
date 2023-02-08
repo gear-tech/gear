@@ -26,14 +26,20 @@
 //! For `debug` mode it provides more extensive logging.
 
 #[cfg(target_arch = "wasm32")]
-use core::panic::PanicInfo;
+use {
+    crate::{ext, prelude::format},
+    core::panic::PanicInfo,
+};
 
 #[cfg(not(feature = "debug"))]
 #[cfg(not(debug_assertions))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
-pub fn panic(_: &PanicInfo) -> ! {
-    crate::ext::panic("no info")
+pub fn panic(panic_info: &PanicInfo) -> ! {
+    match panic_info.location() {
+        Some(loc) => ext::panic(&format!("{}:{}:{}", loc.file(), loc.line(), loc.column())),
+        None => ext::panic("no info"),
+    }
 }
 
 #[cfg(any(feature = "debug", debug_assertions))]
@@ -41,19 +47,19 @@ pub fn panic(_: &PanicInfo) -> ! {
 #[panic_handler]
 pub fn panic(panic_info: &PanicInfo) -> ! {
     let msg = match (panic_info.message(), panic_info.location()) {
-        (Some(msg), Some(loc)) => crate::prelude::format!(
+        (Some(msg), Some(loc)) => format!(
             "'{:?}', {}:{}:{}",
             msg,
             loc.file(),
             loc.line(),
             loc.column()
         ),
-        (Some(msg), None) => crate::prelude::format!("'{msg:?}'"),
+        (Some(msg), None) => format!("'{msg:?}'"),
         (None, Some(loc)) => {
-            crate::prelude::format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
+            format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
         }
-        _ => crate::ext::panic("no info"),
+        _ => ext::panic("no info"),
     };
 
-    crate::ext::panic(&msg)
+    ext::panic(&msg)
 }
