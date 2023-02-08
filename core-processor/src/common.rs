@@ -429,8 +429,8 @@ pub enum ActorExecutionErrorReason {
     #[display(fmt = "{_0}")]
     PrepareMemory(ActorPrepareMemoryError),
     /// Module start error
-    #[display(fmt = "Failed to instantiate module because of trap in start function")]
-    ModuleStart,
+    #[display(fmt = "Failed to instantiate module: {_0}")]
+    ModuleInstantiation(String),
     /// Ext error
     #[display(fmt = "{_0}")]
     Ext(TrapExplanation),

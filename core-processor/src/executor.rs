@@ -395,10 +395,10 @@ where
         )) => {
             return Err(ExecutionError::System(e.into()));
         }
-        Err(EnvironmentExecutionError::ModuleStart(gas_amount)) => {
+        Err(EnvironmentExecutionError::ModuleInstantiation(gas_amount, err)) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
-                reason: ActorExecutionErrorReason::ModuleStart,
+                reason: ActorExecutionErrorReason::ModuleInstantiation(err),
             }))
         }
     };

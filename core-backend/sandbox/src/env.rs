@@ -23,7 +23,7 @@ use crate::{
     memory::MemoryWrap,
     runtime::{self, Runtime},
 };
-use alloc::{collections::BTreeSet, string::ToString};
+use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
@@ -50,8 +50,6 @@ use sp_sandbox::{
 pub enum SandboxEnvironmentError {
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(sp_sandbox::Error),
-    #[display(fmt = "Unable to instantiate module: {_0:?}")]
-    ModuleInstantiation(sp_sandbox::Error),
     #[display(fmt = "Globals are not supported")]
     GlobalsNotSupported,
     #[display(fmt = "Gas counter not found or has wrong type")]
@@ -231,8 +229,10 @@ where
                 entries,
                 entry_point,
             }),
-            Err(sp_sandbox::Error::Execution) => Err(ModuleStart(runtime.ext.gas_amount())),
-            Err(e) => Err(Environment(ModuleInstantiation(e))),
+            Err(e) => Err(ModuleInstantiation(
+                runtime.ext.gas_amount(),
+                format!("{e:?}"),
+            )),
         }
     }
 

@@ -37,7 +37,7 @@ use crate::{
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::FromUtf8Error,
+    string::{FromUtf8Error, String},
     vec::Vec,
 };
 use codec::{Decode, Encode};
@@ -255,8 +255,8 @@ pub enum EnvironmentExecutionError<Env: Display, PrepMem: Display> {
     Environment(Env),
     #[display(fmt = "Prepare error: {_1}")]
     PrepareMemory(GasAmount, PrepMem),
-    #[display(fmt = "Module start error")]
-    ModuleStart(GasAmount),
+    #[display(fmt = "Module instantiation: {_1}")]
+    ModuleInstantiation(GasAmount, String),
 }
 
 impl<Env: Display, PrepMem: Display> EnvironmentExecutionError<Env, PrepMem> {
@@ -264,7 +264,9 @@ impl<Env: Display, PrepMem: Display> EnvironmentExecutionError<Env, PrepMem> {
         match err {
             EnvironmentExecutionError::Environment(err) => Self::Environment(err),
             EnvironmentExecutionError::PrepareMemory(_, err) => match err {},
-            EnvironmentExecutionError::ModuleStart(gas_amount) => Self::ModuleStart(gas_amount),
+            EnvironmentExecutionError::ModuleInstantiation(gas_amount, s) => {
+                Self::ModuleInstantiation(gas_amount, s)
+            }
         }
     }
 }

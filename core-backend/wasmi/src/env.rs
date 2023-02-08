@@ -52,9 +52,6 @@ pub enum WasmiEnvironmentError {
     #[from]
     #[display(fmt = "Unable to link item: {_0:?}")]
     Linking(wasmi::errors::LinkerError),
-    #[from]
-    #[display(fmt = "Unable to instantiate module: {_0:?}")]
-    ModuleInstantiation(wasmi::Error),
     #[display(fmt = "Unable to get wasm module exports: {_0}")]
     GetWasmExports(String),
     #[display(fmt = "Entry point has wrong type: {_0}")]
@@ -185,7 +182,7 @@ where
         }
 
         let module = Module::new(store.engine(), &mut &binary[..])
-            .map_err(|e| Environment(ModuleInstantiation(e)))?;
+            .map_err(|e| ModuleInstantiation(ext.gas_amount(), e.to_string()))?;
 
         let runtime = State {
             ext,
@@ -196,11 +193,11 @@ where
 
         let instance_pre = linker
             .instantiate(&mut store, &module)
-            .map_err(|e| Environment(ModuleInstantiation(e)))?;
+            .map_err(|e| ModuleInstantiation(gas_amount!(store), e.to_string()))?;
 
         let instance = instance_pre
             .ensure_no_start(&mut store)
-            .map_err(|e| Environment(ModuleInstantiation(e.into())))?;
+            .map_err(|e| ModuleInstantiation(gas_amount!(store), e.to_string()))?;
 
         Ok(Self {
             instance,
