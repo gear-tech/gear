@@ -80,6 +80,7 @@ members = [
     "utils/test-runtime",
     "utils/test-runtime/client",
     "utils/validator-checks",
+    "utils/call-gen",
 ]
 
 [profile.release]

@@ -36,7 +36,7 @@ pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, 
 serde = "1.0.152"
 env_logger = "0.10"
 wabt = "0.10"
-gear-core = { path = "../../core" }
+gear-core = { path = "../../core", default-features = false }
 sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }

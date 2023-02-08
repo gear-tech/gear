@@ -32,7 +32,7 @@ pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "ht
 # Gear
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
 gear-common = { path = "../../common" }
-gear-core = { path = "../../core" }
+gear-core = { path = "../../core", default-features = false }
 gear-runtime = { path = "../../runtime/gear", optional = true, features = ["debug-mode"] }
 vara-runtime = { path = "../../runtime/vara", optional = true, features = ["debug-mode"] }
 gear-test = { path = "../../gear-test" }

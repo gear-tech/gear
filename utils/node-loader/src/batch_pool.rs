@@ -4,12 +4,11 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use api::GearApiFacade;
-use batch::{Batch, BatchWithSeed};
 use context::Context;
 use futures::{stream::FuturesUnordered, Future, StreamExt};
 use gclient::{Error as GClientError, EventProcessor, GearApi, Result as GClientResult};
 use gear_core::ids::{MessageId, ProgramId};
-use generators::{BatchGenerator, RuntimeSettings};
+use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
 use primitive_types::H256;
 pub use report::CrashAlert;
 use report::{BatchRunReport, Report};
@@ -21,7 +20,6 @@ use std::{
 use tracing::instrument;
 
 mod api;
-mod batch;
 mod context;
 pub mod generators;
 mod report;

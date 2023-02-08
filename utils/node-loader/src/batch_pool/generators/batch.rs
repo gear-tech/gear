@@ -1,20 +1,16 @@
 use super::seed;
 use crate::{
     args::SeedVariant,
-    batch_pool::{
-        api::GearApiFacade,
-        batch::{
-            Batch, BatchWithSeed, CreateProgramArgs, SendMessageArgs, UploadCodeArgs,
-            UploadProgramArgs,
-        },
-        context::Context,
-        Seed,
-    },
-    utils::{self, LoaderRng, LoaderRngCore, NonEmptyVec},
+    batch_pool::{api::GearApiFacade, context::Context, Seed},
+    utils::{self, LoaderRng, LoaderRngCore},
 };
 use anyhow::Result;
 use futures::FutureExt;
-use gear_core::ids::{CodeId, ProgramId};
+use gear_call_gen::{CreateProgramArgs, SendMessageArgs, UploadCodeArgs, UploadProgramArgs};
+use gear_core::{
+    ids::{CodeId, ProgramId},
+    utils::NonEmpty,
+};
 use tracing::instrument;
 
 #[derive(Clone, Copy)]
@@ -37,6 +33,47 @@ pub struct BatchGenerator<Rng: LoaderRng> {
     pub batch_size: usize,
     code_seed_gen: Box<dyn LoaderRngCore>,
     rt_settings: RuntimeSettings,
+}
+
+pub enum Batch {
+    UploadProgram(Vec<UploadProgramArgs>),
+    UploadCode(Vec<UploadCodeArgs>),
+    SendMessage(Vec<SendMessageArgs>),
+    CreateProgram(Vec<CreateProgramArgs>),
+}
+
+pub struct BatchWithSeed {
+    pub seed: Seed,
+    pub batch: Batch,
+}
+
+impl BatchWithSeed {
+    pub fn batch_str(&self) -> &'static str {
+        match &self.batch {
+            Batch::UploadProgram(_) => "upload_program",
+            Batch::UploadCode(_) => "upload_code",
+            Batch::SendMessage(_) => "send_message",
+            Batch::CreateProgram(_) => "create_program",
+        }
+    }
+}
+
+impl From<BatchWithSeed> for Batch {
+    fn from(other: BatchWithSeed) -> Self {
+        other.batch
+    }
+}
+
+impl From<(Seed, Batch)> for BatchWithSeed {
+    fn from((seed, batch): (Seed, Batch)) -> Self {
+        Self { seed, batch }
+    }
+}
+
+impl From<BatchWithSeed> for (Seed, Batch) {
+    fn from(BatchWithSeed { seed, batch }: BatchWithSeed) -> Self {
+        (seed, batch)
+    }
 }
 
 impl<Rng: LoaderRng> BatchGenerator<Rng> {
@@ -75,17 +112,17 @@ impl<Rng: LoaderRng> BatchGenerator<Rng> {
                 );
                 span.in_scope(|| self.gen_upload_code_batch())
             }
-            2 => match NonEmptyVec::try_from_iter(context.programs.iter().copied()) {
-                Ok(existing_programs) => {
+            2 => match NonEmpty::from_vec(context.programs.iter().copied().collect()) {
+                Some(existing_programs) => {
                     self.gen_send_message_batch(existing_programs, seed, rt_settings)
                 }
-                Err(_) => self.gen_upload_program_batch(seed, rt_settings),
+                None => self.gen_upload_program_batch(seed, rt_settings),
             },
-            3 => match NonEmptyVec::try_from_iter(context.codes.iter().copied()) {
-                Ok(existing_codes) => {
+            3 => match NonEmpty::from_vec(context.codes.iter().copied().collect()) {
+                Some(existing_codes) => {
                     self.gen_create_program_batch(existing_codes, seed, rt_settings)
                 }
-                Err(_) => self.gen_upload_program_batch(seed, rt_settings),
+                None => self.gen_upload_program_batch(seed, rt_settings),
             },
             _ => unreachable!(),
         };
@@ -125,7 +162,7 @@ impl<Rng: LoaderRng> BatchGenerator<Rng> {
     #[instrument(skip_all, fields(seed = seed, batch_type = "send_message"))]
     fn gen_send_message_batch(
         &mut self,
-        existing_programs: NonEmptyVec<ProgramId>,
+        existing_programs: NonEmpty<ProgramId>,
         seed: Seed,
         rt_settings: RuntimeSettings,
     ) -> Batch {
@@ -147,7 +184,7 @@ impl<Rng: LoaderRng> BatchGenerator<Rng> {
     #[instrument(skip_all, fields(seed = seed, batch_type = "create_program"))]
     fn gen_create_program_batch(
         &mut self,
-        existing_codes: NonEmptyVec<CodeId>,
+        existing_codes: NonEmpty<CodeId>,
         seed: Seed,
         rt_settings: RuntimeSettings,
     ) -> Batch {

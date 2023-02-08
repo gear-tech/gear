@@ -11,7 +11,6 @@ use std::{
     fs::File,
     io::Write,
     iter,
-    ops::Deref,
     result::Result as StdResult,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -84,34 +83,6 @@ impl<T: RngCore + Clone> LoaderRngCore for T {}
 
 pub trait LoaderRng: Rng + SeedableRng + 'static + Clone {}
 impl<T: Rng + SeedableRng + 'static + Clone> LoaderRng for T {}
-
-#[derive(Debug, Clone)]
-pub struct NonEmptyVec<T>(Vec<T>);
-
-impl<T> NonEmptyVec<T> {
-    pub fn try_from_iter<I>(other: I) -> Result<Self, ()>
-    where
-        I: Iterator<Item = T>,
-    {
-        let mut peekable = other.peekable();
-        (peekable.peek().is_some())
-            .then_some(Self(peekable.collect()))
-            .ok_or(())
-    }
-
-    pub fn ring_get(&self, index: usize) -> &T {
-        assert!(!self.is_empty(), "NonEmptyVec instance is empty");
-        &self[index % self.len()]
-    }
-}
-
-impl<T> Deref for NonEmptyVec<T> {
-    type Target = [T];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
 
 pub trait SwapResult {
     type SwappedOk;
