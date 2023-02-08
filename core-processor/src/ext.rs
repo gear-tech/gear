@@ -221,6 +221,10 @@ pub struct Ext {
     pub context: ProcessorContext,
     /// Panic string if occurred
     pub panic: Option<String>,
+    // Counter of outgoing gasless messages.
+    //
+    // It's temporary field, used to solve `core-audit/issue#22`.
+    outgoing_gasless: u64,
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
@@ -231,6 +235,7 @@ impl ProcessorExt for Ext {
         Self {
             context,
             panic: None,
+            outgoing_gasless: 0,
         }
     }
 
@@ -328,6 +333,25 @@ impl Ext {
         } else {
             Ok(())
         }
+    }
+
+    // It's temporary fn, used to solve `core-audit/issue#22`.
+    fn safe_gasfull_sends<T: Packet>(&mut self, packet: &T) -> Result<(), ProcessorError> {
+        let outgoing_gasless = self.outgoing_gasless;
+
+        match packet.gas_limit() {
+            Some(x) if x != 0 => {
+                self.outgoing_gasless = 0;
+
+                let prev_gasless_fee =
+                    outgoing_gasless.saturating_mul(self.context.mailbox_threshold);
+
+                self.charge_gas(prev_gasless_fee)?;
+            }
+            _ => self.outgoing_gasless = outgoing_gasless.saturating_add(1),
+        };
+
+        Ok(())
     }
 
     fn charge_expiring_resources<T: Packet>(&mut self, packet: &T) -> Result<(), ProcessorError> {
@@ -433,8 +457,8 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
         self.check_forbidden_destination(msg.destination())?;
+        self.safe_gasfull_sends(&msg)?;
         self.charge_expiring_resources(&msg)?;
-
         self.charge_sending_fee(delay)?;
 
         let msg_id = self
@@ -457,12 +481,10 @@ impl EnvExt for Ext {
         ))?;
 
         self.check_forbidden_destination(msg.destination())?;
-
         self.check_message_value(msg.value())?;
-        let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
+        self.check_gas_limit(msg.gas_limit())?;
         // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
-
         self.charge_sending_fee(delay)?;
 
         self.context.gas_reserver.mark_used(id)?;
@@ -484,8 +506,8 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::ReplyCommit)?;
 
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
+        self.safe_gasfull_sends(&msg)?;
         self.charge_expiring_resources(&msg)?;
-
         self.charge_sending_fee(delay)?;
 
         let msg_id = self
@@ -504,12 +526,10 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::ReservationReplyCommit)?;
 
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
-
         self.check_message_value(msg.value())?;
-        let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
+        self.check_gas_limit(msg.gas_limit())?;
         // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
-
         self.charge_sending_fee(delay)?;
 
         self.context.gas_reserver.mark_used(id)?;
@@ -822,6 +842,7 @@ impl EnvExt for Ext {
         ))?;
 
         self.check_forbidden_destination(packet.destination())?;
+        self.safe_gasfull_sends(&packet)?;
         self.charge_expiring_resources(&packet)?;
         self.charge_sending_fee(delay)?;
 
