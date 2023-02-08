@@ -167,7 +167,7 @@ pub trait Messenger {
 
     type DispatchStash: MapStorage<
         Key = Self::DispatchStashKey,
-        Value = (Self::QueuedDispatch, Self::BlockNumber),
+        Value = (Self::QueuedDispatch, Interval<Self::BlockNumber>),
     >;
 
     /// Resets all related to messenger storages.
