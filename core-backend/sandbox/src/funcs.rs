@@ -300,11 +300,10 @@ where
         let inheritor_id_ptr = args.iter().read()?;
 
         ctx.run(|ctx| -> Result<(), _> {
-            let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
-            let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
-
             ctx.ext.exit()?;
 
+            let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
+            let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
             Err(TerminationReason::Exit(inheritor_id).into())
         })
     }

@@ -69,7 +69,6 @@ pub enum TerminationReason {
     Success,
     Wait(Option<u32>, MessageWaitedType),
     GasAllowanceExceeded,
-
     #[from]
     Trap(TrapExplanation),
 }
@@ -88,7 +87,6 @@ pub enum TerminationReason {
     derive_more::From,
 )]
 pub enum TrapExplanation {
-    #[from]
     #[display(fmt = "{_0}")]
     Core(ExtError),
     #[display(fmt = "{_0}")]
