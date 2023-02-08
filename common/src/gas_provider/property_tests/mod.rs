@@ -79,11 +79,7 @@ use super::*;
 use crate::storage::MapStorage;
 use core::{cell::RefCell, iter::FromIterator, ops::DerefMut};
 use frame_support::{assert_err, assert_ok};
-<<<<<<< HEAD
 use gear_utils::{NonEmpty, RingGet};
-=======
-use gear_core::utils::{NonEmpty, RingGet};
->>>>>>> 549b51aa8 (Initial)
 use primitive_types::H256;
 use proptest::prelude::*;
 use std::collections::HashMap;

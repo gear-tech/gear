@@ -13,7 +13,7 @@ log = "0.4.17"
 derive_more = "0.99.17"
 
 # Internal deps
-gear-core = { path = "../core", default-features = false }
+gear-core = { path = "../core" }
 gear-common-codegen = { path = "./codegen" }
 
 # Substrate deps
@@ -45,7 +45,6 @@ std = [
     "frame-support/std",
     "primitive-types/std",
     "gear-wasm-instrument?/std",
-    "gear-core/std",
 ]
 runtime-benchmarks = [
     "frame-benchmarking",
