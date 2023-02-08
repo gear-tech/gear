@@ -624,9 +624,7 @@ fn delayed_program_creation_no_code() {
         let delayed_block_amount: u64 = 1;
 
         let delay_holding_fee = GasPrice::gas_price(
-            delayed_block_amount
-                .saturating_add(CostsPerBlockOf::<Test>::reserve_for().unique_saturated_into())
-                .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
+            delayed_block_amount.saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
 
         assert_eq!(

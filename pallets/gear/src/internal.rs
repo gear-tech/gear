@@ -707,7 +707,10 @@ where
         let start_bn = Self::block_number();
         let finish_bn = start_bn.saturating_add(delay.into());
 
-        let delay_interval = Interval {start: start_bn, finish: finish_bn};
+        let delay_interval = Interval {
+            start: start_bn,
+            finish: finish_bn,
+        };
 
         // Adding message into the stash.
         DispatchStashOf::<T>::insert(message_id, (dispatch.into_stored(), delay_interval));

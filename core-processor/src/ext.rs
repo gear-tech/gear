@@ -487,7 +487,6 @@ impl EnvExt for Ext {
 
         self.charge_for_dispatch_stash_hold(delay)?;
 
-
         self.context.gas_reserver.mark_used(id)?;
 
         let msg_id = self

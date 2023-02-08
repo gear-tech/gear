@@ -148,7 +148,7 @@ where
         // Charge gas for message save
         let current_bn = Pallet::<T>::block_number();
         let hold_interval = Interval {
-            start: stored_bn.start.saturating_sub(CostsPerBlockOf::<T>::reserve_for()),
+            start: stored_bn.start,
             finish: current_bn,
         };
         Pallet::<T>::charge_for_hold(
@@ -175,7 +175,9 @@ where
         // Charge gas for message save
         let current_bn = Pallet::<T>::block_number();
         let hold_interval = Interval {
-            start: stored_bn.start.saturating_sub(CostsPerBlockOf::<T>::reserve_for()),
+            start: stored_bn
+                .start
+                .saturating_sub(CostsPerBlockOf::<T>::reserve_for()),
             finish: current_bn,
         };
         Pallet::<T>::charge_for_hold(
