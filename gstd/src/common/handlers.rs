@@ -35,7 +35,7 @@ use {
 #[cfg(not(debug_assertions))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
-pub fn panic(panic_info: &PanicInfo) -> ! {
+pub fn panic(_: &PanicInfo) -> ! {
     ext::panic("no info")
 }
 
