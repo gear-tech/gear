@@ -251,22 +251,20 @@ where
 
 #[derive(Debug, derive_more::Display)]
 pub enum EnvironmentExecutionError<Env: Display, PrepMem: Display> {
-    #[display(fmt = "Environment error: {_0}")]
-    Environment(Env),
+    #[display(fmt = "Actor backend error: {_1}")]
+    Actor(GasAmount, String),
+    #[display(fmt = "System backend error: {_0}")]
+    System(Env),
     #[display(fmt = "Prepare error: {_1}")]
     PrepareMemory(GasAmount, PrepMem),
-    #[display(fmt = "Module instantiation: {_1}")]
-    ModuleInstantiation(GasAmount, String),
 }
 
 impl<Env: Display, PrepMem: Display> EnvironmentExecutionError<Env, PrepMem> {
     pub fn from_infallible(err: EnvironmentExecutionError<Env, Infallible>) -> Self {
         match err {
-            EnvironmentExecutionError::Environment(err) => Self::Environment(err),
+            EnvironmentExecutionError::System(err) => Self::System(err),
             EnvironmentExecutionError::PrepareMemory(_, err) => match err {},
-            EnvironmentExecutionError::ModuleInstantiation(gas_amount, s) => {
-                Self::ModuleInstantiation(gas_amount, s)
-            }
+            EnvironmentExecutionError::Actor(gas_amount, s) => Self::Actor(gas_amount, s),
         }
     }
 }

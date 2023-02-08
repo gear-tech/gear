@@ -194,7 +194,7 @@ where
 
         let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.raw(), None) {
             Ok(mem) => mem,
-            Err(e) => return Err(Environment(CreateEnvMemory(e))),
+            Err(e) => return Err(System(CreateEnvMemory(e))),
         };
 
         builder.add_memory(memory.clone());
@@ -229,10 +229,7 @@ where
                 entries,
                 entry_point,
             }),
-            Err(e) => Err(ModuleInstantiation(
-                runtime.ext.gas_amount(),
-                format!("{e:?}"),
-            )),
+            Err(e) => Err(Actor(runtime.ext.gas_amount(), format!("{e:?}"))),
         }
     }
 
@@ -258,19 +255,19 @@ where
 
         runtime.globals = instance
             .instance_globals()
-            .ok_or(Environment(GlobalsNotSupported))?;
+            .ok_or(System(GlobalsNotSupported))?;
 
         let (gas, allowance) = runtime.ext.counters();
 
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .map_err(|_| Environment(WrongInjectedGas))?;
+            .map_err(|_| System(WrongInjectedGas))?;
 
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .map_err(|_| Environment(WrongInjectedAllowance))?;
+            .map_err(|_| System(WrongInjectedAllowance))?;
 
         let globals_config = if cfg!(not(feature = "std")) {
             GlobalsConfig {
@@ -304,13 +301,13 @@ where
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
             .and_then(runtime::as_i64)
-            .ok_or(Environment(WrongInjectedGas))?;
+            .ok_or(System(WrongInjectedGas))?;
 
         let allowance = runtime
             .globals
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(runtime::as_i64)
-            .ok_or(Environment(WrongInjectedAllowance))?;
+            .ok_or(System(WrongInjectedAllowance))?;
 
         let Runtime {
             err: runtime_err,

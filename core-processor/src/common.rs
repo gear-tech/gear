@@ -428,9 +428,9 @@ pub enum ActorExecutionErrorReason {
     /// Prepare memory error
     #[display(fmt = "{_0}")]
     PrepareMemory(ActorPrepareMemoryError),
-    /// Module start error
-    #[display(fmt = "Failed to instantiate module: {_0}")]
-    ModuleInstantiation(String),
+    /// Backend error
+    #[display(fmt = "Backend error: {_0}")]
+    Backend(String),
     /// Ext error
     #[display(fmt = "{_0}")]
     Ext(TrapExplanation),
