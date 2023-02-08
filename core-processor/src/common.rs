@@ -429,8 +429,8 @@ pub enum ActorExecutionErrorReason {
     #[display(fmt = "{_0}")]
     PrepareMemory(ActorPrepareMemoryError),
     /// Backend error
-    #[display(fmt = "Backend error: {_0}")]
-    Backend(String),
+    #[display(fmt = "Environment error: {_0}")]
+    Environment(String),
     /// Ext error
     #[display(fmt = "{_0}")]
     Ext(TrapExplanation),

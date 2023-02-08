@@ -398,7 +398,7 @@ where
         Err(EnvironmentExecutionError::Actor(gas_amount, err)) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
-                reason: ActorExecutionErrorReason::Backend(err),
+                reason: ActorExecutionErrorReason::Environment(err),
             }))
         }
     };
