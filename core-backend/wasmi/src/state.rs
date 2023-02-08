@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_backend_common::{BackendTermination, TerminationReason};
+use gear_backend_common::{BackendState, BackendTermination, TerminationReason};
 use gear_core::env::Ext;
 use gear_core_errors::ExtError;
 
@@ -36,5 +36,15 @@ impl<E: Ext> BackendTermination<E, ()> for State<E> {
             ..
         } = self;
         (ext, (), termination_reason)
+    }
+}
+
+impl<E: Ext> BackendState for State<E> {
+    fn set_termination_reason(&mut self, reason: TerminationReason) {
+        self.termination_reason = reason;
+    }
+
+    fn set_fallible_syscall_error(&mut self, err: ExtError) {
+        self.fallible_syscall_error = Some(err);
     }
 }

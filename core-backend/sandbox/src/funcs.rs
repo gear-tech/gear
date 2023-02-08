@@ -23,7 +23,7 @@ use codec::Encode;
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    BackendExt, BackendExtError, TerminationReason,
+    BackendExt, BackendExtError, BackendState, TerminationReason,
 };
 use gear_core::{
     env::Ext,
@@ -991,7 +991,8 @@ where
     pub fn out_of_gas(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "out_of_gas");
 
-        ctx.termination_reason = ctx.ext.out_of_gas().into_termination_reason();
+        let reason = ctx.ext.out_of_gas().into_termination_reason();
+        ctx.set_termination_reason(reason);
 
         Err(HostError)
     }
@@ -1000,7 +1001,8 @@ where
     pub fn out_of_allowance(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "out_of_allowance");
 
-        ctx.termination_reason = ctx.ext.out_of_allowance().into_termination_reason();
+        let reason = ctx.ext.out_of_allowance().into_termination_reason();
+        ctx.set_termination_reason(reason);
 
         Err(HostError)
     }

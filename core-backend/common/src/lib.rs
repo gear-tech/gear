@@ -280,26 +280,23 @@ pub trait BackendState {
     fn process_fallible_func_result<Err: BackendExtError, T: Sized>(
         &mut self,
         res: Result<T, FuncError<Err>>,
-    ) -> Option<Result<T, u32>> {
+    ) -> Result<Result<T, u32>, FuncError<Err>> {
         match res {
-            Err(err) => match err {
-                FuncError::Core(err) => match err.into_ext_error() {
-                    Ok(ext_err) => {
-                        let len = ext_err.encoded_size() as u32;
-                        self.set_fallible_syscall_error(ext_err);
-                        Some(Err(len))
+            Err(err) => {
+                if let FuncError::Core(err) = err {
+                    match err.into_ext_error() {
+                        Ok(ext_err) => {
+                            let len = ext_err.encoded_size() as u32;
+                            self.set_fallible_syscall_error(ext_err);
+                            Ok(Err(len))
+                        }
+                        Err(err) => Err(FuncError::Core(err)),
                     }
-                    Err(err) => {
-                        self.set_termination_reason(err.into_termination_reason());
-                        None
-                    }
-                },
-                FuncError::Terminated(reason) => {
-                    self.set_termination_reason(reason);
-                    None
+                } else {
+                    Err(err)
                 }
-            },
-            Ok(res) => Some(Ok(res)),
+            }
+            Ok(res) => Ok(Ok(res)),
         }
     }
 }

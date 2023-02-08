@@ -91,35 +91,14 @@ where
             });
     }
 
-    pub fn run_fallible<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> SyscallOutput
-    where
-        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
-        R: From<Result<T, u32>> + Sized,
-    {
-        self.prepare_run();
-
-        let res = f(self);
-        let res = self.process_fallible_func_result(res).ok_or(HostError)?;
-
-        // TODO: move above or make normal process memory access.
-        let write_res = self.memory_manager.register_write_as::<R>(res_ptr);
-
-        self.write_as(write_res, R::from(res))
-            .map_err(|err| {
-                self.termination_reason = FuncError::<E::Error>::from(err).into();
-                HostError
-            })
-            .map(|_| ReturnValue::Unit)
-    }
-
-    pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
+    pub fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
     where
         F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
     {
         self.prepare_run();
 
         let result = f(self).map_err(|err| {
-            self.termination_reason = err.into();
+            self.set_termination_reason(err.into());
             HostError
         });
 
@@ -128,7 +107,24 @@ where
         result
     }
 
-    pub(crate) fn run<F>(&mut self, f: F) -> SyscallOutput
+    pub fn run_fallible<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> SyscallOutput
+    where
+        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
+        R: From<Result<T, u32>> + Sized,
+    {
+        self.run_any(|ctx| {
+            let res = f(ctx);
+            let res = ctx.process_fallible_func_result(res)?;
+
+            // TODO: move above or make normal process memory access.
+            let write_res = ctx.memory_manager.register_write_as::<R>(res_ptr);
+
+            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+        })
+        .map(|_| ReturnValue::Unit)
+    }
+
+    pub fn run<F>(&mut self, f: F) -> SyscallOutput
     where
         F: FnOnce(&mut Self) -> Result<(), FuncError<E::Error>>,
     {

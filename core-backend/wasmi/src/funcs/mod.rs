@@ -24,7 +24,7 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    BackendExt, BackendExtError, FuncError, TerminationReason,
+    BackendExt, BackendExtError, BackendState, FuncError, TerminationReason,
 };
 use gear_core::{
     env::Ext,
@@ -1366,12 +1366,9 @@ where
 
     pub fn out_of_gas(store: &mut Store<HostState<E>>) -> Func {
         let func = move |mut caller: Caller<'_, HostState<E>>| -> EmptyOutput {
-            let host_state = caller
-                .host_data_mut()
-                .as_mut()
-                .expect("host_state should be set before execution");
-
-            host_state.termination_reason = host_state.ext.out_of_gas().into_termination_reason();
+            let host_state = internal::caller_host_state_mut(&mut caller);
+            let termination_reason = host_state.ext.out_of_gas().into_termination_reason();
+            host_state.set_termination_reason(termination_reason);
             Err(TrapCode::Unreachable.into())
         };
 
@@ -1380,14 +1377,9 @@ where
 
     pub fn out_of_allowance(store: &mut Store<HostState<E>>) -> Func {
         let func = move |mut caller: Caller<'_, HostState<E>>| -> EmptyOutput {
-            let host_state = caller
-                .host_data_mut()
-                .as_mut()
-                .expect("host_state should be set before execution");
-
-            host_state.termination_reason =
-                host_state.ext.out_of_allowance().into_termination_reason();
-
+            let host_state = internal::caller_host_state_mut(&mut caller);
+            let termination_reason = host_state.ext.out_of_allowance().into_termination_reason();
+            host_state.set_termination_reason(termination_reason);
             Err(TrapCode::Unreachable.into())
         };
 
