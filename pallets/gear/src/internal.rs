@@ -567,6 +567,8 @@ where
         let gas_for_delay = (delay as u64)
             .saturating_add(CostsPerBlockOf::<T>::reserve_for().unique_saturated_into())
             .saturating_mul(CostsPerBlockOf::<T>::dispatch_stash().unique_saturated_into());
+        
+        let interval_finish;
 
         if to_user {
             // Querying `MailboxThreshold`, that represents minimal amount of gas
@@ -617,6 +619,8 @@ where
             let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
             let hold = hold_builder.duration(bn_delay).min(maximal_hold);
 
+            interval_finish = hold.expected();
+
             // Locking funds for holding.
             GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
@@ -646,7 +650,7 @@ where
                     GasHandlerOf::<T>::split_with_value(
                         sender_node,
                         dispatch.id(),
-                        gas_limit + gas_for_delay,
+                        gas_limit.saturating_add(gas_for_delay),
                     )
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
                 }
@@ -682,6 +686,8 @@ where
             let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
             let hold = hold_builder.duration(bn_delay).min(maximal_hold);
 
+            interval_finish = hold.expected();
+
             // Locking funds for holding.
             GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
@@ -705,11 +711,9 @@ where
 
         // Add block number of insertation
         let start_bn = Self::block_number();
-        let finish_bn = start_bn.saturating_add(delay.into());
-
         let delay_interval = Interval {
             start: start_bn,
-            finish: finish_bn,
+            finish: interval_finish,
         };
 
         // Adding message into the stash.
