@@ -73,7 +73,6 @@ pub use utils::init_logger;
 use utils::*;
 
 #[test]
-#[should_panic] // TODO (breathx): resolve in current branch.
 fn gasfull_after_gasless() {
     init_logger();
 
