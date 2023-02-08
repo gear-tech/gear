@@ -3651,6 +3651,7 @@ dependencies = [
  "hashbrown 0.13.2",
  "hex",
  "log",
+ "nonempty",
  "parity-scale-codec",
  "scale-info",
  "static_assertions",

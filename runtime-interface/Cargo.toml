@@ -9,7 +9,7 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
-gear-core = { path = "../core" }
+gear-core = { path = "../core", default-features = false }
 gear-backend-common = { path = "../core-backend/common" }
 log = { version = "0.4.17", optional = true }
 libc = { version = "0.2.101", default-features = false }

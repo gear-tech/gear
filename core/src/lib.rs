@@ -37,6 +37,9 @@ pub mod message;
 pub mod program;
 pub mod reservation;
 
+#[cfg(feature = "std")]
+pub mod utils;
+
 pub mod buffer;
 
 use core::mem::size_of;

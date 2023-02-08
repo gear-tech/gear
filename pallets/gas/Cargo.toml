@@ -21,7 +21,7 @@ primitive-types = { version = "0.12.0", default-features = false, features = ["s
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
-gear-core = { path = "../../core" }
+gear-core = { path = "../../core", default-features = false }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
