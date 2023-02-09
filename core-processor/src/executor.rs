@@ -33,8 +33,8 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    BackendExt, BackendExtError, Environment, EnvironmentExecutionError, TerminationReason,
-    TrapExplanation,
+    BackendExt, BackendExtError, BackendReport, Environment, EnvironmentExecutionError,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -352,9 +352,11 @@ where
     };
     let (termination, memory, ext) = match execute() {
         Ok(report) => {
-            let (mut termination, mut memory, ext) = report
-                .into_parts()
-                .map_err(SystemExecutionError::SyscallFunc)?;
+            let BackendReport {
+                termination_reason: mut termination,
+                memory_wrap: mut memory,
+                ext,
+            } = report;
 
             // released pages initial data will be added to `pages_initial_data` after execution.
             if E::Ext::LAZY_PAGES_ENABLED {
@@ -379,7 +381,7 @@ where
 
             (termination, memory, ext)
         }
-        Err(EnvironmentExecutionError::Environment(e)) => {
+        Err(EnvironmentExecutionError::System(e)) => {
             return Err(ExecutionError::System(SystemExecutionError::Environment(
                 e.to_string(),
             )))
@@ -396,10 +398,10 @@ where
         )) => {
             return Err(ExecutionError::System(e.into()));
         }
-        Err(EnvironmentExecutionError::ModuleStart(gas_amount)) => {
+        Err(EnvironmentExecutionError::Actor(gas_amount, err)) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
-                reason: ActorExecutionErrorReason::ModuleStart,
+                reason: ActorExecutionErrorReason::Environment(err),
             }))
         }
     };
@@ -569,9 +571,14 @@ where
     };
 
     let (termination, memory, ext) = match f() {
-        Ok(report) => report
-            .into_parts()
-            .map_err(|e| format!("Backend error: {e}"))?,
+        Ok(report) => {
+            let BackendReport {
+                termination_reason,
+                memory_wrap,
+                ext,
+            } = report;
+            (termination_reason, memory_wrap, ext)
+        }
         Err(e) => return Err(format!("Backend error: {e}")),
     };
 

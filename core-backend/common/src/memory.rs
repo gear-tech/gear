@@ -41,47 +41,20 @@ use gear_core_errors::MemoryError;
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct OutOfMemoryAccessError;
 
-#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
+#[derive(Debug, Clone, derive_more::From)]
 pub enum MemoryAccessError {
-    Actor(ActorMemoryAccessError),
-    System(SystemMemoryAccessError),
-}
-
-impl From<MemoryError> for MemoryAccessError {
-    fn from(err: MemoryError) -> Self {
-        Self::Actor(err.into())
-    }
-}
-
-impl From<RuntimeBufferSizeError> for MemoryAccessError {
-    fn from(err: RuntimeBufferSizeError) -> Self {
-        Self::Actor(err.into())
-    }
+    #[from]
+    Memory(MemoryError),
+    #[from]
+    RuntimeBuffer(RuntimeBufferSizeError),
+    // TODO: remove #2164
+    Decode,
 }
 
 impl From<OutOfMemoryAccessError> for MemoryAccessError {
-    fn from(_err: OutOfMemoryAccessError) -> Self {
-        Self::Actor(MemoryError::MemoryAccessError.into())
+    fn from(_: OutOfMemoryAccessError) -> Self {
+        MemoryError::AccessOutOfBounds.into()
     }
-}
-
-#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
-pub enum ActorMemoryAccessError {
-    #[from]
-    #[display(fmt = "{_0}")]
-    Memory(MemoryError),
-    #[from]
-    #[display(fmt = "{_0}")]
-    RuntimeBuffer(RuntimeBufferSizeError),
-}
-
-#[derive(Debug, Clone, derive_more::Display)]
-pub enum SystemMemoryAccessError {
-    // TODO: remove #2164
-    #[display(fmt = "Cannot decode read memory")]
-    DecodeError,
-    #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
-    WrongBufferSize(usize, u32),
 }
 
 /// Memory accesses recorder/registrar, which allow to register new accesses.
@@ -255,8 +228,7 @@ impl<E: BackendExt> MemoryAccessManager<E> {
     ) -> Result<T, MemoryAccessError> {
         let mut buff = RuntimeBuffer::try_new_default(T::max_encoded_len())?.into_vec();
         self.read_into_buf(memory, read.ptr, &mut buff)?;
-        let decoded =
-            T::decode_all(&mut &buff[..]).map_err(|_| SystemMemoryAccessError::DecodeError)?;
+        let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
         Ok(decoded)
     }
 
@@ -278,7 +250,7 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         buff: &[u8],
     ) -> Result<(), MemoryAccessError> {
         if buff.len() != write.size as usize {
-            return Err(SystemMemoryAccessError::WrongBufferSize(buff.len(), write.size).into());
+            unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
         }
         self.pre_process_memory_accesses()?;
         memory.write(write.ptr, buff).map_err(Into::into)
