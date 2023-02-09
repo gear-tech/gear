@@ -80,6 +80,8 @@ members = [
     "utils/test-runtime",
     "utils/test-runtime/client",
     "utils/validator-checks",
+    "utils/bags-thresholds",
+    "utils/integral-tests",
 ]
 
 [profile.release]
