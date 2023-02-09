@@ -112,7 +112,7 @@ mod tests {
     use crate::state::State;
 
     use super::*;
-    use gear_backend_common::{assert_err, assert_ok, mock::MockExt, TerminationReason};
+    use gear_backend_common::{assert_err, assert_ok, mock::MockExt, ActorTerminationReason};
     use gear_core::memory::{AllocInfo, AllocationsContext, NoopGrowHandler};
     use wasmi::{Engine, Store};
 
@@ -130,7 +130,7 @@ mod tests {
             Some(State {
                 ext: MockExt::default(),
                 fallible_syscall_error: None,
-                termination_reason: TerminationReason::Success,
+                termination_reason: ActorTerminationReason::Success.into(),
             }),
         );
 

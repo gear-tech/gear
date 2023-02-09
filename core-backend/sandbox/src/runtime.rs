@@ -26,7 +26,7 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    BackendExt, BackendExtError, BackendState, BackendTermination, FuncError, TerminationReason,
+    BackendExt, BackendExtError, BackendState, BackendTermination, TerminationReason,
 };
 use gear_core::env::Ext;
 use gear_core_errors::ExtError;
@@ -93,12 +93,12 @@ where
 
     pub fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
     where
-        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
         self.prepare_run();
 
         let result = f(self).map_err(|err| {
-            self.set_termination_reason(err.into());
+            self.set_termination_reason(err);
             HostError
         });
 
@@ -109,7 +109,7 @@ where
 
     pub fn run_fallible<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> SyscallOutput
     where
-        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
         R: From<Result<T, u32>> + Sized,
     {
         self.run_any(|ctx| {
@@ -124,13 +124,11 @@ where
         .map(|_| ReturnValue::Unit)
     }
 
-impl<E> BackendState<E::Error> for Runtime<E>
-where
-    E: Ext,
-    E::Error: BackendExtError,
-{
-    fn err_mut(&mut self) -> &mut SyscallFuncError {
-        &mut self.err
+    pub fn run<F>(&mut self, f: F) -> SyscallOutput
+    where
+        F: FnOnce(&mut Self) -> Result<(), TerminationReason>,
+    {
+        self.run_any(f).map(|_| ReturnValue::Unit)
     }
 }
 

@@ -164,13 +164,6 @@ impl From<ExecutionError> for ProcessorError {
 impl CoreError for ProcessorError {}
 
 impl BackendExtError for ProcessorError {
-    fn into_ext_error(self) -> Result<ExtError, Self> {
-        match self {
-            ProcessorError::Core(err) => Ok(err),
-            err => Err(err),
-        }
-    }
-
     fn into_termination_reason(self) -> TerminationReason {
         match self {
             ProcessorError::Core(err) => {
@@ -1271,13 +1264,10 @@ mod tests {
         #[track_caller]
         fn assert_alloc_error(err: <Ext as EnvExt>::Error) {
             match err {
-                ProcessorError::Core(ExtError::Memory(
-                    MemoryError::ProgramAllocOutOfBounds
-                    | MemoryError::Grow,
-                ))
+                ProcessorError::Core(ExtError::Memory(MemoryError::ProgramAllocOutOfBounds))
                 | ProcessorError::Alloc(
                     AllocError::IncorrectAllocationData(_)
-                    | AllocError::Memory(MemoryError::OutOfBounds),
+                    | AllocError::Memory(MemoryError::ProgramAllocOutOfBounds),
                 ) => {}
                 err => Err(err).unwrap(),
             }

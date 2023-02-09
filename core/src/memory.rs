@@ -631,7 +631,7 @@ impl AllocationsContext {
                 .add(pages)
                 .map_err(|_| Error::ProgramAllocOutOfBounds)?;
             if end > self.max_pages {
-                return Err(Error::ProgramAllocOutOfBounds);
+                return Err(Error::ProgramAllocOutOfBounds.into());
             }
 
             // Panic is impossible, because in loop above we checked it.

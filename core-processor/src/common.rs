@@ -25,7 +25,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use gear_backend_common::{SystemReservationContext, TrapExplanation};
+use gear_backend_common::{SystemReservationContext, SystemTerminationReason, TrapExplanation};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -451,7 +451,9 @@ impl ActorExecutionErrorReason {
             ActorExecutionErrorReason::PrepareMemory(_) => SimpleExecutionError::Unknown,
             ActorExecutionErrorReason::Trap(expl) => match expl {
                 TrapExplanation::Ext(err) => match err {
-                    ExtError::Memory(MemoryError::Grow) => SimpleExecutionError::MemoryExceeded,
+                    ExtError::Memory(MemoryError::ProgramAllocOutOfBounds) => {
+                        SimpleExecutionError::MemoryExceeded
+                    }
                     ExtError::Execution(gear_core_errors::ExecutionError::GasLimitExceeded) => {
                         SimpleExecutionError::GasLimitExceeded
                     }

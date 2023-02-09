@@ -27,8 +27,8 @@ use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{any::Any, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
-    ActorTerminationReason, BackendExt, BackendExtError, BackendReport, Environment,
-    EnvironmentExecutionError, EnvironmentExecutionResult, STACK_END_EXPORT_NAME,
+    ActorTerminationReason, BackendExt, BackendExtError, BackendReport, BackendTermination,
+    Environment, EnvironmentExecutionError, EnvironmentExecutionResult, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -179,7 +179,7 @@ where
         let runtime = State {
             ext,
             fallible_syscall_error: None,
-            termination_reason: ActorTerminationReason::Success,
+            termination_reason: ActorTerminationReason::Success.into(),
         };
 
         *store.state_mut() = Some(runtime);

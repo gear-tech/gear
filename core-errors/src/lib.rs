@@ -184,10 +184,6 @@ pub enum MemoryError {
     /// The error occurs in attempt to access memory outside wasm program memory.
     #[display(fmt = "Trying to access memory outside wasm program memory")]
     AccessOutOfBounds,
-
-    /// Memory size cannot be zero after grow is applied for memory
-    #[display(fmt = "Memory unexpectedly has zero size after grow")]
-    MemSizeIsZeroAfterGrow,
 }
 
 /// Reservation error.

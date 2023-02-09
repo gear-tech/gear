@@ -33,8 +33,8 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    ActorTerminationReason, BackendExt, BackendExtError, BackendReport, Environment, EnvironmentExecutionError,
-    TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendExt, BackendExtError, BackendReport, Environment,
+    EnvironmentExecutionError, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -352,10 +352,17 @@ where
     let (termination, memory, ext) = match execute() {
         Ok(report) => {
             let BackendReport {
-                termination_reason: mut termination,
+                termination_reason,
                 memory_wrap: mut memory,
                 ext,
             } = report;
+
+            let mut termination = match termination_reason {
+                TerminationReason::Actor(reason) => reason,
+                TerminationReason::System(reason) => {
+                    return Err(ExecutionError::System(reason.into()))
+                }
+            };
 
             // released pages initial data will be added to `pages_initial_data` after execution.
             if E::Ext::LAZY_PAGES_ENABLED {
@@ -370,10 +377,10 @@ where
                     Status::GasLimitExceeded => {
                         termination = ActorTerminationReason::Trap(TrapExplanation::Ext(
                             ExtError::Execution(gear_core_errors::ExecutionError::GasLimitExceeded),
-                        ))
+                        ));
                     }
                     Status::GasAllowanceExceeded => {
-                        termination = ActorTerminationReason::GasAllowanceExceeded
+                        termination = ActorTerminationReason::GasAllowanceExceeded;
                     }
                 }
             }
@@ -577,6 +584,14 @@ where
                 memory_wrap,
                 ext,
             } = report;
+
+            let termination_reason = match termination_reason {
+                TerminationReason::Actor(reason) => reason,
+                TerminationReason::System(reason) => {
+                    return Err(format!("Backend error: {reason}"))
+                }
+            };
+
             (termination_reason, memory_wrap, ext)
         }
         Err(e) => return Err(format!("Backend error: {e}")),

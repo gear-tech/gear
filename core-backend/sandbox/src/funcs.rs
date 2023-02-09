@@ -23,16 +23,14 @@ use codec::Encode;
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    ActorTerminationReason, BackendExt, BackendExtError, BackendState, IntoExtErrorForResult,
-    TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendExt, BackendExtError, BackendState, TrapExplanation,
 };
 use gear_core::{
     env::Ext,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
-use gear_core_errors::ExtError;
-use gear_core_errors::ExecutionError;
+use gear_core_errors::{ExecutionError, ExtError};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
     LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
@@ -306,7 +304,7 @@ where
 
             let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
             let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
-            Err(TerminationReason::Exit(inheritor_id).into())
+            Err(ActorTerminationReason::Exit(inheritor_id).into())
         })
     }
 
@@ -803,13 +801,6 @@ where
             let source = ctx.ext.source()?;
 
             let write_source = ctx.register_write_as(source_ptr);
-
-            let source = ctx
-                .ext
-                .source()
-                .map_err(<E as Ext>::Error::into_termination_reason)?;
-
-            let write_source = ctx.register_write_as(source_ptr);
             ctx.write_as(write_source, source.into_bytes())
                 .map_err(Into::into)
         })
@@ -851,7 +842,7 @@ where
 
         ctx.run(|ctx| {
             ctx.ext.leave()?;
-            Err(TerminationReason::Leave.into())
+            Err(ActorTerminationReason::Leave.into())
         })
     }
 
@@ -861,7 +852,7 @@ where
 
         ctx.run(|ctx| -> Result<(), _> {
             ctx.ext.wait()?;
-            Err(TerminationReason::Wait(None, MessageWaitedType::Wait).into())
+            Err(ActorTerminationReason::Wait(None, MessageWaitedType::Wait).into())
         })
     }
 
@@ -873,7 +864,7 @@ where
 
         ctx.run(|ctx| -> Result<(), _> {
             ctx.ext.wait_for(duration)?;
-            Err(TerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
+            Err(ActorTerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
         })
     }
 
@@ -889,7 +880,7 @@ where
             } else {
                 MessageWaitedType::WaitUpTo
             };
-            Err(TerminationReason::Wait(Some(duration), waited_type).into())
+            Err(ActorTerminationReason::Wait(Some(duration), waited_type).into())
         })
     }
 
@@ -983,7 +974,10 @@ where
                 ctx.write(write_error_bytes, err.as_ref())?;
                 Ok(())
             } else {
-                Err(E::Error::from_ext_error(ExtError::SyscallUsage).into())
+                Err(
+                    ActorTerminationReason::Trap(TrapExplanation::Ext(ExtError::SyscallUsage))
+                        .into(),
+                )
             }
         })
     }
@@ -992,7 +986,12 @@ where
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "forbidden");
 
-        ctx.run(|_| Err(E::Error::forbidden_function().into()))
+        ctx.run(|_| {
+            Err(ActorTerminationReason::Trap(TrapExplanation::Ext(
+                ExecutionError::ForbiddenFunction.into(),
+            ))
+            .into())
+        })
     }
 
     /// Infallible `gr_out_of_gas` syscall.

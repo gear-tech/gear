@@ -602,7 +602,7 @@ test_gas_counter_injection! {
 #[test]
 fn test_sys_calls_table() {
     use gas_metering::ConstantCostRules;
-    use gear_backend_common::{mock::MockExt, BackendExport, ActorTerminationReason, Environment, TerminationReason};
+    use gear_backend_common::{mock::MockExt, ActorTerminationReason, BackendReport, Environment};
     use gear_backend_wasmi::WasmiEnvironment;
     use gear_core::message::DispatchKind;
     use parity_wasm::builder;
@@ -647,5 +647,5 @@ fn test_sys_calls_table() {
         termination_reason, ..
     } = report;
 
-    assert_eq!(termination_reason, TerminationReason::Success);
+    assert_eq!(termination_reason, ActorTerminationReason::Success.into());
 }

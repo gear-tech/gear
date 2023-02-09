@@ -59,19 +59,10 @@ use scale_info::TypeInfo;
 // '__gear_stack_end' export is inserted by wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-#[derive(Debug, Clone, derive_more::From)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum TerminationReason {
     Actor(ActorTerminationReason),
     System(SystemTerminationReason),
-}
-
-impl From<MemoryAccessError> for TerminationReason {
-    fn from(err: MemoryAccessError) -> Self {
-        match err {
-            MemoryAccessError::Actor(err) => ActorTerminationReason::from(err).into(),
-            MemoryAccessError::System(err) => SystemTerminationReason::from(err).into(),
-        }
-    }
 }
 
 impl From<PayloadSizeError> for TerminationReason {
@@ -92,6 +83,27 @@ impl From<FromUtf8Error> for TerminationReason {
             ExecutionError::InvalidDebugString.into(),
         ))
         .into()
+    }
+}
+
+impl From<MemoryAccessError> for TerminationReason {
+    fn from(err: MemoryAccessError) -> Self {
+        match err {
+            MemoryAccessError::Memory(err) => {
+                ActorTerminationReason::Trap(TrapExplanation::Ext(err.into()))
+            }
+            MemoryAccessError::RuntimeBuffer(_) => ActorTerminationReason::Trap(
+                TrapExplanation::Ext(MemoryError::RuntimeAllocOutOfBounds.into()),
+            ),
+            MemoryAccessError::Decode => unreachable!("{:?}", err),
+        }
+        .into()
+    }
+}
+
+impl<E: BackendExtError> From<E> for TerminationReason {
+    fn from(err: E) -> Self {
+        err.into_termination_reason()
     }
 }
 
@@ -116,25 +128,16 @@ impl From<PayloadSizeError> for ActorTerminationReason {
 
 impl From<RuntimeBufferSizeError> for ActorTerminationReason {
     fn from(_err: RuntimeBufferSizeError) -> Self {
-        Self::Trap(TrapExplanation::Ext(ExtError::SyscallUsage))
+        Self::Trap(TrapExplanation::Ext(ExtError::Memory(
+            MemoryError::RuntimeAllocOutOfBounds,
+        )))
     }
 }
 
-impl From<ActorMemoryAccessError> for ActorTerminationReason {
-    fn from(err: ActorMemoryAccessError) -> Self {
-        match err {
-            ActorMemoryAccessError::Memory(err) => Self::Trap(TrapExplanation::Ext(err.into())),
-            ActorMemoryAccessError::RuntimeBuffer(err) => Self::from(err),
-        }
-    }
-}
-
-#[derive(Debug, Clone, derive_more::From, derive_more::Display)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::From, derive_more::Display)]
 pub enum SystemTerminationReason {
     #[display(fmt = "{_0}")]
     IncorrectAllocationData(IncorrectAllocationDataError),
-    #[display(fmt = "Memory access error: {_0}")]
-    MemoryAccess(SystemMemoryAccessError),
 }
 
 #[derive(
@@ -209,8 +212,6 @@ pub trait BackendExt: EnvExt {
 }
 
 pub trait BackendExtError: CoreError + Clone {
-    fn into_ext_error(self) -> Result<ExtError, Self>;
-
     fn into_termination_reason(self) -> TerminationReason;
 }
 
@@ -245,6 +246,7 @@ impl<Env: Display, PrepMem: Display> EnvironmentExecutionError<Env, PrepMem> {
 
 type EnvironmentBackendReport<Env, EP> =
     BackendReport<<Env as Environment<EP>>::Memory, <Env as Environment<EP>>::Ext>;
+
 pub type EnvironmentExecutionResult<T, Env, EP> = Result<
     EnvironmentBackendReport<Env, EP>,
     EnvironmentExecutionError<<Env as Environment<EP>>::Error, T>,
@@ -281,52 +283,6 @@ where
         T: Display;
 }
 
-#[derive(Debug, Clone, derive_more::From)]
-pub enum SyscallFuncError {
-    Actor(ActorTerminationReason),
-    System(SystemTerminationReason),
-}
-
-impl<E: BackendExtError> From<MemoryAccessError> for FuncError<E> {
-    fn from(err: MemoryAccessError) -> Self {
-        match err {
-            MemoryAccessError::Memory(err) => E::from_ext_error(err.into()),
-            MemoryAccessError::RuntimeBuffer(_) => {
-                E::from_ext_error(MemoryError::RuntimeAllocOutOfBounds.into())
-            }
-            MemoryAccessError::Decode => E::from_ext_error(ExtError::Decode),
-        }
-        .into()
-    }
-}
-
-impl<E: BackendExtError> From<FuncError<E>> for TerminationReason {
-    fn from(err: FuncError<E>) -> Self {
-        match err {
-            FuncError::Core(err) => err.into_termination_reason(),
-            FuncError::Terminated(reason) => reason,
-        }
-    }
-}
-
-impl<E: BackendExtError> From<PayloadSizeError> for FuncError<E> {
-    fn from(_: PayloadSizeError) -> Self {
-        E::from_ext_error(MessageError::MaxMessageSizeExceed.into()).into()
-    }
-}
-
-impl<E: BackendExtError> From<RuntimeBufferSizeError> for FuncError<E> {
-    fn from(_: RuntimeBufferSizeError) -> Self {
-        E::from_ext_error(MemoryError::RuntimeAllocOutOfBounds.into()).into()
-    }
-}
-
-impl<E: Display + BackendExtError> From<FromUtf8Error> for FuncError<E> {
-    fn from(_err: FromUtf8Error) -> Self {
-        E::from_ext_error(ExecutionError::InvalidDebugString.into()).into()
-    }
-}
-
 pub trait BackendState {
     /// Set termination reason
     fn set_termination_reason(&mut self, reason: TerminationReason);
@@ -335,21 +291,19 @@ pub trait BackendState {
     fn set_fallible_syscall_error(&mut self, err: ExtError);
 
     /// Process fallible syscall function result
-    fn process_fallible_func_result<Err: BackendExtError, T: Sized>(
+    fn process_fallible_func_result<T: Sized>(
         &mut self,
-        res: Result<T, FuncError<Err>>,
-    ) -> Result<Result<T, u32>, FuncError<Err>> {
+        res: Result<T, TerminationReason>,
+    ) -> Result<Result<T, u32>, TerminationReason> {
         match res {
             Err(err) => {
-                if let FuncError::Core(err) = err {
-                    match err.into_ext_error() {
-                        Ok(ext_err) => {
-                            let len = ext_err.encoded_size() as u32;
-                            self.set_fallible_syscall_error(ext_err);
-                            Ok(Err(len))
-                        }
-                        Err(err) => Err(FuncError::Core(err)),
-                    }
+                if let TerminationReason::Actor(ActorTerminationReason::Trap(
+                    TrapExplanation::Ext(ext_err),
+                )) = err
+                {
+                    let len = ext_err.encoded_size() as u32;
+                    self.set_fallible_syscall_error(ext_err);
+                    Ok(Err(len))
                 } else {
                     Err(err)
                 }
@@ -377,14 +331,24 @@ pub trait BackendTermination<E: EnvExt, M: Sized>: Sized {
         ext.update_counters(gas as u64, allowance as u64);
 
         let termination_reason = if res.is_err() {
-            if matches!(termination_reason, TerminationReason::Success) {
-                // TODO: Parse result error to identify termination reason
-                // in case termination occurred inside wasm code.
-                TerminationReason::Trap(TrapExplanation::Unknown)
+            if matches!(
+                termination_reason,
+                TerminationReason::Actor(ActorTerminationReason::Success)
+            ) {
+                ActorTerminationReason::Trap(
+                    ext.maybe_panic()
+                        .map(Into::into)
+                        .map(TrapExplanation::Panic)
+                        .unwrap_or(TrapExplanation::Unknown),
+                )
+                .into()
             } else {
                 termination_reason
             }
-        } else if matches!(termination_reason, TerminationReason::Success) {
+        } else if matches!(
+            termination_reason,
+            TerminationReason::Actor(ActorTerminationReason::Success)
+        ) {
             termination_reason
         } else {
             unreachable!(
@@ -394,11 +358,4 @@ pub trait BackendTermination<E: EnvExt, M: Sized>: Sized {
 
         (ext, memory, termination_reason)
     }
-}
-#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
-pub enum SystemSyscallFuncError {
-    #[display(fmt = "Memory access error: {_0}")]
-    MemoryAccess(SystemMemoryAccessError),
-    #[display(fmt = "Termination reason: {_0}")]
-    TerminationReason(SystemTerminationReason),
 }

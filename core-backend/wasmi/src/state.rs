@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_backend_common::{BackendExtError, BackendState, SyscallFuncError};
+use gear_backend_common::{BackendState, BackendTermination, TerminationReason};
 use gear_core::env::Ext;
 use gear_core_errors::ExtError;
 

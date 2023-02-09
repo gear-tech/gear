@@ -32,7 +32,7 @@ use gear_core::{
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
 };
-use gear_core_errors::{CoreError, ExtError, MemoryError};
+use gear_core_errors::{CoreError, MemoryError};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Mock error
@@ -48,10 +48,6 @@ impl fmt::Display for Error {
 impl CoreError for Error {}
 
 impl BackendExtError for Error {
-    fn into_ext_error(self) -> Result<ExtError, Self> {
-        unimplemented!()
-    }
-
     fn into_termination_reason(self) -> TerminationReason {
         unimplemented!()
     }
