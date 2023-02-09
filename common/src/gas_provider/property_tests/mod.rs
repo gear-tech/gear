@@ -736,21 +736,24 @@ proptest! {
                         let &parent = non_empty_nodes.ring_get(parent_idx);
                         let child = MapKey::random();
 
-                    Gas::split_with_value(parent, child, amount).expect("Failed to split with value");
+                        Gas::split_with_value(parent, child, amount).expect("Failed to split with value");
+                    }
                 }
                 GasTreeAction::Split(parent_idx) => {
                     if let Some(non_empty_nodes) = NonEmpty::from_slice(&nodes) {
                         let &parent = non_empty_nodes.ring_get(parent_idx);
                         let child = MapKey::random();
 
-                    Gas::split(parent, child).expect("Failed to split without value");
+                        Gas::split(parent, child).expect("Failed to split without value");
+                    }
                 }
                 GasTreeAction::Reserve(parent_idx, amount) => {
                     if let Some(non_empty_nodes) = NonEmpty::from_slice(&nodes) {
                         let &parent = non_empty_nodes.ring_get(parent_idx);
                         let child = ReservationKey::random();
 
-                    Gas::reserve(parent, child, amount).expect("Failed to create reservation");
+                        Gas::reserve(parent, child, amount).expect("Failed to create reservation");
+                    }
                 }
                 _ => {}
             }
