@@ -17,9 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use result::{Error, Result};
-use std::ffi::OsStr;
-use std::io::{BufRead, BufReader};
-use std::process::{Child, Command, Stdio};
+use std::{
+    ffi::OsStr,
+    io::{BufRead, BufReader},
+    process::{Child, Command, Stdio},
+};
 use ws::WSAddress;
 
 mod port;

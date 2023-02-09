@@ -22,7 +22,10 @@ pub mod listener;
 mod rpc;
 pub mod storage;
 
-use crate::{node::ws::WSAddress, node::Node, EventListener};
+use crate::{
+    node::{ws::WSAddress, Node},
+    EventListener,
+};
 use error::*;
 use gp::api::{signer::Signer, Api};
 use std::{marker::PhantomData, ops::Deref};
