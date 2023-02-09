@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{collections::BTreeMap, ops::RangeInclusive};
+use std::{collections::BTreeMap, ops::RangeInclusive, iter::Cycle};
 
 use arbitrary::Unstructured;
 use gear_wasm_instrument::{
@@ -700,7 +700,7 @@ impl<'a> WasmGen<'a> {
 
         let ModuleBuilderWithData {
             module_builder: mut builder,
-            offsets: _offsets,
+            offsets,
             last_offset,
             import_count,
             code_size,
@@ -773,11 +773,12 @@ impl<'a> WasmGen<'a> {
         }
 
         let mut module = builder.build();
+        let mut offsets = offsets.into_iter().cycle();
 
         // generate call instructions for syscalls and insert them somewhere into the code
         for (name, data) in syscall_data {
             let instructions =
-                self.build_call_instructions(name, &data, memory_pages, source_call_index);
+                self.build_call_instructions(name, &data, memory_pages, source_call_index, &mut offsets);
             for _ in 0..data.sys_call_amount {
                 module = self.insert_instructions_in_random_place(module, &instructions);
             }
@@ -786,40 +787,33 @@ impl<'a> WasmGen<'a> {
         (module, debug_call_index, last_offset).into()
     }
 
-    fn build_call_instructions(
+    fn build_call_instructions<I: Clone + Iterator<Item = u32>>(
         &mut self,
         name: SysCallName,
         data: &SyscallData,
         memory_pages: WasmPageCount,
         source_call_index: Option<u32>,
+        offsets: &mut Cycle<I>,
     ) -> Vec<Instruction> {
         let info = &data.info;
-        let use_message_source = self.config.use_message_source.get(self.u);
-        let source_call_index = match source_call_index {
-            // TODO #2206: send also using reserved gas
-            Some(i)
-                if use_message_source
-                    && [
-                        SysCallName::Send,
-                        SysCallName::SendWGas,
-                        SysCallName::SendInput,
-                        SysCallName::SendInputWGas,
-                    ]
-                    .contains(&name) =>
-            {
-                i
-            }
-            _ => {
-                return build_checked_call(
-                    self.u,
-                    &info.results,
-                    &info.parameter_rules,
-                    data.call_index,
-                    memory_pages,
-                    self.config.unchecked_memory_access,
-                )
-            }
-        };
+        // TODO #2206: send also using reserved gas
+        if ![
+                SysCallName::Send,
+                SysCallName::SendWGas,
+                SysCallName::SendInput,
+                SysCallName::SendInputWGas,
+            ]
+            .contains(&name)
+        {
+            return build_checked_call(
+                self.u,
+                &info.results,
+                &info.parameter_rules,
+                data.call_index,
+                memory_pages,
+                self.config.unchecked_memory_access,
+            );
+        }
 
         let mut remaining_instructions = build_checked_call(
             self.u,
@@ -830,23 +824,36 @@ impl<'a> WasmGen<'a> {
             self.config.unchecked_memory_access,
         );
 
-        let mut instructions = Vec::with_capacity(3 + remaining_instructions.len());
+        if let Some(source_call_index) = source_call_index {
+            if self.config.use_message_source.get(self.u) {
+                let mut instructions = Vec::with_capacity(3 + remaining_instructions.len());
 
-        let memory_size = memory_pages.memory_size();
-        let upper_limit = memory_size.saturating_sub(MEMORY_VALUE_SIZE);
-        let offset = self
-            .u
-            .int_in_range(0..=upper_limit)
-            .expect("build_call_instructions: Unstructured::int_in_range failed");
+                let memory_size = memory_pages.memory_size();
+                let upper_limit = memory_size.saturating_sub(MEMORY_VALUE_SIZE);
+                let offset = self
+                    .u
+                    .int_in_range(0..=upper_limit)
+                    .expect("build_call_instructions: Unstructured::int_in_range failed");
 
-        // call msg::source (gr_source) with a memory offset
-        instructions.push(Instruction::I32Const(offset as i32));
-        instructions.push(Instruction::Call(source_call_index));
-        // pass the offset as the first argument to the send-call
-        instructions.push(Instruction::I32Const(offset as i32));
+                // call msg::source (gr_source) with a memory offset
+                instructions.push(Instruction::I32Const(offset as i32));
+                instructions.push(Instruction::Call(source_call_index));
+                // pass the offset as the first argument to the send-call
+                instructions.push(Instruction::I32Const(offset as i32));
+                instructions.append(&mut remaining_instructions);
+
+                return instructions;
+            }
+        }
+
+        let address_offset = offsets.next().unwrap_or_else(|| {
+            self.u.arbitrary().expect("build_call_instructions: Unstructured::arbitrary failed")
+        }) as i32;
+        let mut instructions = Vec::with_capacity(1 + remaining_instructions.len());
+        instructions.push(Instruction::I32Const(address_offset));
         instructions.append(&mut remaining_instructions);
 
-        instructions
+        return instructions;
     }
 
     pub fn make_print_test_info(&mut self, result: ModuleWithDebug) -> Module {
