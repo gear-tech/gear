@@ -24,7 +24,7 @@ use crate::{
     runtime::{self, Runtime},
 };
 use alloc::{collections::BTreeSet, format, string::ToString};
-use core::fmt::Display;
+use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
     ActorTerminationReason, BackendExt, BackendExtError, BackendReport, BackendTermination,

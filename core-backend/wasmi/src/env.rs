@@ -24,7 +24,7 @@ use crate::{
     state::{HostState, State},
 };
 use alloc::{collections::BTreeSet, format, string::ToString};
-use core::{any::Any, fmt::Display};
+use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
     ActorTerminationReason, BackendExt, BackendExtError, BackendReport, BackendTermination,
