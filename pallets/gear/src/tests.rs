@@ -480,10 +480,11 @@ fn delayed_send_user_message_payment() {
         assert_eq!(Balances::reserved_balance(&USER_1), delay_holding_fee);
 
         // Run blocks to release message.
-        run_to_block(delay + 5, None);
+        run_to_block(delay + 3, None);
 
-        // Gas should be unlocked after message is sent.
-        assert_eq!(Balances::reserved_balance(&USER_1), 0);
+        // Check that only mailbox fee left reserver
+        let mailbox_fee = GasPrice::gas_price(CostsPerBlockOf::<Test>::mailbox());
+        assert_eq!(Balances::reserved_balance(&USER_1), mailbox_fee);
 
         print_gear_events();
     }
