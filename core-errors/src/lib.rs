@@ -106,7 +106,7 @@ pub enum MessageError {
         existential_deposit: u128,
     },
 
-    /// An error occurs in attempt to charge gas for dispatch stash hold
+    /// An error occurs in attempt to charge gas for dispatch stash hold.
     #[display(fmt = "Not enough gas to hold dispatch message")]
     InsufficientGasForDelayedSending,
 

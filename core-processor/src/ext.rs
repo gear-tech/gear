@@ -377,14 +377,14 @@ impl Ext {
 
     fn charge_for_dispatch_stash_hold(&mut self, delay: u32) -> Result<(), ProcessorError> {
         if delay != 0 {
-            // Take delay and get cost of block
-            // Calculate reserve like  wait_cost * (delay + reserve_for)
+            // Take delay and get cost of block.
+            // reserve = wait_cost * (delay + reserve_for).
             let cost_per_block = self.context.dispatch_hold_cost;
             let waiting_reserve = (self.context.reserve_for as u64)
                 .saturating_add(delay as u64)
                 .saturating_mul(cost_per_block);
 
-            // Reduse gas for block waiting in dispatch stash
+            // Reduse gas for block waiting in dispatch stash.
             if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
                 return Err(MessageError::InsufficientGasForDelayedSending.into());
             }

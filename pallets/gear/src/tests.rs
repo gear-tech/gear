@@ -482,7 +482,7 @@ fn delayed_send_user_message_payment() {
         // Run blocks to release message.
         run_to_block(delay + 3, None);
 
-        // Check that only mailbox fee left reserver
+        // Check that only mailbox fee left reserved.
         let mailbox_fee = GasPrice::gas_price(CostsPerBlockOf::<Test>::mailbox());
         assert_eq!(Balances::reserved_balance(&USER_1), mailbox_fee);
 
@@ -505,7 +505,7 @@ fn delayed_send_program_message_payment() {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
         let program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
 
-        // Upload empty program that recieve the message
+        // Upload empty program that recieve the message.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             code,

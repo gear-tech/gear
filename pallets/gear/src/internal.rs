@@ -614,7 +614,7 @@ where
             // `HoldBound` cost builder.
             let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
 
-            // Calculating correct hold bound to lock gas
+            // Calculating correct hold bound to lock gas.
             let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
             let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
             let hold = hold_builder.duration(bn_delay).min(maximal_hold);
