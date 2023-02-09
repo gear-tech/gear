@@ -38,7 +38,7 @@ impl Node {
     }
 
     /// Wait for the block importing
-    fn wait(&mut self, log: &str) -> Result<String> {
+    pub fn wait(&mut self, log: &str) -> Result<String> {
         let stderr = self.ps.stderr.as_mut();
         let reader = BufReader::new(stderr.ok_or(Error::EmptyStderr)?);
         for line in reader.lines().flatten() {
