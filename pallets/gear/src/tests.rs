@@ -5651,20 +5651,15 @@ fn test_create_program_with_value_lt_ed() {
         // to send init message with value in invalid range.
         assert_total_dequeued(1);
 
-        // TODO: fix this in #1857
         assert_failed(
             msg_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Message(
+                MessageError::InsufficientValue {
+                    message_value: 499,
+                    existential_deposit: 500,
+                },
+            ))),
         );
-        // assert_failed(
-        //     msg_id,
-        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-        //         MessageError::InsufficientValue {
-        //             message_value: 499,
-        //             existential_deposit: 500,
-        //         },
-        //     ))),
-        // );
     })
 }
 
@@ -5737,20 +5732,15 @@ fn test_create_program_with_exceeding_value() {
         // to send init message with value more than program has.
         assert_total_dequeued(1);
 
-        // TODO: fix this in #1857
         assert_failed(
             origin_msg_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Message(
+                MessageError::NotEnoughValue {
+                    message_value: 1001,
+                    value_left: 1000,
+                },
+            ))),
         );
-        // assert_failed(
-        //     origin_msg_id,
-        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-        //         MessageError::NotEnoughValue {
-        //             message_value: 1001,
-        //             value_left: 1000,
-        //         },
-        //     ))),
-        // );
     })
 }
 
@@ -8353,7 +8343,7 @@ mod utils {
     use gear_backend_common::TrapExplanation;
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
-        message::StoredMessage,
+        message::{Message, Payload, ReplyDetails, StatusCode, StoredMessage},
         reservation::GasReservationMap,
     };
     use gear_core_errors::{ExtError, SimpleCodec, SimpleReplyError};
@@ -8637,8 +8627,7 @@ mod utils {
         assert_eq!(status, DispatchStatus::Success)
     }
 
-    #[track_caller]
-    pub(super) fn get_last_event_error(message_id: MessageId) -> String {
+    fn get_last_event_error_and_status_code(message_id: MessageId) -> (String, StatusCode) {
         let mut actual_error = None;
 
         System::events().into_iter().for_each(|e| {
@@ -8660,7 +8649,12 @@ mod utils {
 
         log::debug!("Actual error: {:?}", actual_error);
 
-        actual_error
+        (actual_error, status_code)
+    }
+
+    #[track_caller]
+    pub(super) fn get_last_event_error(message_id: MessageId) -> String {
+        get_last_event_error_and_status_code(message_id).0
     }
 
     #[derive(derive_more::Display, derive_more::From)]
@@ -8670,13 +8664,14 @@ mod utils {
     }
 
     #[track_caller]
-    pub(super) fn assert_failed(message_id: MessageId, error: ActorExecutionErrorReason) {
+    pub(super) fn assert_failed(message_id: MessageId, error: impl Into<AssertFailedError>) {
+        let error = error.into();
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
         assert_eq!(status, DispatchStatus::Failed, "Expected: {error}");
 
-        let mut actual_error = get_last_event_error(message_id);
+        let (mut actual_error, status_code) = get_last_event_error_and_status_code(message_id);
         let mut expectations = error.to_string();
 
         // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
@@ -8689,8 +8684,8 @@ mod utils {
 
         assert_eq!(expectations, actual_error);
 
-        if let AssertFailedError::SimpleReply(err) = &error {
-            assert_eq!(status_code, err.into_status_code());
+        if let AssertFailedError::SimpleReply(err) = error {
+            assert_eq!(SimpleReplyError::from_status_code(status_code), Some(err));
         }
     }
 
