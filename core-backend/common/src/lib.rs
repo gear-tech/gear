@@ -34,7 +34,7 @@ pub mod memory;
 use crate::{memory::MemoryAccessError, utils::TrimmedString};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::FromUtf8Error,
+    string::{FromUtf8Error, String},
     vec::Vec,
 };
 use codec::{Decode, Encode};
@@ -165,20 +165,20 @@ where
 
 #[derive(Debug, derive_more::Display)]
 pub enum EnvironmentExecutionError<Env: Display, PrepMem: Display> {
-    #[display(fmt = "Environment error: {_0}")]
-    Environment(Env),
+    #[display(fmt = "Actor backend error: {_1}")]
+    Actor(GasAmount, String),
+    #[display(fmt = "System backend error: {_0}")]
+    System(Env),
     #[display(fmt = "Prepare error: {_1}")]
     PrepareMemory(GasAmount, PrepMem),
-    #[display(fmt = "Module start error")]
-    ModuleStart(GasAmount),
 }
 
 impl<Env: Display, PrepMem: Display> EnvironmentExecutionError<Env, PrepMem> {
     pub fn from_infallible(err: EnvironmentExecutionError<Env, Infallible>) -> Self {
         match err {
-            EnvironmentExecutionError::Environment(err) => Self::Environment(err),
+            EnvironmentExecutionError::System(err) => Self::System(err),
             EnvironmentExecutionError::PrepareMemory(_, err) => match err {},
-            EnvironmentExecutionError::ModuleStart(gas_amount) => Self::ModuleStart(gas_amount),
+            EnvironmentExecutionError::Actor(gas_amount, s) => Self::Actor(gas_amount, s),
         }
     }
 }

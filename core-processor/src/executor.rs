@@ -380,7 +380,7 @@ where
 
             (termination, memory, ext)
         }
-        Err(EnvironmentExecutionError::Environment(e)) => {
+        Err(EnvironmentExecutionError::System(e)) => {
             return Err(ExecutionError::System(SystemExecutionError::Environment(
                 e.to_string(),
             )))
@@ -397,10 +397,10 @@ where
         )) => {
             return Err(ExecutionError::System(e.into()));
         }
-        Err(EnvironmentExecutionError::ModuleStart(gas_amount)) => {
+        Err(EnvironmentExecutionError::Actor(gas_amount, err)) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
-                reason: ActorExecutionErrorReason::ModuleStart,
+                reason: ActorExecutionErrorReason::Environment(err),
             }))
         }
     };

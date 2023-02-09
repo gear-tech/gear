@@ -8636,12 +8636,7 @@ mod utils {
     }
 
     #[track_caller]
-    pub(super) fn assert_failed(message_id: MessageId, error: ActorExecutionErrorReason) {
-        let status =
-            dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
-
-        assert_eq!(status, DispatchStatus::Failed, "Expected: {error}");
-
+    pub(super) fn get_last_event_error(message_id: MessageId) -> String {
         let mut actual_error = None;
 
         System::events().into_iter().for_each(|e| {
@@ -8659,9 +8654,21 @@ mod utils {
 
         let mut actual_error =
             actual_error.expect("Error message not found in any `RuntimeEvent::UserMessageSent`");
-        let mut expectations = error.to_string();
 
         log::debug!("Actual error: {:?}", actual_error);
+
+        actual_error
+    }
+
+    #[track_caller]
+    pub(super) fn assert_failed(message_id: MessageId, error: ActorExecutionErrorReason) {
+        let status =
+            dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
+
+        assert_eq!(status, DispatchStatus::Failed, "Expected: {error}");
+
+        let mut actual_error = get_last_event_error(message_id);
+        let mut expectations = error.to_string();
 
         // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
         // This check handles display of the error inside.
@@ -9406,4 +9413,77 @@ fn relay_messages() {
             payload: payload.to_vec(),
         }],
     );
+}
+
+#[test]
+fn module_instantiation_error() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init)
+        (data (;0;) (i32.const -15186172) "\b9w\92")
+    )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        let prog_id = generate_program_id(&code, &salt);
+        let res = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            salt,
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .map(|_| prog_id);
+        let mid = get_last_message_id();
+
+        assert_ok!(res);
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(prog_id));
+        let err = get_last_event_error(mid);
+        assert!(
+            err.starts_with(&ActorExecutionErrorReason::Environment("".to_string()).to_string())
+        );
+    });
+}
+
+#[test]
+fn wrong_entry_type() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init (param i32))
+    )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        let err = get_last_event_error(mid);
+        assert!(
+            err.starts_with(&ActorExecutionErrorReason::Environment("".to_string()).to_string())
+        );
+    });
 }
