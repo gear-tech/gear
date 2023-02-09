@@ -73,6 +73,55 @@ pub use utils::init_logger;
 use utils::*;
 
 #[test]
+fn gasfull_after_gasless() {
+    init_logger();
+
+    let wat = format!(
+        r#"
+        (module
+        (import "env" "memory" (memory 1))
+        (import "env" "gr_reply_wgas" (func $reply_wgas (param i32 i32 i64 i32 i32 i32)))
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i32 i32)))
+        (export "init" (func $init))
+        (func $init
+            i32.const 111 ;; ptr
+            i32.const 1 ;; value
+            i32.store
+
+            (call $send (i32.const 111) (i32.const 0) (i32.const 32) (i32.const 10) (i32.const 333))
+            (call $reply_wgas (i32.const 0) (i32.const 32) (i64.const {gas_limit}) (i32.const 222) (i32.const 10) (i32.const 333))
+        )
+    )"#,
+        gas_limit = 10 * <Test as Config>::MailboxThreshold::get()
+    );
+
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(&wat).to_bytes();
+
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(code.clone()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            min_limit - 1,
+            0,
+        ));
+
+        // Make sure nothing panics.
+        run_to_next_block(None);
+    })
+}
+
+#[test]
 fn backend_errors_handled_in_program() {
     use demo_backend_error::WASM_BINARY;
 
