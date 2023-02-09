@@ -17,29 +17,23 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::runtime::Runtime;
-#[cfg(not(feature = "std"))]
-use alloc::string::ToString;
-use alloc::{
-    format,
-    string::{FromUtf8Error, String},
-};
+use alloc::{format, string::String};
 use blake2_rfc::blake2b::blake2b;
-use core::{convert::TryInto, fmt::Display, marker::PhantomData};
+use codec::Encode;
+use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
-    error_processor::{IntoExtError, ProcessError},
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    AsTerminationReason, IntoExtInfo, RuntimeCtxError, TerminationReason, TrapExplanation,
+    ActorSyscallFuncError, BackendExt, BackendExtError, BackendState, IntoExtErrorForResult,
+    TerminationReason,
 };
 use gear_core::{
-    buffer::RuntimeBufferSizeError,
     env::Ext,
     memory::{PageU32Size, WasmPage},
-    message::{HandlePacket, InitPacket, MessageWaitedType, PayloadSizeError, ReplyPacket},
+    message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
-use gear_core_errors::{CoreError, MemoryError};
 use gsys::{
-    BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
-    LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
+    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
+    LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
@@ -47,55 +41,6 @@ use sp_sandbox::{HostError, ReturnValue, Value};
 const PTR_SPECIAL: u32 = i32::MAX as u32;
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
-
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum FuncError<E: Display> {
-    #[display(fmt = "{_0}")]
-    Core(E),
-    #[from]
-    #[display(fmt = "{_0}")]
-    RuntimeCtx(RuntimeCtxError<E>),
-    #[from]
-    #[display(fmt = "{_0}")]
-    Memory(MemoryError),
-    #[from]
-    #[display(fmt = "{_0}")]
-    PayloadSize(PayloadSizeError),
-    #[display(fmt = "{_0}")]
-    RuntimeBuffer(RuntimeBufferSizeError),
-    #[display(fmt = "Failed to parse debug string: {_0}")]
-    DebugString(FromUtf8Error),
-    #[display(fmt = "Terminated: {_0:?}")]
-    Terminated(TerminationReason),
-    #[display(fmt = "Binary code has wrong instrumentation")]
-    WrongInstrumentation,
-    #[display(fmt = "Cannot decode value from memory")]
-    DecodeValueError,
-    #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
-    WrongBufferSize(usize, u32),
-}
-
-impl<E: Display> From<MemoryAccessError> for FuncError<E> {
-    fn from(err: MemoryAccessError) -> Self {
-        match err {
-            MemoryAccessError::Memory(err) => Self::Memory(err),
-            MemoryAccessError::RuntimeBuffer(err) => Self::RuntimeBuffer(err),
-            MemoryAccessError::DecodeError => Self::DecodeValueError,
-            MemoryAccessError::WrongBufferSize(buffer_size, size) => {
-                Self::WrongBufferSize(buffer_size, size)
-            }
-        }
-    }
-}
-
-impl<E: Display> FuncError<E> {
-    pub fn into_termination_reason(self) -> TerminationReason {
-        match self {
-            Self::Terminated(reason) => reason,
-            err => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
-        }
-    }
-}
 
 pub(crate) struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
@@ -127,19 +72,32 @@ macro_rules! sys_trace {
 
 impl<E> FuncsHandler<E>
 where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
-    E::Error: AsTerminationReason + IntoExtError,
+    E: BackendExt + 'static,
+    E::Error: BackendExtError,
 {
+    /// !!! Usage warning: make sure to do it before any other read/write,
+    /// because it may contain register read.
+    fn register_and_read_value(
+        ctx: &mut Runtime<E>,
+        value_ptr: u32,
+    ) -> Result<u128, MemoryAccessError> {
+        if value_ptr != PTR_SPECIAL {
+            let read_value = ctx.register_read_decoded(value_ptr);
+            return ctx.read_decoded(read_value);
+        }
+
+        Ok(0)
+    }
+
+    /// Fallible `gr_send` syscall.
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send, args = {}", args_to_str(args));
 
         let (pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_hash_val = ctx.register_read_as(pid_value_ptr);
             let read_payload = ctx.register_read(payload_ptr, len);
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
             let HashWithValue {
                 hash: destination,
                 value,
@@ -148,23 +106,21 @@ where
 
             ctx.ext
                 .send(HandlePacket::new(destination.into(), payload, value), delay)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_send_wgas` syscall.
     pub fn send_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send_wgas, args = {}", args_to_str(args));
 
         let (pid_value_ptr, payload_ptr, len, gas_limit, delay, err_mid_ptr) =
             args.iter().read_6()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_hash_val = ctx.register_read_as(pid_value_ptr);
             let read_payload = ctx.register_read(payload_ptr, len);
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
             let HashWithValue {
                 hash: destination,
                 value,
@@ -176,21 +132,19 @@ where
                     HandlePacket::new_with_gas(destination.into(), payload, gas_limit, value),
                     delay,
                 )
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_send_commit` syscall.
     pub fn send_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send_commit, args = {}", args_to_str(args));
 
         let (handle, pid_value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_pid_value = ctx.register_read_as(pid_value_ptr);
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
             let HashWithValue {
                 hash: destination,
                 value,
@@ -202,21 +156,19 @@ where
                     HandlePacket::new(destination.into(), Default::default(), value),
                     delay,
                 )
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_send_commit_wgas` syscall.
     pub fn send_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send_commit_wgas, args = {}", args_to_str(args));
 
         let (handle, pid_value_ptr, gas_limit, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_pid_value = ctx.register_read_as(pid_value_ptr);
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
             let HashWithValue {
                 hash: destination,
                 value,
@@ -233,61 +185,51 @@ where
                     ),
                     delay,
                 )
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_send_init` syscall.
     pub fn send_init(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send_init, args = {}", args_to_str(args));
 
         let err_handle_ptr = args.iter().read()?;
 
-        ctx.run(|ctx| {
-            let write_err_handle = ctx.register_write_as(err_handle_ptr);
-
+        ctx.run_fallible::<_, _, LengthWithHandle>(err_handle_ptr, |ctx| {
             ctx.ext
                 .send_init()
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_handle, LengthWithHandle::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_send_push` syscall.
     pub fn send_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send_push, args = {}", args_to_str(args));
 
         let (handle, payload_ptr, len, err_len_ptr) = args.iter().read_4()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
-            let write_err_len = ctx.register_write_as(err_len_ptr);
-
             let payload = ctx.read(read_payload)?;
 
-            let len = ctx
-                .ext
+            ctx.ext
                 .send_push(handle, &payload)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .error_len();
-
-            ctx.write_as(write_err_len, len.to_le_bytes())
+                .into_ext_error(&mut ctx.err)
                 .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_reservation_send` syscall.
     pub fn reservation_send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reservation_send, args = {}", args_to_str(args));
 
         let (rid_pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
             let read_payload = ctx.register_read(payload_ptr, len);
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
             let TwoHashesWithValue {
                 hash1: reservation_id,
                 hash2: destination,
@@ -301,21 +243,19 @@ where
                     HandlePacket::new(destination.into(), payload, value),
                     delay,
                 )
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_reservation_send_commit` syscall.
     pub fn reservation_send_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reservation_send_commit, args = {}", args_to_str(args));
 
         let (handle, rid_pid_value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
             let TwoHashesWithValue {
                 hash1: reservation_id,
                 hash2: destination,
@@ -329,63 +269,48 @@ where
                     HandlePacket::new(destination.into(), Default::default(), value),
                     delay,
                 )
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
-        })
-    }
-
-    fn validated(
-        ext: &'_ mut E,
-        at: u32,
-        len: u32,
-    ) -> Result<&'_ [u8], FuncError<<E as Ext>::Error>> {
-        let msg = ext.read(at, len).map_err(FuncError::Core)?;
-
-        // 'at' and 'len' correct and saturation checked in Ext::read
-        debug_assert!(at.checked_add(len).is_some());
-        debug_assert!((at + len) as usize == msg.len());
-
-        Ok(msg)
-    }
-
-    pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscall::gear", "read, args = {}", args_to_str(args));
-
-        let (at, len, buffer_ptr, err_len_ptr): (_, _, u32, _) = args.iter().read_4()?;
-
-        ctx.run(|ctx| {
-            let write_err_len = ctx.register_write_as(err_len_ptr);
-            let length = if let Ok(buffer) = Self::validated(&mut ctx.ext, at, len) {
-                let write_buffer = ctx.memory_manager.register_write(buffer_ptr, len);
-                ctx.memory_manager
-                    .write(&mut ctx.memory, write_buffer, buffer)?;
-                0u32
-            } else {
-                // TODO: issue #1652.
-                1u32
-            };
-
-            ctx.write_as(write_err_len, length.to_le_bytes())
+                .into_ext_error(&mut ctx.err)
                 .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_read` syscall.
+    pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscall::gear", "read, args = {}", args_to_str(args));
+
+        let (at, len, buffer_ptr, err_len_ptr) = args.iter().read_4()?;
+
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+            let res = ctx.ext.read(at, len);
+
+            match res.into_ext_error(&mut ctx.err)? {
+                Ok(buf) => {
+                    let write_buffer = ctx.memory_manager.register_write(buffer_ptr, len);
+                    ctx.memory_manager
+                        .write(&mut ctx.memory, write_buffer, buf)?;
+                    Ok(Ok(()))
+                }
+                Err(err_len) => Ok(Err(err_len)),
+            }
+        })
+    }
+
+    /// Infallible `gr_size` syscall.
     pub fn size(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "size, args = {}", args_to_str(args));
 
         let size_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
+            let size = ctx.ext.size().map_err(ActorSyscallFuncError::Core)? as u32;
+
             let write_size = ctx.register_write_as(size_ptr);
-
-            let size = ctx.ext.size().map_err(FuncError::Core)? as u32;
-
             ctx.write_as(write_size, size.to_le_bytes())
                 .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_exit` syscall.
     pub fn exit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "exit, args = {}", args_to_str(args));
 
@@ -393,125 +318,127 @@ where
 
         ctx.run(|ctx| -> Result<(), _> {
             let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
-
             let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
 
-            ctx.ext.exit().map_err(FuncError::Core)?;
+            ctx.ext.exit().map_err(ActorSyscallFuncError::Core)?;
 
-            Err(FuncError::Terminated(TerminationReason::Exit(inheritor_id)))
+            Err(ActorSyscallFuncError::Terminated(TerminationReason::Exit(inheritor_id)).into())
         })
     }
 
+    /// Fallible `gr_status_code` syscall.
     pub fn status_code(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "status_code, args = {}", args_to_str(args));
 
         let err_code_ptr = args.iter().read()?;
 
-        ctx.run(|ctx| {
-            let write_err_code = ctx.register_write_as(err_code_ptr);
-
+        ctx.run_fallible::<_, _, LengthWithCode>(err_code_ptr, |ctx| {
             ctx.ext
                 .status_code()
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_code, LengthWithCode::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Infallible `alloc` syscall.
     pub fn alloc(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "alloc, args = {}", args_to_str(args));
 
         let pages = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
-        let res = ctx.run_any(|ctx| {
-            ctx.ext
+        let page = ctx.run_any(|ctx| {
+            let page = ctx
+                .ext
                 .alloc(pages, &mut ctx.memory)
-                .map_err(RuntimeCtxError::Ext)
-                .map_err(Into::into)
-                .map(|page| {
-                    log::debug!("ALLOC: {pages:?} pages at {page:?}");
-                    page
-                })
+                .map_err(ActorSyscallFuncError::Core)?;
+
+            log::debug!("ALLOC: {pages:?} pages at {page:?}");
+
+            Ok(page)
         })?;
 
-        Ok(ReturnValue::Value(Value::I32(res.raw() as i32)))
+        Ok(ReturnValue::Value(Value::I32(page.raw() as i32)))
     }
 
+    /// Infallible `free` syscall.
     pub fn free(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "free, args = {}", args_to_str(args));
 
         let page = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
         ctx.run(|ctx| {
-            ctx.ext
-                .free(page)
-                .map(|_| log::debug!("FREE: {page:?}"))
-                .map_err(|err| {
-                    log::debug!("FREE ERROR: {}", err);
-                    FuncError::Core(err)
-                })
+            ctx.ext.free(page).map_err(ActorSyscallFuncError::Core)?;
+
+            log::debug!("FREE: {page:?}");
+
+            Ok(())
         })
     }
 
+    /// Infallible `gr_block_height` syscall.
     pub fn block_height(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "block_height, args = {}", args_to_str(args));
 
         let height_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
+            let height = ctx
+                .ext
+                .block_height()
+                .map_err(ActorSyscallFuncError::Core)?;
+
             let write_height = ctx.register_write_as(height_ptr);
-
-            let height = ctx.ext.block_height().map_err(FuncError::Core)?;
-
             ctx.write_as(write_height, height.to_le_bytes())
                 .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_block_timestamp` syscall.
     pub fn block_timestamp(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "block_timestamp, args = {}", args_to_str(args));
 
         let timestamp_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
+            let timestamp = ctx
+                .ext
+                .block_timestamp()
+                .map_err(ActorSyscallFuncError::Core)?;
+
             let write_timestamp = ctx.register_write_as(timestamp_ptr);
-
-            let timestamp = ctx.ext.block_timestamp().map_err(FuncError::Core)?;
-
             ctx.write_as(write_timestamp, timestamp.to_le_bytes())
                 .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_origin` syscall.
     pub fn origin(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "origin, args = {}", args_to_str(args));
 
         let origin_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
+            let origin = ctx.ext.origin().map_err(ActorSyscallFuncError::Core)?;
+
             let write_origin = ctx.register_write_as(origin_ptr);
-
-            let origin = ctx.ext.origin().map_err(FuncError::Core)?;
-
             ctx.write_as(write_origin, origin.into_bytes())
                 .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_random` syscall.
     pub fn random(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "random, args = {}", args_to_str(args));
 
-        let (subject_ptr, bn_random_ptr): (_, _) = args.iter().read_2()?;
+        let (subject_ptr, bn_random_ptr) = args.iter().read_2()?;
 
         ctx.run(|ctx| {
             let read_subject = ctx.register_read_decoded(subject_ptr);
-            let write_bn_random = ctx
-                .memory_manager
-                .register_write_as::<BlockNumberWithHash>(bn_random_ptr);
+            let write_bn_random = ctx.register_write_as(bn_random_ptr);
 
             let raw_subject: Hash = ctx.read_decoded(read_subject)?;
 
-            let (random, bn) = ctx.ext.random().map_err(FuncError::Core)?;
+            let (random, bn) = ctx.ext.random().map_err(ActorSyscallFuncError::Core)?;
             let subject = [&raw_subject, random].concat();
 
             let mut hash = [0; 32];
@@ -522,115 +449,86 @@ where
         })
     }
 
+    /// Fallible `gr_reply` syscall.
     pub fn reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply, args = {}", args_to_str(args));
 
         let (payload_ptr, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
-            let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                ctx.read_decoded(read_value)?
-            } else {
-                0
-            };
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
             let payload = ctx.read(read_payload)?.try_into()?;
 
             ctx.ext
                 .reply(ReplyPacket::new(payload, value), delay)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_reply_wgas` syscall.
     pub fn reply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_wgas, args = {}", args_to_str(args));
 
         let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
-            let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                ctx.read_decoded(read_value)?
-            } else {
-                0
-            };
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
             let payload = ctx.read(read_payload)?.try_into()?;
 
             ctx.ext
                 .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_reply_commit` syscall.
     pub fn reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_commit, args = {}", args_to_str(args));
 
         let (value_ptr, delay, err_mid_ptr) = args.iter().read_3()?;
 
-        ctx.run(|ctx| {
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
-            let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                ctx.read_decoded(read_value)?
-            } else {
-                0
-            };
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
 
             ctx.ext
                 .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_reply_commit_wgas` syscall.
     pub fn reply_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_commit_wgas, args = {}", args_to_str(args));
 
         let (gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
-        ctx.run(|ctx| {
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
-            let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                ctx.read_decoded(read_value)?
-            } else {
-                0
-            };
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
 
             ctx.ext
                 .reply_commit(
                     ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
                     delay,
                 )
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_reservation_reply` syscall.
     pub fn reservation_reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reservation_reply, args = {}", args_to_str(args));
 
         let (rid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_rid_value = ctx.register_read_as(rid_value_ptr);
             let read_payload = ctx.register_read(payload_ptr, len);
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
             let HashWithValue {
                 hash: reservation_id,
                 value,
@@ -643,21 +541,19 @@ where
                     ReplyPacket::new(payload, value),
                     delay,
                 )
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_reservation_reply_commit` syscall.
     pub fn reservation_reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reservation_reply_commit, args = {}", args_to_str(args));
 
         let (rid_value_ptr, delay, err_mid_ptr) = args.iter().read_3()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_rid_value = ctx.register_read_as(rid_value_ptr);
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
             let HashWithValue {
                 hash: reservation_id,
                 value,
@@ -669,230 +565,184 @@ where
                     ReplyPacket::new(Default::default(), value),
                     delay,
                 )
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_reply_to` syscall.
     pub fn reply_to(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_to, args = {}", args_to_str(args));
 
         let err_mid_ptr = args.iter().read()?;
 
-        ctx.run(|ctx| {
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             ctx.ext
                 .reply_to()
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_signal_from` syscall.
     pub fn signal_from(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "signal_from, args = {}", args_to_str(args));
 
         let err_mid_ptr = args.iter().read()?;
 
-        ctx.run(|ctx| {
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             ctx.ext
                 .signal_from()
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_reply_push` syscall.
     pub fn reply_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_push, args = {}", args_to_str(args));
 
         let (payload_ptr, len, err_len_ptr) = args.iter().read_3()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
-            let write_err_len = ctx.register_write_as(err_len_ptr);
-
             let payload = ctx.read(read_payload)?;
 
-            let len = ctx
-                .ext
+            ctx.ext
                 .reply_push(&payload)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .error_len();
-
-            ctx.write_as(write_err_len, len.to_le_bytes())
+                .into_ext_error(&mut ctx.err)
                 .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_reply_input` syscall.
     pub fn reply_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_input, args = {}", args_to_str(args));
 
         let (offset, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run(|ctx| {
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
 
-            let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.register_read_decoded(value_ptr);
-                ctx.read_decoded(read_value)?
-            } else {
-                0
+            let mut f = || {
+                ctx.ext.reply_push_input(offset, len)?;
+                ctx.ext
+                    .reply_commit(ReplyPacket::new(Default::default(), value), delay)
             };
 
-            let push_result = ctx.ext.reply_push_input(offset, len);
-            push_result
-                .and_then(|_| {
-                    ctx.ext
-                        .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-                })
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+            f().into_ext_error(&mut ctx.err).map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_reply_push_input` syscall.
     pub fn reply_push_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_push_input, args = {}", args_to_str(args));
 
         let (offset, len, err_len_ptr) = args.iter().read_3()?;
 
-        ctx.run(|ctx| {
-            let write_err_len = ctx.register_write_as(err_len_ptr);
-
-            let result_len = ctx
-                .ext
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+            ctx.ext
                 .reply_push_input(offset, len)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .error_len();
-
-            ctx.write_as(write_err_len, result_len.to_le_bytes())
+                .into_ext_error(&mut ctx.err)
                 .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_reply_input_wgas` syscall.
     pub fn reply_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reply_input_wgas, args = {}", args_to_str(args));
 
         let (offset, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
-        ctx.run(|ctx| {
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
 
-            let value = if value_ptr != PTR_SPECIAL {
-                let read_value = ctx.register_read_decoded(value_ptr);
-                ctx.read_decoded(read_value)?
-            } else {
-                0
+            let mut f = || {
+                ctx.ext.reply_push_input(offset, len)?;
+                ctx.ext.reply_commit(
+                    ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                    delay,
+                )
             };
 
-            let push_result = ctx.ext.reply_push_input(offset, len);
-            push_result
-                .and_then(|_| {
-                    ctx.ext.reply_commit(
-                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                        delay,
-                    )
-                })
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+            f().into_ext_error(&mut ctx.err).map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_send_input` syscall.
     pub fn send_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send_input, args = {}", args_to_str(args));
 
         let (pid_value_ptr, offset, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_pid_value = ctx.register_read_as(pid_value_ptr);
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
             let HashWithValue {
                 hash: destination,
                 value,
             } = ctx.read_as(read_pid_value)?;
 
-            let handle = ctx.ext.send_init();
-            let push_result =
-                handle.and_then(|h| ctx.ext.send_push_input(h, offset, len).map(|_| h));
-            push_result
-                .and_then(|h| {
-                    ctx.ext.send_commit(
-                        h,
-                        HandlePacket::new(destination.into(), Default::default(), value),
-                        delay,
-                    )
-                })
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+            let mut f = || {
+                let handle = ctx.ext.send_init()?;
+                ctx.ext.send_push_input(handle, offset, len)?;
+                ctx.ext.send_commit(
+                    handle,
+                    HandlePacket::new(destination.into(), Default::default(), value),
+                    delay,
+                )
+            };
+
+            f().into_ext_error(&mut ctx.err).map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_send_push_input` syscall.
     pub fn send_push_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send_push_input, args = {}", args_to_str(args));
 
         let (handle, offset, len, err_len_ptr) = args.iter().read_4()?;
 
-        ctx.run(|ctx| {
-            let write_err_len = ctx.register_write_as(err_len_ptr);
-
-            let result_len = ctx
-                .ext
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+            ctx.ext
                 .send_push_input(handle, offset, len)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .error_len();
-
-            ctx.write_as(write_err_len, result_len.to_le_bytes())
+                .into_ext_error(&mut ctx.err)
                 .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_send_push_input_wgas` syscall.
     pub fn send_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "send_input_wgas, args = {}", args_to_str(args));
 
         let (pid_value_ptr, offset, len, gas_limit, delay, err_mid_ptr) = args.iter().read_6()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
             let read_pid_value = ctx.register_read_as(pid_value_ptr);
-            let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
             let HashWithValue {
                 hash: destination,
                 value,
             } = ctx.read_as(read_pid_value)?;
 
-            let handle = ctx.ext.send_init();
-            let push_result =
-                handle.and_then(|h| ctx.ext.send_push_input(h, offset, len).map(|_| h));
-            push_result
-                .and_then(|h| {
-                    ctx.ext.send_commit(
-                        h,
-                        HandlePacket::new_with_gas(
-                            destination.into(),
-                            Default::default(),
-                            gas_limit,
-                            value,
-                        ),
-                        delay,
-                    )
-                })
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid, LengthWithHash::from(res)))
+            let mut f = || {
+                let handle = ctx.ext.send_init()?;
+                ctx.ext.send_push_input(handle, offset, len)?;
+                ctx.ext.send_commit(
+                    handle,
+                    HandlePacket::new_with_gas(
+                        destination.into(),
+                        Default::default(),
+                        gas_limit,
+                        value,
+                    ),
+                    delay,
+                )
+            };
+
+            f().into_ext_error(&mut ctx.err).map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_debug` syscall.
     pub fn debug(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "debug, args = {}", args_to_str(args));
 
@@ -900,161 +750,157 @@ where
 
         ctx.run(|ctx| {
             let read_data = ctx.register_read(data_ptr, data_len);
-
             let data = ctx.read(read_data)?;
 
-            let s = String::from_utf8(data).map_err(FuncError::DebugString)?;
-            ctx.ext.debug(&s).map_err(FuncError::Core)?;
+            let s = String::from_utf8(data)?;
+            ctx.ext.debug(&s).map_err(ActorSyscallFuncError::Core)?;
 
             Ok(())
         })
     }
 
+    /// Fallible `gr_reserve_gas` syscall.
     pub fn reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "reserve_gas, args = {}", args_to_str(args));
 
         let (gas, duration, err_rid_ptr) = args.iter().read_3()?;
 
-        ctx.run(|ctx| {
-            let write_err_rid = ctx.register_write_as(err_rid_ptr);
-
+        ctx.run_fallible::<_, _, LengthWithHash>(err_rid_ptr, |ctx| {
             ctx.ext
                 .reserve_gas(gas, duration)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_rid, LengthWithHash::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_unreserve_gas` syscall.
     pub fn unreserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "unreserve_gas, args = {}", args_to_str(args));
 
         let (reservation_id_ptr, err_unreserved_ptr) = args.iter().read_2()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithGas>(err_unreserved_ptr, |ctx| {
             let read_reservation_id = ctx.register_read_decoded(reservation_id_ptr);
-            let write_err_unreserved = ctx.register_write_as(err_unreserved_ptr);
-
-            let id = ctx.read_decoded(read_reservation_id)?;
+            let reservation_id = ctx.read_decoded(read_reservation_id)?;
 
             ctx.ext
-                .unreserve_gas(id)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_unreserved, LengthWithGas::from(res)))
+                .unreserve_gas(reservation_id)
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_system_reserve_gas` syscall.
     pub fn system_reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "system_reserve_gas, args = {}", args_to_str(args));
 
         let (gas, err_len_ptr) = args.iter().read_2()?;
 
-        ctx.run(|ctx| {
-            let write_err_len = ctx.register_write_as(err_len_ptr);
-
-            let len = ctx
-                .ext
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
+            ctx.ext
                 .system_reserve_gas(gas)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .error_len();
-
-            ctx.write_as(write_err_len, len.to_le_bytes())
+                .into_ext_error(&mut ctx.err)
                 .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_gas_available` syscall.
     pub fn gas_available(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "gas_available, args = {}", args_to_str(args));
 
         let gas_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
+            let gas = ctx
+                .ext
+                .gas_available()
+                .map_err(ActorSyscallFuncError::Core)?;
+
             let write_gas = ctx.register_write_as(gas_ptr);
-
-            let gas = ctx.ext.gas_available().map_err(FuncError::Core)?;
-
             ctx.write_as(write_gas, gas.to_le_bytes())
                 .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_message_id` syscall.
     pub fn message_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "message_id, args = {}", args_to_str(args));
 
         let message_id_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
+            let message_id = ctx.ext.message_id().map_err(ActorSyscallFuncError::Core)?;
+
             let write_message_id = ctx.register_write_as(message_id_ptr);
-
-            let message_id = ctx.ext.message_id().map_err(FuncError::Core)?;
-
             ctx.write_as(write_message_id, message_id.into_bytes())
                 .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_program_id` syscall.
     pub fn program_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "program_id, args = {}", args_to_str(args));
 
         let program_id_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
+            let program_id = ctx.ext.program_id().map_err(ActorSyscallFuncError::Core)?;
+
             let write_program_id = ctx.register_write_as(program_id_ptr);
-
-            let program_id = ctx.ext.program_id().map_err(FuncError::Core)?;
-
             ctx.write_as(write_program_id, program_id.into_bytes())
                 .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_source` syscall.
     pub fn source(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "source, args = {}", args_to_str(args));
 
         let source_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
+            let source = ctx.ext.source().map_err(ActorSyscallFuncError::Core)?;
+
             let write_source = ctx.register_write_as(source_ptr);
-
-            let source = ctx.ext.source().map_err(FuncError::Core)?;
-
             ctx.write_as(write_source, source.into_bytes())
                 .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_value` syscall.
     pub fn value(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "value, args = {}", args_to_str(args));
 
         let value_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
+            let value = ctx.ext.value().map_err(ActorSyscallFuncError::Core)?;
+
             let write_value = ctx.register_write_as(value_ptr);
-
-            let value = ctx.ext.value().map_err(FuncError::Core)?;
-
             ctx.write_as(write_value, value.to_le_bytes())
                 .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_value_available` syscall.
     pub fn value_available(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "value_available, args = {}", args_to_str(args));
 
         let value_ptr = args.iter().read()?;
 
         ctx.run(|ctx| {
+            let value_available = ctx
+                .ext
+                .value_available()
+                .map_err(ActorSyscallFuncError::Core)?;
+
             let write_value = ctx.register_write_as(value_ptr);
-
-            let value_available = ctx.ext.value_available().map_err(FuncError::Core)?;
-
             ctx.write_as(write_value, value_available.to_le_bytes())
                 .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_leave` syscall.
     pub fn leave(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "leave");
 
@@ -1062,12 +908,14 @@ where
             Err(ctx
                 .ext
                 .leave()
-                .map_err(FuncError::Core)
+                .map_err(ActorSyscallFuncError::Core)
                 .err()
-                .unwrap_or_else(|| FuncError::Terminated(TerminationReason::Leave)))
+                .unwrap_or(ActorSyscallFuncError::Terminated(TerminationReason::Leave)))
+            .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_wait` syscall.
     pub fn wait(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "wait");
 
@@ -1075,85 +923,91 @@ where
             Err(ctx
                 .ext
                 .wait()
-                .map_err(FuncError::Core)
+                .map_err(ActorSyscallFuncError::Core)
                 .err()
                 .unwrap_or_else(|| {
-                    FuncError::Terminated(TerminationReason::Wait(None, MessageWaitedType::Wait))
+                    ActorSyscallFuncError::Terminated(TerminationReason::Wait(
+                        None,
+                        MessageWaitedType::Wait,
+                    ))
                 }))
+            .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_wait_for` syscall.
     pub fn wait_for(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "wait_for, args = {}", args_to_str(args));
 
         let duration = args.iter().read()?;
+
         ctx.run(|ctx| -> Result<(), _> {
             Err(ctx
                 .ext
                 .wait_for(duration)
-                .map_err(FuncError::Core)
+                .map_err(ActorSyscallFuncError::Core)
                 .err()
                 .unwrap_or_else(|| {
-                    FuncError::Terminated(TerminationReason::Wait(
+                    ActorSyscallFuncError::Terminated(TerminationReason::Wait(
                         Some(duration),
                         MessageWaitedType::WaitFor,
                     ))
                 }))
+            .map_err(Into::into)
         })
     }
 
+    /// Infallible `gr_wait_up_to` syscall.
     pub fn wait_up_to(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "wait_up_to, args = {}", args_to_str(args));
 
         let duration = args.iter().read()?;
 
         ctx.run(|ctx| -> Result<(), _> {
-            Err(FuncError::Terminated(TerminationReason::Wait(
+            Err(ActorSyscallFuncError::Terminated(TerminationReason::Wait(
                 Some(duration),
-                if ctx.ext.wait_up_to(duration).map_err(FuncError::Core)? {
+                if ctx
+                    .ext
+                    .wait_up_to(duration)
+                    .map_err(ActorSyscallFuncError::Core)?
+                {
                     MessageWaitedType::WaitUpToFull
                 } else {
                     MessageWaitedType::WaitUpTo
                 },
-            )))
+            ))
+            .into())
         })
     }
 
+    /// Fallible `gr_wake` syscall.
     pub fn wake(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "wake, args = {}", args_to_str(args));
 
         let (message_id_ptr, delay, err_len_ptr) = args.iter().read_3()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
             let read_message_id = ctx.register_read_decoded(message_id_ptr);
-            let write_err_len = ctx.register_write_as(err_len_ptr);
-
             let message_id = ctx.read_decoded(read_message_id)?;
 
-            let len = ctx
-                .ext
+            ctx.ext
                 .wake(message_id, delay)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .error_len();
-
-            ctx.write_as(write_err_len, len.to_le_bytes())
+                .into_ext_error(&mut ctx.err)
                 .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_create_program` syscall.
     pub fn create_program(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "create_program, args = {}", args_to_str(args));
 
         let (cid_value_ptr, salt_ptr, salt_len, payload_ptr, payload_len, delay, err_mid_pid_ptr) =
             args.iter().read_7()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithTwoHashes>(err_mid_pid_ptr, |ctx| {
             let read_cid_value = ctx.register_read_as(cid_value_ptr);
             let read_salt = ctx.register_read(salt_ptr, salt_len);
             let read_payload = ctx.register_read(payload_ptr, payload_len);
-            let write_err_mid_pid = ctx.register_write_as(err_mid_pid_ptr);
-
             let HashWithValue {
                 hash: code_id,
                 value,
@@ -1163,12 +1017,12 @@ where
 
             ctx.ext
                 .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid_pid, LengthWithTwoHashes::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_create_program_wgas` syscall.
     pub fn create_program_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "create_program_wgas, args = {}", args_to_str(args));
 
@@ -1183,12 +1037,10 @@ where
             err_mid_pid_ptr,
         ) = args.iter().read_8()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthWithTwoHashes>(err_mid_pid_ptr, |ctx| {
             let read_cid_value = ctx.register_read_as(cid_value_ptr);
             let read_salt = ctx.register_read(salt_ptr, salt_len);
             let read_payload = ctx.register_read(payload_ptr, payload_len);
-            let write_err_mid_pid = ctx.register_write_as(err_mid_pid_ptr);
-
             let HashWithValue {
                 hash: code_id,
                 value,
@@ -1201,12 +1053,12 @@ where
                     InitPacket::new_with_gas(code_id.into(), salt, payload, gas_limit, value),
                     delay,
                 )
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| ctx.write_as(write_err_mid_pid, LengthWithTwoHashes::from(res)))
+                .into_ext_error(&mut ctx.err)
+                .map_err(Into::into)
         })
     }
 
+    /// Fallible `gr_error` syscall.
     pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "error, args = {}", args_to_str(args));
 
@@ -1214,49 +1066,44 @@ where
         // err_len_ptr is ptr for len of the error occurred during this syscall
         let (error_bytes_ptr, err_len_ptr) = args.iter().read_2()?;
 
-        ctx.run(|ctx| {
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
             ctx.ext
-                .last_error_encoded()
-                .process_error()
-                .map_err(FuncError::Core)?
-                .proc_res(|res| -> Result<(), FuncError<E::Error>> {
-                    let write_err_len = ctx.register_write_as(err_len_ptr);
-                    let length = match res {
-                        Ok(err) => {
-                            let write_error_bytes =
-                                ctx.register_write(error_bytes_ptr, err.len() as u32);
-                            ctx.write(write_error_bytes, err.as_ref())?;
-                            0
-                        }
-                        Err(length) => length,
-                    };
+                .charge_error()
+                .map_err(ActorSyscallFuncError::Core)?;
 
-                    ctx.ext.charge_error().map_err(FuncError::Core)?;
-                    ctx.write_as(write_err_len, length.to_le_bytes())?;
-                    Ok(())
-                })
+            match ctx.last_err() {
+                Ok(err) => {
+                    let err = err.encode();
+                    let write_error_bytes = ctx.register_write(error_bytes_ptr, err.len() as u32);
+                    ctx.write(write_error_bytes, err.as_ref())?;
+                    Ok(Ok(()))
+                }
+                Err(err) => Ok(Err(err.encoded_size() as u32)),
+            }
         })
     }
 
+    /// Infallible `forbidden` syscall-placeholder.
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "forbidden");
 
-        ctx.run(|_ctx| -> Result<(), _> { Err(FuncError::Core(E::Error::forbidden_function())) })
+        ctx.run(|_| Err(ActorSyscallFuncError::Core(E::Error::forbidden_function()).into()))
     }
 
+    /// Infallible `gr_out_of_gas` syscall.
     pub fn out_of_gas(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "out_of_gas");
 
-        ctx.err = FuncError::Core(ctx.ext.out_of_gas());
+        ctx.err = ActorSyscallFuncError::Core(ctx.ext.out_of_gas()).into();
 
         Err(HostError)
     }
 
+    /// Infallible `gr_out_of_allowance` syscall.
     pub fn out_of_allowance(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "out_of_allowance");
 
-        ctx.ext.out_of_allowance();
-        ctx.err = FuncError::Terminated(TerminationReason::GasAllowanceExceeded);
+        ctx.err = ActorSyscallFuncError::Core(ctx.ext.out_of_allowance()).into();
 
         Err(HostError)
     }

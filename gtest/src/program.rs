@@ -90,7 +90,7 @@ pub trait WasmProgram: Debug {
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle_reply(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
-    fn meta_state(&mut self, payload: Option<Vec<u8>>) -> Result<Vec<u8>, &'static str>;
+    fn state(&mut self) -> Result<Vec<u8>, &'static str>;
     fn debug(&mut self, data: &str) {
         logger::debug!(target: "gwasm", "DEBUG: {}", data);
     }
@@ -440,26 +440,43 @@ impl<'a> Program<'a> {
         self.id
     }
 
-    pub fn meta_state<E: Encode, D: Decode>(&self, payload: E) -> Result<D> {
-        D::decode(&mut self.meta_state_with_bytes(payload.encode())?.as_slice()).map_err(Into::into)
+    /// Reads the program’s state as a byte vector.
+    pub fn read_state_bytes(&self) -> Result<Vec<u8>> {
+        self.manager.borrow_mut().read_state_bytes(&self.id)
     }
 
-    pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Result<Vec<u8>> {
-        self.manager.borrow_mut().call_meta(
-            &self.id,
-            Some(payload.as_ref().to_vec().try_into().unwrap()),
-            "meta_state",
-        )
-    }
-
-    pub fn meta_state_empty<D: Decode>(&self) -> Result<D> {
-        D::decode(&mut self.meta_state_empty_with_bytes()?.as_slice()).map_err(Into::into)
-    }
-
-    pub fn meta_state_empty_with_bytes(&self) -> Result<Vec<u8>> {
+    /// Reads the program’s transformed state as a byte vector. The transformed
+    /// state is a result of applying the `fn_name` function from the `wasm`
+    /// binary with the optional `argument`.
+    pub fn read_state_bytes_using_wasm(
+        &self,
+        fn_name: &str,
+        wasm: Vec<u8>,
+        argument: Option<Vec<u8>>,
+    ) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
-            .call_meta(&self.id, None, "meta_state")
+            .read_state_bytes_using_wasm(&self.id, fn_name, wasm, argument)
+    }
+
+    /// Reads and decodes the program's state .
+    pub fn read_state<D: Decode>(&self) -> Result<D> {
+        let state_bytes = self.read_state_bytes()?;
+        D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
+    }
+
+    /// Reads and decodes the program’s transformed state. The transformed state
+    /// is a result of applying the `fn_name` function from the `wasm`
+    /// binary with the optional `argument`.
+    pub fn read_state_using_wasm<E: Encode, D: Decode>(
+        &self,
+        fn_name: &str,
+        wasm: Vec<u8>,
+        argument: Option<E>,
+    ) -> Result<D> {
+        let argument_bytes = argument.map(|arg| arg.encode());
+        let state_bytes = self.read_state_bytes_using_wasm(fn_name, wasm, argument_bytes)?;
+        D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
     }
 
     pub fn mint(&mut self, value: Balance) {

@@ -178,7 +178,7 @@ impl StoredDispatch {
         )
     }
 
-    /// Decompose StoredDispatch for it's components: DispatchKind, StoredMessage and Option<ContextStore>.
+    /// Decompose StoredDispatch for it's components: DispatchKind, StoredMessage and `Option<ContextStore>`.
     pub fn into_parts(self) -> (DispatchKind, StoredMessage, Option<ContextStore>) {
         self.into()
     }

@@ -19,7 +19,6 @@
 //! wasmi environment for running a module.
 
 use crate::{
-    funcs::FuncError,
     funcs_tree,
     memory::MemoryWrap,
     state::{HostState, State},
@@ -28,18 +27,15 @@ use alloc::{
     collections::BTreeSet,
     string::{String, ToString},
 };
-use codec::Encode;
-use core::{any::Any, fmt};
+use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
-    calc_stack_end,
-    error_processor::IntoExtError,
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
-    AsTerminationReason, BackendReport, Environment, GetGasAmount, IntoExtInfo, StackEndError,
-    TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
+    ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
+    EnvironmentExecutionError, EnvironmentExecutionResult, TerminationReason,
+    STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
-    gas::GasAmount,
     memory::{HostPointer, PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
@@ -50,37 +46,23 @@ use wasmi::{
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum WasmiEnvironmentError {
+    #[from]
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(wasmi::errors::MemoryError),
+    #[from]
     #[display(fmt = "Unable to link item: {_0:?}")]
     Linking(wasmi::errors::LinkerError),
+    #[from]
     #[display(fmt = "Unable to instantiate module: {_0:?}")]
     ModuleInstantiation(wasmi::Error),
     #[display(fmt = "Unable to get wasm module exports: {_0}")]
     GetWasmExports(String),
     #[display(fmt = "Entry point has wrong type: {_0}")]
     EntryPointWrongType(String),
-    #[display(fmt = "{_0}")]
-    PreExecutionHandler(String),
-    #[from]
-    StackEnd(StackEndError),
     #[display(fmt = "Gas counter not found or has wrong type")]
     WrongInjectedGas,
     #[display(fmt = "Allowance counter not found or has wrong type")]
     WrongInjectedAllowance,
-}
-
-#[derive(Debug, derive_more::Display, derive_more::From)]
-#[display(fmt = "{error}")]
-pub struct Error {
-    gas_amount: GasAmount,
-    error: WasmiEnvironmentError,
-}
-
-impl GetGasAmount for Error {
-    fn gas_amount(&self) -> GasAmount {
-        self.gas_amount.clone()
-    }
 }
 
 macro_rules! gas_amount {
@@ -149,22 +131,24 @@ impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
     }
 }
 
-impl<E, EP> Environment<E, EP> for WasmiEnvironment<E, EP>
+impl<E, EP> Environment<EP> for WasmiEnvironment<E, EP>
 where
-    E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
-    E::Error: Encode + AsTerminationReason + IntoExtError,
+    E: BackendExt + 'static,
+    E::Error: BackendExtError,
     EP: WasmEntry,
 {
+    type Ext = E;
     type Memory = MemoryWrap<E>;
-    type Error = Error;
+    type Error = WasmiEnvironmentError;
 
     fn new(
-        ext: E,
+        ext: Self::Ext,
         binary: &[u8],
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, Self::Error> {
+    ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>> {
+        use EnvironmentExecutionError::*;
         use WasmiEnvironmentError::*;
 
         let engine = Engine::default();
@@ -173,12 +157,12 @@ where
         let mut linker: Linker<HostState<E>> = Linker::new();
 
         let memory_type = MemoryType::new(mem_size.raw(), None);
-        let memory = Memory::new(&mut store, memory_type)
-            .map_err(|e| (ext.gas_amount(), CreateEnvMemory(e)))?;
+        let memory =
+            Memory::new(&mut store, memory_type).map_err(|e| Environment(CreateEnvMemory(e)))?;
 
         linker
             .define("env", "memory", memory)
-            .map_err(|e| (ext.gas_amount(), Linking(e)))?;
+            .map_err(|e| Environment(Linking(e)))?;
 
         let entry_forbidden = entry_point
             .try_into_kind()
@@ -197,26 +181,26 @@ where
         for (name, function) in functions {
             linker
                 .define("env", name.to_str(), function)
-                .map_err(|e| (ext.gas_amount(), Linking(e)))?;
+                .map_err(|e| Environment(Linking(e)))?;
         }
 
         let module = Module::new(store.engine(), &mut &binary[..])
-            .map_err(|e| (ext.gas_amount(), ModuleInstantiation(e)))?;
+            .map_err(|e| Environment(ModuleInstantiation(e)))?;
 
         let runtime = State {
             ext,
-            err: FuncError::Terminated(TerminationReason::Success),
+            err: ActorSyscallFuncError::Terminated(TerminationReason::Success).into(),
         };
 
         *store.state_mut() = Some(runtime);
 
         let instance_pre = linker
             .instantiate(&mut store, &module)
-            .map_err(|e| (gas_amount!(store), ModuleInstantiation(e)))?;
+            .map_err(|e| Environment(ModuleInstantiation(e)))?;
 
         let instance = instance_pre
             .ensure_no_start(&mut store)
-            .map_err(|e| (gas_amount!(store), ModuleInstantiation(e.into())))?;
+            .map_err(|e| Environment(ModuleInstantiation(e.into())))?;
 
         Ok(Self {
             instance,
@@ -227,14 +211,12 @@ where
         })
     }
 
-    fn execute<F, T>(
-        self,
-        pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
+    fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPage>, GlobalsConfig) -> Result<(), T>,
-        T: fmt::Display,
+        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
+        T: Display,
     {
+        use EnvironmentExecutionError::*;
         use WasmiEnvironmentError::*;
 
         let Self {
@@ -248,8 +230,7 @@ where
         let stack_end = instance
             .get_export(&store, STACK_END_EXPORT_NAME)
             .and_then(Extern::into_global)
-            .and_then(|g| g.get(&store).try_into::<i32>());
-        let stack_end = calc_stack_end(stack_end).map_err(|e| (gas_amount!(store), StackEnd(e)))?;
+            .and_then(|g| g.get(&store).try_into::<u32>());
 
         let (gas, allowance) = store
             .state()
@@ -262,7 +243,7 @@ where
             .get_export(&store, GLOBAL_NAME_GAS)
             .and_then(Extern::into_global)
             .and_then(|g| g.set(&mut store, Value::I64(gas as i64)).map(|_| g).ok())
-            .ok_or((gas_amount!(store), WrongInjectedGas))?;
+            .ok_or(Environment(WrongInjectedGas))?;
 
         let gear_allowance = instance
             .get_export(&store, GLOBAL_NAME_ALLOWANCE)
@@ -272,7 +253,7 @@ where
                     .map(|_| g)
                     .ok()
             })
-            .ok_or((gas_amount!(store), WrongInjectedAllowance))?;
+            .ok_or(Environment(WrongInjectedAllowance))?;
 
         let mut globals_provider = GlobalsAccessProvider {
             instance,
@@ -303,7 +284,7 @@ where
         let mut memory_wrap = MemoryWrap::new(memory, store);
         pre_execution_handler(&mut memory_wrap, stack_end, globals_config).map_err(|e| {
             let store = &memory_wrap.store;
-            (gas_amount!(store), PreExecutionHandler(e.to_string()))
+            PrepareMemory(gas_amount!(store), e)
         })?;
 
         let mut store = memory_wrap.into_store();
@@ -311,18 +292,12 @@ where
             let func = instance
                 .get_export(&store, entry_point.as_entry())
                 .and_then(Extern::into_func)
-                .ok_or({
-                    (
-                        gas_amount!(store),
-                        GetWasmExports(entry_point.as_entry().to_string()),
-                    )
-                })?;
+                .ok_or(Environment(GetWasmExports(
+                    entry_point.as_entry().to_string(),
+                )))?;
 
             let entry_func = func.typed::<(), (), _>(&mut store).map_err(|_| {
-                (
-                    gas_amount!(store),
-                    EntryPointWrongType(entry_point.as_entry().to_string()),
-                )
+                Environment(EntryPointWrongType(entry_point.as_entry().to_string()))
             })?;
 
             let store_option = &mut globals_provider_dyn_ref
@@ -350,11 +325,11 @@ where
         let gas = gear_gas
             .get(&store)
             .try_into::<i64>()
-            .ok_or((gas_amount!(store), WrongInjectedGas))?;
+            .ok_or(Environment(WrongInjectedGas))?;
         let allowance = gear_allowance
             .get(&store)
             .try_into::<i64>()
-            .ok_or((gas_amount!(store), WrongInjectedAllowance))?;
+            .ok_or(Environment(WrongInjectedAllowance))?;
 
         let state = store
             .state_mut()
@@ -362,32 +337,17 @@ where
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"));
 
         let State {
-            mut ext, err: trap, ..
+            mut ext,
+            err: runtime_err,
+            ..
         } = state;
 
         ext.update_counters(gas as u64, allowance as u64);
 
         log::debug!("WasmiEnvironment::execute result = {res:?}");
 
-        let trap_explanation = ext.trap_explanation();
-
-        let termination_reason = if res.is_err() {
-            let reason = trap_explanation
-                .map(TerminationReason::Trap)
-                .unwrap_or_else(|| trap.into_termination_reason());
-
-            // success is unacceptable when there is an error
-            if let TerminationReason::Success = reason {
-                TerminationReason::Trap(TrapExplanation::Unknown)
-            } else {
-                reason
-            }
-        } else {
-            TerminationReason::Success
-        };
-
         Ok(BackendReport {
-            termination_reason,
+            err: (res.is_err()).then_some(runtime_err),
             memory_wrap: MemoryWrap::new(memory, store),
             ext,
         })

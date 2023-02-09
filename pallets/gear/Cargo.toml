@@ -61,6 +61,7 @@ wabt = "0.10"
 hex = { version = "0.4.3" }
 blake2-rfc = { version = "0.2.18", default-features = false }
 demo-async-tester = { path = "../../examples/binaries/async-tester" }
+demo-backend-error = { path = "../../examples/binaries/backend-error" }
 demo-btree = { path = "../../examples/binaries/btree" }
 demo-delayed-sender = { path = "../../examples/binaries/delayed-sender" }
 demo-distributor = { path = "../../examples/binaries/distributor" }

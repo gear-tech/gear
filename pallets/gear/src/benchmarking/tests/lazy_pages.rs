@@ -153,7 +153,7 @@ where
                     .checked_add(charged_for_write_after_read)
                     .unwrap();
 
-                let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+                let notes = core_processor::process::<ExecutionEnvironment>(
                     &exec.block_config,
                     exec.context,
                     exec.random_data,
@@ -228,7 +228,7 @@ where
                 };
                 exec.block_config.pages_config.lazy_pages_weights = weights;
 
-                let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+                let notes = core_processor::process::<ExecutionEnvironment>(
                     &exec.block_config,
                     exec.context,
                     exec.random_data,
@@ -397,7 +397,7 @@ where
             write_after_read: 0,
         };
 
-        let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+        let notes = core_processor::process::<ExecutionEnvironment>(
             &exec.block_config,
             exec.context,
             exec.random_data,
@@ -442,7 +442,7 @@ where
             write_after_read: 0,
         };
 
-        let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+        let notes = core_processor::process::<ExecutionEnvironment>(
             &exec.block_config,
             exec.context,
             exec.random_data,
@@ -485,7 +485,7 @@ where
             write_after_read: 0,
         };
 
-        let notes = core_processor::process::<Externalities, ExecutionEnvironment>(
+        let notes = core_processor::process::<ExecutionEnvironment>(
             &exec.block_config,
             exec.context,
             exec.random_data,

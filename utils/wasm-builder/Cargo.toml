@@ -10,7 +10,7 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.68"
-cargo_metadata = "0.15.2"
+cargo_metadata = "0.15.3"
 pwasm-utils = "0.19.0"
 toml = "0.7.1"
 thiserror = "1.0.38"

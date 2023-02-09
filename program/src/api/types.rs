@@ -16,13 +16,13 @@ use subxt::{
 
 /// Subscription of finalized blocks.
 #[allow(clippy::type_complexity)]
-pub struct FinalizedBlocks(
+pub struct Blocks(
     pub Pin<Box<dyn Stream<Item = StdResult<Block<GearConfig, OnlineClient<GearConfig>>, Error>>>>,
 );
 
-impl Unpin for FinalizedBlocks {}
+impl Unpin for Blocks {}
 
-impl Stream for FinalizedBlocks {
+impl Stream for Blocks {
     type Item = StdResult<Block<GearConfig, OnlineClient<GearConfig>>, Error>;
 
     fn poll_next(
@@ -35,7 +35,7 @@ impl Stream for FinalizedBlocks {
     }
 }
 
-impl FinalizedBlocks {
+impl Blocks {
     /// Wait for the next item from the subscription.
     pub async fn next_events(&mut self) -> Option<StdResult<Events<GearConfig>, Error>> {
         if let Some(block) = StreamExt::next(self).await {

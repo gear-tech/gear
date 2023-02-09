@@ -60,7 +60,7 @@ use frame_support::{
     traits::{Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_backend_common::{StackEndError, TrapExplanation};
+use gear_backend_common::TrapExplanation;
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
@@ -71,6 +71,29 @@ use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
 use utils::*;
+
+#[test]
+fn backend_errors_handled_in_program() {
+    use demo_backend_error::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let mid = utils::get_last_message_id();
+
+        run_to_next_block(None);
+        // If nothing panicked, so program's logic and backend are correct.
+        utils::assert_succeed(mid);
+    })
+}
 
 #[test]
 fn non_existent_code_id_zero_gas() {
@@ -8544,9 +8567,8 @@ mod utils {
         assert_eq!(status, DispatchStatus::Success)
     }
 
-    /// TODO: return back to `ExecutionErrorReason`
     #[track_caller]
-    pub(super) fn assert_failed(message_id: MessageId, error: impl Display) {
+    pub(super) fn assert_failed(message_id: MessageId, error: ActorExecutionErrorReason) {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
@@ -8920,9 +8942,11 @@ fn check_gear_stack_end_fail() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
-                WasmPage::new(5).unwrap(),
-                WasmPage::new(4).unwrap(),
+            ActorExecutionErrorReason::PrepareMemory(
+                ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
+                    WasmPage::new(5).unwrap(),
+                    WasmPage::new(4).unwrap(),
+                ),
             ),
         );
 
@@ -8944,7 +8968,9 @@ fn check_gear_stack_end_fail() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Backend(StackEndError::IsNotAligned(65537).to_string()),
+            ActorExecutionErrorReason::PrepareMemory(ActorPrepareMemoryError::StackIsNotAligned(
+                65537,
+            )),
         );
 
         // Check OK if stack end is suitable
@@ -9057,11 +9083,9 @@ fn check_reply_push_payload_exceed() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Other(
-                ExtError::Message(MessageError::MaxMessageSizeExceed)
-                    .to_string()
-                    .into(),
-            )),
+            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
+                MessageError::MaxMessageSizeExceed,
+            ))),
         );
     });
 }
