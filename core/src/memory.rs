@@ -662,7 +662,7 @@ impl AllocationsContext {
     ///
     /// Currently running program should own this page.
     pub fn free(&mut self, page: WasmPage) -> Result<(), Error> {
-        if page < self.static_pages || page > self.max_pages || !self.allocations.remove(&page) {
+        if page < self.static_pages || page >= self.max_pages || !self.allocations.remove(&page) {
             Err(Error::InvalidFree(page.0))
         } else {
             Ok(())
