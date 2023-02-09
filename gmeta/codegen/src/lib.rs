@@ -8,30 +8,22 @@ use syn::{
 
 static MODULE_NAME: &str = "metafns";
 
-fn error(spanned: impl Spanned, message: impl Display) -> TokenStream {
-    Error::new(spanned.span(), message)
-        .into_compile_error()
-        .into()
+fn error<T>(spanned: impl Spanned, message: impl Display) -> Result<T, Error> {
+    Err(Error::new(spanned.span(), message))
 }
 
-macro_rules! error {
-    ($spanned:expr, $message:expr) => {
-        return error($spanned, $message)
-    };
-}
-
-macro_rules! if_some_error {
+macro_rules! if_some_return_error {
     ($option:expr, $message:expr) => {
         if let Some(spanned) = $option {
-            error!(spanned, $message);
+            return error(spanned, $message);
         }
     };
 }
 
-fn validate_if_private(spanned: impl Spanned, visibility: &Visibility) -> Result<(), TokenStream> {
+fn validate_if_private(spanned: impl Spanned, visibility: &Visibility) -> Result<(), Error> {
     match visibility {
         Visibility::Public(_) => Ok(()),
-        other => Err(match other {
+        other => match other {
             Visibility::Inherited => {
                 error(spanned, "visibility must be public, add the `pub` keyword")
             }
@@ -39,14 +31,14 @@ fn validate_if_private(spanned: impl Spanned, visibility: &Visibility) -> Result
                 other,
                 "visibility mustn't be restricted, use the `pub` keyword alone",
             ),
-        }),
+        },
     }
 }
 
 fn validate_if_has_no_attributes(
     attributes: impl IntoIterator<Item = impl Borrow<Attribute>>,
     message: impl Display,
-) -> Result<(), TokenStream> {
+) -> Result<(), Error> {
     let mut attributes = attributes.into_iter();
 
     if let Some(attribute) = attributes.next() {
@@ -54,7 +46,7 @@ fn validate_if_has_no_attributes(
             span.join(attribute.borrow().span()).unwrap_or(span)
         });
 
-        Err(error(span, message))
+        error(span, message)
     } else {
         Ok(())
     }
@@ -158,36 +150,34 @@ fn validate_if_has_no_attributes(
 /// `Some((SomeArg, u16, u32))`.
 #[proc_macro_attribute]
 pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
-    let module: ItemMod = parse_macro_input!(item);
+    process(parse_macro_input!(item)).unwrap_or_else(|error| error.into_compile_error().into())
+}
+
+fn process(module: ItemMod) -> Result<TokenStream, Error> {
     let module_span = module.span();
 
-    if let Err(error) = validate_if_has_no_attributes(
+    validate_if_has_no_attributes(
         module.attrs,
         "module with #[metawasm] mustn't have attributes",
-    ) {
-        return error;
-    }
-
-    if let Err(error) = validate_if_private(module_span, &module.vis) {
-        return error;
-    }
+    )?;
+    validate_if_private(module_span, &module.vis)?;
 
     if module.ident != MODULE_NAME {
-        error!(
+        return error(
             module.ident,
-            format_args!("name of a module with #[metawasm] must be `{MODULE_NAME}`")
+            format_args!("name of a module with #[metawasm] must be `{MODULE_NAME}`"),
         );
     }
 
     let Some((_, items)) = module.content else {
-        error!(
+        return error(
             module_span,
             "`#[metawasm]` doesn't work with modules without a body"
         );
     };
 
     if items.is_empty() {
-        return Default::default();
+        return Ok(Default::default());
     }
 
     let mut items = items.into_iter();
@@ -197,16 +187,16 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
         if let (Some(first), Some(second)) = two_first_items {
             (first, iter::once(second).chain(items))
         } else {
-            error!(
+            return error(
                 module_span,
-                "module with #[metawasm] must contain the `State` type alias & at least 1 function"
+                "module with #[metawasm] must contain the `State` type alias & at least 1 function",
             );
         };
 
     // Checking the `State` type
 
     let Item::Type(type_item) = potential_type_item else {
-        error!(
+        return error(
             potential_type_item,
             "first item of a module with `#[metawasm]` must be a type alias to a state type (e.g. `type State = StateType;`)"
         );
@@ -214,9 +204,7 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
     let type_item_attributes = &type_item.attrs;
 
     let (state_type, state_type_inner) = if type_item.ident == "State" {
-        if let Err(error) = validate_if_private(&type_item, &type_item.vis) {
-            return error;
-        }
+        validate_if_private(&type_item, &type_item.vis)?;
 
         if type_item.generics.params.is_empty() {
             (
@@ -228,12 +216,12 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
                 *type_item.ty,
             )
         } else {
-            error!(type_item.generics, "must be without generics");
+            return error(type_item.generics, "must be without generics");
         }
     } else {
-        error!(
+        return error(
             type_item.ident,
-            "identifier of the state type must be `State`"
+            "identifier of the state type must be `State`",
         );
     };
 
@@ -243,30 +231,29 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
 
     for potential_function in potential_functions {
         let Item::Fn(function) = potential_function else {
-            error!(
+            return error(
                 potential_function,
                 "rest of items in a module with `#[metawasm]` must be functions"
             );
         };
 
-        if let Err(error) = validate_if_private(&function, &function.vis) {
-            return error;
-        }
+        validate_if_private(&function, &function.vis)?;
 
         let signature = function.sig;
 
-        if_some_error!(signature.constness, "mustn't be constant");
-        if_some_error!(signature.asyncness, "mustn't be asynchronous");
-        if_some_error!(signature.unsafety, "mustn't be unsafe");
-        if_some_error!(signature.abi, "mustn't have a binary interface");
-        if_some_error!(signature.variadic, "mustn't have the variadic argument");
+        if_some_return_error!(signature.constness, "mustn't be constant");
+        if_some_return_error!(signature.constness, "mustn't be constant");
+        if_some_return_error!(signature.asyncness, "mustn't be asynchronous");
+        if_some_return_error!(signature.unsafety, "mustn't be unsafe");
+        if_some_return_error!(signature.abi, "mustn't have a binary interface");
+        if_some_return_error!(signature.variadic, "mustn't have the variadic argument");
 
         if !signature.generics.params.is_empty() {
-            error!(signature.generics, "mustn't have generics");
+            return error(signature.generics, "mustn't have generics");
         }
 
         if signature.inputs.len() > 19 {
-            error!(signature.inputs, "too many arguments, no more 19 arguments must be here due restrictions of the SCALE codec");
+            return error(signature.inputs, "too many arguments, no more 19 arguments must be here due restrictions of the SCALE codec");
         }
 
         let signature_span = signature.span();
@@ -276,28 +263,24 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
 
         let first = if let Some(first) = inputs.next() {
             if let FnArg::Typed(first) = first {
-                if let Err(error) =
-                    validate_if_has_no_attributes(&first.attrs, "mustn't have attributes")
-                {
-                    return error;
-                }
+                validate_if_has_no_attributes(&first.attrs, "mustn't have attributes")?;
 
                 first
             } else {
-                error!(first, "mustn't be `self`");
+                return error(first, "mustn't be `self`");
             }
         } else {
-            error!(
+            return error(
                 signature.paren_token.span,
-                "mustn't be empty, add `state: State` or `_: State`"
+                "mustn't be empty, add `state: State` or `_: State`",
             );
         };
 
         // Checking the first argument's name
 
-        if let Pat::Ident(pat_ident) = first.pat.as_ref() {
+        if let Pat::Ident(ref pat_ident) = *first.pat {
             if pat_ident.ident != "state" && pat_ident.ident != "_state" {
-                error!(&pat_ident.ident, "must be `state` or `_state`");
+                return error(&pat_ident.ident, "must be `state` or `_state`");
             }
         }
 
@@ -322,11 +305,11 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
                     })
                     .unwrap_or(reference.and_token.span);
 
-                error!(span, "mustn't take a reference");
+                return error(span, "mustn't take a reference");
             }
             first_type => {
                 if first_type != state_type {
-                    error!(first_type, "first argument's type must be `State`");
+                    return error(first_type, "first argument's type must be `State`");
                 }
             }
         }
@@ -337,11 +320,7 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
 
         for argument in inputs {
             if let FnArg::Typed(argument) = argument {
-                if let Err(error) =
-                    validate_if_has_no_attributes(&argument.attrs, "mustn't have attributes")
-                {
-                    return error;
-                }
+                validate_if_has_no_attributes(&argument.attrs, "mustn't have attributes")?;
 
                 arguments.push((argument.pat, argument.ty));
             } else {
@@ -354,11 +333,13 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
         // Checking an output
 
         let return_type = match signature.output {
-            ReturnType::Default => error!(signature_span, "return type must be specified"),
+            ReturnType::Default => {
+                return error(signature_span, "return type must be specified");
+            }
             ReturnType::Type(_, return_type) => {
-                if let Type::Tuple(tuple) = return_type.as_ref() {
+                if let Type::Tuple(ref tuple) = *return_type {
                     if tuple.elems.is_empty() {
-                        error!(tuple, "return type mustn't be `()`");
+                        return error(tuple, "return type mustn't be `()`");
                     }
                 }
 
@@ -416,9 +397,9 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
         });
     }
 
-    let module_ident = proc_macro2::Ident::new(MODULE_NAME, proc_macro2::Span::call_site());
+    let module_ident = quote::format_ident!("{MODULE_NAME}");
 
-    quote! {
+    Ok(quote! {
         pub mod #module_ident {
             use super::*;
 
@@ -448,7 +429,7 @@ pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
 
             #(#public_functions)*
         }
-    }.into()
+    }.into())
 }
 
 struct CodeGenItems {
