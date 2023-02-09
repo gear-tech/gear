@@ -17,7 +17,7 @@ async fn two_nodes_run_independently() {
 }
 
 async fn upload_program_to_node(node: &Node, code: &[u8], salt: &[u8]) {
-    let api = GearApi::node(&node)
+    let api = GearApi::node(node)
         .await
         .expect("Unable to instantiate api.");
 
