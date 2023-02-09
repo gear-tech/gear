@@ -41,7 +41,7 @@ impl Node {
     /// the node getting initialized before returning it to a caller.
     /// Ideally, the node's binary should be downloaded by means of CI pipeline
     /// from https://get.gear.rs./
-    pub fn from_path(path: impl AsRef<OsStr>) -> Result<Self> {
+    pub fn try_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
         let port = port::pick();
         let port_string = port.to_string();
 
