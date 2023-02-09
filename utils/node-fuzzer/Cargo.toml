@@ -20,6 +20,7 @@ gear-call-gen = { path = "../call-gen" }
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
 gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
+gear-utils = { path = "../utils" }
 gear-runtime = { path = "../../runtime/gear" }
 pallet-gear = { path = "../../pallets/gear" }
 pallet-gear-gas = { path = "../../pallets/gas" }

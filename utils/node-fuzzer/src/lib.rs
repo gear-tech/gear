@@ -17,12 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_call_gen::{GearCall, SendMessageArgs, UploadProgramArgs};
-use gear_common::{storage::Limiter, GasPrice};
-use gear_core::{ids::ProgramId, utils::NonEmpty};
-use gear_runtime::{Gear, Runtime, RuntimeOrigin};
+use gear_common::{storage::Limiter, GasPrice, event::ProgramChangeKind};
+use gear_core::ids::ProgramId;
+use gear_utils::NonEmpty;
+use gear_runtime::{Gear, Runtime, RuntimeOrigin, System, RuntimeEvent};
 use once_cell::sync::OnceCell;
 use pallet_balances::Pallet as BalancesPallet;
-use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
+use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf, Event};
 use parking_lot::Mutex;
 use rand::{rngs::SmallRng, Rng, RngCore, SeedableRng};
 use runtime::*;
@@ -141,7 +142,19 @@ pub fn run(start_seed: u64) {
         // TODO [sab] catch panic here and save the ext.
         run_to_next_block();
 
-        // TODO [sab] parse events with newly created programs and e.t.c.
+        let mut initialized_programs: Vec<_> = System::events()
+            .into_iter()
+            .filter_map(|v| 
+                if let RuntimeEvent::Gear(Event::ProgramChanged { id, change: ProgramChangeKind::Active { .. } }) = v.event {
+                    Some(id)
+                } else {
+                    None
+                }
+            )
+            .collect();
+        
+        context.lock().programs.append(&mut initialized_programs);
+
     });
 }
 
