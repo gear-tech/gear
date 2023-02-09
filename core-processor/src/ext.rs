@@ -315,7 +315,7 @@ impl Ext {
         }
     }
 
-    fn charge_message_gas(&mut self, gas_limit: GasLimit) -> Result<(), ProcessorError> {
+    fn reduce_gas(&mut self, gas_limit: GasLimit) -> Result<(), ProcessorError> {
         if self.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
             Err(MessageError::NotEnoughGas.into())
         } else {
@@ -341,14 +341,16 @@ impl Ext {
 
         match packet.gas_limit() {
             Some(x) if x != 0 => {
+                log::debug!("gasfull send");
                 self.outgoing_gasless = 0;
 
                 let prev_gasless_fee =
                     outgoing_gasless.saturating_mul(self.context.mailbox_threshold);
 
-                self.charge_gas(prev_gasless_fee)?;
+                self.reduce_gas(prev_gasless_fee)?;
             }
-            _ => self.outgoing_gasless = outgoing_gasless.saturating_add(1),
+            None => self.outgoing_gasless = outgoing_gasless.saturating_add(1),
+            _ => {}
         };
 
         Ok(())
@@ -358,7 +360,7 @@ impl Ext {
         self.check_message_value(packet.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         let gas_limit = self.check_gas_limit(packet.gas_limit())?;
-        self.charge_message_gas(gas_limit)?;
+        self.reduce_gas(gas_limit)?;
         self.charge_message_value(packet.value())?;
         Ok(())
     }
@@ -668,6 +670,7 @@ impl EnvExt for Ext {
     }
 
     fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
+        log::debug!("charging gas: {val}");
         let common_charge = self.context.gas_counter.charge(val);
         let allowance_charge = self.context.gas_allowance_counter.charge(val);
         self.check_charge_results(common_charge, allowance_charge)
