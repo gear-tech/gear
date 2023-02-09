@@ -38,8 +38,8 @@ impl Node {
     }
 
     /// Wait for the block importing
-    pub fn wait(&mut self, log: &str) -> Result<String> {
-        let stderr = self.ps.stderr.take();
+    fn wait(&mut self, log: &str) -> Result<String> {
+        let stderr = self.ps.stderr.as_mut();
         let reader = BufReader::new(stderr.ok_or(Error::EmptyStderr)?);
         for line in reader.lines().flatten() {
             if line.contains(log) {

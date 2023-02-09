@@ -73,7 +73,7 @@ impl Node {
     }
 
     fn wait_for_log_record(&mut self, log: &str) -> Result<String> {
-        let stderr = self.process.stderr.take();
+        let stderr = self.process.stderr.as_mut();
         let reader = BufReader::new(stderr.ok_or(Error::EmptyStderr)?);
         for line in reader.lines().flatten() {
             if line.contains(log) {
