@@ -82,6 +82,8 @@ members = [
     "utils/validator-checks",
     "utils/call-gen",
     "utils/utils",
+    "utils/bags-thresholds",
+    "utils/integral-tests",
 ]
 
 [profile.release]
