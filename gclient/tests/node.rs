@@ -10,8 +10,8 @@ async fn two_nodes_run_independently() {
     let node_2 = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate dev node 2.");
     let salt = gclient::now_in_micros().to_le_bytes();
 
-    // The assumption is that it is not allowed to load the same code with the same salt
-    // to the same node twice
+    // The assumption is that it is not allowed to load the same code with the same
+    // salt to the same node twice
     upload_program_to_node(&node_1, WASM_BINARY, &salt).await;
     upload_program_to_node(&node_2, WASM_BINARY, &salt).await;
 }
