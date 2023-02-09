@@ -567,7 +567,7 @@ where
         let gas_for_delay = (delay as u64)
             .saturating_add(CostsPerBlockOf::<T>::reserve_for().unique_saturated_into())
             .saturating_mul(CostsPerBlockOf::<T>::dispatch_stash().unique_saturated_into());
-        
+
         let interval_finish;
 
         if to_user {
