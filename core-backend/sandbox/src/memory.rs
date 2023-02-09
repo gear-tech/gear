@@ -36,7 +36,7 @@ impl Memory for MemoryWrap {
         self.0
             .grow(pages.raw())
             .map(|_| ())
-            .map_err(|_| Error::OutOfBounds)
+            .map_err(|_| Error::ProgramAllocOutOfBounds)
     }
 
     fn size(&self) -> WasmPage {
@@ -47,13 +47,13 @@ impl Memory for MemoryWrap {
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
         self.0
             .set(offset, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| Error::AccessOutOfBounds)
     }
 
     fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
         self.0
             .get(offset, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| Error::AccessOutOfBounds)
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
@@ -110,7 +110,7 @@ mod tests {
         // no more mem!
         assert_err!(
             ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
-            Error::OutOfBounds
+            Error::ProgramAllocOutOfBounds
         );
 
         // but we free some
@@ -143,7 +143,7 @@ mod tests {
 
         assert_err!(
             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
-            Error::OutOfBounds
+            Error::ProgramAllocOutOfBounds
         );
     }
 }

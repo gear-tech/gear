@@ -30,7 +30,7 @@ use alloc::{
 use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
-    ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
+    BackendExt, BackendExtError, BackendReport, BackendTermination, Environment,
     EnvironmentExecutionError, EnvironmentExecutionResult, TerminationReason,
     STACK_END_EXPORT_NAME,
 };
@@ -189,7 +189,8 @@ where
 
         let runtime = State {
             ext,
-            err: ActorSyscallFuncError::Terminated(TerminationReason::Success).into(),
+            fallible_syscall_error: None,
+            termination_reason: TerminationReason::Success,
         };
 
         *store.state_mut() = Some(runtime);
@@ -336,18 +337,10 @@ where
             .take()
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"));
 
-        let State {
-            mut ext,
-            err: runtime_err,
-            ..
-        } = state;
-
-        ext.update_counters(gas as u64, allowance as u64);
-
-        log::debug!("WasmiEnvironment::execute result = {res:?}");
+        let (ext, _, termination_reason) = state.terminate(res, gas, allowance);
 
         Ok(BackendReport {
-            err: (res.is_err()).then_some(runtime_err),
+            termination_reason,
             memory_wrap: MemoryWrap::new(memory, store),
             ext,
         })

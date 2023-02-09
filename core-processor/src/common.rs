@@ -25,7 +25,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use gear_backend_common::{SystemReservationContext, SystemSyscallFuncError, TrapExplanation};
+use gear_backend_common::{SystemReservationContext, TrapExplanation};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -404,7 +404,7 @@ pub enum ExecutionError {
     /// Actor execution error
     #[display(fmt = "{_0}")]
     Actor(ActorExecutionError),
-    /// System execution erorr
+    /// System execution error
     #[display(fmt = "{_0}")]
     System(SystemExecutionError),
 }
@@ -452,10 +452,9 @@ pub enum SystemExecutionError {
     /// Environment error
     #[display(fmt = "Backend error: {_0}")]
     Environment(String),
-    /// Sys-call function error
-    #[from]
-    #[display(fmt = "Syscall function error: {_0}")]
-    SyscallFunc(SystemSyscallFuncError),
+    /// Wasm program backend execution error
+    #[display(fmt = "Backend error")]
+    BackendError,
     /// Error during `into_ext_info()` call
     #[display(fmt = "`into_ext_info()` error: {_0}")]
     IntoExtInfo(MemoryError),
