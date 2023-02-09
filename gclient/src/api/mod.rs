@@ -22,9 +22,10 @@ pub mod listener;
 mod rpc;
 pub mod storage;
 
-use crate::{node::ws::WSAddress, EventListener};
+use crate::{node::ws::WSAddress, node::Node, EventListener};
 use error::*;
 use gp::api::{signer::Signer, Api};
+use std::{marker::PhantomData, ops::Deref};
 use subxt::ext::sp_runtime::AccountId32;
 
 /// The API instance contains methods to access the node.
@@ -71,6 +72,17 @@ impl GearApi {
     /// local node working in developer mode (running with `--dev` argument).
     pub async fn dev() -> Result<Self> {
         Self::init(WSAddress::dev()).await
+    }
+
+    /// Create and init a new `GearApi` instance that will be used with the
+    /// local node working in developer mode (running with `--dev` argument)
+    /// and spawned programmatically via the `[crate::Node]` struct.
+    pub async fn node(node: &Node) -> Result<GearApiWithNode> {
+        let api = Self::init(node.ws_address().clone()).await?;
+        Ok(GearApiWithNode {
+            api,
+            phantom: PhantomData,
+        })
     }
 
     /// Create and init a new `GearApi` instance that will be used with the
@@ -133,5 +145,21 @@ impl GearApi {
     /// ```
     pub fn account_id(&self) -> &AccountId32 {
         self.0.account_id()
+    }
+}
+
+/// A struct playing a role of smart pointer to a `GearApi` instance
+/// created for working with a programmatically spawn node and preventing
+/// the refernced node being destroyed before the instance.
+pub struct GearApiWithNode<'a> {
+    api: GearApi,
+    phantom: PhantomData<&'a Node>,
+}
+
+impl Deref for GearApiWithNode<'_> {
+    type Target = GearApi;
+
+    fn deref(&self) -> &Self::Target {
+        &self.api
     }
 }
