@@ -341,7 +341,6 @@ impl Ext {
 
         match packet.gas_limit() {
             Some(x) if x != 0 => {
-                log::debug!("gasfull send");
                 self.outgoing_gasless = 0;
 
                 let prev_gasless_fee =
@@ -670,7 +669,6 @@ impl EnvExt for Ext {
     }
 
     fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
-        log::debug!("charging gas: {val}");
         let common_charge = self.context.gas_counter.charge(val);
         let allowance_charge = self.context.gas_allowance_counter.charge(val);
         self.check_charge_results(common_charge, allowance_charge)
