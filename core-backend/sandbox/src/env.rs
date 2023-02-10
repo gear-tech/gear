@@ -23,11 +23,11 @@ use crate::{
     memory::MemoryWrap,
     runtime::{self, Runtime},
 };
-use alloc::{collections::BTreeSet, string::ToString};
+use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
-    ActorSyscallFuncError, BackendExt, BackendExtError, BackendReport, Environment,
+    BackendExt, BackendExtError, BackendReport, BackendTermination, Environment,
     EnvironmentExecutionError, EnvironmentExecutionResult, TerminationReason,
     STACK_END_EXPORT_NAME,
 };
@@ -50,8 +50,6 @@ use sp_sandbox::{
 pub enum SandboxEnvironmentError {
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(sp_sandbox::Error),
-    #[display(fmt = "Unable to instantiate module: {_0:?}")]
-    ModuleInstantiation(sp_sandbox::Error),
     #[display(fmt = "Globals are not supported")]
     GlobalsNotSupported,
     #[display(fmt = "Gas counter not found or has wrong type")]
@@ -196,7 +194,7 @@ where
 
         let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.raw(), None) {
             Ok(mem) => mem,
-            Err(e) => return Err(Environment(CreateEnvMemory(e))),
+            Err(e) => return Err(System(CreateEnvMemory(e))),
         };
 
         builder.add_memory(memory.clone());
@@ -219,9 +217,10 @@ where
         let mut runtime = Runtime {
             ext,
             memory: MemoryWrap::new(memory),
-            err: ActorSyscallFuncError::Terminated(TerminationReason::Success).into(),
             globals: Default::default(),
             memory_manager: Default::default(),
+            fallible_syscall_error: None,
+            termination_reason: TerminationReason::Success,
         };
 
         match Instance::new(binary, &env_builder, &mut runtime) {
@@ -231,8 +230,7 @@ where
                 entries,
                 entry_point,
             }),
-            Err(sp_sandbox::Error::Execution) => Err(ModuleStart(runtime.ext.gas_amount())),
-            Err(e) => Err(Environment(ModuleInstantiation(e))),
+            Err(e) => Err(Actor(runtime.ext.gas_amount(), format!("{e:?}"))),
         }
     }
 
@@ -258,19 +256,19 @@ where
 
         runtime.globals = instance
             .instance_globals()
-            .ok_or(Environment(GlobalsNotSupported))?;
+            .ok_or(System(GlobalsNotSupported))?;
 
         let (gas, allowance) = runtime.ext.counters();
 
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .map_err(|_| Environment(WrongInjectedGas))?;
+            .map_err(|_| System(WrongInjectedGas))?;
 
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .map_err(|_| Environment(WrongInjectedAllowance))?;
+            .map_err(|_| System(WrongInjectedAllowance))?;
 
         let globals_config = if cfg!(not(feature = "std")) {
             GlobalsConfig {
@@ -304,28 +302,19 @@ where
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
             .and_then(runtime::as_i64)
-            .ok_or(Environment(WrongInjectedGas))?;
+            .ok_or(System(WrongInjectedGas))?;
 
         let allowance = runtime
             .globals
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(runtime::as_i64)
-            .ok_or(Environment(WrongInjectedAllowance))?;
+            .ok_or(System(WrongInjectedAllowance))?;
 
-        let Runtime {
-            err: runtime_err,
-            mut ext,
-            memory,
-            ..
-        } = runtime;
-
-        ext.update_counters(gas as u64, allowance as u64);
-
-        log::debug!("SandboxEnvironment::execute res = {res:?}");
+        let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gas, allowance);
 
         Ok(BackendReport {
-            err: (res.is_err()).then_some(runtime_err),
-            memory_wrap: memory,
+            termination_reason,
+            memory_wrap,
             ext,
         })
     }

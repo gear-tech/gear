@@ -238,6 +238,8 @@ pub trait Ext {
     /// Update counters with the provided values.
     fn update_counters(&mut self, gas: u64, allowance: u64);
 
+    // TODO: remove `out_of_gas` and `out_of_allowance` in #2212
+
     /// Handler for the case when gas is out.
     fn out_of_gas(&mut self) -> Self::Error;
 

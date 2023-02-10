@@ -24,14 +24,14 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    ActorSyscallFuncError, BackendExt, BackendExtError, BackendState, IntoExtErrorForResult,
-    SyscallFuncError, TerminationReason,
+    BackendExt, BackendExtError, BackendState, FuncError, TerminationReason,
 };
 use gear_core::{
     env::Ext,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
+use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
@@ -81,7 +81,6 @@ where
                 state
                     .ext
                     .send(HandlePacket::new(destination.into(), payload, value), delay)
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -121,7 +120,6 @@ where
                         HandlePacket::new_with_gas(destination.into(), payload, gas_limit, value),
                         delay,
                     )
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -158,7 +156,6 @@ where
                         HandlePacket::new(destination.into(), Default::default(), value),
                         delay,
                     )
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -201,7 +198,6 @@ where
                         ),
                         delay,
                     )
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -219,11 +215,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHandle>(err_handle_ptr, |ctx| {
                 let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .send_init()
-                    .into_ext_error(&mut state.err)
-                    .map_err(Into::into)
+                state.ext.send_init().map_err(Into::into)
             })
         };
 
@@ -248,11 +240,7 @@ where
                 let payload = ctx.read(read_payload)?;
 
                 let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .send_push(handle, &payload)
-                    .into_ext_error(&mut state.err)
-                    .map_err(Into::into)
+                state.ext.send_push(handle, &payload).map_err(Into::into)
             })
         };
 
@@ -292,7 +280,6 @@ where
                         HandlePacket::new(destination.into(), payload, value),
                         delay,
                     )
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -331,7 +318,6 @@ where
                         HandlePacket::new(destination.into(), Default::default(), value),
                         delay,
                     )
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -340,26 +326,21 @@ where
     }
 
     pub fn read(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
-        let func =
-            move |caller: Caller<'_, HostState<E>>,
-                  at: u32,
-                  len: u32,
-                  buffer_ptr: u32,
-                  err_len_ptr: u32|
-                  -> EmptyOutput {
-                let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
+        let func = move |caller: Caller<'_, HostState<E>>,
+                         at: u32,
+                         len: u32,
+                         buffer_ptr: u32,
+                         err_len_ptr: u32|
+              -> EmptyOutput {
+            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-                ctx.run_fallible_state_taken::<_, _, LengthBytes>(err_len_ptr, |ctx, state| {
-                    match state.ext.read(at, len).into_ext_error(&mut state.err)? {
-                        Ok(buf) => {
-                            let write_buffer = ctx.register_write(buffer_ptr, len);
-                            ctx.write(write_buffer, buf)?;
-                            Ok(Ok(()))
-                        }
-                        Err(err_len) => Ok(Err(err_len)),
-                    }
-                })
-            };
+            ctx.run_fallible_state_taken::<_, _, LengthBytes>(err_len_ptr, |ctx, state| {
+                let buffer = state.ext.read(at, len)?;
+
+                let write_buffer = ctx.register_write(buffer_ptr, len);
+                ctx.write(write_buffer, buffer).map_err(Into::into)
+            })
+        };
 
         Func::wrap(store, func)
     }
@@ -369,14 +350,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
+                let size = ctx.host_state_mut().ext.size()? as u32;
+
                 let write_size = ctx.register_write_as(length_ptr);
-
-                let size = ctx
-                    .host_state_mut()
-                    .ext
-                    .size()
-                    .map_err(ActorSyscallFuncError::Core)? as u32;
-
                 ctx.write_as(write_size, size.to_le_bytes())
                     .map_err(Into::into)
             })
@@ -391,15 +367,11 @@ where
 
             ctx.run(|ctx| -> Result<(), _> {
                 let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
-
                 let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
 
-                ctx.host_state_mut()
-                    .ext
-                    .exit()
-                    .map_err(ActorSyscallFuncError::Core)?;
+                ctx.host_state_mut().ext.exit()?;
 
-                Err(ActorSyscallFuncError::Terminated(TerminationReason::Exit(inheritor_id)).into())
+                Err(TerminationReason::Exit(inheritor_id).into())
             })
         };
 
@@ -416,11 +388,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithCode>(err_code_ptr, |ctx| {
                 let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .status_code()
-                    .into_ext_error(&mut state.err)
-                    .map_err(Into::into)
+                state.ext.status_code().map_err(Into::into)
             })
         };
 
@@ -435,10 +403,7 @@ where
 
             ctx.run_state_taken(|ctx, state| {
                 let mut mem = ctx.memory();
-                let page = state
-                    .ext
-                    .alloc(pages, &mut mem)
-                    .map_err(ActorSyscallFuncError::Core)?;
+                let page = state.ext.alloc(pages, &mut mem)?;
                 log::debug!("Alloc {:?} pages at {:?}", pages, page);
                 Ok((page.raw(),))
             })
@@ -458,8 +423,7 @@ where
                     .ext
                     .free(page)
                     .map(|_| log::debug!("Free {:?}", page))
-                    .map_err(ActorSyscallFuncError::Core)?;
-                Ok(())
+                    .map_err(Into::into)
             })
         };
 
@@ -475,14 +439,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
+                let height = ctx.host_state_mut().ext.block_height()?;
+
                 let write_height = ctx.register_write_as(height_ptr);
-
-                let height = ctx
-                    .host_state_mut()
-                    .ext
-                    .block_height()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_height, height.to_le_bytes())
                     .map_err(Into::into)
             })
@@ -500,14 +459,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
+                let timestamp = ctx.host_state_mut().ext.block_timestamp()?;
+
                 let write_timestamp = ctx.register_write_as(timestamp_ptr);
-
-                let timestamp = ctx
-                    .host_state_mut()
-                    .ext
-                    .block_timestamp()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_timestamp, timestamp.to_le_bytes())
                     .map_err(Into::into)
             })
@@ -521,14 +475,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
+                let origin = ctx.host_state_mut().ext.origin()?;
+
                 let write_origin = ctx.register_write_as(origin_ptr);
-
-                let origin = ctx
-                    .host_state_mut()
-                    .ext
-                    .origin()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_origin, origin.into_bytes())
                     .map_err(Into::into)
             })
@@ -562,7 +511,6 @@ where
                 state
                     .ext
                     .reply(ReplyPacket::new(payload, value), delay)
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -600,7 +548,6 @@ where
                 state
                     .ext
                     .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -632,7 +579,6 @@ where
                 state
                     .ext
                     .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -668,7 +614,6 @@ where
                         ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
                         delay,
                     )
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -708,7 +653,6 @@ where
                         ReplyPacket::new(payload, value),
                         delay,
                     )
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -744,7 +688,6 @@ where
                         ReplyPacket::new(Default::default(), value),
                         delay,
                     )
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -758,11 +701,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
                 let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .reply_to()
-                    .into_ext_error(&mut state.err)
-                    .map_err(Into::into)
+                state.ext.reply_to().map_err(Into::into)
             })
         };
 
@@ -779,11 +718,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
                 let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .signal_from()
-                    .into_ext_error(&mut state.err)
-                    .map_err(Into::into)
+                state.ext.signal_from().map_err(Into::into)
             })
         };
 
@@ -807,11 +742,7 @@ where
                 let payload = ctx.read(read_payload)?;
 
                 let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .reply_push(&payload)
-                    .into_ext_error(&mut state.err)
-                    .map_err(Into::into)
+                state.ext.reply_push(&payload).map_err(Into::into)
             })
         };
 
@@ -848,7 +779,7 @@ where
                         .reply_commit(ReplyPacket::new(Default::default(), value), delay)
                 };
 
-                f().into_ext_error(&mut state.err).map_err(Into::into)
+                f().map_err(Into::into)
             })
         };
 
@@ -869,11 +800,7 @@ where
 
             ctx.run_fallible::<_, _, LengthBytes>(err_ptr, |ctx| {
                 let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .reply_push_input(offset, len)
-                    .into_ext_error(&mut state.err)
-                    .map_err(Into::into)
+                state.ext.reply_push_input(offset, len).map_err(Into::into)
             })
         };
 
@@ -912,7 +839,7 @@ where
                     )
                 };
 
-                f().into_ext_error(&mut state.err).map_err(Into::into)
+                f().map_err(Into::into)
             })
         };
 
@@ -952,7 +879,7 @@ where
                     )
                 };
 
-                f().into_ext_error(&mut state.err).map_err(Into::into)
+                f().map_err(Into::into)
             })
         };
 
@@ -977,7 +904,6 @@ where
                 state
                     .ext
                     .send_push_input(handle, offset, len)
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -1024,7 +950,7 @@ where
                     )
                 };
 
-                f().into_ext_error(&mut state.err).map_err(Into::into)
+                f().map_err(Into::into)
             })
         };
 
@@ -1042,12 +968,7 @@ where
                     let data = ctx.read(read_data)?;
 
                     let s = String::from_utf8(data)?;
-                    ctx.host_state_mut()
-                        .ext
-                        .debug(&s)
-                        .map_err(ActorSyscallFuncError::Core)?;
-
-                    Ok(())
+                    ctx.host_state_mut().ext.debug(&s).map_err(Into::into)
                 })
             };
 
@@ -1068,11 +989,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_rid_ptr, |ctx| {
                 let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .reserve_gas(gas, duration)
-                    .into_ext_error(&mut state.err)
-                    .map_err(Into::into)
+                state.ext.reserve_gas(gas, duration).map_err(Into::into)
             })
         };
 
@@ -1095,11 +1012,7 @@ where
                 let id = ctx.read_decoded(read_reservation_id)?;
 
                 let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .unreserve_gas(id)
-                    .into_ext_error(&mut state.err)
-                    .map_err(Into::into)
+                state.ext.unreserve_gas(id).map_err(Into::into)
             })
         };
 
@@ -1116,11 +1029,7 @@ where
 
             ctx.run_fallible::<_, _, LengthBytes>(err_ptr, |ctx| {
                 let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .system_reserve_gas(gas)
-                    .into_ext_error(&mut state.err)
-                    .map_err(Into::into)
+                state.ext.system_reserve_gas(gas).map_err(Into::into)
             })
         };
 
@@ -1136,14 +1045,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
+                let gas = ctx.host_state_mut().ext.gas_available()?;
+
                 let write_gas = ctx.register_write_as(gas_ptr);
-
-                let gas = ctx
-                    .host_state_mut()
-                    .ext
-                    .gas_available()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_gas, gas.to_le_bytes())
                     .map_err(Into::into)
             })
@@ -1161,14 +1065,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
+                let message_id = ctx.host_state_mut().ext.message_id()?;
+
                 let write_message_id = ctx.register_write_as(message_id_ptr);
-
-                let message_id = ctx
-                    .host_state_mut()
-                    .ext
-                    .message_id()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_message_id, message_id.into_bytes())
                     .map_err(Into::into)
             })
@@ -1186,14 +1085,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
+                let program_id = ctx.host_state_mut().ext.program_id()?;
+
                 let write_program_id = ctx.register_write_as(program_id_ptr);
-
-                let program_id = ctx
-                    .host_state_mut()
-                    .ext
-                    .program_id()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_program_id, program_id.into_bytes())
                     .map_err(Into::into)
             })
@@ -1207,14 +1101,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
+                let source = ctx.host_state_mut().ext.source()?;
+
                 let write_source = ctx.register_write_as(source_ptr);
-
-                let source = ctx
-                    .host_state_mut()
-                    .ext
-                    .source()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_source, source.into_bytes())
                     .map_err(Into::into)
             })
@@ -1228,14 +1117,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
+                let value = ctx.host_state_mut().ext.value()?;
+
                 let write_value = ctx.register_write_as(value_ptr);
-
-                let value = ctx
-                    .host_state_mut()
-                    .ext
-                    .value()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_value, value.to_le_bytes())
                     .map_err(Into::into)
             })
@@ -1253,14 +1137,9 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| {
+                let value_available = ctx.host_state_mut().ext.value_available()?;
+
                 let write_value = ctx.register_write_as(value_ptr);
-
-                let value_available = ctx
-                    .host_state_mut()
-                    .ext
-                    .value_available()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_value, value_available.to_le_bytes())
                     .map_err(Into::into)
             })
@@ -1282,11 +1161,7 @@ where
 
                 let raw_subject: Hash = ctx.read_decoded(read_subject)?;
 
-                let (random, bn) = ctx
-                    .host_state_mut()
-                    .ext
-                    .random()
-                    .map_err(ActorSyscallFuncError::Core)?;
+                let (random, bn) = ctx.host_state_mut().ext.random()?;
                 let subject = [&raw_subject, random].concat();
 
                 let mut hash = [0; 32];
@@ -1305,14 +1180,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| -> Result<(), _> {
-                Err(ctx
-                    .host_state_mut()
-                    .ext
-                    .leave()
-                    .map_err(ActorSyscallFuncError::Core)
-                    .err()
-                    .unwrap_or(ActorSyscallFuncError::Terminated(TerminationReason::Leave)))
-                .map_err(Into::into)
+                ctx.host_state_mut().ext.leave()?;
+                Err(TerminationReason::Leave.into())
             })
         };
 
@@ -1324,19 +1193,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| -> Result<(), _> {
-                Err(ctx
-                    .host_state_mut()
-                    .ext
-                    .wait()
-                    .map_err(ActorSyscallFuncError::Core)
-                    .err()
-                    .unwrap_or_else(|| {
-                        ActorSyscallFuncError::Terminated(TerminationReason::Wait(
-                            None,
-                            MessageWaitedType::Wait,
-                        ))
-                    }))
-                .map_err(Into::into)
+                ctx.host_state_mut().ext.wait()?;
+                Err(TerminationReason::Wait(None, MessageWaitedType::Wait).into())
             })
         };
 
@@ -1348,19 +1206,8 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| -> Result<(), _> {
-                Err(ctx
-                    .host_state_mut()
-                    .ext
-                    .wait_for(duration)
-                    .map_err(ActorSyscallFuncError::Core)
-                    .err()
-                    .unwrap_or_else(|| {
-                        ActorSyscallFuncError::Terminated(TerminationReason::Wait(
-                            Some(duration),
-                            MessageWaitedType::WaitFor,
-                        ))
-                    }))
-                .map_err(Into::into)
+                ctx.host_state_mut().ext.wait_for(duration)?;
+                Err(TerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
             })
         };
 
@@ -1376,20 +1223,12 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|ctx| -> Result<(), _> {
-                Err(ActorSyscallFuncError::Terminated(TerminationReason::Wait(
-                    Some(duration),
-                    if ctx
-                        .host_state_mut()
-                        .ext
-                        .wait_up_to(duration)
-                        .map_err(ActorSyscallFuncError::Core)?
-                    {
-                        MessageWaitedType::WaitUpToFull
-                    } else {
-                        MessageWaitedType::WaitUpTo
-                    },
-                ))
-                .into())
+                let waited_type = if ctx.host_state_mut().ext.wait_up_to(duration)? {
+                    MessageWaitedType::WaitUpToFull
+                } else {
+                    MessageWaitedType::WaitUpTo
+                };
+                Err(TerminationReason::Wait(Some(duration), waited_type).into())
             })
         };
 
@@ -1410,11 +1249,7 @@ where
                 let message_id = ctx.read_decoded(read_message_id)?;
 
                 let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .wake(message_id, delay)
-                    .into_ext_error(&mut state.err)
-                    .map_err(Into::into)
+                state.ext.wake(message_id, delay).map_err(Into::into)
             })
         };
 
@@ -1453,7 +1288,6 @@ where
                 state
                     .ext
                     .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -1497,7 +1331,6 @@ where
                         InitPacket::new_with_gas(code_id.into(), salt, payload, gas_limit, value),
                         delay,
                     )
-                    .into_ext_error(&mut state.err)
                     .map_err(Into::into)
             })
         };
@@ -1513,19 +1346,17 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, |ctx| {
-                ctx.host_state_mut()
-                    .ext
-                    .charge_error()
-                    .map_err(ActorSyscallFuncError::Core)?;
+                let state = ctx.host_state_mut();
 
-                match ctx.host_state_mut().last_err() {
-                    Ok(err) => {
-                        let err = err.encode();
-                        let write_error_bytes = ctx.register_write(err_buf_ptr, err.len() as u32);
-                        ctx.write(write_error_bytes, err.as_ref())?;
-                        Ok(Ok(()))
-                    }
-                    Err(err) => Ok(Err(err.encoded_size() as u32)),
+                state.ext.charge_error()?;
+
+                if let Some(err) = state.fallible_syscall_error.as_ref() {
+                    let err = err.encode();
+                    let write_error_bytes = ctx.register_write(err_buf_ptr, err.len() as u32);
+                    ctx.write(write_error_bytes, err.as_ref())
+                        .map_err(Into::into)
+                } else {
+                    Err(E::Error::from_ext_error(ExtError::SyscallUsage).into())
                 }
             })
         };
@@ -1535,12 +1366,9 @@ where
 
     pub fn out_of_gas(store: &mut Store<HostState<E>>) -> Func {
         let func = move |mut caller: Caller<'_, HostState<E>>| -> EmptyOutput {
-            let host_state = caller
-                .host_data_mut()
-                .as_mut()
-                .expect("host_state should be set before execution");
-
-            host_state.err = ActorSyscallFuncError::Core(host_state.ext.out_of_gas()).into();
+            let host_state = internal::caller_host_state_mut(&mut caller);
+            let termination_reason = host_state.ext.out_of_gas().into_termination_reason();
+            host_state.set_termination_reason(termination_reason);
             Err(TrapCode::Unreachable.into())
         };
 
@@ -1549,13 +1377,9 @@ where
 
     pub fn out_of_allowance(store: &mut Store<HostState<E>>) -> Func {
         let func = move |mut caller: Caller<'_, HostState<E>>| -> EmptyOutput {
-            let host_state = caller
-                .host_data_mut()
-                .as_mut()
-                .expect("host_state should be set before execution");
-
-            host_state.err = ActorSyscallFuncError::Core(host_state.ext.out_of_allowance()).into();
-
+            let host_state = internal::caller_host_state_mut(&mut caller);
+            let termination_reason = host_state.ext.out_of_allowance().into_termination_reason();
+            host_state.set_termination_reason(termination_reason);
             Err(TrapCode::Unreachable.into())
         };
 
