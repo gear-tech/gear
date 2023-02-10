@@ -101,7 +101,7 @@ pub fn init_program<E, JH>(
     journal_handler: &mut JH,
 ) -> anyhow::Result<()>
 where
-    E: Environment<Ext>,
+    E: Environment<Ext = Ext>,
     JH: JournalHandler + CollectState + ExecutionContext,
 {
     let code = Code::try_new(
@@ -160,12 +160,13 @@ where
 
     let (code, ..) = code.into_parts();
 
-    let journal = core_processor::process::<Ext, E>(
+    let journal = core_processor::process::<E>(
         &block_config,
         (context, code, 0u128, ProgramId::default()).into(),
         (random.to_vec(), block_config.block_info.height),
         Default::default(),
-    );
+    )
+    .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e));
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -178,7 +179,7 @@ pub fn init_fixture<E, JH>(
     journal_handler: &mut JH,
 ) -> anyhow::Result<()>
 where
-    E: Environment<Ext>,
+    E: Environment<Ext = Ext>,
     JH: JournalHandler + CollectState + ExecutionContext,
 {
     let mut nonce = 1;
@@ -322,7 +323,7 @@ pub fn run<JH, E>(
 ) -> Vec<(State, anyhow::Result<()>)>
 where
     JH: JournalHandler + CollectState + ExecutionContext,
-    E: Environment<Ext>,
+    E: Environment<Ext = Ext>,
 {
     let mut results = Vec::new();
     let mut state = journal_handler.collect();
@@ -377,12 +378,13 @@ where
         let mut random = [0u8; 32];
         rng.fill_bytes(&mut random);
 
-        core_processor::process::<Ext, E>(
+        core_processor::process::<E>(
             &block_config,
             (context, code, balance, ProgramId::default()).into(),
             (random.to_vec(), block_config.block_info.height),
             memory_pages,
         )
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
     };
 
     if let Some(steps) = steps {
@@ -466,7 +468,7 @@ where
 fn test_block_config(block_info: BlockInfo) -> BlockConfig {
     BlockConfig {
         block_info,
-        allocations_config: Default::default(),
+        pages_config: Default::default(),
         existential_deposit: EXISTENTIAL_DEPOSIT,
         outgoing_limit: OUTGOING_LIMIT,
         host_fn_weights: Default::default(),

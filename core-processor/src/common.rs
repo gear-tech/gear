@@ -18,6 +18,7 @@
 
 //! Common structures for processing.
 
+use crate::{executor::SystemPrepareMemoryError, precharge::GasOperation, ActorPrepareMemoryError};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -28,7 +29,7 @@ use gear_backend_common::{SystemReservationContext, TrapExplanation};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    memory::{GearPage, PageBuf, WasmPage},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
@@ -76,9 +77,9 @@ pub struct DispatchResult {
     /// System reservation context.
     pub system_reservation_context: SystemReservationContext,
     /// Page updates.
-    pub page_update: BTreeMap<PageNumber, PageBuf>,
+    pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program if it has been changed.
-    pub allocations: Option<BTreeSet<WasmPageNumber>>,
+    pub allocations: BTreeSet<WasmPage>,
 }
 
 impl DispatchResult {
@@ -232,7 +233,7 @@ pub enum JournalNote {
         /// Program that owns the page.
         program_id: ProgramId,
         /// Number of the page.
-        page_number: PageNumber,
+        page_number: GearPage,
         /// New data of the page.
         data: PageBuf,
     },
@@ -242,7 +243,7 @@ pub enum JournalNote {
         /// Program id.
         program_id: ProgramId,
         /// New allocations set for the program.
-        allocations: BTreeSet<WasmPageNumber>,
+        allocations: BTreeSet<WasmPage>,
     },
     /// Send value
     SendValue {
@@ -358,13 +359,9 @@ pub trait JournalHandler {
         delay: u32,
     );
     /// Process page update.
-    fn update_pages_data(
-        &mut self,
-        program_id: ProgramId,
-        pages_data: BTreeMap<PageNumber, PageBuf>,
-    );
+    fn update_pages_data(&mut self, program_id: ProgramId, pages_data: BTreeMap<GearPage, PageBuf>);
     /// Process [JournalNote::UpdateAllocations].
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPageNumber>);
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>);
     /// Send value.
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
     /// Store new programs in storage.
@@ -401,97 +398,66 @@ pub trait JournalHandler {
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId);
 }
 
-/// Execution error.
-#[derive(Debug)]
-pub struct ExecutionError {
-    /// Id of the program that generated execution error.
-    pub program_id: ProgramId,
+/// Execution error
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum ExecutionError {
+    /// Actor execution error
+    #[display(fmt = "{_0}")]
+    Actor(ActorExecutionError),
+    /// System execution error
+    #[display(fmt = "{_0}")]
+    System(SystemExecutionError),
+}
+
+/// Actor execution error.
+#[derive(Debug, derive_more::Display)]
+#[display(fmt = "{reason}")]
+pub struct ActorExecutionError {
     /// Gas amount of the execution.
     pub gas_amount: GasAmount,
     /// Error text.
-    pub reason: ExecutionErrorReason,
-}
-
-/// Operation related to gas charging.
-#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-pub enum GasOperation {
-    /// Load existing memory.
-    #[display(fmt = "load memory")]
-    LoadMemory,
-    /// Grow memory size.
-    #[display(fmt = "grow memory size")]
-    GrowMemory,
-    /// Handle initial memory.
-    #[display(fmt = "handle initial memory")]
-    InitialMemory,
-    /// Handle program data.
-    #[display(fmt = "handle program data")]
-    ProgramData,
-    /// Handle program code.
-    #[display(fmt = "handle program code")]
-    ProgramCode,
-    /// Instantiate Wasm module.
-    #[display(fmt = "instantiate Wasm module")]
-    ModuleInstantiation,
-    /// Instrument Wasm module.
-    #[display(fmt = "instrument Wasm module")]
-    ModuleInstrumentation,
+    pub reason: ActorExecutionErrorReason,
 }
 
 /// Reason of execution error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-pub enum ExecutionErrorReason {
-    /// Memory error
+pub enum ActorExecutionErrorReason {
+    /// Not enough gas to perform an operation.
+    #[display(fmt = "Not enough gas to {_0}")]
+    GasExceeded(GasOperation),
+    /// Prepare memory error
     #[display(fmt = "{_0}")]
-    Memory(MemoryError),
+    PrepareMemory(ActorPrepareMemoryError),
     /// Backend error
-    #[display(fmt = "{_0}")]
-    Backend(String),
+    #[display(fmt = "Environment error: {_0}")]
+    Environment(String),
     /// Ext error
     #[display(fmt = "{_0}")]
     Ext(TrapExplanation),
     /// Not executable actor.
     #[display(fmt = "Not executable actor")]
     NonExecutable,
-    /// Program's max page is not last page in wasm page
-    #[display(fmt = "Program's max page is not last page in wasm page")]
-    NotLastPage,
-    /// Not enough gas to perform an operation.
-    #[display(fmt = "Not enough gas to {_0}")]
-    GasExceeded(GasOperation),
-    /// Not enough gas in block to perform an operation.
-    #[display(fmt = "Not enough gas in block to {_0}")]
-    BlockGasExceeded(GasOperation),
-    /// Mem size less then static pages num
-    #[display(fmt = "Mem size less then static pages num")]
-    InsufficientMemorySize,
-    /// Changed page has no data in initial pages
-    #[display(fmt = "Changed page has no data in initial pages")]
-    PageNoData,
-    /// Page with data is not allocated for program
-    #[display(fmt = "{_0:?} is not allocated for program")]
-    PageIsNotAllocated(PageNumber),
-    /// Cannot read initial memory data from wasm memory.
-    #[display(fmt = "Cannot read data for {_0:?}: {_1}")]
-    InitialMemoryReadFailed(PageNumber, MemoryError),
-    /// Cannot write initial data to wasm memory.
-    #[display(fmt = "Cannot write initial data for {_0:?}: {_1}")]
-    InitialDataWriteFailed(PageNumber, MemoryError),
     /// Message killed from storage as out of rent.
     #[display(fmt = "Out of rent")]
     OutOfRent,
-    /// Initial pages data must be empty in lazy pages mode
-    #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
-    InitialPagesContainsDataInLazyPagesMode,
-    /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
-    #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
-    StackEndPageBiggerWasmMemSize(WasmPageNumber, WasmPageNumber),
-    /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
-    #[display(fmt = "Set initial data for stack pages is restricted")]
-    StackPagesHaveInitialData,
-    /// Lazy page status must be set before contract execution.
-    #[display(fmt = "Lazy page status must be set before contract execution")]
-    LazyPagesStatusIsNone,
+}
+
+/// System execution error
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum SystemExecutionError {
+    /// Prepare memory error
+    #[from]
+    #[display(fmt = "Prepare memory: {_0}")]
+    PrepareMemory(SystemPrepareMemoryError),
+    /// Environment error
+    #[display(fmt = "Backend error: {_0}")]
+    Environment(String),
+    /// Wasm program backend execution error
+    #[display(fmt = "Backend error")]
+    BackendError,
+    /// Error during `into_ext_info()` call
+    #[display(fmt = "`into_ext_info()` error: {_0}")]
+    IntoExtInfo(MemoryError),
 }
 
 /// Actor.
@@ -509,15 +475,15 @@ pub struct Actor {
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct ExecutableActorData {
     /// Set of dynamic wasm page numbers, which are allocated by the program.
-    pub allocations: BTreeSet<WasmPageNumber>,
+    pub allocations: BTreeSet<WasmPage>,
     /// Set of gear pages numbers, which has data in storage.
-    pub pages_with_data: BTreeSet<PageNumber>,
+    pub pages_with_data: BTreeSet<GearPage>,
     /// Id of the program code.
     pub code_id: CodeId,
     /// Exported functions by the program code.
     pub code_exports: BTreeSet<DispatchKind>,
     /// Count of static memory pages.
-    pub static_pages: WasmPageNumber,
+    pub static_pages: WasmPage,
     /// Flag indicates if the program is initialized.
     pub initialized: bool,
     /// Gas reservation map.
@@ -537,9 +503,9 @@ pub struct WasmExecutionContext {
     /// Program to be executed.
     pub program: Program,
     /// Memory pages with initial data.
-    pub pages_initial_data: BTreeMap<PageNumber, PageBuf>,
+    pub pages_initial_data: BTreeMap<GearPage, PageBuf>,
     /// Size of the memory block.
-    pub memory_size: WasmPageNumber,
+    pub memory_size: WasmPage,
 }
 
 /// Struct with dispatch and counters charged for program data.

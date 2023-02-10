@@ -19,11 +19,10 @@
 use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
-    wasm_executor::WasmExecutor,
-    Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, INITIAL_RANDOM_SEED,
-    MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
-    MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
-    RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
+    Result, TestError, EXISTENTIAL_DEPOSIT, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD,
+    MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST,
+    MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR,
+    WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
 };
 use core_processor::{
     common::*,
@@ -34,15 +33,15 @@ use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
+    memory::{GearPage, PageBuf, PageU32Size, WasmPage},
     message::{
-        Dispatch, DispatchKind, MessageWaitedType, Payload, ReplyMessage, ReplyPacket,
-        StoredDispatch, StoredMessage,
+        Dispatch, DispatchKind, MessageWaitedType, ReplyMessage, ReplyPacket, StoredDispatch,
+        StoredMessage,
     },
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_wasm_instrument::{parity_wasm, wasm_instrument::gas_metering::ConstantCostRules};
+use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
@@ -95,7 +94,7 @@ impl TestActor {
         matches!(self, TestActor::Uninitialized(..))
     }
 
-    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<PageNumber, PageBuf>> {
+    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
         match self {
             TestActor::Initialized(Program::Genuine { pages_data, .. })
             | TestActor::Uninitialized(_, Some(Program::Genuine { pages_data, .. })) => {
@@ -114,21 +113,13 @@ impl TestActor {
         }
     }
 
-    fn code_id(&self) -> Option<CodeId> {
-        match self {
-            TestActor::Initialized(Program::Genuine { code_id, .. })
-            | TestActor::Uninitialized(_, Some(Program::Genuine { code_id, .. })) => Some(*code_id),
-            _ => None,
-        }
-    }
-
     // Gets a new executable actor derived from the inner program.
     fn get_executable_actor_data(
         &self,
     ) -> Option<(
         ExecutableActorData,
         CoreProgram,
-        BTreeMap<PageNumber, PageBuf>,
+        BTreeMap<GearPage, PageBuf>,
     )> {
         let (program, pages_data, code_id, gas_reservation_map) = match self {
             TestActor::Initialized(Program::Genuine {
@@ -177,7 +168,7 @@ pub(crate) enum Program {
     Genuine {
         program: CoreProgram,
         code_id: CodeId,
-        pages_data: BTreeMap<PageNumber, PageBuf>,
+        pages_data: BTreeMap<GearPage, PageBuf>,
         gas_reservation_map: GasReservationMap,
     },
     // Contract: is always `Some`, option is used to take ownership
@@ -188,7 +179,7 @@ impl Program {
     pub(crate) fn new(
         program: CoreProgram,
         code_id: CodeId,
-        pages_data: BTreeMap<PageNumber, PageBuf>,
+        pages_data: BTreeMap<GearPage, PageBuf>,
         gas_reservation_map: GasReservationMap,
     ) -> Self {
         Program::Genuine {
@@ -439,13 +430,62 @@ impl ExtManager {
 
     /// Call non-void meta function from actor stored in manager.
     /// Warning! This is a static call that doesn't change actors pages data.
-    pub(crate) fn call_meta(
+    pub(crate) fn read_state_bytes(&mut self, program_id: &ProgramId) -> Result<Vec<u8>> {
+        let (actor, _balance) = self
+            .actors
+            .get_mut(program_id)
+            .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
+
+        if let Some((_, program, memory_pages)) = actor.get_executable_actor_data() {
+            core_processor::informational::execute_for_reply::<WasmiEnvironment<Ext, _>, _>(
+                String::from("state"),
+                program.code().clone(),
+                Some(memory_pages),
+                Some(program.allocations().clone()),
+                Some(*program_id),
+                Default::default(),
+                u64::MAX,
+                self.block_info,
+            )
+            .map_err(TestError::ReadStateError)
+        } else if let Some(mut program_mock) = actor.take_mock() {
+            program_mock
+                .state()
+                .map_err(|err| TestError::ReadStateError(err.into()))
+        } else {
+            Err(TestError::ActorIsNotExecutable(*program_id))
+        }
+    }
+
+    pub(crate) fn read_state_bytes_using_wasm(
         &mut self,
         program_id: &ProgramId,
-        payload: Option<Payload>,
-        function_name: &str,
+        fn_name: &str,
+        wasm: Vec<u8>,
+        argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
-        self.execute(program_id, payload, function_name)
+        let mapping_code =
+            Code::new_raw(wasm, 1, None, true, false).map_err(|_| TestError::Instrumentation)?;
+
+        let mapping_code = InstrumentedCodeAndId::from(CodeAndId::new(mapping_code))
+            .into_parts()
+            .0;
+
+        // The `metawasm` macro knows how to decode this as a tuple
+        let mut mapping_code_payload = argument.unwrap_or_default();
+        mapping_code_payload.append(&mut self.read_state_bytes(program_id)?);
+
+        core_processor::informational::execute_for_reply::<WasmiEnvironment<Ext, _>, _>(
+            String::from(fn_name),
+            mapping_code,
+            None,
+            None,
+            None,
+            mapping_code_payload,
+            u64::MAX,
+            self.block_info,
+        )
+        .map_err(TestError::ReadStateError)
     }
 
     pub(crate) fn is_user(&self, id: &ProgramId) -> bool {
@@ -649,7 +689,7 @@ impl ExtManager {
         balance: u128,
         data: ExecutableActorData,
         code: InstrumentedCode,
-        memory_pages: BTreeMap<PageNumber, PageBuf>,
+        memory_pages: BTreeMap<GearPage, PageBuf>,
         dispatch: StoredDispatch,
     ) {
         self.process_dispatch(balance, Some((data, code)), memory_pages, dispatch);
@@ -663,7 +703,7 @@ impl ExtManager {
         &mut self,
         balance: u128,
         data: Option<(ExecutableActorData, InstrumentedCode)>,
-        memory_pages: BTreeMap<PageNumber, PageBuf>,
+        memory_pages: BTreeMap<GearPage, PageBuf>,
         dispatch: StoredDispatch,
     ) {
         let dest = dispatch.destination();
@@ -674,7 +714,7 @@ impl ExtManager {
             .unwrap_or(u64::MAX);
         let block_config = BlockConfig {
             block_info: self.block_info,
-            allocations_config: Default::default(),
+            pages_config: Default::default(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
             outgoing_limit: OUTGOING_LIMIT,
             host_fn_weights: Default::default(),
@@ -735,58 +775,15 @@ impl ExtManager {
             }
         };
 
-        let journal = core_processor::process::<Ext, WasmiEnvironment<Ext>>(
+        let journal = core_processor::process::<WasmiEnvironment<Ext>>(
             &block_config,
             (context, code, balance, self.origin).into(),
             self.random_data.clone(),
             memory_pages,
-        );
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e));
 
         core_processor::handle_journal(journal, self);
-    }
-
-    fn execute(
-        &mut self,
-        program_id: &ProgramId,
-        payload: Option<Payload>,
-        function_name: &str,
-    ) -> Result<Vec<u8>> {
-        let (actor, _balance) = self
-            .actors
-            .get_mut(program_id)
-            .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
-
-        let code_id = actor.code_id();
-        let (_data, program, memory) = actor
-            .get_executable_actor_data()
-            .ok_or_else(|| TestError::ActorIsNotExecutable(*program_id))?;
-        let pages_initial_data = memory
-            .into_iter()
-            .map(|(page, data)| (page, Box::new(data)))
-            .collect();
-        let meta_binary = code_id
-            .and_then(|code_id| self.meta_binaries.get(&code_id))
-            .map(Vec::as_slice)
-            .ok_or(TestError::MetaBinaryNotProvided)?;
-
-        let mut ext = WasmExecutor::build_ext(&program, payload.unwrap_or_default());
-
-        WasmExecutor::update_ext(&mut ext, self);
-
-        let module =
-            parity_wasm::deserialize_buffer(meta_binary).map_err(|_| TestError::Instrumentation)?;
-        let module = gear_wasm_instrument::inject(module, &ConstantCostRules::default(), "env")
-            .map_err(|_| TestError::Instrumentation)?;
-        let instrumented =
-            parity_wasm::elements::serialize(module).map_err(|_| TestError::Instrumentation)?;
-
-        WasmExecutor::execute(
-            ext,
-            &program,
-            &instrumented,
-            &pages_initial_data,
-            function_name,
-        )
     }
 }
 
@@ -848,7 +845,7 @@ impl JournalHandler for ExtManager {
             let message = match message.status_code() {
                 Some(0) | None => message,
                 _ => message
-                    .with_string_payload::<ExecutionErrorReason>()
+                    .with_string_payload::<ActorExecutionErrorReason>()
                     .unwrap_or_else(|e| e),
             };
 
@@ -887,7 +884,7 @@ impl JournalHandler for ExtManager {
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        mut pages_data: BTreeMap<PageNumber, PageBuf>,
+        mut pages_data: BTreeMap<GearPage, PageBuf>,
     ) {
         let (actor, _) = self
             .actors
@@ -901,7 +898,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPageNumber>) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
         let (actor, _) = self
             .actors
             .get_mut(&program_id)

@@ -19,29 +19,26 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{
-    funcs::{FuncError, FuncsHandler as Funcs},
+    funcs::FuncsHandler as Funcs,
     memory::MemoryWrap,
     runtime::{self, Runtime},
 };
-use alloc::{
-    collections::BTreeSet,
-    string::{String, ToString},
-};
-use core::fmt;
+use alloc::{collections::BTreeSet, format, string::ToString};
+use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
-    calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
-    GetGasAmount, IntoExtInfo, StackEndError, TerminationReason, TrapExplanation,
+    lazy_pages::{GlobalsAccessMod, GlobalsConfig},
+    BackendExt, BackendExtError, BackendReport, BackendTermination, Environment,
+    EnvironmentExecutionError, EnvironmentExecutionResult, TerminationReason,
     STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
-    gas::GasAmount,
-    memory::{PageU32Size, WasmPageNumber},
+    memory::{PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS,
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS,
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -49,47 +46,22 @@ use sp_sandbox::{
     SandboxMemory, Value,
 };
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
+#[derive(Debug, derive_more::Display)]
 pub enum SandboxEnvironmentError {
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(sp_sandbox::Error),
-    #[display(fmt = "Unable to instantiate module: {_0:?}")]
-    ModuleInstantiation(sp_sandbox::Error),
-    #[display(fmt = "Unable to get wasm module exports: {_0}")]
-    GetWasmExports(String),
-    #[display(fmt = "Unable to set module memory data")]
-    SetModuleMemoryData,
-    #[display(fmt = "Unable to save static pages initial data")]
-    SaveStaticPagesInitialData,
-    #[display(fmt = "{_0}")]
-    PreExecutionHandler(String),
-    #[from]
-    StackEnd(StackEndError),
-    #[display(fmt = "Mutable globals are not supported")]
-    MutableGlobalsNotSupported,
+    #[display(fmt = "Globals are not supported")]
+    GlobalsNotSupported,
     #[display(fmt = "Gas counter not found or has wrong type")]
     WrongInjectedGas,
     #[display(fmt = "Allowance counter not found or has wrong type")]
     WrongInjectedAllowance,
 }
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-#[display(fmt = "{error}")]
-pub struct Error {
-    gas_amount: GasAmount,
-    error: SandboxEnvironmentError,
-}
-
-impl GetGasAmount for Error {
-    fn gas_amount(&self) -> GasAmount {
-        self.gas_amount.clone()
-    }
-}
-
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment<E, EP = DispatchKind>
 where
-    E: Ext + IntoExtInfo<E::Error>,
+    E: Ext,
     EP: WasmEntry,
 {
     instance: Instance<Runtime<E>>,
@@ -100,17 +72,18 @@ where
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<E: Ext + IntoExtInfo<E::Error>> {
+struct EnvBuilder<E: Ext> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
     forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
 }
 
-impl<E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<E> {
-    fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>)
-    where
-        E::Error: AsTerminationReason + IntoExtError,
-    {
+impl<E> EnvBuilder<E>
+where
+    E: BackendExt + 'static,
+    E::Error: BackendExtError,
+{
+    fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>) {
         if self.forbidden_funcs.contains(&name) {
             self.env_def_builder
                 .add_host_func("env", name.to_str(), Funcs::forbidden);
@@ -121,38 +94,35 @@ impl<E: Ext + IntoExtInfo<E::Error> + 'static> EnvBuilder<E> {
         self.funcs_count += 1;
     }
 
-    fn add_memory(&mut self, memory: DefaultExecutorMemory)
-    where
-        E::Error: AsTerminationReason + IntoExtError,
-    {
+    fn add_memory(&mut self, memory: DefaultExecutorMemory) {
         self.env_def_builder.add_memory("env", "memory", memory);
     }
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> From<EnvBuilder<E>>
-    for EnvironmentDefinitionBuilder<Runtime<E>>
-{
+impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
     fn from(builder: EnvBuilder<E>) -> Self {
         builder.env_def_builder
     }
 }
 
-impl<E, EP> Environment<E, EP> for SandboxEnvironment<E, EP>
+impl<E, EP> Environment<EP> for SandboxEnvironment<E, EP>
 where
-    E: Ext + IntoExtInfo<E::Error> + GetGasAmount + 'static,
-    E::Error: AsTerminationReason + IntoExtError,
+    E: BackendExt + 'static,
+    E::Error: BackendExtError,
     EP: WasmEntry,
 {
+    type Ext = E;
     type Memory = MemoryWrap;
-    type Error = Error;
+    type Error = SandboxEnvironmentError;
 
     fn new(
-        ext: E,
+        ext: Self::Ext,
         binary: &[u8],
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
-        mem_size: WasmPageNumber,
-    ) -> Result<Self, Self::Error> {
+        mem_size: WasmPage,
+    ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>> {
+        use EnvironmentExecutionError::*;
         use SandboxEnvironmentError::*;
 
         let entry_forbidden = entry_point
@@ -224,7 +194,7 @@ where
 
         let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.raw(), None) {
             Ok(mem) => mem,
-            Err(e) => return Err((ext.gas_amount(), CreateEnvMemory(e)).into()),
+            Err(e) => return Err(System(CreateEnvMemory(e))),
         };
 
         builder.add_memory(memory.clone());
@@ -247,9 +217,10 @@ where
         let mut runtime = Runtime {
             ext,
             memory: MemoryWrap::new(memory),
-            err: FuncError::Terminated(TerminationReason::Success),
             globals: Default::default(),
             memory_manager: Default::default(),
+            fallible_syscall_error: None,
+            termination_reason: TerminationReason::Success,
         };
 
         match Instance::new(binary, &env_builder, &mut runtime) {
@@ -259,18 +230,16 @@ where
                 entries,
                 entry_point,
             }),
-            Err(e) => Err((runtime.ext.gas_amount(), ModuleInstantiation(e)).into()),
+            Err(e) => Err(Actor(runtime.ext.gas_amount(), format!("{e:?}"))),
         }
     }
 
-    fn execute<F, T>(
-        self,
-        pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
+    fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
-        T: fmt::Display,
+        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
+        T: Display,
     {
+        use EnvironmentExecutionError::*;
         use SandboxEnvironmentError::*;
 
         let Self {
@@ -282,32 +251,41 @@ where
 
         let stack_end = instance
             .get_global_val(STACK_END_EXPORT_NAME)
-            .and_then(|global| global.as_i32());
-        let stack_end_page = match calc_stack_end(stack_end) {
-            Ok(s) => s,
-            Err(e) => return Err((runtime.ext.gas_amount(), StackEnd(e)).into()),
-        };
+            .and_then(|global| global.as_i32())
+            .map(|global| global as u32);
 
         runtime.globals = instance
             .instance_globals()
-            .ok_or((runtime.ext.gas_amount(), MutableGlobalsNotSupported))?;
+            .ok_or(System(GlobalsNotSupported))?;
 
         let (gas, allowance) = runtime.ext.counters();
 
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedGas))?;
+            .map_err(|_| System(WrongInjectedGas))?;
 
         runtime
             .globals
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .map_err(|_| (runtime.ext.gas_amount(), WrongInjectedAllowance))?;
+            .map_err(|_| System(WrongInjectedAllowance))?;
 
-        match pre_execution_handler(&mut runtime.memory, stack_end_page) {
+        let globals_config = if cfg!(not(feature = "std")) {
+            GlobalsConfig {
+                global_gas_name: GLOBAL_NAME_GAS.to_string(),
+                global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
+                global_flags_name: GLOBAL_NAME_FLAGS.to_string(),
+                globals_access_ptr: instance.get_instance_ptr(),
+                globals_access_mod: GlobalsAccessMod::WasmRuntime,
+            }
+        } else {
+            unreachable!("We cannot use sandbox backend in std environment currently");
+        };
+
+        match pre_execution_handler(&mut runtime.memory, stack_end, globals_config) {
             Ok(_) => (),
             Err(e) => {
-                return Err((runtime.ext.gas_amount(), PreExecutionHandler(e.to_string())).into());
+                return Err(PrepareMemory(runtime.ext.gas_amount(), e));
             }
         }
 
@@ -324,45 +302,19 @@ where
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
             .and_then(runtime::as_i64)
-            .ok_or((runtime.ext.gas_amount(), WrongInjectedGas))?;
+            .ok_or(System(WrongInjectedGas))?;
 
         let allowance = runtime
             .globals
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(runtime::as_i64)
-            .ok_or((runtime.ext.gas_amount(), WrongInjectedAllowance))?;
+            .ok_or(System(WrongInjectedAllowance))?;
 
-        let Runtime {
-            err: trap,
-            mut ext,
-            memory,
-            ..
-        } = runtime;
-
-        ext.update_counters(gas as u64, allowance as u64);
-
-        log::debug!("SandboxEnvironment::execute res = {res:?}");
-
-        let trap_explanation = ext.trap_explanation();
-
-        let termination = if res.is_err() {
-            let reason = trap_explanation
-                .map(TerminationReason::Trap)
-                .unwrap_or_else(|| trap.into_termination_reason());
-
-            // success is unacceptable when there is error
-            if let TerminationReason::Success = reason {
-                TerminationReason::Trap(TrapExplanation::Unknown)
-            } else {
-                reason
-            }
-        } else {
-            TerminationReason::Success
-        };
+        let (ext, memory_wrap, termination_reason) = runtime.terminate(res, gas, allowance);
 
         Ok(BackendReport {
-            termination_reason: termination,
-            memory_wrap: memory,
+            termination_reason,
+            memory_wrap,
             ext,
         })
     }

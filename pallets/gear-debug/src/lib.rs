@@ -38,7 +38,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::{CodeId, ProgramId},
-        memory::{PageBuf, PageNumber, PageU32Size, WasmPageNumber},
+        memory::{GearPage, PageBuf, PageU32Size, WasmPage},
         message::{StoredDispatch, StoredMessage},
     };
     use primitive_types::H256;
@@ -62,7 +62,7 @@ pub mod pallet {
 
         type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
 
-        type ProgramStorage: ProgramStorage + IterableMap<(ProgramId, Program)>;
+        type ProgramStorage: ProgramStorage + IterableMap<(ProgramId, (Program, Self::BlockNumber))>;
     }
 
     #[pallet::pallet]
@@ -85,8 +85,8 @@ pub mod pallet {
     /// Program debug info.
     #[derive(Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct ProgramInfo {
-        pub static_pages: WasmPageNumber,
-        pub persistent_pages: BTreeMap<PageNumber, PageBuf>,
+        pub static_pages: WasmPage,
+        pub persistent_pages: BTreeMap<GearPage, PageBuf>,
         pub code_hash: H256,
     }
 
@@ -200,8 +200,8 @@ pub mod pallet {
                 .collect();
 
             let programs = T::ProgramStorage::iter()
-                .map(|(id, p)| {
-                    let active = match p {
+                .map(|(id, (prog, _bn))| {
+                    let active = match prog {
                         Program::Active(active) => active,
                         _ => {
                             return ProgramDetails {
@@ -213,7 +213,7 @@ pub mod pallet {
                     let code_id = CodeId::from_origin(active.code_hash);
                     let static_pages = match T::CodeStorage::get_code(code_id) {
                         Some(code) => code.static_pages(),
-                        None => WasmPageNumber::zero(),
+                        None => WasmPage::zero(),
                     };
                     let persistent_pages = T::ProgramStorage::get_program_data_for_pages(
                         id,

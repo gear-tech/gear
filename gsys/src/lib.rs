@@ -20,6 +20,8 @@
 
 #![no_std]
 
+use core::mem;
+
 /// Represents block number type.
 pub type BlockNumber = u32;
 
@@ -167,6 +169,16 @@ impl From<Result<Handle, Length>> for LengthWithHandle {
         }
 
         res
+    }
+}
+
+#[repr(C, packed)]
+#[derive(Default)]
+pub struct LengthBytes([u8; mem::size_of::<Length>()]);
+
+impl From<Result<(), Length>> for LengthBytes {
+    fn from(value: Result<(), Length>) -> Self {
+        Self(value.err().unwrap_or_default().to_le_bytes())
     }
 }
 
@@ -331,9 +343,9 @@ extern "C" {
     /// Fallible `gr_error` get syscall.
     ///
     /// Arguments type:
-    /// - `error`: `mut ptr` for buffer to store requested data.
-    /// - `err`: `mut ptr` for `u32` error length.
-    pub fn gr_error(error: *mut BufferStart, err: *mut Length);
+    /// - `buf`: `mut ptr` for buffer to store previously occurred error.
+    /// - `len`: `mut ptr` for `u32` current error length.
+    pub fn gr_error(buf: *mut BufferStart, len: *mut Length);
 
     /// Fallible `gr_status_code` get syscall.
     ///

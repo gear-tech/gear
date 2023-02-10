@@ -16,12 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod account_id;
 mod block;
 
 pub use block::*;
 
 use super::{GearApi, Result};
 use crate::Error;
+use account_id::IntoAccountId32;
 use gear_core::{ids::*, message::StoredMessage};
 use gp::api::generated::api::{
     runtime_types::{
@@ -30,14 +32,12 @@ use gp::api::generated::api::{
     },
     storage,
 };
-use std::borrow::Borrow;
-use subxt::ext::sp_runtime::AccountId32;
 
 impl GearApi {
     /// Get a message identified by `message_id` from the mailbox.
     pub async fn get_from_mailbox(
         &self,
-        message_id: impl Borrow<MessageId>,
+        message_id: MessageId,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
         self.get_from_account_mailbox(self.0.account_id(), message_id)
             .await
@@ -47,20 +47,20 @@ impl GearApi {
     /// mailbox.
     pub async fn get_from_account_mailbox(
         &self,
-        account_id: impl Borrow<AccountId32>,
-        message_id: impl Borrow<MessageId>,
+        account_id: impl IntoAccountId32,
+        message_id: MessageId,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
         let at = storage().gear_messenger().mailbox(
-            account_id.borrow(),
-            generated_ids::MessageId::from(*message_id.borrow()),
+            account_id.into_account_id(),
+            generated_ids::MessageId::from(message_id),
         );
         let data = self.0.storage().fetch(&at, None).await?;
 
         Ok(data.map(|(m, i)| (m.into(), i)))
     }
 
-    async fn account_data(&self, account_id: &AccountId32) -> Result<AccountData<u128>> {
-        let at = storage().system().account(account_id);
+    async fn account_data(&self, account_id: impl IntoAccountId32) -> Result<AccountData<u128>> {
+        let at = storage().system().account(account_id.into_account_id());
 
         let data = self
             .0
@@ -81,7 +81,7 @@ impl GearApi {
     /// Get the total balance of the account identified by `account_id`.
     ///
     /// Total balance includes free and reserved funds.
-    pub async fn total_balance(&self, account_id: &AccountId32) -> Result<u128> {
+    pub async fn total_balance(&self, account_id: impl IntoAccountId32) -> Result<u128> {
         let data = self.account_data(account_id).await?;
 
         data.free
@@ -90,7 +90,7 @@ impl GearApi {
     }
 
     /// Get the free funds balance of the account identified by `account_id`.
-    pub async fn free_balance(&self, account_id: &AccountId32) -> Result<u128> {
+    pub async fn free_balance(&self, account_id: impl IntoAccountId32) -> Result<u128> {
         let data = self.account_data(account_id).await?;
 
         Ok(data.free)
@@ -98,7 +98,7 @@ impl GearApi {
 
     /// Get the reserved funds balance of the account identified by
     /// `account_id`.
-    pub async fn reserved_balance(&self, account_id: &AccountId32) -> Result<u128> {
+    pub async fn reserved_balance(&self, account_id: impl IntoAccountId32) -> Result<u128> {
         let data = self.account_data(account_id).await?;
 
         Ok(data.reserved)

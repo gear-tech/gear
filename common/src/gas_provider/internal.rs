@@ -33,12 +33,11 @@ enum CatchValueOutput<Balance> {
 }
 
 impl<Balance: BalanceTrait> CatchValueOutput<Balance> {
-    fn into_consume_output<TotalValue, ExternalId>(
+    fn into_consume_output<ExternalId>(
         self,
         origin: ExternalId,
-    ) -> Option<(NegativeImbalance<Balance, TotalValue>, ExternalId)>
+    ) -> Option<(NegativeImbalance<Balance>, ExternalId)>
     where
-        TotalValue: ValueStorage<Value = Balance>,
         ExternalId: Clone,
     {
         match self {
@@ -488,8 +487,8 @@ where
     type ReservationKey = MapReservationKey;
     type Balance = Balance;
 
-    type PositiveImbalance = PositiveImbalance<Balance, TotalValue>;
-    type NegativeImbalance = NegativeImbalance<Balance, TotalValue>;
+    type PositiveImbalance = PositiveImbalance<Balance>;
+    type NegativeImbalance = NegativeImbalance<Balance>;
 
     type InternalError = InternalError;
     type Error = Error;
@@ -514,7 +513,12 @@ where
         // Save value node to storage
         StorageMap::insert(key, node);
 
-        Ok(PositiveImbalance::new(amount))
+        let positive_imbalance = PositiveImbalance::new(amount);
+
+        // Update Total in storage
+        TotalValue::mutate(|total| positive_imbalance.apply_to(total));
+
+        Ok(positive_imbalance)
     }
 
     fn get_origin_node(
@@ -644,6 +648,11 @@ where
             catch_output.into_consume_output(external)
         };
 
+        // Update Total in storage
+        if let Some((negative_imbalance, _)) = res.as_ref() {
+            TotalValue::mutate(|total| negative_imbalance.apply_to(total));
+        }
+
         Ok(res)
     }
 
@@ -680,7 +689,12 @@ where
         // Save node that delivers limit
         StorageMap::insert(node_id.unwrap_or(key), node);
 
-        Ok(NegativeImbalance::new(amount))
+        let negative_imbalance = NegativeImbalance::new(amount);
+
+        // Update Total in storage
+        TotalValue::mutate(|total| negative_imbalance.apply_to(total));
+
+        Ok(negative_imbalance)
     }
 
     fn split_with_value(

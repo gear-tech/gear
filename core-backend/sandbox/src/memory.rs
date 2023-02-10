@@ -18,7 +18,7 @@
 
 //! sp-sandbox extensions for memory.
 
-use gear_core::memory::{Error, HostPointer, Memory, PageU32Size, WasmPageNumber};
+use gear_core::memory::{Error, HostPointer, Memory, PageU32Size, WasmPage};
 use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, SandboxMemory};
 
 /// Wrapper for sp_sandbox::Memory.
@@ -32,28 +32,28 @@ impl MemoryWrap {
 
 /// Memory interface for the allocator.
 impl Memory for MemoryWrap {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Error> {
         self.0
             .grow(pages.raw())
             .map(|_| ())
-            .map_err(|_| Error::OutOfBounds)
+            .map_err(|_| Error::ProgramAllocOutOfBounds)
     }
 
-    fn size(&self) -> WasmPageNumber {
-        WasmPageNumber::new(self.0.size())
+    fn size(&self) -> WasmPage {
+        WasmPage::new(self.0.size())
             .expect("Unexpected backend behavior: size is bigger then u32::MAX")
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
         self.0
             .set(offset, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| Error::AccessOutOfBounds)
     }
 
     fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
         self.0
             .get(offset, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| Error::AccessOutOfBounds)
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
@@ -66,7 +66,7 @@ impl Memory for MemoryWrap {
 mod tests {
     use super::*;
     use gear_backend_common::{assert_err, assert_ok};
-    use gear_core::memory::{AllocInfo, AllocationsContext, GrowHandlerNothing};
+    use gear_core::memory::{AllocInfo, AllocationsContext, NoopGrowHandler};
 
     fn new_test_memory(static_pages: u16, max_pages: u16) -> (AllocationsContext, MemoryWrap) {
         use sp_sandbox::SandboxMemory as WasmMemory;
@@ -87,7 +87,7 @@ mod tests {
         let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
         assert_ok!(
-            ctx.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap),
             AllocInfo {
                 page: 16.into(),
                 not_grown: 0.into()
@@ -95,7 +95,7 @@ mod tests {
         );
 
         assert_ok!(
-            ctx.alloc::<GrowHandlerNothing>(0.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap),
             AllocInfo {
                 page: 16.into(),
                 not_grown: 0.into()
@@ -104,13 +104,13 @@ mod tests {
 
         // there is a space for 14 more
         for _ in 0..14 {
-            assert_ok!(ctx.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap));
+            assert_ok!(ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap));
         }
 
         // no more mem!
         assert_err!(
-            ctx.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
-            Error::OutOfBounds
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
+            Error::ProgramAllocOutOfBounds
         );
 
         // but we free some
@@ -118,7 +118,7 @@ mod tests {
 
         // and now can allocate page that was freed
         assert_ok!(
-            ctx.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
             AllocInfo {
                 page: 137.into(),
                 not_grown: 1.into()
@@ -130,7 +130,7 @@ mod tests {
         assert_ok!(ctx.free(118.into()));
 
         assert_ok!(
-            ctx.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
             AllocInfo {
                 page: 117.into(),
                 not_grown: 2.into()
@@ -142,8 +142,8 @@ mod tests {
         assert_ok!(ctx.free(158.into()));
 
         assert_err!(
-            ctx.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
-            Error::OutOfBounds
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
+            Error::ProgramAllocOutOfBounds
         );
     }
 }

@@ -59,7 +59,7 @@ use common::{
 use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
-    configs::{AllocationsConfig, BlockConfig, BlockInfo},
+    configs::{BlockConfig, BlockInfo, PagesConfig},
     ContextChargedForInstrumentation,
 };
 use frame_support::{
@@ -73,10 +73,11 @@ use frame_support::{
     weights::Weight,
 };
 use frame_system::pallet_prelude::{BlockNumberFor, *};
+use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{PageBuf, PageNumber},
+    memory::{GearPage, PageBuf},
     message::*,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
@@ -206,7 +207,7 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
-        type ProgramStorage: ProgramStorage;
+        type ProgramStorage: ProgramStorage<BlockNumber = Self::BlockNumber>;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -598,8 +599,14 @@ pub mod pallet {
             }
 
             let message_id = Self::next_message_id(origin);
+            let block_number = Self::block_number().unique_saturated_into();
 
-            ExtManager::<T>::default().set_program(program_id, &code_info, message_id);
+            ExtManager::<T>::default().set_program(
+                program_id,
+                &code_info,
+                message_id,
+                block_number,
+            );
 
             // # Safety
             //
@@ -792,37 +799,43 @@ pub mod pallet {
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.is_initialized())
+                .map(|(p, _bn)| p.is_initialized())
                 .unwrap_or(false)
         }
 
         /// Returns true if id is a program and the program has active status.
         pub fn is_active(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.is_active())
+                .map(|(p, _bn)| p.is_active())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has terminated status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.is_terminated())
+                .map(|(p, _bn)| p.is_terminated())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has exited status.
         pub fn is_exited(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| p.is_exited())
+                .map(|(p, _bn)| p.is_exited())
+                .unwrap_or_default()
+        }
+
+        pub fn get_block_number(program_id: ProgramId) -> <T as frame_system::Config>::BlockNumber {
+            ProgramStorageOf::<T>::get_program(program_id)
+                .map(|(_p, bn)| bn)
                 .unwrap_or_default()
         }
 
         /// Returns exit argument of an exited program.
         pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| {
-                    if let Program::Exited(id) = p {
-                        Some(id)
+                .map(|(p, _bn)| {
+                    if let Program::Exited(inheritor) = p {
+                        Some(inheritor)
                     } else {
                         None
                     }
@@ -833,9 +846,9 @@ pub mod pallet {
         /// Returns inheritor of terminated (failed it's init) program.
         pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|p| {
-                    if let Program::Terminated(id) = p {
-                        Some(id)
+                .map(|(p, _bn)| {
+                    if let Program::Terminated(inheritor) = p {
+                        Some(inheritor)
                     } else {
                         None
                     }
@@ -953,8 +966,8 @@ pub mod pallet {
         pub(crate) fn get_and_track_memory_pages(
             manager: &mut ExtManager<T>,
             program_id: ProgramId,
-            pages_with_data: &BTreeSet<PageNumber>,
-        ) -> Option<BTreeMap<PageNumber, PageBuf>> {
+            pages_with_data: &BTreeSet<GearPage>,
+        ) -> Option<BTreeMap<GearPage, PageBuf>> {
             #[cfg(feature = "lazy-pages")]
             let memory_pages = {
                 // To calm clippy on unused argument.
@@ -992,8 +1005,13 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
-            let allocations_config = AllocationsConfig {
+            let pages_config = PagesConfig {
                 max_pages: schedule.limits.memory_pages.into(),
+                lazy_pages_weights: LazyPagesWeights {
+                    read: schedule.memory_weights.lazy_pages_read,
+                    write: schedule.memory_weights.lazy_pages_write,
+                    write_after_read: schedule.memory_weights.lazy_pages_write_after_read,
+                },
                 init_cost: schedule.memory_weights.initial_cost,
                 alloc_cost: schedule.memory_weights.allocation_cost,
                 mem_grow_cost: schedule.memory_weights.grow_cost,
@@ -1002,7 +1020,7 @@ pub mod pallet {
 
             BlockConfig {
                 block_info,
-                allocations_config,
+                pages_config,
                 existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
                 host_fn_weights: schedule.host_fn_weights.into_core(),
@@ -1175,8 +1193,14 @@ pub mod pallet {
             let origin = who.clone().into_origin();
 
             let message_id = Self::next_message_id(origin);
+            let block_number = Self::block_number().unique_saturated_into();
 
-            ExtManager::<T>::default().set_program(packet.destination(), &code_info, message_id);
+            ExtManager::<T>::default().set_program(
+                packet.destination(),
+                &code_info,
+                message_id,
+                block_number,
+            );
 
             // # Safety
             //
@@ -1235,7 +1259,7 @@ pub mod pallet {
         /// - `SavedCode(H256)` - when the code is saved in storage.
         #[pallet::call_index(0)]
         #[pallet::weight(
-            <T as Config>::WeightInfo::upload_code(code.len() as u32)
+            <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
         )]
         pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
@@ -1293,7 +1317,7 @@ pub mod pallet {
         /// has been removed.
         #[pallet::call_index(1)]
         #[pallet::weight(
-            <T as Config>::WeightInfo::upload_program(code.len() as u32, salt.len() as u32)
+            <T as Config>::WeightInfo::upload_program(code.len() as u32 / 1024, salt.len() as u32)
         )]
         pub fn upload_program(
             origin: OriginFor<T>,

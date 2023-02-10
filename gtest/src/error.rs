@@ -19,7 +19,7 @@
 use codec::Error as CodecError;
 use core_processor::ProcessorError;
 use gear_backend_wasmi::wasmi;
-use gear_core::{ids::ProgramId, memory::WasmPageNumber};
+use gear_core::{ids::ProgramId, memory::WasmPage};
 
 /// Type alias for the testing functions running result.
 pub type Result<T, E = TestError> = core::result::Result<T, E>;
@@ -52,7 +52,7 @@ pub enum TestError {
 
     /// Insufficient memory.
     #[display(fmt = "Insufficient memory: available {_0:?} < requested {_1:?}")]
-    InsufficientMemory(WasmPageNumber, WasmPageNumber),
+    InsufficientMemory(WasmPage, WasmPage),
 
     /// Invalid import module.
     #[from(ignore)]
@@ -83,4 +83,8 @@ pub enum TestError {
     /// Instrumentation of binary code failed.
     #[display(fmt = "Instrumentation of binary code failed.")]
     Instrumentation,
+
+    /// Reading of program state failed.
+    #[display(fmt = "Reading of program state failed: `{_0}`")]
+    ReadStateError(String),
 }

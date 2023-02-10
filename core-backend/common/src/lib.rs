@@ -22,91 +22,75 @@
 
 extern crate alloc;
 
-pub mod error_processor;
+pub mod lazy_pages;
 
 mod utils;
-use memory::OutOfMemoryAccessError;
-pub use utils::calc_stack_end;
 
 #[cfg(feature = "mock")]
 pub mod mock;
 
+pub mod memory;
+
+use crate::{memory::MemoryAccessError, utils::TrimmedString};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::String,
+    string::{FromUtf8Error, String},
     vec::Vec,
 };
-use codec::{Decode, Encode, MaxEncodedLen};
+use codec::{Decode, Encode};
 use core::{
-    fmt::{self, Display},
-    mem::{self, MaybeUninit},
-    ops::Deref,
-    slice,
+    convert::Infallible,
+    fmt::{Debug, Display},
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
-    env::Ext,
+    env::Ext as EnvExt,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryInterval, PageBuf, PageNumber, WasmPageNumber},
+    memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
-        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, WasmEntry,
+        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
+        PayloadSizeError, WasmEntry,
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{ExtError, MemoryError};
+use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
+use lazy_pages::GlobalsConfig;
+use memory::OutOfMemoryAccessError;
 use scale_info::TypeInfo;
 
-pub mod memory;
+// '__gear_stack_end' export is inserted by wasm-proc or wasm-builder
+pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-// Max amount of bytes allowed to be thrown as string explanation of the error.
-pub const TRIMMED_MAX_LEN: usize = 1024;
-
-/// Wrapped string to fit `core-backend::TRIMMED_MAX_LEN` amount of bytes.
-#[derive(
-    Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
-)]
-pub struct TrimmedString(String);
-
-impl TrimmedString {
-    pub(crate) fn new(mut string: String) -> Self {
-        utils::smart_truncate(&mut string, TRIMMED_MAX_LEN);
-        Self(string)
-    }
-}
-
-impl<T: Into<String>> From<T> for TrimmedString {
-    fn from(other: T) -> Self {
-        Self::new(other.into())
-    }
-}
-
-impl Deref for TrimmedString {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
 pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
-    Trap(TrapExplanation),
     Wait(Option<u32>, MessageWaitedType),
     GasAllowanceExceeded,
+    #[from]
+    Trap(TrapExplanation),
 }
 
 #[derive(
-    Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
+    Decode,
+    Encode,
+    TypeInfo,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    derive_more::Display,
+    derive_more::From,
 )]
 pub enum TrapExplanation {
     #[display(fmt = "{_0}")]
     Core(ExtError),
     #[display(fmt = "{_0}")]
-    Other(TrimmedString),
+    Panic(TrimmedString),
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
 }
@@ -140,26 +124,18 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
     pub system_reservation_context: SystemReservationContext,
-    pub allocations: Option<BTreeSet<WasmPageNumber>>,
-    pub pages_data: BTreeMap<PageNumber, PageBuf>,
+    pub allocations: BTreeSet<WasmPage>,
+    pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     pub context_store: ContextStore,
 }
 
-pub trait IntoExtInfo<Error> {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
+pub trait BackendExt: EnvExt {
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
-    fn into_gas_amount(self) -> GasAmount;
-
-    fn last_error(&self) -> Result<&ExtError, Error>;
-
-    fn last_error_encoded(&self) -> Result<Vec<u8>, Error> {
-        self.last_error().map(Encode::encode)
-    }
-
-    fn trap_explanation(&self) -> Option<TrapExplanation>;
+    fn gas_amount(&self) -> GasAmount;
 
     /// Pre-process memory access if need.
     fn pre_process_memory_accesses(
@@ -168,147 +144,194 @@ pub trait IntoExtInfo<Error> {
     ) -> Result<(), OutOfMemoryAccessError>;
 }
 
-pub trait GetGasAmount {
-    fn gas_amount(&self) -> GasAmount;
+pub trait BackendExtError: CoreError + Clone {
+    fn from_ext_error(err: ExtError) -> Self;
+
+    fn forbidden_function() -> Self;
+
+    fn into_ext_error(self) -> Result<ExtError, Self>;
+
+    fn into_termination_reason(self) -> TerminationReason;
 }
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum RuntimeCtxError<E: Display> {
-    #[display(fmt = "{_0}")]
-    Ext(E),
-    #[from]
-    #[display(fmt = "{_0}")]
-    Memory(MemoryError),
-    #[from]
-    #[display(fmt = "{_0}")]
-    RuntimeBuffer(RuntimeBufferSizeError),
-}
-
-pub trait RuntimeCtx<E: Ext> {
-    /// Allocate new pages in instance memory.
-    fn alloc(&mut self, pages: WasmPageNumber)
-        -> Result<WasmPageNumber, RuntimeCtxError<E::Error>>;
-
-    /// Read designated chunk from the memory.
-    fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, RuntimeCtxError<E::Error>>;
-
-    /// Read designated chunk from the memory into the supplied buffer.
-    fn read_memory_into_buf(
-        &self,
-        ptr: u32,
-        buf: &mut [u8],
-    ) -> Result<(), RuntimeCtxError<E::Error>>;
-
-    /// Reads and decodes a type with a size fixed at compile time from program memory.
-    fn read_memory_decoded<D: Decode + MaxEncodedLen>(
-        &self,
-        ptr: u32,
-    ) -> Result<D, RuntimeCtxError<E::Error>>;
-
-    /// Write the given buffer and its length to the designated locations in memory.
-    //
-    /// `out_ptr` is the location in memory where `buf` should be written to.
-    fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), RuntimeCtxError<E::Error>>;
-}
-
-/// Writes object in given memory as bytes.
-pub fn write_memory_as<T: Sized>(
-    memory: &mut impl Memory,
-    ptr: u32,
-    obj: T,
-) -> Result<(), MemoryError> {
-    // # Safety:
-    //
-    // Given object is `Sized` and we own them in the context of calling this
-    // function (it's on stack), it's safe to take ptr on the object and
-    // represent it as slice. Object will be dropped after `memory.write`
-    // finished execution and no one will rely on this slice.
-    //
-    // Bytes in memory always stored continuously and without paddings, properly
-    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-    let slice =
-        unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
-
-    memory.write(ptr, slice)
-}
-
-/// Reads bytes from given pointer to construct type T from them.
-pub fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryError> {
-    let mut buf = MaybeUninit::<T>::uninit();
-
-    // # Safety:
-    //
-    // Usage of mutable slice is safe for the same reason from `write_memory_as`.
-    // `MaybeUninit` is presented on stack with continuos sequence of bytes.
-    //
-    // It's also safe to construct T from any bytes, because we use the fn
-    // only for reading primitive const-size types that are `[repr(C)]`,
-    // so they always represented from sequence of bytes.
-    //
-    // Bytes in memory always stored continuously and without paddings, properly
-    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-    let mut_slice =
-        unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
-
-    memory.read(ptr, mut_slice)?;
-
-    // # Safety:
-    //
-    // Assuming init is always safe here due to the fact that we read proper
-    // amount of bytes from the wasm memory, which is never uninited: they may
-    // be filled by zeroes or some trash (valid for our primitives used as T),
-    // but always exist.
-    Ok(unsafe { buf.assume_init() })
-}
-
-pub struct BackendReport<T, E> {
+pub struct BackendReport<MemWrap, Ext>
+where
+    Ext: EnvExt,
+{
     pub termination_reason: TerminationReason,
-    pub memory_wrap: T,
-    pub ext: E,
+    pub memory_wrap: MemWrap,
+    pub ext: Ext,
 }
 
 #[derive(Debug, derive_more::Display)]
-pub enum StackEndError {
-    #[display(fmt = "Stack end addr {_0:#x} must be aligned to WASM page size")]
-    IsNotAligned(u32),
+pub enum EnvironmentExecutionError<Env: Display, PrepMem: Display> {
+    #[display(fmt = "Actor backend error: {_1}")]
+    Actor(GasAmount, String),
+    #[display(fmt = "System backend error: {_0}")]
+    System(Env),
+    #[display(fmt = "Prepare error: {_1}")]
+    PrepareMemory(GasAmount, PrepMem),
 }
 
-// '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
-pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
+impl<Env: Display, PrepMem: Display> EnvironmentExecutionError<Env, PrepMem> {
+    pub fn from_infallible(err: EnvironmentExecutionError<Env, Infallible>) -> Self {
+        match err {
+            EnvironmentExecutionError::System(err) => Self::System(err),
+            EnvironmentExecutionError::PrepareMemory(_, err) => match err {},
+            EnvironmentExecutionError::Actor(gas_amount, s) => Self::Actor(gas_amount, s),
+        }
+    }
+}
 
-pub trait Environment<E, EP = DispatchKind>: Sized
+type EnvironmentBackendReport<Env, EP> =
+    BackendReport<<Env as Environment<EP>>::Memory, <Env as Environment<EP>>::Ext>;
+pub type EnvironmentExecutionResult<T, Env, EP> = Result<
+    EnvironmentBackendReport<Env, EP>,
+    EnvironmentExecutionError<<Env as Environment<EP>>::Error, T>,
+>;
+
+pub trait Environment<EP = DispatchKind>: Sized
 where
-    E: Ext + IntoExtInfo<E::Error> + 'static,
     EP: WasmEntry,
 {
+    type Ext: BackendExt + 'static;
+
     /// Memory type for current environment.
     type Memory: Memory;
 
     /// An error issues in environment.
-    type Error: fmt::Display + GetGasAmount;
+    type Error: Debug + Display;
 
     /// 1) Instantiates wasm binary.
     /// 2) Creates wasm memory
     /// 3) Runs `pre_execution_handler` to fill the memory before running instance.
     /// 4) Instantiate external funcs for wasm module.
     fn new(
-        ext: E,
+        ext: Self::Ext,
         binary: &[u8],
         entry_point: EP,
         entries: BTreeSet<DispatchKind>,
-        mem_size: WasmPageNumber,
-    ) -> Result<Self, Self::Error>;
+        mem_size: WasmPage,
+    ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>>;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
-    fn execute<F, T>(
-        self,
-        pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory, E>, Self::Error>
+    fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
-        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
-        T: fmt::Display;
+        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
+        T: Display;
 }
 
-pub trait AsTerminationReason {
-    fn as_termination_reason(&self) -> Option<&TerminationReason>;
+#[derive(Debug, Clone, derive_more::From)]
+pub enum FuncError<E: BackendExtError> {
+    Core(E),
+    Terminated(TerminationReason),
+}
+
+impl<E: BackendExtError> From<MemoryAccessError> for FuncError<E> {
+    fn from(err: MemoryAccessError) -> Self {
+        match err {
+            MemoryAccessError::Memory(err) => E::from_ext_error(err.into()),
+            MemoryAccessError::RuntimeBuffer(_) => {
+                E::from_ext_error(MemoryError::RuntimeAllocOutOfBounds.into())
+            }
+            MemoryAccessError::Decode => E::from_ext_error(ExtError::Decode),
+        }
+        .into()
+    }
+}
+
+impl<E: BackendExtError> From<FuncError<E>> for TerminationReason {
+    fn from(err: FuncError<E>) -> Self {
+        match err {
+            FuncError::Core(err) => err.into_termination_reason(),
+            FuncError::Terminated(reason) => reason,
+        }
+    }
+}
+
+impl<E: BackendExtError> From<PayloadSizeError> for FuncError<E> {
+    fn from(_: PayloadSizeError) -> Self {
+        E::from_ext_error(MessageError::MaxMessageSizeExceed.into()).into()
+    }
+}
+
+impl<E: BackendExtError> From<RuntimeBufferSizeError> for FuncError<E> {
+    fn from(_: RuntimeBufferSizeError) -> Self {
+        E::from_ext_error(MemoryError::RuntimeAllocOutOfBounds.into()).into()
+    }
+}
+
+impl<E: Display + BackendExtError> From<FromUtf8Error> for FuncError<E> {
+    fn from(_err: FromUtf8Error) -> Self {
+        E::from_ext_error(ExecutionError::InvalidDebugString.into()).into()
+    }
+}
+
+pub trait BackendState {
+    /// Set termination reason
+    fn set_termination_reason(&mut self, reason: TerminationReason);
+
+    /// Set fallible syscall error
+    fn set_fallible_syscall_error(&mut self, err: ExtError);
+
+    /// Process fallible syscall function result
+    fn process_fallible_func_result<Err: BackendExtError, T: Sized>(
+        &mut self,
+        res: Result<T, FuncError<Err>>,
+    ) -> Result<Result<T, u32>, FuncError<Err>> {
+        match res {
+            Err(err) => {
+                if let FuncError::Core(err) = err {
+                    match err.into_ext_error() {
+                        Ok(ext_err) => {
+                            let len = ext_err.encoded_size() as u32;
+                            self.set_fallible_syscall_error(ext_err);
+                            Ok(Err(len))
+                        }
+                        Err(err) => Err(FuncError::Core(err)),
+                    }
+                } else {
+                    Err(err)
+                }
+            }
+            Ok(res) => Ok(Ok(res)),
+        }
+    }
+}
+
+pub trait BackendTermination<E: EnvExt, M: Sized>: Sized {
+    /// Into parts
+    fn into_parts(self) -> (E, M, TerminationReason);
+
+    /// Terminate backend work after execution
+    fn terminate<T: Debug, Err: Debug>(
+        self,
+        res: Result<T, Err>,
+        gas: i64,
+        allowance: i64,
+    ) -> (E, M, TerminationReason) {
+        log::trace!("Execution result = {res:?}");
+
+        let (mut ext, memory, termination_reason) = self.into_parts();
+
+        ext.update_counters(gas as u64, allowance as u64);
+
+        let termination_reason = if res.is_err() {
+            if matches!(termination_reason, TerminationReason::Success) {
+                // TODO: Parse result error to identify termination reason
+                // in case termination occurred inside wasm code.
+                TerminationReason::Trap(TrapExplanation::Unknown)
+            } else {
+                termination_reason
+            }
+        } else if matches!(termination_reason, TerminationReason::Success) {
+            termination_reason
+        } else {
+            unreachable!(
+                "Termination reason is not success, but executor successfully ends execution"
+            )
+        };
+
+        (ext, memory, termination_reason)
+    }
 }

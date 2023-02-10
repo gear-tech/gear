@@ -41,9 +41,10 @@ pub trait Error {
 pub trait ProgramStorage {
     type InternalError: Error;
     type Error: From<Self::InternalError> + Debug;
+    type BlockNumber;
 
-    type ProgramMap: MapStorage<Key = ProgramId, Value = Program>;
-    type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = PageNumber, Value = PageBuf>;
+    type ProgramMap: MapStorage<Key = ProgramId, Value = (Program, Self::BlockNumber)>;
+    type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;
     type WaitingInitMap: AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>;
 
     /// Attempt to remove all items from all the associated maps.
@@ -54,19 +55,23 @@ pub trait ProgramStorage {
     }
 
     /// Store a program to be associated with the given key `program_id` from the map.
-    fn add_program(program_id: ProgramId, program: ActiveProgram) -> Result<(), Self::Error> {
+    fn add_program(
+        program_id: ProgramId,
+        program: ActiveProgram,
+        block_number: Self::BlockNumber,
+    ) -> Result<(), Self::Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
             if maybe.is_some() {
                 return Err(Self::InternalError::duplicate_item().into());
             }
 
-            *maybe = Some(Program::Active(program));
+            *maybe = Some((Program::Active(program), block_number));
             Ok(())
         })
     }
 
     /// Load the program associated with the given key `program_id` from the map.
-    fn get_program(program_id: ProgramId) -> Option<Program> {
+    fn get_program(program_id: ProgramId) -> Option<(Program, Self::BlockNumber)> {
         Self::ProgramMap::get(&program_id)
     }
 
@@ -81,10 +86,10 @@ pub trait ProgramStorage {
         update_action: F,
     ) -> Result<ReturnType, Self::Error>
     where
-        F: FnOnce(&mut ActiveProgram) -> ReturnType,
+        F: FnOnce(&mut ActiveProgram, &mut Self::BlockNumber) -> ReturnType,
     {
-        Self::update_program_if_active(program_id, |program| match program {
-            Program::Active(active_program) => update_action(active_program),
+        Self::update_program_if_active(program_id, |program, bn_ref| match program {
+            Program::Active(active_program) => update_action(active_program, bn_ref),
             _ => unreachable!("invariant kept by update_program_if_active"),
         })
     }
@@ -96,17 +101,17 @@ pub trait ProgramStorage {
         update_action: F,
     ) -> Result<ReturnType, Self::Error>
     where
-        F: FnOnce(&mut Program) -> ReturnType,
+        F: FnOnce(&mut Program, &mut Self::BlockNumber) -> ReturnType,
     {
-        let mut program =
+        let (mut program, mut bn) =
             Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
         match program {
             Program::Active(_) => (),
             _ => return Err(Self::InternalError::not_active_program().into()),
         }
 
-        let result = update_action(&mut program);
-        Self::ProgramMap::insert(program_id, program);
+        let result = update_action(&mut program, &mut bn);
+        Self::ProgramMap::insert(program_id, (program, bn));
 
         Ok(result)
     }
@@ -114,8 +119,8 @@ pub trait ProgramStorage {
     /// Return program data for each page from `pages`.
     fn get_program_data_for_pages<'a>(
         program_id: ProgramId,
-        pages: impl Iterator<Item = &'a PageNumber>,
-    ) -> Result<BTreeMap<PageNumber, PageBuf>, Self::Error> {
+        pages: impl Iterator<Item = &'a GearPage>,
+    ) -> Result<BTreeMap<GearPage, PageBuf>, Self::Error> {
         let mut pages_data = BTreeMap::new();
         for page in pages {
             let data = Self::MemoryPageMap::get(&program_id, page)
@@ -127,12 +132,12 @@ pub trait ProgramStorage {
     }
 
     /// Store a memory page buffer to be associated with the given keys `program_id` and `page` from the map.
-    fn set_program_page_data(program_id: ProgramId, page: PageNumber, page_buf: PageBuf) {
+    fn set_program_page_data(program_id: ProgramId, page: GearPage, page_buf: PageBuf) {
         Self::MemoryPageMap::insert(program_id, page, page_buf);
     }
 
     /// Remove a memory page buffer under the given keys `program_id` and `page`.
-    fn remove_program_page_data(program_id: ProgramId, page_num: PageNumber) {
+    fn remove_program_page_data(program_id: ProgramId, page_num: GearPage) {
         Self::MemoryPageMap::remove(program_id, page_num);
     }
 

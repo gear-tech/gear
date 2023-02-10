@@ -19,41 +19,40 @@
 //! wasmi extensions for memory.
 
 use crate::state::HostState;
-use gear_backend_common::IntoExtInfo;
 use gear_core::{
     env::Ext,
-    memory::{Error, HostPointer, Memory, PageU32Size, WasmPageNumber},
+    memory::{Error, HostPointer, Memory, PageU32Size, WasmPage},
 };
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
 
-pub struct MemoryWrapRef<'a, E: Ext + IntoExtInfo<E::Error> + 'static> {
+pub struct MemoryWrapRef<'a, E: Ext + 'static> {
     pub memory: WasmiMemory,
     pub store: StoreContextMut<'a, HostState<E>>,
 }
 
-impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrapRef<'a, E> {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
+impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Error> {
         self.memory
             .grow(&mut self.store, Pages(pages.raw() as usize))
             .map(|_| ())
-            .map_err(|_| Error::OutOfBounds)
+            .map_err(|_| Error::ProgramAllocOutOfBounds)
     }
 
-    fn size(&self) -> WasmPageNumber {
-        WasmPageNumber::new(self.memory.current_pages(&self.store).0 as u32)
+    fn size(&self) -> WasmPage {
+        WasmPage::new(self.memory.current_pages(&self.store).0 as u32)
             .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
         self.memory
             .write(&mut self.store, offset as usize, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| Error::AccessOutOfBounds)
     }
 
     fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
         self.memory
             .read(&self.store, offset as usize, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| Error::AccessOutOfBounds)
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
@@ -62,12 +61,12 @@ impl<'a, E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrapRef<'a, 
 }
 
 /// Wrapper for [`wasmi::Memory`].
-pub struct MemoryWrap<E: Ext + IntoExtInfo<E::Error> + 'static> {
+pub struct MemoryWrap<E: Ext + 'static> {
     pub memory: WasmiMemory,
     pub store: Store<HostState<E>>,
 }
 
-impl<E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrap<E> {
+impl<E: Ext + 'static> MemoryWrap<E> {
     /// Wrap [`wasmi::Memory`] for Memory trait.
     pub fn new(memory: WasmiMemory, store: Store<HostState<E>>) -> Self {
         MemoryWrap { memory, store }
@@ -78,29 +77,29 @@ impl<E: Ext + IntoExtInfo<E::Error> + 'static> MemoryWrap<E> {
 }
 
 /// Memory interface for the allocator.
-impl<E: Ext + IntoExtInfo<E::Error> + 'static> Memory for MemoryWrap<E> {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<(), Error> {
+impl<E: Ext + 'static> Memory for MemoryWrap<E> {
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Error> {
         self.memory
             .grow(&mut self.store, Pages(pages.raw() as usize))
             .map(|_| ())
-            .map_err(|_| Error::OutOfBounds)
+            .map_err(|_| Error::ProgramAllocOutOfBounds)
     }
 
-    fn size(&self) -> WasmPageNumber {
-        WasmPageNumber::new(self.memory.current_pages(&self.store).0 as u32)
+    fn size(&self) -> WasmPage {
+        WasmPage::new(self.memory.current_pages(&self.store).0 as u32)
             .expect("Unexpected backend behavior: wasm memory is bigger then u32::MAX")
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
         self.memory
             .write(&mut self.store, offset as usize, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| Error::AccessOutOfBounds)
     }
 
     fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
         self.memory
             .read(&self.store, offset as usize, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| Error::AccessOutOfBounds)
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
@@ -113,8 +112,8 @@ mod tests {
     use crate::state::State;
 
     use super::*;
-    use gear_backend_common::{assert_err, assert_ok, mock::MockExt};
-    use gear_core::memory::{AllocInfo, AllocationsContext, GrowHandlerNothing};
+    use gear_backend_common::{assert_err, assert_ok, mock::MockExt, TerminationReason};
+    use gear_core::memory::{AllocInfo, AllocationsContext, NoopGrowHandler};
     use wasmi::{Engine, Store};
 
     fn new_test_memory(
@@ -130,7 +129,8 @@ mod tests {
             &engine,
             Some(State {
                 ext: MockExt::default(),
-                err: crate::funcs::FuncError::WrongInstrumentation,
+                fallible_syscall_error: None,
+                termination_reason: TerminationReason::Success,
             }),
         );
 
@@ -148,7 +148,7 @@ mod tests {
         let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
         assert_ok!(
-            ctx.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap),
             AllocInfo {
                 page: 16.into(),
                 not_grown: 0.into()
@@ -156,7 +156,7 @@ mod tests {
         );
 
         assert_ok!(
-            ctx.alloc::<GrowHandlerNothing>(0.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap),
             AllocInfo {
                 page: 16.into(),
                 not_grown: 0.into()
@@ -165,13 +165,13 @@ mod tests {
 
         // there is a space for 14 more
         for _ in 0..14 {
-            assert_ok!(ctx.alloc::<GrowHandlerNothing>(16.into(), &mut mem_wrap));
+            assert_ok!(ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap));
         }
 
         // no more mem!
         assert_err!(
-            ctx.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
-            Error::OutOfBounds
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
+            Error::ProgramAllocOutOfBounds
         );
 
         // but we free some
@@ -179,7 +179,7 @@ mod tests {
 
         // and now can allocate page that was freed
         assert_ok!(
-            ctx.alloc::<GrowHandlerNothing>(1.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
             AllocInfo {
                 page: 137.into(),
                 not_grown: 1.into()
@@ -191,7 +191,7 @@ mod tests {
         assert_ok!(ctx.free(118.into()));
 
         assert_ok!(
-            ctx.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
             AllocInfo {
                 page: 117.into(),
                 not_grown: 2.into()
@@ -203,8 +203,8 @@ mod tests {
         assert_ok!(ctx.free(158.into()));
 
         assert_err!(
-            ctx.alloc::<GrowHandlerNothing>(2.into(), &mut mem_wrap),
-            Error::OutOfBounds
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
+            Error::ProgramAllocOutOfBounds
         );
     }
 }

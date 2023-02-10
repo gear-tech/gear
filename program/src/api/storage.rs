@@ -30,6 +30,26 @@ impl Api {
     }
 }
 
+mod session {
+    use crate::{
+        api::{generated::api::storage, Api},
+        result::{ClientError, Result},
+    };
+    use subxt::ext::sp_runtime::AccountId32;
+
+    impl Api {
+        /// Get all validators from pallet_session.
+        pub async fn validators(&self) -> Result<Vec<AccountId32>> {
+            let at = storage().session().validators();
+            Ok(self
+                .storage()
+                .fetch(&at, None)
+                .await?
+                .ok_or(ClientError::StorageNotFound)?)
+        }
+    }
+}
+
 mod system {
     use crate::{
         api::{generated::api::storage, Api},
@@ -57,7 +77,7 @@ mod gear {
                     gear_core::{
                         code::InstrumentedCode,
                         ids::{CodeId, ProgramId},
-                        memory::PageNumber,
+                        memory::GearPage,
                         message::stored::StoredMessage,
                     },
                 },
@@ -79,7 +99,7 @@ mod gear {
     impl Api {
         /// Get `InstrumentedCode` by `code_hash`
         pub async fn code_storage(&self, code_hash: [u8; 32]) -> Result<Option<InstrumentedCode>> {
-            let at = storage().gear_program().code_storage(&CodeId(code_hash));
+            let at = storage().gear_program().code_storage(CodeId(code_hash));
 
             Ok(self.storage().fetch(&at, None).await?)
         }
@@ -88,12 +108,13 @@ mod gear {
         pub async fn gprog(&self, pid: H256) -> Result<ActiveProgram> {
             let at = storage()
                 .gear_program()
-                .program_storage(&ProgramId(pid.into()));
+                .program_storage(ProgramId(pid.into()));
             let program = self
                 .storage()
                 .fetch(&at, None)
                 .await?
-                .ok_or_else(|| ClientError::ProgramNotFound(pid.encode_hex()))?;
+                .ok_or_else(|| ClientError::ProgramNotFound(pid.encode_hex()))?
+                .0;
 
             match program {
                 gear_common::Program::Active(p) => Ok(p),
@@ -108,7 +129,7 @@ mod gear {
             for page in program.pages_with_data {
                 let address = storage()
                     .gear_program()
-                    .memory_page_storage(program_id.clone(), PageNumber(page.0));
+                    .memory_page_storage(program_id.clone(), GearPage(page.0));
 
                 let metadata = self.metadata();
                 let lookup_bytes =

@@ -16,16 +16,17 @@ name = "gear"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.1.1", features = ["derive"] }
+clap = { version = "4.1.4", features = ["derive"] }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17" }
-futures = "0.3.21"
+futures = "0.3.26"
 
 # Gear
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
 gear-runtime-test-cli = { path = "../../utils/gear-runtime-test-cli", optional = true }
 service = { package = "gear-service", path = "../service", default-features = false }
 pallet-gear-payment = { version = "0.1.0", path = "../../pallets/payment" }
+pallet-gear-staking-rewards = { version = "1.0.0", path = "../../pallets/staking-rewards" }
 
 # Gear Runtimes
 gear-runtime = { path = "../../runtime/gear", optional = true }
@@ -58,41 +59,39 @@ gear-program = { path = "../../program", features = [ "cli" ], optional = true }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 
 [features]
-default = ["gear-native", "vara-native", "lazy-pages", "program"]
+default = ["gear-native", "vara-native", "lazy-pages", "gear-program"]
 gear-native = [
 	"service/gear-native",
 	"gear-runtime-test-cli?/gear-native",
 	"gear-runtime",
-	"gear-program/gear"
+	"gear-program?/gear"
 ]
 vara-native = [
 	"service/vara-native",
 	"gear-runtime-test-cli?/vara-native",
 	"vara-runtime",
-	"gear-program/vara"
+	"gear-program?/vara"
 ]
 lazy-pages = [
 	"service/lazy-pages",
 	"gear-runtime-test-cli?/lazy-pages",
 	"vara-runtime?/lazy-pages",
 	"gear-runtime?/lazy-pages",
-	"gear-program/lazy-pages",
+	"gear-program?/lazy-pages",
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",
 	"frame-benchmarking-cli/runtime-benchmarks",
-	"gear-program/runtime-benchmarks",
 ]
 debug-mode = [
 	"service/debug-mode",
 	"gear-runtime?/debug-mode",
 	"vara-runtime?/debug-mode",
-	"gear-program/debug-mode",
+	"gear-program?/debug-mode",
 ]
 try-runtime = [
 	"service/try-runtime",
 	"try-runtime-cli/try-runtime",
-	"gear-program/try-runtime",
 ]
 runtime-test = ["gear-runtime-test-cli"]
 program = ["gear-program"]

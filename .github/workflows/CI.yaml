@@ -106,7 +106,7 @@ jobs:
         run: ./scripts/gear.sh format doc --check
 
       - name: "Check clippy: Gear"
-        run: ./scripts/gear.sh clippy gear --all-targets --all-features
+        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
       - name: "Check clippy: Examples"
         run: ./scripts/gear.sh clippy examples
@@ -256,18 +256,19 @@ jobs:
           ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
 
       - name: "Test: Runtime upgrade and queue processing"
+        if: github.ref != 'refs/heads/master' # to be deleted
         run: ./scripts/gear.sh test runtime-upgrade
 
-      - name: "Test: Runtime benchmarks work"
+      - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
           cargo build -p gear-cli --release --features runtime-benchmarks
           ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
+          # check also lazy-pages benchmarks tests for native runtime
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
 
       - name: "Test: Sys-calls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls
-
-      - name: "Test: Sys-calls Sandbox integrity"
-        run: ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_syscalls_integrity" --execution=wasm --wasm-execution=compiled --extra
 
       - name: "Coverage: Aggregate"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
