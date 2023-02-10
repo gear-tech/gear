@@ -1,13 +1,20 @@
 //! gear api calls
 use crate::api::{
+    config::GearConfig,
     signer::Signer,
     types::{InBlock, TxStatus},
 };
 use anyhow::anyhow;
+use async_recursion::async_recursion;
 use subxt::{
     ext::codec::Encode,
-    tx::{StaticTxPayload, TxPayload},
+    tx::{StaticTxPayload, TxPayload, TxProgress},
+    Error as SubxtError, OnlineClient,
 };
+
+type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
+
+const ERRORS_REQUIRE_RETRYING: [&str; 1] = ["Connection reset by peer"];
 
 mod balances {
     use crate::api::{generated::api::tx, signer::Signer, types::InBlock};
@@ -137,23 +144,44 @@ impl Signer {
         }
     }
 
+    /// Wrapper for submit and watch with error handling.
+    #[async_recursion(?Send)]
+    async fn sign_and_submit_then_watch<CallData: Encode>(
+        &self,
+        tx: &StaticTxPayload<CallData>,
+    ) -> Result<TxProgressT, SubxtError> {
+        let process = if let Some(nonce) = self.nonce {
+            self.api
+                .tx()
+                .create_signed_with_nonce(tx, &self.signer, nonce, Default::default())?
+                .submit_and_watch()
+                .await
+        } else {
+            self.api
+                .tx()
+                .sign_and_submit_then_watch_default(tx, &self.signer)
+                .await
+        };
+
+        // TODO: Add more patterns for this retrying job.
+        if let Err(SubxtError::Rpc(rpc_error)) = &process {
+            let error_string = rpc_error.to_string();
+            for error in ERRORS_REQUIRE_RETRYING {
+                if error_string.contains(error) {
+                    return self.sign_and_submit_then_watch(tx).await;
+                }
+            }
+        }
+
+        process
+    }
+
     /// listen transaction process and print logs
     pub async fn process<CallData: Encode>(&self, tx: StaticTxPayload<CallData>) -> InBlock {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;
-        let mut process = if let Some(nonce) = self.nonce {
-            self.api
-                .tx()
-                .create_signed_with_nonce(&tx, &self.signer, nonce, Default::default())?
-                .submit_and_watch()
-                .await?
-        } else {
-            self.api
-                .tx()
-                .sign_and_submit_then_watch_default(&tx, &self.signer)
-                .await?
-        };
+        let mut process = self.sign_and_submit_then_watch(&tx).await?;
 
         // Get extrinsic details.
         let (pallet, name) = {

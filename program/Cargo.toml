@@ -18,6 +18,7 @@ required-features = [ "bin" ]
 
 [dependencies]
 anyhow = "1.0.68"
+async-recursion = "1.0.2"
 blake2-rfc = "0.2.18"
 base64 = "0.21.0"
 color-eyre = { version = "0.6.2", optional = true }
