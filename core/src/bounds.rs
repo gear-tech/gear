@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::{Decode, Encode};
+use core::marker::PhantomData;
+use sp_runtime::Perbill;
 use sp_runtime::traits::{
     Bounded, Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero,
 };
@@ -24,7 +26,10 @@ use sp_runtime::traits::{
 /// Hold bound, specifying cost of storing, expected block number for task to
 /// create on it, deadlines and durations of holding.
 #[derive(Clone, Debug, Decode, Encode, Eq, PartialEq)]
-pub struct HoldBound<BlockNumber: Saturating + Zero, Cost: Saturating + Zero> {
+pub struct HoldBound<
+    BlockNumber: Saturating + Zero + Bounded,
+    Cost: Saturating + Zero + Bounded + Ord + One + From<BlockNumber>,
+> {
     /// Cost of storing per block.
     cost: Cost,
     /// Expected block number task to be processed.
@@ -36,13 +41,13 @@ pub struct HoldBound<BlockNumber: Saturating + Zero, Cost: Saturating + Zero> {
 #[allow(unused)]
 impl<
         BlockNumber: Saturating + Zero + Bounded,
-        Cost: Saturating + Zero + Bounded + From<BlockNumber>,
+        Cost: Saturating + Zero + Bounded + Ord + One + From<BlockNumber>,
     > HoldBound<BlockNumber, Cost>
 {
     /// Creates cost builder for hold bound.
-    pub fn by(cost: Cost) -> HoldBoundCost<T> {
+    pub fn by(cost: Cost) -> HoldBoundCost<Cost, BlockNumber> {
         assert!(!cost.is_zero());
-        HoldBoundCost(cost)
+        HoldBoundCost(cost, PhantomData)
     }
 
     /// Returns cost of storing per block, related to current hold bound.
@@ -64,19 +69,22 @@ impl<
     ///
     /// This deadline is exactly sum of expected block number and `reserve_for`
     /// safety duration from task pool overflow within the single block.
-    pub fn deadline(&self) -> BlockNumber {
-        self.expected
-            .saturating_add(CostsPerBlockOf::<T>::reserve_for())
+    pub fn deadline(&self, reserve_for: BlockNumber) -> BlockNumber {
+        self.expected.saturating_add(reserve_for)
     }
 
     /// Returns deadline duration before task will be processed, since now.
-    pub fn deadline_duration(&self, current_bn: BlockNumber) -> BlockNumber {
-        self.deadline().saturating_sub(current_bn)
+    pub fn deadline_duration(
+        &self,
+        current_bn: BlockNumber,
+        reserve_for: BlockNumber,
+    ) -> BlockNumber {
+        self.deadline(reserve_for).saturating_sub(current_bn)
     }
 
     /// Returns amount of gas should be locked for rent of the hold afterward.
-    pub fn lock(&self, current_bn: BlockNumber) -> Cost {
-        self.deadline_duration(current_bn)
+    pub fn lock(&self, current_bn: BlockNumber, reserve_for: BlockNumber) -> Cost {
+        self.deadline_duration(current_bn, reserve_for)
             .saturated_into::<Cost>()
             .saturating_mul(self.cost())
     }
@@ -85,18 +93,18 @@ impl<
 /// Cost builder for `HoldBound<T>`.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct HoldBoundCost<
+    Cost: Saturating + Zero + Bounded + Ord + One + From<BlockNumber>,
     BlockNumber: Saturating + Zero + Bounded,
-    Cost: Saturating + Zero + Bounded + From<BlockNumber>,
->(Cost);
+>(Cost, PhantomData<BlockNumber>);
 
 #[allow(unused)]
 impl<
         BlockNumber: Saturating + Zero + Bounded,
-        Cost: Saturating + Zero + Bounded + From<BlockNumber>,
-    > HoldBoundCost<BlockNumber, Cost>
+        Cost: Saturating + Zero + Bounded + Ord + One + From<BlockNumber>,
+    > HoldBoundCost<Cost, BlockNumber>
 {
     /// Creates bound to specific given block number.
-    pub fn at(self, expected: BlockNumber) -> HoldBound<T> {
+    pub fn at(self, expected: BlockNumber) -> HoldBound<BlockNumber, Cost> {
         HoldBound {
             cost: self.0,
             expected,
@@ -104,42 +112,60 @@ impl<
     }
 
     /// Creates bound to specific given deadline block number.
-    pub fn deadline(self, deadline: BlockNumber) -> HoldBound<T> {
-        let expected = deadline.saturating_sub(CostsPerBlockOf::<T>::reserve_for());
+    pub fn deadline(
+        self,
+        deadline: BlockNumber,
+        reserve_for: BlockNumber,
+    ) -> HoldBound<BlockNumber, Cost> {
+        let expected = deadline.saturating_sub(reserve_for);
 
         self.at(expected)
     }
 
     /// Creates bound for given duration since current block.
-    pub fn duration(self, duration: BlockNumber>) -> HoldBound<T> {
-        let expected = Pallet::<T>::block_number().saturating_add(duration);
+    pub fn duration(
+        self,
+        duration: BlockNumber,
+        current_bn: BlockNumber,
+    ) -> HoldBound<BlockNumber, Cost> {
+        let expected = current_bn.saturating_add(duration);
 
         self.at(expected)
     }
 
     /// Creates maximal available bound for given gas limit.
-    pub fn maximum_for(self, gas: GasBalanceOf<T>) -> HoldBound<T> {
+    pub fn maximum_for(
+        self,
+        gas: Cost,
+        current_bn: BlockNumber,
+        reserve_for: BlockNumber,
+    ) -> HoldBound<BlockNumber, Cost> {
         let deadline_duration = gas
             .saturating_div(self.0.max(One::one()))
-            .saturated_into::<BlockNumberFor<T>>();
+            .saturated_into::<BlockNumber>();
 
-        let deadline = Pallet::<T>::block_number().saturating_add(deadline_duration);
+        let deadline = current_bn.saturating_add(deadline_duration);
 
-        self.deadline(deadline)
+        self.deadline(deadline, reserve_for)
     }
 
     /// Creates maximal available bound for given message id,
     /// by querying it's gas limit.
-    pub fn maximum_for_message(self, message_id: MessageId) -> HoldBound<T> {
+    pub fn maximum_for_message(
+        self,
+        gas_limit: Cost,
+        current_bn: BlockNumber,
+        reserve_for: BlockNumber,
+    ) -> HoldBound<BlockNumber, Cost> {
         // Querying gas limit. Fails in cases of `GasTree` invalidations.
-        let gas_limit = GasHandlerOf::<T>::get_limit(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        // let gas_limit = GasHandlerOf::<T>::get_limit(message_id)
+        //     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        self.maximum_for(gas_limit)
+        self.maximum_for(gas_limit, current_bn, reserve_for)
     }
 
     // Zero-duration hold bound.
-    pub fn zero(self) -> HoldBound<T> {
-        self.at(Pallet::<T>::block_number())
+    pub fn zero(self, current_bn: BlockNumber) -> HoldBound<BlockNumber, Cost> {
+        self.at(current_bn)
     }
 }

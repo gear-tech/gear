@@ -27,6 +27,7 @@
 
 extern crate alloc;
 
+pub mod bounds;
 pub mod code;
 pub mod costs;
 pub mod env;
@@ -36,7 +37,6 @@ pub mod memory;
 pub mod message;
 pub mod program;
 pub mod reservation;
-pub mod bounds;
 
 pub mod buffer;
 

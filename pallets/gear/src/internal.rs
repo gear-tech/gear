@@ -570,7 +570,7 @@ where
             .saturating_add(CostsPerBlockOf::<T>::reserve_for().unique_saturated_into())
             .saturating_mul(CostsPerBlockOf::<T>::dispatch_stash().unique_saturated_into());
 
-        let mut interval_finish: BlockNumberFor::<T> = Zero::zero();
+        let mut interval_finish: BlockNumberFor<T> = Zero::zero();
 
         if to_user {
             if let ControlFlow::Break(_) = Self::process_user_delayed_dispatch(
@@ -848,7 +848,7 @@ where
         // Querying `MailboxThreshold`, that represents minimal amount of gas
         // for message to be added to mailbox.
         let threshold = T::MailboxThreshold::get();
-    
+
         // Figuring out gas limit for insertion.
         //
         // In case of sending with gas, we use applied gas limit, otherwise
@@ -887,7 +887,7 @@ where
 
         // `HoldBound` cost builder.
         let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
-        
+
         // Calculating correct hold bound to lock gas.
         let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
         let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
@@ -976,7 +976,7 @@ where
         // Locking funds for holding.
         GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-        
+
         if hold.expected_duration().is_zero() {
             unreachable!("Hold duration cannot be zero");
         }
