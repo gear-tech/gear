@@ -113,8 +113,7 @@ mod gear {
                 .storage()
                 .fetch(&at, None)
                 .await?
-                .ok_or_else(|| ClientError::ProgramNotFound(pid.encode_hex()))?
-                .0;
+                .ok_or_else(|| ClientError::ProgramNotFound(pid.encode_hex()))?;
 
             match program {
                 gear_common::Program::Active(p) => Ok(p),
