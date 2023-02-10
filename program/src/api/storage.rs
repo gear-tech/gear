@@ -73,7 +73,7 @@ mod gear {
         api::{
             generated::api::{
                 runtime_types::{
-                    gear_common::{self, storage::primitives::Interval, ActiveProgram},
+                    gear_common::{self, storage::primitives::Interval, ActiveProgram, Program},
                     gear_core::{
                         code::InstrumentedCode,
                         ids::{CodeId, ProgramId},
@@ -109,7 +109,7 @@ mod gear {
             let at = storage()
                 .gear_program()
                 .program_storage(ProgramId(pid.into()));
-            let program = self
+            let program: Program = self
                 .storage()
                 .fetch(&at, None)
                 .await?
