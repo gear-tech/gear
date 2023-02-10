@@ -12,7 +12,7 @@ fn error<T>(spanned: impl Spanned, message: impl Display) -> Result<T, Error> {
     Err(Error::new(spanned.span(), message))
 }
 
-macro_rules! if_some_return_error {
+macro_rules! return_error_if_some {
     ($option:expr, $message:expr) => {
         if let Some(spanned) = $option {
             return error(spanned, $message);
@@ -241,12 +241,11 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
 
         let signature = function.sig;
 
-        if_some_return_error!(signature.constness, "mustn't be constant");
-        if_some_return_error!(signature.constness, "mustn't be constant");
-        if_some_return_error!(signature.asyncness, "mustn't be asynchronous");
-        if_some_return_error!(signature.unsafety, "mustn't be unsafe");
-        if_some_return_error!(signature.abi, "mustn't have a binary interface");
-        if_some_return_error!(signature.variadic, "mustn't have the variadic argument");
+        return_error_if_some!(signature.constness, "mustn't be constant");
+        return_error_if_some!(signature.asyncness, "mustn't be asynchronous");
+        return_error_if_some!(signature.unsafety, "mustn't be unsafe");
+        return_error_if_some!(signature.abi, "mustn't have a binary interface");
+        return_error_if_some!(signature.variadic, "mustn't have the variadic argument");
 
         if !signature.generics.params.is_empty() {
             return error(signature.generics, "mustn't have generics");
@@ -291,13 +290,13 @@ fn process(module: ItemMod) -> Result<TokenStream, Error> {
                 let lifetime_span = reference.lifetime.map(|lifetime| lifetime.span());
                 let mutability_span = reference.mutability.map(|mutability| mutability.span());
 
-                let lifetime_mutability = lifetime_span
-                    .and_then(|lifetime_span| {
+                let lifetime_mutability = lifetime_span.map_or(mutability_span, |lifetime_span| {
+                    Some(
                         mutability_span
                             .and_then(|mutability_span| mutability_span.join(lifetime_span))
-                            .or(Some(lifetime_span))
-                    })
-                    .or(mutability_span);
+                            .unwrap_or(lifetime_span),
+                    )
+                });
 
                 let span = lifetime_mutability
                     .and_then(|lifetime_mutability| {
