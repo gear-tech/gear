@@ -77,11 +77,11 @@ node-release-rtest:
 
 .PHONY: vara
 vara:
-	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages,program
+	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
 
 .PHONY: vara-release
 vara-release:
-	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages,program
+	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
 
 .PHONY: vara-release-rtest
 vara-release-rtest:

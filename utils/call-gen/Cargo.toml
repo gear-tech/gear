@@ -1,0 +1,17 @@
+[package]
+name = "gear-call-gen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Internal deps
+gear-wasm-gen = { path = "../wasm-gen" }
+gear-core = { path = "../../core" }
+gear-utils = { path = "../utils" }
+
+# External deps
+arbitrary = "1.2.3"
+dyn-clonable = "0.9.0"
+hex = "0.4.3"
+log = "0.4.17"
+rand = "0.8.5"

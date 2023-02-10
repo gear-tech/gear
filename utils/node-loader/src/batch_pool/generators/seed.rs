@@ -1,10 +1,8 @@
-use crate::{
-    args::SeedVariant,
-    utils::{LoaderRng, LoaderRngCore},
-};
+use crate::args::SeedVariant;
+use gear_call_gen::{CallGenRng, CallGenRngCore};
 use rand::RngCore;
 
-pub fn some_generator<Rng: LoaderRng>(code_seed_type: SeedVariant) -> Box<dyn LoaderRngCore> {
+pub fn some_generator<Rng: CallGenRng>(code_seed_type: SeedVariant) -> Box<dyn CallGenRngCore> {
     match code_seed_type {
         SeedVariant::Dynamic(v) => Box::new(Rng::seed_from_u64(v)) as _,
         SeedVariant::Constant(v) => Box::new(ConstantGenerator::new(v)) as _,
