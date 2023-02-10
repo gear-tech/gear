@@ -353,8 +353,13 @@ impl<'a> Program<'a> {
         )
     }
 
-    pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {
-        self.send_with_value(from, payload, 0)
+    pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(
+        &self,
+        from: ID,
+        payload: C,
+        delay: Option<u32>,
+    ) -> RunResult {
+        self.send_with_value(from, payload, 0, delay)
     }
 
     pub fn send_with_value<ID: Into<ProgramIdWrapper>, C: Codec>(
@@ -362,16 +367,18 @@ impl<'a> Program<'a> {
         from: ID,
         payload: C,
         value: u128,
+        delay: Option<u32>,
     ) -> RunResult {
-        self.send_bytes_with_value(from, payload.encode(), value)
+        self.send_bytes_with_value(from, payload.encode(), value, delay)
     }
 
     pub fn send_bytes<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>>(
         &self,
         from: ID,
         payload: T,
+        delay: Option<u32>,
     ) -> RunResult {
-        self.send_bytes_with_value(from, payload, 0)
+        self.send_bytes_with_value(from, payload, 0, delay)
     }
 
     pub fn send_bytes_with_value<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>>(
@@ -379,6 +386,7 @@ impl<'a> Program<'a> {
         from: ID,
         payload: T,
         value: u128,
+        delay: Option<u32>,
     ) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
@@ -407,13 +415,22 @@ impl<'a> Program<'a> {
             DispatchKind::Handle
         };
 
-        system.run_dispatch(Dispatch::new(kind, message))
+        let dispatch = Dispatch::new(kind, message);
+        if let Some(delay) = delay {
+            self.manager
+                .borrow_mut()
+                .send_delayed_dispatch(dispatch, delay);
+            Default::default()
+        } else {
+            system.run_dispatch(dispatch)
+        }
     }
 
     pub fn send_signal<ID: Into<ProgramIdWrapper>>(
         &self,
         from: ID,
         status_code: StatusCode,
+        delay: Option<u32>,
     ) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
@@ -433,7 +450,14 @@ impl<'a> Program<'a> {
         };
 
         let dispatch = message.into_dispatch(origin_msg_id, self.id);
-        system.run_dispatch(dispatch)
+        if let Some(delay) = delay {
+            self.manager
+                .borrow_mut()
+                .send_delayed_dispatch(dispatch, delay);
+            Default::default()
+        } else {
+            system.run_dispatch(dispatch)
+        }
     }
 
     pub fn id(&self) -> ProgramId {

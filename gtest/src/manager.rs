@@ -286,9 +286,8 @@ impl ExtManager {
         self.id_nonce
     }
 
-    #[allow(unused)]
     /// Insert message into the delayed queue.
-    pub(crate) fn send_delayed_dispatch(&mut self, delay: u32, dispatch: Dispatch) {
+    pub(crate) fn send_delayed_dispatch(&mut self, dispatch: Dispatch, delay: u32) {
         self.delayed_dispatches
             .entry(delay)
             .or_default()
