@@ -158,7 +158,7 @@ where
         // TODO: validate here destination and send error reply, if required.
         // Atm despite the fact that program may exist, message goes into mailbox / event.
         let (message, hold_interval) = DispatchStashOf::<T>::take(stashed_message_id)
-            .map(|(dispatch, bn)| (dispatch.into_parts().1, bn))
+            .map(|(dispatch, interval)| (dispatch.into_parts().1, interval))
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
 
         // Unlocking gas for delayed sending rent payment.

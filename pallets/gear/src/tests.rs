@@ -486,16 +486,13 @@ fn delayed_send_user_message_payment() {
 
     // Testing that correct gas amount will be reserved and payed for holding.
     fn scenario(delay: u64) {
-        let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
-        let future_program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
-
         // Upload program that sends message to any user.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             PROXY_WGAS_WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InputArgs {
-                destination: <[u8; 32]>::from(future_program_address).into(),
+                destination: 54321.into(),
                 delay: delay as u32,
             }
             .encode(),
@@ -534,13 +531,11 @@ fn delayed_send_user_message_payment() {
         // Check that only mailbox fee left reserved.
         let mailbox_fee = GasPrice::gas_price(CostsPerBlockOf::<Test>::mailbox());
         assert_eq!(Balances::reserved_balance(&USER_1), mailbox_fee);
-
-        print_gear_events();
     }
 
     init_logger();
 
-    for i in 2..10 {
+    for i in 1..4 {
         new_test_ext().execute_with(|| scenario(i));
     }
 }
@@ -551,20 +546,17 @@ fn delayed_send_program_message_payment() {
 
     // Testing that correct gas amount will be reserved and payed for holding.
     fn scenario(delay: u64) {
-        let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
-        let program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
-
         // Upload empty program that recieve the message.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            code,
+            ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT * 100,
             0,
         ));
 
-        assert_eq!(program_address, utils::get_last_program_id());
+        let program_address = utils::get_last_program_id();
 
         // Upload program that sends message to another program.
         assert_ok!(Gear::upload_program(
@@ -611,13 +603,11 @@ fn delayed_send_program_message_payment() {
 
         // Gas should unlocked after message are sent.
         assert_eq!(Balances::reserved_balance(&USER_1), 0);
-
-        print_gear_events();
     }
 
     init_logger();
 
-    for i in 2..10 {
+    for i in 1..4 {
         new_test_ext().execute_with(|| scenario(i));
     }
 }

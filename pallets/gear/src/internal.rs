@@ -524,11 +524,10 @@ where
     ///
     /// This function adds message into `TaskPool`.
     ///
-    /// If message should go into message queue or mailbox,
-    /// it creates gas node for it.
+    /// Function creates gas node for message.
     ///
     /// On processing task at defined block, we check destination, in case of
-    /// user and absence of gas node,we don't append message into any storage,
+    /// user and absence of gas node, we don't append message into any storage,
     /// propagating `UserMessageSent` event only.
     pub(crate) fn send_delayed_dispatch(
         origin_msg: MessageId,
@@ -564,13 +563,15 @@ where
         let from = <T::AccountId as Origin>::from_origin(dispatch.source().into_origin());
         let value = dispatch.value().unique_saturated_into();
 
-        let gas_for_delay = (delay as u64)
-            .saturating_add(CostsPerBlockOf::<T>::reserve_for().unique_saturated_into())
-            .saturating_mul(CostsPerBlockOf::<T>::dispatch_stash().unique_saturated_into());
+        // `HoldBound` cost builder.
+        let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
 
-        let interval_finish;
+        // Calculating correct gas amount for delay.
+        let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
+        let delay_hold = hold_builder.clone().duration(bn_delay);
+        let gas_for_delay = delay_hold.lock();
 
-        if to_user {
+        let interval_finish = if to_user {
             // Querying `MailboxThreshold`, that represents minimal amount of gas
             // for message to be added to mailbox.
             let threshold = T::MailboxThreshold::get();
@@ -611,15 +612,9 @@ where
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             }
 
-            // `HoldBound` cost builder.
-            let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
-
             // Calculating correct hold bound to lock gas.
             let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
-            let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
-            let hold = hold_builder.duration(bn_delay).min(maximal_hold);
-
-            interval_finish = hold.expected();
+            let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
             GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
@@ -629,11 +624,7 @@ where
                 unreachable!("Hold duration cannot be zero");
             }
 
-            if !dispatch.value().is_zero() {
-                // Reserving value from source for future transfer or unreserve.
-                CurrencyOf::<T>::reserve(&from, value)
-                    .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
-            }
+            hold.expected()
         } else {
             match (dispatch.gas_limit(), reservation) {
                 (Some(gas_limit), None) => {
@@ -681,9 +672,7 @@ where
             // Calculating correct hold bound to lock gas.
             let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
             let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
-            let hold = hold_builder.duration(bn_delay).min(maximal_hold);
-
-            interval_finish = hold.expected();
+            let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
             GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
@@ -693,11 +682,13 @@ where
                 unreachable!("Hold duration cannot be zero");
             }
 
-            if !dispatch.value().is_zero() {
-                // Reserving value from source for future transfer or unreserve.
-                CurrencyOf::<T>::reserve(&from, value)
-                    .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
-            }
+            hold.expected()
+        };
+
+        if !dispatch.value().is_zero() {
+            // Reserving value from source for future transfer or unreserve.
+            CurrencyOf::<T>::reserve(&from, value)
+                .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
         }
 
         // Saving id to allow moving dispatch further.
