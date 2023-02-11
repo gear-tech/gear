@@ -290,7 +290,7 @@ impl<'a> Program<'a> {
         Self::from_opt_and_meta_code_with_id(system, id, opt_code, meta_code)
     }
 
-    pub fn from_opt_and_meta<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
+    pub fn from_opt_and_meta<P: AsRef<Path>>(
         system: &'a System,
         optimized: P,
         metadata: P,
