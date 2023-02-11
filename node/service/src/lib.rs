@@ -622,20 +622,18 @@ pub fn new_full(
 ) -> Result<TaskManager, ServiceError> {
     match &config.chain_spec {
         #[cfg(feature = "gear-native")]
-        spec if spec.is_gear() => new_full_base::<
-            gear_runtime::RuntimeApi,
-            GearExecutorDispatch,
-            gear_runtime::Runtime,
-            gear_runtime::UncheckedExtrinsic,
-        >(config, disable_hardware_benchmarks, |_, _| ())
+        spec if spec.is_gear() => new_full_base::<gear_runtime::RuntimeApi, GearExecutorDispatch>(
+            config,
+            disable_hardware_benchmarks,
+            |_, _| (),
+        )
         .map(|NewFullBase { task_manager, .. }| task_manager),
         #[cfg(feature = "vara-native")]
-        spec if spec.is_vara() => new_full_base::<
-            vara_runtime::RuntimeApi,
-            VaraExecutorDispatch,
-            vara_runtime::Runtime,
-            vara_runtime::UncheckedExtrinsic,
-        >(config, disable_hardware_benchmarks, |_, _| ())
+        spec if spec.is_vara() => new_full_base::<vara_runtime::RuntimeApi, VaraExecutorDispatch>(
+            config,
+            disable_hardware_benchmarks,
+            |_, _| (),
+        )
         .map(|NewFullBase { task_manager, .. }| task_manager),
         _ => Err(ServiceError::Other("Invalid chain spec".into())),
     }
