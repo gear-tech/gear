@@ -22,18 +22,6 @@ pub type MaybeCaughtValue = Option<u64>;
 pub type RemainingNodes = BTreeMap<Key, GasNode>;
 pub type RemovedNodes = BTreeMap<Key, GasNode>;
 
-pub(super) trait RingGet<T> {
-    fn ring_get(&self, index: usize) -> Option<&T>;
-}
-
-impl<T> RingGet<T> for Vec<T> {
-    fn ring_get(&self, index: usize) -> Option<&T> {
-        (!self.is_empty())
-            .then_some(index % self.len().max(1))
-            .and_then(|idx| self.get(idx))
-    }
-}
-
 /// Consumes node with `consuming` id and returns a map of removed nodes
 pub(super) fn consume_node(
     consuming: Key,

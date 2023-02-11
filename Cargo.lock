@@ -3269,6 +3269,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-call-gen"
+version = "0.1.0"
+dependencies = [
+ "arbitrary",
+ "dyn-clonable",
+ "gear-core",
+ "gear-utils",
+ "gear-wasm-gen",
+ "hex",
+ "log",
+ "rand 0.8.5",
+]
+
+[[package]]
 name = "gear-cli"
 version = "0.1.0"
 dependencies = [
@@ -3311,6 +3325,7 @@ dependencies = [
  "frame-system",
  "gear-common-codegen",
  "gear-core",
+ "gear-utils",
  "gear-wasm-instrument",
  "hex-literal",
  "log",
@@ -3426,7 +3441,9 @@ dependencies = [
  "futures",
  "futures-timer",
  "gclient",
+ "gear-call-gen",
  "gear-core",
+ "gear-utils",
  "gear-wasm-gen",
  "hex",
  "names 0.14.0",
@@ -3791,6 +3808,13 @@ dependencies = [
  "sp-version",
  "substrate-wasm-builder",
  "trie-db 0.25.0",
+]
+
+[[package]]
+name = "gear-utils"
+version = "0.1.0"
+dependencies = [
+ "nonempty",
 ]
 
 [[package]]
@@ -6123,6 +6147,12 @@ checksum = "ae01545c9c7fc4486ab7debaf2aad7003ac19431791868fb2e8066df97fad2f8"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "nonempty"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aeaf4ad7403de93e699c191202f017118df734d3850b01e13a3a8b2e6953d3c9"
 
 [[package]]
 name = "normalize-line-endings"
@@ -9829,9 +9859,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.92"
+version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7434af0dc1cbd59268aa98b4c22c131c0584d2232f6fb166efb993e2832e896a"
+checksum = "cad406b69c91885b5107daf2c29572f6c8cdb3c66826821e286c533490c0bc76"
 dependencies = [
  "itoa",
  "ryu",
@@ -12227,6 +12257,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-encoder"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c3e4bc09095436c8e7584d86d33e6c3ee67045af8fb262cbb9cc321de553428"
+dependencies = [
+ "leb128",
+]
+
+[[package]]
 name = "wasm-info"
 version = "0.1.0"
 dependencies = [
@@ -12254,16 +12293,16 @@ dependencies = [
 
 [[package]]
 name = "wasm-mutate"
-version = "0.2.17"
+version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa1b4c990fe15afcce1af0498840c2a8ced1c162c982adb25febe72c8403d15d"
+checksum = "87a229d5b8e4b2b78985dc905f0a033ba8a0bc948321622d41912238c6e0eab1"
 dependencies = [
  "egg",
  "log",
  "rand 0.8.5",
  "thiserror",
- "wasm-encoder 0.22.1",
- "wasmparser 0.99.0",
+ "wasm-encoder 0.23.0",
+ "wasmparser 0.100.0",
 ]
 
 [[package]]
@@ -12689,6 +12728,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmparser"
+version = "0.100.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64b20236ab624147dfbb62cf12a19aaf66af0e41b8398838b66e997d07d269d4"
+dependencies = [
+ "indexmap",
+ "url",
+]
+
+[[package]]
 name = "wasmparser-nostd"
 version = "0.83.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12705,12 +12754,12 @@ dependencies = [
 
 [[package]]
 name = "wasmprinter"
-version = "0.2.49"
+version = "0.2.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27c13dff901f9354fa9a6a877152d9c5642513645985635c9b83bcca99e40ea1"
+checksum = "b2d3f7d7cb1e00ae9f91bb21f2856cdc68a913afb3b6b33fca5a83dba8c8c4eb"
 dependencies = [
  "anyhow",
- "wasmparser 0.99.0",
+ "wasmparser 0.100.0",
 ]
 
 [[package]]

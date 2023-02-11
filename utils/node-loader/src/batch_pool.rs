@@ -1,15 +1,15 @@
 use crate::{
     args::{LoadParams, SeedVariant},
-    utils::{self, LoaderRng, SwapResult},
+    utils::{self, SwapResult},
 };
 use anyhow::{anyhow, Result};
 use api::GearApiFacade;
-use batch::{Batch, BatchWithSeed};
 use context::Context;
 use futures::{stream::FuturesUnordered, Future, StreamExt};
 use gclient::{Error as GClientError, EventProcessor, GearApi, Result as GClientResult};
+use gear_call_gen::CallGenRng;
 use gear_core::ids::{MessageId, ProgramId};
-use generators::{BatchGenerator, RuntimeSettings};
+use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
 use primitive_types::H256;
 pub use report::CrashAlert;
 use report::{BatchRunReport, Report};
@@ -21,7 +21,6 @@ use std::{
 use tracing::instrument;
 
 mod api;
-mod batch;
 mod context;
 pub mod generators;
 mod report;
@@ -29,7 +28,7 @@ mod report;
 type Seed = u64;
 type CallId = usize;
 
-pub struct BatchPool<Rng: LoaderRng> {
+pub struct BatchPool<Rng: CallGenRng> {
     api: GearApiFacade,
     pool_size: usize,
     batch_size: usize,
@@ -37,7 +36,7 @@ pub struct BatchPool<Rng: LoaderRng> {
     _phantom: PhantomData<Rng>,
 }
 
-impl<Rng: LoaderRng> BatchPool<Rng> {
+impl<Rng: CallGenRng> BatchPool<Rng> {
     fn new(api: GearApiFacade, batch_size: usize, pool_size: usize) -> Self {
         Self {
             api,
