@@ -594,7 +594,7 @@ impl AllocationsContext {
                 break;
             }
 
-            start = end.inc().map_err(|_| Error::OutOfBounds)?;
+            start = end.inc().map_err(|_| Error::ProgramAllocOutOfBounds)?;
         }
 
         let (start, not_grown) = if let Some(start) = start_page {
@@ -610,9 +610,11 @@ impl AllocationsContext {
                     unreachable!("Cannot increment last allocation: {}, but we checked in loop above that it can be done", err)
                 }))
                 .unwrap_or(self.static_pages);
-            let end = start.add(pages).map_err(|_| Error::OutOfBounds)?;
+            let end = start
+                .add(pages)
+                .map_err(|_| Error::ProgramAllocOutOfBounds)?;
             if end > self.max_pages {
-                return Err(Error::OutOfBounds);
+                return Err(Error::ProgramAllocOutOfBounds);
             }
 
             // Panic is impossible, because in loop above we checked it.
@@ -660,9 +662,7 @@ impl AllocationsContext {
     ///
     /// Currently running program should own this page.
     pub fn free(&mut self, page: WasmPage) -> Result<(), Error> {
-        if page > self.max_pages {
-            Err(Error::OutOfBounds)
-        } else if page < self.static_pages || !self.allocations.remove(&page) {
+        if page < self.static_pages || page >= self.max_pages || !self.allocations.remove(&page) {
             Err(Error::InvalidFree(page.0))
         } else {
             Ok(())
@@ -733,7 +733,7 @@ mod tests {
     #[test]
     fn free_fails() {
         let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(0), WasmPage(0));
-        assert_eq!(ctx.free(WasmPage(1)), Err(Error::OutOfBounds));
+        assert_eq!(ctx.free(WasmPage(1)), Err(Error::InvalidFree(1)));
 
         let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(1), WasmPage(0));
         assert_eq!(ctx.free(WasmPage(0)), Err(Error::InvalidFree(0)));

@@ -218,6 +218,10 @@ impl ChargedAllocGas {
 pub struct Ext {
     /// Processor context.
     pub context: ProcessorContext,
+    // Counter of outgoing gasless messages.
+    //
+    // It's temporary field, used to solve `core-audit/issue#22`.
+    outgoing_gasless: u64,
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
@@ -225,7 +229,10 @@ impl ProcessorExt for Ext {
     const LAZY_PAGES_ENABLED: bool = false;
 
     fn new(context: ProcessorContext) -> Self {
-        Self { context }
+        Self {
+            context,
+            outgoing_gasless: 0,
+        }
     }
 
     fn lazy_pages_init_for_program(
@@ -292,7 +299,8 @@ impl Ext {
         let mailbox_threshold = self.context.mailbox_threshold;
         let gas_limit = gas_limit.unwrap_or(0);
 
-        if gas_limit != 0 && gas_limit < mailbox_threshold {
+        // Sending gas should apply the range {0} ∪ [mailbox_threshold; +inf)
+        if gas_limit < mailbox_threshold && gas_limit != 0 {
             Err(MessageError::InsufficientGasLimit {
                 message_gas_limit: gas_limit,
                 mailbox_threshold,
@@ -303,7 +311,7 @@ impl Ext {
         }
     }
 
-    fn charge_message_gas(&mut self, gas_limit: GasLimit) -> Result<(), ProcessorError> {
+    fn reduce_gas(&mut self, gas_limit: GasLimit) -> Result<(), ProcessorError> {
         if self.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
             Err(MessageError::NotEnoughGas.into())
         } else {
@@ -323,11 +331,31 @@ impl Ext {
         }
     }
 
+    // It's temporary fn, used to solve `core-audit/issue#22`.
+    fn safe_gasfull_sends<T: Packet>(&mut self, packet: &T) -> Result<(), ProcessorError> {
+        let outgoing_gasless = self.outgoing_gasless;
+
+        match packet.gas_limit() {
+            Some(x) if x != 0 => {
+                self.outgoing_gasless = 0;
+
+                let prev_gasless_fee =
+                    outgoing_gasless.saturating_mul(self.context.mailbox_threshold);
+
+                self.reduce_gas(prev_gasless_fee)?;
+            }
+            None => self.outgoing_gasless = outgoing_gasless.saturating_add(1),
+            _ => {}
+        };
+
+        Ok(())
+    }
+
     fn charge_expiring_resources<T: Packet>(&mut self, packet: &T) -> Result<(), ProcessorError> {
         self.check_message_value(packet.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         let gas_limit = self.check_gas_limit(packet.gas_limit())?;
-        self.charge_message_gas(gas_limit)?;
+        self.reduce_gas(gas_limit)?;
         self.charge_message_value(packet.value())?;
         Ok(())
     }
@@ -426,8 +454,8 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
         self.check_forbidden_destination(msg.destination())?;
+        self.safe_gasfull_sends(&msg)?;
         self.charge_expiring_resources(&msg)?;
-
         self.charge_sending_fee(delay)?;
 
         let msg_id = self
@@ -450,12 +478,10 @@ impl EnvExt for Ext {
         ))?;
 
         self.check_forbidden_destination(msg.destination())?;
-
         self.check_message_value(msg.value())?;
-        let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
+        self.check_gas_limit(msg.gas_limit())?;
         // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
-
         self.charge_sending_fee(delay)?;
 
         self.context.gas_reserver.mark_used(id)?;
@@ -477,8 +503,8 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::ReplyCommit)?;
 
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
+        self.safe_gasfull_sends(&msg)?;
         self.charge_expiring_resources(&msg)?;
-
         self.charge_sending_fee(delay)?;
 
         let msg_id = self
@@ -497,12 +523,10 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::ReservationReplyCommit)?;
 
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
-
         self.check_message_value(msg.value())?;
-        let _gas_limit = self.check_gas_limit(msg.gas_limit())?;
+        self.check_gas_limit(msg.gas_limit())?;
         // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
-
         self.charge_sending_fee(delay)?;
 
         self.context.gas_reserver.mark_used(id)?;
@@ -810,6 +834,7 @@ impl EnvExt for Ext {
         ))?;
 
         self.check_forbidden_destination(packet.destination())?;
+        self.safe_gasfull_sends(&packet)?;
         self.charge_expiring_resources(&packet)?;
         self.charge_sending_fee(delay)?;
 
@@ -1078,7 +1103,7 @@ mod tests {
         assert_eq!(
             ext.free(non_existing_page),
             Err(ProcessorError::Core(ExtError::Memory(
-                MemoryError::OutOfBounds
+                MemoryError::InvalidFree(non_existing_page.raw())
             )))
         );
 
@@ -1162,7 +1187,10 @@ mod tests {
 
         impl Memory for TestMemory {
             fn grow(&mut self, pages: WasmPage) -> Result<(), MemoryError> {
-                self.0 = self.0.add(pages).map_err(|_| MemoryError::OutOfBounds)?;
+                self.0 = self
+                    .0
+                    .add(pages)
+                    .map_err(|_| MemoryError::ProgramAllocOutOfBounds)?;
                 Ok(())
             }
 
@@ -1218,7 +1246,8 @@ mod tests {
         fn assert_alloc_error(err: <Ext as EnvExt>::Error) {
             match err {
                 ProcessorError::Core(ExtError::Memory(
-                    MemoryError::OutOfBounds | MemoryError::IncorrectAllocationsSetOrMemSize,
+                    MemoryError::ProgramAllocOutOfBounds
+                    | MemoryError::IncorrectAllocationsSetOrMemSize,
                 )) => {}
                 err => Err(err).unwrap(),
             }
@@ -1227,9 +1256,7 @@ mod tests {
         #[track_caller]
         fn assert_free_error(err: <Ext as EnvExt>::Error) {
             match err {
-                ProcessorError::Core(ExtError::Memory(
-                    MemoryError::InvalidFree(_) | MemoryError::OutOfBounds,
-                )) => {}
+                ProcessorError::Core(ExtError::Memory(MemoryError::InvalidFree(_))) => {}
                 err => Err(err).unwrap(),
             }
         }
