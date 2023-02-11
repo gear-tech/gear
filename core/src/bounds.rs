@@ -18,17 +18,16 @@
 
 use codec::{Decode, Encode};
 use core::marker::PhantomData;
-use sp_runtime::Perbill;
-use sp_runtime::traits::{
-    Bounded, Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero,
+use sp_runtime::{
+    traits::{Bounded, One, SaturatedConversion, Saturating, Zero}
 };
 
 /// Hold bound, specifying cost of storing, expected block number for task to
 /// create on it, deadlines and durations of holding.
 #[derive(Clone, Debug, Decode, Encode, Eq, PartialEq)]
 pub struct HoldBound<
-    BlockNumber: Saturating + Zero + Bounded,
-    Cost: Saturating + Zero + Bounded + Ord + One + From<BlockNumber>,
+    BlockNumber: Saturating + Zero + Bounded + Copy + From<u64>,
+    Cost: Saturating + Zero + Bounded + Ord + One + Copy + From<BlockNumber> + Into<u64>,
 > {
     /// Cost of storing per block.
     cost: Cost,
@@ -40,8 +39,8 @@ pub struct HoldBound<
 // doesn't allow this due to `pub(crate)` visibility.
 #[allow(unused)]
 impl<
-        BlockNumber: Saturating + Zero + Bounded,
-        Cost: Saturating + Zero + Bounded + Ord + One + From<BlockNumber>,
+        BlockNumber: Saturating + Zero + Bounded + Copy + From<u64>,
+        Cost: Saturating + Zero + Bounded + Ord + One + Copy + From<BlockNumber> + Into<u64>,
     > HoldBound<BlockNumber, Cost>
 {
     /// Creates cost builder for hold bound.
@@ -92,15 +91,15 @@ impl<
 
 /// Cost builder for `HoldBound<T>`.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct HoldBoundCost<
-    Cost: Saturating + Zero + Bounded + Ord + One + From<BlockNumber>,
-    BlockNumber: Saturating + Zero + Bounded,
+pub struct HoldBoundCost<
+    Cost: Saturating + Zero + Bounded + Ord + One + Copy + From<BlockNumber> + Into<u64>,
+    BlockNumber: Saturating + Zero + Bounded + Copy + From<u64>,
 >(Cost, PhantomData<BlockNumber>);
 
 #[allow(unused)]
 impl<
-        BlockNumber: Saturating + Zero + Bounded,
-        Cost: Saturating + Zero + Bounded + Ord + One + From<BlockNumber>,
+        Cost: Saturating + Zero + Bounded + Ord + One + Copy + From<BlockNumber> + Into<u64>,
+        BlockNumber: Saturating + Zero + Bounded + Copy + From<u64>,
     > HoldBoundCost<Cost, BlockNumber>
 {
     /// Creates bound to specific given block number.
@@ -140,8 +139,8 @@ impl<
         current_bn: BlockNumber,
         reserve_for: BlockNumber,
     ) -> HoldBound<BlockNumber, Cost> {
-        let deadline_duration = gas
-            .saturating_div(self.0.max(One::one()))
+        let deadline_duration = Into::<u64>::into(gas)
+            .saturating_div(self.0.max(One::one()).into())
             .saturated_into::<BlockNumber>();
 
         let deadline = current_bn.saturating_add(deadline_duration);
@@ -164,7 +163,7 @@ impl<
         self.maximum_for(gas_limit, current_bn, reserve_for)
     }
 
-    // Zero-duration hold bound.
+    /// Zero-duration hold bound.
     pub fn zero(self, current_bn: BlockNumber) -> HoldBound<BlockNumber, Cost> {
         self.at(current_bn)
     }
