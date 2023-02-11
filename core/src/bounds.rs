@@ -16,21 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Gas hold bounds module.
+
 use codec::{Decode, Encode};
 use core::marker::PhantomData;
-pub use sp_arithmetic::traits::{
-	AtLeast32Bit, AtLeast32BitUnsigned, Bounded, CheckedAdd, CheckedDiv, CheckedMul, CheckedShl,
-	CheckedShr, CheckedSub, IntegerSquareRoot, One, SaturatedConversion, Saturating,
-	UniqueSaturatedFrom, UniqueSaturatedInto, Zero,
-};
-
+use num_traits::{Bounded, One, Saturating, SaturatingMul, Zero};
 
 /// Hold bound, specifying cost of storing, expected block number for task to
 /// create on it, deadlines and durations of holding.
 #[derive(Clone, Debug, Decode, Encode, Eq, PartialEq)]
 pub struct HoldBound<
-    BlockNumber: Saturating + Zero + Bounded + Copy + From<u64>,
-    Cost: Saturating + Zero + Bounded + Ord + One + Copy + From<BlockNumber> + Into<u64>,
+    BlockNumber: Saturating + Zero + Bounded + Copy + From<u64> + Into<Cost>,
+    Cost: Saturating + Zero + Bounded + Ord + One + Copy + From<BlockNumber> + Into<u64> + SaturatingMul,
 > {
     /// Cost of storing per block.
     cost: Cost,
@@ -43,7 +40,15 @@ pub struct HoldBound<
 #[allow(unused)]
 impl<
         BlockNumber: Saturating + Zero + Bounded + Copy + From<u64>,
-        Cost: Saturating + Zero + Bounded + Ord + One + Copy + From<BlockNumber> + Into<u64>,
+        Cost: Saturating
+            + Zero
+            + Bounded
+            + Ord
+            + One
+            + Copy
+            + From<BlockNumber>
+            + Into<u64>
+            + SaturatingMul,
     > HoldBound<BlockNumber, Cost>
 {
     /// Creates cost builder for hold bound.
@@ -86,22 +91,29 @@ impl<
 
     /// Returns amount of gas should be locked for rent of the hold afterward.
     pub fn lock(&self, current_bn: BlockNumber, reserve_for: BlockNumber) -> Cost {
-        self.deadline_duration(current_bn, reserve_for)
-            .saturated_into::<Cost>()
-            .saturating_mul(self.cost())
+        Into::<Cost>::into(self.deadline_duration(current_bn, reserve_for))
+            .saturating_mul(&self.cost())
     }
 }
 
 /// Cost builder for `HoldBound<T>`.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord)]
 pub struct HoldBoundCost<
-    Cost: Saturating + Zero + Bounded + Ord + One + Copy + From<BlockNumber> + Into<u64>,
+    Cost: Saturating + Zero + Bounded + Ord + One + Copy + From<BlockNumber> + Into<u64> + SaturatingMul,
     BlockNumber: Saturating + Zero + Bounded + Copy + From<u64>,
 >(Cost, PhantomData<BlockNumber>);
 
 #[allow(unused)]
 impl<
-        Cost: Saturating + Zero + Bounded + Ord + One + Copy + From<BlockNumber> + Into<u64>,
+        Cost: Saturating
+            + Zero
+            + Bounded
+            + Ord
+            + One
+            + Copy
+            + From<BlockNumber>
+            + Into<u64>
+            + SaturatingMul,
         BlockNumber: Saturating + Zero + Bounded + Copy + From<u64>,
     > HoldBoundCost<Cost, BlockNumber>
 {
@@ -144,7 +156,7 @@ impl<
     ) -> HoldBound<BlockNumber, Cost> {
         let deadline_duration = Into::<u64>::into(gas)
             .saturating_div(self.0.max(One::one()).into())
-            .saturated_into::<BlockNumber>();
+            .into();
 
         let deadline = current_bn.saturating_add(deadline_duration);
 

@@ -26,6 +26,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 
 extern crate alloc;
+extern crate num_traits;
 
 pub mod bounds;
 pub mod code;
