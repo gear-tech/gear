@@ -14,7 +14,7 @@ use subxt::{
 
 type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
 
-const ERRORS_REQUIRE_RETRYING: [&str; 1] = ["Connection reset by peer"];
+const ERRORS_REQUIRE_RETRYING: [&str; 2] = ["Connection reset by peer", "Connection refused"];
 
 mod balances {
     use crate::api::{generated::api::tx, signer::Signer, types::InBlock};
