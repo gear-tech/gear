@@ -353,7 +353,7 @@ where
 }
 
 /// Creates a full service from the configuration.
-pub fn new_full_base<RuntimeApi, ExecutorDispatch, Runtime, Extrinsic>(
+pub fn new_full_base<RuntimeApi, ExecutorDispatch>(
     mut config: Configuration,
     disable_hardware_benchmarks: bool,
     with_startup_data: impl FnOnce(
