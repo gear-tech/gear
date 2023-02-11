@@ -675,9 +675,9 @@ fn read_state_using_wasm_works() {
 
         assert!(Gear::is_initialized(program_id));
 
-        let expected = Wallet::test_sequence().encode();
+        let expected = Wallet::test_sequence().into_iter().last().encode();
 
-        let func1 = "all_wallets";
+        let func1 = "last_wallet";
         assert!(META_EXPORTS_V1.contains(&func1));
 
         let res = Gear::read_state_using_wasm_impl(program_id, func1, META_WASM_V1.to_vec(), None)
