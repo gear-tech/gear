@@ -9165,17 +9165,10 @@ fn check_reply_push_payload_exceed() {
         run_to_block(2, None);
         assert_last_dequeued(1);
 
-        // TODO: fix this in #1857
         assert_failed(
             message_id,
             ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
         );
-        // assert_failed(
-        //     message_id,
-        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-        //         MessageError::MaxMessageSizeExceed,
-        //     ))),
-        // );
     });
 }
 
