@@ -35,11 +35,14 @@ impl Api {
         ))
     }
 
+    /// Subscribe all blocks
+    pub async fn blocks(&self) -> Result<types::Blocks> {
+        Ok(types::Blocks(self.0.blocks().subscribe_all().await?))
+    }
+
     /// Subscribe finalized blocks
-    pub async fn finalized_blocks(&self) -> Result<types::FinalizedBlocks> {
-        Ok(types::FinalizedBlocks(
-            self.0.blocks().subscribe_finalized().await?,
-        ))
+    pub async fn finalized_blocks(&self) -> Result<types::Blocks> {
+        Ok(types::Blocks(self.0.blocks().subscribe_finalized().await?))
     }
 
     /// New signer from api

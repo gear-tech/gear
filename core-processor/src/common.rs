@@ -18,7 +18,7 @@
 
 //! Common structures for processing.
 
-use crate::{executor::SystemPrepareMemoryError, precharge::GasOperation};
+use crate::{executor::SystemPrepareMemoryError, precharge::GasOperation, ActorPrepareMemoryError};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -36,6 +36,7 @@ use gear_core::{
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
+use gear_core_errors::MemoryError;
 use scale_info::TypeInfo;
 
 /// Kind of the dispatch result.
@@ -403,7 +404,7 @@ pub enum ExecutionError {
     /// Actor execution error
     #[display(fmt = "{_0}")]
     Actor(ActorExecutionError),
-    /// System execution erorr
+    /// System execution error
     #[display(fmt = "{_0}")]
     System(SystemExecutionError),
 }
@@ -424,9 +425,12 @@ pub enum ActorExecutionErrorReason {
     /// Not enough gas to perform an operation.
     #[display(fmt = "Not enough gas to {_0}")]
     GasExceeded(GasOperation),
-    /// Backend error
+    /// Prepare memory error
     #[display(fmt = "{_0}")]
-    Backend(String),
+    PrepareMemory(ActorPrepareMemoryError),
+    /// Backend error
+    #[display(fmt = "Environment error: {_0}")]
+    Environment(String),
     /// Ext error
     #[display(fmt = "{_0}")]
     Ext(TrapExplanation),
@@ -442,8 +446,18 @@ pub enum ActorExecutionErrorReason {
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SystemExecutionError {
     /// Prepare memory error
+    #[from]
     #[display(fmt = "Prepare memory: {_0}")]
     PrepareMemory(SystemPrepareMemoryError),
+    /// Environment error
+    #[display(fmt = "Backend error: {_0}")]
+    Environment(String),
+    /// Wasm program backend execution error
+    #[display(fmt = "Backend error")]
+    BackendError,
+    /// Error during `into_ext_info()` call
+    #[display(fmt = "`into_ext_info()` error: {_0}")]
+    IntoExtInfo(MemoryError),
 }
 
 /// Actor.

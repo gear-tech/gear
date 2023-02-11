@@ -299,6 +299,10 @@ case "$COMMAND" in
         header "Running gear-test (spec testing)"
         gtest "$ROOT_DIR" "$@"; ;;
 
+      validators)
+        header "Checking validators"
+        validators "$ROOT_DIR" "$@"; ;;
+
       rtest)
         header "Running node runtime testsuite"
         rtest "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
@@ -306,10 +310,6 @@ case "$COMMAND" in
       pallet)
         header "Running pallet-gear tests"
         pallet_test "$@"; ;;
-
-      runtime-upgrade)
-        header "Running js test for runtime upgrade"
-        runtime_upgrade_test "$ROOT_DIR"; ;;
 
       client)
         header "Running gclient tests"

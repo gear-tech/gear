@@ -25,15 +25,12 @@ extern crate alloc;
 
 #[cfg(feature = "codec")]
 use codec::{Decode, Encode};
-use core::fmt;
+use core::fmt::{Debug, Display};
 #[cfg(feature = "codec")]
 use scale_info::TypeInfo;
 
 /// Core error.
-pub trait CoreError: fmt::Display + fmt::Debug + Sized {
-    /// Attempt to call forbidden sys-call.
-    fn forbidden_function() -> Self;
-}
+pub trait CoreError: Debug + Display + Sized {}
 
 /// Error using messages.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
@@ -43,11 +40,33 @@ pub enum MessageError {
     #[display(fmt = "Max message size exceed")]
     MaxMessageSizeExceed,
 
+    /// Overflow in 'gr_read'
+    #[display(fmt = "Length is overflowed ({at} + {len}) to read payload")]
+    TooBigReadLen {
+        /// Range starts at
+        at: u32,
+        /// Range length
+        len: u32,
+    },
+
+    /// Cannot take data in payload range
+    #[display(
+        fmt = "Cannot take data in payload range [{start}; {end}) from message with size {msg_len}"
+    )]
+    ReadWrongRange {
+        /// Range starts at
+        start: u32,
+        /// Range ends at
+        end: u32,
+        /// Message length
+        msg_len: u32,
+    },
+
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).
     #[display(fmt = "Message limit exceeded")]
-    LimitExceeded,
+    OutgoingMessagesAmountLimitExceeded,
 
     /// The error occurs in case of attempt to send more than one replies.
     #[display(fmt = "Duplicate reply message")]
@@ -141,20 +160,23 @@ pub enum WaitError {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MemoryError {
-    /// The error occurs when a program tries to allocate more memory  than
+    /// The error occurs when a program tries to allocate more memory than
     /// allowed.
-    #[display(fmt = "Memory access out of bounds")]
-    OutOfBounds,
+    #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
+    ProgramAllocOutOfBounds,
+
+    /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
+    #[display(fmt = "Trying to allocate more memory in block-chain runtime than allowed")]
+    RuntimeAllocOutOfBounds,
 
     /// The error occurs in attempt to free-up a memory page from static area or
     /// outside additionally allocated for this program.
     #[display(fmt = "Page {_0} cannot be freed by the current program")]
     InvalidFree(u32),
 
-    /// The error occurs in attempt to access memory page outside pages area
-    /// allocated for this program.
-    #[display(fmt = "Access to the page not allocated to this program")]
-    MemoryAccessError,
+    /// The error occurs in attempt to access memory outside wasm program memory.
+    #[display(fmt = "Trying to access memory outside wasm program memory")]
+    AccessOutOfBounds,
 
     /// Memory size cannot be zero after grow is applied for memory
     #[display(fmt = "Memory unexpectedly has zero size after grow")]
@@ -170,6 +192,7 @@ pub enum MemoryError {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExecutionError {
+    // TODO: remove some errors in #2199
     /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
@@ -179,6 +202,9 @@ pub enum ExecutionError {
     /// An error occurs in attempt to call forbidden sys-call.
     #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
+    /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
+    #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
+    InvalidDebugString,
     /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
     #[display(fmt = "Invalid reservation ID")]
     InvalidReservationId,
@@ -244,11 +270,5 @@ impl ExtError {
     /// Size of error encoded in SCALE codec
     pub fn encoded_size(&self) -> usize {
         Encode::encoded_size(self)
-    }
-}
-
-impl CoreError for ExtError {
-    fn forbidden_function() -> Self {
-        Self::Execution(ExecutionError::ForbiddenFunction)
     }
 }

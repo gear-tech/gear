@@ -18,10 +18,7 @@
 
 //! sp-sandbox runtime (here it's contract execution state) realization.
 
-use crate::{
-    funcs::{FuncError, SyscallOutput},
-    MemoryWrap,
-};
+use crate::{funcs::SyscallOutput, MemoryWrap};
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
 use gear_backend_common::{
@@ -29,9 +26,10 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    IntoExtInfo,
+    BackendExt, BackendExtError, BackendState, BackendTermination, FuncError, TerminationReason,
 };
 use gear_core::env::Ext;
+use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
 
@@ -42,69 +40,91 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
     }
 }
 
-pub(crate) struct Runtime<E: Ext + IntoExtInfo<E::Error>> {
+pub(crate) struct Runtime<E: Ext> {
     pub ext: E,
     pub memory: MemoryWrap,
-    pub err: FuncError<E::Error>,
+    pub fallible_syscall_error: Option<ExtError>,
+    pub termination_reason: TerminationReason,
     pub globals: sp_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
     pub memory_manager: MemoryAccessManager<E>,
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
-    pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
-    where
-        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
-    {
+impl<E> Runtime<E>
+where
+    E: BackendExt,
+    E::Error: BackendExtError,
+{
+    // Cleans `memory_manager`, updates ext counters based on globals.
+    pub(crate) fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
 
         let gas = self
             .globals
             .get_global_val(GLOBAL_NAME_GAS)
             .and_then(as_i64)
-            .ok_or_else(|| {
-                self.err = FuncError::WrongInstrumentation;
-                HostError
-            })?;
+            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         let allowance = self
             .globals
             .get_global_val(GLOBAL_NAME_ALLOWANCE)
             .and_then(as_i64)
-            .ok_or_else(|| {
-                // TODO #1979
-                self.err = FuncError::WrongInstrumentation;
-                HostError
-            })?;
+            .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         self.ext.update_counters(gas as u64, allowance as u64);
+    }
 
-        let result = f(self).map_err(|err| {
-            self.err = err;
-            HostError
-        });
-
+    // Updates globals after execution.
+    pub(crate) fn update_globals(&mut self) {
         let (gas, allowance) = self.ext.counters();
 
         self.globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
-            .map_err(|_| {
-                self.err = FuncError::WrongInstrumentation;
-                HostError
-            })?;
+            .unwrap_or_else(|e| {
+                unreachable!("Globals must be checked during env creation: {:?}", e)
+            });
 
         self.globals
             .set_global_val(GLOBAL_NAME_ALLOWANCE, Value::I64(allowance as i64))
-            .map_err(|_| {
-                // TODO #1979
-                self.err = FuncError::WrongInstrumentation;
-                HostError
-            })?;
+            .unwrap_or_else(|e| {
+                unreachable!("Globals must be checked during env creation: {:?}", e)
+            });
+    }
+
+    pub fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
+    where
+        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
+    {
+        self.prepare_run();
+
+        let result = f(self).map_err(|err| {
+            self.set_termination_reason(err.into());
+            HostError
+        });
+
+        self.update_globals();
 
         result
     }
 
-    pub(crate) fn run<F>(&mut self, f: F) -> SyscallOutput
+    pub fn run_fallible<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> SyscallOutput
+    where
+        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
+        R: From<Result<T, u32>> + Sized,
+    {
+        self.run_any(|ctx| {
+            let res = f(ctx);
+            let res = ctx.process_fallible_func_result(res)?;
+
+            // TODO: move above or make normal process memory access.
+            let write_res = ctx.memory_manager.register_write_as::<R>(res_ptr);
+
+            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+        })
+        .map(|_| ReturnValue::Unit)
+    }
+
+    pub fn run<F>(&mut self, f: F) -> SyscallOutput
     where
         F: FnOnce(&mut Self) -> Result<(), FuncError<E::Error>>,
     {
@@ -112,7 +132,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> Runtime<E> {
     }
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessRecorder for Runtime<E> {
+impl<E: Ext> MemoryAccessRecorder for Runtime<E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.memory_manager.register_read(ptr, size)
     }
@@ -137,7 +157,10 @@ impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessRecorder for Runtime<E> {
     }
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> MemoryOwner for Runtime<E> {
+impl<E> MemoryOwner for Runtime<E>
+where
+    E: BackendExt,
+{
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.memory_manager.read(&self.memory, read)
     }
@@ -163,5 +186,27 @@ impl<E: Ext + IntoExtInfo<E::Error>> MemoryOwner for Runtime<E> {
         obj: T,
     ) -> Result<(), MemoryAccessError> {
         self.memory_manager.write_as(&mut self.memory, write, obj)
+    }
+}
+
+impl<E: BackendExt> BackendState for Runtime<E> {
+    fn set_termination_reason(&mut self, reason: TerminationReason) {
+        self.termination_reason = reason;
+    }
+
+    fn set_fallible_syscall_error(&mut self, err: ExtError) {
+        self.fallible_syscall_error = Some(err);
+    }
+}
+
+impl<E: Ext + BackendExt> BackendTermination<E, MemoryWrap> for Runtime<E> {
+    fn into_parts(self) -> (E, MemoryWrap, TerminationReason) {
+        let Self {
+            ext,
+            memory,
+            termination_reason,
+            ..
+        } = self;
+        (ext, memory, termination_reason)
     }
 }

@@ -106,7 +106,7 @@ jobs:
         run: ./scripts/gear.sh format doc --check
 
       - name: "Check clippy: Gear"
-        run: ./scripts/gear.sh clippy gear --all-targets --all-features
+        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
       - name: "Check clippy: Examples"
         run: ./scripts/gear.sh clippy examples
@@ -254,10 +254,6 @@ jobs:
         run: |
           cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
           ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
-
-      - name: "Test: Runtime upgrade and queue processing"
-        if: github.ref != 'refs/heads/master' # to be deleted
-        run: ./scripts/gear.sh test runtime-upgrade
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
@@ -480,9 +476,6 @@ jobs:
         run: |
           cargo build -p gear-cli --release --features=runtime-test
           ./scripts/gear.sh test rtest gear
-
-      - name: "Test: Runtime upgrade and queue processing"
-        run: ./scripts/gear.sh test runtime-upgrade
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1

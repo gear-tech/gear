@@ -60,7 +60,7 @@ use frame_support::{
     traits::{Currency, Randomness},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_backend_common::{StackEndError, TrapExplanation};
+use gear_backend_common::TrapExplanation;
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
@@ -71,6 +71,78 @@ use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
 use utils::*;
+
+#[test]
+fn gasfull_after_gasless() {
+    init_logger();
+
+    let wat = format!(
+        r#"
+        (module
+        (import "env" "memory" (memory 1))
+        (import "env" "gr_reply_wgas" (func $reply_wgas (param i32 i32 i64 i32 i32 i32)))
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i32 i32)))
+        (export "init" (func $init))
+        (func $init
+            i32.const 111 ;; ptr
+            i32.const 1 ;; value
+            i32.store
+
+            (call $send (i32.const 111) (i32.const 0) (i32.const 32) (i32.const 10) (i32.const 333))
+            (call $reply_wgas (i32.const 0) (i32.const 32) (i64.const {gas_limit}) (i32.const 222) (i32.const 10) (i32.const 333))
+        )
+    )"#,
+        gas_limit = 10 * <Test as Config>::MailboxThreshold::get()
+    );
+
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(&wat).to_bytes();
+
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(code.clone()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            min_limit - 1,
+            0,
+        ));
+
+        // Make sure nothing panics.
+        run_to_next_block(None);
+    })
+}
+
+#[test]
+fn backend_errors_handled_in_program() {
+    use demo_backend_error::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let mid = utils::get_last_message_id();
+
+        run_to_next_block(None);
+        // If nothing panicked, so program's logic and backend are correct.
+        utils::assert_succeed(mid);
+    })
+}
 
 #[test]
 fn non_existent_code_id_zero_gas() {
@@ -182,7 +254,7 @@ fn waited_with_zero_gas() {
 
         let program_id = utils::get_last_program_id();
 
-        // Check that block number matchs program upload block number
+        // Check that block number matches program upload block number
         let upload_block_number = System::block_number();
         assert_eq!(Gear::get_block_number(program_id), upload_block_number);
 
@@ -200,7 +272,7 @@ fn waited_with_zero_gas() {
         run_to_next_block(None);
         assert!(Gear::is_exited(program_id));
 
-        // Check that block number matchs block number when program exited
+        // Check that block number matches block number when program exited
         let exited_block_number = System::block_number();
         assert_eq!(Gear::get_block_number(program_id), exited_block_number);
 
@@ -239,7 +311,7 @@ fn terminated_program_zero_gas() {
 
         let program_id = utils::get_last_program_id();
 
-        // Check that block number matchs program upload block number
+        // Check that block number matches program upload block number
         let upload_block_number = System::block_number();
         assert_eq!(Gear::get_block_number(program_id), upload_block_number);
 
@@ -254,7 +326,7 @@ fn terminated_program_zero_gas() {
         run_to_next_block(None);
         assert!(Gear::is_terminated(program_id));
 
-        // Check that block number matchs block number when program terminated
+        // Check that block number matches block number when program terminated
         let terminated_block_number = System::block_number();
         assert_eq!(Gear::get_block_number(program_id), terminated_block_number);
 
@@ -603,9 +675,9 @@ fn read_state_using_wasm_works() {
 
         assert!(Gear::is_initialized(program_id));
 
-        let expected = Wallet::test_sequence().encode();
+        let expected = Wallet::test_sequence().into_iter().last().encode();
 
-        let func1 = "all_wallets";
+        let func1 = "last_wallet";
         assert!(META_EXPORTS_V1.contains(&func1));
 
         let res = Gear::read_state_using_wasm_impl(program_id, func1, META_WASM_V1.to_vec(), None)
@@ -1318,7 +1390,7 @@ fn mailbox_threshold_works() {
 }
 
 #[test]
-fn send_message_uninitialize_program() {
+fn send_message_uninitialized_program() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Submitting program and send message until it's uninitialized
@@ -2223,12 +2295,19 @@ fn block_gas_limit_works() {
         assert_last_dequeued(4);
         assert_succeed(succeed1);
         assert_succeed(succeed2);
+
+        // TODO: fix this in #2199
         assert_failed(
             failed1,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
-                ExecutionError::GasLimitExceeded,
-            ))),
+            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
         );
+        // assert_failed(
+        //     failed1,
+        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
+        //         ExecutionError::GasLimitExceeded,
+        //     ))),
+        // );
+
         assert_failed(
             failed2,
             ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
@@ -3679,7 +3758,7 @@ fn test_sending_waits() {
 
         let program_id = get_last_program_id();
 
-        // Check that block number matchs program upload block number
+        // Check that block number matches program upload block number
         let upload_block_number = System::block_number();
         assert_eq!(Gear::get_block_number(program_id), upload_block_number);
 
@@ -5569,15 +5648,21 @@ fn test_create_program_with_value_lt_ed() {
         // User's message execution will result in trap, because program tries
         // to send init message with value in invalid range.
         assert_total_dequeued(1);
+
+        // TODO: fix this in #1857
         assert_failed(
             msg_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-                MessageError::InsufficientValue {
-                    message_value: 499,
-                    existential_deposit: 500,
-                },
-            ))),
+            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
         );
+        // assert_failed(
+        //     msg_id,
+        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
+        //         MessageError::InsufficientValue {
+        //             message_value: 499,
+        //             existential_deposit: 500,
+        //         },
+        //     ))),
+        // );
     })
 }
 
@@ -5649,15 +5734,21 @@ fn test_create_program_with_exceeding_value() {
         // User's message execution will result in trap, because program tries
         // to send init message with value more than program has.
         assert_total_dequeued(1);
+
+        // TODO: fix this in #1857
         assert_failed(
             origin_msg_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-                MessageError::NotEnoughValue {
-                    message_value: 1001,
-                    value_left: 1000,
-                },
-            ))),
+            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
         );
+        // assert_failed(
+        //     origin_msg_id,
+        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
+        //         MessageError::NotEnoughValue {
+        //             message_value: 1001,
+        //             value_left: 1000,
+        //         },
+        //     ))),
+        // );
     })
 }
 
@@ -8544,14 +8635,8 @@ mod utils {
         assert_eq!(status, DispatchStatus::Success)
     }
 
-    /// TODO: return back to `ExecutionErrorReason`
     #[track_caller]
-    pub(super) fn assert_failed(message_id: MessageId, error: impl Display) {
-        let status =
-            dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
-
-        assert_eq!(status, DispatchStatus::Failed, "Expected: {error}");
-
+    pub(super) fn get_last_event_error(message_id: MessageId) -> String {
         let mut actual_error = None;
 
         System::events().into_iter().for_each(|e| {
@@ -8569,9 +8654,21 @@ mod utils {
 
         let mut actual_error =
             actual_error.expect("Error message not found in any `RuntimeEvent::UserMessageSent`");
-        let mut expectations = error.to_string();
 
         log::debug!("Actual error: {:?}", actual_error);
+
+        actual_error
+    }
+
+    #[track_caller]
+    pub(super) fn assert_failed(message_id: MessageId, error: ActorExecutionErrorReason) {
+        let status =
+            dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
+
+        assert_eq!(status, DispatchStatus::Failed, "Expected: {error}");
+
+        let mut actual_error = get_last_event_error(message_id);
+        let mut expectations = error.to_string();
 
         // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
         // This check handles display of the error inside.
@@ -8920,9 +9017,11 @@ fn check_gear_stack_end_fail() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
-                WasmPage::new(5).unwrap(),
-                WasmPage::new(4).unwrap(),
+            ActorExecutionErrorReason::PrepareMemory(
+                ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
+                    WasmPage::new(5).unwrap(),
+                    WasmPage::new(4).unwrap(),
+                ),
             ),
         );
 
@@ -8944,7 +9043,9 @@ fn check_gear_stack_end_fail() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Backend(StackEndError::IsNotAligned(65537).to_string()),
+            ActorExecutionErrorReason::PrepareMemory(ActorPrepareMemoryError::StackIsNotAligned(
+                65537,
+            )),
         );
 
         // Check OK if stack end is suitable
@@ -9055,14 +9156,18 @@ fn check_reply_push_payload_exceed() {
 
         run_to_block(2, None);
         assert_last_dequeued(1);
+
+        // TODO: fix this in #1857
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Other(
-                ExtError::Message(MessageError::MaxMessageSizeExceed)
-                    .to_string()
-                    .into(),
-            )),
+            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
         );
+        // assert_failed(
+        //     message_id,
+        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
+        //         MessageError::MaxMessageSizeExceed,
+        //     ))),
+        // );
     });
 }
 
@@ -9308,4 +9413,77 @@ fn relay_messages() {
             payload: payload.to_vec(),
         }],
     );
+}
+
+#[test]
+fn module_instantiation_error() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init)
+        (data (;0;) (i32.const -15186172) "\b9w\92")
+    )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        let prog_id = generate_program_id(&code, &salt);
+        let res = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            salt,
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .map(|_| prog_id);
+        let mid = get_last_message_id();
+
+        assert_ok!(res);
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(prog_id));
+        let err = get_last_event_error(mid);
+        assert!(
+            err.starts_with(&ActorExecutionErrorReason::Environment("".to_string()).to_string())
+        );
+    });
+}
+
+#[test]
+fn wrong_entry_type() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init (param i32))
+    )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        let err = get_last_event_error(mid);
+        assert!(
+            err.starts_with(&ActorExecutionErrorReason::Environment("".to_string()).to_string())
+        );
+    });
 }

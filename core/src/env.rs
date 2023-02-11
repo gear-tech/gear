@@ -24,7 +24,7 @@ use crate::{
     memory::{Memory, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, string::String};
 use codec::{Decode, Encode};
 use gear_core_errors::CoreError;
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -238,6 +238,8 @@ pub trait Ext {
     /// Update counters with the provided values.
     fn update_counters(&mut self, gas: u64, allowance: u64);
 
+    // TODO: remove `out_of_gas` and `out_of_allowance` in #2212
+
     /// Handler for the case when gas is out.
     fn out_of_gas(&mut self) -> Self::Error;
 
@@ -246,4 +248,7 @@ pub trait Ext {
 
     /// Get runtime cost weight.
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64;
+
+    /// Get possible panic string.
+    fn maybe_panic(&self) -> Option<String>;
 }

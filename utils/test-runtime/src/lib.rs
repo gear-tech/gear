@@ -32,9 +32,8 @@ use sp_application_crypto::{ecdsa, ed25519, sr25519, RuntimeAppPublic};
 use sp_core::{offchain::KeyTypeId, OpaqueMetadata, RuntimeDebug};
 use sp_trie::{
     trie_types::{TrieDBBuilder, TrieDBMutBuilderV1},
-    PrefixedMemoryDB, StorageProof,
+    PrefixedMemoryDB, StorageProof, Trie, TrieMut,
 };
-use trie_db::{Trie, TrieMut};
 
 use cfg_if::cfg_if;
 use frame_support::{
@@ -95,7 +94,6 @@ pub fn wasm_binary_logging_disabled_unwrap() -> &'static [u8] {
 }
 
 // Test runtime version.
-#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("test"),
     impl_name: create_runtime_str!("gear-test-runtime"),

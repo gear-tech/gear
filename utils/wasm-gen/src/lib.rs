@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::ops::RangeInclusive;
+use std::{collections::BTreeMap, ops::RangeInclusive};
 
 use arbitrary::Unstructured;
 use gear_wasm_instrument::{
     parity_wasm::{
         self, builder,
         elements::{
-            External, FunctionType, Instruction, Instructions, Internal, Module, Section, Type,
-            ValueType,
+            External, FunctionType, ImportCountType, Instruction, Instructions, Internal, Module,
+            Section, Type, ValueType,
         },
     },
     syscalls::SysCallName,
@@ -32,12 +32,16 @@ use gear_wasm_instrument::{
 use wasm_smith::{InstructionKind::*, InstructionKinds, Module as ModuleSmith, SwarmConfig};
 
 mod syscalls;
-use syscalls::{sys_calls_table, SyscallsConfig};
+use syscalls::{sys_calls_table, Parameter, SysCallInfo, SyscallsConfig};
 
 #[cfg(test)]
 mod test;
 
 pub mod utils;
+pub mod wasm;
+use wasm::{PageCount as WasmPageCount, PAGE_SIZE as WASM_PAGE_SIZE};
+
+const MEMORY_VALUE_SIZE: u32 = 100;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Ratio {
@@ -73,21 +77,21 @@ impl Ratio {
 #[derive(Debug, Clone)]
 pub struct ParamRule {
     pub allowed_values: RangeInclusive<i64>,
-    pub restricted_ratio: Ratio,
+    pub unrestricted_ratio: Ratio,
 }
 
 impl Default for ParamRule {
     fn default() -> Self {
         Self {
             allowed_values: 0..=0,
-            restricted_ratio: (100, 100).into(),
+            unrestricted_ratio: (100, 100).into(),
         }
     }
 }
 
 impl ParamRule {
     pub fn get_i32(&self, u: &mut Unstructured) -> i32 {
-        if self.restricted_ratio.get(u) {
+        if self.unrestricted_ratio.get(u) {
             u.arbitrary().unwrap()
         } else {
             let start = if *self.allowed_values.start() < i32::MIN as i64 {
@@ -104,7 +108,7 @@ impl ParamRule {
         }
     }
     pub fn get_i64(&self, u: &mut Unstructured) -> i64 {
-        if self.restricted_ratio.get(u) {
+        if self.unrestricted_ratio.get(u) {
             u.arbitrary().unwrap()
         } else {
             u.int_in_range(self.allowed_values.clone()).unwrap()
@@ -128,6 +132,8 @@ pub struct GearConfig {
     pub sys_calls: SyscallsConfig,
     pub print_test_info: Option<String>,
     pub max_percentage_seed: u32,
+    pub unchecked_memory_access: Ratio,
+    pub use_message_source: Ratio,
 }
 
 impl GearConfig {
@@ -148,6 +154,8 @@ impl GearConfig {
             sys_calls: Default::default(),
             print_test_info: None,
             max_percentage_seed: 100,
+            unchecked_memory_access: prob,
+            use_message_source: (50, 100).into(),
         }
     }
     pub fn new_for_rare_cases() -> Self {
@@ -167,6 +175,8 @@ impl GearConfig {
             sys_calls: Default::default(),
             print_test_info: None,
             max_percentage_seed: 5,
+            unchecked_memory_access: prob,
+            use_message_source: prob,
         }
     }
     pub fn new_valid() -> Self {
@@ -187,6 +197,8 @@ impl GearConfig {
             sys_calls: Default::default(),
             print_test_info: None,
             max_percentage_seed: 100,
+            unchecked_memory_access: zero_prob,
+            use_message_source: zero_prob,
         }
     }
 }
@@ -236,25 +248,118 @@ pub fn gen_wasm_smith_module(u: &mut Unstructured, config: &SwarmConfig) -> Modu
     }
 }
 
+fn build_checked_call(
+    u: &mut Unstructured,
+    results: &[ValueType],
+    params_rules: &[Parameter],
+    func_no: u32,
+    memory_pages: WasmPageCount,
+    unchecked_memory: Ratio,
+) -> Vec<Instruction> {
+    let unchecked = unchecked_memory.get(u);
+
+    let mut code = Vec::with_capacity(params_rules.len() * 2 + 1 + results.len());
+    for parameter in params_rules {
+        match parameter {
+            Parameter::Value { value_type, rule } => {
+                let instr = match value_type {
+                    ValueType::I32 => Instruction::I32Const(rule.get_i32(u)),
+                    ValueType::I64 => Instruction::I64Const(rule.get_i64(u)),
+                    _ => panic!("Cannot handle f32/f64"),
+                };
+                code.push(instr);
+            }
+
+            Parameter::MemoryArray => {
+                if unchecked {
+                    code.push(Instruction::I32Const(
+                        u.arbitrary()
+                            .expect("Unstructured::arbitrary failed for MemoryArray"),
+                    ));
+                    code.push(Instruction::I32Const(
+                        u.arbitrary()
+                            .expect("Unstructured::arbitrary failed for MemoryArray"),
+                    ));
+                } else {
+                    let memory_size = memory_pages.memory_size();
+                    let upper_limit = memory_size.saturating_sub(1);
+
+                    let pointer_beyond = u
+                        .int_in_range(0..=upper_limit)
+                        .expect("Unstructured::int_in_range failed for MemoryArray");
+                    let offset = u
+                        .int_in_range(0..=pointer_beyond)
+                        .expect("Unstructured::int_in_range failed for MemoryArray");
+
+                    code.push(Instruction::I32Const(offset as i32));
+                    code.push(Instruction::I32Const((pointer_beyond - offset) as i32));
+                }
+            }
+
+            Parameter::MemoryValue => {
+                if unchecked {
+                    code.push(Instruction::I32Const(
+                        u.arbitrary()
+                            .expect("Unstructured::arbitrary failed for MemoryValue"),
+                    ));
+                } else {
+                    let memory_size = memory_pages.memory_size();
+                    // Subtract a bit more so entities from gsys fit.
+                    let upper_limit = memory_size.saturating_sub(MEMORY_VALUE_SIZE);
+                    let offset = u
+                        .int_in_range(0..=upper_limit)
+                        .expect("Unstructured::int_in_range failed for MemoryValue");
+
+                    code.push(Instruction::I32Const(offset as i32));
+                }
+            }
+
+            Parameter::Alloc => {
+                if unchecked {
+                    code.push(Instruction::I32Const(
+                        u.arbitrary()
+                            .expect("Unstructured::arbitrary failed for Alloc"),
+                    ));
+                } else {
+                    let pages_to_alloc = u
+                        .int_in_range(0..=memory_pages.raw().saturating_sub(1))
+                        .expect("Unstructured::int_in_range failed for Alloc");
+
+                    code.push(Instruction::I32Const(pages_to_alloc as i32));
+                }
+            }
+        }
+    }
+
+    code.push(Instruction::Call(func_no));
+    code.extend(results.iter().map(|_| Instruction::Drop));
+    code
+}
+
 fn make_call_instructions_vec(
     u: &mut Unstructured,
     params: &[ValueType],
     results: &[ValueType],
-    params_rules: &[ParamRule],
     func_no: u32,
 ) -> Vec<Instruction> {
-    let mut code = Vec::new();
-    for (index, val) in params.iter().enumerate() {
-        let rule = params_rules.get(index).cloned().unwrap_or_default();
+    let mut code = Vec::with_capacity(params.len() + 1 + results.len());
+    for val in params {
         let instr = match val {
-            ValueType::I32 => Instruction::I32Const(rule.get_i32(u)),
-            ValueType::I64 => Instruction::I64Const(rule.get_i64(u)),
+            ValueType::I32 => Instruction::I32Const(
+                u.arbitrary()
+                    .expect("Unstructured::arbitrary failed for I32"),
+            ),
+            ValueType::I64 => Instruction::I64Const(
+                u.arbitrary()
+                    .expect("Unstructured::arbitrary failed for I64"),
+            ),
             _ => panic!("Cannot handle f32/f64"),
         };
         code.push(instr);
     }
     code.push(Instruction::Call(func_no));
     code.extend(results.iter().map(|_| Instruction::Drop));
+
     code
 }
 
@@ -297,6 +402,12 @@ enum GearStackEndExportSeed {
     GenerateValue(u32),
 }
 
+struct SyscallData {
+    info: SysCallInfo,
+    sys_call_amount: usize,
+    call_index: u32,
+}
+
 impl<'a> WasmGen<'a> {
     fn initial_calls_indexes(module: &Module) -> Vec<FuncIdx> {
         let mut calls_indexes = Vec::new();
@@ -335,8 +446,6 @@ impl<'a> WasmGen<'a> {
         const NOT_WASM_PAGE_SEED: u32 = 1;
         const BIGGER_THAN_MEMORY_SEED: u32 = 2;
 
-        const WASM_PAGE_SIZE_BYTES: u32 = 64 * 1024;
-
         let seed = self
             .u
             .int_in_range(0..=self.config.max_percentage_seed)
@@ -344,7 +453,7 @@ impl<'a> WasmGen<'a> {
         match seed {
             NOT_GENERATE_SEED => GearStackEndExportSeed::NotGenerate,
             NOT_WASM_PAGE_SEED => {
-                let max_size = min_memory_size_pages * WASM_PAGE_SIZE_BYTES;
+                let max_size = min_memory_size_pages * WASM_PAGE_SIZE;
                 // More likely value is not multiple of WASM_PAGE_SIZE_BYTES
                 let value = self.u.int_in_range(0..=max_size).unwrap();
                 GearStackEndExportSeed::GenerateValue(value)
@@ -355,19 +464,19 @@ impl<'a> WasmGen<'a> {
                     .int_in_range(min_memory_size_pages..=10 * min_memory_size_pages)
                     .unwrap();
                 // Make value a multiple of WASM_PAGE_SIZE_BYTES but bigger than min_memory_size
-                let value_bytes = (value_pages + 1) * WASM_PAGE_SIZE_BYTES;
+                let value_bytes = (value_pages + 1) * WASM_PAGE_SIZE;
                 GearStackEndExportSeed::GenerateValue(value_bytes)
             }
             _ => {
                 let correct_value_pages = self.u.int_in_range(0..=min_memory_size_pages).unwrap();
                 // Make value a multiple of WASM_PAGE_SIZE_BYTES but less than min_memory_size
-                let correct_value_bytes = correct_value_pages * WASM_PAGE_SIZE_BYTES;
+                let correct_value_bytes = correct_value_pages * WASM_PAGE_SIZE;
                 GearStackEndExportSeed::GenerateValue(correct_value_bytes)
             }
         }
     }
 
-    pub fn gen_mem_export(&mut self, mut module: Module) -> Module {
+    pub fn gen_mem_export(&mut self, mut module: Module) -> (Module, WasmPageCount) {
         let mut mem_section_idx = None;
         for (idx, section) in module.sections().iter().enumerate() {
             if let Section::Memory(_) = section {
@@ -413,15 +522,19 @@ impl<'a> WasmGen<'a> {
 
             let last_element_num = module.global_section_mut().unwrap().entries_mut().len() - 1;
 
-            return builder::from_module(module)
-                .export()
-                .field("__gear_stack_end")
-                .internal()
-                .global(last_element_num.try_into().unwrap())
-                .build()
-                .build();
+            return (
+                builder::from_module(module)
+                    .export()
+                    .field("__gear_stack_end")
+                    .internal()
+                    .global(last_element_num.try_into().unwrap())
+                    .build()
+                    .build(),
+                mem_size.into(),
+            );
         }
-        module
+
+        (module, mem_size.into())
     }
 
     fn insert_instructions_in_random_place(
@@ -450,13 +563,9 @@ impl<'a> WasmGen<'a> {
             .function_section()
             .map_or(0, |funcs| funcs.entries().len() as u32);
         let func_type = get_func_type(&module, FuncIdx::Func(func_no));
-        let mut instructions = make_call_instructions_vec(
-            self.u,
-            func_type.params(),
-            func_type.results(),
-            Default::default(),
-            func_no,
-        );
+
+        let mut instructions =
+            make_call_instructions_vec(self.u, func_type.params(), func_type.results(), func_no);
         instructions.push(Instruction::End);
 
         module = builder::from_module(module)
@@ -552,7 +661,7 @@ impl<'a> WasmGen<'a> {
         )
     }
 
-    pub fn insert_sys_calls(&mut self, mut module: Module) -> Module {
+    pub fn insert_sys_calls(&mut self, module: Module, memory_pages: WasmPageCount) -> Module {
         let code_size = if let Some(code) = module.code_section() {
             code.bodies()
                 .iter()
@@ -561,52 +670,146 @@ impl<'a> WasmGen<'a> {
             return module;
         };
 
+        let mut source_call_index = None;
+
+        let import_count = module.import_count(ImportCountType::Function);
+
+        let mut builder = builder::from_module(module);
+
+        // generate corresponding import entries for syscalls
+        let mut syscall_data = BTreeMap::default();
         let sys_calls_table = sys_calls_table(&self.config);
+        for (i, (name, info, sys_call_amount)) in sys_calls_table
+            .into_iter()
+            .filter_map(|(name, info)| {
+                let sys_call_max_amount = info.frequency.mult(code_size);
+                let sys_call_amount = self.u.int_in_range(0..=sys_call_max_amount).unwrap();
+                if sys_call_amount == 0
+                    && !(name == SysCallName::Debug && self.config.print_test_info.is_some())
+                {
+                    None
+                } else {
+                    Some((name, info, sys_call_amount))
+                }
+            })
+            .enumerate()
+        {
+            let signature_index = {
+                let func_type = info.func_type();
+                let mut signature_builder = builder::signature();
+                for parameter in func_type.params() {
+                    signature_builder = signature_builder.with_param(*parameter);
+                }
 
-        for (name, info) in sys_calls_table {
-            let sys_call_max_amount = info.frequency.mult(code_size);
-            let sys_call_amount = self.u.int_in_range(0..=sys_call_max_amount).unwrap();
-            if sys_call_amount == 0
-                && !(name == SysCallName::Debug && self.config.print_test_info.is_some())
-            {
-                continue;
-            }
+                for result in func_type.results() {
+                    signature_builder = signature_builder.with_result(*result);
+                }
 
-            let types = module.type_section_mut().unwrap().types_mut();
-            let type_no = types.len() as u32;
-            types.push(Type::Function(info.func_type()));
+                builder.push_signature(signature_builder.build_sig())
+            };
 
             // make import
-            module = builder::from_module(module)
-                .import()
-                .module("env")
-                .external()
-                .func(type_no)
-                .field(name.to_str())
-                .build()
-                .build();
-
-            let import_func_no = module.import_section().unwrap().functions() as u32 - 1;
-
-            self.calls_indexes.push(FuncIdx::Import(import_func_no));
-
-            let func_no = self.calls_indexes.len() as u32 - 1;
-
-            // insert sys call anywhere in the code
-            let instructions = make_call_instructions_vec(
-                self.u,
-                &info.params,
-                &info.results,
-                &info.param_rules,
-                func_no,
+            builder.push_import(
+                builder::import()
+                    .module("env")
+                    .external()
+                    .func(signature_index)
+                    .field(name.to_str())
+                    .build(),
             );
 
-            for _ in 0..sys_call_amount {
+            let call_index = self.calls_indexes.len() as u32;
+            if name == SysCallName::Source {
+                source_call_index = Some(call_index);
+            }
+
+            self.calls_indexes
+                .push(FuncIdx::Import((import_count + i) as u32));
+            syscall_data.insert(
+                name,
+                SyscallData {
+                    info,
+                    sys_call_amount,
+                    call_index,
+                },
+            );
+        }
+
+        let mut module = builder.build();
+
+        // generate call instructions for syscalls and insert them somewhere into the code
+        for (name, data) in syscall_data {
+            let instructions =
+                self.build_call_instructions(name, &data, memory_pages, source_call_index);
+            for _ in 0..data.sys_call_amount {
                 module = self.insert_instructions_in_random_place(module, &instructions);
             }
         }
 
         module
+    }
+
+    fn build_call_instructions(
+        &mut self,
+        name: SysCallName,
+        data: &SyscallData,
+        memory_pages: WasmPageCount,
+        source_call_index: Option<u32>,
+    ) -> Vec<Instruction> {
+        let info = &data.info;
+        let use_message_source = self.config.use_message_source.get(self.u);
+        let source_call_index = match source_call_index {
+            // TODO #2206: send also using reserved gas
+            Some(i)
+                if use_message_source
+                    && [
+                        SysCallName::Send,
+                        SysCallName::SendWGas,
+                        SysCallName::SendInput,
+                        SysCallName::SendInputWGas,
+                    ]
+                    .contains(&name) =>
+            {
+                i
+            }
+            _ => {
+                return build_checked_call(
+                    self.u,
+                    &info.results,
+                    &info.parameter_rules,
+                    data.call_index,
+                    memory_pages,
+                    self.config.unchecked_memory_access,
+                )
+            }
+        };
+
+        let mut remaining_instructions = build_checked_call(
+            self.u,
+            &info.results,
+            &info.parameter_rules[1..],
+            data.call_index,
+            memory_pages,
+            self.config.unchecked_memory_access,
+        );
+
+        let mut instructions = Vec::with_capacity(3 + remaining_instructions.len());
+
+        let memory_size = memory_pages.memory_size();
+        let upper_limit = memory_size.saturating_sub(MEMORY_VALUE_SIZE);
+        let offset = self
+            .u
+            .int_in_range(0..=upper_limit)
+            .expect("build_call_instructions: Unstructured::int_in_range failed");
+
+        // call msg::source (gr_source) with a memory offset
+        instructions.push(Instruction::I32Const(offset as i32));
+        instructions.push(Instruction::Call(source_call_index));
+        // pass the offset as the first argument to the send-call
+        instructions.push(Instruction::I32Const(offset as i32));
+        instructions.append(&mut remaining_instructions);
+
+        instructions
     }
 
     pub fn make_print_test_info(&mut self, mut module: Module) -> Module {
@@ -754,7 +957,7 @@ impl<'a> WasmGen<'a> {
 pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConfig) -> Module {
     let swarm_config = default_swarm_config(u, &config);
 
-    let mut module = loop {
+    let module = loop {
         let module = gen_wasm_smith_module(u, &swarm_config);
         let wasm_bytes = module.to_bytes();
         let module: Module = parity_wasm::deserialize_buffer(&wasm_bytes).unwrap();
@@ -764,14 +967,15 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
     };
 
     let mut gen = WasmGen::new(&module, u, config);
-    module = gen.gen_mem_export(module);
+
+    let (module, memory_pages) = gen.gen_mem_export(module);
     let (mut module, has_init) = gen.gen_init(module);
     if !has_init {
         return gen.resolves_calls_indexes(module);
     }
 
     module = gen.gen_handle(module).0;
-    module = gen.insert_sys_calls(module);
+    module = gen.insert_sys_calls(module, memory_pages);
     module = gen.make_print_test_info(module);
 
     gen.resolves_calls_indexes(module)

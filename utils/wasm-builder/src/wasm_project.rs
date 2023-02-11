@@ -182,14 +182,16 @@ impl WasmProject {
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
 
-        fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)?;
+        fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
+            .context("unable to write Cargo.toml")?;
 
         let src_dir = self.out_dir.join("src");
         fs::create_dir_all(&src_dir)?;
         fs::write(
             src_dir.join("lib.rs"),
             "#![no_std] pub use orig_project::*;",
-        )?;
+        )
+        .context("unable to write lib.rs")?;
 
         // Copy original `Cargo.lock` if any
         let from_lock = self.original_dir.join("Cargo.lock");
@@ -205,6 +207,71 @@ impl WasmProject {
 
             fs::write(wasm_meta_hash_path, format!("{:?}", metadata.hash()))
                 .context("unable to write `.metahash`")?;
+        }
+
+        Ok(())
+    }
+
+    pub fn write_wasm_binary_rs(&self, paths: Option<(PathBuf, PathBuf, PathBuf)>) -> Result<()> {
+        let metadata = self
+            .project_type
+            .metadata()
+            .map(|m| {
+                format!(
+                    "#[allow(unused)] pub const WASM_METADATA: &[u8] = &{:?};\n",
+                    m.bytes()
+                )
+            })
+            .unwrap_or_default();
+
+        let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
+
+        let include_bytes = |path| format!(r#"include_bytes!("{}")"#, display_path(path));
+        let (to_path, to_opt_path, to_meta_path, exports) =
+            if let Some((to_path, to_opt_path, to_meta_path)) = paths {
+                (
+                    include_bytes(&to_path),
+                    include_bytes(&to_opt_path),
+                    include_bytes(&to_meta_path),
+                    Self::get_exports(to_meta_path)?,
+                )
+            } else {
+                (
+                    "&[]".to_string(),
+                    "&[]".to_string(),
+                    "&[]".to_string(),
+                    vec![],
+                )
+            };
+
+        if !self.project_type.is_metawasm() {
+            fs::write(
+                wasm_binary_rs,
+                format!(
+                    r#"#[allow(unused)]
+pub const WASM_BINARY: &[u8] = {to_path};
+#[allow(unused)]
+pub const WASM_BINARY_OPT: &[u8] = {to_opt_path};
+#[allow(unused)]
+pub const WASM_BINARY_META: &[u8] = {to_meta_path};
+{metadata}
+"#,
+                ),
+            )
+            .context("unable to write `wasm_binary.rs`")?;
+        } else {
+            fs::write(
+                wasm_binary_rs,
+                format!(
+                    r#"#[allow(unused)]
+pub const WASM_BINARY: &[u8] = {to_meta_path};
+#[allow(unused)]
+pub const WASM_EXPORTS: &[&str] = &{exports:?};
+
+"#,
+                ),
+            )
+            .context("unable to write `wasm_binary.rs`")?;
         }
 
         Ok(())
@@ -239,17 +306,6 @@ impl WasmProject {
             // let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
         }
 
-        let metadata = self
-            .project_type
-            .metadata()
-            .map(|m| {
-                format!(
-                    "#[allow(unused)] pub const WASM_METADATA: &[u8] = &{:?};\n",
-                    m.bytes()
-                )
-            })
-            .unwrap_or_default();
-
         // Generate wasm binaries
         Self::generate_wasm(
             from_path,
@@ -270,43 +326,7 @@ impl WasmProject {
                 .context("unable to write `.binpath`")?;
         }
 
-        let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
-
-        if !self.project_type.is_metawasm() {
-            fs::write(
-                wasm_binary_rs,
-                format!(
-                    r#"#[allow(unused)]
-pub const WASM_BINARY: &[u8] = include_bytes!("{}");
-#[allow(unused)]
-pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
-#[allow(unused)]
-pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
-{}
-"#,
-                    display_path(to_path),
-                    display_path(to_opt_path),
-                    display_path(to_meta_path),
-                    metadata,
-                ),
-            )
-            .context("unable to write `wasm_binary.rs`")?;
-        } else {
-            fs::write(
-                wasm_binary_rs,
-                format!(
-                    r#"#[allow(unused)]
-pub const WASM_BINARY: &[u8] = include_bytes!("{}");
-#[allow(unused)]
-pub const WASM_EXPORTS: &[&str] = &{:?};
-
-"#,
-                    display_path(to_meta_path.clone()),
-                    Self::get_exports(to_meta_path)?,
-                ),
-            )
-            .context("unable to write `wasm_binary.rs`")?;
-        }
+        self.write_wasm_binary_rs(Some((to_path, to_opt_path, to_meta_path)))?;
 
         Ok(())
     }
@@ -332,7 +352,7 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
     }
 
     fn get_exports(file: PathBuf) -> Result<Vec<String>> {
-        let module = parity_wasm::deserialize_file(file)?;
+        let module = parity_wasm::deserialize_file(file).context("unable to deserialize module")?;
 
         let exports = module
             .export_section()
@@ -353,6 +373,6 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
 }
 
 // Windows has path like `path\to\somewhere` which is incorrect for `include_*` Rust's macros
-fn display_path(path: PathBuf) -> String {
+fn display_path(path: &Path) -> String {
     path.display().to_string().replace('\\', "/")
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -40,35 +40,95 @@ pub fn param_to_rule(param: ParamType, config: &GearConfig) -> ParamRule {
 }
 
 /// Syscall function info and config.
+#[derive(Debug)]
 pub struct SysCallInfo {
     /// Syscall signature params.
     pub params: Vec<ValueType>,
     /// Syscall signature results.
     pub results: Vec<ValueType>,
-    /// Syscall params allowed input values.
-    pub param_rules: Vec<ParamRule>,
     /// Syscall frequency in generated code.
     pub frequency: Ratio,
+    /// Syscall allowed input values.
+    pub parameter_rules: Vec<Parameter>,
 }
 
 impl SysCallInfo {
-    pub fn new(config: &GearConfig, signature: SysCallSignature, frequency: Ratio) -> Self {
+    pub fn new(
+        config: &GearConfig,
+        signature: SysCallSignature,
+        frequency: Ratio,
+        skip_memory_array: bool,
+    ) -> Self {
         Self {
             params: signature.params.iter().copied().map(Into::into).collect(),
             results: signature.results.to_vec(),
-            param_rules: signature
-                .params
-                .iter()
-                .copied()
-                .map(|param| param_to_rule(param, config))
-                .collect(),
             frequency,
+            parameter_rules: Self::into_parameter_rules(
+                config,
+                signature.params,
+                skip_memory_array,
+            ),
         }
     }
 
     pub fn func_type(&self) -> FunctionType {
         FunctionType::new(self.params.clone(), self.results.clone())
     }
+
+    fn into_parameter_rules(
+        config: &GearConfig,
+        parameters: Vec<ParamType>,
+        skip_memory_array: bool,
+    ) -> Vec<Parameter> {
+        let mut rules = Vec::with_capacity(parameters.len());
+        for parameter in parameters.into_iter() {
+            match parameter {
+                ParamType::Size => match rules.last_mut() {
+                    None => rules.push((parameter, false)),
+                    Some((first, memory_array)) => match (first, *memory_array) {
+                        (ParamType::Ptr, false) if !skip_memory_array => *memory_array = true,
+                        _ => rules.push((parameter, false)),
+                    },
+                },
+
+                _ => rules.push((parameter, false)),
+            }
+        }
+
+        rules
+            .into_iter()
+            .map(|(arg_type, memory_array)| match memory_array {
+                true => Parameter::MemoryArray,
+                false => match arg_type {
+                    ParamType::Ptr => Parameter::MemoryValue,
+                    ParamType::Alloc => Parameter::Alloc,
+                    _ => Parameter::Value {
+                        value_type: arg_type.into(),
+                        rule: param_to_rule(arg_type, config),
+                    },
+                },
+            })
+            .collect()
+    }
+}
+
+/// Newtype for additional validation of calls arguments.
+///
+/// Parameters describing memory access should have correct values
+/// if required. For example, offset + length < memory_size for arrays.
+#[derive(Debug)]
+pub enum Parameter {
+    /// Some value with its type and generating rule.
+    Value {
+        value_type: ValueType,
+        rule: ParamRule,
+    },
+    /// Offset and length in memory for an array. Both have type i32.
+    MemoryArray,
+    /// Pointer in memory for some primitive type value.
+    MemoryValue,
+    /// Argument to `alloc` syscall.
+    Alloc,
 }
 
 /// Syscalls config.
@@ -87,43 +147,43 @@ pub struct SyscallsConfig {
 
 impl Default for SyscallsConfig {
     fn default() -> Self {
-        let restricted_ratio = (1, 100).into();
+        let unrestricted_ratio = (1, 100).into();
         Self {
             alloc_param_rule: ParamRule {
                 allowed_values: 0..=512,
-                restricted_ratio,
+                unrestricted_ratio,
             },
             free_param_rule: ParamRule {
                 allowed_values: 0..=512,
-                restricted_ratio,
+                unrestricted_ratio,
             },
             ptr_rule: ParamRule {
                 allowed_values: 0..=513 * 0x10000 - 1,
-                restricted_ratio,
+                unrestricted_ratio,
             },
             memory_size_rule: ParamRule {
                 allowed_values: 0..=0x10000,
-                restricted_ratio: (10, 100).into(),
+                unrestricted_ratio: (10, 100).into(),
             },
             no_rule: ParamRule {
                 allowed_values: 0..=0,
-                restricted_ratio: (100, 100).into(),
+                unrestricted_ratio: (100, 100).into(),
             },
             gas_rule: ParamRule {
                 allowed_values: 0..=250_000_000_000,
-                restricted_ratio,
+                unrestricted_ratio,
             },
             message_position: ParamRule {
                 allowed_values: 0..=10,
-                restricted_ratio,
+                unrestricted_ratio,
             },
             duration_in_blocks: ParamRule {
                 allowed_values: 0..=10000,
-                restricted_ratio,
+                unrestricted_ratio,
             },
             handler: ParamRule {
                 allowed_values: 0..=100,
-                restricted_ratio,
+                unrestricted_ratio,
             },
         }
     }
@@ -136,7 +196,9 @@ pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<SysCallName, SysC
         .map(|name| {
             (
                 name,
-                SysCallInfo::new(config, name.signature(), config.sys_call_freq),
+                SysCallInfo::new(config, name.signature(), config.sys_call_freq, {
+                    name == SysCallName::SendInput || name == SysCallName::SendInputWGas
+                }),
             )
         })
         .collect()

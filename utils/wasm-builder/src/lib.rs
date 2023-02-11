@@ -67,10 +67,26 @@ impl WasmBuilder {
 
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
-        if env::var(self.cargo.skip_build_env()).is_ok() {
-            return;
-        }
-        if let Err(e) = self.build_project() {
+        println!(
+            "cargo:rerun-if-env-changed={}",
+            self.cargo.skip_pkg_build_env()
+        );
+        println!("cargo:rerun-if-env-changed=SKIP_WASM_BUILD");
+
+        let check_env = |name: &str| {
+            let var = env::var(name).ok().as_deref().map(str::to_lowercase);
+            ["1", "true"].map(Some).contains(&var.as_deref())
+        };
+
+        let f = || {
+            if check_env(&self.cargo.skip_pkg_build_env()) || check_env("SKIP_WASM_BUILD") {
+                return self.wasm_project.write_wasm_binary_rs(None);
+            }
+
+            self.build_project()
+        };
+
+        if let Err(e) = f() {
             eprintln!("error: {e}");
             e.chain()
                 .skip(1)

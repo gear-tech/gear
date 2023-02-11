@@ -3,18 +3,23 @@ use gmeta::metawasm;
 use gstd::prelude::*;
 
 #[metawasm]
-pub trait Metawasm {
-    type State = Vec<Wallet>;
+pub mod metafns {
+    pub type State = Vec<Wallet>;
 
-    fn all_wallets(state: Self::State) -> Vec<Wallet> {
-        state
-    }
-
-    fn first_wallet(state: Self::State) -> Option<Wallet> {
+    /// Returns the first wallet.
+    pub fn first_wallet(state: State) -> Option<Wallet> {
         state.first().cloned()
     }
 
-    fn last_wallet(state: Self::State) -> Option<Wallet> {
+    /// Returns the last wallet.
+    pub fn last_wallet(state: State) -> Option<Wallet> {
         state.last().cloned()
+    }
+
+    /// Returns the first & last wallets.
+    ///
+    /// They'll equal if the contract has only one wallet.
+    pub fn first_and_last_wallets(state: State) -> (Option<Wallet>, Option<Wallet>) {
+        (first_wallet(state.clone()), last_wallet(state))
     }
 }

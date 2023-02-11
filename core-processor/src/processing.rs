@@ -29,9 +29,9 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
 use codec::Encode;
-use gear_backend_common::{Environment, IntoExtInfo, SystemReservationContext};
+use gear_backend_common::{BackendExt, BackendExtError, Environment, SystemReservationContext};
 use gear_core::{
-    env::Ext as EnvExt,
+    env::Ext,
     ids::ProgramId,
     memory::{GearPage, PageBuf},
     message::{
@@ -41,15 +41,17 @@ use gear_core::{
 };
 
 /// Process program & dispatch for it and return journal for updates.
-pub fn process<
-    A: ProcessorExt + EnvExt + IntoExtInfo<<A as EnvExt>::Error> + 'static,
-    E: Environment<A>,
->(
+pub fn process<E>(
     block_config: &BlockConfig,
     execution_context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
     memory_pages: BTreeMap<GearPage, PageBuf>,
-) -> Result<Vec<JournalNote>, SystemExecutionError> {
+) -> Result<Vec<JournalNote>, SystemExecutionError>
+where
+    E: Environment,
+    E::Ext: ProcessorExt + BackendExt + 'static,
+    <E::Ext as Ext>::Error: BackendExtError,
+{
     use crate::precharge::SuccessfulDispatchResultKind::*;
 
     let BlockConfig {
@@ -113,7 +115,7 @@ pub fn process<
         outgoing_limit,
     );
 
-    let exec_result = executor::execute_wasm::<A, E>(
+    let exec_result = executor::execute_wasm::<E>(
         balance,
         dispatch.clone(),
         execution_context,

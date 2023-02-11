@@ -20,11 +20,16 @@
 
 // TODO: make unit tests for `MemoryAccessManager` (issue #2068)
 
-use core::{marker::PhantomData, mem::size_of};
-
+use crate::BackendExt;
 use alloc::vec::Vec;
 use codec::{Decode, DecodeAll, Encode, MaxEncodedLen};
-use core::fmt::Debug;
+use core::{
+    fmt::Debug,
+    marker::PhantomData,
+    mem,
+    mem::{size_of, MaybeUninit},
+    slice,
+};
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Ext,
@@ -32,29 +37,23 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError;
 
-use crate::IntoExtInfo;
-
-/// Memory access error.
+/// Memory access error during sys-call that lazy-pages have caught.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct OutOfMemoryAccessError;
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
+#[derive(Debug, Clone, derive_more::From)]
 pub enum MemoryAccessError {
     #[from]
-    #[display(fmt = "{_0}")]
     Memory(MemoryError),
     #[from]
-    #[display(fmt = "{_0}")]
     RuntimeBuffer(RuntimeBufferSizeError),
-    #[display(fmt = "Cannot decode read memory")]
-    DecodeError,
-    #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
-    WrongBufferSize(usize, u32),
+    // TODO: remove #2164
+    Decode,
 }
 
 impl From<OutOfMemoryAccessError> for MemoryAccessError {
     fn from(_: OutOfMemoryAccessError) -> Self {
-        MemoryAccessError::Memory(MemoryError::OutOfBounds)
+        MemoryError::AccessOutOfBounds.into()
     }
 }
 
@@ -120,13 +119,13 @@ pub trait MemoryOwner {
 /// manager.write_as(write1, 111).unwrap();
 /// ```
 #[derive(Debug)]
-pub struct MemoryAccessManager<E: Ext + IntoExtInfo<E::Error>> {
+pub struct MemoryAccessManager<E: Ext> {
     reads: Vec<MemoryInterval>,
     writes: Vec<MemoryInterval>,
     _phantom: PhantomData<E>,
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> Default for MemoryAccessManager<E> {
+impl<E: Ext> Default for MemoryAccessManager<E> {
     fn default() -> Self {
         Self {
             reads: Vec::new(),
@@ -136,7 +135,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> Default for MemoryAccessManager<E> {
     }
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessRecorder for MemoryAccessManager<E> {
+impl<E: Ext> MemoryAccessRecorder for MemoryAccessManager<E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.reads.push(MemoryInterval { offset: ptr, size });
         WasmMemoryRead { ptr, size }
@@ -184,16 +183,19 @@ impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessRecorder for MemoryAccessManage
     }
 }
 
-impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessManager<E> {
+impl<E: BackendExt> MemoryAccessManager<E> {
     /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
     fn pre_process_memory_accesses(&mut self) -> Result<(), MemoryAccessError> {
         if self.reads.is_empty() && self.writes.is_empty() {
             return Ok(());
         }
-        E::pre_process_memory_accesses(&self.reads, &self.writes)?;
+
+        let res = E::pre_process_memory_accesses(&self.reads, &self.writes);
+
         self.reads.clear();
         self.writes.clear();
-        Ok(())
+
+        res.map_err(Into::into)
     }
 
     /// Pre-process registered accesses if need and read data from `memory` to `buff`.
@@ -226,7 +228,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessManager<E> {
     ) -> Result<T, MemoryAccessError> {
         let mut buff = RuntimeBuffer::try_new_default(T::max_encoded_len())?.into_vec();
         self.read_into_buf(memory, read.ptr, &mut buff)?;
-        let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::DecodeError)?;
+        let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
         Ok(decoded)
     }
 
@@ -237,7 +239,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessManager<E> {
         read: WasmMemoryReadAs<T>,
     ) -> Result<T, MemoryAccessError> {
         self.pre_process_memory_accesses()?;
-        crate::read_memory_as(memory, read.ptr).map_err(Into::into)
+        read_memory_as(memory, read.ptr).map_err(Into::into)
     }
 
     /// Pre-process registered accesses if need and write data from `buff` to `memory`.
@@ -248,7 +250,7 @@ impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessManager<E> {
         buff: &[u8],
     ) -> Result<(), MemoryAccessError> {
         if buff.len() != write.size as usize {
-            return Err(MemoryAccessError::WrongBufferSize(buff.len(), write.size));
+            unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
         }
         self.pre_process_memory_accesses()?;
         memory.write(write.ptr, buff).map_err(Into::into)
@@ -262,8 +264,58 @@ impl<E: Ext + IntoExtInfo<E::Error>> MemoryAccessManager<E> {
         obj: T,
     ) -> Result<(), MemoryAccessError> {
         self.pre_process_memory_accesses()?;
-        crate::write_memory_as(memory, write.ptr, obj).map_err(Into::into)
+        write_memory_as(memory, write.ptr, obj).map_err(Into::into)
     }
+}
+
+/// Writes object in given memory as bytes.
+fn write_memory_as<T: Sized>(
+    memory: &mut impl Memory,
+    ptr: u32,
+    obj: T,
+) -> Result<(), MemoryError> {
+    // # Safety:
+    //
+    // Given object is `Sized` and we own them in the context of calling this
+    // function (it's on stack), it's safe to take ptr on the object and
+    // represent it as slice. Object will be dropped after `memory.write`
+    // finished execution and no one will rely on this slice.
+    //
+    // Bytes in memory always stored continuously and without paddings, properly
+    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
+    let slice =
+        unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
+
+    memory.write(ptr, slice)
+}
+
+/// Reads bytes from given pointer to construct type T from them.
+fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryError> {
+    let mut buf = MaybeUninit::<T>::uninit();
+
+    // # Safety:
+    //
+    // Usage of mutable slice is safe for the same reason from `write_memory_as`.
+    // `MaybeUninit` is presented on stack with continuos sequence of bytes.
+    //
+    // It's also safe to construct T from any bytes, because we use the fn
+    // only for reading primitive const-size types that are `[repr(C)]`,
+    // so they always represented from sequence of bytes.
+    //
+    // Bytes in memory always stored continuously and without paddings, properly
+    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
+    let mut_slice =
+        unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
+
+    memory.read(ptr, mut_slice)?;
+
+    // # Safety:
+    //
+    // Assuming init is always safe here due to the fact that we read proper
+    // amount of bytes from the wasm memory, which is never uninited: they may
+    // be filled by zeroes or some trash (valid for our primitives used as T),
+    // but always exist.
+    Ok(unsafe { buf.assume_init() })
 }
 
 /// Read static size type access wrapper.
