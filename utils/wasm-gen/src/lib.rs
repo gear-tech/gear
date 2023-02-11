@@ -41,6 +41,9 @@ pub mod utils;
 pub mod wasm;
 use wasm::{PageCount as WasmPageCount, PAGE_SIZE as WASM_PAGE_SIZE};
 
+pub mod memory;
+use memory::ModuleBuilderWithData;
+
 const MEMORY_VALUE_SIZE: u32 = 100;
 const MEMORY_FIELD_NAME: &str = "memory";
 
@@ -208,22 +211,26 @@ impl GearConfig {
 struct ModuleWithDebug {
     module: Module,
     debug_syscall_index: Option<u32>,
+    last_offset: u32,
 }
 
-impl From<Module> for ModuleWithDebug {
-    fn from(module: Module) -> Self {
+impl From<ModuleBuilderWithData> for ModuleWithDebug {
+    fn from(data: ModuleBuilderWithData) -> Self {
+        let module = data.module_builder.build();
         Self {
             module,
             debug_syscall_index: None,
+            last_offset: data.last_offset,
         }
     }
 }
 
-impl From<(Module, Option<u32>)> for ModuleWithDebug {
-    fn from((module, debug_syscall_index): (Module, Option<u32>)) -> Self {
+impl From<(Module, Option<u32>, u32)> for ModuleWithDebug {
+    fn from((module, debug_syscall_index, last_offset): (Module, Option<u32>, u32)) -> Self {
         Self {
             module,
             debug_syscall_index,
+            last_offset,
         }
     }
 }
@@ -686,21 +693,21 @@ impl<'a> WasmGen<'a> {
         )
     }
 
-    pub fn insert_sys_calls(&mut self, module: Module, memory_pages: WasmPageCount) -> ModuleWithDebug {
-        let code_size = if let Some(code) = module.code_section() {
-            code.bodies()
-                .iter()
-                .fold(0, |sum, body| sum + body.code().elements().len())
-        } else {
-            return module.into();
-        };
+    pub fn insert_sys_calls(&mut self, builder: ModuleBuilderWithData, memory_pages: WasmPageCount) -> ModuleWithDebug {
+        if builder.code_size == 0 {
+            return builder.into();
+        }
+
+        let ModuleBuilderWithData {
+            module_builder: mut builder,
+            offsets: _offsets,
+            last_offset,
+            import_count,
+            code_size,
+        } = builder;
 
         let mut source_call_index = None;
         let mut debug_call_index = None;
-
-        let import_count = module.import_count(ImportCountType::Function);
-
-        let mut builder = builder::from_module(module);
 
         // generate corresponding import entries for syscalls
         let mut syscall_data = BTreeMap::default();
@@ -776,7 +783,7 @@ impl<'a> WasmGen<'a> {
             }
         }
 
-        (module, debug_call_index).into()
+        (module, debug_call_index, last_offset).into()
     }
 
     fn build_call_instructions(
@@ -851,6 +858,7 @@ impl<'a> WasmGen<'a> {
         let ModuleWithDebug {
             mut module,
             debug_syscall_index,
+            last_offset,
         } = result;
 
         if let External::Memory(mem_type) = module
@@ -886,7 +894,7 @@ impl<'a> WasmGen<'a> {
         let bytes = text.as_bytes();
         module = builder::from_module(module)
             .data()
-            .offset(Instruction::I32Const(0))
+            .offset(Instruction::I32Const(last_offset as i32))
             .value(bytes.to_vec())
             .build()
             .build();
@@ -896,7 +904,7 @@ impl<'a> WasmGen<'a> {
             .code_mut()
             .elements_mut();
         let print_code = [
-            Instruction::I32Const(0),
+            Instruction::I32Const(last_offset as i32),
             Instruction::I32Const(bytes.len() as i32),
             Instruction::Call(debug_syscall_index.expect("debug data specified so do the call")),
         ];
@@ -983,13 +991,15 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
     let mut gen = WasmGen::new(&module, u, config);
 
     let (module, memory_pages) = gen.gen_mem_export(module);
-    let (mut module, has_init) = gen.gen_init(module);
+    let (module, has_init) = gen.gen_init(module);
     if !has_init {
         return gen.resolves_calls_indexes(module);
     }
 
-    module = gen.gen_handle(module).0;
-    let module = gen.insert_sys_calls(module, memory_pages);
+    let (module, _has_handle) = gen.gen_handle(module);
+
+    let builder = ModuleBuilderWithData::new(&[], module, memory_pages);
+    let module = gen.insert_sys_calls(builder, memory_pages);
     let module = gen.make_print_test_info(module);
 
     gen.resolves_calls_indexes(module)

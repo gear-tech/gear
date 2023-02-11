@@ -16,9 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{gen_gear_program_code, utils, GearConfig};
+use std::mem;
+
+use crate::{gen_gear_program_code, utils, GearConfig, memory::ModuleBuilderWithData, ModuleWithDebug};
 use arbitrary::Unstructured;
-use gear_wasm_instrument::parity_wasm::{self, elements};
+use gear_wasm_instrument::parity_wasm::{self, elements::{self, External}};
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 
 #[allow(unused)]
@@ -112,5 +114,64 @@ fn remove_trivial_recursions() {
     wasmparser::validate(&wasm).unwrap();
 
     let wat = wasmprinter::print_bytes(&wasm).unwrap();
+    println!("wat = {wat}");
+}
+
+#[test]
+fn injecting_addresses_works() {
+    use gsys::HashWithValue;
+
+    let mut rng = SmallRng::seed_from_u64(1234);
+
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut u = Unstructured::new(&buf);
+    let code = gen_gear_program_code(&mut u, GearConfig::new_normal());
+
+    let module: elements::Module = parity_wasm::deserialize_buffer(&code).unwrap();
+    let memory_pages = module
+        .import_section()
+        .map_or(0u32, |import_section| {
+            for entry in import_section.entries() {
+                match entry.external() {
+                    External::Memory(memory) => {
+                        return memory.limits().initial();
+                    }
+                    _ => (),
+                }
+            }
+
+            0u32
+        }).into();
+    let builder = ModuleBuilderWithData::new(&[], module.clone(), memory_pages);
+    {
+        let module: ModuleWithDebug = builder.into();
+
+        assert_eq!(module.last_offset, 0);
+        assert!(module.module.data_section().map_or(true, |s| s.entries().is_empty()));
+    }
+
+    let addresses = [
+        HashWithValue {
+            hash: Default::default(),
+            value: 0,
+        },
+        HashWithValue {
+            hash: [1; 32],
+            value: 1,
+        }
+    ];
+    let builder = ModuleBuilderWithData::new(&addresses, module, memory_pages);
+    let module = ModuleWithDebug::from(builder);
+
+    let size = mem::size_of::<gsys::HashWithValue>() as u32;
+    assert_eq!(module.last_offset, 2 * size);
+
+    let data_section = module.module.data_section().unwrap();
+    let segments = data_section.entries();
+    assert_eq!(segments.len(), 2);
+
+    let code = parity_wasm::serialize(module.module).unwrap();
+    let wat = wasmprinter::print_bytes(&code).unwrap();
     println!("wat = {wat}");
 }
