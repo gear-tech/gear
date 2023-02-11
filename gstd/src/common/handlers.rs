@@ -26,10 +26,7 @@
 //! For `debug` mode it provides more extensive logging.
 
 #[cfg(target_arch = "wasm32")]
-use {
-    crate::{ext, prelude::format},
-    core::panic::PanicInfo,
-};
+use {crate::ext, core::panic::PanicInfo};
 
 #[cfg(not(feature = "debug"))]
 #[cfg(not(debug_assertions))]
@@ -43,6 +40,8 @@ pub fn panic(_: &PanicInfo) -> ! {
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(panic_info: &PanicInfo) -> ! {
+    use crate::prelude::format;
+
     let msg = match (panic_info.message(), panic_info.location()) {
         (Some(msg), Some(loc)) => format!(
             "'{:?}', {}:{}:{}",
