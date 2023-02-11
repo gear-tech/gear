@@ -725,12 +725,7 @@ where
 
             let s = String::from_utf8_lossy(&data).to_string();
 
-            Err(
-                ActorSyscallFuncError::Terminated(TerminationReason::Trap(TrapExplanation::Panic(
-                    s.into(),
-                )))
-                .into(),
-            )
+            Err(TerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
         })
     }
 

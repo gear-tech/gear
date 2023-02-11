@@ -24,7 +24,7 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    BackendExt, BackendExtError, BackendState, FuncError, TerminationReason, TrapExplanation,
+    BackendExt, BackendExtError, BackendState, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::Ext,
@@ -987,10 +987,7 @@ where
 
                     let s = String::from_utf8_lossy(&data).to_string();
 
-                    Err(ActorSyscallFuncError::Terminated(TerminationReason::Trap(
-                        TrapExplanation::Panic(s.into()),
-                    ))
-                    .into())
+                    Err(TerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
                 })
             };
 
