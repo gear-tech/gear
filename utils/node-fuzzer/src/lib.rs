@@ -44,6 +44,7 @@ static CONTEXT: OnceCell<Mutex<Context>> = OnceCell::new();
 // 4. Change SmallRng to something more reproducible.
 // 5. Logging to file
 // 6. Cleanup
+// 7. Remove recursions from generated programs
 
 struct Context {
     programs: Vec<ProgramId>,
