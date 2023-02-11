@@ -671,7 +671,6 @@ where
 
             // Calculating correct hold bound to lock gas.
             let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
-            let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
             let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
@@ -887,6 +886,8 @@ where
         } else {
             // Transferring reserved funds.
             Self::transfer_reserved(&from, &to, value);
+
+            Self::consume_and_retrieve(message.id());
 
             // No expiration block due to absence of insertion in storage.
             None
