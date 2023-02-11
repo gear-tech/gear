@@ -18,9 +18,12 @@
 
 use codec::{Decode, Encode};
 use core::marker::PhantomData;
-use sp_runtime::{
-    traits::{Bounded, One, SaturatedConversion, Saturating, Zero}
+pub use sp_arithmetic::traits::{
+	AtLeast32Bit, AtLeast32BitUnsigned, Bounded, CheckedAdd, CheckedDiv, CheckedMul, CheckedShl,
+	CheckedShr, CheckedSub, IntegerSquareRoot, One, SaturatedConversion, Saturating,
+	UniqueSaturatedFrom, UniqueSaturatedInto, Zero,
 };
+
 
 /// Hold bound, specifying cost of storing, expected block number for task to
 /// create on it, deadlines and durations of holding.

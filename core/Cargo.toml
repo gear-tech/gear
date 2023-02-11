@@ -14,6 +14,7 @@ codec = { package = "parity-scale-codec", version = "3.1.2", features = [
 ], default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
+sp-arithmetic = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }
 derive_more = "0.99.17"
 log = { version = "0.4.17", default-features = false }
 gear-wasm-instrument = { path = "../utils/wasm-instrument", default-features = false }
