@@ -5649,20 +5649,15 @@ fn test_create_program_with_value_lt_ed() {
         // to send init message with value in invalid range.
         assert_total_dequeued(1);
 
-        // TODO: fix this in #1857
         assert_failed(
             msg_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
+                MessageError::InsufficientValue {
+                    message_value: 499,
+                    existential_deposit: 500,
+                },
+            ))),
         );
-        // assert_failed(
-        //     msg_id,
-        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-        //         MessageError::InsufficientValue {
-        //             message_value: 499,
-        //             existential_deposit: 500,
-        //         },
-        //     ))),
-        // );
     })
 }
 
@@ -5735,20 +5730,15 @@ fn test_create_program_with_exceeding_value() {
         // to send init message with value more than program has.
         assert_total_dequeued(1);
 
-        // TODO: fix this in #1857
         assert_failed(
             origin_msg_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
+                MessageError::NotEnoughValue {
+                    message_value: 1001,
+                    value_left: 1000,
+                },
+            ))),
         );
-        // assert_failed(
-        //     origin_msg_id,
-        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-        //         MessageError::NotEnoughValue {
-        //             message_value: 1001,
-        //             value_left: 1000,
-        //         },
-        //     ))),
-        // );
     })
 }
 
@@ -9157,17 +9147,10 @@ fn check_reply_push_payload_exceed() {
         run_to_block(2, None);
         assert_last_dequeued(1);
 
-        // TODO: fix this in #1857
         assert_failed(
             message_id,
             ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
         );
-        // assert_failed(
-        //     message_id,
-        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-        //         MessageError::MaxMessageSizeExceed,
-        //     ))),
-        // );
     });
 }
 
