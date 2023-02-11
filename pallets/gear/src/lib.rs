@@ -630,7 +630,7 @@ pub mod pallet {
                 id: message_id,
                 source: who,
                 destination: program_id,
-                entry: MessageEntry::Init,
+                entry: MessageEntry::InitEntry,
             });
 
             Ok(().into())
@@ -1221,7 +1221,7 @@ pub mod pallet {
                 id: dispatch.id(),
                 source: who,
                 destination: dispatch.destination(),
-                entry: MessageEntry::Init,
+                entry: MessageEntry::InitEntry,
             };
 
             QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
@@ -1476,7 +1476,7 @@ pub mod pallet {
                     id: message.id(),
                     source: who,
                     destination: message.destination(),
-                    entry: MessageEntry::Handle,
+                    entry: MessageEntry::HandleEntry,
                 });
 
                 QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
@@ -1583,7 +1583,7 @@ pub mod pallet {
                 id: dispatch.id(),
                 source: origin,
                 destination: dispatch.destination(),
-                entry: MessageEntry::Reply(mailboxed.id()),
+                entry: MessageEntry::HandleReplyEntry(mailboxed.id()),
             };
 
             // Queueing dispatch.

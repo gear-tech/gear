@@ -124,7 +124,7 @@ impl GearApi {
             if let Event::Gear(GearEvent::MessageQueued {
                 id,
                 destination,
-                entry: MessageEntry::Init,
+                entry: MessageEntry::InitEntry,
                 ..
             }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
@@ -170,7 +170,7 @@ impl GearApi {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
                     destination,
-                    entry: MessageEntry::Init,
+                    entry: MessageEntry::InitEntry,
                     ..
                 }) => res.push(Ok((id.into(), destination.into()))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
@@ -359,7 +359,7 @@ impl GearApi {
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Gear(GearEvent::MessageQueued {
                 id,
-                entry: MessageEntry::Handle,
+                entry: MessageEntry::HandleEntry,
                 ..
             }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
@@ -405,7 +405,7 @@ impl GearApi {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
                     destination,
-                    entry: MessageEntry::Handle,
+                    entry: MessageEntry::HandleEntry,
                     ..
                 }) => res.push(Ok((id.into(), destination.into()))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
@@ -477,7 +477,7 @@ impl GearApi {
         for event in events.iter() {
             if let Event::Gear(GearEvent::MessageQueued {
                 id,
-                entry: MessageEntry::Reply(_),
+                entry: MessageEntry::HandleReplyEntry(_),
                 ..
             }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
@@ -532,7 +532,7 @@ impl GearApi {
             match event?.as_root_event::<(Phase, Event)>()?.1 {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
-                    entry: MessageEntry::Reply(reply_to_id),
+                    entry: MessageEntry::HandleReplyEntry(reply_to_id),
                     ..
                 }) => res.push(Ok((
                     id.into(),
@@ -710,7 +710,7 @@ impl GearApi {
             if let Event::Gear(GearEvent::MessageQueued {
                 id,
                 destination,
-                entry: MessageEntry::Init,
+                entry: MessageEntry::InitEntry,
                 ..
             }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
@@ -764,7 +764,7 @@ impl GearApi {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
                     destination,
-                    entry: MessageEntry::Init,
+                    entry: MessageEntry::InitEntry,
                     ..
                 }) => res.push(Ok((id.into(), destination.into()))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
