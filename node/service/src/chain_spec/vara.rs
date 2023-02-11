@@ -557,6 +557,7 @@ fn testnet_genesis(
 ) -> GenesisConfig {
     const ENDOWMENT: u128 = 1_000_000 * TOKEN;
     const STASH: u128 = 100 * TOKEN;
+    const MIN_NOMINATOR_BOND: u128 = 50 * TOKEN;
 
     let _num_endowed_accounts = endowed_accounts.len();
 
@@ -600,6 +601,7 @@ fn testnet_genesis(
                 .collect(),
             invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
             slash_reward_fraction: Perbill::from_percent(10),
+            min_nominator_bond: MIN_NOMINATOR_BOND,
             ..Default::default()
         },
         sudo: SudoConfig {
