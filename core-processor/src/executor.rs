@@ -48,7 +48,7 @@ use gear_core::{
     program::Program,
     reservation::GasReserver,
 };
-use gear_core_errors::{ExtError, MemoryError};
+use gear_core_errors::MemoryError;
 use scale_info::TypeInfo;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -375,9 +375,8 @@ where
                 match status {
                     Status::Normal => (),
                     Status::GasLimitExceeded => {
-                        termination = ActorTerminationReason::Trap(TrapExplanation::Ext(
-                            ExtError::Execution(gear_core_errors::ExecutionError::GasLimitExceeded),
-                        ));
+                        termination =
+                            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded);
                     }
                     Status::GasAllowanceExceeded => {
                         termination = ActorTerminationReason::GasAllowanceExceeded;

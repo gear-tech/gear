@@ -18,7 +18,9 @@
 
 //! Common structures for processing.
 
-use crate::{executor::SystemPrepareMemoryError, precharge::GasOperation, ActorPrepareMemoryError};
+use crate::{
+    executor::SystemPrepareMemoryError, precharge::PreChargeGasOperation, ActorPrepareMemoryError,
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
@@ -431,9 +433,9 @@ pub struct ActorExecutionError {
 /// Reason of execution error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum ActorExecutionErrorReason {
-    /// Not enough gas to perform an operation.
+    /// Not enough gas to perform an operation during precharge.
     #[display(fmt = "Not enough gas to {_0}")]
-    GasExceeded(GasOperation),
+    PreChargeGasLimitExceeded(PreChargeGasOperation),
     /// Prepare memory error
     #[display(fmt = "{_0}")]
     PrepareMemory(ActorPrepareMemoryError),
@@ -449,16 +451,18 @@ impl ActorExecutionErrorReason {
     /// Convert self into [`SimpleExecutionError`]
     pub fn as_simple(&self) -> SimpleExecutionError {
         match self {
-            ActorExecutionErrorReason::GasExceeded(_) => SimpleExecutionError::GasLimitExceeded,
+            ActorExecutionErrorReason::PreChargeGasLimitExceeded(_) => {
+                SimpleExecutionError::GasLimitExceeded
+            }
             ActorExecutionErrorReason::PrepareMemory(_) => SimpleExecutionError::Unknown,
             ActorExecutionErrorReason::Environment(_) => SimpleExecutionError::Unknown,
             ActorExecutionErrorReason::Trap(expl) => match expl {
+                TrapExplanation::GasLimitExceeded => SimpleExecutionError::GasLimitExceeded,
+                TrapExplanation::TooManyGasAdded => SimpleExecutionError::Unknown,
+                TrapExplanation::ForbiddenFunction => SimpleExecutionError::ForbiddenFunction,
                 TrapExplanation::Ext(err) => match err {
                     ExtError::Memory(MemoryError::ProgramAllocOutOfBounds) => {
                         SimpleExecutionError::MemoryExceeded
-                    }
-                    ExtError::Execution(gear_core_errors::ExecutionError::GasLimitExceeded) => {
-                        SimpleExecutionError::GasLimitExceeded
                     }
                     _ => SimpleExecutionError::Ext,
                 },

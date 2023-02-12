@@ -126,6 +126,15 @@ pub enum ProcessorError {
     /// Allocation error
     #[display(fmt = "{_0}")]
     Alloc(AllocError),
+    /// An error occurs in attempt to charge more gas than available during execution.
+    #[display(fmt = "Not enough gas to continue execution")]
+    GasLimitExceeded,
+    /// An error occurs in attempt to refund more gas than burned one.
+    #[display(fmt = "Too many gas refunded")]
+    TooManyGasAdded,
+    /// An error occurs in attempt to call forbidden sys-call.
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
     /// Gas allowance exceeded
     #[display(fmt = "Gas allowance exceeded")]
     GasAllowanceExceeded,
@@ -174,6 +183,15 @@ impl BackendExtError for ProcessorError {
             }
             ProcessorError::Alloc(AllocError::IncorrectAllocationData(err)) => {
                 SystemTerminationReason::IncorrectAllocationData(err).into()
+            }
+            ProcessorError::GasLimitExceeded => {
+                ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into()
+            }
+            ProcessorError::TooManyGasAdded => {
+                ActorTerminationReason::Trap(TrapExplanation::TooManyGasAdded).into()
+            }
+            ProcessorError::ForbiddenFunction => {
+                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into()
             }
             ProcessorError::GasAllowanceExceeded => {
                 ActorTerminationReason::GasAllowanceExceeded.into()
@@ -371,7 +389,7 @@ impl Ext {
 
     fn check_forbidden_destination(&mut self, id: ProgramId) -> Result<(), ProcessorError> {
         if id == ProgramId::SYSTEM {
-            Err(ExecutionError::ForbiddenFunction.into())
+            Err(ProcessorError::ForbiddenFunction)
         } else {
             Ok(())
         }
@@ -385,7 +403,7 @@ impl Ext {
         use ChargeResult::*;
 
         match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
+            (NotEnough, _) => Err(ProcessorError::GasLimitExceeded),
             (Enough, NotEnough) => Err(ProcessorError::GasAllowanceExceeded),
             (Enough, Enough) => Ok(()),
         }
@@ -692,7 +710,7 @@ impl EnvExt for Ext {
             self.context.gas_allowance_counter.refund(val);
             Ok(())
         } else {
-            Err(ExecutionError::TooManyGasAdded.into())
+            Err(ProcessorError::TooManyGasAdded)
         }
     }
 
@@ -911,7 +929,7 @@ impl EnvExt for Ext {
     }
 
     fn out_of_gas(&mut self) -> Self::Error {
-        ExecutionError::GasLimitExceeded.into()
+        ProcessorError::GasLimitExceeded
     }
 
     fn out_of_allowance(&mut self) -> Self::Error {

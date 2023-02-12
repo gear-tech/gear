@@ -213,16 +213,6 @@ pub enum ReservationError {
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 #[non_exhaustive]
 pub enum ExecutionError {
-    // TODO: remove some errors in #2199
-    /// An error occurs in attempt to charge more gas than available during execution.
-    #[display(fmt = "Not enough gas to continue execution")]
-    GasLimitExceeded,
-    /// An error occurs in attempt to refund more gas than burned one.
-    #[display(fmt = "Too many gas refunded")]
-    TooManyGasAdded,
-    /// An error occurs in attempt to call forbidden sys-call.
-    #[display(fmt = "Unable to call a forbidden function")]
-    ForbiddenFunction,
     /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
     #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
     InvalidDebugString,

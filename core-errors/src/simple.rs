@@ -40,6 +40,9 @@ pub enum SimpleExecutionError {
     /// Gas limit exceeded
     #[display(fmt = "Gas limit exceeded")]
     GasLimitExceeded = 0,
+    /// An error occurs in attempt to call forbidden sys-call.
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction = 6,
     /// Memory exceeded
     #[display(fmt = "Memory exceeded")]
     MemoryExceeded = 1,

@@ -39,7 +39,7 @@ use scale_info::TypeInfo;
 
 /// Operation related to gas charging.
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-pub enum GasOperation {
+pub enum PreChargeGasOperation {
     /// Load existing memory.
     #[display(fmt = "load memory")]
     LoadMemory,
@@ -69,7 +69,7 @@ pub enum GasOperation {
 #[derive(Debug, Eq, PartialEq)]
 enum PrechargeError {
     BlockGasExceeded,
-    GasExceeded(GasOperation),
+    GasExceeded(PreChargeGasOperation),
 }
 
 struct GasPrecharger<'a> {
@@ -88,7 +88,11 @@ impl<'a> GasPrecharger<'a> {
         }
     }
 
-    fn charge_gas(&mut self, operation: GasOperation, amount: u64) -> Result<(), PrechargeError> {
+    fn charge_gas(
+        &mut self,
+        operation: PreChargeGasOperation,
+        amount: u64,
+    ) -> Result<(), PrechargeError> {
         if self.allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(PrechargeError::BlockGasExceeded);
         }
@@ -105,7 +109,7 @@ impl<'a> GasPrecharger<'a> {
         per_byte_cost: u64,
     ) -> Result<(), PrechargeError> {
         self.charge_gas(
-            GasOperation::ProgramData,
+            PreChargeGasOperation::ProgramData,
             calculate_gas_for_program(read_cost, per_byte_cost),
         )
     }
@@ -114,7 +118,7 @@ impl<'a> GasPrecharger<'a> {
         &mut self,
         read_cost: u64,
     ) -> Result<(), PrechargeError> {
-        self.charge_gas(GasOperation::ProgramCodeLen, read_cost)
+        self.charge_gas(PreChargeGasOperation::ProgramCodeLen, read_cost)
     }
 
     pub fn charge_gas_for_program_code(
@@ -124,7 +128,7 @@ impl<'a> GasPrecharger<'a> {
         code_len_bytes: u32,
     ) -> Result<(), PrechargeError> {
         self.charge_gas(
-            GasOperation::ProgramCode,
+            PreChargeGasOperation::ProgramCode,
             calculate_gas_for_code(read_cost, per_byte_cost, code_len_bytes.into()),
         )
     }
@@ -135,7 +139,7 @@ impl<'a> GasPrecharger<'a> {
         code_length: u32,
     ) -> Result<(), PrechargeError> {
         let amount = gas_per_byte.saturating_mul(code_length as u64);
-        self.charge_gas(GasOperation::ModuleInstantiation, amount)
+        self.charge_gas(PreChargeGasOperation::ModuleInstantiation, amount)
     }
 
     pub fn charge_gas_for_instrumentation(
@@ -147,7 +151,7 @@ impl<'a> GasPrecharger<'a> {
         let amount = instrumentation_cost.saturating_add(
             instrumentation_byte_cost.saturating_mul(original_code_len_bytes.into()),
         );
-        self.charge_gas(GasOperation::ModuleInstrumentation, amount)
+        self.charge_gas(PreChargeGasOperation::ModuleInstrumentation, amount)
     }
 
     // Charging gas for initial pages
@@ -158,7 +162,7 @@ impl<'a> GasPrecharger<'a> {
     ) -> Result<(), PrechargeError> {
         // TODO: check calculation is safe: #2007.
         let amount = settings.init_cost.saturating_mul(static_pages.raw() as u64);
-        self.charge_gas(GasOperation::InitialMemory, amount)
+        self.charge_gas(PreChargeGasOperation::InitialMemory, amount)
     }
 
     // Charging gas for loaded pages
@@ -174,7 +178,7 @@ impl<'a> GasPrecharger<'a> {
         let amount = settings
             .load_page_cost
             .saturating_mul(allocations.saturating_add(static_pages));
-        self.charge_gas(GasOperation::LoadMemory, amount)
+        self.charge_gas(PreChargeGasOperation::LoadMemory, amount)
     }
 
     // Charging gas for mem size
@@ -191,7 +195,7 @@ impl<'a> GasPrecharger<'a> {
         let amount = settings
             .mem_grow_cost
             .saturating_mul(max_wasm_page.saturating_add(1).saturating_sub(static_pages));
-        self.charge_gas(GasOperation::GrowMemory, amount)
+        self.charge_gas(PreChargeGasOperation::GrowMemory, amount)
     }
 
     /// Charge gas for pages init/load/grow and checks that there is enough gas for that.
@@ -292,7 +296,7 @@ pub fn precharge_for_program(
                 destination_id,
                 gas_burned,
                 system_reservation_ctx,
-                ActorExecutionErrorReason::GasExceeded(op),
+                ActorExecutionErrorReason::PreChargeGasLimitExceeded(op),
                 false,
             ))
         }
@@ -364,7 +368,7 @@ pub fn precharge_for_code_length(
                 destination_id,
                 gas_counter.burned(),
                 system_reservation_ctx,
-                ActorExecutionErrorReason::GasExceeded(op),
+                ActorExecutionErrorReason::PreChargeGasLimitExceeded(op),
                 false,
             ))
         }
@@ -400,7 +404,7 @@ pub fn precharge_for_code(
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
-                ActorExecutionErrorReason::GasExceeded(op),
+                ActorExecutionErrorReason::PreChargeGasLimitExceeded(op),
                 false,
             ))
         }
@@ -437,7 +441,7 @@ pub fn precharge_for_instrumentation(
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
-                ActorExecutionErrorReason::GasExceeded(op),
+                ActorExecutionErrorReason::PreChargeGasLimitExceeded(op),
                 false,
             ))
         }
@@ -498,7 +502,9 @@ pub fn precharge_for_memory(
                         context.data.gas_counter.burned(),
                     ));
                 }
-                PrechargeError::GasExceeded(op) => ActorExecutionErrorReason::GasExceeded(op),
+                PrechargeError::GasExceeded(op) => {
+                    ActorExecutionErrorReason::PreChargeGasLimitExceeded(op)
+                }
             };
 
             let system_reservation_ctx =

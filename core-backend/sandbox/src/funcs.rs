@@ -31,7 +31,7 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
-use gear_core_errors::{ExecutionError, ExtError};
+use gear_core_errors::ExtError;
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
     LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
@@ -987,12 +987,7 @@ where
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "forbidden");
 
-        ctx.run(|_| {
-            Err(ActorTerminationReason::Trap(TrapExplanation::Ext(
-                ExecutionError::ForbiddenFunction.into(),
-            ))
-            .into())
-        })
+        ctx.run(|_| Err(ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into()))
     }
 
     /// Infallible `gr_out_of_gas` syscall.

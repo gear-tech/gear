@@ -24,7 +24,6 @@ use gear_backend_common::{
     },
     ActorTerminationReason, BackendExt, BackendState, TrapExplanation,
 };
-use gear_core_errors::ExecutionError;
 
 use super::*;
 use crate::state::State;
@@ -72,10 +71,7 @@ where
 
         if forbidden {
             wrapper.host_state_mut().set_termination_reason(
-                ActorTerminationReason::Trap(TrapExplanation::Ext(
-                    ExecutionError::ForbiddenFunction.into(),
-                ))
-                .into(),
+                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into(),
             );
 
             return Err(TrapCode::Unreachable.into());
