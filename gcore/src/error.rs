@@ -66,7 +66,8 @@ impl SyscallError {
 
         Self(len).into_result()?;
 
-        Ok(ExtError::decode(&mut error.as_ref()).unwrap_or(ExtError::Decode))
+        Ok(ExtError::decode(&mut error.as_ref())
+            .unwrap_or_else(|e| unreachable!("Failed to decode error: {}", e)))
     }
 
     #[cfg(not(feature = "codec"))]
