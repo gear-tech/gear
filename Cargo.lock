@@ -3444,7 +3444,6 @@ dependencies = [
  "gear-call-gen",
  "gear-core",
  "gear-utils",
- "gear-wasm-gen",
  "hex",
  "names 0.14.0",
  "once_cell",
