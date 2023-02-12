@@ -29,6 +29,8 @@ use gear_wasm_instrument::{
     },
     syscalls::SysCallName,
 };
+pub use gsys;
+use gsys::HashWithValue;
 use wasm_smith::{InstructionKind::*, InstructionKinds, Module as ModuleSmith, SwarmConfig};
 
 mod syscalls;
@@ -983,7 +985,7 @@ impl<'a> WasmGen<'a> {
     }
 }
 
-pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConfig) -> Module {
+pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConfig, addresses: &[HashWithValue]) -> Module {
     let swarm_config = default_swarm_config(u, &config);
 
     let module = loop {
@@ -1005,14 +1007,14 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
 
     let (module, _has_handle) = gen.gen_handle(module);
 
-    let builder = ModuleBuilderWithData::new(&[], module, memory_pages);
+    let builder = ModuleBuilderWithData::new(addresses, module, memory_pages);
     let module = gen.insert_sys_calls(builder, memory_pages);
     let module = gen.make_print_test_info(module);
 
     gen.resolves_calls_indexes(module)
 }
 
-pub fn gen_gear_program_code<'a>(u: &'a mut Unstructured<'a>, config: GearConfig) -> Vec<u8> {
-    let module = gen_gear_program_module(u, config);
+pub fn gen_gear_program_code<'a>(u: &'a mut Unstructured<'a>, config: GearConfig, addresses: &[HashWithValue]) -> Vec<u8> {
+    let module = gen_gear_program_module(u, config, addresses);
     parity_wasm::serialize(module).unwrap()
 }
