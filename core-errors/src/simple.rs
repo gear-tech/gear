@@ -36,6 +36,7 @@ mod sealed {
     Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Sequence, derive_more::Display,
 )]
 #[non_exhaustive]
+#[repr(u8)]
 pub enum SimpleExecutionError {
     /// Gas limit exceeded
     #[display(fmt = "Gas limit exceeded")]
