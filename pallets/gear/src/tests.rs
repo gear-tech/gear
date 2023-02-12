@@ -848,7 +848,7 @@ fn delayed_send_program_message_with_reservation() {
 
     init_logger();
 
-    for i in 1..4{
+    for i in 1..4 {
         new_test_ext().execute_with(|| scenario(i));
     }
 }
