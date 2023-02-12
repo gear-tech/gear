@@ -575,7 +575,7 @@ fn delayed_send_user_message_with_reservation() {
     // Testing that correct gas amount will be reserved and payed for holding.
     fn scenario(delay: u64) {
         let reservation_amount = 6_000_000_000u64;
-        
+
         // Upload program that sends message to any user.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
@@ -858,7 +858,6 @@ fn delayed_send_program_message_with_reservation() {
     }
 }
 
-
 #[test]
 fn delayed_send_program_message_with_low_reservation() {
     use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
@@ -962,7 +961,6 @@ fn delayed_send_program_message_with_low_reservation() {
         new_test_ext().execute_with(|| scenario(i));
     }
 }
-
 
 // TODO mikita test where reserved less than dispathc hold fee
 
