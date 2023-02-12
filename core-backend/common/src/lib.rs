@@ -31,7 +31,7 @@ pub mod mock;
 
 pub mod memory;
 
-use crate::{memory::MemoryAccessError, utils::TrimmedString};
+use crate::memory::MemoryAccessError;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::{FromUtf8Error, String},
@@ -61,6 +61,8 @@ use scale_info::TypeInfo;
 
 // '__gear_stack_end' export is inserted by wasm-proc or wasm-builder
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
+
+pub use crate::utils::TrimmedString;
 
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum TerminationReason {

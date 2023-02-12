@@ -9447,9 +9447,7 @@ fn module_instantiation_error() {
 
         assert!(Gear::is_terminated(prog_id));
         let err = get_last_event_error(mid);
-        assert!(
-            err.starts_with(&ActorExecutionErrorReason::Environment("".to_string()).to_string())
-        );
+        assert!(err.starts_with(&ActorExecutionErrorReason::Environment("".into()).to_string()));
     });
 }
 
@@ -9481,8 +9479,6 @@ fn wrong_entry_type() {
 
         assert!(Gear::is_terminated(pid));
         let err = get_last_event_error(mid);
-        assert!(
-            err.starts_with(&ActorExecutionErrorReason::Environment("".to_string()).to_string())
-        );
+        assert!(err.starts_with(&ActorExecutionErrorReason::Environment("".into()).to_string()));
     });
 }

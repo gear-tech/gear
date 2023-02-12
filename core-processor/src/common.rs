@@ -25,7 +25,9 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use gear_backend_common::{SystemReservationContext, SystemTerminationReason, TrapExplanation};
+use gear_backend_common::{
+    SystemReservationContext, SystemTerminationReason, TrapExplanation, TrimmedString,
+};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -437,7 +439,7 @@ pub enum ActorExecutionErrorReason {
     PrepareMemory(ActorPrepareMemoryError),
     /// Backend error
     #[display(fmt = "Environment error: {_0}")]
-    Environment(String),
+    Environment(TrimmedString),
     /// Trap explanation
     #[display(fmt = "{_0}")]
     Trap(TrapExplanation),
