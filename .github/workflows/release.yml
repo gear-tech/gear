@@ -24,10 +24,13 @@ jobs:
 
   build:
     needs: prepare
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Set cargo path
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
@@ -36,13 +39,13 @@ jobs:
           target: wasm32-unknown-unknown
           profile: minimal
 
-      - name: "Install: Build deps"
+      - name: Install build deps
         run: |
           sudo apt update -y
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
-
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
+          sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+          sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
+          sudo chmod +x /usr/bin/cachepot
 
       - name: Build production binaries
         run: cargo build --profile production
