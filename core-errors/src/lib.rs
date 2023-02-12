@@ -156,6 +156,7 @@ pub enum MessageError {
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 #[non_exhaustive]
+#[repr(u8)]
 pub enum WaitError {
     /// An error occurs in attempt to wait duration greater than could be payed.
     #[display(fmt = "Not enough gas to cover holding in waitlist")]
