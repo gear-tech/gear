@@ -1175,7 +1175,7 @@ mod tests {
 
         assert_eq!(
             lack_gas_ext.charge_gas_runtime(RuntimeCosts::Free),
-            Err(ExecutionError::GasLimitExceeded.into()),
+            Err(ProcessorError::GasLimitExceeded),
         );
 
         let gas_amount = lack_gas_ext.gas_amount();
