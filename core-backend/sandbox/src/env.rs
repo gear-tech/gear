@@ -27,9 +27,8 @@ use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
-    BackendExt, BackendExtError, BackendReport, BackendTermination, Environment,
-    EnvironmentExecutionError, EnvironmentExecutionResult, TerminationReason,
-    STACK_END_EXPORT_NAME,
+    ActorTerminationReason, BackendExt, BackendExtError, BackendReport, BackendTermination,
+    Environment, EnvironmentExecutionError, EnvironmentExecutionResult, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -220,7 +219,7 @@ where
             globals: Default::default(),
             memory_manager: Default::default(),
             fallible_syscall_error: None,
-            termination_reason: TerminationReason::Success,
+            termination_reason: ActorTerminationReason::Success.into(),
         };
 
         match Instance::new(binary, &env_builder, &mut runtime) {
