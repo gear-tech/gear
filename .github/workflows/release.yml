@@ -26,8 +26,16 @@ jobs:
     needs: prepare
     runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
     steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
+
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Set cargo path
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
