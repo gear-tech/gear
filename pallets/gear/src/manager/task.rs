@@ -93,7 +93,7 @@ where
                 .to_string()
                 .into_bytes()
                 .try_into()
-                .expect("Error message is too large");
+                .unwrap_or_else(|_| unreachable!("Error message is too large"));
 
             // Creating reply message.
             //

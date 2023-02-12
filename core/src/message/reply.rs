@@ -56,8 +56,6 @@ impl ReplyMessage {
         }
     }
 
-    // TODO: consider using here `impl CoreError` and/or provide `AsStatusCode`
-    // trait or append such functionality to `CoreError` (issue #1083).
     /// Create new system generated ReplyMessage.
     pub fn system(
         origin_msg_id: MessageId,

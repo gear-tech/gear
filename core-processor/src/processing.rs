@@ -218,7 +218,7 @@ pub fn process_error(
             .to_string()
             .into_bytes()
             .try_into()
-            .expect("Error message is too large");
+            .unwrap_or_else(|_| unreachable!("Error message is too large"));
         let err = SimpleReplyError::Execution(err.as_simple());
 
         // # Safety
@@ -471,7 +471,7 @@ pub fn process_non_executable(
             .to_string()
             .into_bytes()
             .try_into()
-            .expect("Error message is too large");
+            .unwrap_or_else(|_| unreachable!("Error message is too large"));
         // # Safety
         //
         // 1. The dispatch.id() has already been checked

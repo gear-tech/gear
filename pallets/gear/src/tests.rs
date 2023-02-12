@@ -2545,8 +2545,6 @@ fn events_logging_works() {
         ];
 
         for (code_kind, init_failure_reason, handle_failure_reason) in tests {
-            let handle_failure_reason: Option<AssertFailedError> = handle_failure_reason;
-
             System::reset_events();
             let program_id = {
                 let res = upload_program_default(USER_1, code_kind);
