@@ -28,6 +28,7 @@ use gear_backend_common::{
     TrapExplanation,
 };
 use gear_core::{
+    buffer::RuntimeBuffer,
     env::Ext,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
@@ -966,9 +967,9 @@ where
                 ctx.run(|ctx| {
                     let read_data = ctx.register_read(string_ptr, len);
 
-                    let data = ctx.read(read_data)?;
+                    let data: RuntimeBuffer = ctx.read(read_data)?.try_into()?;
 
-                    let s = String::from_utf8(data)?;
+                    let s = String::from_utf8(data.into_vec())?;
                     ctx.host_state_mut().ext.debug(&s).map_err(Into::into)
                 })
             };

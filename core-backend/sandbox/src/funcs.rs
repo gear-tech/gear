@@ -26,6 +26,7 @@ use gear_backend_common::{
     ActorTerminationReason, BackendExt, BackendExtError, BackendState, TrapExplanation,
 };
 use gear_core::{
+    buffer::RuntimeBuffer,
     env::Ext,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
@@ -701,9 +702,9 @@ where
 
         ctx.run(|ctx| {
             let read_data = ctx.register_read(data_ptr, data_len);
-            let data = ctx.read(read_data)?;
+            let data: RuntimeBuffer = ctx.read(read_data)?.try_into()?;
 
-            let s = String::from_utf8(data)?;
+            let s = String::from_utf8(data.into_vec())?;
             ctx.ext.debug(&s)?;
 
             Ok(())
