@@ -492,7 +492,7 @@ fn delayed_send_user_message_payment() {
             PROXY_WGAS_WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InputArgs {
-                destination: 54321.into(),
+                destination: USER_2.into(),
                 delay: delay as u32,
             }
             .encode(),
@@ -513,6 +513,8 @@ fn delayed_send_user_message_payment() {
             0,
         ));
 
+        let proxy_msg_id = get_last_message_id();
+
         // Run blocks to make message get into dispatch stash.
         run_to_block(3, None);
 
@@ -522,13 +524,39 @@ fn delayed_send_user_message_payment() {
                 .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
 
+        let reserve_for_fee = GasPrice::gas_price(
+            CostsPerBlockOf::<Test>::reserve_for()
+                .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
+        );
+
         // Gas should be reserved until message is holding.
         assert_eq!(Balances::reserved_balance(&USER_1), delay_holding_fee);
+        let free_balance = Balances::free_balance(&USER_1) + Balances::reserved_balance(&USER_1);
 
-        // Run blocks to release message.
-        run_to_block(delay + 3, None);
+        // Run blocks before sending message.
+        run_to_block(delay + 2, None);
+
+        let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
+
+        // Check that delayed task was created
+        assert!(TaskPoolOf::<Test>::contains(
+            &(delay + 3),
+            &ScheduledTask::SendUserMessage {
+                message_id: delayed_id,
+                to_mailbox: false
+            }
+        ));
+
+        // Mailbox should be empty
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
+
+        run_to_next_block(None);
 
         assert_eq!(Balances::reserved_balance(&USER_1), 0);
+        assert_eq!(
+            free_balance - delay_holding_fee + reserve_for_fee,
+            Balances::free_balance(&USER_1)
+        );
     }
 
     init_logger();
@@ -583,6 +611,7 @@ fn delayed_send_program_message_payment() {
             DEFAULT_GAS_LIMIT * 100,
             0,
         ));
+        let proxy_msg_id = utils::get_last_message_id();
 
         // Run blocks to make message get into dispatch stash.
         run_to_block(3, None);
@@ -593,19 +622,39 @@ fn delayed_send_program_message_payment() {
                 .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
 
+        let reserve_for_fee = GasPrice::gas_price(
+            CostsPerBlockOf::<Test>::reserve_for()
+                .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
+        );
+
         // Gas should be reserved until message is holding.
         assert_eq!(Balances::reserved_balance(&USER_1), delay_holding_fee);
+        let free_balance = Balances::free_balance(&USER_1) + Balances::reserved_balance(&USER_1);
 
         // Run blocks to release message.
-        run_to_block(delay + 3, None);
+        run_to_block(delay + 2, None);
 
-        // Gas should unlocked after message are sent.
+        let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
+
+        // Check that delayed task was created
+        assert!(TaskPoolOf::<Test>::contains(
+            &(delay + 3),
+            &ScheduledTask::SendDispatch(delayed_id)
+        ));
+
+        // Block where message processed
+        run_to_next_block(None);
+
         assert_eq!(Balances::reserved_balance(&USER_1), 0);
+        assert_eq!(
+            free_balance - delay_holding_fee + reserve_for_fee,
+            Balances::free_balance(&USER_1)
+        );
     }
 
     init_logger();
 
-    for i in 1..4 {
+    for i in 2..3 {
         new_test_ext().execute_with(|| scenario(i));
     }
 }

@@ -597,19 +597,19 @@ where
             //
             // No hold bound checks required, because gas_limit isn't less than threshold.
             to_mailbox = gas_limit >= threshold;
-            if to_mailbox {
+            let gas_amount = if to_mailbox {
                 // Cutting gas for storing in mailbox.
-                let gas_amount = gas_for_delay.saturating_add(gas_limit);
-                GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_amount)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                // TODO: adapt this line if gasful sending appears for reservations (#1828)
-                if let Some(reservation_id) = reservation {
-                    Self::remove_gas_reservation_with_task(dispatch.source(), reservation_id);
-                }
+                gas_for_delay.saturating_add(gas_limit)
             } else {
-                GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_for_delay)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                gas_for_delay
+            };
+
+            GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_amount)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            // TODO: adapt this line if gasful sending appears for reservations (#1828)
+            if let Some(reservation_id) = reservation {
+                Self::remove_gas_reservation_with_task(dispatch.source(), reservation_id);
             }
 
             // Calculating correct hold bound to lock gas.
@@ -713,11 +713,9 @@ where
         };
 
         // Adding removal request in task pool.
-        TaskPoolOf::<T>::add(
-            Self::block_number().saturating_add(delay.unique_saturated_into()),
-            task,
-        )
-        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+        let task_bn = Self::block_number().saturating_add(delay.unique_saturated_into());
+        TaskPoolOf::<T>::add(task_bn, task.clone())
+            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
     }
 
     /// Sends message to user.
