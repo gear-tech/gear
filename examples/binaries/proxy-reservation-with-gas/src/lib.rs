@@ -33,6 +33,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 pub struct InputArgs {
     pub destination: gstd::ActorId,
     pub delay: u32,
+    pub reservation_amount: u64,
 }
 
 #[cfg(not(feature = "std"))]
@@ -42,12 +43,13 @@ mod wasm {
 
     static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
     static mut DELAY: u32 = 0;
+    static mut RESERVATION_AMOUNT: u64 = 0;
 
     #[no_mangle]
     extern "C" fn handle() {
         let gas_limit: u64 = msg::load().expect("Failed to decode `gas_limit: u64'");
-        let reservation_id =
-            ReservationId::reserve(6_000_000_000, 80).expect("Failed to reserve gas");
+        let reservation_id = ReservationId::reserve(unsafe { RESERVATION_AMOUNT }, 80)
+            .expect("Failed to reserve gas");
         msg::send_delayed_from_reservation(
             reservation_id,
             unsafe { DESTINATION },
@@ -79,6 +81,7 @@ mod wasm {
         unsafe {
             DESTINATION = args.destination;
             DELAY = args.delay;
+            RESERVATION_AMOUNT = args.reservation_amount;
         }
     }
 }
