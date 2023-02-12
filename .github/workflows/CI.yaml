@@ -335,6 +335,9 @@ jobs:
           cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
           cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
           cp target/production/gear artifact/
           cp target/release/gear-test artifact/
           cp target/release/wasm-proc artifact/
