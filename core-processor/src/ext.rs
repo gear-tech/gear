@@ -642,7 +642,6 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    // TODO: runtime buffer check
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Debug(data.len() as u32))?;
 
