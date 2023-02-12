@@ -69,14 +69,20 @@ pub enum TerminationReason {
 }
 
 impl From<PayloadSizeError> for TerminationReason {
-    fn from(err: PayloadSizeError) -> Self {
-        ActorTerminationReason::from(err).into()
+    fn from(_err: PayloadSizeError) -> Self {
+        ActorTerminationReason::Trap(TrapExplanation::Ext(
+            MessageError::MaxMessageSizeExceed.into(),
+        ))
+        .into()
     }
 }
 
 impl From<RuntimeBufferSizeError> for TerminationReason {
-    fn from(err: RuntimeBufferSizeError) -> Self {
-        ActorTerminationReason::from(err).into()
+    fn from(_err: RuntimeBufferSizeError) -> Self {
+        ActorTerminationReason::Trap(TrapExplanation::Ext(ExtError::Memory(
+            MemoryError::RuntimeAllocOutOfBounds,
+        )))
+        .into()
     }
 }
 
@@ -110,31 +116,14 @@ impl<E: BackendExtError> From<E> for TerminationReason {
     }
 }
 
-#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
+#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum ActorTerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
     Wait(Option<u32>, MessageWaitedType),
     GasAllowanceExceeded,
-    #[from]
     Trap(TrapExplanation),
-}
-
-impl From<PayloadSizeError> for ActorTerminationReason {
-    fn from(_err: PayloadSizeError) -> Self {
-        Self::Trap(TrapExplanation::Ext(
-            MessageError::MaxMessageSizeExceed.into(),
-        ))
-    }
-}
-
-impl From<RuntimeBufferSizeError> for ActorTerminationReason {
-    fn from(_err: RuntimeBufferSizeError) -> Self {
-        Self::Trap(TrapExplanation::Ext(ExtError::Memory(
-            MemoryError::RuntimeAllocOutOfBounds,
-        )))
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From, derive_more::Display)]
