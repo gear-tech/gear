@@ -459,7 +459,7 @@ impl ActorExecutionErrorReason {
             ActorExecutionErrorReason::Trap(expl) => match expl {
                 TrapExplanation::GasLimitExceeded => SimpleExecutionError::GasLimitExceeded,
                 TrapExplanation::TooManyGasAdded => SimpleExecutionError::Unknown,
-                TrapExplanation::ForbiddenFunction => SimpleExecutionError::ForbiddenFunction,
+                TrapExplanation::ForbiddenFunction => SimpleExecutionError::Unknown,
                 TrapExplanation::Ext(err) => match err {
                     ExtError::Memory(MemoryError::ProgramAllocOutOfBounds) => {
                         SimpleExecutionError::MemoryExceeded

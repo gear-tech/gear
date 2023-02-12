@@ -41,17 +41,14 @@ pub enum SimpleExecutionError {
     /// Gas limit exceeded
     #[display(fmt = "Gas limit exceeded")]
     GasLimitExceeded = 0,
-    /// An error occurs in attempt to call forbidden sys-call.
-    #[display(fmt = "Unable to call a forbidden function")]
-    ForbiddenFunction = 1,
     /// Memory exceeded
     #[display(fmt = "Memory exceeded")]
-    MemoryExceeded = 2,
+    MemoryExceeded = 1,
     /// Ext error
     #[display(fmt = "Business-logic error")]
-    Ext = 3,
+    Ext = 2,
     /// Panic occurred
-    Panic = 4,
+    Panic = 3,
     /// `unreachable` occurred
     Unknown = 255,
 }
@@ -60,10 +57,9 @@ impl SimpleExecutionError {
     fn decode(num: u8) -> Option<Self> {
         match num {
             0 => Some(Self::GasLimitExceeded),
-            1 => Some(Self::ForbiddenFunction),
-            2 => Some(Self::MemoryExceeded),
-            3 => Some(Self::Ext),
-            4 => Some(Self::Panic),
+            1 => Some(Self::MemoryExceeded),
+            2 => Some(Self::Ext),
+            3 => Some(Self::Panic),
             255 => Some(Self::Unknown),
             _ => None,
         }
