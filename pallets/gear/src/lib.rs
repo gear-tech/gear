@@ -324,11 +324,6 @@ pub mod pallet {
             state_changes: BTreeSet<ProgramId>,
         },
 
-        /// Temporary `Event` variant, showing that all storages was cleared.
-        ///
-        /// Will be removed in favor of proper database migrations.
-        DatabaseWiped,
-
         /// Messages execution delayed (waited) and it was successfully
         /// added to gear waitlist.
         MessageWaited {
@@ -1620,24 +1615,8 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Reset all pallet associated storage.
-        #[pallet::call_index(6)]
-        #[pallet::weight(0)]
-        pub fn reset(origin: OriginFor<T>) -> DispatchResult {
-            ensure_root(origin)?;
-            <T as Config>::Scheduler::reset();
-            <T as Config>::GasProvider::reset();
-            <T as Config>::Messenger::reset();
-            ProgramStorageOf::<T>::reset();
-            <T as Config>::CodeStorage::reset();
-
-            Self::deposit_event(Event::DatabaseWiped);
-
-            Ok(())
-        }
-
         /// Process message queue
-        #[pallet::call_index(7)]
+        #[pallet::call_index(6)]
         #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
         pub fn run(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
@@ -1687,7 +1666,7 @@ pub mod pallet {
         /// Sets `ExecuteInherent` flag.
         ///
         /// Requires root origin (eventually, will only be set via referendum)
-        #[pallet::call_index(8)]
+        #[pallet::call_index(7)]
         #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
         pub fn set_execute_inherent(origin: OriginFor<T>, value: bool) -> DispatchResult {
             ensure_root(origin)?;
@@ -1705,7 +1684,7 @@ pub mod pallet {
     {
         type Gas = GasUnitOf<T>;
 
-        fn run_queue(initial_gas: GasUnitOf<T>) -> GasUnitOf<T> {
+        fn run_queue(initial_gas: Self::Gas) -> Self::Gas {
             // Setting adjusted initial gas allowance
             GasAllowanceOf::<T>::put(initial_gas);
 
@@ -1743,7 +1722,7 @@ pub mod pallet {
                 BalanceStatus::Free,
             )?;
 
-            if leftover > 0_u128.unique_saturated_into() {
+            if !leftover.is_zero() {
                 log::debug!(
                     target: "essential",
                     "Reserved funds not fully repatriated from {} to 0x{:?} : amount = {:?}, leftover = {:?}",

@@ -50,13 +50,6 @@ mod gear {
             self.process(ex).await
         }
 
-        /// `pallet_gear::reset`
-        pub async fn reset(&self) -> InBlock {
-            let ex = tx().gear().reset();
-
-            self.process(ex).await
-        }
-
         /// `pallet_gear::send_message`
         pub async fn send_message(
             &self,
