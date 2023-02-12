@@ -2296,23 +2296,14 @@ fn block_gas_limit_works() {
         assert_succeed(succeed1);
         assert_succeed(succeed2);
 
-        // TODO: fix this in #2199
         assert_failed(
             failed1,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
         );
-        // assert_failed(
-        //     failed1,
-        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
-        //         ExecutionError::GasLimitExceeded,
-        //     ))),
-        // );
 
         assert_failed(
             failed2,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Execution(
-                ExecutionError::GasLimitExceeded,
-            ))),
+            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
         );
 
         let send_with_min_limit_to = |pid: ProgramId, gas: &GasInfo| {
@@ -2417,9 +2408,9 @@ fn init_message_logging_works() {
             // Will fail, because tests use default gas limit, which is very low for successful greedy init
             (
                 ProgramCodeKind::GreedyInit,
-                Some(ActorExecutionErrorReason::Trap(TrapExplanation::Ext(
-                    ExtError::Execution(ExecutionError::GasLimitExceeded),
-                ))),
+                Some(ActorExecutionErrorReason::Trap(
+                    TrapExplanation::GasLimitExceeded,
+                )),
             ),
         ];
 
@@ -2527,9 +2518,9 @@ fn events_logging_works() {
             (ProgramCodeKind::Default, None, None),
             (
                 ProgramCodeKind::GreedyInit,
-                Some(ActorExecutionErrorReason::Trap(TrapExplanation::Ext(
-                    ExtError::Execution(ExecutionError::GasLimitExceeded),
-                ))),
+                Some(ActorExecutionErrorReason::Trap(
+                    TrapExplanation::GasLimitExceeded,
+                )),
                 Some(SimpleReplyError::NonExecutable.into()),
             ),
             (
@@ -4282,9 +4273,7 @@ fn terminated_locking_funds() {
         assert_succeed(reply_id);
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Execution(
-                ExecutionError::GasLimitExceeded,
-            ))),
+            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
         );
         assert!(Gear::is_terminated(program_id));
         assert_balance(program_id, 0u128, prog_reserve);
@@ -6311,9 +6300,7 @@ fn execution_over_blocks() {
 
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Execution(
-                ExecutionError::GasLimitExceeded,
-            ))),
+            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
         );
     });
 
@@ -6402,7 +6389,7 @@ fn call_forbidden_function() {
             res,
             Err(format!(
                 "Program terminated with a trap: {}",
-                ExtError::Execution(ExecutionError::ForbiddenFunction)
+                TrapExplanation::ForbiddenFunction,
             ))
         );
     });
