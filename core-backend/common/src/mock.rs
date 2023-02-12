@@ -142,9 +142,6 @@ impl Ext for MockExt {
     fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn refund_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
-        Ok(())
-    }
     fn gas_available(&mut self) -> Result<u64, Self::Error> {
         Ok(1_000_000)
     }

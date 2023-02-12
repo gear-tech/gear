@@ -187,9 +187,7 @@ impl BackendExtError for ProcessorError {
             ProcessorError::GasLimitExceeded => {
                 ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into()
             }
-            ProcessorError::TooManyGasAdded => {
-                ActorTerminationReason::Trap(TrapExplanation::TooManyGasAdded).into()
-            }
+            ProcessorError::TooManyGasAdded => SystemTerminationReason::TooManyGasAdded.into(),
             ProcessorError::ForbiddenFunction => {
                 ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into()
             }
@@ -419,6 +417,15 @@ impl Ext {
                     .settings()
                     .scheduled_sending_fee(),
             )
+        }
+    }
+
+    fn refund_gas(&mut self, val: u64) -> Result<(), ProcessorError> {
+        if self.context.gas_counter.refund(val) == ChargeResult::Enough {
+            self.context.gas_allowance_counter.refund(val);
+            Ok(())
+        } else {
+            Err(ProcessorError::TooManyGasAdded)
         }
     }
 }
@@ -702,15 +709,6 @@ impl EnvExt for Ext {
         let common_charge = self.context.gas_counter.charge_token(token);
         let allowance_charge = self.context.gas_allowance_counter.charge_token(token);
         self.check_charge_results(common_charge, allowance_charge)
-    }
-
-    fn refund_gas(&mut self, val: u64) -> Result<(), Self::Error> {
-        if self.context.gas_counter.refund(val) == ChargeResult::Enough {
-            self.context.gas_allowance_counter.refund(val);
-            Ok(())
-        } else {
-            Err(ProcessorError::TooManyGasAdded)
-        }
     }
 
     fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error> {

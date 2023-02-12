@@ -132,6 +132,8 @@ pub enum ActorTerminationReason {
 pub enum SystemTerminationReason {
     #[display(fmt = "{_0}")]
     IncorrectAllocationData(IncorrectAllocationDataError),
+    #[display(fmt = "Too many gas refunded")]
+    TooManyGasAdded,
 }
 
 #[derive(
@@ -151,9 +153,6 @@ pub enum TrapExplanation {
     /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
-    /// An error occurs in attempt to refund more gas than burned one.
-    #[display(fmt = "Too many gas refunded")]
-    TooManyGasAdded,
     /// An error occurs in attempt to call forbidden sys-call.
     #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
