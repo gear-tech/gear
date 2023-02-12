@@ -566,6 +566,93 @@ fn delayed_send_user_message_payment() {
     }
 }
 
+
+#[test]
+fn delayed_send_user_message_with_reservation() {
+    use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
+
+    // Testing that correct gas amount will be reserved and payed for holding.
+    fn scenario(delay: u64) {
+        // Upload program that sends message to any user.
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PROXY_WGAS_WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InputArgs {
+                destination: USER_2.into(),
+                delay: delay as u32,
+            }
+            .encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let proxy = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(proxy));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy,
+            0u64.encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let proxy_msg_id = get_last_message_id();
+
+        // Run blocks to make message get into dispatch stash.
+        run_to_block(3, None);
+
+        let delay_holding_fee = GasPrice::gas_price(
+            delay
+                .saturating_add(CostsPerBlockOf::<Test>::reserve_for().unique_saturated_into())
+                .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
+        );
+
+        let reserve_for_fee = GasPrice::gas_price(
+            CostsPerBlockOf::<Test>::reserve_for()
+                .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
+        );
+
+        // Gas should be reserved until message is holding.
+        assert_eq!(Balances::reserved_balance(&USER_1), delay_holding_fee);
+        let free_balance = Balances::free_balance(&USER_1) + Balances::reserved_balance(&USER_1);
+
+        // Run blocks before sending message.
+        run_to_block(delay + 2, None);
+
+        let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
+
+        // Check that delayed task was created
+        assert!(TaskPoolOf::<Test>::contains(
+            &(delay + 3),
+            &ScheduledTask::SendUserMessage {
+                message_id: delayed_id,
+                to_mailbox: false
+            }
+        ));
+
+        // Mailbox should be empty
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
+
+        run_to_next_block(None);
+
+        assert_eq!(Balances::reserved_balance(&USER_1), 0);
+        assert_eq!(
+            free_balance - delay_holding_fee + reserve_for_fee,
+            Balances::free_balance(&USER_1)
+        );
+    }
+
+    init_logger();
+
+    for i in 1..4 {
+        new_test_ext().execute_with(|| scenario(i));
+    }
+}
+
 #[test]
 fn delayed_send_program_message_payment() {
     use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
@@ -654,7 +741,101 @@ fn delayed_send_program_message_payment() {
 
     init_logger();
 
-    for i in 2..3 {
+    for i in 1..4 {
+        new_test_ext().execute_with(|| scenario(i));
+    }
+}
+
+
+#[test]
+fn delayed_send_program_message_with_reservation() {
+    use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
+
+    // Testing that correct gas amount will be reserved and payed for holding.
+    fn scenario(delay: u64) {
+        // Upload empty program that recieve the message.
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let program_address = utils::get_last_program_id();
+
+        // Upload program that sends message to another program.
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PROXY_WGAS_WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InputArgs {
+                destination: <[u8; 32]>::from(program_address).into(),
+                delay: delay as u32,
+            }
+            .encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let proxy = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(proxy));
+        assert!(Gear::is_initialized(program_address));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy,
+            0u64.encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+        let proxy_msg_id = utils::get_last_message_id();
+
+        // Run blocks to make message get into dispatch stash.
+        run_to_block(3, None);
+
+        let delay_holding_fee = GasPrice::gas_price(
+            delay
+                .saturating_add(CostsPerBlockOf::<Test>::reserve_for().unique_saturated_into())
+                .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
+        );
+
+        let reserve_for_fee = GasPrice::gas_price(
+            CostsPerBlockOf::<Test>::reserve_for()
+                .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
+        );
+
+        // Gas should be reserved until message is holding.
+        assert_eq!(Balances::reserved_balance(&USER_1), delay_holding_fee);
+        let free_balance = Balances::free_balance(&USER_1) + Balances::reserved_balance(&USER_1);
+
+        // Run blocks to release message.
+        run_to_block(delay + 2, None);
+
+        let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
+
+        // Check that delayed task was created
+        assert!(TaskPoolOf::<Test>::contains(
+            &(delay + 3),
+            &ScheduledTask::SendDispatch(delayed_id)
+        ));
+
+        // Block where message processed
+        run_to_next_block(None);
+
+        assert_eq!(Balances::reserved_balance(&USER_1), 0);
+        assert_eq!(
+            free_balance - delay_holding_fee + reserve_for_fee,
+            Balances::free_balance(&USER_1)
+        );
+    }
+
+    init_logger();
+
+    for i in 1..4 {
         new_test_ext().execute_with(|| scenario(i));
     }
 }

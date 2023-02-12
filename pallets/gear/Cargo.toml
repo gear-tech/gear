@@ -77,6 +77,7 @@ demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
 demo-proxy-relay = { path = "../../examples/binaries/proxy-relay" }
 demo-proxy-with-gas = { path = "../../examples/binaries/proxy-with-gas" }
+demo-proxy-reservation-with-gas = { path = "../../examples/binaries/proxy-reservation-with-gas" }
 demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
 demo-gasless-wasting = { path = "../../examples/binaries/gasless-wasting" }
 demo-gas-burned = { path = "../../examples/binaries/gas-burned" }

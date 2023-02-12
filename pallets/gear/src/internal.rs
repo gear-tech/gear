@@ -613,7 +613,7 @@ where
             }
 
             // Calculating correct hold bound to lock gas.
-            let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
+            let maximal_hold = hold_builder.maximum_for_message(dispatch.id());
             let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
@@ -670,7 +670,7 @@ where
             let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
 
             // Calculating correct hold bound to lock gas.
-            let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
+            let maximal_hold = hold_builder.maximum_for_message(dispatch.id());
             let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
@@ -714,7 +714,7 @@ where
 
         // Adding removal request in task pool.
         let task_bn = Self::block_number().saturating_add(delay.unique_saturated_into());
-        TaskPoolOf::<T>::add(task_bn, task.clone())
+        TaskPoolOf::<T>::add(task_bn, task)
             .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
     }
 
