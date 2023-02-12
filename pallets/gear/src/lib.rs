@@ -1630,7 +1630,6 @@ pub mod pallet {
             <T as Config>::Messenger::reset();
             ProgramStorageOf::<T>::reset();
             <T as Config>::CodeStorage::reset();
-            common::reset_storage();
 
             Self::deposit_event(Event::DatabaseWiped);
 
