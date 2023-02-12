@@ -2522,7 +2522,7 @@ fn events_logging_works() {
     new_test_ext().execute_with(|| {
         let mut next_block = 2;
 
-        let tests = [
+        let tests: [(_, _, Option<AssertFailedError>); 4] = [
             // Code, init failure reason, handle succeed flag
             (ProgramCodeKind::Default, None, None),
             (
