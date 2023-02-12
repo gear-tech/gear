@@ -1,4 +1,4 @@
-use crate::{batch_pool::generators, SmallRng};
+use crate::SmallRng;
 use anyhow::{anyhow, Result};
 use futures::Future;
 use futures_timer::Delay;
@@ -32,7 +32,7 @@ pub fn now() -> u64 {
 }
 
 pub fn dump_with_seed(seed: u64) -> Result<()> {
-    let code = generators::generate_gear_program::<SmallRng>(seed);
+    let code = gear_call_gen::generate_gear_program::<SmallRng>(seed);
 
     let mut file = File::create("out.wasm")?;
     file.write_all(&code)?;
