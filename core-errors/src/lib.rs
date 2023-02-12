@@ -37,6 +37,7 @@ pub use simple::*;
 pub trait CoreError: Debug + Display + Sized {}
 
 /// Error using messages.
+#[allow(clippy::unnecessary_cast)]
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 #[non_exhaustive]
@@ -151,6 +152,7 @@ pub enum MessageError {
 }
 
 /// Error using waiting syscalls.
+#[allow(clippy::unnecessary_cast)]
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 #[non_exhaustive]
@@ -164,6 +166,7 @@ pub enum WaitError {
 }
 
 /// Memory error.
+#[allow(clippy::unnecessary_cast)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 #[non_exhaustive]
@@ -189,6 +192,7 @@ pub enum MemoryError {
 }
 
 /// Reservation error.
+#[allow(clippy::unnecessary_cast)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 #[non_exhaustive]
@@ -212,6 +216,7 @@ pub enum ReservationError {
 }
 
 /// Execution error.
+#[allow(clippy::unnecessary_cast)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 #[non_exhaustive]
@@ -223,6 +228,7 @@ pub enum ExecutionError {
 }
 
 /// An error occurred in API.
+#[allow(clippy::unnecessary_cast)]
 #[derive(
     Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::From,
 )]
