@@ -47,8 +47,14 @@ jobs:
           sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
           sudo chmod +x /usr/bin/cachepot
 
-      - name: Build production binaries
-        run: cargo build --profile production
+      # TODO: Use default features after #2236
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: >
+            -p gear-cli --profile production
+            --no-default-features -F gear-native -F vara-native -F lazy-pages
 
       - name: Prepare artifacts
         run: |
