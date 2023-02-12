@@ -1,518 +1,504 @@
-extern crate proc_macro;
-use core::fmt::Display;
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
-use std::collections::BTreeMap;
+use std::{borrow::Borrow, fmt::Display, iter};
 use syn::{
-    spanned::Spanned, Attribute, AttributeArgs, Block, Error, FnArg, Ident, ItemFn, ItemTrait,
-    LitStr, Pat, ReturnType, TraitItem, Type, Visibility,
+    parse_macro_input, spanned::Spanned, Attribute, Error, FnArg, Item, ItemMod, Pat, ReturnType,
+    Type, TypePath, Visibility,
 };
 
-macro_rules! ensure {
-    ( $cond:expr, $msg:expr ) => {{
-        ensure!($cond, quote!(), $msg)
-    }};
+static MODULE_NAME: &str = "metafns";
 
-    ( $cond:expr, $token:expr, $msg:expr ) => {{
-        if !$cond {
-            return Err(compile_error($token, $msg));
-        }
-    }};
+fn error<T>(spanned: impl Spanned, message: impl Display) -> Result<T, Error> {
+    Err(Error::new(spanned.span(), message))
 }
 
-fn compile_error<T: ToTokens, U: Display>(tokens: T, msg: U) -> TokenStream {
-    Error::new_spanned(tokens, msg).into_compile_error().into()
-}
-
-fn parse_state_ident(item: TraitItem) -> Result<syn::Type, TokenStream> {
-    let type_item = match item {
-        TraitItem::Type(trait_item_type) => trait_item_type,
-        _ => {
-            return Err(compile_error(
-                item,
-                "First item of a trait supposed to be `type State = TYPE;`",
-            ))
+macro_rules! return_error_if_some {
+    ($option:expr, $message:expr) => {
+        if let Some(spanned) = $option {
+            return error(spanned, $message);
         }
     };
-
-    // Validating type attrs.
-    ensure!(
-        type_item.attrs.is_empty(),
-        &type_item.attrs[0],
-        "Type attrs should be empty"
-    );
-
-    // Validation not required for `type_token`.
-
-    // Validating type ident.
-    ensure!(
-        type_item.ident == "State",
-        type_item.ident,
-        "Incorrect identifier: should be `State`"
-    );
-
-    // Validating generics.
-    ensure!(
-        type_item.generics.params.is_empty(),
-        &type_item.generics.params[0],
-        "State type shouldn't contain generics"
-    );
-    ensure!(
-        type_item.generics.where_clause.is_none(),
-        type_item.generics.where_clause,
-        "State type shouldn't contain where clause"
-    );
-
-    // Validation not required for `colon_token`.
-
-    // Validating bounds absence.
-    ensure!(
-        type_item.bounds.is_empty(),
-        &type_item.bounds[0],
-        "State type shouldn't contain bounds"
-    );
-
-    // Validating default type existence.
-    ensure!(
-        type_item.default.is_some(),
-        "State type should be specified as default type value of a trait"
-    );
-
-    // Validation not required for `semi_token`.
-
-    let state_type = type_item.default.expect("Checked above").1;
-
-    Ok(state_type)
 }
 
-fn parse_fn_item(item: TraitItem, state: &syn::Type) -> Result<ItemFn, TokenStream> {
-    // TODO: validate here.
-    let mut trait_item_method = match item {
-        TraitItem::Method(trait_item_method) => trait_item_method,
-        _ => {
-            return Err(compile_error(
-                item,
-                "Unsupported trait item: it should contain 1 type and fns",
-            ))
-        }
-    };
-
-    // Validating method attrs.
-    ensure!(
-        trait_item_method.attrs.is_empty(),
-        &trait_item_method.attrs[0],
-        "Functions should not contain attributes"
-    );
-
-    // Validating method signature.
-    let signature = &mut trait_item_method.sig;
-    ensure!(
-        signature.constness.is_none(),
-        &signature.constness,
-        "Function shouldn't be const"
-    );
-    ensure!(
-        signature.asyncness.is_none(),
-        &signature.asyncness,
-        "Function shouldn't be async"
-    );
-    ensure!(
-        signature.unsafety.is_none(),
-        &signature.unsafety,
-        "Function should be safe"
-    );
-    ensure!(
-        signature.abi.is_none(),
-        &signature.abi,
-        "Function shouldn't be FFI"
-    );
-    // Validation not required for `fn_token`.
-    // Validation not required for `ident`.
-    ensure!(
-        signature.generics.params.is_empty(),
-        &signature.generics.params[0],
-        "Function shouldn't have generics"
-    );
-    ensure!(
-        signature.generics.where_clause.is_none(),
-        &signature.generics.where_clause,
-        "Function shouldn't have where clause"
-    );
-    // Validation not required for `parent_token`.
-    let validate_typed = |arg: &FnArg, state_name: bool| -> Result<(), TokenStream> {
-        match arg {
-            FnArg::Typed(pat_type) => {
-                ensure!(
-                    pat_type.attrs.is_empty(),
-                    &pat_type.attrs[0],
-                    "Arguments shouldn't have attributes"
-                );
-
-                ensure!(
-                    matches!(&*pat_type.ty, syn::Type::Path(_)),
-                    &*pat_type.ty,
-                    "Illegal type specification: should be path-based"
-                );
-
-                if let Pat::Ident(pat_ident) = &*pat_type.pat {
-                    ensure!(
-                        pat_ident.attrs.is_empty(),
-                        &pat_ident.attrs[0],
-                        "Pattern idents shouldn't have attributes"
-                    );
-                    ensure!(
-                        pat_ident.by_ref.is_none(),
-                        &pat_ident.by_ref,
-                        "Pattern idents shouldn't be thrown as ref"
-                    );
-                    ensure!(
-                        pat_ident.subpat.is_none(),
-                        &pat_ident.subpat.as_ref().expect("checked in cond").1,
-                        "Pattern idents shouldn't be thrown using subpattern"
-                    );
-
-                    if (pat_ident.ident == "state") != state_name {
-                        return Err(compile_error(
-                            &pat_ident.ident,
-                            if state_name {
-                                "Illegal name: should be `state`"
-                            } else {
-                                "Illegal name: shouldn't be `state`"
-                            },
-                        ));
-                    }
-                } else {
-                    return Err(compile_error(
-                        pat_type,
-                        "Illegal pattern type: use common `var: Type`",
-                    ));
-                }
-
-                Ok(())
+fn validate_if_private(spanned: impl Spanned, visibility: &Visibility) -> Result<(), Error> {
+    match visibility {
+        Visibility::Public(_) => Ok(()),
+        other => match other {
+            Visibility::Inherited => {
+                error(spanned, "visibility must be public, add the `pub` keyword")
             }
-            _ => Err(compile_error(arg, "Self arguments are restricted")),
-        }
-    };
-    let mutate_and_validate_state =
-        |arg: &mut FnArg, state: &syn::Type| -> Result<(), TokenStream> {
-            validate_typed(arg, true)?;
-
-            if let FnArg::Typed(pat_type) = arg {
-                if let syn::Type::Path(type_path) = pat_type.ty.as_ref() {
-                    // TODO: replace with normal comparison
-                    if type_path.to_token_stream().to_string() != "Self :: State" {
-                        return Err(compile_error(
-                            type_path,
-                            "Incorrect state type: should be `Self::State`",
-                        ));
-                    }
-                } else {
-                    unreachable!("Guaranteed by `validate_typed`");
-                }
-
-                *pat_type.ty.as_mut() = state.clone();
-            } else {
-                unreachable!("Guaranteed by `validate_typed`");
-            }
-
-            Ok(())
-        };
-    // TODO: args validation
-    let inputs = &mut signature.inputs;
-    match inputs.len() {
-        0 => {
-            return Err(compile_error(
-                &inputs,
-                "Function should contain from 1 to 2 args",
-            ))
-        }
-        1 => mutate_and_validate_state(&mut inputs[0], state)?,
-        2 => {
-            validate_typed(&inputs[0], false)?;
-            mutate_and_validate_state(&mut inputs[1], state)?;
-        }
-        _ => {
-            return Err(compile_error(
-                &inputs[2],
-                "Function shouldn't contain more than 2 args",
-            ))
-        }
+            _ => error(
+                other,
+                "visibility mustn't be restricted, use the `pub` keyword alone",
+            ),
+        },
     }
-
-    ensure!(
-        signature.variadic.is_none(),
-        &signature.variadic,
-        "Signature shouldn't have variadic"
-    );
-    // Validation not required for `output`.
-
-    // Validating realization.
-    ensure!(
-        trait_item_method.default.is_some(),
-        &trait_item_method,
-        "Function should contain body"
-    );
-
-    // Validation not required for `semi_token`.
-
-    // Constructing fn_item.
-    let fn_item = syn::ItemFn {
-        attrs: Default::default(),
-        vis: Visibility::Inherited,
-        sig: trait_item_method.sig,
-        block: Box::new(trait_item_method.default.expect("Checked above")),
-    };
-
-    Ok(fn_item)
 }
 
-// It's validated in `parse_trait`, that items contains at least 1 element.
-fn parse_trait_items(mut items: Vec<TraitItem>) -> Result<Vec<ItemFn>, TokenStream> {
-    let maybe_state_item = items.remove(0);
+fn validate_if_has_no_attributes(
+    attributes: impl IntoIterator<Item = impl Borrow<Attribute>>,
+    message: impl Display,
+) -> Result<(), Error> {
+    let mut attributes = attributes.into_iter();
 
-    let state_ident = parse_state_ident(maybe_state_item)?;
-
-    let mut funcs = Vec::with_capacity(items.len());
-
-    for maybe_fn_item in items {
-        let func = parse_fn_item(maybe_fn_item, &state_ident)?;
-        funcs.push(func);
-    }
-
-    Ok(funcs)
-}
-
-fn parse_trait(item: ItemTrait) -> Result<Vec<TraitItem>, TokenStream> {
-    // Validating attributes absence.
-    ensure!(
-        item.attrs.is_empty(),
-        &item.attrs[0],
-        "Trait attributes should be empty"
-    );
-
-    // Validating public visibility.
-    ensure!(
-        matches!(item.vis, Visibility::Public(_)),
-        item.vis,
-        "Trait should be public"
-    );
-
-    // Validating safety.
-    ensure!(
-        item.unsafety.is_none(),
-        item.unsafety,
-        "Trait should be safe"
-    );
-
-    // Validating non-auto trait.
-    ensure!(
-        item.auto_token.is_none(),
-        item.auto_token,
-        "Trait shouldn't be auto"
-    );
-
-    // Validation not required for `trait_token`
-    // Validation not required for `ident`
-
-    // Validating generics absence.
-    // It's free to skip `lt_token` and `gt_token`.
-    ensure!(
-        item.generics.params.is_empty(),
-        &item.generics.params[0],
-        "Trait shouldn't contain generics"
-    );
-    ensure!(
-        item.generics.where_clause.is_none(),
-        item.generics.where_clause,
-        "Trait shouldn't contain where clause"
-    );
-
-    // Validation not required for `colon_token`
-
-    // Validating supertraits absence.
-    ensure!(
-        item.supertraits.is_empty(),
-        &item.supertraits[0],
-        "Trait shouldn't contain supertraits (bounds)"
-    );
-
-    // Validation not required for `brace_token`
-
-    // Validating amount of items.
-    ensure!(
-        !item.items.is_empty(),
-        "Trait should contain at least one item inside"
-    );
-
-    Ok(item.items)
-}
-
-// TODO: validate `-> ()`
-fn generate_metadata(funcs: &Vec<ItemFn>) -> TokenStream {
-    let mut map: BTreeMap<Ident, (Option<Type>, Type)> = Default::default();
-
-    for func in funcs {
-        let name = func.sig.ident.clone();
-        let input = func.sig.inputs.len().eq(&2).then(|| {
-            if let FnArg::Typed(pat_type) = &func.sig.inputs[0] {
-                *pat_type.ty.clone()
-            } else {
-                unreachable!("Guaranteed by `validate_typed`");
-            }
+    if let Some(attribute) = attributes.next() {
+        let span = attributes.fold(attribute.borrow().span(), |span, attribute| {
+            span.join(attribute.borrow().span()).unwrap_or(span)
         });
-        let output = if let ReturnType::Type(_token, boxed_type) = &func.sig.output {
-            *boxed_type.clone()
-        } else {
-            unreachable!("Guaranteed by `validate_typed`");
-        };
 
-        map.insert(name, (input, output));
+        error(span, message)
+    } else {
+        Ok(())
     }
-
-    // Function name and types of input and output.
-    let add_fn = |name: Ident, (i, o): (Option<Type>, Type)| {
-        let name = name.to_string();
-
-        if let Some(i) = i {
-            quote! {
-                let input = Some(registry.register_type(&MetaType::new::<#i>()).id());
-                let output = Some(registry.register_type(&MetaType::new::<#o>()).id());
-                let repr = TypesRepr { input, output };
-                funcs.insert(#name.to_string(), repr);
-            }
-        } else {
-            quote! {
-                let output = Some(registry.register_type(&MetaType::new::<#o>()).id());
-                let repr = TypesRepr { input: None, output };
-                funcs.insert(#name.to_string(), repr);
-            }
-        }
-    };
-
-    let mut block = quote! {
-        use gmeta::*;
-
-        let mut funcs: BTreeMap<String, TypesRepr> = Default::default();
-        let mut registry = Registry::new();
-    };
-
-    for (name, io) in map {
-        block.extend(add_fn(name, io));
-    }
-
-    block.extend(quote! {
-        let metawasm_data = MetawasmData {
-            funcs, registry: PortableRegistry::from(registry).encode(),
-        };
-        gstd::msg::reply(metawasm_data, 0).expect("Failed to share metadata");
-    });
-
-    let res = quote! {
-        #[no_mangle]
-        extern "C" fn metadata() {
-            #block
-        }
-    };
-
-    res.into()
 }
 
-fn construct_abi(funcs: Vec<ItemFn>) -> TokenStream {
-    let mut res = proc_macro2::TokenStream::new();
-    for mut func in funcs {
-        let span = func.span();
-        let prev_inputs = func.sig.inputs.clone();
-        let prev_ident = func.sig.ident;
-        let new_ident = syn::Ident::new(&format!("_{prev_ident}"), prev_ident.span());
-        func.sig.ident = new_ident.clone();
-
-        func.to_tokens(&mut res);
-
-        func.attrs = vec![Attribute {
-            pound_token: syn::token::Pound(span),
-            style: syn::AttrStyle::Outer,
-            bracket_token: syn::token::Bracket(span),
-            path: syn::Path {
-                leading_colon: None,
-                segments: Default::default(),
-            },
-            tokens: quote!(no_mangle),
-        }];
-
-        let mut sig = func.sig;
-        sig.ident = prev_ident;
-        sig.abi = Some(syn::Abi {
-            extern_token: syn::token::Extern(span),
-            name: Some(LitStr::new("C", span)),
-        });
-        sig.inputs = Default::default();
-        sig.output = ReturnType::Default;
-        func.sig = sig;
-
-        let state_ident = if let Some(FnArg::Typed(pat_type)) = prev_inputs.last() {
-            pat_type.ty.as_ref()
-        } else {
-            unreachable!("Checked on validation");
-        };
-
-        let token = if prev_inputs.len() == 1 {
-            quote! {{
-                let state: #state_ident = gstd::msg::load().expect("Failed to decode state");
-                let res = #new_ident(state);
-                gstd::msg::reply(res, 0).expect("Failed to share result");
-            }}
-        } else {
-            let arg_ident = if let Some(FnArg::Typed(pat_type)) = prev_inputs.first() {
-                pat_type.ty.as_ref()
-            } else {
-                unreachable!("Checked on validation");
-            };
-
-            quote! {{
-                let (arg, state): (#arg_ident, #state_ident) = gstd::msg::load().expect("Failed to decode state");
-                let res = #new_ident(arg, state);
-                gstd::msg::reply(res, 0).expect("Failed to share result");
-            }}
-        };
-
-        let block: Block = syn::parse(token.into()).expect("Unreachable");
-        func.block = Box::new(block);
-
-        func.to_tokens(&mut res);
-    }
-
-    res.into()
-}
-
+/// Generates metawasm functions.
+///
+/// An example of the expected structure:
+/// ```
+/// use gstd::prelude::*;
+///
+/// #[derive(Decode, Encode, TypeInfo)]
+/// pub struct StateType;
+///
+/// #[derive(Encode, TypeInfo)]
+/// pub struct SomeReturnType;
+///
+/// #[derive(Decode, TypeInfo)]
+/// pub struct SomeArg;
+///
+/// #[gmeta::metawasm]
+/// pub mod metafns {
+///     pub type State = StateType;
+///
+///     /// Documentation...
+///     pub fn some_function(_: State) -> SomeReturnType {
+///         unimplemented!()
+///     }
+///
+///     pub fn another_function_but_with_arg(mut _state: State, _arg: SomeArg) -> State {
+///         unimplemented!()
+///     }
+///
+///     /// Another doc...
+///     pub fn function_with_multiple_args(
+///         _state: State,
+///         mut _arg1: SomeArg,
+///         _arg2: u16,
+///         mut _arg3: u32,
+///     ) -> SomeReturnType {
+///         unimplemented!()
+///     }
+/// }
+/// # fn main() {}
+/// ```
+///
+/// # Syntax
+///
+/// - This attribute **must** be used on the `pub`lic `mod` container with the
+/// `metafns` identifier.
+/// - The first item in the module **must** be a `pub`lic `type` alias with the
+/// `State` identifier. The type for which `State` will be an alias **must**
+/// implement [`Decode`] trait.
+///
+/// Usually the state type should be imported from the implemented associative
+/// [`Metadata::State`](../gmeta/trait.Metadata.html#associatedtype.State) type
+/// from the contract's `io` crate.
+///
+/// - The rest of items **must** be `pub`lic functions.
+/// - The first argument's type of metafunctions **must** be `State`.
+/// - If the first argument uses
+/// [the identifier pattern](https://doc.rust-lang.org/stable/reference/patterns.html#identifier-patterns),
+/// the identifier **must** be `state` or `_state`.
+///
+/// In addition to the mandatory first argument, functions can have additional
+/// ones.
+///
+/// - The maximum amount of additional arguments is 18 due restrictions of the
+/// SCALE codec.
+/// - All additional arguments **must** implement the [`Decode`] &
+/// [`TypeInfo`] traits.
+/// - A function **mustn't** return `()` or nothing.
+/// - A returned type **must** implement the
+/// [`Encode`](../gmeta/trait.Encode.html) & [`TypeInfo`] traits.
+///
+/// [`Decode`]: ../gmeta/trait.Decode.html
+/// [`TypeInfo`]: ../gmeta/trait.TypeInfo.html
+///
+/// # Expansion result
+///
+/// This attribute doesn't change the `metafns` module and items inside, but
+/// adds `use super::*;` inside the module because, in most cases, it'll be
+/// useful for importing items from an upper namespace. So every item in the
+/// same namespace where the module is located is accessible inside it.
+///
+/// The rest of the magic happens in the another generated private `extern`
+/// module. It registers all metawasm functions, their arguments & return types,
+/// and generates extern functions with the same names. Later, they can be
+/// called from a metaWASM binary inside a blockchain.
+///
+/// **Important note**: although metafunctions can take more than 1 additional
+/// arguments, on the metaWASM binary level, they must be passed as one. So if
+/// the amount of additinal arguments is 0 or 1, nothing needs to be changed,
+/// but if more - they all must be placed inside a tuple in the same order as in
+/// their function's signature.
+///
+/// E.g., argument definitions for the above example:
+/// - For `some_function` an argument must be [`None`].
+/// - For `another_function_but_with_arg` an argument must be `Some(SomeArg)`.
+/// - For `function_with_multiple_args` an argument must be
+/// `Some((SomeArg, u16, u32))`.
 #[proc_macro_attribute]
-pub fn metawasm(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = syn::parse_macro_input!(attr as AttributeArgs);
-    let trait_obj = syn::parse_macro_input!(item as ItemTrait);
+pub fn metawasm(_: TokenStream, item: TokenStream) -> TokenStream {
+    process(parse_macro_input!(item)).unwrap_or_else(|error| error.into_compile_error().into())
+}
 
-    let f = || -> Result<TokenStream, TokenStream> {
-        ensure!(
-            args.is_empty(),
-            &args[0],
-            "#[metawasm] attributes should be empty"
+fn process(module: ItemMod) -> Result<TokenStream, Error> {
+    let module_span = module.span();
+
+    validate_if_has_no_attributes(
+        module.attrs,
+        "module with #[metawasm] mustn't have attributes",
+    )?;
+    validate_if_private(module_span, &module.vis)?;
+
+    if module.ident != MODULE_NAME {
+        return error(
+            module.ident,
+            format_args!("name of a module with #[metawasm] must be `{MODULE_NAME}`"),
         );
+    }
 
-        let trait_items = parse_trait(trait_obj)?;
-
-        let funcs = parse_trait_items(trait_items)?;
-
-        let mut res = TokenStream::default();
-
-        let metadata = generate_metadata(&funcs);
-        let abi = construct_abi(funcs);
-
-        res.extend(metadata);
-        res.extend(abi);
-
-        Ok(res)
+    let Some((_, items)) = module.content else {
+        return error(
+            module_span,
+            "`#[metawasm]` doesn't work with modules without a body"
+        );
     };
 
-    match f() {
-        Ok(v) => v,
-        Err(e) => e,
+    if items.is_empty() {
+        return Ok(Default::default());
+    }
+
+    let mut items = items.into_iter();
+    let two_first_items = (items.next(), items.next());
+
+    let (potential_type_item, potential_functions) =
+        if let (Some(first), Some(second)) = two_first_items {
+            (first, iter::once(second).chain(items))
+        } else {
+            return error(
+                module_span,
+                "module with #[metawasm] must contain the `State` type alias & at least 1 function",
+            );
+        };
+
+    // Checking the `State` type
+
+    let Item::Type(type_item) = potential_type_item else {
+        return error(
+            potential_type_item,
+            "first item of a module with `#[metawasm]` must be a type alias to a state type (e.g. `type State = StateType;`)"
+        );
+    };
+    let type_item_attributes = &type_item.attrs;
+
+    let (state_type, state_type_inner) = if type_item.ident == "State" {
+        validate_if_private(&type_item, &type_item.vis)?;
+
+        if type_item.generics.params.is_empty() {
+            (
+                TypePath {
+                    qself: None,
+                    path: type_item.ident.into(),
+                }
+                .into(),
+                *type_item.ty,
+            )
+        } else {
+            return error(type_item.generics, "must be without generics");
+        }
+    } else {
+        return error(
+            type_item.ident,
+            "identifier of the state type must be `State`",
+        );
+    };
+
+    // Checking functions
+
+    let mut functions = vec![];
+
+    for potential_function in potential_functions {
+        let Item::Fn(function) = potential_function else {
+            return error(
+                potential_function,
+                "rest of items in a module with `#[metawasm]` must be functions"
+            );
+        };
+
+        validate_if_private(&function, &function.vis)?;
+
+        let signature = function.sig;
+
+        return_error_if_some!(signature.constness, "mustn't be constant");
+        return_error_if_some!(signature.asyncness, "mustn't be asynchronous");
+        return_error_if_some!(signature.unsafety, "mustn't be unsafe");
+        return_error_if_some!(signature.abi, "mustn't have a binary interface");
+        return_error_if_some!(signature.variadic, "mustn't have the variadic argument");
+
+        if !signature.generics.params.is_empty() {
+            return error(signature.generics, "mustn't have generics");
+        }
+
+        if signature.inputs.len() > 19 {
+            return error(signature.inputs, "too many arguments, no more 19 arguments must be here due restrictions of the SCALE codec");
+        }
+
+        let signature_span = signature.span();
+        let mut inputs = signature.inputs.into_iter();
+
+        // Retrieving the first argument
+
+        let first = if let Some(first) = inputs.next() {
+            if let FnArg::Typed(first) = first {
+                validate_if_has_no_attributes(&first.attrs, "mustn't have attributes")?;
+
+                first
+            } else {
+                return error(first, "mustn't be `self`");
+            }
+        } else {
+            return error(
+                signature.paren_token.span,
+                "mustn't be empty, add `state: State` or `_: State`",
+            );
+        };
+
+        // Checking the first argument's name
+
+        if let Pat::Ident(ref pat_ident) = *first.pat {
+            if pat_ident.ident != "state" && pat_ident.ident != "_state" {
+                return error(&pat_ident.ident, "must be `state` or `_state`");
+            }
+        }
+
+        // Checking the first argument's type
+
+        match *first.ty {
+            Type::Reference(reference) if *reference.elem == state_type => {
+                let lifetime_span = reference.lifetime.map(|lifetime| lifetime.span());
+                let mutability_span = reference.mutability.map(|mutability| mutability.span());
+
+                let lifetime_mutability = lifetime_span.map_or(mutability_span, |lifetime_span| {
+                    Some(
+                        mutability_span
+                            .and_then(|mutability_span| mutability_span.join(lifetime_span))
+                            .unwrap_or(lifetime_span),
+                    )
+                });
+
+                let span = lifetime_mutability
+                    .and_then(|lifetime_mutability| {
+                        lifetime_mutability.join(reference.and_token.span)
+                    })
+                    .unwrap_or(reference.and_token.span);
+
+                return error(span, "mustn't take a reference");
+            }
+            first_type => {
+                if first_type != state_type {
+                    return error(first_type, "first argument's type must be `State`");
+                }
+            }
+        }
+
+        // Checking the rest of arguments
+
+        let mut arguments = vec![];
+
+        for argument in inputs {
+            if let FnArg::Typed(argument) = argument {
+                validate_if_has_no_attributes(&argument.attrs, "mustn't have attributes")?;
+
+                arguments.push((argument.pat, argument.ty));
+            } else {
+                // The rest of arguments can't be the `self` argument because
+                // the compiler won't allow this.
+                unreachable!("unexpected `self` argument");
+            }
+        }
+
+        // Checking an output
+
+        let return_type = match signature.output {
+            ReturnType::Default => {
+                return error(signature_span, "return type must be specified");
+            }
+            ReturnType::Type(_, return_type) => {
+                if let Type::Tuple(ref tuple) = *return_type {
+                    if tuple.elems.is_empty() {
+                        return error(tuple, "return type mustn't be `()`");
+                    }
+                }
+
+                return_type
+            }
+        };
+
+        functions.push((
+            function.attrs,
+            signature.ident,
+            first.pat,
+            arguments,
+            return_type,
+            function.block,
+        ));
+    }
+
+    // Code generating
+
+    let mut type_registrations = Vec::with_capacity(functions.len());
+    let (mut extern_functions, mut public_functions) =
+        (type_registrations.clone(), type_registrations.clone());
+
+    for (attributes, function_identifier, state_pattern, arguments, return_type, block) in functions
+    {
+        let CodeGenItems {
+            input_type,
+            variables,
+            variables_types,
+            variables_wo_parentheses,
+            arguments,
+        } = process_arguments(arguments, state_pattern);
+
+        let stringed_fn_ident = function_identifier.to_string();
+        let output = register_type(&return_type);
+
+        type_registrations.push(quote! {
+            funcs.insert(#stringed_fn_ident.into(), ::gmeta::TypesRepr { input: #input_type, output: #output });
+        });
+
+        extern_functions.push(quote! {
+            #[no_mangle]
+            extern "C" fn #function_identifier() {
+                let #variables: #variables_types = ::gstd::msg::load()
+                    .expect("Failed to load or decode a payload");
+
+                ::gstd::msg::reply(super::#function_identifier(#variables_wo_parentheses), 0)
+                    .expect("Failed to encode or reply with a result from a metawasm function");
+            }
+        });
+
+        public_functions.push(quote! {
+            #(#attributes)*
+            pub fn #function_identifier(#arguments) -> #return_type #block
+        });
+    }
+
+    let module_ident = quote::format_ident!("{MODULE_NAME}");
+
+    Ok(quote! {
+        pub mod #module_ident {
+            use super::*;
+
+            mod r#extern {
+                use super::*;
+
+                #[no_mangle]
+                extern "C" fn metadata() {
+                    let mut funcs = ::gstd::BTreeMap::new();
+                    let mut registry = ::gmeta::Registry::new();
+
+                    #(#type_registrations)*
+
+                    let metawasm_data = ::gmeta::MetawasmData {
+                        funcs,
+                        registry: ::gstd::Encode::encode(&::gmeta::PortableRegistry::from(registry)),
+                    };
+
+                    ::gstd::msg::reply(metawasm_data, 0).expect("Failed to encode or reply with metawasm data");
+                }
+
+                #(#extern_functions)*
+            }
+
+            #(#type_item_attributes)*
+            pub type #state_type = #state_type_inner;
+
+            #(#public_functions)*
+        }
+    }.into())
+}
+
+struct CodeGenItems {
+    input_type: proc_macro2::TokenStream,
+    variables: proc_macro2::TokenStream,
+    variables_types: proc_macro2::TokenStream,
+    variables_wo_parentheses: proc_macro2::TokenStream,
+    arguments: proc_macro2::TokenStream,
+}
+
+fn process_arguments(
+    arguments: Vec<(Box<Pat>, Box<Type>)>,
+    state_pattern: Box<Pat>,
+) -> CodeGenItems {
+    if arguments.is_empty() {
+        let variables = quote!(state);
+
+        CodeGenItems {
+            input_type: quote!(None),
+            variables: variables.clone(),
+            variables_types: quote!(State),
+            variables_wo_parentheses: variables,
+            arguments: quote!(#state_pattern: State),
+        }
+    } else {
+        let arguments_types = arguments.iter().map(|argument| &argument.1);
+        let variables_types_wo_parentheses = quote!(#(#arguments_types),*);
+
+        let (variables_wo_parentheses, variables, variables_types) = if arguments.len() > 1 {
+            let variables_wo_parentheses =
+                (0..arguments.len()).map(|index| quote::format_ident!("arg{}", index));
+            let variables_wo_parentheses = quote!(#(#variables_wo_parentheses),*);
+
+            let variables_with_parentheses = quote!((#variables_wo_parentheses));
+
+            (
+                variables_wo_parentheses,
+                variables_with_parentheses,
+                quote!((#variables_types_wo_parentheses)),
+            )
+        } else {
+            let variables_wo_parentheses = quote!(arg);
+
+            (
+                variables_wo_parentheses.clone(),
+                variables_wo_parentheses,
+                variables_types_wo_parentheses,
+            )
+        };
+
+        let input_type = register_type(variables_types.clone());
+
+        let arguments = arguments
+            .into_iter()
+            .map(|(pattern, ty)| quote!(#pattern: #ty));
+
+        CodeGenItems {
+            input_type,
+            variables: quote!((#variables, state)),
+            variables_types: quote!((#variables_types, State)),
+            variables_wo_parentheses: quote!(state, #variables_wo_parentheses),
+            arguments: quote!(#state_pattern: State, #(#arguments),*),
+        }
+    }
+}
+
+fn register_type(ty: impl ToTokens) -> proc_macro2::TokenStream {
+    let ty = ty.to_token_stream();
+
+    quote! {
+        Some(registry.register_type(&::gmeta::MetaType::new::<#ty>()).id())
     }
 }

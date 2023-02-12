@@ -21,7 +21,7 @@ pub mod currency {
     use runtime_primitives::Balance;
 
     /// The existential deposit.
-    pub const EXISTENTIAL_DEPOSIT: Balance = MILLICENTS / 200; // 1_000_000
+    pub const EXISTENTIAL_DEPOSIT: Balance = 10_000_000_000_000; // 10 Vara
 
     // TODO: review quantities based on economic model (issue #1277)
     pub const UNITS: Balance = 1_000_000_000_000; // 10^(-12) precision
@@ -57,7 +57,7 @@ pub mod time {
     ///
     /// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 
-    pub const MILLISECS_PER_BLOCK: Moment = 2000;
+    pub const MILLISECS_PER_BLOCK: Moment = 2400;
 
     // Milliseconds per year for the Julian year (365.25 days).
     pub const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
