@@ -37,8 +37,7 @@ use gsys::{
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
-// TODO: change it to u32::MAX (issue #2027)
-const PTR_SPECIAL: u32 = i32::MAX as u32;
+const PTR_SPECIAL: u32 = u32::MAX;
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
 

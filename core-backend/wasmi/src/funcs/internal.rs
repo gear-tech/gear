@@ -57,6 +57,20 @@ where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
 {
+    /// !!! Usage warning: make sure to do it before any other read/write,
+    /// because it may contain register read.
+    pub(crate) fn register_and_read_value(
+        &mut self,
+        value_ptr: u32,
+    ) -> Result<u128, MemoryAccessError> {
+        if value_ptr != PTR_SPECIAL {
+            let read_value = self.register_read_decoded(value_ptr);
+            return self.read_decoded(read_value);
+        }
+
+        Ok(0)
+    }
+
     #[track_caller]
     pub fn prepare(
         caller: Caller<'a, HostState<E>>,
