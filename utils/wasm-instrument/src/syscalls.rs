@@ -232,7 +232,7 @@ impl SysCallName {
         use ValueType::I32;
         match self {
             Self::Alloc => SysCallSignature::system([Alloc], [I32]),
-            Self::Free => SysCallSignature::system([Free], []),
+            Self::Free => SysCallSignature::system([Free], [I32]),
             Self::Debug => SysCallSignature::gr([Ptr, Size]),
             Self::Error => SysCallSignature::gr([Ptr, Ptr]),
             Self::BlockHeight => SysCallSignature::gr([Ptr]),

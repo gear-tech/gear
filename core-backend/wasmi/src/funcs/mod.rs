@@ -401,30 +401,31 @@ where
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_state_taken(|ctx, state| {
-                let mut mem = ctx.memory();
-                let page = state.ext.alloc(pages, &mut mem)?;
-                log::debug!("Alloc {:?} pages at {:?}", pages, page);
-                Ok((page.raw(),))
-            })
+            Ok(ctx
+                .run_state_taken(|ctx, state| {
+                    let mut mem = ctx.memory();
+                    let page = state.ext.alloc(pages, &mut mem)?;
+                    log::debug!("Alloc {:?} pages at {:?}", pages, page);
+                    Ok((page.raw(),))
+                })
+                .unwrap_or((u32::MAX,)))
         };
 
         Func::wrap(store, func)
     }
 
     pub fn free(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>, page: u32| -> EmptyOutput {
+        let func = move |caller: Caller<'_, HostState<E>>, page: u32| -> FnResult<i32> {
             let page = WasmPage::new(page).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                ctx.host_state_mut()
-                    .ext
-                    .free(page)
-                    .map(|_| log::debug!("Free {:?}", page))
-                    .map_err(Into::into)
-            })
+            let res = ctx.run(|ctx| {
+                ctx.host_state_mut().ext.free(page)?;
+                log::debug!("Free {:?}", page);
+                Ok(())
+            });
+            Ok((res.is_err() as i32,))
         };
 
         Func::wrap(store, func)

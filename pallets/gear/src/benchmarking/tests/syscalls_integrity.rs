@@ -1160,6 +1160,7 @@ where
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x1),
                 Instruction::Call(1),
+                Instruction::Drop,
                 Instruction::End,
                 Instruction::End,
             ]),

@@ -2080,7 +2080,7 @@ checksum = "210ec60ae7d710bed8683e333e9d2855a8a56a3e9892b38bad3bb0d4d29b0d5e"
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
-source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=e76ae98#e76ae9869ea4d386e758d7ed5d983ba2a25d7629"
+source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=ca7eb9caef9deed757ba5d16f872afa8fd192bb6#ca7eb9caef9deed757ba5d16f872afa8fd192bb6"
 dependencies = [
  "libc",
  "libc_print",

@@ -325,15 +325,17 @@ where
 
         let pages = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
-        let page = ctx.run_any(|ctx| {
-            let page = ctx.ext.alloc(pages, &mut ctx.memory)?;
+        let page = ctx
+            .run_any(|ctx| {
+                let page = ctx.ext.alloc(pages, &mut ctx.memory)?;
 
-            log::debug!("ALLOC: {pages:?} pages at {page:?}");
+                log::debug!("ALLOC: {pages:?} pages at {page:?}");
 
-            Ok(page)
-        })?;
+                Ok(page.raw())
+            })
+            .unwrap_or(u32::MAX);
 
-        Ok(ReturnValue::Value(Value::I32(page.raw() as i32)))
+        Ok(ReturnValue::Value(Value::I32(page as i32)))
     }
 
     /// Infallible `free` syscall.
@@ -342,13 +344,15 @@ where
 
         let page = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
-        ctx.run(|ctx| {
+        let res = ctx.run(|ctx| {
             ctx.ext.free(page)?;
 
             log::debug!("FREE: {page:?}");
 
             Ok(())
-        })
+        });
+
+        Ok(ReturnValue::Value(Value::I32(res.is_err() as i32)))
     }
 
     /// Infallible `gr_block_height` syscall.

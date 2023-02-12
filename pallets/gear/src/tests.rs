@@ -1651,7 +1651,7 @@ fn memory_access_cases() {
 (module
     (import "env" "memory" (memory 1))
     (import "env" "alloc" (func $alloc (param i32) (result i32)))
-    (import "env" "free" (func $free (param i32)))
+    (import "env" "free" (func $free (param i32) (result i32)))
     (export "handle" (func $handle))
     (export "init" (func $init))
     (func $init
@@ -1669,6 +1669,7 @@ fn memory_access_cases() {
         (block
             i32.const 0x2
             call $free
+            drop
         )
         ;; access page 1 and change it, so it will have data in storage
         (block
@@ -1745,6 +1746,7 @@ fn memory_access_cases() {
         ;; free 2nd page
         i32.const 2
         call $free
+        drop
         ;; alloc it again
         (block
             i32.const 1
@@ -1774,6 +1776,7 @@ fn memory_access_cases() {
         ;; free 3th page
         i32.const 3
         call $free
+        drop
         ;; then alloc it again
         (block
             i32.const 1
@@ -1804,6 +1807,7 @@ fn memory_access_cases() {
         ;; free 1st page
         i32.const 1
         call $free
+        drop
         ;; then alloc it again
         (block
             i32.const 1
