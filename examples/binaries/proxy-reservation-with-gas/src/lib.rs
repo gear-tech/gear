@@ -38,17 +38,17 @@ pub struct InputArgs {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use crate::InputArgs;
-    use gstd::{msg, ActorId, ToString, ReservationId};
+    use gstd::{msg, ActorId, ReservationId, ToString};
 
     static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
     static mut DELAY: u32 = 0;
+    static mut RESERVATION_ID: ReservationId = 0.into();
 
     #[no_mangle]
     extern "C" fn handle() {
         let gas_limit: u64 = msg::load().expect("Failed to decode `gas_limit: u64'");
-        let reservation_id = ReservationId::reserve(6_000_000_000, 80).expect("Failed to reserve gas");
         msg::send_delayed_from_reservation(
-            reservation_id,
+            RESERVATION_ID,
             unsafe { DESTINATION },
             b"proxied message",
             msg::value(),
@@ -76,6 +76,8 @@ mod wasm {
     extern "C" fn init() {
         let args: InputArgs = msg::load().expect("Failed to decode `InputArgs'");
         unsafe {
+            RESERVATION_ID =
+                ReservationId::reserve(6_000_000_000, 80).expect("Failed to reserve gas");
             DESTINATION = args.destination;
             DELAY = args.delay;
         }

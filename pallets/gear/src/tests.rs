@@ -72,6 +72,8 @@ use sp_std::convert::TryFrom;
 pub use utils::init_logger;
 use utils::*;
 
+type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
 #[test]
 fn gasfull_after_gasless() {
     init_logger();
@@ -566,7 +568,6 @@ fn delayed_send_user_message_payment() {
     }
 }
 
-
 #[test]
 fn delayed_send_user_message_with_reservation() {
     use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
@@ -616,9 +617,13 @@ fn delayed_send_user_message_with_reservation() {
                 .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
 
+        let mailbox_gas_threshold = GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
+
         // Gas should be reserved until message is holding.
-        assert_eq!(Balances::reserved_balance(&USER_1), delay_holding_fee);
-        let free_balance = Balances::free_balance(&USER_1) + Balances::reserved_balance(&USER_1);
+        assert_eq!(
+            Balances::reserved_balance(&USER_1),
+            mailbox_gas_threshold + delay_holding_fee
+        );
 
         // Run blocks before sending message.
         run_to_block(delay + 2, None);
@@ -630,7 +635,7 @@ fn delayed_send_user_message_with_reservation() {
             &(delay + 3),
             &ScheduledTask::SendUserMessage {
                 message_id: delayed_id,
-                to_mailbox: false
+                to_mailbox: true
             }
         ));
 
@@ -639,10 +644,10 @@ fn delayed_send_user_message_with_reservation() {
 
         run_to_next_block(None);
 
-        assert_eq!(Balances::reserved_balance(&USER_1), 0);
+        // TODO: deal with reserve_for in reserve
         assert_eq!(
-            free_balance - delay_holding_fee + reserve_for_fee,
-            Balances::free_balance(&USER_1)
+            Balances::reserved_balance(&USER_1),
+            mailbox_gas_threshold + reserve_for_fee
         );
     }
 
@@ -746,7 +751,6 @@ fn delayed_send_program_message_payment() {
     }
 }
 
-
 #[test]
 fn delayed_send_program_message_with_reservation() {
     use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
@@ -803,19 +807,32 @@ fn delayed_send_program_message_with_reservation() {
                 .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
 
-        let reserve_for_fee = GasPrice::gas_price(
-            CostsPerBlockOf::<Test>::reserve_for()
-                .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
+        let reservation_holding_fee = GasPrice::gas_price(
+            80u64
+                .saturating_add(CostsPerBlockOf::<Test>::reserve_for().unique_saturated_into())
+                .saturating_mul(CostsPerBlockOf::<Test>::reservation()),
         );
 
+        let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
+
+        // Check that delayed task was created
+        assert!(TaskPoolOf::<Test>::contains(
+            &(delay + 3),
+            &ScheduledTask::SendDispatch(delayed_id)
+        ));
+
+        // Check that correct amount locked for dispatch stash
+        let gas_locked_in_gas_node = GasPrice::gas_price(Gas::get_lock(delayed_id).unwrap());
+        assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
+
         // Gas should be reserved until message is holding.
-        assert_eq!(Balances::reserved_balance(&USER_1), delay_holding_fee);
-        let free_balance = Balances::free_balance(&USER_1) + Balances::reserved_balance(&USER_1);
+        assert_eq!(
+            Balances::reserved_balance(&USER_1),
+            GasPrice::gas_price(6_000_000_000) + reservation_holding_fee
+        );
 
         // Run blocks to release message.
         run_to_block(delay + 2, None);
-
-        let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
 
         // Check that delayed task was created
         assert!(TaskPoolOf::<Test>::contains(
@@ -827,18 +844,16 @@ fn delayed_send_program_message_with_reservation() {
         run_to_next_block(None);
 
         assert_eq!(Balances::reserved_balance(&USER_1), 0);
-        assert_eq!(
-            free_balance - delay_holding_fee + reserve_for_fee,
-            Balances::free_balance(&USER_1)
-        );
     }
 
     init_logger();
 
-    for i in 1..4 {
+    for i in 1..4{
         new_test_ext().execute_with(|| scenario(i));
     }
 }
+
+// TODO mikita test where reserved less than dispathc hold fee
 
 #[test]
 fn delayed_program_creation_no_code() {

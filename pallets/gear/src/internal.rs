@@ -886,7 +886,6 @@ where
             Self::transfer_reserved(&from, &to, value);
 
             Self::consume_and_retrieve(message.id());
-
             // No expiration block due to absence of insertion in storage.
             None
         };
