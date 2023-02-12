@@ -962,8 +962,6 @@ fn delayed_send_program_message_with_low_reservation() {
     }
 }
 
-// TODO mikita test where reserved less than dispathc hold fee
-
 #[test]
 fn delayed_program_creation_no_code() {
     init_logger();
