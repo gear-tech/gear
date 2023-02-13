@@ -9473,3 +9473,33 @@ fn wrong_entry_type() {
         assert!(err.starts_with(&ActorExecutionErrorReason::Environment("".into()).to_string()));
     });
 }
+
+#[test]
+fn oom_handler_works() {
+    use demo_out_of_memory::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000_000_u64,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(
+                MemoryError::ProgramAllocOutOfBounds.into(),
+            )),
+        );
+    });
+}

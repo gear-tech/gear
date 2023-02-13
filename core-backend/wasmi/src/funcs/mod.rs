@@ -33,7 +33,7 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
-use gear_core_errors::ExtError;
+use gear_core_errors::{ExtError, MemoryError};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
@@ -959,6 +959,25 @@ where
                     Err(ActorTerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
                 })
             };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn oom_panic(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>| -> EmptyOutput {
+            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
+
+            ctx.run(|_ctx| {
+                Err(ActorTerminationReason::Trap(TrapExplanation::Ext(
+                    MemoryError::ProgramAllocOutOfBounds.into(),
+                ))
+                .into())
+            })
+        };
 
         Func::wrap(store, func)
     }

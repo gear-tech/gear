@@ -116,6 +116,7 @@ where
         }),
         f.build(Debug, |forbidden| F::debug(store, forbidden, memory)),
         f.build(Panic, |forbidden| F::panic(store, forbidden, memory)),
+        f.build(OomPanic, |forbidden| F::oom_panic(store, forbidden, memory)),
         f.build(GasAvailable, |forbidden| {
             F::gas_available(store, forbidden, memory)
         }),
