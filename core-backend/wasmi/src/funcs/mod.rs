@@ -402,14 +402,22 @@ where
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            Ok(ctx
-                .run_state_taken(|ctx, state| {
-                    let mut mem = ctx.memory();
-                    let page = state.ext.alloc(pages, &mut mem)?;
-                    log::debug!("Alloc {:?} pages at {:?}", pages, page);
-                    Ok((page.raw(),))
-                })
-                .unwrap_or((u32::MAX,)))
+            ctx.run_state_taken(|ctx, state| {
+                let mut mem = ctx.memory();
+                let page = state
+                    .ext
+                    .alloc(pages, &mut mem)
+                    .map(|page| {
+                        log::debug!("Alloc {pages:?} pages at {page:?}");
+                        page.raw()
+                    })
+                    .unwrap_or_else(|e| {
+                        log::debug!("Alloc failed: {e}");
+                        u32::MAX
+                    });
+
+                Ok((page,))
+            })
         };
 
         Func::wrap(store, func)

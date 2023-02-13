@@ -328,17 +328,21 @@ where
 
         let pages = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
-        let page = ctx
-            .run_any(|ctx| {
-                let page = ctx.ext.alloc(pages, &mut ctx.memory)?;
+        ctx.run_any(|ctx| {
+            let page = ctx
+                .ext
+                .alloc(pages, &mut ctx.memory)
+                .map(|page| {
+                    log::debug!("Alloc {pages:?} pages at {page:?}");
+                    page.raw()
+                })
+                .unwrap_or_else(|e| {
+                    log::debug!("Alloc failed: {e}");
+                    u32::MAX
+                });
 
-                log::debug!("ALLOC: {pages:?} pages at {page:?}");
-
-                Ok(page.raw())
-            })
-            .unwrap_or(u32::MAX);
-
-        Ok(ReturnValue::Value(Value::I32(page as i32)))
+            Ok(ReturnValue::Value(Value::I32(page as i32)))
+        })
     }
 
     /// Infallible `free` syscall.

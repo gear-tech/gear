@@ -40,7 +40,7 @@ pub(crate) fn init_logger() {
 
 fn parse_wat(source: &str) -> Vec<u8> {
     wabt::Wat2Wasm::new()
-        .validate(false)
+        .validate(true)
         .convert(source)
         .expect("failed to parse module")
         .as_ref()
@@ -73,8 +73,9 @@ fn debug_mode_works() {
             (export "init" (func $init))
             (export "handle" (func $handle))
             (func $handle
-              (local $pages_offset i32)
-              (local.set $pages_offset (call $alloc (i32.const 4)))
+              i32.const 4
+              call $alloc
+              drop
             )
             (func $init)
         )"#;
@@ -304,7 +305,7 @@ fn check_not_allocated_pages() {
         (module
             (import "env" "memory" (memory 0))
             (import "env" "alloc" (func $alloc (param i32) (result i32)))
-            (import "env" "free" (func $free (param i32)))
+            (import "env" "free" (func $free (param i32) (result i32)))
             (export "init" (func $init))
             (export "handle" (func $handle))
             (func $init
@@ -328,6 +329,7 @@ fn check_not_allocated_pages() {
 
                     local.get $i
                     call $free
+                    drop
 
                     local.get $i
                     i32.const 6
@@ -507,7 +509,7 @@ fn check_changed_pages_in_storage() {
         (module
             (import "env" "memory" (memory 8))
             (import "env" "alloc" (func $alloc (param i32) (result i32)))
-            (import "env" "free" (func $free (param i32)))
+            (import "env" "free" (func $free (param i32) (result i32)))
             (export "init" (func $init))
             (export "handle" (func $handle))
             (func $init
@@ -544,6 +546,7 @@ fn check_changed_pages_in_storage() {
                 ;; then free page 8
                 i32.const 8
                 call $free
+                drop
 
                 ;; then alloc page 8 again
                 (block
@@ -577,6 +580,7 @@ fn check_changed_pages_in_storage() {
                 ;; then free page 11
                 i32.const 11
                 call $free
+                drop
             )
 
             (func $handle
