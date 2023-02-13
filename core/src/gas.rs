@@ -18,6 +18,8 @@
 
 //! Gas module.
 
+use codec::{Decode, Encode};
+
 /// This trait represents a token that can be used for charging `GasCounter`.
 ///
 /// Implementing type is expected to be super lightweight hence `Copy` (`Clone` is added
@@ -291,6 +293,15 @@ impl GasAllowanceCounter {
 
         self.0 = new_value.unwrap_or(u128::MAX);
     }
+}
+
+/// The type will be used some time soon to implement proper charging.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub struct GasLeft {
+    /// Left gas from gas counter.
+    pub gas: u64,
+    /// Left gas from allowance counter.
+    pub allowance: u64,
 }
 
 #[cfg(test)]

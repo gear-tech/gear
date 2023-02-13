@@ -26,7 +26,10 @@ use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
 };
-use gear_core::memory::{GearPage, HostPointer, PageU32Size, WasmPage};
+use gear_core::{
+    gas::GasLeft,
+    memory::{GearPage, HostPointer, PageU32Size, WasmPage},
+};
 use sp_runtime_interface::{
     pass_by::{Codec, Inner, PassBy, PassByInner},
     runtime_interface,
@@ -104,6 +107,7 @@ pub trait GearRI {
     fn pre_process_memory_accesses(
         reads: &[(u32, u32)],
         writes: &[(u32, u32)],
+        _gas_left: (GasLeft,), // to be used in #2216
     ) -> Result<(), OutOfMemoryAccessError> {
         let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
         let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
