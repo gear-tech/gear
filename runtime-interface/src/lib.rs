@@ -116,7 +116,6 @@ pub trait GearRI {
 
     /// Init lazy-pages.
     /// Returns whether initialization was successful.
-    #[version(2)]
     fn init_lazy_pages(pages_final_prefix: [u8; 32]) -> bool {
         use lazy_pages::LazyPagesVersion;
 
@@ -125,7 +124,6 @@ pub trait GearRI {
 
     /// Init lazy pages context for current program.
     /// Panic if some goes wrong during initialization.
-    #[version(2)]
     fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
         let wasm_mem_addr = ctx.wasm_mem_addr.map(|addr| {
             usize::try_from(addr)
@@ -164,67 +162,15 @@ pub trait GearRI {
             .expect("Cannot set new wasm addr");
     }
 
-    #[version(2)]
     fn set_wasm_mem_size(wasm_mem_size: WasmPageFfiWrapper) {
         lazy_pages::set_wasm_mem_size(wasm_mem_size.into())
             .map_err(|e| e.to_string())
             .expect("Cannot set new wasm memory size");
     }
 
-    #[version(2)]
     fn get_released_pages() -> Vec<GearPage> {
         lazy_pages::get_released_pages()
     }
 
-    // Deprecated runtime interface functions.
-
-    #[deprecated]
-    fn init_lazy_pages_for_program(
-        wasm_mem_addr: Option<HostPointer>,
-        wasm_mem_size_in_pages: u32,
-        stack_end: Option<u32>,
-        program_id: Vec<u8>,
-    ) {
-        let wasm_mem_size =
-            WasmPage::new(wasm_mem_size_in_pages).expect("Unexpected wasm mem size number");
-        let stack_end =
-            stack_end.map(|page| WasmPage::new(page).expect("Unexpected wasm stack end addr"));
-        let wasm_mem_addr = wasm_mem_addr
-            .map(|addr| usize::try_from(addr).expect("Cannot cast wasm mem addr to `usize`"));
-
-        lazy_pages::initialize_for_program(
-            wasm_mem_addr,
-            wasm_mem_size,
-            stack_end,
-            program_id,
-            None,
-            Default::default(),
-        )
-        .map_err(|e| e.to_string())
-        .expect("Cannot initialize lazy pages for current program");
-    }
-
-    #[deprecated]
-    fn get_released_pages() -> Vec<u32> {
-        // TODO: (issue #1731) pass result thru safe wrapper
-        lazy_pages::get_released_pages()
-            .into_iter()
-            .map(|p| p.raw())
-            .collect()
-    }
-
-    #[deprecated]
-    fn set_wasm_mem_size(size_in_wasm_pages: u32) {
-        let size = WasmPage::new(size_in_wasm_pages).expect("Unexpected wasm memory size");
-        lazy_pages::set_wasm_mem_size(size)
-            .map_err(|e| e.to_string())
-            .expect("Cannot set new wasm memory size");
-    }
-
-    #[deprecated]
-    fn init_lazy_pages() -> bool {
-        use lazy_pages::LazyPagesVersion;
-
-        lazy_pages::init(LazyPagesVersion::Version1, vec![])
-    }
+    // Bellow goes deprecated runtime interface functions.
 }
