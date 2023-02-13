@@ -136,4 +136,6 @@ pub fn pre_process_memory_accesses(
     let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
     let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
     gear_ri::pre_process_memory_accesses(&reads, &writes, (Default::default(),))
+        .1
+        .map_err(|_| OutOfMemoryAccessError)
 }

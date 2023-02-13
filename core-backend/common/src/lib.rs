@@ -235,6 +235,7 @@ impl<E: BackendExtError> From<MemoryAccessError> for FuncError<E> {
                 E::from_ext_error(MemoryError::RuntimeAllocOutOfBounds.into())
             }
             MemoryAccessError::Decode => E::from_ext_error(ExtError::Decode),
+            _ => unimplemented!("#2216"),
         }
         .into()
     }
