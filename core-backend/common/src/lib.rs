@@ -217,6 +217,12 @@ pub trait BackendExtError: CoreError + Clone {
     fn into_termination_reason(self) -> TerminationReason;
 }
 
+pub trait BackendAllocExtError: Sized {
+    type ExtError: BackendExtError;
+
+    fn into_backend_error(self) -> Result<Self::ExtError, Self>;
+}
+
 pub struct BackendReport<MemWrap, Ext>
 where
     Ext: EnvExt,
@@ -311,6 +317,20 @@ pub trait BackendState {
                 }
             }
             Ok(res) => Ok(Ok(res)),
+        }
+    }
+
+    /// Process alloc function result
+    fn process_alloc_func_result<T: Sized, E: BackendAllocExtError>(
+        &mut self,
+        res: Result<T, E>,
+    ) -> Result<Result<T, E>, TerminationReason> {
+        match res {
+            Ok(t) => Ok(Ok(t)),
+            Err(err) => match err.into_backend_error() {
+                Ok(ext_err) => Err(ext_err.into()),
+                Err(alloc_err) => Ok(Err(alloc_err)),
+            },
         }
     }
 }

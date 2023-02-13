@@ -24,8 +24,8 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    ActorTerminationReason, BackendExt, BackendExtError, BackendState, TerminationReason,
-    TrapExplanation,
+    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendState,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     buffer::RuntimeBuffer,
@@ -57,6 +57,7 @@ impl<E> FuncsHandler<E>
 where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
+    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
     pub fn send(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
@@ -403,18 +404,18 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_state_taken(|ctx, state| {
-                let mut mem = ctx.memory();
-                let page = state
-                    .ext
-                    .alloc(pages, &mut mem)
-                    .map(|page| {
+                let res = state.ext.alloc(pages, &mut ctx.memory());
+                let res = state.process_alloc_func_result(res)?;
+                let page = match res {
+                    Ok(page) => {
                         log::debug!("Alloc {pages:?} pages at {page:?}");
                         page.raw()
-                    })
-                    .unwrap_or_else(|e| {
-                        log::debug!("Alloc failed: {e}");
+                    }
+                    Err(err) => {
+                        log::debug!("Alloc failed: {err}");
                         u32::MAX
-                    });
+                    }
+                };
 
                 Ok((page,))
             })
@@ -429,12 +430,21 @@ where
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            let res = ctx.run(|ctx| {
-                ctx.host_state_mut().ext.free(page)?;
-                log::debug!("Free {:?}", page);
-                Ok(())
-            });
-            Ok((res.is_err() as i32,))
+            ctx.run_state_taken(|_ctx, state| {
+                let res = state.ext.free(page);
+                let res = state.process_alloc_func_result(res)?;
+
+                match &res {
+                    Ok(()) => {
+                        log::debug!("Free {page:?}");
+                    }
+                    Err(err) => {
+                        log::debug!("Free failed: {err}");
+                    }
+                };
+
+                Ok((res.is_err() as i32,))
+            })
         };
 
         Func::wrap(store, func)

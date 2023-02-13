@@ -601,9 +601,7 @@ impl AllocationsContext {
         let mut start = self.static_pages;
         let mut start_page = None;
         for &end in self.allocations.iter().chain(iter::once(&mem_size)) {
-            let page_gap = end
-                .sub(start)
-                .map_err(|_| AllocError::IncorrectAllocationData(IncorrectAllocationDataError))?;
+            let page_gap = end.sub(start).map_err(|_| IncorrectAllocationDataError)?;
 
             if page_gap >= pages {
                 start_page = Some(start);

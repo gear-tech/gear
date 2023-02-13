@@ -27,8 +27,9 @@ use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
-    ActorTerminationReason, BackendExt, BackendExtError, BackendReport, BackendTermination,
-    Environment, EnvironmentExecutionError, EnvironmentExecutionResult, STACK_END_EXPORT_NAME,
+    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
+    BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
+    STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -81,6 +82,7 @@ impl<E> EnvBuilder<E>
 where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
+    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>) {
         if self.forbidden_funcs.contains(&name) {
@@ -108,6 +110,7 @@ impl<E, EP> Environment<EP> for SandboxEnvironment<E, EP>
 where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
+    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
     EP: WasmEntry,
 {
     type Ext = E;

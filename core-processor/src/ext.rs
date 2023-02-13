@@ -24,8 +24,8 @@ use alloc::{
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
-    ActorTerminationReason, BackendExt, BackendExtError, ExtInfo, SystemReservationContext,
-    SystemTerminationReason, TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
+    SystemReservationContext, SystemTerminationReason, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -116,27 +116,32 @@ pub trait ProcessorExt {
     fn lazy_pages_status() -> Option<Status>;
 }
 
-/// [`Ext`](Ext)'s error
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
-pub enum ProcessorError {
-    /// Basic error
-    #[display(fmt = "{_0}")]
-    Core(ExtError),
-    /// Allocation error
-    #[display(fmt = "{_0}")]
-    Alloc(AllocError),
+/// Charging error
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+pub enum ChargeError {
     /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
     /// An error occurs in attempt to refund more gas than burned one.
     #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
-    /// An error occurs in attempt to call forbidden sys-call.
-    #[display(fmt = "Unable to call a forbidden function")]
-    ForbiddenFunction,
     /// Gas allowance exceeded
     #[display(fmt = "Gas allowance exceeded")]
     GasAllowanceExceeded,
+}
+
+/// [`Ext`](Ext)'s error
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
+pub enum ProcessorError {
+    /// Basic error
+    #[display(fmt = "{_0}")]
+    Core(ExtError),
+    /// An error occurs in attempt to call forbidden sys-call.
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
+    /// Charge error
+    #[display(fmt = "Charge error: {_0}")]
+    Charge(ChargeError),
 }
 
 impl From<MessageError> for ProcessorError {
@@ -177,22 +182,43 @@ impl BackendExtError for ProcessorError {
             ProcessorError::Core(err) => {
                 ActorTerminationReason::Trap(TrapExplanation::Ext(err)).into()
             }
-            ProcessorError::Alloc(AllocError::Memory(err)) => {
-                ActorTerminationReason::Trap(TrapExplanation::Ext(err.into())).into()
-            }
-            ProcessorError::Alloc(AllocError::IncorrectAllocationData(err)) => {
-                SystemTerminationReason::IncorrectAllocationData(err).into()
-            }
-            ProcessorError::GasLimitExceeded => {
-                ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into()
-            }
-            ProcessorError::TooManyGasAdded => SystemTerminationReason::TooManyGasAdded.into(),
+            ProcessorError::Charge(err) => match err {
+                ChargeError::GasLimitExceeded => {
+                    ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into()
+                }
+                ChargeError::TooManyGasAdded => SystemTerminationReason::TooManyGasAdded.into(),
+                ChargeError::GasAllowanceExceeded => {
+                    ActorTerminationReason::GasAllowanceExceeded.into()
+                }
+            },
             ProcessorError::ForbiddenFunction => {
                 ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into()
             }
-            ProcessorError::GasAllowanceExceeded => {
-                ActorTerminationReason::GasAllowanceExceeded.into()
-            }
+        }
+    }
+}
+
+/// [`Ext`](Ext)'s error
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
+pub enum ProcessorAllocError {
+    /// Charge error
+    #[display(fmt = "{_0}")]
+    Charge(ChargeError),
+    /// Allocation error
+    #[display(fmt = "`alloc()` error: {_0}")]
+    Alloc(AllocError),
+    /// Free error
+    #[display(fmt = "`free()` error: {_0}")]
+    Free(MemoryError),
+}
+
+impl BackendAllocExtError for ProcessorAllocError {
+    type ExtError = ProcessorError;
+
+    fn into_backend_error(self) -> Result<Self::ExtError, Self> {
+        match self {
+            Self::Charge(err) => Ok(err.into()),
+            err => Err(err),
         }
     }
 }
@@ -212,18 +238,13 @@ impl ChargedAllocGas {
             .saturating_add(mem_grow.saturating_mul(ext.context.pages_config.mem_grow_cost))
     }
 
-    fn charge(ext: &mut Ext, pages: u32) -> Result<Self, <Ext as EnvExt>::Error> {
+    fn charge(ext: &mut Ext, pages: u32) -> Result<Self, ChargeError> {
         let amount = Self::calculate_gas(ext, pages, pages);
         ext.charge_gas(amount)?;
         Ok(Self { amount })
     }
 
-    fn refund(
-        self,
-        ext: &mut Ext,
-        not_allocated: u32,
-        not_grown: u32,
-    ) -> Result<(), <Ext as EnvExt>::Error> {
+    fn refund(self, ext: &mut Ext, not_allocated: u32, not_grown: u32) -> Result<(), ChargeError> {
         let amount = Self::calculate_gas(ext, not_allocated, not_grown);
         ext.refund_gas(amount)?;
 
@@ -393,17 +414,30 @@ impl Ext {
         &mut self,
         common_charge: ChargeResult,
         allowance_charge: ChargeResult,
-    ) -> Result<(), ProcessorError> {
+    ) -> Result<(), ChargeError> {
         use ChargeResult::*;
 
         match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err(ProcessorError::GasLimitExceeded),
-            (Enough, NotEnough) => Err(ProcessorError::GasAllowanceExceeded),
+            (NotEnough, _) => Err(ChargeError::GasLimitExceeded),
+            (Enough, NotEnough) => Err(ChargeError::GasAllowanceExceeded),
             (Enough, Enough) => Ok(()),
         }
     }
 
-    fn charge_sending_fee(&mut self, delay: u32) -> Result<(), ProcessorError> {
+    fn charge_gas(&mut self, val: u64) -> Result<(), ChargeError> {
+        let common_charge = self.context.gas_counter.charge(val);
+        let allowance_charge = self.context.gas_allowance_counter.charge(val);
+        self.check_charge_results(common_charge, allowance_charge)
+    }
+
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), ChargeError> {
+        let token = costs.token(&self.context.host_fn_weights);
+        let common_charge = self.context.gas_counter.charge_token(token);
+        let allowance_charge = self.context.gas_allowance_counter.charge_token(token);
+        self.check_charge_results(common_charge, allowance_charge)
+    }
+
+    fn charge_sending_fee(&mut self, delay: u32) -> Result<(), ChargeError> {
         if delay == 0 {
             self.charge_gas(self.context.message_context.settings().sending_fee())
         } else {
@@ -416,25 +450,39 @@ impl Ext {
         }
     }
 
-    fn refund_gas(&mut self, val: u64) -> Result<(), ProcessorError> {
+    fn refund_gas(&mut self, val: u64) -> Result<(), ChargeError> {
         if self.context.gas_counter.refund(val) == ChargeResult::Enough {
             self.context.gas_allowance_counter.refund(val);
             Ok(())
         } else {
-            Err(ProcessorError::TooManyGasAdded)
+            Err(ChargeError::TooManyGasAdded)
         }
     }
 }
 
 impl EnvExt for Ext {
     type Error = ProcessorError;
+    type AllocError = ProcessorAllocError;
 
     fn alloc(
         &mut self,
         pages_num: WasmPage,
         mem: &mut impl Memory,
-    ) -> Result<WasmPage, Self::Error> {
+    ) -> Result<WasmPage, Self::AllocError> {
         self.alloc_inner::<NoopGrowHandler>(pages_num, mem)
+    }
+
+    fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
+        self.charge_gas_runtime(RuntimeCosts::Free)?;
+
+        self.context.allocations_context.free(page)?;
+
+        // Returns back gas for allocated page if it's new
+        if !self.context.allocations_context.is_init_page(page) {
+            self.refund_gas(self.context.pages_config.alloc_cost)?;
+        }
+
+        Ok(())
     }
 
     fn block_height(&mut self) -> Result<u32, Self::Error> {
@@ -632,19 +680,6 @@ impl EnvExt for Ext {
         Ok(self.context.program_id)
     }
 
-    fn free(&mut self, page: WasmPage) -> Result<(), Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::Free)?;
-
-        self.context.allocations_context.free(page)?;
-
-        // Returns back gas for allocated page if it's new
-        if !self.context.allocations_context.is_init_page(page) {
-            self.refund_gas(self.context.pages_config.alloc_cost)?;
-        }
-
-        Ok(())
-    }
-
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Debug(data.len() as u32))?;
         log::debug!(target: "gwasm", "DEBUG: {}", data);
@@ -687,19 +722,6 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::Size)?;
 
         Ok(self.context.message_context.current().payload().len())
-    }
-
-    fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
-        let common_charge = self.context.gas_counter.charge(val);
-        let allowance_charge = self.context.gas_allowance_counter.charge(val);
-        self.check_charge_results(common_charge, allowance_charge)
-    }
-
-    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {
-        let token = costs.token(&self.context.host_fn_weights);
-        let common_charge = self.context.gas_counter.charge_token(token);
-        let allowance_charge = self.context.gas_allowance_counter.charge_token(token);
-        self.check_charge_results(common_charge, allowance_charge)
     }
 
     fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error> {
@@ -917,11 +939,11 @@ impl EnvExt for Ext {
     }
 
     fn out_of_gas(&mut self) -> Self::Error {
-        ProcessorError::GasLimitExceeded
+        ChargeError::GasLimitExceeded.into()
     }
 
     fn out_of_allowance(&mut self) -> Self::Error {
-        ProcessorError::GasAllowanceExceeded
+        ChargeError::GasAllowanceExceeded.into()
     }
 
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
@@ -931,12 +953,11 @@ impl EnvExt for Ext {
 
 impl Ext {
     /// Inner alloc realization.
-    // TODO  #2024 (https://github.com/gear-tech/gear/issues/2024) test that refunds less than charged!
     pub fn alloc_inner<G: GrowHandler>(
         &mut self,
         pages: WasmPage,
         mem: &mut impl Memory,
-    ) -> Result<WasmPage, ProcessorError> {
+    ) -> Result<WasmPage, ProcessorAllocError> {
         self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
         // Charge gas for allocations & grow
@@ -1123,8 +1144,8 @@ mod tests {
         let non_existing_page = 100.into();
         assert_eq!(
             ext.free(non_existing_page),
-            Err(ProcessorError::Core(ExtError::Memory(
-                MemoryError::InvalidFree(non_existing_page.raw())
+            Err(ProcessorAllocError::Free(MemoryError::InvalidFree(
+                non_existing_page.raw()
             )))
         );
 
@@ -1159,7 +1180,7 @@ mod tests {
 
         assert_eq!(
             lack_gas_ext.charge_gas_runtime(RuntimeCosts::Free),
-            Err(ProcessorError::GasLimitExceeded),
+            Err(ChargeError::GasLimitExceeded),
         );
 
         let gas_amount = lack_gas_ext.gas_amount();
@@ -1182,7 +1203,7 @@ mod tests {
 
         assert_eq!(
             lack_allowance_ext.charge_gas_runtime(RuntimeCosts::Free),
-            Err(ProcessorError::GasAllowanceExceeded),
+            Err(ChargeError::GasAllowanceExceeded),
         );
 
         let gas_amount = lack_allowance_ext.gas_amount();
@@ -1264,10 +1285,9 @@ mod tests {
         }
 
         #[track_caller]
-        fn assert_alloc_error(err: <Ext as EnvExt>::Error) {
+        fn assert_alloc_error(err: <Ext as EnvExt>::AllocError) {
             match err {
-                ProcessorError::Core(ExtError::Memory(MemoryError::ProgramAllocOutOfBounds))
-                | ProcessorError::Alloc(
+                ProcessorAllocError::Alloc(
                     AllocError::IncorrectAllocationData(_)
                     | AllocError::Memory(MemoryError::ProgramAllocOutOfBounds),
                 ) => {}
@@ -1276,9 +1296,9 @@ mod tests {
         }
 
         #[track_caller]
-        fn assert_free_error(err: <Ext as EnvExt>::Error) {
+        fn assert_free_error(err: <Ext as EnvExt>::AllocError) {
             match err {
-                ProcessorError::Core(ExtError::Memory(MemoryError::InvalidFree(_))) => {}
+                ProcessorAllocError::Free(MemoryError::InvalidFree(_)) => {}
                 err => Err(err).unwrap(),
             }
         }

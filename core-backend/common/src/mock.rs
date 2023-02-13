@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::OutOfMemoryAccessError, BackendExt, BackendExtError, ExtInfo, SystemReservationContext,
-    TerminationReason,
+    memory::OutOfMemoryAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
+    SystemReservationContext, TerminationReason,
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -53,14 +53,30 @@ impl BackendExtError for Error {
     }
 }
 
+impl BackendAllocExtError for Error {
+    type ExtError = Self;
+
+    fn into_backend_error(self) -> Result<Self::ExtError, Self> {
+        unimplemented!()
+    }
+}
+
 /// Mock ext
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct MockExt(BTreeSet<SysCallName>);
 
 impl Ext for MockExt {
     type Error = Error;
+    type AllocError = Error;
 
-    fn alloc(&mut self, _pages: WasmPage, _mem: &mut impl Memory) -> Result<WasmPage, Self::Error> {
+    fn alloc(
+        &mut self,
+        _pages: WasmPage,
+        _mem: &mut impl Memory,
+    ) -> Result<WasmPage, Self::AllocError> {
+        Err(Error)
+    }
+    fn free(&mut self, _page: WasmPage) -> Result<(), Self::AllocError> {
         Err(Error)
     }
     fn block_height(&mut self) -> Result<u32, Self::Error> {
@@ -121,9 +137,6 @@ impl Ext for MockExt {
     fn program_id(&mut self) -> Result<ProgramId, Self::Error> {
         Ok(0.into())
     }
-    fn free(&mut self, _page: WasmPage) -> Result<(), Self::Error> {
-        Ok(())
-    }
     fn debug(&mut self, _data: &str) -> Result<(), Self::Error> {
         Ok(())
     }
@@ -135,12 +148,6 @@ impl Ext for MockExt {
     }
     fn size(&mut self) -> Result<usize, Self::Error> {
         Ok(0)
-    }
-    fn charge_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
-        Ok(())
-    }
-    fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), Self::Error> {
-        Ok(())
     }
     fn gas_available(&mut self) -> Result<u64, Self::Error> {
         Ok(1_000_000)

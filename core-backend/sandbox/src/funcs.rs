@@ -26,7 +26,8 @@ use codec::Encode;
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    ActorTerminationReason, BackendExt, BackendExtError, BackendState, TrapExplanation,
+    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendState,
+    TrapExplanation,
 };
 use gear_core::{
     buffer::RuntimeBuffer,
@@ -77,6 +78,7 @@ impl<E> FuncsHandler<E>
 where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
+    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,
     /// because it may contain register read.
@@ -329,18 +331,18 @@ where
         let pages = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
         ctx.run_any(|ctx| {
-            let page = ctx
-                .ext
-                .alloc(pages, &mut ctx.memory)
-                .map(|page| {
+            let res = ctx.ext.alloc(pages, &mut ctx.memory);
+            let res = ctx.process_alloc_func_result(res)?;
+            let page = match res {
+                Ok(page) => {
                     log::debug!("Alloc {pages:?} pages at {page:?}");
                     page.raw()
-                })
-                .unwrap_or_else(|e| {
-                    log::debug!("Alloc failed: {e}");
+                }
+                Err(err) => {
+                    log::debug!("Alloc failed: {err}");
                     u32::MAX
-                });
-
+                }
+            };
             Ok(ReturnValue::Value(Value::I32(page as i32)))
         })
     }
@@ -351,15 +353,21 @@ where
 
         let page = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
-        let res = ctx.run(|ctx| {
-            ctx.ext.free(page)?;
+        ctx.run_any(|ctx| {
+            let res = ctx.ext.free(page);
+            let res = ctx.process_alloc_func_result(res)?;
 
-            log::debug!("FREE: {page:?}");
+            match &res {
+                Ok(()) => {
+                    log::debug!("Free {page:?}");
+                }
+                Err(err) => {
+                    log::debug!("Free failed: {err}");
+                }
+            };
 
-            Ok(())
-        });
-
-        Ok(ReturnValue::Value(Value::I32(res.is_err() as i32)))
+            Ok(ReturnValue::Value(Value::I32(res.is_err() as i32)))
+        })
     }
 
     /// Infallible `gr_block_height` syscall.
