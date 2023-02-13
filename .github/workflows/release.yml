@@ -70,3 +70,5 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: artifact/*
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          draft: true
