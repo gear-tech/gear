@@ -86,6 +86,7 @@ pub enum SysCallName {
     WaitFor,
     WaitUpTo,
     Wake,
+    Panic,
 
     // Hard under the hood calls, serving proper program execution
     Alloc,
@@ -111,6 +112,7 @@ impl SysCallName {
             SysCallName::CreateProgram => "gr_create_program",
             SysCallName::CreateProgramWGas => "gr_create_program_wgas",
             SysCallName::Debug => "gr_debug",
+            SysCallName::Panic => "gr_panic",
             SysCallName::Error => "gr_error",
             SysCallName::Exit => "gr_exit",
             SysCallName::Free => "free",
@@ -175,6 +177,7 @@ impl SysCallName {
             Self::Alloc,
             Self::Free,
             Self::Debug,
+            Self::Panic,
             Self::Error,
             Self::BlockHeight,
             Self::BlockTimestamp,
@@ -234,6 +237,7 @@ impl SysCallName {
             Self::Alloc => SysCallSignature::system([Alloc], [I32]),
             Self::Free => SysCallSignature::system([Free], []),
             Self::Debug => SysCallSignature::gr([Ptr, Size]),
+            Self::Panic => SysCallSignature::gr([Ptr, Size]),
             Self::Error => SysCallSignature::gr([Ptr, Ptr]),
             Self::BlockHeight => SysCallSignature::gr([Ptr]),
             Self::BlockTimestamp => SysCallSignature::gr([Ptr]),

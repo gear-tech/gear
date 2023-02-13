@@ -19,7 +19,6 @@
 use crate::configs::{BlockInfo, PagesConfig};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::{String, ToString},
     vec::Vec,
 };
 use gear_backend_common::{
@@ -240,8 +239,6 @@ impl ChargedAllocGas {
 pub struct Ext {
     /// Processor context.
     pub context: ProcessorContext,
-    /// Panic string if occurred
-    pub panic: Option<String>,
     // Counter of outgoing gasless messages.
     //
     // It's temporary field, used to solve `core-audit/issue#22`.
@@ -255,7 +252,6 @@ impl ProcessorExt for Ext {
     fn new(context: ProcessorContext) -> Self {
         Self {
             context,
-            panic: None,
             outgoing_gasless: 0,
         }
     }
@@ -651,12 +647,7 @@ impl EnvExt for Ext {
 
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Debug(data.len() as u32))?;
-
-        if let Some(data) = data.strip_prefix("panic occurred: ") {
-            self.panic = Some(data.to_string());
-        }
         log::debug!(target: "gwasm", "DEBUG: {}", data);
-
         Ok(())
     }
 
@@ -935,10 +926,6 @@ impl EnvExt for Ext {
 
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
         costs.token(&self.context.host_fn_weights).weight()
-    }
-
-    fn maybe_panic(&self) -> Option<String> {
-        self.panic.clone()
     }
 }
 

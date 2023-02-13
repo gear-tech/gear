@@ -16,17 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-/// Extentions for additional features.
-///
-/// These helpers are not included in the resulting Wasm binary when compiled in
-/// the `release` profile without explicitly adding a `debug` feature.
-#[cfg(any(feature = "debug", debug_assertions))]
+/// Extensions for additional features.
 pub mod ext {
+    #[cfg(any(feature = "debug", debug_assertions))]
     use crate::error::{ExtError, Result};
 
     mod sys {
         extern "C" {
+            #[cfg(any(feature = "debug", debug_assertions))]
             pub fn gr_debug(data_ptr: *const u8, data_len: u32);
+            pub fn gr_panic(data_ptr: *const u8, data_len: u32) -> !;
         }
     }
 
@@ -42,11 +41,30 @@ pub mod ext {
     ///     ext::debug("Hello, world!").expect("Unable to log");
     /// }
     /// ```
+    #[cfg(any(feature = "debug", debug_assertions))]
     pub fn debug(data: &str) -> Result<()> {
         let data_len = data.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
 
         unsafe { sys::gr_debug(data.as_ptr(), data_len) }
 
         Ok(())
+    }
+
+    /// Panic
+    ///
+    /// Function is completely free in terms of gas usage.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gcore::ext;
+    ///
+    /// #[no_mangle]
+    /// extern "C" fn handle() {
+    ///     ext::panic("I decided to panic");
+    /// }
+    /// ```
+    pub fn panic(data: &str) -> ! {
+        unsafe { sys::gr_panic(data.as_ptr(), data.len() as u32) }
     }
 }

@@ -944,6 +944,24 @@ where
         Func::wrap(store, func)
     }
 
+    pub fn panic(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
+        let func =
+            move |caller: Caller<'_, HostState<E>>, string_ptr: u32, len: u32| -> EmptyOutput {
+                let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
+
+                ctx.run(|ctx| {
+                    let read_data = ctx.register_read(string_ptr, len);
+                    let data = ctx.read(read_data).unwrap_or_default();
+
+                    let s = String::from_utf8_lossy(&data).to_string();
+
+                    Err(ActorTerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
+                })
+            };
+
+        Func::wrap(store, func)
+    }
+
     pub fn reserve_gas(
         store: &mut Store<HostState<E>>,
         forbidden: bool,
