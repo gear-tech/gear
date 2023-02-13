@@ -474,7 +474,7 @@ pub mod pallet {
         fn on_runtime_upgrade() -> Weight {
             log::debug!(target: "gear::runtime", "⚙️ Runtime upgrade");
 
-            Weight::MAX
+            Zero::zero()
         }
 
         /// Initialization

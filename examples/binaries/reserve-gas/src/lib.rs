@@ -20,7 +20,7 @@
 
 use codec::{Decode, Encode};
 use gstd::{
-    errors::{ContractError, ExecutionError, ExtError},
+    errors::{ContractError, ExtError},
     exec, msg,
     prelude::*,
     MessageId, ReservationId,
@@ -33,6 +33,7 @@ mod code {
 
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
+use gstd::errors::ReservationError;
 
 static mut RESERVATION_ID: Option<ReservationId> = None;
 static mut INIT_MSG: MessageId = MessageId::new([0; 32]);
@@ -110,29 +111,29 @@ extern "C" fn init() {
         InitAction::CheckArgs => {
             assert_eq!(
                 ReservationId::reserve(0, 10),
-                Err(ContractError::Ext(ExtError::Execution(
-                    ExecutionError::ZeroReservationAmount
+                Err(ContractError::Ext(ExtError::Reservation(
+                    ReservationError::ZeroReservationAmount
                 )))
             );
 
             assert_eq!(
                 ReservationId::reserve(50_000, 0),
-                Err(ContractError::Ext(ExtError::Execution(
-                    ExecutionError::ZeroReservationDuration
+                Err(ContractError::Ext(ExtError::Reservation(
+                    ReservationError::ZeroReservationDuration
                 )))
             );
 
             assert_eq!(
                 ReservationId::reserve(1, u32::MAX),
-                Err(ContractError::Ext(ExtError::Execution(
-                    ExecutionError::InsufficientGasForReservation
+                Err(ContractError::Ext(ExtError::Reservation(
+                    ReservationError::InsufficientGasForReservation
                 )))
             );
 
             assert_eq!(
                 ReservationId::reserve(u64::MAX, 1),
-                Err(ContractError::Ext(ExtError::Execution(
-                    ExecutionError::InsufficientGasForReservation
+                Err(ContractError::Ext(ExtError::Reservation(
+                    ReservationError::InsufficientGasForReservation
                 )))
             );
         }

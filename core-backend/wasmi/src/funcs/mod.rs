@@ -24,9 +24,11 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    BackendExt, BackendExtError, BackendState, FuncError, TerminationReason,
+    ActorTerminationReason, BackendExt, BackendExtError, BackendState, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
+    buffer::RuntimeBuffer,
     env::Ext,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
@@ -371,7 +373,7 @@ where
 
                 ctx.host_state_mut().ext.exit()?;
 
-                Err(TerminationReason::Exit(inheritor_id).into())
+                Err(ActorTerminationReason::Exit(inheritor_id).into())
             })
         };
 
@@ -965,9 +967,9 @@ where
                 ctx.run(|ctx| {
                     let read_data = ctx.register_read(string_ptr, len);
 
-                    let data = ctx.read(read_data)?;
+                    let data: RuntimeBuffer = ctx.read(read_data)?.try_into()?;
 
-                    let s = String::from_utf8(data)?;
+                    let s = String::from_utf8(data.into_vec())?;
                     ctx.host_state_mut().ext.debug(&s).map_err(Into::into)
                 })
             };
@@ -1181,7 +1183,7 @@ where
 
             ctx.run(|ctx| -> Result<(), _> {
                 ctx.host_state_mut().ext.leave()?;
-                Err(TerminationReason::Leave.into())
+                Err(ActorTerminationReason::Leave.into())
             })
         };
 
@@ -1194,7 +1196,7 @@ where
 
             ctx.run(|ctx| -> Result<(), _> {
                 ctx.host_state_mut().ext.wait()?;
-                Err(TerminationReason::Wait(None, MessageWaitedType::Wait).into())
+                Err(ActorTerminationReason::Wait(None, MessageWaitedType::Wait).into())
             })
         };
 
@@ -1207,7 +1209,7 @@ where
 
             ctx.run(|ctx| -> Result<(), _> {
                 ctx.host_state_mut().ext.wait_for(duration)?;
-                Err(TerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
+                Err(ActorTerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
             })
         };
 
@@ -1228,7 +1230,7 @@ where
                 } else {
                     MessageWaitedType::WaitUpTo
                 };
-                Err(TerminationReason::Wait(Some(duration), waited_type).into())
+                Err(ActorTerminationReason::Wait(Some(duration), waited_type).into())
             })
         };
 
@@ -1356,7 +1358,10 @@ where
                     ctx.write(write_error_bytes, err.as_ref())
                         .map_err(Into::into)
                 } else {
-                    Err(E::Error::from_ext_error(ExtError::SyscallUsage).into())
+                    Err(
+                        ActorTerminationReason::Trap(TrapExplanation::Ext(ExtError::SyscallUsage))
+                            .into(),
+                    )
                 }
             })
         };

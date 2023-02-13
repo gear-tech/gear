@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Error as CodecError;
-use core_processor::ProcessorError;
 use gear_backend_wasmi::wasmi;
 use gear_core::{ids::ProgramId, memory::WasmPage};
+use gear_core_errors::ExtError;
 
 /// Type alias for the testing functions running result.
 pub type Result<T, E = TestError> = core::result::Result<T, E>;
@@ -64,9 +64,9 @@ pub enum TestError {
     #[display(fmt = "Failed to call unsupported function: `{_0}`")]
     UnsupportedFunction(String),
 
-    /// Wrapper for [`ProcessorError`].
+    /// Wrapper for [`ExtError`].
     #[display(fmt = "{_0}")]
-    ExecutionError(ProcessorError),
+    ExecutionError(ExtError),
 
     /// Wrapper for [`wasmi::Error`](https://paritytech.github.io/wasmi/wasmi/enum.Error.html).
     #[display(fmt = "{_0}")]

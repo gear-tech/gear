@@ -106,7 +106,8 @@ pub fn handle_journal(
             JournalNote::SendSignal {
                 message_id,
                 destination,
-            } => handler.send_signal(message_id, destination),
+                err,
+            } => handler.send_signal(message_id, destination, err),
         }
     }
 

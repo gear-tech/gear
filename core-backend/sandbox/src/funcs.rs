@@ -23,9 +23,10 @@ use codec::Encode;
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    BackendExt, BackendExtError, BackendState, TerminationReason,
+    ActorTerminationReason, BackendExt, BackendExtError, BackendState, TrapExplanation,
 };
 use gear_core::{
+    buffer::RuntimeBuffer,
     env::Ext,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
@@ -304,7 +305,7 @@ where
 
             let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
             let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
-            Err(TerminationReason::Exit(inheritor_id).into())
+            Err(ActorTerminationReason::Exit(inheritor_id).into())
         })
     }
 
@@ -701,9 +702,9 @@ where
 
         ctx.run(|ctx| {
             let read_data = ctx.register_read(data_ptr, data_len);
-            let data = ctx.read(read_data)?;
+            let data: RuntimeBuffer = ctx.read(read_data)?.try_into()?;
 
-            let s = String::from_utf8(data)?;
+            let s = String::from_utf8(data.into_vec())?;
             ctx.ext.debug(&s)?;
 
             Ok(())
@@ -842,7 +843,7 @@ where
 
         ctx.run(|ctx| {
             ctx.ext.leave()?;
-            Err(TerminationReason::Leave.into())
+            Err(ActorTerminationReason::Leave.into())
         })
     }
 
@@ -852,7 +853,7 @@ where
 
         ctx.run(|ctx| -> Result<(), _> {
             ctx.ext.wait()?;
-            Err(TerminationReason::Wait(None, MessageWaitedType::Wait).into())
+            Err(ActorTerminationReason::Wait(None, MessageWaitedType::Wait).into())
         })
     }
 
@@ -864,7 +865,7 @@ where
 
         ctx.run(|ctx| -> Result<(), _> {
             ctx.ext.wait_for(duration)?;
-            Err(TerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
+            Err(ActorTerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
         })
     }
 
@@ -880,7 +881,7 @@ where
             } else {
                 MessageWaitedType::WaitUpTo
             };
-            Err(TerminationReason::Wait(Some(duration), waited_type).into())
+            Err(ActorTerminationReason::Wait(Some(duration), waited_type).into())
         })
     }
 
@@ -974,7 +975,10 @@ where
                 ctx.write(write_error_bytes, err.as_ref())?;
                 Ok(())
             } else {
-                Err(E::Error::from_ext_error(ExtError::SyscallUsage).into())
+                Err(
+                    ActorTerminationReason::Trap(TrapExplanation::Ext(ExtError::SyscallUsage))
+                        .into(),
+                )
             }
         })
     }
@@ -983,7 +987,7 @@ where
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "forbidden");
 
-        ctx.run(|_| Err(E::Error::forbidden_function().into()))
+        ctx.run(|_| Err(ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into()))
     }
 
     /// Infallible `gr_out_of_gas` syscall.

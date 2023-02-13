@@ -79,11 +79,11 @@ use super::*;
 use crate::storage::MapStorage;
 use core::{cell::RefCell, iter::FromIterator, ops::DerefMut};
 use frame_support::{assert_err, assert_ok};
+use gear_utils::{NonEmpty, RingGet};
 use primitive_types::H256;
 use proptest::prelude::*;
 use std::collections::HashMap;
 use strategies::GasTreeAction;
-use utils::RingGet;
 
 mod assertions;
 mod strategies;
@@ -436,7 +436,7 @@ proptest! {
             // `Error::<T>::NodeNotFound` can't occur, because of `ring_get` approach
             match action {
                 GasTreeAction::SplitWithValue(parent_idx, amount) => {
-                    let parent = node_ids.ring_get(parent_idx).copied().expect("before each iteration there is at least 1 element; qed");
+                    let &parent = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(parent_idx);
                     let child = MapKey::random();
 
                     if let Err(e) = Gas::split_with_value(parent, child, amount) {
@@ -448,7 +448,7 @@ proptest! {
 
                 }
                 GasTreeAction::Split(parent_idx) => {
-                    let parent = node_ids.ring_get(parent_idx).copied().expect("before each iteration there is at least 1 element; qed");
+                    let &parent = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(parent_idx);
                     let child = MapKey::random();
 
                     if let Err(e) = Gas::split(parent, child) {
@@ -459,7 +459,7 @@ proptest! {
                     }
                 }
                 GasTreeAction::Spend(from, amount) => {
-                    let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
+                    let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
                     if let GasNodeId::Node(from) = from {
                         let res = Gas::spend(from, amount);
@@ -474,7 +474,7 @@ proptest! {
                     }
                 }
                 GasTreeAction::Consume(id) => {
-                    let consuming = node_ids.ring_get(id).copied().expect("before each iteration there is at least 1 element; qed");
+                    let &consuming = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(id);
                     let origin = Gas::get_origin_key(consuming).expect("node exists");
                     match utils::consume_node(consuming) {
                         Ok((maybe_caught, remaining_nodes, removed_nodes)) => {
@@ -530,7 +530,7 @@ proptest! {
                     }
                 }
                 GasTreeAction::Cut(from, amount) => {
-                    let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
+                    let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
                     let child = MapKey::random();
 
                     if let Err(e) = Gas::cut(from, child, amount) {
@@ -541,7 +541,7 @@ proptest! {
                     }
                 }
                 GasTreeAction::Reserve(from, amount) => {
-                    let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
+                    let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
                     let child = ReservationKey::random();
 
 
@@ -556,7 +556,7 @@ proptest! {
                     }
                 }
                 GasTreeAction::Lock(from, amount) => {
-                    let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
+                    let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
                     if let Err(e) = Gas::lock(from, amount) {
                         assertions::assert_not_invariant_error(e)
@@ -566,7 +566,7 @@ proptest! {
                     }
                 }
                 GasTreeAction::Unlock(from, amount) => {
-                    let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
+                    let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
                     if let Err(e) = Gas::unlock(from, amount) {
                         assertions::assert_not_invariant_error(e)
@@ -576,7 +576,7 @@ proptest! {
                     }
                 }
                 GasTreeAction::SystemReserve(from, amount) => {
-                    let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
+                    let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
                     if let GasNodeId::Node(from) = from {
                         if let Err(e) = Gas::system_reserve(from, amount) {
@@ -588,7 +588,7 @@ proptest! {
                     }
                 }
                 GasTreeAction::SystemUnreserve(from) => {
-                    let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
+                    let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
                     if let GasNodeId::Node(from) = from {
                         match Gas::system_unreserve(from) {
@@ -730,21 +730,24 @@ proptest! {
         for action in actions {
             match action {
                 GasTreeAction::SplitWithValue(parent_idx, amount) => {
-                    if let Some(&parent) = nodes.ring_get(parent_idx) {
+                    if let Some(non_empty_nodes) = NonEmpty::from_slice(&nodes) {
+                        let &parent = non_empty_nodes.ring_get(parent_idx);
                         let child = MapKey::random();
 
                         Gas::split_with_value(parent, child, amount).expect("Failed to split with value");
                     }
                 }
                 GasTreeAction::Split(parent_idx) => {
-                    if let Some(&parent) = nodes.ring_get(parent_idx) {
+                    if let Some(non_empty_nodes) = NonEmpty::from_slice(&nodes) {
+                        let &parent = non_empty_nodes.ring_get(parent_idx);
                         let child = MapKey::random();
 
                         Gas::split(parent, child).expect("Failed to split without value");
                     }
                 }
                 GasTreeAction::Reserve(parent_idx, amount) => {
-                    if let Some(&parent) = nodes.ring_get(parent_idx) {
+                    if let Some(non_empty_nodes) = NonEmpty::from_slice(&nodes) {
+                        let &parent = non_empty_nodes.ring_get(parent_idx);
                         let child = ReservationKey::random();
 
                         Gas::reserve(parent, child, amount).expect("Failed to create reservation");

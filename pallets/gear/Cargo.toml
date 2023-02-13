@@ -26,7 +26,7 @@ scopeguard = { version = "1.1.0", default-features = false }
 common = { package = "gear-common", path = "../../common", default-features = false }
 gear-lazy-pages-common = { path = "../../common/lazy-pages", default-features = false, optional = true }
 core-processor = { package = "gear-core-processor", path = "../../core-processor", default-features = false }
-gear-core = { path = "../../core", default-features = false }
+gear-core = { path = "../../core" }
 gear-core-errors = { path = "../../core-errors", default-features = false }
 gear-backend-common = { path = "../../core-backend/common", default-features = false }
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }

@@ -30,6 +30,7 @@ gear-wasm-instrument = { path = "../utils/wasm-instrument", default-features = f
 [dev-dependencies]
 hex-literal = "0.3.3"
 proptest = "1.0.0"
+gear-utils = { path = "../utils/utils" }
 
 [features]
 default = ["std"]

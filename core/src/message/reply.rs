@@ -25,6 +25,7 @@ use crate::{
     },
 };
 use codec::{Decode, Encode};
+use gear_core_errors::{SimpleCodec, SimpleReplyError};
 use scale_info::TypeInfo;
 
 /// Message for Reply entry point.
@@ -55,10 +56,13 @@ impl ReplyMessage {
         }
     }
 
-    // TODO: consider using here `impl CoreError` and/or provide `AsStatusCode`
-    // trait or append such functionality to `CoreError` (issue #1083).
     /// Create new system generated ReplyMessage.
-    pub fn system(origin_msg_id: MessageId, payload: Payload, status_code: StatusCode) -> Self {
+    pub fn system(
+        origin_msg_id: MessageId,
+        payload: Payload,
+        simple_err: SimpleReplyError,
+    ) -> Self {
+        let status_code = simple_err.into_status_code();
         let id = MessageId::generate_reply(origin_msg_id, status_code);
         let packet = ReplyPacket::system(payload, status_code);
 

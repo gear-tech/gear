@@ -417,18 +417,16 @@ impl pallet_gear_staking_rewards::Config for Runtime {
 parameter_types! {
     // Six sessions in an era (4 hours)
     pub const SessionsPerEra: sp_staking::SessionIndex = 6;
-    // 7 * 6 eras for unbonding (7 days)
-    pub const BondingDuration: sp_staking::EraIndex = 6 * 7;
-    // 6 days (in eras) during which slashes can be cancelled
-    pub const SlashDeferDuration: sp_staking::EraIndex = 6 * 6;
+    // 42 eras for unbonding (7 days)
+    pub const BondingDuration: sp_staking::EraIndex = 42;
+    // 41 eras during which slashes can be cancelled (slightly less than 7 days)
+    pub const SlashDeferDuration: sp_staking::EraIndex = 41;
     pub const MaxNominatorRewardedPerValidator: u32 = 256;
     pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
-    pub OffchainRepeat: BlockNumber = 5;
     pub HistoryDepth: u32 = 84;
 }
 
-/// A majority of the council or root can cancel the slash
-// TODO: consider super-majority (for instance, 3/4 is the default for Substrate node)
+/// Only the root origin can cancel the slash
 type SlashCancelOrigin = EnsureRoot<AccountId>;
 
 pub struct StakingBenchmarkingConfig;
