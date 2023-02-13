@@ -44,8 +44,7 @@ use wasmi::{
     AsContextMut, Caller, Func, Memory as WasmiMemory, Store,
 };
 
-// TODO: change it to u32::MAX (issue #2027)
-const PTR_SPECIAL: u32 = i32::MAX as u32;
+pub(crate) const PTR_SPECIAL: u32 = u32::MAX;
 
 pub struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
@@ -500,13 +499,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
                 let read_payload = ctx.register_read(payload_ptr, len);
-
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
 
                 let state = ctx.host_state_mut();
@@ -537,13 +530,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
                 let read_payload = ctx.register_read(payload_ptr, len);
-
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
 
                 let state = ctx.host_state_mut();
@@ -570,12 +557,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
 
                 let state = ctx.host_state_mut();
                 state
@@ -602,12 +584,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
 
                 let state = ctx.host_state_mut();
                 state
@@ -766,12 +743,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
 
                 let state = ctx.host_state_mut();
                 let mut f = || {
@@ -825,12 +797,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
 
                 let state = ctx.host_state_mut();
                 let mut f = || {
