@@ -721,7 +721,7 @@ where
 
         ctx.run(|ctx| {
             let read_data = ctx.register_read(data_ptr, data_len);
-            let data = ctx.read(read_data)?;
+            let data = ctx.read(read_data).unwrap_or_default();
 
             let s = String::from_utf8_lossy(&data).to_string();
 
