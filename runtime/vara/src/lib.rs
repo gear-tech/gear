@@ -50,6 +50,8 @@ use frame_system::{
     EnsureRoot,
 };
 pub use pallet_gear::manager::{ExtManager, HandleKind};
+pub use pallet_gear_payment::CustomChargeTransactionPayment;
+pub use pallet_gear_staking_rewards::StakingBlackList;
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
@@ -814,7 +816,7 @@ pub type SignedExtra = (
     // RELEASE: remove before final release
     DisableValueTransfers,
     // Keep as long as it's needed
-    pallet_gear_staking_rewards::StakingBlackList<Runtime>,
+    StakingBlackList<Runtime>,
     frame_system::CheckNonZeroSender<Runtime>,
     frame_system::CheckSpecVersion<Runtime>,
     frame_system::CheckTxVersion<Runtime>,
@@ -822,7 +824,7 @@ pub type SignedExtra = (
     frame_system::CheckEra<Runtime>,
     frame_system::CheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
-    pallet_gear_payment::CustomChargeTransactionPayment<Runtime>,
+    CustomChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =

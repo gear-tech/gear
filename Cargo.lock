@@ -3538,41 +3538,39 @@ dependencies = [
 name = "gear-authorship"
 version = "0.1.0"
 dependencies = [
+ "demo-mul-by-const",
  "frame-support",
  "frame-system",
  "futures",
  "futures-timer",
  "gear-common",
+ "gear-node-testing",
  "gear-runtime-primitives",
- "gear-test-client",
  "log",
- "pallet-authorship",
- "pallet-balances",
  "pallet-gear",
- "pallet-gear-gas",
  "pallet-gear-messenger",
- "pallet-gear-program",
  "pallet-gear-rpc-runtime-api",
- "pallet-gear-scheduler",
+ "pallet-sudo",
  "pallet-timestamp",
  "parity-scale-codec",
- "parking_lot 0.12.1",
  "sc-block-builder",
  "sc-client-api",
  "sc-proposer-metrics",
  "sc-telemetry",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
- "scale-info",
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
+ "sp-consensus-babe",
  "sp-core",
  "sp-inherents",
  "sp-io",
  "sp-runtime",
  "sp-std 5.0.0",
+ "sp-timestamp",
  "substrate-prometheus-endpoint",
+ "vara-runtime",
 ]
 
 [[package]]
@@ -3823,6 +3821,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-node-testing"
+version = "0.1.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "futures",
+ "futures-timer",
+ "gear-common",
+ "gear-runtime",
+ "gear-runtime-interface",
+ "gear-runtime-primitives",
+ "log",
+ "pallet-gear-rpc-runtime-api",
+ "parity-scale-codec",
+ "parking_lot 0.12.1",
+ "sc-block-builder",
+ "sc-client-api",
+ "sc-client-db",
+ "sc-proposer-metrics",
+ "sc-service",
+ "sc-telemetry",
+ "sc-transaction-pool",
+ "sc-transaction-pool-api",
+ "scale-info",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keyring",
+ "sp-runtime",
+ "sp-std 5.0.0",
+ "substrate-test-client",
+ "vara-runtime",
+]
+
+[[package]]
 name = "gear-runtime"
 version = "0.1.0"
 dependencies = [
@@ -4027,7 +4064,6 @@ dependencies = [
  "sp-trie",
  "substrate-build-script-utils",
  "substrate-frame-rpc-system",
- "substrate-prometheus-endpoint",
  "substrate-state-trie-migration-rpc",
  "try-runtime-cli",
  "vara-runtime",
@@ -4060,70 +4096,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
-]
-
-[[package]]
-name = "gear-test-client"
-version = "0.1.0"
-dependencies = [
- "futures",
- "gear-test-runtime",
- "parity-scale-codec",
- "sc-block-builder",
- "sc-client-api",
- "sc-consensus",
- "sp-api",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-runtime",
- "substrate-test-client",
-]
-
-[[package]]
-name = "gear-test-runtime"
-version = "0.1.0"
-dependencies = [
- "cfg-if",
- "frame-support",
- "frame-system",
- "frame-system-rpc-runtime-api",
- "futures",
- "gear-common",
- "gear-test-client",
- "log",
- "memory-db",
- "pallet-babe",
- "pallet-gear",
- "pallet-gear-rpc-runtime-api",
- "pallet-timestamp",
- "parity-scale-codec",
- "sc-block-builder",
- "sc-executor",
- "sc-service",
- "scale-info",
- "serde",
- "sp-api",
- "sp-application-crypto",
- "sp-block-builder",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core",
- "sp-externalities",
- "sp-finality-grandpa",
- "sp-inherents",
- "sp-io",
- "sp-keyring",
- "sp-offchain",
- "sp-runtime",
- "sp-session",
- "sp-state-machine",
- "sp-std 5.0.0",
- "sp-transaction-pool",
- "sp-trie",
- "sp-version",
- "substrate-wasm-builder",
- "trie-db 0.26.0",
 ]
 
 [[package]]
@@ -11223,7 +11195,7 @@ dependencies = [
  "sp-std 5.0.0",
  "thiserror",
  "tracing",
- "trie-db 0.24.0",
+ "trie-db",
  "trie-root",
 ]
 
@@ -11537,7 +11509,7 @@ dependencies = [
  "sp-runtime",
  "sp-state-machine",
  "sp-trie",
- "trie-db 0.24.0",
+ "trie-db",
 ]
 
 [[package]]
@@ -12239,19 +12211,6 @@ checksum = "004e1e8f92535694b4cb1444dc5a8073ecf0815e3357f729638b9f8fc4062908"
 dependencies = [
  "hash-db",
  "hashbrown 0.12.3",
- "log",
- "rustc-hex",
- "smallvec",
-]
-
-[[package]]
-name = "trie-db"
-version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "879380c0061b165ba1f036325b7f3478bc1a947814d9fc36d22c5d8e960b11bd"
-dependencies = [
- "hash-db",
- "hashbrown 0.13.2",
  "log",
  "rustc-hex",
  "smallvec",
