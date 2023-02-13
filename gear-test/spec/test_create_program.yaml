@@ -107,4 +107,4 @@ fixtures:
             init: false
           - destination: 1
             init: false
-            statusCode: 3
+            statusCode: 2 # SimpleReplyError::NonExecutable

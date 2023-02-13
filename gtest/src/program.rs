@@ -26,9 +26,10 @@ use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, SignalMessage, StatusCode},
+    message::{Dispatch, DispatchKind, Message, SignalMessage},
     program::Program as CoreProgram,
 };
+use gear_core_errors::SimpleSignalError;
 use gear_wasm_builder::optimize::{OptType, Optimizer};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
@@ -290,7 +291,7 @@ impl<'a> Program<'a> {
         Self::from_opt_and_meta_code_with_id(system, id, opt_code, meta_code)
     }
 
-    pub fn from_opt_and_meta<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
+    pub fn from_opt_and_meta<P: AsRef<Path>>(
         system: &'a System,
         optimized: P,
         metadata: P,
@@ -413,7 +414,7 @@ impl<'a> Program<'a> {
     pub fn send_signal<ID: Into<ProgramIdWrapper>>(
         &self,
         from: ID,
-        status_code: StatusCode,
+        err: SimpleSignalError,
     ) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
@@ -424,7 +425,7 @@ impl<'a> Program<'a> {
             source,
             system.fetch_inc_message_nonce() as u128,
         );
-        let message = SignalMessage::new(origin_msg_id, status_code);
+        let message = SignalMessage::new(origin_msg_id, err);
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
 

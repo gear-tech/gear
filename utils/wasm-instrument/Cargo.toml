@@ -7,11 +7,11 @@ license = "GPL-3.0"
 
 [dependencies]
 wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
-enum-iterator = "1.2.0"
+enum-iterator = "1.3.0"
 
 [dev-dependencies]
 wasmparser = "0.99"
-wat = "1.0.57"
+wat = "1.0.58"
 gear-backend-wasmi = { path = "../../core-backend/wasmi" }
 gear-backend-common = { path = "../../core-backend/common", features = ["mock"] }
 gear-core = { path = "../../core" }

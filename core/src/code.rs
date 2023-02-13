@@ -202,6 +202,11 @@ impl Code {
             parity_wasm::deserialize_buffer(&original_code).map_err(|_| CodeError::Decode)?,
         );
 
+        if module.start_section().is_some() {
+            log::debug!("Found start section in contract code, which is not allowed");
+            return Err(CodeError::StartSectionExists);
+        }
+
         // get initial memory size from memory import.
         let static_pages = WasmPage::new(
             module
@@ -262,6 +267,11 @@ impl Code {
 
         let module: Module =
             parity_wasm::deserialize_buffer(&original_code).map_err(|_| CodeError::Decode)?;
+
+        if module.start_section().is_some() {
+            log::debug!("Found start section in contract code, which is not allowed");
+            return Err(CodeError::StartSectionExists);
+        }
 
         // get initial memory size from memory import.
         let static_pages_raw = module

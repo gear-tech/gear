@@ -25,6 +25,7 @@ once_cell = "1.17.0"
 
 # Internal deps
 gear-core = { path = "../core" }
+gear-core-errors = { path = "../core-errors" }
 common = { package = "gear-common", path = "../common" }
 core-processor = { package = "gear-core-processor", path = "../core-processor", default-features = false }
 gear-backend-common = { path = "../core-backend/common" }

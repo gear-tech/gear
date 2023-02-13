@@ -24,9 +24,11 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    BackendExt, BackendExtError, BackendState, TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendExt, BackendExtError, BackendState, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
+    buffer::RuntimeBuffer,
     env::Ext,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
@@ -42,8 +44,7 @@ use wasmi::{
     AsContextMut, Caller, Func, Memory as WasmiMemory, Store,
 };
 
-// TODO: change it to u32::MAX (issue #2027)
-const PTR_SPECIAL: u32 = i32::MAX as u32;
+pub(crate) const PTR_SPECIAL: u32 = u32::MAX;
 
 pub struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
@@ -371,7 +372,7 @@ where
 
                 ctx.host_state_mut().ext.exit()?;
 
-                Err(TerminationReason::Exit(inheritor_id).into())
+                Err(ActorTerminationReason::Exit(inheritor_id).into())
             })
         };
 
@@ -498,13 +499,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
                 let read_payload = ctx.register_read(payload_ptr, len);
-
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
 
                 let state = ctx.host_state_mut();
@@ -535,13 +530,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
                 let read_payload = ctx.register_read(payload_ptr, len);
-
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
 
                 let state = ctx.host_state_mut();
@@ -568,12 +557,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
 
                 let state = ctx.host_state_mut();
                 state
@@ -600,12 +584,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
 
                 let state = ctx.host_state_mut();
                 state
@@ -764,12 +743,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
 
                 let state = ctx.host_state_mut();
                 let mut f = || {
@@ -823,12 +797,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, |ctx| {
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
 
                 let state = ctx.host_state_mut();
                 let mut f = || {
@@ -965,9 +934,9 @@ where
                 ctx.run(|ctx| {
                     let read_data = ctx.register_read(string_ptr, len);
 
-                    let data = ctx.read(read_data)?;
+                    let data: RuntimeBuffer = ctx.read(read_data)?.try_into()?;
 
-                    let s = String::from_utf8(data)?;
+                    let s = String::from_utf8(data.into_vec())?;
                     ctx.host_state_mut().ext.debug(&s).map_err(Into::into)
                 })
             };
@@ -987,7 +956,7 @@ where
 
                     let s = String::from_utf8_lossy(&data).to_string();
 
-                    Err(TerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
+                    Err(ActorTerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
                 })
             };
 
@@ -1200,7 +1169,7 @@ where
 
             ctx.run(|ctx| -> Result<(), _> {
                 ctx.host_state_mut().ext.leave()?;
-                Err(TerminationReason::Leave.into())
+                Err(ActorTerminationReason::Leave.into())
             })
         };
 
@@ -1213,7 +1182,7 @@ where
 
             ctx.run(|ctx| -> Result<(), _> {
                 ctx.host_state_mut().ext.wait()?;
-                Err(TerminationReason::Wait(None, MessageWaitedType::Wait).into())
+                Err(ActorTerminationReason::Wait(None, MessageWaitedType::Wait).into())
             })
         };
 
@@ -1226,7 +1195,7 @@ where
 
             ctx.run(|ctx| -> Result<(), _> {
                 ctx.host_state_mut().ext.wait_for(duration)?;
-                Err(TerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
+                Err(ActorTerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
             })
         };
 
@@ -1247,7 +1216,7 @@ where
                 } else {
                     MessageWaitedType::WaitUpTo
                 };
-                Err(TerminationReason::Wait(Some(duration), waited_type).into())
+                Err(ActorTerminationReason::Wait(Some(duration), waited_type).into())
             })
         };
 
@@ -1375,7 +1344,10 @@ where
                     ctx.write(write_error_bytes, err.as_ref())
                         .map_err(Into::into)
                 } else {
-                    Err(E::Error::from_ext_error(ExtError::SyscallUsage).into())
+                    Err(
+                        ActorTerminationReason::Trap(TrapExplanation::Ext(ExtError::SyscallUsage))
+                            .into(),
+                    )
                 }
             })
         };

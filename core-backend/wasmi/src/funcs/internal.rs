@@ -22,7 +22,7 @@ use gear_backend_common::{
         MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
         WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    BackendExt, BackendState, FuncError,
+    ActorTerminationReason, BackendExt, BackendState, TrapExplanation,
 };
 
 use super::*;
@@ -57,6 +57,20 @@ where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
 {
+    /// !!! Usage warning: make sure to do it before any other read/write,
+    /// because it may contain register read.
+    pub(crate) fn register_and_read_value(
+        &mut self,
+        value_ptr: u32,
+    ) -> Result<u128, MemoryAccessError> {
+        if value_ptr != PTR_SPECIAL {
+            let read_value = self.register_read_decoded(value_ptr);
+            return self.read_decoded(read_value);
+        }
+
+        Ok(0)
+    }
+
     #[track_caller]
     pub fn prepare(
         caller: Caller<'a, HostState<E>>,
@@ -70,9 +84,9 @@ where
         };
 
         if forbidden {
-            wrapper
-                .host_state_mut()
-                .set_termination_reason(E::Error::forbidden_function().into_termination_reason());
+            wrapper.host_state_mut().set_termination_reason(
+                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into(),
+            );
 
             return Err(TrapCode::Unreachable.into());
         }
@@ -151,10 +165,10 @@ where
     #[track_caller]
     pub fn run<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
-        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
         let result = f(self).map_err(|err| {
-            self.host_state_mut().set_termination_reason(err.into());
+            self.host_state_mut().set_termination_reason(err);
             Trap::from(TrapCode::Unreachable)
         });
 
@@ -166,10 +180,10 @@ where
     #[track_caller]
     pub fn run_fallible<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> Result<(), Trap>
     where
-        F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
         R: From<Result<T, u32>> + Sized,
     {
-        self.run(|ctx: &mut Self| -> Result<_, FuncError<E::Error>> {
+        self.run(|ctx: &mut Self| -> Result<_, TerminationReason> {
             let res = f(ctx);
             let res = ctx.host_state_mut().process_fallible_func_result(res)?;
 
@@ -194,7 +208,7 @@ where
         f: F,
     ) -> Result<(), Trap>
     where
-        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, FuncError<E::Error>>,
+        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, TerminationReason>,
         R: From<Result<T, u32>> + Sized,
     {
         self.run(|ctx| {
@@ -211,7 +225,7 @@ where
     #[track_caller]
     pub fn run_state_taken<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
-        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, FuncError<E::Error>>,
+        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, TerminationReason>,
     {
         self.run(|ctx| ctx.with_state_taken(f))
     }
