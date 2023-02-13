@@ -46,6 +46,27 @@ pub fn gr_debug(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Ext
     ))
 }
 
+pub fn gr_panic(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Extern {
+    Extern::Func(Func::wrap(
+        ctx,
+        move |caller: Caller<'_, StoreData>, ptr: u32, len: i32| {
+            let (ptr, len) = (ptr as usize, len as usize);
+
+            let mut msg = vec![0; len];
+            memory
+                .clone()
+                .read(caller.as_context(), ptr, &mut msg)
+                .map_err(|e| {
+                    log::error!("{:?}", e);
+                    Trap::i32_exit(1)
+                })?;
+
+            log::error!("panic occurred: {:?}", String::from_utf8_lossy(&msg));
+            Ok(())
+        },
+    ))
+}
+
 pub fn gr_read(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Extern {
     Extern::Func(Func::wrap(
         ctx,

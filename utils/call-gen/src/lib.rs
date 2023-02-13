@@ -44,7 +44,7 @@ pub enum GearCall {
     UploadCode(UploadCodeArgs),
 }
 
-fn generate_gear_program<Rng: CallGenRng>(seed: u64) -> Vec<u8> {
+pub fn generate_gear_program<Rng: CallGenRng>(seed: u64) -> Vec<u8> {
     use arbitrary::Unstructured;
 
     let mut rng = Rng::seed_from_u64(seed);

@@ -194,11 +194,11 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         let inner =
             utils::iterator_with_args(self.batch_size, || (existing_codes.clone(), rng.next_u64()))
                 .enumerate()
-                .map(|(i, (existing_programs, rng_seed))| {
+                .map(|(i, (existing_codes, rng_seed))| {
                     tracing::debug_span!("`create_program` generator", call_id = i + 1).in_scope(
                         || {
                             CreateProgramArgs::generate::<Rng>(
-                                existing_programs,
+                                existing_codes,
                                 rng_seed,
                                 rt_settings.gas_limit,
                             )

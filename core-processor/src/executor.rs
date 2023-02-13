@@ -33,8 +33,8 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    BackendExt, BackendExtError, BackendReport, Environment, EnvironmentExecutionError,
-    TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendExt, BackendExtError, BackendReport, Environment,
+    EnvironmentExecutionError, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -48,7 +48,7 @@ use gear_core::{
     program::Program,
     reservation::GasReserver,
 };
-use gear_core_errors::{ExtError, MemoryError};
+use gear_core_errors::MemoryError;
 use scale_info::TypeInfo;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -352,10 +352,17 @@ where
     let (termination, memory, ext) = match execute() {
         Ok(report) => {
             let BackendReport {
-                termination_reason: mut termination,
+                termination_reason,
                 memory_wrap: mut memory,
                 ext,
             } = report;
+
+            let mut termination = match termination_reason {
+                TerminationReason::Actor(reason) => reason,
+                TerminationReason::System(reason) => {
+                    return Err(ExecutionError::System(reason.into()))
+                }
+            };
 
             // released pages initial data will be added to `pages_initial_data` after execution.
             if E::Ext::LAZY_PAGES_ENABLED {
@@ -368,12 +375,11 @@ where
                 match status {
                     Status::Normal => (),
                     Status::GasLimitExceeded => {
-                        termination = TerminationReason::Trap(TrapExplanation::Core(
-                            ExtError::Execution(gear_core_errors::ExecutionError::GasLimitExceeded),
-                        ))
+                        termination =
+                            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded);
                     }
                     Status::GasAllowanceExceeded => {
-                        termination = TerminationReason::GasAllowanceExceeded
+                        termination = ActorTerminationReason::GasAllowanceExceeded;
                     }
                 }
             }
@@ -400,7 +406,7 @@ where
         Err(EnvironmentExecutionError::Actor(gas_amount, err)) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
-                reason: ActorExecutionErrorReason::Environment(err),
+                reason: ActorExecutionErrorReason::Environment(err.into()),
             }))
         }
     };
@@ -418,16 +424,18 @@ where
 
     // Parsing outcome.
     let kind = match termination {
-        TerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
-        TerminationReason::Leave | TerminationReason::Success => DispatchResultKind::Success,
-        TerminationReason::Trap(explanation) => {
+        ActorTerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
+        ActorTerminationReason::Leave | ActorTerminationReason::Success => {
+            DispatchResultKind::Success
+        }
+        ActorTerminationReason::Trap(explanation) => {
             log::debug!("💥 Trap during execution of {program_id}\n📔 Explanation: {explanation}");
             DispatchResultKind::Trap(explanation)
         }
-        TerminationReason::Wait(duration, waited_type) => {
+        ActorTerminationReason::Wait(duration, waited_type) => {
             DispatchResultKind::Wait(duration, waited_type)
         }
-        TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
+        ActorTerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 
     let page_update =
@@ -575,22 +583,32 @@ where
                 memory_wrap,
                 ext,
             } = report;
+
+            let termination_reason = match termination_reason {
+                TerminationReason::Actor(reason) => reason,
+                TerminationReason::System(reason) => {
+                    return Err(format!("Backend error: {reason}"))
+                }
+            };
+
             (termination_reason, memory_wrap, ext)
         }
         Err(e) => return Err(format!("Backend error: {e}")),
     };
 
     match termination {
-        TerminationReason::Exit(_) | TerminationReason::Leave | TerminationReason::Wait(_, _) => {
+        ActorTerminationReason::Exit(_)
+        | ActorTerminationReason::Leave
+        | ActorTerminationReason::Wait(_, _) => {
             return Err("Execution has incorrect termination reason".into())
         }
-        TerminationReason::Success => (),
-        TerminationReason::Trap(explanation) => {
+        ActorTerminationReason::Success => (),
+        ActorTerminationReason::Trap(explanation) => {
             return Err(format!(
                 "Program execution failed with error: {explanation}"
             ));
         }
-        TerminationReason::GasAllowanceExceeded => return Err("Unreachable".into()),
+        ActorTerminationReason::GasAllowanceExceeded => return Err("Unreachable".into()),
     };
 
     let info = ext

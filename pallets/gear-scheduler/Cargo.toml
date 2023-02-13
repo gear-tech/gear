@@ -21,6 +21,7 @@ log = { version = "0.4.17", default-features = false }
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
 gear-core = { path = "../../core" }
+gear-core-errors = { path = "../../core-errors", default-features = false }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36", default-features = false }

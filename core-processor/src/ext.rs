@@ -19,15 +19,13 @@
 use crate::configs::{BlockInfo, PagesConfig};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::{String, ToString},
     vec::Vec,
 };
-use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
-    BackendExt, BackendExtError, ExtInfo, SystemReservationContext, TerminationReason,
-    TrapExplanation,
+    ActorTerminationReason, BackendExt, BackendExtError, ExtInfo, SystemReservationContext,
+    SystemTerminationReason, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -35,7 +33,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, Token, ValueCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocInfo, AllocationsContext, GearPage, GrowHandler, Memory, MemoryInterval,
+        AllocError, AllocInfo, AllocationsContext, GearPage, GrowHandler, Memory, MemoryInterval,
         NoopGrowHandler, PageBuf, PageU32Size, WasmPage,
     },
     message::{
@@ -43,7 +41,9 @@ use gear_core::{
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
+use gear_core_errors::{
+    CoreError, ExecutionError, ExtError, MemoryError, MessageError, ReservationError, WaitError,
+};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Processor context.
@@ -117,11 +117,23 @@ pub trait ProcessorExt {
 }
 
 /// [`Ext`](Ext)'s error
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From, Encode, Decode)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
 pub enum ProcessorError {
     /// Basic error
     #[display(fmt = "{_0}")]
     Core(ExtError),
+    /// Allocation error
+    #[display(fmt = "{_0}")]
+    Alloc(AllocError),
+    /// An error occurs in attempt to charge more gas than available during execution.
+    #[display(fmt = "Not enough gas to continue execution")]
+    GasLimitExceeded,
+    /// An error occurs in attempt to refund more gas than burned one.
+    #[display(fmt = "Too many gas refunded")]
+    TooManyGasAdded,
+    /// An error occurs in attempt to call forbidden sys-call.
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
     /// Gas allowance exceeded
     #[display(fmt = "Gas allowance exceeded")]
     GasAllowanceExceeded,
@@ -145,6 +157,12 @@ impl From<WaitError> for ProcessorError {
     }
 }
 
+impl From<ReservationError> for ProcessorError {
+    fn from(err: ReservationError) -> Self {
+        Self::Core(ExtError::Reservation(err))
+    }
+}
+
 impl From<ExecutionError> for ProcessorError {
     fn from(err: ExecutionError) -> Self {
         Self::Core(ExtError::Execution(err))
@@ -154,25 +172,27 @@ impl From<ExecutionError> for ProcessorError {
 impl CoreError for ProcessorError {}
 
 impl BackendExtError for ProcessorError {
-    fn from_ext_error(err: ExtError) -> Self {
-        Self::Core(err)
-    }
-
-    fn forbidden_function() -> Self {
-        Self::Core(ExtError::Execution(ExecutionError::ForbiddenFunction))
-    }
-
-    fn into_ext_error(self) -> Result<ExtError, Self> {
-        match self {
-            ProcessorError::Core(err) => Ok(err),
-            err => Err(err),
-        }
-    }
-
     fn into_termination_reason(self) -> TerminationReason {
         match self {
-            ProcessorError::Core(err) => TerminationReason::Trap(TrapExplanation::Core(err)),
-            ProcessorError::GasAllowanceExceeded => TerminationReason::GasAllowanceExceeded,
+            ProcessorError::Core(err) => {
+                ActorTerminationReason::Trap(TrapExplanation::Ext(err)).into()
+            }
+            ProcessorError::Alloc(AllocError::Memory(err)) => {
+                ActorTerminationReason::Trap(TrapExplanation::Ext(err.into())).into()
+            }
+            ProcessorError::Alloc(AllocError::IncorrectAllocationData(err)) => {
+                SystemTerminationReason::IncorrectAllocationData(err).into()
+            }
+            ProcessorError::GasLimitExceeded => {
+                ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into()
+            }
+            ProcessorError::TooManyGasAdded => SystemTerminationReason::TooManyGasAdded.into(),
+            ProcessorError::ForbiddenFunction => {
+                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into()
+            }
+            ProcessorError::GasAllowanceExceeded => {
+                ActorTerminationReason::GasAllowanceExceeded.into()
+            }
         }
     }
 }
@@ -219,8 +239,6 @@ impl ChargedAllocGas {
 pub struct Ext {
     /// Processor context.
     pub context: ProcessorContext,
-    /// Panic string if occurred
-    pub panic: Option<String>,
     // Counter of outgoing gasless messages.
     //
     // It's temporary field, used to solve `core-audit/issue#22`.
@@ -234,7 +252,6 @@ impl ProcessorExt for Ext {
     fn new(context: ProcessorContext) -> Self {
         Self {
             context,
-            panic: None,
             outgoing_gasless: 0,
         }
     }
@@ -366,7 +383,7 @@ impl Ext {
 
     fn check_forbidden_destination(&mut self, id: ProgramId) -> Result<(), ProcessorError> {
         if id == ProgramId::SYSTEM {
-            Err(ExecutionError::ForbiddenFunction.into())
+            Err(ProcessorError::ForbiddenFunction)
         } else {
             Ok(())
         }
@@ -380,7 +397,7 @@ impl Ext {
         use ChargeResult::*;
 
         match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
+            (NotEnough, _) => Err(ProcessorError::GasLimitExceeded),
             (Enough, NotEnough) => Err(ProcessorError::GasAllowanceExceeded),
             (Enough, Enough) => Ok(()),
         }
@@ -396,6 +413,15 @@ impl Ext {
                     .settings()
                     .scheduled_sending_fee(),
             )
+        }
+    }
+
+    fn refund_gas(&mut self, val: u64) -> Result<(), ProcessorError> {
+        if self.context.gas_counter.refund(val) == ChargeResult::Enough {
+            self.context.gas_allowance_counter.refund(val);
+            Ok(())
+        } else {
+            Err(ProcessorError::TooManyGasAdded)
         }
     }
 }
@@ -621,12 +647,7 @@ impl EnvExt for Ext {
 
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Debug(data.len() as u32))?;
-
-        if let Some(data) = data.strip_prefix("panic occurred: ") {
-            self.panic = Some(data.to_string());
-        }
         log::debug!(target: "gwasm", "DEBUG: {}", data);
-
         Ok(())
     }
 
@@ -681,32 +702,23 @@ impl EnvExt for Ext {
         self.check_charge_results(common_charge, allowance_charge)
     }
 
-    fn refund_gas(&mut self, val: u64) -> Result<(), Self::Error> {
-        if self.context.gas_counter.refund(val) == ChargeResult::Enough {
-            self.context.gas_allowance_counter.refund(val);
-            Ok(())
-        } else {
-            Err(ExecutionError::TooManyGasAdded.into())
-        }
-    }
-
     fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
         self.charge_gas(self.context.message_context.settings().reservation_fee())?;
 
         if amount == 0 {
-            return Err(ExecutionError::ZeroReservationAmount.into());
+            return Err(ReservationError::ZeroReservationAmount.into());
         }
 
         if duration == 0 {
-            return Err(ExecutionError::ZeroReservationDuration.into());
+            return Err(ReservationError::ZeroReservationDuration.into());
         }
 
         let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
             .saturating_mul(self.context.reservation);
         let reduce_amount = amount.saturating_add(reserve);
         if self.context.gas_counter.reduce(reduce_amount) == ChargeResult::NotEnough {
-            return Err(ExecutionError::InsufficientGasForReservation.into());
+            return Err(ReservationError::InsufficientGasForReservation.into());
         }
 
         let id = self.context.gas_reserver.reserve(amount, duration)?;
@@ -735,11 +747,11 @@ impl EnvExt for Ext {
 
         // TODO: use `NonZeroU64` after issue #1838 is fixed
         if amount == 0 {
-            return Err(ExecutionError::ZeroSystemReservationAmount.into());
+            return Err(ReservationError::ZeroReservationAmount.into());
         }
 
         if self.context.gas_counter.reduce(amount) == ChargeResult::NotEnough {
-            return Err(ExecutionError::InsufficientGasForReservation.into());
+            return Err(ReservationError::InsufficientGasForReservation.into());
         }
 
         let reservation = &mut self.context.system_reservation;
@@ -905,7 +917,7 @@ impl EnvExt for Ext {
     }
 
     fn out_of_gas(&mut self) -> Self::Error {
-        ExecutionError::GasLimitExceeded.into()
+        ProcessorError::GasLimitExceeded
     }
 
     fn out_of_allowance(&mut self) -> Self::Error {
@@ -914,10 +926,6 @@ impl EnvExt for Ext {
 
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
         costs.token(&self.context.host_fn_weights).weight()
-    }
-
-    fn maybe_panic(&self) -> Option<String> {
-        self.panic.clone()
     }
 }
 
@@ -1151,7 +1159,7 @@ mod tests {
 
         assert_eq!(
             lack_gas_ext.charge_gas_runtime(RuntimeCosts::Free),
-            Err(ExecutionError::GasLimitExceeded.into()),
+            Err(ProcessorError::GasLimitExceeded),
         );
 
         let gas_amount = lack_gas_ext.gas_amount();
@@ -1258,10 +1266,11 @@ mod tests {
         #[track_caller]
         fn assert_alloc_error(err: <Ext as EnvExt>::Error) {
             match err {
-                ProcessorError::Core(ExtError::Memory(
-                    MemoryError::ProgramAllocOutOfBounds
-                    | MemoryError::IncorrectAllocationsSetOrMemSize,
-                )) => {}
+                ProcessorError::Core(ExtError::Memory(MemoryError::ProgramAllocOutOfBounds))
+                | ProcessorError::Alloc(
+                    AllocError::IncorrectAllocationData(_)
+                    | AllocError::Memory(MemoryError::ProgramAllocOutOfBounds),
+                ) => {}
                 err => Err(err).unwrap(),
             }
         }

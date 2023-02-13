@@ -2300,23 +2300,14 @@ fn block_gas_limit_works() {
         assert_succeed(succeed1);
         assert_succeed(succeed2);
 
-        // TODO: fix this in #2199
         assert_failed(
             failed1,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
         );
-        // assert_failed(
-        //     failed1,
-        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
-        //         ExecutionError::GasLimitExceeded,
-        //     ))),
-        // );
 
         assert_failed(
             failed2,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
-                ExecutionError::GasLimitExceeded,
-            ))),
+            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
         );
 
         let send_with_min_limit_to = |pid: ProgramId, gas: &GasInfo| {
@@ -2421,9 +2412,9 @@ fn init_message_logging_works() {
             // Will fail, because tests use default gas limit, which is very low for successful greedy init
             (
                 ProgramCodeKind::GreedyInit,
-                Some(ActorExecutionErrorReason::Ext(TrapExplanation::Core(
-                    ExtError::Execution(ExecutionError::GasLimitExceeded),
-                ))),
+                Some(ActorExecutionErrorReason::Trap(
+                    TrapExplanation::GasLimitExceeded,
+                )),
             ),
         ];
 
@@ -2526,25 +2517,25 @@ fn events_logging_works() {
     new_test_ext().execute_with(|| {
         let mut next_block = 2;
 
-        let tests = [
+        let tests: [(_, _, Option<AssertFailedError>); 4] = [
             // Code, init failure reason, handle succeed flag
             (ProgramCodeKind::Default, None, None),
             (
                 ProgramCodeKind::GreedyInit,
-                Some(ActorExecutionErrorReason::Ext(TrapExplanation::Core(
-                    ExtError::Execution(ExecutionError::GasLimitExceeded),
-                ))),
-                Some(ActorExecutionErrorReason::NonExecutable),
+                Some(ActorExecutionErrorReason::Trap(
+                    TrapExplanation::GasLimitExceeded,
+                )),
+                Some(SimpleReplyError::NonExecutable.into()),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
-                Some(ActorExecutionErrorReason::Ext(TrapExplanation::Unknown)),
-                Some(ActorExecutionErrorReason::NonExecutable),
+                Some(ActorExecutionErrorReason::Trap(TrapExplanation::Unknown)),
+                Some(SimpleReplyError::NonExecutable.into()),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_handle),
                 None,
-                Some(ActorExecutionErrorReason::Ext(TrapExplanation::Unknown)),
+                Some(ActorExecutionErrorReason::Trap(TrapExplanation::Unknown).into()),
             ),
         ];
 
@@ -3526,7 +3517,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_gas,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Wait(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::NotEnoughGas,
             ))),
         );
@@ -3561,7 +3552,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_gas,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Wait(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::NotEnoughGas,
             ))),
         );
@@ -3596,7 +3587,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_gas,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Wait(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::NotEnoughGas,
             ))),
         );
@@ -3632,7 +3623,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_arg,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Wait(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::InvalidArgument,
             ))),
         );
@@ -3668,7 +3659,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_arg,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Wait(
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::InvalidArgument,
             ))),
         );
@@ -4286,9 +4277,7 @@ fn terminated_locking_funds() {
         assert_succeed(reply_id);
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
-                ExecutionError::GasLimitExceeded,
-            ))),
+            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
         );
         assert!(Gear::is_terminated(program_id));
         assert_balance(program_id, 0u128, prog_reserve);
@@ -5653,20 +5642,15 @@ fn test_create_program_with_value_lt_ed() {
         // to send init message with value in invalid range.
         assert_total_dequeued(1);
 
-        // TODO: fix this in #1857
         assert_failed(
             msg_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Message(
+                MessageError::InsufficientValue {
+                    message_value: 499,
+                    existential_deposit: 500,
+                },
+            ))),
         );
-        // assert_failed(
-        //     msg_id,
-        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-        //         MessageError::InsufficientValue {
-        //             message_value: 499,
-        //             existential_deposit: 500,
-        //         },
-        //     ))),
-        // );
     })
 }
 
@@ -5739,20 +5723,15 @@ fn test_create_program_with_exceeding_value() {
         // to send init message with value more than program has.
         assert_total_dequeued(1);
 
-        // TODO: fix this in #1857
         assert_failed(
             origin_msg_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Message(
+                MessageError::NotEnoughValue {
+                    message_value: 1001,
+                    value_left: 1000,
+                },
+            ))),
         );
-        // assert_failed(
-        //     origin_msg_id,
-        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-        //         MessageError::NotEnoughValue {
-        //             message_value: 1001,
-        //             value_left: 1000,
-        //         },
-        //     ))),
-        // );
     })
 }
 
@@ -6325,9 +6304,7 @@ fn execution_over_blocks() {
 
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
-                ExecutionError::GasLimitExceeded,
-            ))),
+            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
         );
     });
 
@@ -6416,7 +6393,7 @@ fn call_forbidden_function() {
             res,
             Err(format!(
                 "Program terminated with a trap: {}",
-                ExtError::Execution(ExecutionError::ForbiddenFunction)
+                TrapExplanation::ForbiddenFunction,
             ))
         );
     });
@@ -8355,10 +8332,10 @@ mod utils {
     use gear_backend_common::TrapExplanation;
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
-        message::StoredMessage,
+        message::{Message, Payload, ReplyDetails, StatusCode, StoredMessage},
         reservation::GasReservationMap,
     };
-    use gear_core_errors::ExtError;
+    use gear_core_errors::{ExtError, SimpleCodec, SimpleReplyError};
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
@@ -8639,39 +8616,51 @@ mod utils {
         assert_eq!(status, DispatchStatus::Success)
     }
 
-    #[track_caller]
-    pub(super) fn get_last_event_error(message_id: MessageId) -> String {
+    fn get_last_event_error_and_status_code(message_id: MessageId) -> (String, StatusCode) {
         let mut actual_error = None;
 
         System::events().into_iter().for_each(|e| {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 if let Some(details) = message.reply() {
                     if details.reply_to() == message_id && details.status_code() != 0 {
-                        actual_error = Some(
+                        actual_error = Some((
                             String::from_utf8(message.payload().to_vec())
                                 .expect("Unable to decode string from error reply"),
-                        );
+                            details.status_code(),
+                        ));
                     }
                 }
             }
         });
 
-        let mut actual_error =
+        let (mut actual_error, status_code) =
             actual_error.expect("Error message not found in any `RuntimeEvent::UserMessageSent`");
 
         log::debug!("Actual error: {:?}", actual_error);
 
-        actual_error
+        (actual_error, status_code)
     }
 
     #[track_caller]
-    pub(super) fn assert_failed(message_id: MessageId, error: ActorExecutionErrorReason) {
+    pub(super) fn get_last_event_error(message_id: MessageId) -> String {
+        get_last_event_error_and_status_code(message_id).0
+    }
+
+    #[derive(derive_more::Display, derive_more::From)]
+    pub(super) enum AssertFailedError {
+        Execution(ActorExecutionErrorReason),
+        SimpleReply(SimpleReplyError),
+    }
+
+    #[track_caller]
+    pub(super) fn assert_failed(message_id: MessageId, error: impl Into<AssertFailedError>) {
+        let error = error.into();
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
         assert_eq!(status, DispatchStatus::Failed, "Expected: {error}");
 
-        let mut actual_error = get_last_event_error(message_id);
+        let (mut actual_error, status_code) = get_last_event_error_and_status_code(message_id);
         let mut expectations = error.to_string();
 
         // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
@@ -8682,7 +8671,11 @@ mod utils {
             expectations = format!("'{expectations}'");
         }
 
-        assert_eq!(expectations, actual_error)
+        assert_eq!(expectations, actual_error);
+
+        if let AssertFailedError::SimpleReply(err) = error {
+            assert_eq!(SimpleReplyError::from_status_code(status_code), Some(err));
+        }
     }
 
     #[track_caller]
@@ -9161,17 +9154,10 @@ fn check_reply_push_payload_exceed() {
         run_to_block(2, None);
         assert_last_dequeued(1);
 
-        // TODO: fix this in #1857
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Ext(TrapExplanation::Unknown),
+            ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
         );
-        // assert_failed(
-        //     message_id,
-        //     ActorExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-        //         MessageError::MaxMessageSizeExceed,
-        //     ))),
-        // );
     });
 }
 
@@ -9452,9 +9438,7 @@ fn module_instantiation_error() {
 
         assert!(Gear::is_terminated(prog_id));
         let err = get_last_event_error(mid);
-        assert!(
-            err.starts_with(&ActorExecutionErrorReason::Environment("".to_string()).to_string())
-        );
+        assert!(err.starts_with(&ActorExecutionErrorReason::Environment("".into()).to_string()));
     });
 }
 
@@ -9486,8 +9470,6 @@ fn wrong_entry_type() {
 
         assert!(Gear::is_terminated(pid));
         let err = get_last_event_error(mid);
-        assert!(
-            err.starts_with(&ActorExecutionErrorReason::Environment("".to_string()).to_string())
-        );
+        assert!(err.starts_with(&ActorExecutionErrorReason::Environment("".into()).to_string()));
     });
 }
