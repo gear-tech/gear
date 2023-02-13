@@ -337,13 +337,7 @@ pub trait BackendTermination<E: EnvExt, M: Sized>: Sized {
                 termination_reason,
                 TerminationReason::Actor(ActorTerminationReason::Success)
             ) {
-                ActorTerminationReason::Trap(
-                    ext.maybe_panic()
-                        .map(Into::into)
-                        .map(TrapExplanation::Panic)
-                        .unwrap_or(TrapExplanation::Unknown),
-                )
-                .into()
+                ActorTerminationReason::Trap(TrapExplanation::Unknown).into()
             } else {
                 termination_reason
             }
