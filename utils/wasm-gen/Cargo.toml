@@ -16,3 +16,4 @@ rand = { version = "0.8.0", features = ["small_rng"] }
 wasmparser = { version = "0.99.0" }
 wat = "1.0.58"
 indicatif = "*"
+proptest = "1.0.0"
