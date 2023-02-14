@@ -35,7 +35,7 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
-use gear_core_errors::{ExtError, MemoryError};
+use gear_core_errors::ExtError;
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
     LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
@@ -748,10 +748,7 @@ where
     pub fn oom_panic(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "panic, args = {}", args_to_str(args));
         ctx.run(|_ctx| {
-            Err(ActorTerminationReason::Trap(TrapExplanation::Ext(
-                MemoryError::ProgramAllocOutOfBounds.into(),
-            ))
-            .into())
+            Err(ActorTerminationReason::Trap(TrapExplanation::ProgramAllocOutOfBounds).into())
         })
     }
 

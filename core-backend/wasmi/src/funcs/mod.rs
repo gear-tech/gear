@@ -33,7 +33,7 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
-use gear_core_errors::{ExtError, MemoryError};
+use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
@@ -990,10 +990,7 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(|_ctx| {
-                Err(ActorTerminationReason::Trap(TrapExplanation::Ext(
-                    MemoryError::ProgramAllocOutOfBounds.into(),
-                ))
-                .into())
+                Err(ActorTerminationReason::Trap(TrapExplanation::ProgramAllocOutOfBounds).into())
             })
         };
 

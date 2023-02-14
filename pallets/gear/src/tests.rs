@@ -9497,9 +9497,7 @@ fn oom_handler_works() {
         assert!(Gear::is_terminated(pid));
         assert_failed(
             mid,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(
-                MemoryError::ProgramAllocOutOfBounds.into(),
-            )),
+            ActorExecutionErrorReason::Trap(TrapExplanation::ProgramAllocOutOfBounds),
         );
     });
 }

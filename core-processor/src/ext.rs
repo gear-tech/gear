@@ -205,11 +205,8 @@ pub enum ProcessorAllocError {
     #[display(fmt = "{_0}")]
     Charge(ChargeError),
     /// Allocation error
-    #[display(fmt = "`alloc()` error: {_0}")]
+    #[display(fmt = "{_0}")]
     Alloc(AllocError),
-    /// Free error
-    #[display(fmt = "`free()` error: {_0}")]
-    Free(MemoryError),
 }
 
 impl BackendAllocExtError for ProcessorAllocError {
@@ -1144,7 +1141,7 @@ mod tests {
         let non_existing_page = 100.into();
         assert_eq!(
             ext.free(non_existing_page),
-            Err(ProcessorAllocError::Free(MemoryError::InvalidFree(
+            Err(ProcessorAllocError::Alloc(AllocError::InvalidFree(
                 non_existing_page.raw()
             )))
         );
@@ -1228,11 +1225,11 @@ mod tests {
         struct TestMemory(WasmPage);
 
         impl Memory for TestMemory {
-            fn grow(&mut self, pages: WasmPage) -> Result<(), MemoryError> {
+            fn grow(&mut self, pages: WasmPage) -> Result<(), AllocError> {
                 self.0 = self
                     .0
                     .add(pages)
-                    .map_err(|_| MemoryError::ProgramAllocOutOfBounds)?;
+                    .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
                 Ok(())
             }
 
@@ -1288,8 +1285,7 @@ mod tests {
         fn assert_alloc_error(err: <Ext as EnvExt>::AllocError) {
             match err {
                 ProcessorAllocError::Alloc(
-                    AllocError::IncorrectAllocationData(_)
-                    | AllocError::Memory(MemoryError::ProgramAllocOutOfBounds),
+                    AllocError::IncorrectAllocationData(_) | AllocError::ProgramAllocOutOfBounds,
                 ) => {}
                 err => Err(err).unwrap(),
             }
@@ -1298,7 +1294,7 @@ mod tests {
         #[track_caller]
         fn assert_free_error(err: <Ext as EnvExt>::AllocError) {
             match err {
-                ProcessorAllocError::Free(MemoryError::InvalidFree(_)) => {}
+                ProcessorAllocError::Alloc(AllocError::InvalidFree(_)) => {}
                 err => Err(err).unwrap(),
             }
         }

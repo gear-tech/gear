@@ -40,7 +40,7 @@ use gear_core::{
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::{ExtError, MemoryError, SimpleExecutionError, SimpleSignalError};
+use gear_core_errors::{MemoryError, SimpleExecutionError, SimpleSignalError};
 use scale_info::TypeInfo;
 
 /// Kind of the dispatch result.
@@ -459,12 +459,8 @@ impl ActorExecutionErrorReason {
             ActorExecutionErrorReason::Trap(expl) => match expl {
                 TrapExplanation::GasLimitExceeded => SimpleExecutionError::GasLimitExceeded,
                 TrapExplanation::ForbiddenFunction => SimpleExecutionError::Unknown,
-                TrapExplanation::Ext(err) => match err {
-                    ExtError::Memory(MemoryError::ProgramAllocOutOfBounds) => {
-                        SimpleExecutionError::MemoryExceeded
-                    }
-                    _ => SimpleExecutionError::Ext,
-                },
+                TrapExplanation::ProgramAllocOutOfBounds => SimpleExecutionError::MemoryExceeded,
+                TrapExplanation::Ext(_err) => SimpleExecutionError::Ext,
                 TrapExplanation::Panic(_) => SimpleExecutionError::Panic,
                 TrapExplanation::Unknown => SimpleExecutionError::Unknown,
             },

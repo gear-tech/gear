@@ -156,6 +156,10 @@ pub enum TrapExplanation {
     /// An error occurs in attempt to call forbidden sys-call.
     #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
+    /// The error occurs when a program tries to allocate more memory than
+    /// allowed.
+    #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
+    ProgramAllocOutOfBounds,
     #[display(fmt = "{_0}")]
     Ext(ExtError),
     #[display(fmt = "{_0}")]
