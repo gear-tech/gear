@@ -37,9 +37,9 @@ pub enum MessageEntry {
     /// Handle entry point.
     Handle,
     /// Handle reply entry point.
-    HandleReply(MessageId),
+    Reply(MessageId),
     /// System signal entry point.
-    HandleSignal,
+    Signal,
 }
 
 /// Status of dispatch dequeue and execution.

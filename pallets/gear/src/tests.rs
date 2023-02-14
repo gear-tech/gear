@@ -2649,7 +2649,7 @@ fn send_reply_works() {
         let actual_reply_message_id = match event {
             Event::MessageQueued {
                 id,
-                entry: MessageEntry::HandleReply(_reply_to_id),
+                entry: MessageEntry::Reply(_reply_to_id),
                 ..
             } => id,
             _ => unreachable!("expect Event::DispatchMessageEnqueued"),

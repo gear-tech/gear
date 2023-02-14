@@ -1583,7 +1583,7 @@ pub mod pallet {
                 id: dispatch.id(),
                 source: origin,
                 destination: dispatch.destination(),
-                entry: MessageEntry::HandleReply(mailboxed.id()),
+                entry: MessageEntry::Reply(mailboxed.id()),
             };
 
             // Queueing dispatch.

@@ -477,7 +477,7 @@ impl GearApi {
         for event in events.iter() {
             if let Event::Gear(GearEvent::MessageQueued {
                 id,
-                entry: MessageEntry::HandleReply(_),
+                entry: MessageEntry::Reply(_),
                 ..
             }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
@@ -532,7 +532,7 @@ impl GearApi {
             match event?.as_root_event::<(Phase, Event)>()?.1 {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
-                    entry: MessageEntry::HandleReply(reply_to_id),
+                    entry: MessageEntry::Reply(reply_to_id),
                     ..
                 }) => res.push(Ok((
                     id.into(),
