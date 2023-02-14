@@ -76,6 +76,7 @@ use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    costs::CostPerPage,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, PageBuf},
     message::*,
@@ -1003,9 +1004,23 @@ pub mod pallet {
             let pages_config = PagesConfig {
                 max_pages: schedule.limits.memory_pages.into(),
                 lazy_pages_weights: LazyPagesWeights {
-                    read: schedule.memory_weights.lazy_pages_read,
-                    write: schedule.memory_weights.lazy_pages_write,
-                    write_after_read: schedule.memory_weights.lazy_pages_write_after_read,
+                    signal_read: CostPerPage::new(schedule.memory_weights.lazy_pages_read),
+                    signal_write: CostPerPage::new(schedule.memory_weights.lazy_pages_write),
+                    signal_write_after_read: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_write_after_read,
+                    ),
+                    host_func_read_access: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_read,
+                    ),
+                    host_func_write_access: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_write,
+                    ),
+                    host_func_write_after_read_access: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_write_after_read,
+                    ),
+                    load_page_storage_data: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_read,
+                    ),
                 },
                 init_cost: schedule.memory_weights.initial_cost,
                 alloc_cost: schedule.memory_weights.allocation_cost,
