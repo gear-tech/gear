@@ -339,7 +339,7 @@ extern "C" {
     /// - `len`: `u32` length of the payload buffer.
     pub fn gr_debug(payload: *const BufferStart, len: Length);
 
-    /// Infallible `gr_panic` info syscall.
+    /// Infallible `gr_panic` control syscall.
     ///
     /// Stops the execution.
     ///
