@@ -44,6 +44,7 @@ use core::{
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
+    costs::RuntimeCosts,
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -54,7 +55,7 @@ use gear_core::{
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
+use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};
 use lazy_pages::GlobalsConfig;
 use memory::OutOfMemoryAccessError;
 use scale_info::TypeInfo;
@@ -206,9 +207,13 @@ pub struct ExtInfo {
 }
 
 pub trait BackendExt: EnvExt {
+    type ChargeError: BackendExtError;
+
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     fn gas_amount(&self) -> GasAmount;
+
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::ChargeError>;
 
     /// Pre-process memory access if need.
     fn pre_process_memory_accesses(
@@ -217,7 +222,7 @@ pub trait BackendExt: EnvExt {
     ) -> Result<(), OutOfMemoryAccessError>;
 }
 
-pub trait BackendExtError: CoreError + Clone {
+pub trait BackendExtError: Clone + Sized {
     fn into_termination_reason(self) -> TerminationReason;
 }
 

@@ -32,7 +32,7 @@ use gear_core::{
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
 };
-use gear_core_errors::{CoreError, MemoryError};
+use gear_core_errors::MemoryError;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Mock error
@@ -44,8 +44,6 @@ impl fmt::Display for Error {
         unimplemented!()
     }
 }
-
-impl CoreError for Error {}
 
 impl BackendExtError for Error {
     fn into_termination_reason(self) -> TerminationReason {
@@ -240,6 +238,8 @@ impl Ext for MockExt {
 }
 
 impl BackendExt for MockExt {
+    type ChargeError = Error;
+
     fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         Ok(ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),
@@ -256,6 +256,10 @@ impl BackendExt for MockExt {
 
     fn gas_amount(&self) -> GasAmount {
         GasAmount::from(GasCounter::new(0))
+    }
+
+    fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), Self::ChargeError> {
+        unimplemented!()
     }
 
     fn pre_process_memory_accesses(

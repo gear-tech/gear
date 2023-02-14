@@ -27,7 +27,6 @@ use crate::{
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use core::fmt::{Debug, Display};
-use gear_core_errors::CoreError;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Page access rights.
@@ -44,7 +43,7 @@ pub enum PageAction {
 /// External api for managing memory, messages, and gas-counting.
 pub trait Ext {
     /// An error issued in api
-    type Error: CoreError;
+    type Error;
     /// An error issued during allocation
     type AllocError: Display;
 

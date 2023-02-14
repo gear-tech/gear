@@ -27,14 +27,11 @@ mod simple;
 
 #[cfg(feature = "codec")]
 use codec::{Decode, Encode};
-use core::fmt::{Debug, Display};
+use core::fmt::Debug;
 #[cfg(feature = "codec")]
 use scale_info::TypeInfo;
 
 pub use simple::*;
-
-/// Core error.
-pub trait CoreError: Debug + Display + Sized {}
 
 /// Error using messages.
 #[allow(clippy::unnecessary_cast)]

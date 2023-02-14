@@ -41,6 +41,8 @@ pub struct LazyPagesExt {
 }
 
 impl BackendExt for LazyPagesExt {
+    type ChargeError = <Ext as BackendExt>::ChargeError;
+
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
@@ -58,6 +60,10 @@ impl BackendExt for LazyPagesExt {
 
     fn gas_amount(&self) -> GasAmount {
         self.inner.context.gas_counter.clone().into()
+    }
+
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::ChargeError> {
+        self.inner.charge_gas_runtime(costs)
     }
 
     fn pre_process_memory_accesses(

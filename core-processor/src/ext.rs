@@ -42,7 +42,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{
-    CoreError, ExecutionError, ExtError, MemoryError, MessageError, ReservationError, WaitError,
+    ExecutionError, ExtError, MemoryError, MessageError, ReservationError, WaitError,
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -130,6 +130,18 @@ pub enum ChargeError {
     GasAllowanceExceeded,
 }
 
+impl BackendExtError for ChargeError {
+    fn into_termination_reason(self) -> TerminationReason {
+        match self {
+            Self::GasLimitExceeded => {
+                ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into()
+            }
+            Self::TooManyGasAdded => SystemTerminationReason::TooManyGasAdded.into(),
+            Self::GasAllowanceExceeded => ActorTerminationReason::GasAllowanceExceeded.into(),
+        }
+    }
+}
+
 /// [`Ext`](Ext)'s error
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
 pub enum ProcessorError {
@@ -174,23 +186,13 @@ impl From<ExecutionError> for ProcessorError {
     }
 }
 
-impl CoreError for ProcessorError {}
-
 impl BackendExtError for ProcessorError {
     fn into_termination_reason(self) -> TerminationReason {
         match self {
             ProcessorError::Core(err) => {
                 ActorTerminationReason::Trap(TrapExplanation::Ext(err)).into()
             }
-            ProcessorError::Charge(err) => match err {
-                ChargeError::GasLimitExceeded => {
-                    ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into()
-                }
-                ChargeError::TooManyGasAdded => SystemTerminationReason::TooManyGasAdded.into(),
-                ChargeError::GasAllowanceExceeded => {
-                    ActorTerminationReason::GasAllowanceExceeded.into()
-                }
-            },
+            ProcessorError::Charge(err) => err.into_termination_reason(),
             ProcessorError::ForbiddenFunction => {
                 ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into()
             }
@@ -294,6 +296,8 @@ impl ProcessorExt for Ext {
 }
 
 impl BackendExt for Ext {
+    type ChargeError = ChargeError;
+
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
@@ -309,6 +313,13 @@ impl BackendExt for Ext {
 
     fn gas_amount(&self) -> GasAmount {
         self.context.gas_counter.clone().into()
+    }
+
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::ChargeError> {
+        let token = costs.token(&self.context.host_fn_weights);
+        let common_charge = self.context.gas_counter.charge_token(token);
+        let allowance_charge = self.context.gas_allowance_counter.charge_token(token);
+        self.check_charge_results(common_charge, allowance_charge)
     }
 
     fn pre_process_memory_accesses(
@@ -424,13 +435,6 @@ impl Ext {
     fn charge_gas(&mut self, val: u64) -> Result<(), ChargeError> {
         let common_charge = self.context.gas_counter.charge(val);
         let allowance_charge = self.context.gas_allowance_counter.charge(val);
-        self.check_charge_results(common_charge, allowance_charge)
-    }
-
-    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), ChargeError> {
-        let token = costs.token(&self.context.host_fn_weights);
-        let common_charge = self.context.gas_counter.charge_token(token);
-        let allowance_charge = self.context.gas_allowance_counter.charge_token(token);
         self.check_charge_results(common_charge, allowance_charge)
     }
 
