@@ -2437,7 +2437,7 @@ fn init_message_logging_works() {
 
             let msg_id = match event {
                 Event::MessageQueued { id, entry, .. } => {
-                    if entry == MessageEntry::InitEntry {
+                    if entry == MessageEntry::Init {
                         id
                     } else {
                         unreachable!("expect Event::InitMessageEnqueued")
@@ -2559,7 +2559,7 @@ fn events_logging_works() {
                     id: message_id,
                     source: USER_1,
                     destination: program_id,
-                    entry: MessageEntry::InitEntry,
+                    entry: MessageEntry::Init,
                 }
                 .into(),
             );
@@ -2592,7 +2592,7 @@ fn events_logging_works() {
                     id: message_id,
                     source: USER_1,
                     destination: program_id,
-                    entry: MessageEntry::HandleEntry,
+                    entry: MessageEntry::Handle,
                 }
                 .into(),
             );
@@ -2649,7 +2649,7 @@ fn send_reply_works() {
         let actual_reply_message_id = match event {
             Event::MessageQueued {
                 id,
-                entry: MessageEntry::HandleReplyEntry(_reply_to_id),
+                entry: MessageEntry::HandleReply(_reply_to_id),
                 ..
             } => id,
             _ => unreachable!("expect Event::DispatchMessageEnqueued"),
@@ -4500,7 +4500,7 @@ fn test_create_program_no_code_hash() {
                 RuntimeOrigin::signed(USER_1),
                 invalid_prog_code_kind.to_bytes(),
             ),
-            Error::<Test>::ProgramConstructFailed,
+            Error::<Test>::ProgramConstructionFailed,
         );
 
         System::reset_events();
@@ -6694,7 +6694,7 @@ fn invalid_memory_page_count_rejected() {
                 RuntimeOrigin::signed(USER_1),
                 ProgramCodeKind::Custom(&wat).to_bytes(),
             ),
-            Error::<Test>::ProgramConstructFailed
+            Error::<Test>::ProgramConstructionFailed
         );
 
         assert_noop!(
@@ -6706,7 +6706,7 @@ fn invalid_memory_page_count_rejected() {
                 1_000_000_000,
                 0,
             ),
-            Error::<Test>::ProgramConstructFailed
+            Error::<Test>::ProgramConstructionFailed
         );
     });
 }
@@ -6748,12 +6748,12 @@ fn reject_incorrect_binary() {
                 RuntimeOrigin::signed(USER_1),
                 ProgramCodeKind::Custom(wat).to_bytes()
             ),
-            Error::<Test>::ProgramConstructFailed
+            Error::<Test>::ProgramConstructionFailed
         );
 
         assert_noop!(
             upload_program_default(USER_1, ProgramCodeKind::Custom(wat)),
-            Error::<Test>::ProgramConstructFailed
+            Error::<Test>::ProgramConstructionFailed
         );
     });
 }
@@ -7084,7 +7084,7 @@ fn signal_recursion_not_occurs() {
         assert_eq!(MailboxOf::<Test>::iter_key(USER_1).last(), None);
         let signal_msg_id = MessageId::generate_signal(mid);
         let status = dispatch_status(signal_msg_id);
-        assert_eq!(status, Some(DispatchStatus::DispatchExecutionFailed));
+        assert_eq!(status, Some(DispatchStatus::Failed));
 
         MailboxOf::<Test>::clear();
         System::reset_events();
@@ -8151,7 +8151,7 @@ fn dispatch_kind_forbidden_function() {
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
         let signal_msg_id = MessageId::generate_signal(mid);
         let status = dispatch_status(signal_msg_id);
-        assert_eq!(status, Some(DispatchStatus::DispatchExecutionFailed));
+        assert_eq!(status, Some(DispatchStatus::Failed));
 
         MailboxOf::<Test>::clear();
         System::reset_events();
@@ -8632,7 +8632,7 @@ mod utils {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
-        assert_eq!(status, DispatchStatus::DispatchExecuted)
+        assert_eq!(status, DispatchStatus::Success)
     }
 
     #[track_caller]
@@ -8665,11 +8665,7 @@ mod utils {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
-        assert_eq!(
-            status,
-            DispatchStatus::DispatchExecutionFailed,
-            "Expected: {error}"
-        );
+        assert_eq!(status, DispatchStatus::Failed, "Expected: {error}");
 
         let mut actual_error = get_last_event_error(message_id);
         let mut expectations = error.to_string();
@@ -8690,7 +8686,7 @@ mod utils {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
-        assert_eq!(status, DispatchStatus::DispatchNotExecuted)
+        assert_eq!(status, DispatchStatus::NotExecuted)
     }
 
     #[track_caller]
@@ -8711,7 +8707,7 @@ mod utils {
 
         if let Event::MessageQueued {
             destination,
-            entry: MessageEntry::InitEntry,
+            entry: MessageEntry::Init,
             ..
         } = event
         {

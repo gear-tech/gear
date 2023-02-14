@@ -33,25 +33,25 @@ use scale_info::TypeInfo;
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
 pub enum MessageEntry {
     /// Init entry point.
-    InitEntry,
+    Init,
     /// Handle entry point.
-    HandleEntry,
+    Handle,
     /// Handle reply entry point.
-    HandleReplyEntry(MessageId),
+    HandleReply(MessageId),
     /// System signal entry point.
-    HandleSignalEntry,
+    HandleSignal,
 }
 
 /// Status of dispatch dequeue and execution.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
 pub enum DispatchStatus {
     /// Dispatch was dequeued and succeed with execution.
-    DispatchExecuted,
+    Success,
     /// Dispatch was dequeued and failed its execution.
-    DispatchExecutionFailed,
+    Failed,
     /// Dispatch was dequeued and wasn't executed.
     /// Occurs if actor no longer exists.
-    DispatchNotExecuted,
+    NotExecuted,
 }
 
 /// Behavior of types, which represent runtime reasons for some chain actions.

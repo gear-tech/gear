@@ -180,7 +180,7 @@ where
                         == pallet_gear::Error::<Runtime>::InsufficientBalanceForReserve.into() => {}
                 legit_error_4
                     if legit_error_4
-                        == pallet_gear::Error::<Runtime>::ProgramConstructFailed.into() => {}
+                        == pallet_gear::Error::<Runtime>::ProgramConstructionFailed.into() => {}
                 _ => panic!("{:?}", e),
             }
         }

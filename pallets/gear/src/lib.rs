@@ -423,7 +423,7 @@ pub mod pallet {
         /// current schedule.
         CodeTooLarge,
         /// Failed to create a program.
-        ProgramConstructFailed,
+        ProgramConstructionFailed,
         /// Value doesn't cover ExistentialDeposit.
         ValueLessThanMinimal,
         /// Messages storage corrupted.
@@ -541,7 +541,7 @@ pub mod pallet {
             let module =
                 gear_wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
                     log::debug!("Module failed to load: {:?}", e);
-                    Error::<T>::ProgramConstructFailed
+                    Error::<T>::ProgramConstructionFailed
                 })?;
 
             let code = Code::new_raw(
@@ -553,7 +553,7 @@ pub mod pallet {
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::ProgramConstructFailed
+                Error::<T>::ProgramConstructionFailed
             })?;
 
             let code_and_id = CodeAndId::new(code);
@@ -630,7 +630,7 @@ pub mod pallet {
                 id: message_id,
                 source: who,
                 destination: program_id,
-                entry: MessageEntry::InitEntry,
+                entry: MessageEntry::Init,
             });
 
             Ok(().into())
@@ -652,7 +652,7 @@ pub mod pallet {
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::ProgramConstructFailed
+                Error::<T>::ProgramConstructionFailed
             })?;
 
             let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
@@ -1118,7 +1118,7 @@ pub mod pallet {
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::ProgramConstructFailed
+                Error::<T>::ProgramConstructionFailed
             })?;
 
             ensure!(
@@ -1221,7 +1221,7 @@ pub mod pallet {
                 id: dispatch.id(),
                 source: who,
                 destination: dispatch.destination(),
-                entry: MessageEntry::InitEntry,
+                entry: MessageEntry::Init,
             };
 
             QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
@@ -1476,7 +1476,7 @@ pub mod pallet {
                     id: message.id(),
                     source: who,
                     destination: message.destination(),
-                    entry: MessageEntry::HandleEntry,
+                    entry: MessageEntry::Handle,
                 });
 
                 QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
@@ -1583,7 +1583,7 @@ pub mod pallet {
                 id: dispatch.id(),
                 source: origin,
                 destination: dispatch.destination(),
-                entry: MessageEntry::HandleReplyEntry(mailboxed.id()),
+                entry: MessageEntry::HandleReply(mailboxed.id()),
             };
 
             // Queueing dispatch.

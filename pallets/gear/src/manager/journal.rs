@@ -85,12 +85,12 @@ where
                     change: ProgramChangeKind::Inactive,
                 });
 
-                DispatchStatus::DispatchExecuted
+                DispatchStatus::Success
             }
             Success => {
                 log::trace!("Dispatch outcome success: {:?}", message_id);
 
-                DispatchStatus::DispatchExecuted
+                DispatchStatus::Success
             }
             MessageTrap { program_id, trap } => {
                 log::trace!("Dispatch outcome trap: {:?}", message_id);
@@ -100,7 +100,7 @@ where
                     trap
                 );
 
-                DispatchStatus::DispatchExecutionFailed
+                DispatchStatus::Failed
             }
             InitSuccess { program_id, .. } => {
                 log::trace!(
@@ -131,7 +131,7 @@ where
                     },
                 });
 
-                DispatchStatus::DispatchExecuted
+                DispatchStatus::Success
             }
             InitFailure {
                 program_id,
@@ -189,12 +189,12 @@ where
                     .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
                 }
 
-                DispatchStatus::DispatchExecutionFailed
+                DispatchStatus::Failed
             }
             NoExecution => {
                 log::trace!("Dispatch ({:?}) for program wasn't executed", message_id);
 
-                DispatchStatus::DispatchNotExecuted
+                DispatchStatus::NotExecuted
             }
         };
 

@@ -54,9 +54,9 @@ pub enum DispatchStatus {
 impl From<GenDispatchStatus> for DispatchStatus {
     fn from(other: GenDispatchStatus) -> Self {
         match other {
-            GenDispatchStatus::DispatchExecuted => Self::Success,
-            GenDispatchStatus::DispatchExecutionFailed => Self::Failed,
-            GenDispatchStatus::DispatchNotExecuted => Self::NotExecuted,
+            GenDispatchStatus::Success => Self::Success,
+            GenDispatchStatus::Failed => Self::Failed,
+            GenDispatchStatus::NotExecuted => Self::NotExecuted,
         }
     }
 }
@@ -256,7 +256,7 @@ pub trait EventProcessor {
                 .find(|(mid, _)| mid == &message_id)
                 .map(|(_, status)| status)
             {
-                Some(GenDispatchStatus::DispatchExecutionFailed) | None => None,
+                Some(GenDispatchStatus::Failed) | None => None,
                 _ => Some(None),
             },
             _ => None,
@@ -306,7 +306,7 @@ pub trait EventProcessor {
                             .into_iter()
                             .filter_map(|(mid, status)| {
                                 if message_ids.contains(&mid)
-                                    && !matches!(status, GenDispatchStatus::DispatchExecutionFailed)
+                                    && !matches!(status, GenDispatchStatus::Failed)
                                 {
                                     Some((MessageId::from(mid), None))
                                 } else {
