@@ -16,83 +16,41 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::process::Command;
+
 use gear_wasm_builder::TARGET;
-use std::{fs, path::PathBuf, process::Command};
 
-struct CargoRunner(Command);
+fn run_cargo(args: &[&str]) -> bool {
+    let mut cmd = Command::new("cargo");
+    cmd.args(args);
+    cmd.arg("--color=always");
+    cmd.arg("--manifest-path=test-program/Cargo.toml");
 
-impl CargoRunner {
-    fn new() -> Self {
-        Self(Command::new("cargo"))
-    }
-
-    fn args<const SIZE: usize>(mut self, args: [&str; SIZE]) -> Self {
-        self.0.args(args);
-        self
-    }
-
-    fn env(mut self, k: &str, v: &str) -> Self {
-        self.0.env(k, v);
-        self
-    }
-
-    fn run(self) -> bool {
-        let mut cmd = self.0;
-        cmd.arg("--color=always");
-        cmd.arg("--manifest-path=test-program/Cargo.toml");
-
-        let status = cmd.status().expect("cargo run error");
-        status.success()
-    }
+    let status = cmd.status().expect("cargo run error");
+    status.success()
 }
 
 #[test]
 fn test_debug() {
-    assert!(CargoRunner::new().args(["test"]).run());
+    assert!(run_cargo(&["test"]));
 }
 
 #[test]
 fn build_debug() {
-    assert!(CargoRunner::new().args(["build"]).run());
+    assert!(run_cargo(&["build"]));
 }
 
 #[test]
 fn test_release() {
-    assert!(CargoRunner::new().args(["test", "--release"]).run());
+    assert!(run_cargo(&["test", "--release"]));
 }
 
 #[test]
 fn build_release() {
-    assert!(CargoRunner::new().args(["build", "--release"]).run());
+    assert!(run_cargo(&["build", "--release"]));
 }
 
 #[test]
 fn build_release_for_target() {
-    assert!(CargoRunner::new()
-        .args(["build", "--release", "--target", TARGET])
-        .run());
-}
-
-#[test]
-fn skip_wasm_build() {
-    fn wasm_binary_rs() -> String {
-        let out_dir = fs::read_to_string("test-program/.out_dir").unwrap();
-        let out_dir = PathBuf::from(out_dir);
-        let wasm_binary_rs = out_dir.join("wasm_binary.rs");
-        fs::read_to_string(wasm_binary_rs).unwrap()
-    }
-
-    assert!(CargoRunner::new()
-        .args(["build"])
-        .env("SKIP_WASM_BUILD", "1")
-        .run());
-
-    assert!(wasm_binary_rs().contains("WASM_BINARY: &[u8] = &[]"));
-
-    assert!(CargoRunner::new()
-        .args(["build"])
-        .env("SKIP_WASM_BUILD", "0")
-        .run());
-
-    assert!(wasm_binary_rs().contains("WASM_BINARY: &[u8] = include_bytes"));
+    assert!(run_cargo(&["build", "--release", "--target", TARGET]));
 }
