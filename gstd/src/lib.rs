@@ -20,7 +20,6 @@
 //! Gear libs are `#![no_std]`, which makes them lightweight.
 
 #![no_std]
-#![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
 #![cfg_attr(
     all(target_arch = "wasm32", any(feature = "debug", debug_assertions)),
     feature(panic_info_message)
@@ -49,7 +48,6 @@ pub use macros::util;
 
 pub use prelude::*;
 
-#[cfg(any(feature = "debug", debug_assertions))]
 pub use gcore::ext;
 
 use core::mem::size_of;

@@ -26,9 +26,10 @@ use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, SignalMessage, StatusCode},
+    message::{Dispatch, DispatchKind, Message, SignalMessage},
     program::Program as CoreProgram,
 };
+use gear_core_errors::SimpleSignalError;
 use gear_wasm_builder::optimize::{OptType, Optimizer};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
@@ -413,7 +414,7 @@ impl<'a> Program<'a> {
     pub fn send_signal<ID: Into<ProgramIdWrapper>>(
         &self,
         from: ID,
-        status_code: StatusCode,
+        err: SimpleSignalError,
     ) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
@@ -424,7 +425,7 @@ impl<'a> Program<'a> {
             source,
             system.fetch_inc_message_nonce() as u128,
         );
-        let message = SignalMessage::new(origin_msg_id, status_code);
+        let message = SignalMessage::new(origin_msg_id, err);
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
 
@@ -526,14 +527,9 @@ mod tests {
         let log = run_result.log();
         assert!(!log.is_empty());
 
-        // TODO: fix this in #1857
         assert!(log[0]
             .payload()
-            .starts_with(b"Reason is unknown. Possibly `unreachable` instruction is occurred"));
-        // assert!(log[0]
-        //     .payload()
-        //     .starts_with(b"'Invalid input, should be three IDs separated by
-        // comma'"));
+            .starts_with(b"'Invalid input, should be three IDs separated by comma'"));
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 

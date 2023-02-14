@@ -27,9 +27,8 @@ use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
-    BackendExt, BackendExtError, BackendReport, BackendTermination, Environment,
-    EnvironmentExecutionError, EnvironmentExecutionResult, TerminationReason,
-    STACK_END_EXPORT_NAME,
+    ActorTerminationReason, BackendExt, BackendExtError, BackendReport, BackendTermination,
+    Environment, EnvironmentExecutionError, EnvironmentExecutionResult, STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -147,6 +146,7 @@ where
         builder.add_func(CreateProgram, Funcs::create_program);
         builder.add_func(CreateProgramWGas, Funcs::create_program_wgas);
         builder.add_func(Debug, Funcs::debug);
+        builder.add_func(Panic, Funcs::panic);
         builder.add_func(Error, Funcs::error);
         builder.add_func(Exit, Funcs::exit);
         builder.add_func(StatusCode, Funcs::status_code);
@@ -220,7 +220,7 @@ where
             globals: Default::default(),
             memory_manager: Default::default(),
             fallible_syscall_error: None,
-            termination_reason: TerminationReason::Success,
+            termination_reason: ActorTerminationReason::Success.into(),
         };
 
         match Instance::new(binary, &env_builder, &mut runtime) {

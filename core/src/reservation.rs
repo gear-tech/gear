@@ -21,7 +21,7 @@
 use crate::ids::{MessageId, ReservationId};
 use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
-use gear_core_errors::ExecutionError;
+use gear_core_errors::ReservationError;
 use hashbrown::HashMap;
 use scale_info::TypeInfo;
 
@@ -55,7 +55,7 @@ impl GasReserver {
         }
     }
 
-    fn check_execution_limit(&self) -> Result<(), ExecutionError> {
+    fn check_execution_limit(&self) -> Result<(), ReservationError> {
         // operation might very expensive in the future
         // so we will store 2 numerics to optimize it maybe
         let current_reservations = self
@@ -69,7 +69,7 @@ impl GasReserver {
             })
             .sum::<u64>();
         if current_reservations > self.max_reservations {
-            Err(ExecutionError::ReservationsLimitReached)
+            Err(ReservationError::ReservationsLimitReached)
         } else {
             Ok(())
         }
@@ -82,7 +82,11 @@ impl GasReserver {
     }
 
     /// Reserves gas.
-    pub fn reserve(&mut self, amount: u64, duration: u32) -> Result<ReservationId, ExecutionError> {
+    pub fn reserve(
+        &mut self,
+        amount: u64,
+        duration: u32,
+    ) -> Result<ReservationId, ReservationError> {
         self.check_execution_limit()?;
 
         let id = ReservationId::generate(self.message_id, self.fetch_inc_nonce());
@@ -100,11 +104,11 @@ impl GasReserver {
     }
 
     /// Unreserves gas.
-    pub fn unreserve(&mut self, id: ReservationId) -> Result<u64, ExecutionError> {
+    pub fn unreserve(&mut self, id: ReservationId) -> Result<u64, ReservationError> {
         let state = self
             .states
             .remove(&id)
-            .ok_or(ExecutionError::InvalidReservationId)?;
+            .ok_or(ReservationError::InvalidReservationId)?;
 
         let amount = match state {
             GasReservationState::Exists { amount, finish, .. } => {
@@ -114,7 +118,7 @@ impl GasReserver {
             }
             GasReservationState::Created { amount, .. } => amount,
             GasReservationState::Removed { .. } => {
-                return Err(ExecutionError::InvalidReservationId);
+                return Err(ReservationError::InvalidReservationId);
             }
         };
 
@@ -122,19 +126,19 @@ impl GasReserver {
     }
 
     /// Marks reservation as used to avoid double usage in sys-calls like `gr_reservation_send`.
-    pub fn mark_used(&mut self, id: ReservationId) -> Result<(), ExecutionError> {
+    pub fn mark_used(&mut self, id: ReservationId) -> Result<(), ReservationError> {
         if let Some(
             GasReservationState::Created { used, .. } | GasReservationState::Exists { used, .. },
         ) = self.states.get_mut(&id)
         {
             if *used {
-                Err(ExecutionError::InvalidReservationId)
+                Err(ReservationError::InvalidReservationId)
             } else {
                 *used = true;
                 Ok(())
             }
         } else {
-            Err(ExecutionError::InvalidReservationId)
+            Err(ReservationError::InvalidReservationId)
         }
     }
 
@@ -278,13 +282,13 @@ mod tests {
         reserver.mark_used(id).unwrap();
         assert_eq!(
             reserver.mark_used(id),
-            Err(ExecutionError::InvalidReservationId)
+            Err(ReservationError::InvalidReservationId)
         );
 
         // not found
         assert_eq!(
             reserver.mark_used(ReservationId::default()),
-            Err(ExecutionError::InvalidReservationId)
+            Err(ReservationError::InvalidReservationId)
         );
     }
 
@@ -295,7 +299,7 @@ mod tests {
         reserver.unreserve(id).unwrap();
         assert_eq!(
             reserver.unreserve(id),
-            Err(ExecutionError::InvalidReservationId)
+            Err(ReservationError::InvalidReservationId)
         );
     }
 }

@@ -20,7 +20,7 @@ use crate::{
     memory::OutOfMemoryAccessError, BackendExt, BackendExtError, ExtInfo, SystemReservationContext,
     TerminationReason,
 };
-use alloc::{collections::BTreeSet, string::String};
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use core::fmt;
 use gear_core::{
@@ -32,7 +32,7 @@ use gear_core::{
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
 };
-use gear_core_errors::{CoreError, ExtError, MemoryError};
+use gear_core_errors::{CoreError, MemoryError};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Mock error
@@ -48,18 +48,6 @@ impl fmt::Display for Error {
 impl CoreError for Error {}
 
 impl BackendExtError for Error {
-    fn from_ext_error(_err: ExtError) -> Self {
-        unimplemented!()
-    }
-
-    fn forbidden_function() -> Self {
-        unimplemented!()
-    }
-
-    fn into_ext_error(self) -> Result<ExtError, Self> {
-        unimplemented!()
-    }
-
     fn into_termination_reason(self) -> TerminationReason {
         unimplemented!()
     }
@@ -154,9 +142,6 @@ impl Ext for MockExt {
     fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn refund_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
-        Ok(())
-    }
     fn gas_available(&mut self) -> Result<u64, Self::Error> {
         Ok(1_000_000)
     }
@@ -244,10 +229,6 @@ impl Ext for MockExt {
 
     fn runtime_cost(&self, _costs: RuntimeCosts) -> u64 {
         0
-    }
-
-    fn maybe_panic(&self) -> Option<String> {
-        None
     }
 }
 

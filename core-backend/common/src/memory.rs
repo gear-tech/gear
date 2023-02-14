@@ -42,7 +42,7 @@ use gear_core_errors::MemoryError;
 pub enum ProcessAccessError {
     OutOfBounds,
     GasLimitExceeded,
-    GasAllowanceExceed,
+    GasAllowanceExceeded,
 }
 
 /// Memory access error during sys-call that lazy-pages have caught.
@@ -58,7 +58,7 @@ pub enum MemoryAccessError {
     // TODO: remove #2164
     Decode,
     GasLimitExceeded,
-    GasAllowanceExceed,
+    GasAllowanceExceeded,
 }
 
 impl From<ProcessAccessError> for MemoryAccessError {
@@ -66,7 +66,7 @@ impl From<ProcessAccessError> for MemoryAccessError {
         match err {
             ProcessAccessError::OutOfBounds => MemoryError::AccessOutOfBounds.into(),
             ProcessAccessError::GasLimitExceeded => Self::GasLimitExceeded,
-            ProcessAccessError::GasAllowanceExceed => Self::GasAllowanceExceed,
+            ProcessAccessError::GasAllowanceExceeded => Self::GasAllowanceExceeded,
         }
     }
 }

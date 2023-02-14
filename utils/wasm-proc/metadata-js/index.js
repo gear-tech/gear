@@ -16,6 +16,9 @@ exports.getWasmMetadata = async (wasmBytes) => {
             gr_debug: (string_ptr, len) => {
                 console.log('GR_DEBUG', len, ab2str(memory.buffer.slice(string_ptr, string_ptr + len)));
             },
+            gr_panic: (string_ptr, len) => {
+                console.log('GR_PANIC', len, ab2str(memory.buffer.slice(string_ptr, string_ptr + len)));
+            },
             gr_block_height: () => { },
             gr_block_timestamp: () => { },
             gr_exit: () => { },
