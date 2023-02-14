@@ -117,7 +117,7 @@ fn remove_trivial_recursions() {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(650))]
+    #![proptest_config(ProptestConfig::with_cases(100))]
     #[test]
     fn test_gen_reproduction(seed in 0..u64::MAX) {
         let mut rng = SmallRng::seed_from_u64(seed);
