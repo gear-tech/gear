@@ -7,7 +7,7 @@ license = "GPL-3.0"
 
 [dependencies]
 # add "checks" feature to enable hard checks in allocator
-dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git", rev = "60a60a4", default-features = false, features = ["global"] }
+dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git", rev = "9135baa", default-features = false, features = ["global"] }
 
 [features]
 debug = ["dlmalloc/debug"]
