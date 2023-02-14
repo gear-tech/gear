@@ -348,7 +348,7 @@ extern "C" {
     /// - `len`: `u32` length of the payload buffer.
     pub fn gr_panic(payload: *const BufferStart, len: Length) -> !;
 
-    /// Infallible `gr_oom_panic` info syscall.
+    /// Infallible `gr_oom_panic` control syscall.
     pub fn gr_oom_panic() -> !;
 
     // TODO: issue #1859
