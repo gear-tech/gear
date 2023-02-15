@@ -222,7 +222,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (USER_1, 500_000_000_000_000_u128),
+            (USER_1, 5_000_000_000_000_000_u128),
             (USER_2, 200_000_000_000_000_u128),
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
