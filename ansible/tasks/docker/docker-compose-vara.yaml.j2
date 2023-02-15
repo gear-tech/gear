@@ -17,10 +17,8 @@ services:
       gear --base-path /gear/ --chain gear/vara.json --telemetry-url 'wss://telemetry.rs/submit 0' --prometheus-external
       {% if name is defined %} --name={{ name }} {% endif %}
       {% if rpc is not defined %} --validator --pruning 86400 {% endif %}
-      {% if rpc is defined and unsafe == "yes" %} --unsafe-ws-external --pruning 86400 --ws-max-connections='1000' --unsafe-rpc-external {% endif %}
-      {% if rpc is defined and unsafe == "no" and archive_node == "yes" %} --ws-max-connections='1000' --ws-external --rpc-external --pruning archive {% endif %}
-      {% if rpc is defined %} --ws-max-connections='1000' --pruning 86400 --rpc-methods Unsafe --rpc-cors all {% endif %}
-      {% if archive_node is defined and archive_node == "yes" and validator is defined and validator == "yes" %} --ws-max-connections='1000' --unsafe-ws-external --rpc-cors all --pruning archive {% endif %}
+      {% if rpc is defined and unsafe == "yes" %} --unsafe-ws-external --pruning 86400 --ws-max-connections='1000' --unsafe-rpc-external --rpc-cors all {% endif %}
+      {% if rpc is defined and unsafe == "yes" and archive_node == "yes" %} --ws-max-connections='1000' --unsafe-ws-external --unsafe-rpc-external --pruning archive --rpc-cors all {% endif %}
 
 {% if loki is defined and loki == "yes" and loki_url is defined %}
     logging:
