@@ -56,7 +56,7 @@ demo-waiter = { path = "../examples/binaries/waiter" }
 [build-dependencies]
 frame-metadata = "15.0.0"
 parity-scale-codec = "3.1.5"
-subxt-codegen = "0.25.0"
+subxt-codegen = "0.27.1"
 syn = "1"
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sc-executor-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
