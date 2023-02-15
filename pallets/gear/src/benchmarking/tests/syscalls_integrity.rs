@@ -263,7 +263,7 @@ where
         assert!(MailboxOf::<T>::is_empty(&default_account));
     }
 
-    Gear::<T>::reset(RawOrigin::Root.into()).expect("reset failed");
+    Gear::<T>::reset();
 }
 
 fn check_gr_err<T>()
@@ -931,7 +931,7 @@ where
     }
 
     // Manually reset the storage
-    Gear::<T>::reset(RawOrigin::Root.into()).expect("reset failed");
+    Gear::<T>::reset();
     <T as pallet::Config>::Currency::slash(
         &Id::from_origin(tester_pid.into_origin()),
         <T as pallet::Config>::Currency::free_balance(&Id::from_origin(tester_pid.into_origin())),

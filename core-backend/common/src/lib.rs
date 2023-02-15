@@ -107,6 +107,9 @@ impl From<MemoryAccessError> for TerminationReason {
                 TrapExplanation::Ext(MemoryError::RuntimeAllocOutOfBounds.into()),
             ),
             MemoryAccessError::Decode => unreachable!("{:?}", err),
+            MemoryAccessError::GasLimitExceeded | MemoryAccessError::GasAllowanceExceeded => {
+                unimplemented!("#2216")
+            }
         }
         .into()
     }

@@ -300,30 +300,6 @@ impl GearApi {
         }
     }
 
-    /// Clear data from all pallet storages.
-    ///
-    /// This function, as well as a correspondent extrinsic, is temporary and
-    /// will be removed in the future.
-    ///
-    /// Sends the
-    /// [`pallet_gear::reset`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.reset)
-    /// extrinsic.
-    ///
-    /// Returned value is a hash of the block with the reset transaction.
-    pub async fn reset(&self) -> Result<H256> {
-        let tx = self.0.reset().await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(GearEvent::DatabaseWiped) =
-                event?.as_root_event::<(Phase, Event)>()?.1
-            {
-                return Ok(tx.block_hash());
-            }
-        }
-
-        Err(Error::EventNotFound)
-    }
-
     /// Send a message containing a byte slice `payload` to the `destination`.
     ///
     /// The message also contains the maximum `gas_limit` that can be spent and
