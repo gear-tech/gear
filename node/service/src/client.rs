@@ -25,8 +25,9 @@ use sc_executor::NativeElseWasmExecutor;
 use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi};
 use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_consensus::BlockStatus;
+use sp_core::H256;
 use sp_runtime::{
-    generic::{BlockId, SignedBlock},
+    generic::SignedBlock,
     traits::{BlakeTwo256, Block as BlockT},
     Justifications, OpaqueExtrinsic,
 };
@@ -297,7 +298,7 @@ impl BlockBackend<Block> for Client {
         }
     }
 
-    fn block(&self, id: &BlockId<Block>) -> sp_blockchain::Result<Option<SignedBlock<Block>>> {
+    fn block(&self, id: H256) -> sp_blockchain::Result<Option<SignedBlock<Block>>> {
         with_client! {
             self,
             client,
@@ -307,7 +308,7 @@ impl BlockBackend<Block> for Client {
         }
     }
 
-    fn block_status(&self, id: &BlockId<Block>) -> sp_blockchain::Result<BlockStatus> {
+    fn block_status(&self, id: H256) -> sp_blockchain::Result<BlockStatus> {
         with_client! {
             self,
             client,
@@ -437,13 +438,13 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
         }
     }
 
-    fn storage_keys_iter<'a>(
+    fn storage_keys_iter(
         &self,
         id: <Block as BlockT>::Hash,
-        prefix: Option<&'a StorageKey>,
+        prefix: Option<&StorageKey>,
         start_key: Option<&StorageKey>,
     ) -> sp_blockchain::Result<
-        KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
+        KeyIterator<<crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
     > {
         with_client! {
             self,
@@ -484,14 +485,14 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
         }
     }
 
-    fn child_storage_keys_iter<'a>(
+    fn child_storage_keys_iter(
         &self,
         id: <Block as BlockT>::Hash,
         child_info: ChildInfo,
-        prefix: Option<&'a StorageKey>,
+        prefix: Option<&StorageKey>,
         start_key: Option<&StorageKey>,
     ) -> sp_blockchain::Result<
-        KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
+        KeyIterator<<crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
     > {
         with_client! {
             self,
@@ -519,12 +520,12 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 }
 
 impl sp_blockchain::HeaderBackend<Block> for Client {
-    fn header(&self, id: BlockId<Block>) -> sp_blockchain::Result<Option<Header>> {
+    fn header(&self, id: H256) -> sp_blockchain::Result<Option<Header>> {
         with_client! {
             self,
             client,
             {
-                client.header(&id)
+                client.header(id)
             }
         }
     }
@@ -539,7 +540,7 @@ impl sp_blockchain::HeaderBackend<Block> for Client {
         }
     }
 
-    fn status(&self, id: BlockId<Block>) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+    fn status(&self, id: H256) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
         with_client! {
             self,
             client,

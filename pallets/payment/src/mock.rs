@@ -89,8 +89,7 @@ impl FindAuthor<u64> for FixedBlockAuthor {
 
 impl pallet_authorship::Config for Test {
     type FindAuthor = FixedBlockAuthor;
-    type UncleGenerations = ();
-    type FilterUncle = ();
+
     type EventHandler = ();
 }
 
