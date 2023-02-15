@@ -21,7 +21,7 @@ use gear_wasm_builder::optimize::{OptType, Optimizer};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 57] = [
+const RT_ALLOWED_IMPORTS: [&str; 53] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -37,16 +37,12 @@ const RT_ALLOWED_IMPORTS: [&str; 57] = [
     "ext_gear_ri_pre_process_memory_accesses_version_1",
     "ext_gear_ri_get_lazy_pages_status_version_1",
     "ext_gear_ri_get_released_pages_version_1",
-    "ext_gear_ri_get_released_pages_version_2",
     "ext_gear_ri_init_lazy_pages_version_1",
-    "ext_gear_ri_init_lazy_pages_version_2",
     "ext_gear_ri_init_lazy_pages_for_program_version_1",
-    "ext_gear_ri_init_lazy_pages_for_program_version_2",
     "ext_gear_ri_is_lazy_pages_enabled_version_1",
     "ext_gear_ri_mprotect_lazy_pages_version_1",
     "ext_gear_ri_set_wasm_mem_begin_addr_version_1",
     "ext_gear_ri_set_wasm_mem_size_version_1",
-    "ext_gear_ri_set_wasm_mem_size_version_2",
     // From `Hashing` (substrate/primitives/io/src/lib.rs)
     "ext_hashing_blake2_128_version_1",
     "ext_hashing_blake2_256_version_1",

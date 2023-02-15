@@ -27,14 +27,11 @@ mod simple;
 
 #[cfg(feature = "codec")]
 use codec::{Decode, Encode};
-use core::fmt::{Debug, Display};
+use core::fmt::Debug;
 #[cfg(feature = "codec")]
 use scale_info::TypeInfo;
 
 pub use simple::*;
-
-/// Core error.
-pub trait CoreError: Debug + Display + Sized {}
 
 /// Error using messages.
 #[allow(clippy::unnecessary_cast)]
@@ -173,23 +170,12 @@ pub enum WaitError {
 #[non_exhaustive]
 #[repr(u8)]
 pub enum MemoryError {
-    /// The error occurs when a program tries to allocate more memory than
-    /// allowed.
-    #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
-    ProgramAllocOutOfBounds = 0,
-
     /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
     #[display(fmt = "Trying to allocate more memory in block-chain runtime than allowed")]
-    RuntimeAllocOutOfBounds = 1,
-
-    /// The error occurs in attempt to free-up a memory page from static area or
-    /// outside additionally allocated for this program.
-    #[display(fmt = "Page {_0} cannot be freed by the current program")]
-    InvalidFree(u32) = 2,
-
+    RuntimeAllocOutOfBounds = 0,
     /// The error occurs in attempt to access memory outside wasm program memory.
     #[display(fmt = "Trying to access memory outside wasm program memory")]
-    AccessOutOfBounds = 3,
+    AccessOutOfBounds = 1,
 }
 
 /// Reservation error.

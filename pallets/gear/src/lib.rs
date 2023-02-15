@@ -76,6 +76,7 @@ use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    costs::CostPerPage,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, PageBuf},
     message::*,
@@ -323,11 +324,6 @@ pub mod pallet {
             /// Ids of programs, which state changed during queue processing.
             state_changes: BTreeSet<ProgramId>,
         },
-
-        /// Temporary `Event` variant, showing that all storages was cleared.
-        ///
-        /// Will be removed in favor of proper database migrations.
-        DatabaseWiped,
 
         /// Messages execution delayed (waited) and successfully
         /// added to gear waitlist.
@@ -1008,9 +1004,23 @@ pub mod pallet {
             let pages_config = PagesConfig {
                 max_pages: schedule.limits.memory_pages.into(),
                 lazy_pages_weights: LazyPagesWeights {
-                    read: schedule.memory_weights.lazy_pages_read,
-                    write: schedule.memory_weights.lazy_pages_write,
-                    write_after_read: schedule.memory_weights.lazy_pages_write_after_read,
+                    signal_read: CostPerPage::new(schedule.memory_weights.lazy_pages_read),
+                    signal_write: CostPerPage::new(schedule.memory_weights.lazy_pages_write),
+                    signal_write_after_read: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_write_after_read,
+                    ),
+                    host_func_read_access: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_read,
+                    ),
+                    host_func_write_access: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_write,
+                    ),
+                    host_func_write_after_read_access: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_write_after_read,
+                    ),
+                    load_page_storage_data: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_read,
+                    ),
                 },
                 init_cost: schedule.memory_weights.initial_cost,
                 alloc_cost: schedule.memory_weights.allocation_cost,
@@ -1620,25 +1630,8 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Reset all pallet associated storage.
-        #[pallet::call_index(6)]
-        #[pallet::weight(0)]
-        pub fn reset(origin: OriginFor<T>) -> DispatchResult {
-            ensure_root(origin)?;
-            <T as Config>::Scheduler::reset();
-            <T as Config>::GasProvider::reset();
-            <T as Config>::Messenger::reset();
-            ProgramStorageOf::<T>::reset();
-            <T as Config>::CodeStorage::reset();
-            common::reset_storage();
-
-            Self::deposit_event(Event::DatabaseWiped);
-
-            Ok(())
-        }
-
         /// Process message queue
-        #[pallet::call_index(7)]
+        #[pallet::call_index(6)]
         #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
         pub fn run(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
@@ -1688,7 +1681,7 @@ pub mod pallet {
         /// Sets `ExecuteInherent` flag.
         ///
         /// Requires root origin (eventually, will only be set via referendum)
-        #[pallet::call_index(8)]
+        #[pallet::call_index(7)]
         #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
         pub fn set_execute_inherent(origin: OriginFor<T>, value: bool) -> DispatchResult {
             ensure_root(origin)?;
@@ -1706,7 +1699,7 @@ pub mod pallet {
     {
         type Gas = GasUnitOf<T>;
 
-        fn run_queue(initial_gas: GasUnitOf<T>) -> GasUnitOf<T> {
+        fn run_queue(initial_gas: Self::Gas) -> Self::Gas {
             // Setting adjusted initial gas allowance
             GasAllowanceOf::<T>::put(initial_gas);
 
@@ -1744,7 +1737,7 @@ pub mod pallet {
                 BalanceStatus::Free,
             )?;
 
-            if leftover > 0_u128.unique_saturated_into() {
+            if !leftover.is_zero() {
                 log::debug!(
                     target: "essential",
                     "Reserved funds not fully repatriated from {} to 0x{:?} : amount = {:?}, leftover = {:?}",

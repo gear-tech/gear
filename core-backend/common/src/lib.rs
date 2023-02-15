@@ -44,6 +44,7 @@ use core::{
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
+    costs::RuntimeCosts,
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -54,7 +55,7 @@ use gear_core::{
     },
     reservation::GasReserver,
 };
-use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
+use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};
 use lazy_pages::GlobalsConfig;
 use memory::OutOfMemoryAccessError;
 use scale_info::TypeInfo;
@@ -107,6 +108,9 @@ impl From<MemoryAccessError> for TerminationReason {
                 TrapExplanation::Ext(MemoryError::RuntimeAllocOutOfBounds.into()),
             ),
             MemoryAccessError::Decode => unreachable!("{:?}", err),
+            MemoryAccessError::GasLimitExceeded | MemoryAccessError::GasAllowanceExceeded => {
+                unimplemented!("#2216")
+            }
         }
         .into()
     }
@@ -156,6 +160,10 @@ pub enum TrapExplanation {
     /// An error occurs in attempt to call forbidden sys-call.
     #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
+    /// The error occurs when a program tries to allocate more memory than
+    /// allowed.
+    #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
+    ProgramAllocOutOfBounds,
     #[display(fmt = "{_0}")]
     Ext(ExtError),
     #[display(fmt = "{_0}")]
@@ -202,9 +210,13 @@ pub struct ExtInfo {
 }
 
 pub trait BackendExt: EnvExt {
+    type ChargeError: BackendExtError;
+
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     fn gas_amount(&self) -> GasAmount;
+
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::ChargeError>;
 
     /// Pre-process memory access if need.
     fn pre_process_memory_accesses(
@@ -213,8 +225,14 @@ pub trait BackendExt: EnvExt {
     ) -> Result<(), OutOfMemoryAccessError>;
 }
 
-pub trait BackendExtError: CoreError + Clone {
+pub trait BackendExtError: Clone + Sized {
     fn into_termination_reason(self) -> TerminationReason;
+}
+
+pub trait BackendAllocExtError: Sized {
+    type ExtError: BackendExtError;
+
+    fn into_backend_error(self) -> Result<Self::ExtError, Self>;
 }
 
 pub struct BackendReport<MemWrap, Ext>
@@ -311,6 +329,20 @@ pub trait BackendState {
                 }
             }
             Ok(res) => Ok(Ok(res)),
+        }
+    }
+
+    /// Process alloc function result
+    fn process_alloc_func_result<T: Sized, E: BackendAllocExtError>(
+        &mut self,
+        res: Result<T, E>,
+    ) -> Result<Result<T, E>, TerminationReason> {
+        match res {
+            Ok(t) => Ok(Ok(t)),
+            Err(err) => match err.into_backend_error() {
+                Ok(ext_err) => Err(ext_err.into()),
+                Err(alloc_err) => Ok(Err(alloc_err)),
+            },
         }
     }
 }

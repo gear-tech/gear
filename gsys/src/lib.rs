@@ -339,6 +339,18 @@ extern "C" {
     /// - `len`: `u32` length of the payload buffer.
     pub fn gr_debug(payload: *const BufferStart, len: Length);
 
+    /// Infallible `gr_panic` control syscall.
+    ///
+    /// Stops the execution.
+    ///
+    /// Arguments type:
+    /// - `payload`: `const ptr` for the begging of the payload buffer.
+    /// - `len`: `u32` length of the payload buffer.
+    pub fn gr_panic(payload: *const BufferStart, len: Length) -> !;
+
+    /// Infallible `gr_oom_panic` control syscall.
+    pub fn gr_oom_panic() -> !;
+
     // TODO: issue #1859
     /// Fallible `gr_error` get syscall.
     ///

@@ -1800,6 +1800,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-out-of-memory"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
@@ -2080,7 +2088,7 @@ checksum = "210ec60ae7d710bed8683e333e9d2855a8a56a3e9892b38bad3bb0d4d29b0d5e"
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
-source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=e76ae98#e76ae9869ea4d386e758d7ed5d983ba2a25d7629"
+source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=9135baa#9135baa728ef9a9a04a887998e019733c4b093af"
 dependencies = [
  "libc",
  "libc_print",
@@ -3808,7 +3816,7 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "substrate-wasm-builder",
- "trie-db 0.25.0",
+ "trie-db 0.25.1",
 ]
 
 [[package]]
@@ -6314,9 +6322,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.17.0"
+version = "1.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f61fba1741ea2b3d6a1e3178721804bb716a68a6aeba1149b5d52e3d464ea66"
+checksum = "b7e5500299e16ebb147ae15a00a942af264cf3688f47923b8fc2cd5858f23ad3"
 
 [[package]]
 name = "opaque-debug"
@@ -6683,6 +6691,7 @@ dependencies = [
  "demo-init-with-value",
  "demo-mul-by-const",
  "demo-new-meta",
+ "demo-out-of-memory",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",
@@ -11746,9 +11755,9 @@ dependencies = [
 
 [[package]]
 name = "trie-db"
-version = "0.25.0"
+version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9bcd4e7fbb3bcab17b02596b53876e36eb39663ddd87884bfd88c69cdeb2ebd6"
+checksum = "3390c0409daaa6027d6681393316f4ccd3ff82e1590a1e4725014e3ae2bf1920"
 dependencies = [
  "hash-db",
  "hashbrown 0.13.2",
@@ -12255,9 +12264,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-encoder"
-version = "0.23.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c3e4bc09095436c8e7584d86d33e6c3ee67045af8fb262cbb9cc321de553428"
+checksum = "704553b4d614a47080b4a457a976b3c16174b19ce95b931b847561b590dd09ba"
 dependencies = [
  "leb128",
 ]
@@ -12290,16 +12299,16 @@ dependencies = [
 
 [[package]]
 name = "wasm-mutate"
-version = "0.2.18"
+version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87a229d5b8e4b2b78985dc905f0a033ba8a0bc948321622d41912238c6e0eab1"
+checksum = "428917409579d41ffb7f7a3a9d3179286978a9094fae6a7d73b5ac0b5fcdaeba"
 dependencies = [
  "egg",
  "log",
  "rand 0.8.5",
  "thiserror",
- "wasm-encoder 0.23.0",
- "wasmparser 0.100.0",
+ "wasm-encoder 0.24.0",
+ "wasmparser 0.101.0",
 ]
 
 [[package]]
@@ -12726,9 +12735,9 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.100.0"
+version = "0.101.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64b20236ab624147dfbb62cf12a19aaf66af0e41b8398838b66e997d07d269d4"
+checksum = "9cc3222d9e47412382cc95e2f013c6a9f510bcff80af92de5665ae3ec1e4a2f6"
 dependencies = [
  "indexmap",
  "url",
@@ -12751,12 +12760,12 @@ dependencies = [
 
 [[package]]
 name = "wasmprinter"
-version = "0.2.50"
+version = "0.2.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2d3f7d7cb1e00ae9f91bb21f2856cdc68a913afb3b6b33fca5a83dba8c8c4eb"
+checksum = "abfea0b7816054bcad689e7c68a6f957eb023d0e70f69835db400f1a51ad7dec"
 dependencies = [
  "anyhow",
- "wasmparser 0.100.0",
+ "wasmparser 0.101.0",
 ]
 
 [[package]]
@@ -12939,21 +12948,21 @@ dependencies = [
 
 [[package]]
 name = "wast"
-version = "53.0.0"
+version = "54.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8244fa24196b1d8fd3ca4a96a3a164c40f846498c5deab6caf414c67340ca4af"
+checksum = "f0d3df4a63b10958fe98ab9d7e9a57a7bc900209d2b4edd10535bfb0703e6516"
 dependencies = [
  "leb128",
  "memchr",
  "unicode-width",
- "wasm-encoder 0.23.0",
+ "wasm-encoder 0.24.0",
 ]
 
 [[package]]
 name = "wat"
-version = "1.0.58"
+version = "1.0.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4620f1059add6dad511decb9d5d88b4a0a0d3e2e315ed34f79b0dc0dce18aa4b"
+checksum = "3e9a7c7d177696d0548178c36e377d49eba54170e885801d4270e2d44e82ac84"
 dependencies = [
  "wast",
 ]

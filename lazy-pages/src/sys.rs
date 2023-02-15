@@ -237,14 +237,17 @@ fn cost_for_write(
         } else {
             // Charge for write after read.
             ctx.write_after_read_charged.insert(page);
-            Ok(ctx.lazy_pages_weights.write_after_read)
+            Ok(ctx
+                .lazy_pages_weights
+                .host_func_write_after_read_access
+                .one())
         }
     } else if ctx.write_after_read_charged.contains(&page) {
         Err(Error::WriteAfterReadChargedWithoutReadCharged)
     } else {
         // Charge for write.
         ctx.write_charged.insert(page);
-        Ok(ctx.lazy_pages_weights.write)
+        Ok(ctx.lazy_pages_weights.host_func_write_access.one())
     }
 }
 
@@ -260,7 +263,7 @@ fn cost_for_read(
     } else {
         // Charge for read.
         ctx.read_charged.insert(page);
-        Ok(ctx.lazy_pages_weights.read)
+        Ok(ctx.lazy_pages_weights.host_func_read_access.one())
     }
 }
 

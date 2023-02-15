@@ -21,14 +21,6 @@ pub mod ext {
     #[cfg(any(feature = "debug", debug_assertions))]
     use crate::error::{ExtError, Result};
 
-    mod sys {
-        extern "C" {
-            #[cfg(any(feature = "debug", debug_assertions))]
-            pub fn gr_debug(data_ptr: *const u8, data_len: u32);
-            pub fn gr_panic(data_ptr: *const u8, data_len: u32) -> !;
-        }
-    }
-
     /// Add a `data` string to the debug log.
     ///
     /// # Examples
@@ -45,7 +37,7 @@ pub mod ext {
     pub fn debug(data: &str) -> Result<()> {
         let data_len = data.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
 
-        unsafe { sys::gr_debug(data.as_ptr(), data_len) }
+        unsafe { gsys::gr_debug(data.as_ptr(), data_len) }
 
         Ok(())
     }
@@ -65,6 +57,39 @@ pub mod ext {
     /// }
     /// ```
     pub fn panic(data: &str) -> ! {
-        unsafe { sys::gr_panic(data.as_ptr(), data.len() as u32) }
+        unsafe { gsys::gr_panic(data.as_ptr(), data.len() as u32) }
+    }
+
+    /// Out of memory panic
+    ///
+    /// Function is completely free in terms of gas usage.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// #![no_std]
+    /// #![feature(alloc_error_handler)]
+    /// #![feature(allocator_api)]
+    ///
+    /// extern crate alloc;
+    ///
+    /// use alloc::alloc::{Global, Layout, Allocator};
+    /// use gcore::ext;
+    ///
+    /// #[alloc_error_handler]
+    /// fn oom(_layout: Layout) -> ! {
+    ///     ext::oom_panic()
+    /// }
+    ///
+    /// #[no_mangle]
+    /// extern "C" fn handle() {
+    ///     let layout = Layout::new::<[u8; 64 * 1024]>();
+    ///     if Global.allocate(layout).is_err() {
+    ///         alloc::alloc::handle_alloc_error(layout);
+    ///     }
+    /// }
+    /// ```
+    pub fn oom_panic() -> ! {
+        unsafe { gsys::gr_oom_panic() }
     }
 }

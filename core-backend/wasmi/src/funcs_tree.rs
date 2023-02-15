@@ -18,7 +18,7 @@
 
 use crate::state::HostState;
 use alloc::collections::{BTreeMap, BTreeSet};
-use gear_backend_common::{BackendExt, BackendExtError};
+use gear_backend_common::{BackendAllocExtError, BackendExt, BackendExtError};
 use gear_wasm_instrument::syscalls::SysCallName::{self, *};
 use wasmi::{Func, Memory, Store};
 
@@ -42,6 +42,7 @@ pub fn build<E>(
 where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
+    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
     use crate::funcs::FuncsHandler as F;
 
@@ -116,6 +117,7 @@ where
         }),
         f.build(Debug, |forbidden| F::debug(store, forbidden, memory)),
         f.build(Panic, |forbidden| F::panic(store, forbidden, memory)),
+        f.build(OomPanic, |forbidden| F::oom_panic(store, forbidden, memory)),
         f.build(GasAvailable, |forbidden| {
             F::gas_available(store, forbidden, memory)
         }),

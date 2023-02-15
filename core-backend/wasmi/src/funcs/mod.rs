@@ -24,8 +24,8 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    ActorTerminationReason, BackendExt, BackendExtError, BackendState, TerminationReason,
-    TrapExplanation,
+    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendState,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     buffer::RuntimeBuffer,
@@ -58,6 +58,7 @@ impl<E> FuncsHandler<E>
 where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
+    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
     pub fn send(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
@@ -432,10 +433,20 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_state_taken(RuntimeCosts::Alloc, |ctx, state| {
-                let mut mem = ctx.memory();
-                let page = state.ext.alloc(pages, &mut mem)?;
-                log::debug!("Alloc {:?} pages at {:?}", pages, page);
-                Ok((page.raw(),))
+                let res = state.ext.alloc(pages, &mut ctx.memory());
+                let res = state.process_alloc_func_result(res)?;
+                let page = match res {
+                    Ok(page) => {
+                        log::debug!("Alloc {pages:?} pages at {page:?}");
+                        page.raw()
+                    }
+                    Err(err) => {
+                        log::debug!("Alloc failed: {err}");
+                        u32::MAX
+                    }
+                };
+
+                Ok((page,))
             })
         };
 
@@ -443,17 +454,25 @@ where
     }
 
     pub fn free(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>, page: u32| -> EmptyOutput {
+        let func = move |caller: Caller<'_, HostState<E>>, page: u32| -> FnResult<i32> {
             let page = WasmPage::new(page).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(RuntimeCosts::Free, |ctx| {
-                ctx.host_state_mut()
-                    .ext
-                    .free(page)
-                    .map(|_| log::debug!("Free {:?}", page))
-                    .map_err(Into::into)
+            ctx.run_state_taken(RuntimeCosts::Free, |_ctx, state| {
+                let res = state.ext.free(page);
+                let res = state.process_alloc_func_result(res)?;
+
+                match &res {
+                    Ok(()) => {
+                        log::debug!("Free {page:?}");
+                    }
+                    Err(err) => {
+                        log::debug!("Free failed: {err}");
+                    }
+                };
+
+                Ok((res.is_err() as i32,))
             })
         };
 
@@ -1027,6 +1046,22 @@ where
                     Err(ActorTerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
                 })
             };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn oom_panic(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>| -> EmptyOutput {
+            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
+
+            ctx.run(RuntimeCosts::Null, |_ctx| {
+                Err(ActorTerminationReason::Trap(TrapExplanation::ProgramAllocOutOfBounds).into())
+            })
+        };
 
         Func::wrap(store, func)
     }

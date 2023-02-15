@@ -530,7 +530,6 @@ pub fn precharge_for_memory(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_backend_common::lazy_pages::LazyPagesWeights;
     use gear_core::memory::GearPage;
 
     fn prepare_allocs() -> BTreeSet<WasmPage> {
@@ -541,11 +540,7 @@ mod tests {
     fn prepare_alloc_config() -> PagesConfig {
         PagesConfig {
             max_pages: 32.into(),
-            lazy_pages_weights: LazyPagesWeights {
-                read: 100,
-                write: 100,
-                write_after_read: 100,
-            },
+            lazy_pages_weights: Default::default(),
             init_cost: 1000,
             alloc_cost: 2000,
             mem_grow_cost: 3000,
