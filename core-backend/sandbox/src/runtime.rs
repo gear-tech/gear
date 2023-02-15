@@ -28,7 +28,7 @@ use gear_backend_common::{
     },
     BackendExt, BackendExtError, BackendState, BackendTermination, TerminationReason,
 };
-use gear_core::env::Ext;
+use gear_core::{costs::RuntimeCosts, env::Ext};
 use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
@@ -56,7 +56,7 @@ where
     E::Error: BackendExtError,
 {
     // Cleans `memory_manager`, updates ext counters based on globals.
-    pub(crate) fn prepare_run(&mut self) {
+    fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
 
         let gas = self
@@ -75,7 +75,7 @@ where
     }
 
     // Updates globals after execution.
-    pub(crate) fn update_globals(&mut self) {
+    fn update_globals(&mut self) {
         let (gas, allowance) = self.ext.counters();
 
         self.globals
@@ -91,12 +91,10 @@ where
             });
     }
 
-    pub fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
+    fn with_globals_update<T, F>(&mut self, f: F) -> Result<T, HostError>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
-        self.prepare_run();
-
         let result = f(self).map_err(|err| {
             self.set_termination_reason(err);
             HostError
@@ -107,12 +105,30 @@ where
         result
     }
 
-    pub fn run_fallible<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> SyscallOutput
+    pub fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, HostError>
+    where
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+    {
+        self.with_globals_update(|ctx| {
+            ctx.prepare_run();
+            ctx.ext
+                .charge_gas_runtime(cost)
+                .map_err(|err| err.into_termination_reason())?;
+            f(ctx)
+        })
+    }
+
+    pub fn run_fallible<T: Sized, F, R>(
+        &mut self,
+        res_ptr: u32,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> SyscallOutput
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
         R: From<Result<T, u32>> + Sized,
     {
-        self.run_any(|ctx| {
+        self.run_any(cost, |ctx| {
             let res = f(ctx);
             let res = ctx.process_fallible_func_result(res)?;
 
@@ -124,11 +140,11 @@ where
         .map(|_| ReturnValue::Unit)
     }
 
-    pub fn run<F>(&mut self, f: F) -> SyscallOutput
+    pub fn run<F>(&mut self, cost: RuntimeCosts, f: F) -> SyscallOutput
     where
         F: FnOnce(&mut Self) -> Result<(), TerminationReason>,
     {
-        self.run_any(f).map(|_| ReturnValue::Unit)
+        self.run_any(cost, f).map(|_| ReturnValue::Unit)
     }
 }
 
