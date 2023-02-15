@@ -171,8 +171,7 @@ impl FindAuthor<u64> for FixedBlockAuthor {
 
 impl pallet_authorship::Config for Test {
     type FindAuthor = FixedBlockAuthor;
-    type UncleGenerations = ();
-    type FilterUncle = ();
+
     type EventHandler = Staking;
 }
 
@@ -315,7 +314,7 @@ impl pallet_staking::Config for Test {
     type SessionsPerEra = SessionsPerEra;
     type BondingDuration = BondingDuration;
     type SlashDeferDuration = SlashDeferDuration;
-    type SlashCancelOrigin = EnsureRoot<AccountId>;
+    type AdminOrigin = EnsureRoot<AccountId>;
     type SessionInterface = Self;
     type EraPayout = StakingRewards;
     type NextNewSession = Session;
