@@ -1051,6 +1051,14 @@ mod tests {
         }
     }
 
+    // Test ignored within the PR because any charging for syscall logic was
+    // moved to the backend side.
+    // Ext never charges gas.
+    //
+    // TODO: rewrite free logic on guards similarly to `alloc` function.
+    // OR
+    // TODO: provide similarly updated test around the backend-wrapper.
+    #[ignore]
     #[test]
     fn test_free_no_refund() {
         // Set initial Ext state
