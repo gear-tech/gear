@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(clippy::redundant_clone)]
+
 use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_network::NetworkService;
@@ -253,10 +255,7 @@ where
                     slot_duration,
                 );
 
-            let uncles =
-                sp_authorship::InherentDataProvider::<<Block as BlockT>::Header>::check_inherents();
-
-            Ok((slot, timestamp, uncles))
+            Ok((slot, timestamp))
         },
         &task_manager.spawn_essential_handle(),
         config.prometheus_registry(),

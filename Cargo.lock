@@ -4845,72 +4845,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "integral-tests"
-version = "1.0.0"
-dependencies = [
- "cfg-if",
- "env_logger 0.9.3",
- "frame-election-provider-support",
- "frame-executive",
- "frame-support",
- "frame-system",
- "frame-system-rpc-runtime-api",
- "gear-runtime-primitives",
- "log",
- "once_cell",
- "pallet-authority-discovery",
- "pallet-authorship",
- "pallet-babe",
- "pallet-bags-list",
- "pallet-balances",
- "pallet-bounties",
- "pallet-child-bounties",
- "pallet-conviction-voting",
- "pallet-democracy",
- "pallet-election-provider-multi-phase",
- "pallet-elections-phragmen",
- "pallet-gear-staking-rewards",
- "pallet-grandpa",
- "pallet-im-online",
- "pallet-nomination-pools",
- "pallet-nomination-pools-runtime-api",
- "pallet-offences",
- "pallet-preimage",
- "pallet-referenda",
- "pallet-scheduler",
- "pallet-session",
- "pallet-staking",
- "pallet-sudo",
- "pallet-timestamp",
- "pallet-transaction-payment",
- "pallet-transaction-payment-rpc-runtime-api",
- "pallet-treasury",
- "pallet-utility",
- "parity-scale-codec",
- "parking_lot 0.12.1",
- "rand 0.8.5",
- "scale-info",
- "sp-api",
- "sp-authority-discovery",
- "sp-block-builder",
- "sp-consensus-babe",
- "sp-core",
- "sp-finality-grandpa",
- "sp-inherents",
- "sp-io",
- "sp-npos-elections",
- "sp-offchain",
- "sp-runtime",
- "sp-session",
- "sp-staking",
- "sp-std",
- "sp-transaction-pool",
- "sp-version",
- "static_assertions",
- "vara-runtime",
-]
-
-[[package]]
 name = "interceptor"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6823,43 +6757,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-bounties"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#c788a310f38937065a37c161aa45eebf5f3d0e88"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "pallet-treasury",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-child-bounties"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#c788a310f38937065a37c161aa45eebf5f3d0e88"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "pallet-bounties",
- "pallet-treasury",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-conviction-voting"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#c788a310f38937065a37c161aa45eebf5f3d0e88"
@@ -6871,24 +6768,6 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-democracy"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#c788a310f38937065a37c161aa45eebf5f3d0e88"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -6928,24 +6807,6 @@ dependencies = [
  "parity-scale-codec",
  "sp-npos-elections",
  "sp-runtime",
-]
-
-[[package]]
-name = "pallet-elections-phragmen"
-version = "5.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#c788a310f38937065a37c161aa45eebf5f3d0e88"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-npos-elections",
- "sp-runtime",
- "sp-std",
 ]
 
 [[package]]
@@ -7315,50 +7176,6 @@ dependencies = [
  "sp-application-crypto",
  "sp-core",
  "sp-io",
- "sp-runtime",
- "sp-staking",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-nomination-pools"
-version = "1.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#c788a310f38937065a37c161aa45eebf5f3d0e88"
-dependencies = [
- "frame-support",
- "frame-system",
- "log",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-staking",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-nomination-pools-runtime-api"
-version = "1.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#c788a310f38937065a37c161aa45eebf5f3d0e88"
-dependencies = [
- "parity-scale-codec",
- "sp-api",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-offences"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#c788a310f38937065a37c161aa45eebf5f3d0e88"
-dependencies = [
- "frame-support",
- "frame-system",
- "log",
- "pallet-balances",
- "parity-scale-codec",
- "scale-info",
- "serde",
  "sp-runtime",
  "sp-staking",
  "sp-std",

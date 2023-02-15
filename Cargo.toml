@@ -83,7 +83,8 @@ members = [
     "utils/call-gen",
     "utils/utils",
     "utils/bags-thresholds",
-    "utils/integral-tests",
+    # TODO: Remove gov deps
+    # "utils/integral-tests",
 ]
 
 [profile.release]
