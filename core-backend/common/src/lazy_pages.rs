@@ -28,14 +28,6 @@ use gear_core::{
     memory::{GranularityPage, HostPointer},
 };
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode)]
-pub struct ChargeForPages {
-    /// Number of pages, for that we have to charge gas for page data loading from storage.
-    pub read_storage_data: GranularityPage,
-    /// Number of pages, for that we have to charge gas for page write access in wasm memory.
-    pub write_accessed: GranularityPage,
-}
-
 /// Informs lazy-pages whether they work with native or WASM runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub enum GlobalsAccessMod {
