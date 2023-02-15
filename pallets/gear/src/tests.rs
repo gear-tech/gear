@@ -529,8 +529,8 @@ fn delayed_program_creation_no_code() {
             &ScheduledTask::SendDispatch(delayed_id)
         ));
 
-        let free_balance = Balances::free_balance(&USER_1);
-        let reserved_balance = Balances::reserved_balance(&USER_1);
+        let free_balance = Balances::free_balance(USER_1);
+        let reserved_balance = Balances::reserved_balance(USER_1);
 
         run_to_next_block(None);
         // Delayed message sent.
@@ -546,11 +546,11 @@ fn delayed_program_creation_no_code() {
         // Single db read burned for querying program data from storage.
         assert_last_dequeued(2);
         assert_eq!(
-            Balances::free_balance(&USER_1),
+            Balances::free_balance(USER_1),
             free_balance + reserved_balance
                 - GasPrice::gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
         );
-        assert!(Balances::reserved_balance(&USER_1).is_zero());
+        assert!(Balances::reserved_balance(USER_1).is_zero());
     })
 }
 
