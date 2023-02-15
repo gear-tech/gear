@@ -475,7 +475,6 @@ impl EnvExt for Ext {
         msg: HandlePacket,
         delay: u32,
     ) -> Result<MessageId, Self::Error> {
-
         self.check_forbidden_destination(msg.destination())?;
         self.safe_gasfull_sends(&msg)?;
         self.charge_expiring_resources(&msg)?;
@@ -517,8 +516,8 @@ impl EnvExt for Ext {
         Ok(())
     }
 
+    // TODO: Consider per byte charge (issue #2255).
     fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
-        // +_+_+ REPLY COMMIT need per byte charge
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
         self.safe_gasfull_sends(&msg)?;
         self.charge_expiring_resources(&msg)?;
@@ -619,11 +618,6 @@ impl EnvExt for Ext {
 
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
         log::debug!(target: "gwasm", "DEBUG: {}", data);
-        Ok(())
-    }
-
-    fn charge_error(&mut self) -> Result<(), Self::Error> {
-        // +_+_+ remove
         Ok(())
     }
 

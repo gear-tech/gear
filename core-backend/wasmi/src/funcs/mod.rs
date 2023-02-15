@@ -851,7 +851,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(
                 err_mid_ptr,
-                RuntimeCosts::ReplyPushInput(len),
+                RuntimeCosts::ReplyInput(len),
                 |ctx| {
                     let value = ctx.register_and_read_value(value_ptr)?;
 
@@ -1424,8 +1424,6 @@ where
 
             ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::Error, |ctx| {
                 let state = ctx.host_state_mut();
-
-                state.ext.charge_error()?;
 
                 if let Some(err) = state.fallible_syscall_error.as_ref() {
                     let err = err.encode();

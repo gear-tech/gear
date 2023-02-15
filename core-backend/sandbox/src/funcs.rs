@@ -68,7 +68,9 @@ fn args_to_str(args: &[Value]) -> String {
 /// To see sys-calls tracing enable this feature and rebuild node.
 macro_rules! sys_trace {
     (target: $target:expr, $($arg:tt)+) => (
-        log::trace!(target: $target, $($arg)+)
+        if cfg!(feature = "sys-trace") {
+            log::trace!(target: $target, $($arg)+)
+        }
     );
 }
 
@@ -1026,8 +1028,6 @@ where
         let (error_bytes_ptr, err_len_ptr) = args.iter().read_2()?;
 
         ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::Error, |ctx| {
-            ctx.ext.charge_error()?;
-
             if let Some(err) = ctx.fallible_syscall_error.as_ref() {
                 let err = err.encode();
                 let write_error_bytes = ctx.register_write(error_bytes_ptr, err.len() as u32);

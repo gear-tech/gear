@@ -90,24 +90,17 @@ impl GasCounter {
     pub fn charge_token<Tok: Token>(&mut self, token: Tok) -> ChargeResult {
         let amount = token.weight();
 
-        log::trace!("charge token {amount}");
+        if let Some(new_left) = self.left.checked_sub(amount) {
+            self.left = new_left;
+            self.burned += amount;
 
-        let res = match self.left.checked_sub(amount) {
-            None => {
-                self.burned += self.left;
-                self.left = 0;
+            ChargeResult::Enough
+        } else {
+            self.burned += self.left;
+            self.left = 0;
 
-                ChargeResult::NotEnough
-            }
-            Some(new_left) => {
-                self.left = new_left;
-                self.burned += amount;
-
-                ChargeResult::Enough
-            }
-        };
-        log::trace!("{self:?}");
-        res
+            ChargeResult::NotEnough
+        }
     }
 
     /// Increase gas by `amount`.

@@ -93,7 +93,7 @@ where
 
     fn with_globals_update<T, F>(&mut self, f: F) -> Result<T, HostError>
     where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
         let result = f(self).map_err(|err| {
             self.set_termination_reason(err);
@@ -111,7 +111,9 @@ where
     {
         self.with_globals_update(|ctx| {
             ctx.prepare_run();
-            ctx.ext.charge_gas_runtime(cost).map_err(|err| err.into_termination_reason())?;
+            ctx.ext
+                .charge_gas_runtime(cost)
+                .map_err(|err| err.into_termination_reason())?;
             f(ctx)
         })
     }
