@@ -1800,6 +1800,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-out-of-memory"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
@@ -2080,7 +2088,7 @@ checksum = "210ec60ae7d710bed8683e333e9d2855a8a56a3e9892b38bad3bb0d4d29b0d5e"
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
-source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=e76ae98#e76ae9869ea4d386e758d7ed5d983ba2a25d7629"
+source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=9135baa#9135baa728ef9a9a04a887998e019733c4b093af"
 dependencies = [
  "libc",
  "libc_print",
@@ -6683,6 +6691,7 @@ dependencies = [
  "demo-init-with-value",
  "demo-mul-by-const",
  "demo-new-meta",
+ "demo-out-of-memory",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",

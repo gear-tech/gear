@@ -27,8 +27,9 @@ use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
-    ActorTerminationReason, BackendExt, BackendExtError, BackendReport, BackendTermination,
-    Environment, EnvironmentExecutionError, EnvironmentExecutionResult, STACK_END_EXPORT_NAME,
+    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
+    BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
+    STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -124,6 +125,7 @@ impl<E, EP> Environment<EP> for WasmiEnvironment<E, EP>
 where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
+    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
     EP: WasmEntry,
 {
     type Ext = E;

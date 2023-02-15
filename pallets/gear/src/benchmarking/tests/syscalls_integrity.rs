@@ -83,7 +83,8 @@ where
             | SysCallName::WaitUpTo
             | SysCallName::Wake
             | SysCallName::Debug
-            | SysCallName::Panic => {/* tests here aren't required, read module docs for more info */},
+            | SysCallName::Panic
+            | SysCallName::OomPanic => {/* tests here aren't required, read module docs for more info */},
             SysCallName::Alloc => check_mem::<T>(false),
             SysCallName::Free => check_mem::<T>(true),
             SysCallName::OutOfGas | SysCallName::OutOfAllowance => { /*no need for tests */}
@@ -1167,6 +1168,7 @@ where
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x1),
                 Instruction::Call(1),
+                Instruction::Drop,
                 Instruction::End,
                 Instruction::End,
             ]),

@@ -1651,7 +1651,7 @@ fn memory_access_cases() {
 (module
     (import "env" "memory" (memory 1))
     (import "env" "alloc" (func $alloc (param i32) (result i32)))
-    (import "env" "free" (func $free (param i32)))
+    (import "env" "free" (func $free (param i32) (result i32)))
     (export "handle" (func $handle))
     (export "init" (func $init))
     (func $init
@@ -1669,6 +1669,7 @@ fn memory_access_cases() {
         (block
             i32.const 0x2
             call $free
+            drop
         )
         ;; access page 1 and change it, so it will have data in storage
         (block
@@ -1745,6 +1746,7 @@ fn memory_access_cases() {
         ;; free 2nd page
         i32.const 2
         call $free
+        drop
         ;; alloc it again
         (block
             i32.const 1
@@ -1774,6 +1776,7 @@ fn memory_access_cases() {
         ;; free 3th page
         i32.const 3
         call $free
+        drop
         ;; then alloc it again
         (block
             i32.const 1
@@ -1804,6 +1807,7 @@ fn memory_access_cases() {
         ;; free 1st page
         i32.const 1
         call $free
+        drop
         ;; then alloc it again
         (block
             i32.const 1
@@ -9467,5 +9471,33 @@ fn wrong_entry_type() {
         assert!(Gear::is_terminated(pid));
         let err = get_last_event_error(mid);
         assert!(err.starts_with(&ActorExecutionErrorReason::Environment("".into()).to_string()));
+    });
+}
+
+#[test]
+fn oom_handler_works() {
+    use demo_out_of_memory::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000_000_u64,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReason::Trap(TrapExplanation::ProgramAllocOutOfBounds),
+        );
     });
 }

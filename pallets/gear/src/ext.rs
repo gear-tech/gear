@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{collections::BTreeSet, vec::Vec};
-use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
+use core_processor::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
@@ -41,6 +41,8 @@ pub struct LazyPagesExt {
 }
 
 impl BackendExt for LazyPagesExt {
+    type ChargeError = <Ext as BackendExt>::ChargeError;
+
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
@@ -58,6 +60,10 @@ impl BackendExt for LazyPagesExt {
 
     fn gas_amount(&self) -> GasAmount {
         self.inner.context.gas_counter.clone().into()
+    }
+
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::ChargeError> {
+        self.inner.charge_gas_runtime(costs)
     }
 
     fn pre_process_memory_accesses(
@@ -131,13 +137,18 @@ impl GrowHandler for LazyGrowHandler {
 
 impl EnvExt for LazyPagesExt {
     type Error = ProcessorError;
+    type AllocError = ProcessorAllocError;
 
     fn alloc(
         &mut self,
         pages_num: WasmPage,
         mem: &mut impl Memory,
-    ) -> Result<WasmPage, Self::Error> {
+    ) -> Result<WasmPage, Self::AllocError> {
         self.inner.alloc_inner::<LazyGrowHandler>(pages_num, mem)
+    }
+
+    fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
+        self.inner.free(page)
     }
 
     fn block_height(&mut self) -> Result<u32, Self::Error> {
@@ -232,10 +243,6 @@ impl EnvExt for LazyPagesExt {
         self.inner.program_id()
     }
 
-    fn free(&mut self, page: WasmPage) -> Result<(), Self::Error> {
-        self.inner.free(page)
-    }
-
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
         self.inner.debug(data)
     }
@@ -250,10 +257,6 @@ impl EnvExt for LazyPagesExt {
 
     fn size(&mut self) -> Result<usize, Self::Error> {
         self.inner.size()
-    }
-
-    fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
-        self.inner.charge_gas(val)
     }
 
     fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
@@ -310,10 +313,6 @@ impl EnvExt for LazyPagesExt {
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::Error> {
         self.inner.create_program(packet, delay)
-    }
-
-    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {
-        self.inner.charge_gas_runtime(costs)
     }
 
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {

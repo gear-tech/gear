@@ -482,7 +482,7 @@ static_assertions::const_assert!(
 /// Backend wasm memory interface.
 pub trait Memory {
     /// Grow memory by number of pages.
-    fn grow(&mut self, pages: WasmPage) -> Result<(), MemoryError>;
+    fn grow(&mut self, pages: WasmPage) -> Result<(), AllocError>;
 
     /// Return current size of the memory.
     fn size(&self) -> WasmPage;
@@ -551,10 +551,14 @@ pub enum AllocError {
     #[from]
     #[display(fmt = "{_0}")]
     IncorrectAllocationData(IncorrectAllocationDataError),
-    /// Memory error
-    #[from]
-    #[display(fmt = "{_0}")]
-    Memory(MemoryError),
+    /// The error occurs when a program tries to allocate more memory than
+    /// allowed.
+    #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
+    ProgramAllocOutOfBounds,
+    /// The error occurs in attempt to free-up a memory page from static area or
+    /// outside additionally allocated for this program.
+    #[display(fmt = "Page {_0} cannot be freed by the current program")]
+    InvalidFree(u32),
 }
 
 /// Alloc method result.
@@ -601,18 +605,14 @@ impl AllocationsContext {
         let mut start = self.static_pages;
         let mut start_page = None;
         for &end in self.allocations.iter().chain(iter::once(&mem_size)) {
-            let page_gap = end
-                .sub(start)
-                .map_err(|_| AllocError::IncorrectAllocationData(IncorrectAllocationDataError))?;
+            let page_gap = end.sub(start).map_err(|_| IncorrectAllocationDataError)?;
 
             if page_gap >= pages {
                 start_page = Some(start);
                 break;
             }
 
-            start = end
-                .inc()
-                .map_err(|_| MemoryError::ProgramAllocOutOfBounds)?;
+            start = end.inc().map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
         }
 
         let (start, not_grown) = if let Some(start) = start_page {
@@ -630,9 +630,9 @@ impl AllocationsContext {
                 .unwrap_or(self.static_pages);
             let end = start
                 .add(pages)
-                .map_err(|_| MemoryError::ProgramAllocOutOfBounds)?;
+                .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
             if end > self.max_pages {
-                return Err(MemoryError::ProgramAllocOutOfBounds.into());
+                return Err(AllocError::ProgramAllocOutOfBounds);
             }
 
             // Panic is impossible, because in loop above we checked it.
@@ -679,9 +679,9 @@ impl AllocationsContext {
     /// Free specific page.
     ///
     /// Currently running program should own this page.
-    pub fn free(&mut self, page: WasmPage) -> Result<(), MemoryError> {
+    pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
         if page < self.static_pages || page >= self.max_pages || !self.allocations.remove(&page) {
-            Err(MemoryError::InvalidFree(page.0))
+            Err(AllocError::InvalidFree(page.0))
         } else {
             Ok(())
         }
@@ -751,14 +751,14 @@ mod tests {
     #[test]
     fn free_fails() {
         let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(0), WasmPage(0));
-        assert_eq!(ctx.free(WasmPage(1)), Err(MemoryError::InvalidFree(1)));
+        assert_eq!(ctx.free(WasmPage(1)), Err(AllocError::InvalidFree(1)));
 
         let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(1), WasmPage(0));
-        assert_eq!(ctx.free(WasmPage(0)), Err(MemoryError::InvalidFree(0)));
+        assert_eq!(ctx.free(WasmPage(0)), Err(AllocError::InvalidFree(0)));
 
         let mut ctx =
             AllocationsContext::new(BTreeSet::from([WasmPage(0)]), WasmPage(1), WasmPage(1));
-        assert_eq!(ctx.free(WasmPage(1)), Err(MemoryError::InvalidFree(1)));
+        assert_eq!(ctx.free(WasmPage(1)), Err(AllocError::InvalidFree(1)));
     }
 
     #[test]

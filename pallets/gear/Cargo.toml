@@ -94,6 +94,7 @@ demo-send-from-reservation = { path = "../../examples/binaries/send-from-reserva
 demo-signal-entry = { path = "../../examples/binaries/signal-entry" }
 demo-async-signal-entry = { path = "../../examples/binaries/async-signal-entry" }
 demo-async-custom-entry = { path = "../../examples/binaries/async-custom-entry" }
+demo-out-of-memory = { path = "../../examples/binaries/out-of-memory" }
 page_size = "0.5.0"
 frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
 pallet-gear-gas = { path = "../gas" }
