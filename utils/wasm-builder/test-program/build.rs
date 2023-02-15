@@ -16,11 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{env, fs};
-
 fn main() {
     gear_wasm_builder::build();
-
-    let out_dir = env::var("OUT_DIR").unwrap();
-    fs::write(".out_dir", out_dir).unwrap();
 }

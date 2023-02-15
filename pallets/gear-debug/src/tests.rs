@@ -276,7 +276,7 @@ fn get_last_message_id() -> MessageId {
     };
 
     match event {
-        Event::MessageEnqueued { id, .. } => id,
+        Event::MessageQueued { id, .. } => id,
         Event::UserMessageSent { message, .. } => message.id(),
         _ => unreachable!("expect sending"),
     }
