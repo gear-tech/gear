@@ -37,6 +37,14 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError;
 
+/// The type will be used some time soon to implement proper charging.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum ProcessAccessError {
+    OutOfBounds,
+    GasLimitExceeded,
+    GasAllowanceExceeded,
+}
+
 /// Memory access error during sys-call that lazy-pages have caught.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct OutOfMemoryAccessError;
@@ -49,6 +57,18 @@ pub enum MemoryAccessError {
     RuntimeBuffer(RuntimeBufferSizeError),
     // TODO: remove #2164
     Decode,
+    GasLimitExceeded,
+    GasAllowanceExceeded,
+}
+
+impl From<ProcessAccessError> for MemoryAccessError {
+    fn from(err: ProcessAccessError) -> Self {
+        match err {
+            ProcessAccessError::OutOfBounds => MemoryError::AccessOutOfBounds.into(),
+            ProcessAccessError::GasLimitExceeded => Self::GasLimitExceeded,
+            ProcessAccessError::GasAllowanceExceeded => Self::GasAllowanceExceeded,
+        }
+    }
 }
 
 impl From<OutOfMemoryAccessError> for MemoryAccessError {

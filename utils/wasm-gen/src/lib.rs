@@ -37,7 +37,7 @@ mod syscalls;
 use syscalls::{sys_calls_table, Parameter, SysCallInfo, SyscallsConfig};
 
 #[cfg(test)]
-mod test;
+mod tests;
 
 pub mod utils;
 pub mod wasm;

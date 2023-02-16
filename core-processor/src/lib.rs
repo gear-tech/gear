@@ -25,8 +25,6 @@
 
 extern crate alloc;
 
-use gear_core::message::StatusCode;
-
 pub mod common;
 pub mod configs;
 mod context;
@@ -36,27 +34,11 @@ mod handler;
 mod precharge;
 mod processing;
 
-/// Error status code.
-pub const ERR_STATUS_CODE: StatusCode = 1;
-
-/// Destination isn't available for the message.
-///
-/// These messages can be any of `init`,`handle`, `handle_reply`.
-/// If the message is `init` it means either:
-/// 1. Program tries to init program with non existing code hash.
-/// 2. Program tries to init terminated program.
-/// If the message is `handle` or `handle_reply` it means, that destination
-/// was terminated while the message was in the queue.
-pub const UNAVAILABLE_DEST_STATUS_CODE: StatusCode = 2;
-
-/// A try to init again initialized, existing program.
-pub const RE_INIT_STATUS_CODE: StatusCode = 3;
-
 pub use context::{
     ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
 };
 pub use executor::{execute_wasm, ActorPrepareMemoryError};
-pub use ext::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
+pub use ext::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
 pub use handler::handle_journal;
 pub use precharge::{
     calculate_gas_for_code, calculate_gas_for_program, precharge_for_code,

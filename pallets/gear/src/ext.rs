@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{collections::BTreeSet, string::String, vec::Vec};
-use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
+use alloc::{collections::BTreeSet, vec::Vec};
+use core_processor::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
     memory::OutOfMemoryAccessError,
@@ -41,6 +41,8 @@ pub struct LazyPagesExt {
 }
 
 impl BackendExt for LazyPagesExt {
+    type ChargeError = <Ext as BackendExt>::ChargeError;
+
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
@@ -58,6 +60,10 @@ impl BackendExt for LazyPagesExt {
 
     fn gas_amount(&self) -> GasAmount {
         self.inner.context.gas_counter.clone().into()
+    }
+
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::ChargeError> {
+        self.inner.charge_gas_runtime(costs)
     }
 
     fn pre_process_memory_accesses(
@@ -96,12 +102,12 @@ impl ProcessorExt for LazyPagesExt {
     }
 }
 
-struct GrowHandlerLazy {
+struct LazyGrowHandler {
     old_mem_addr: Option<u64>,
     old_mem_size: WasmPage,
 }
 
-impl GrowHandler for GrowHandlerLazy {
+impl GrowHandler for LazyGrowHandler {
     fn before_grow_action(mem: &mut impl Memory) -> Self {
         // New pages allocation may change wasm memory buffer location.
         // So we remove protections from lazy-pages
@@ -113,31 +119,36 @@ impl GrowHandler for GrowHandlerLazy {
             old_mem_size: mem.size(),
         }
     }
-    fn after_grow_action(self, mem: &mut impl Memory) -> Result<(), MemoryError> {
+
+    fn after_grow_action(self, mem: &mut impl Memory) {
         // Add new allocations to lazy pages.
         // Protect all lazy pages including new allocations.
-        let new_mem_addr = mem
-            .get_buffer_host_addr()
-            .ok_or(MemoryError::MemSizeIsZeroAfterGrow)?;
+        let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
+            unreachable!("Memory size cannot be zero after grow is applied for memory")
+        });
         lazy_pages::update_lazy_pages_and_protect_again(
             mem,
             self.old_mem_addr,
             self.old_mem_size,
             new_mem_addr,
         );
-        Ok(())
     }
 }
 
 impl EnvExt for LazyPagesExt {
     type Error = ProcessorError;
+    type AllocError = ProcessorAllocError;
 
     fn alloc(
         &mut self,
         pages_num: WasmPage,
         mem: &mut impl Memory,
-    ) -> Result<WasmPage, Self::Error> {
-        self.inner.alloc_inner::<GrowHandlerLazy>(pages_num, mem)
+    ) -> Result<WasmPage, Self::AllocError> {
+        self.inner.alloc_inner::<LazyGrowHandler>(pages_num, mem)
+    }
+
+    fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
+        self.inner.free(page)
     }
 
     fn block_height(&mut self) -> Result<u32, Self::Error> {
@@ -232,16 +243,8 @@ impl EnvExt for LazyPagesExt {
         self.inner.program_id()
     }
 
-    fn free(&mut self, page: WasmPage) -> Result<(), Self::Error> {
-        self.inner.free(page)
-    }
-
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
         self.inner.debug(data)
-    }
-
-    fn charge_error(&mut self) -> Result<(), Self::Error> {
-        self.inner.charge_error()
     }
 
     fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error> {
@@ -250,14 +253,6 @@ impl EnvExt for LazyPagesExt {
 
     fn size(&mut self) -> Result<usize, Self::Error> {
         self.inner.size()
-    }
-
-    fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
-        self.inner.charge_gas(val)
-    }
-
-    fn refund_gas(&mut self, val: u64) -> Result<(), Self::Error> {
-        self.inner.refund_gas(val)
     }
 
     fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
@@ -316,10 +311,6 @@ impl EnvExt for LazyPagesExt {
         self.inner.create_program(packet, delay)
     }
 
-    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {
-        self.inner.charge_gas_runtime(costs)
-    }
-
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.inner.context.forbidden_funcs
     }
@@ -342,9 +333,5 @@ impl EnvExt for LazyPagesExt {
 
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
         self.inner.runtime_cost(costs)
-    }
-
-    fn maybe_panic(&self) -> Option<String> {
-        self.inner.maybe_panic()
     }
 }

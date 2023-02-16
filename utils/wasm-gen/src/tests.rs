@@ -21,6 +21,7 @@ use std::mem;
 use crate::{gen_gear_program_code, utils, GearConfig, memory::ModuleBuilderWithData, ModuleWithDebug};
 use arbitrary::Unstructured;
 use gear_wasm_instrument::parity_wasm::{self, elements::{self, External}};
+use proptest::prelude::{proptest, ProptestConfig};
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 
 #[allow(unused)]
@@ -115,6 +116,26 @@ fn remove_trivial_recursions() {
 
     let wat = wasmprinter::print_bytes(&wasm).unwrap();
     println!("wat = {wat}");
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+    #[test]
+    fn test_gen_reproduction(seed in 0..u64::MAX) {
+        let mut rng = SmallRng::seed_from_u64(seed);
+        let mut buf = vec![0; 100_000];
+        rng.fill_bytes(&mut buf);
+
+        let mut u = Unstructured::new(&buf);
+        let mut u2 = Unstructured::new(&buf);
+
+        let gear_config = GearConfig::new_normal();
+
+        let first = gen_gear_program_code(&mut u, gear_config.clone());
+        let second = gen_gear_program_code(&mut u2, gear_config);
+
+        assert!(first == second);
+    }
 }
 
 #[test]

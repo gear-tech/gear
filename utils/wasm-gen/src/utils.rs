@@ -20,7 +20,7 @@ use gear_wasm_instrument::parity_wasm::{
     builder,
     elements::{self, FuncBody, ImportCountType, Instruction, Module, Type, ValueType},
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 const PREALLOCATE: usize = 1_000;
 
@@ -45,7 +45,7 @@ where
 
     let import_count = module.import_count(ImportCountType::Function);
 
-    let mut colored_list = Vec::<HashMap<_, _>>::with_capacity(function_bodies.len());
+    let mut colored_list = Vec::<BTreeMap<_, _>>::with_capacity(function_bodies.len());
     let mut path = Vec::with_capacity(PREALLOCATE);
 
     for i in 0..function_bodies.len() {
@@ -75,7 +75,7 @@ fn find_recursion_impl<Callback>(
     call_index: usize,
     import_count: usize,
     function_bodies: &[FuncBody],
-    colored: &mut HashMap<usize, Color>,
+    colored: &mut BTreeMap<usize, Color>,
     path: &mut Vec<usize>,
     callback: &mut Callback,
 ) where
@@ -124,8 +124,8 @@ pub fn remove_recursion(module: Module) -> Module {
         return module;
     }
 
-    let mut calls_to_change = HashMap::<_, HashSet<_>>::with_capacity(PREALLOCATE);
-    let mut call_substitutions = HashMap::<_, _>::with_capacity(PREALLOCATE);
+    let mut calls_to_change = BTreeMap::<_, BTreeSet<_>>::new();
+    let mut call_substitutions = BTreeMap::<_, _>::new();
     find_recursion(&module, |path, call| {
         let call_to_change = path.last().unwrap();
 
@@ -135,7 +135,7 @@ pub fn remove_recursion(module: Module) -> Module {
                 calls.insert(call as u32);
             }
             None => {
-                let mut calls = HashSet::with_capacity(PREALLOCATE);
+                let mut calls = BTreeSet::new();
                 calls.insert(call as u32);
 
                 calls_to_change.insert(*call_to_change, calls);

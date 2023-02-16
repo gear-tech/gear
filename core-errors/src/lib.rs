@@ -23,22 +23,26 @@
 
 extern crate alloc;
 
+mod simple;
+
 #[cfg(feature = "codec")]
 use codec::{Decode, Encode};
-use core::fmt::{Debug, Display};
+use core::fmt::Debug;
 #[cfg(feature = "codec")]
 use scale_info::TypeInfo;
 
-/// Core error.
-pub trait CoreError: Debug + Display + Sized {}
+pub use simple::*;
 
 /// Error using messages.
+#[allow(clippy::unnecessary_cast)]
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[non_exhaustive]
+#[repr(u8)]
 pub enum MessageError {
     /// Message has bigger then allowed one message size
     #[display(fmt = "Max message size exceed")]
-    MaxMessageSizeExceed,
+    MaxMessageSizeExceed = 0,
 
     /// Overflow in 'gr_read'
     #[display(fmt = "Length is overflowed ({at} + {len}) to read payload")]
@@ -47,7 +51,7 @@ pub enum MessageError {
         at: u32,
         /// Range length
         len: u32,
-    },
+    } = 1,
 
     /// Cannot take data in payload range
     #[display(
@@ -60,39 +64,39 @@ pub enum MessageError {
         end: u32,
         /// Message length
         msg_len: u32,
-    },
+    } = 2,
 
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).
     #[display(fmt = "Message limit exceeded")]
-    OutgoingMessagesAmountLimitExceeded,
+    OutgoingMessagesAmountLimitExceeded = 3,
 
     /// The error occurs in case of attempt to send more than one replies.
     #[display(fmt = "Duplicate reply message")]
-    DuplicateReply,
+    DuplicateReply = 4,
 
     /// The error occurs in attempt to get the same message from the waitlist
     /// again (which is waked already).
     #[display(fmt = "Duplicate waking message")]
-    DuplicateWaking,
+    DuplicateWaking = 5,
 
     /// An attempt to commit or push a payload into an already formed message.
     #[display(fmt = "An attempt to commit or push a payload into an already formed message")]
-    LateAccess,
+    LateAccess = 6,
 
     /// The error occurs in case of not valid identifier specified.
     #[display(fmt = "Message with given handle is not found")]
-    OutOfBounds,
+    OutOfBounds = 7,
 
     /// The error occurs in attempt to initialize the same program twice within
     /// a single execution.
     #[display(fmt = "Duplicated program initialization message")]
-    DuplicateInit,
+    DuplicateInit = 8,
 
     /// An error occurs in attempt to send a message with more gas than available after previous message.
     #[display(fmt = "Not enough gas to send in message")]
-    NotEnoughGas,
+    NotEnoughGas = 9,
 
     /// Everything less than existential deposit but greater than 0 is not considered as available balance and not saved in DB.
     /// Value between 0 and existential deposit cannot be sent in message.
@@ -104,7 +108,7 @@ pub enum MessageError {
         message_value: u128,
         /// Minimal amount of funds on a balance that can be considered and added in DB.
         existential_deposit: u128,
-    },
+    } = 10,
 
     /// Everything less than mailbox threshold but greater than 0 is not considered as available gas limit and
     /// not inserted in mailbox.
@@ -118,7 +122,7 @@ pub enum MessageError {
         message_gas_limit: u64,
         /// Minimal amount of gas limit on a message that can be inserted in mailbox.
         mailbox_threshold: u64,
-    },
+    } = 11,
 
     /// The error occurs when program's balance is less than value in message it tries to send.
     #[display(
@@ -129,140 +133,125 @@ pub enum MessageError {
         message_value: u128,
         /// Amount of available value.
         value_left: u128,
-    },
+    } = 12,
 
     /// The error occurs when functions related to reply context, used without it.
     #[display(fmt = "Not running in reply context")]
-    NoReplyContext,
+    NoReplyContext = 13,
 
     /// The error occurs when functions related to signal context, used without it.
     #[display(fmt = "Not running in signal context")]
-    NoSignalContext,
+    NoSignalContext = 14,
 
     /// The error occurs when functions related to status code, used without required context.
     #[display(fmt = "No status code in reply/signal context")]
-    NoStatusCodeContext,
+    NoStatusCodeContext = 15,
 }
 
 /// Error using waiting syscalls.
+#[allow(clippy::unnecessary_cast)]
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[non_exhaustive]
+#[repr(u8)]
 pub enum WaitError {
     /// An error occurs in attempt to wait duration greater than could be payed.
     #[display(fmt = "Not enough gas to cover holding in waitlist")]
-    NotEnoughGas,
+    NotEnoughGas = 0,
     /// An error occurs in attempt to wait duration greater than could be payed.
     #[display(fmt = "Provided incorrect argument for wait (zero case)")]
-    InvalidArgument,
+    InvalidArgument = 1,
 }
 
 /// Memory error.
+#[allow(clippy::unnecessary_cast)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[non_exhaustive]
+#[repr(u8)]
 pub enum MemoryError {
-    /// The error occurs when a program tries to allocate more memory than
-    /// allowed.
-    #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
-    ProgramAllocOutOfBounds,
-
     /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
     #[display(fmt = "Trying to allocate more memory in block-chain runtime than allowed")]
-    RuntimeAllocOutOfBounds,
-
-    /// The error occurs in attempt to free-up a memory page from static area or
-    /// outside additionally allocated for this program.
-    #[display(fmt = "Page {_0} cannot be freed by the current program")]
-    InvalidFree(u32),
-
+    RuntimeAllocOutOfBounds = 0,
     /// The error occurs in attempt to access memory outside wasm program memory.
     #[display(fmt = "Trying to access memory outside wasm program memory")]
-    AccessOutOfBounds,
+    AccessOutOfBounds = 1,
+}
 
-    /// Memory size cannot be zero after grow is applied for memory
-    #[display(fmt = "Memory unexpectedly has zero size after grow")]
-    MemSizeIsZeroAfterGrow,
-
-    /// Memory size cannot be zero after grow is applied for memory
-    // TODO: (issue #1956) make separate error for alloc in allocations context
-    #[display(fmt = "Allocated memory pages or memory size are incorrect")]
-    IncorrectAllocationsSetOrMemSize,
+/// Reservation error.
+#[allow(clippy::unnecessary_cast)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum ReservationError {
+    /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
+    #[display(fmt = "Invalid reservation ID")]
+    InvalidReservationId = 0,
+    /// An error occurs in attempt to reserve more gas than available.
+    #[display(fmt = "Insufficient gas for reservation")]
+    InsufficientGasForReservation = 1,
+    /// An error occurs in attempt to reserve more times than allowed.
+    #[display(fmt = "Reservation limit has reached")]
+    ReservationsLimitReached = 2,
+    /// An error occurs in attempt to create reservation for 0 blocks.
+    #[display(fmt = "Reservation duration cannot be zero")]
+    ZeroReservationDuration = 3,
+    /// An error occurs in attempt to reserve zero gas.
+    #[display(fmt = "Reservation amount cannot be zero")]
+    ZeroReservationAmount = 4,
 }
 
 /// Execution error.
+#[allow(clippy::unnecessary_cast)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[non_exhaustive]
+#[repr(u8)]
 pub enum ExecutionError {
-    // TODO: remove some errors in #2199
-    /// An error occurs in attempt to charge more gas than available during execution.
-    #[display(fmt = "Not enough gas to continue execution")]
-    GasLimitExceeded,
-    /// An error occurs in attempt to refund more gas than burned one.
-    #[display(fmt = "Too many gas refunded")]
-    TooManyGasAdded,
-    /// An error occurs in attempt to call forbidden sys-call.
-    #[display(fmt = "Unable to call a forbidden function")]
-    ForbiddenFunction,
     /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
     #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
-    InvalidDebugString,
-    /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
-    #[display(fmt = "Invalid reservation ID")]
-    InvalidReservationId,
-    /// An error occurs in attempt to reserve more gas than available.
-    #[display(fmt = "Insufficient gas for reservation")]
-    InsufficientGasForReservation,
-    /// An error occurs in attempt to reserve more times than allowed.
-    #[display(fmt = "Reservation limit has reached")]
-    ReservationsLimitReached,
-    /// An error occurs in attempt to create reservation for 0 blocks.
-    #[display(fmt = "Reservation duration cannot be zero")]
-    ZeroReservationDuration,
-    /// An error occurs in attempt to reserve zero gas.
-    #[display(fmt = "Reservation amount cannot be zero")]
-    ZeroReservationAmount,
-    /// An error occurs in attempt to reserve zero gas for the system.
-    #[display(fmt = "System reservation amount cannot be zero")]
-    ZeroSystemReservationAmount,
+    InvalidDebugString = 0,
 }
 
 /// An error occurred in API.
+#[allow(clippy::unnecessary_cast)]
 #[derive(
     Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::From,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[non_exhaustive]
+#[repr(u8)]
 pub enum ExtError {
     /// We got some error but don't know which exactly because of disabled gcore's `codec` feature
     #[cfg(not(feature = "codec"))]
     #[display(fmt = "Some error")]
-    Some,
-
-    /// Decode error.
-    ///
-    /// Supposed to be unreachable.
-    #[cfg(feature = "codec")]
-    #[display(fmt = "`ExtError` decoding error")]
-    Decode,
+    Some = 0,
 
     // TODO: consider to create more complex one.
     /// Syscall usage error.
     #[display(fmt = "Syscall usage error")]
-    SyscallUsage,
+    SyscallUsage = 1,
 
     /// Memory error.
     #[display(fmt = "Memory error: {_0}")]
-    Memory(MemoryError),
+    Memory(MemoryError) = 2,
 
     /// Message error.
     #[display(fmt = "Message error: {_0}")]
-    Message(MessageError),
+    Message(MessageError) = 3,
 
     /// Waiting error.
     #[display(fmt = "Waiting error: {_0}")]
-    Wait(WaitError),
+    Wait(WaitError) = 4,
+
+    /// Reservation error.
+    #[display(fmt = "Reservation error: {_0}")]
+    Reservation(ReservationError) = 5,
 
     /// Execution error.
     #[display(fmt = "Execution error: {_0}")]
-    Execution(ExecutionError),
+    Execution(ExecutionError) = 6,
 }
 
 #[cfg(feature = "codec")]

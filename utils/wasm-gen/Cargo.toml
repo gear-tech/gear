@@ -15,5 +15,6 @@ gsys = { path = "../../gsys" }
 [dev-dependencies]
 rand = { version = "0.8.0", features = ["small_rng"] }
 wasmparser = { version = "0.99.0" }
-wat = "1.0.58"
+wat = "1.0.59"
 indicatif = "*"
+proptest = "1.0.0"
