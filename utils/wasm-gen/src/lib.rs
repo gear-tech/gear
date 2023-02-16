@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{collections::BTreeMap, ops::RangeInclusive, iter::Cycle};
+use std::{collections::BTreeMap, iter::Cycle, ops::RangeInclusive};
 
 use arbitrary::Unstructured;
 use gear_wasm_instrument::{
@@ -695,7 +695,11 @@ impl<'a> WasmGen<'a> {
         )
     }
 
-    pub fn insert_sys_calls(&mut self, builder: ModuleBuilderWithData, memory_pages: WasmPageCount) -> ModuleWithDebug {
+    pub fn insert_sys_calls(
+        &mut self,
+        builder: ModuleBuilderWithData,
+        memory_pages: WasmPageCount,
+    ) -> ModuleWithDebug {
         if builder.code_size == 0 {
             return builder.into();
         }
@@ -779,8 +783,13 @@ impl<'a> WasmGen<'a> {
 
         // generate call instructions for syscalls and insert them somewhere into the code
         for (name, data) in syscall_data {
-            let instructions =
-                self.build_call_instructions(name, &data, memory_pages, source_call_index, &mut offsets);
+            let instructions = self.build_call_instructions(
+                name,
+                &data,
+                memory_pages,
+                source_call_index,
+                &mut offsets,
+            );
             for _ in 0..data.sys_call_amount {
                 module = self.insert_instructions_in_random_place(module, &instructions);
             }
@@ -800,12 +809,12 @@ impl<'a> WasmGen<'a> {
         let info = &data.info;
         // TODO #2206: send also using reserved gas
         if ![
-                SysCallName::Send,
-                SysCallName::SendWGas,
-                SysCallName::SendInput,
-                SysCallName::SendInputWGas,
-            ]
-            .contains(&name)
+            SysCallName::Send,
+            SysCallName::SendWGas,
+            SysCallName::SendInput,
+            SysCallName::SendInputWGas,
+        ]
+        .contains(&name)
         {
             return build_checked_call(
                 self.u,
@@ -849,13 +858,15 @@ impl<'a> WasmGen<'a> {
         }
 
         let address_offset = offsets.next().unwrap_or_else(|| {
-            self.u.arbitrary().expect("build_call_instructions: Unstructured::arbitrary failed")
+            self.u
+                .arbitrary()
+                .expect("build_call_instructions: Unstructured::arbitrary failed")
         }) as i32;
         let mut instructions = Vec::with_capacity(1 + remaining_instructions.len());
         instructions.push(Instruction::I32Const(address_offset));
         instructions.append(&mut remaining_instructions);
 
-        return instructions;
+        instructions
     }
 
     pub fn make_print_test_info(&mut self, result: ModuleWithDebug) -> Module {
@@ -985,7 +996,11 @@ impl<'a> WasmGen<'a> {
     }
 }
 
-pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConfig, addresses: &[HashWithValue]) -> Module {
+pub fn gen_gear_program_module<'a>(
+    u: &'a mut Unstructured<'a>,
+    config: GearConfig,
+    addresses: &[HashWithValue],
+) -> Module {
     let swarm_config = default_swarm_config(u, &config);
 
     let module = loop {
@@ -1014,7 +1029,11 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
     gen.resolves_calls_indexes(module)
 }
 
-pub fn gen_gear_program_code<'a>(u: &'a mut Unstructured<'a>, config: GearConfig, addresses: &[HashWithValue]) -> Vec<u8> {
+pub fn gen_gear_program_code<'a>(
+    u: &'a mut Unstructured<'a>,
+    config: GearConfig,
+    addresses: &[HashWithValue],
+) -> Vec<u8> {
     let module = gen_gear_program_module(u, config, addresses);
     parity_wasm::serialize(module).unwrap()
 }

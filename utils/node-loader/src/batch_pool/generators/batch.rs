@@ -137,15 +137,29 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
     }
 
     #[instrument(skip_all, fields(seed = seed, batch_type = "upload_program"))]
-    fn gen_upload_program_batch(&mut self, existing_programs: Vec<ProgramId>, seed: Seed, rt_settings: RuntimeSettings) -> Batch {
+    fn gen_upload_program_batch(
+        &mut self,
+        existing_programs: Vec<ProgramId>,
+        seed: Seed,
+        rt_settings: RuntimeSettings,
+    ) -> Batch {
         let mut rng = Rng::seed_from_u64(seed);
         let inner = utils::iterator_with_args(self.batch_size, || {
-            (existing_programs.clone(), self.code_seed_gen.next_u64(), rng.next_u64())
+            (
+                existing_programs.clone(),
+                self.code_seed_gen.next_u64(),
+                rng.next_u64(),
+            )
         })
         .enumerate()
         .map(|(i, (existing_programs, code_seed, rng_seed))| {
             tracing::debug_span!("`upload_program` generator", call_id = i + 1).in_scope(|| {
-                UploadProgramArgs::generate::<Rng>(existing_programs, code_seed, rng_seed, rt_settings.gas_limit)
+                UploadProgramArgs::generate::<Rng>(
+                    existing_programs,
+                    code_seed,
+                    rng_seed,
+                    rt_settings.gas_limit,
+                )
             })
         })
         .collect();
@@ -155,14 +169,14 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
 
     fn gen_upload_code_batch(&mut self, existing_programs: Vec<ProgramId>) -> Batch {
         let inner = utils::iterator_with_args(self.batch_size, || {
-                (existing_programs.clone(), self.code_seed_gen.next_u64())
-            })
-            .enumerate()
-            .map(|(i, (existing_programs, code_seed))| {
-                tracing::debug_span!("`upload_code` generator", call_id = i + 1)
-                    .in_scope(|| UploadCodeArgs::generate::<Rng>(existing_programs, code_seed))
-            })
-            .collect();
+            (existing_programs.clone(), self.code_seed_gen.next_u64())
+        })
+        .enumerate()
+        .map(|(i, (existing_programs, code_seed))| {
+            tracing::debug_span!("`upload_code` generator", call_id = i + 1)
+                .in_scope(|| UploadCodeArgs::generate::<Rng>(existing_programs, code_seed))
+        })
+        .collect();
 
         Batch::UploadCode(inner)
     }

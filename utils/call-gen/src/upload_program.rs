@@ -56,7 +56,12 @@ impl TryFrom<GearCall> for UploadProgramArgs {
 
 impl UploadProgramArgs {
     /// Generates `pallet_gear::Pallet::<T>::upload_program` call arguments.
-    pub fn generate<Rng: CallGenRng>(existing_programs: Vec<ProgramId>, code_seed: Seed, rng_seed: Seed, gas_limit: u64) -> Self {
+    pub fn generate<Rng: CallGenRng>(
+        existing_programs: Vec<ProgramId>,
+        code_seed: Seed,
+        rng_seed: Seed,
+        gas_limit: u64,
+    ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
         let code = crate::generate_gear_program::<Rng>(existing_programs, code_seed);

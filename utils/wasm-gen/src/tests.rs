@@ -18,9 +18,14 @@
 
 use std::mem;
 
-use crate::{gen_gear_program_code, utils, GearConfig, memory::ModuleBuilderWithData, ModuleWithDebug};
+use crate::{
+    gen_gear_program_code, memory::ModuleBuilderWithData, utils, GearConfig, ModuleWithDebug,
+};
 use arbitrary::Unstructured;
-use gear_wasm_instrument::parity_wasm::{self, elements::{self, External}};
+use gear_wasm_instrument::parity_wasm::{
+    self,
+    elements::{self, External},
+};
 use proptest::prelude::{proptest, ProptestConfig};
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 
@@ -37,7 +42,7 @@ fn gen_wasm_normal() {
         let mut buf = vec![0; UNSTRUCTURED_SIZE];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
-        let code = gen_gear_program_code(&mut u, GearConfig::new_normal());
+        let code = gen_gear_program_code(&mut u, GearConfig::new_normal(), &[]);
         let _wat = wasmprinter::print_bytes(code).unwrap();
     }
 }
@@ -49,7 +54,7 @@ fn gen_wasm_rare() {
         let mut buf = vec![0; UNSTRUCTURED_SIZE];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
-        let code = gen_gear_program_code(&mut u, GearConfig::new_for_rare_cases());
+        let code = gen_gear_program_code(&mut u, GearConfig::new_for_rare_cases(), &[]);
         let _wat = wasmprinter::print_bytes(code).unwrap();
     }
 }
@@ -63,7 +68,7 @@ fn gen_wasm_valid() {
         let mut buf = vec![0; UNSTRUCTURED_SIZE];
         rng.fill_bytes(&mut buf);
         let mut u = Unstructured::new(&buf);
-        let code = gen_gear_program_code(&mut u, config.clone());
+        let code = gen_gear_program_code(&mut u, config.clone(), &[]);
         let _wat = wasmprinter::print_bytes(&code).unwrap();
         wasmparser::validate(&code).unwrap();
     }
@@ -131,8 +136,8 @@ proptest! {
 
         let gear_config = GearConfig::new_normal();
 
-        let first = gen_gear_program_code(&mut u, gear_config.clone());
-        let second = gen_gear_program_code(&mut u2, gear_config);
+        let first = gen_gear_program_code(&mut u, gear_config.clone(), &[]);
+        let second = gen_gear_program_code(&mut u2, gear_config, &[]);
 
         assert!(first == second);
     }
@@ -147,29 +152,30 @@ fn injecting_addresses_works() {
     let mut buf = vec![0; UNSTRUCTURED_SIZE];
     rng.fill_bytes(&mut buf);
     let mut u = Unstructured::new(&buf);
-    let code = gen_gear_program_code(&mut u, GearConfig::new_normal());
+    let code = gen_gear_program_code(&mut u, GearConfig::new_normal(), &[]);
 
     let module: elements::Module = parity_wasm::deserialize_buffer(&code).unwrap();
     let memory_pages = module
         .import_section()
         .map_or(0u32, |import_section| {
             for entry in import_section.entries() {
-                match entry.external() {
-                    External::Memory(memory) => {
-                        return memory.limits().initial();
-                    }
-                    _ => (),
+                if let External::Memory(memory) = entry.external() {
+                    return memory.limits().initial();
                 }
             }
 
             0u32
-        }).into();
+        })
+        .into();
     let builder = ModuleBuilderWithData::new(&[], module.clone(), memory_pages);
     {
         let module: ModuleWithDebug = builder.into();
 
         assert_eq!(module.last_offset, 0);
-        assert!(module.module.data_section().map_or(true, |s| s.entries().is_empty()));
+        assert!(module
+            .module
+            .data_section()
+            .map_or(true, |s| s.entries().is_empty()));
     }
 
     let addresses = [
@@ -180,7 +186,7 @@ fn injecting_addresses_works() {
         HashWithValue {
             hash: [1; 32],
             value: 1,
-        }
+        },
     ];
     let builder = ModuleBuilderWithData::new(&addresses, module, memory_pages);
     let module = ModuleWithDebug::from(builder);
@@ -193,6 +199,6 @@ fn injecting_addresses_works() {
     assert_eq!(segments.len(), 2);
 
     let code = parity_wasm::serialize(module.module).unwrap();
-    let wat = wasmprinter::print_bytes(&code).unwrap();
+    let wat = wasmprinter::print_bytes(code).unwrap();
     println!("wat = {wat}");
 }

@@ -45,7 +45,10 @@ pub enum GearCall {
     UploadCode(UploadCodeArgs),
 }
 
-pub fn generate_gear_program<Rng: CallGenRng>(existing_programs: Vec<ProgramId>, seed: u64) -> Vec<u8> {
+pub fn generate_gear_program<Rng: CallGenRng>(
+    existing_programs: Vec<ProgramId>,
+    seed: u64,
+) -> Vec<u8> {
     use arbitrary::Unstructured;
     use gear_wasm_gen::gsys;
 
@@ -61,7 +64,10 @@ pub fn generate_gear_program<Rng: CallGenRng>(existing_programs: Vec<ProgramId>,
 
     let addresses = existing_programs
         .iter()
-        .map(|pid| gsys::HashWithValue { hash: pid.into_bytes(), value: 0 })
+        .map(|pid| gsys::HashWithValue {
+            hash: pid.into_bytes(),
+            value: 0,
+        })
         .collect::<Vec<_>>();
 
     gear_wasm_gen::gen_gear_program_code(&mut u, config, &addresses)
