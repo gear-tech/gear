@@ -29,7 +29,7 @@ services:
         loki-external-labels: job=docker_node,gear_network=vara
         loki-pipeline-stages: |
           - regex:
-              expression: '(?P<error>ERROR.*)'
+              expression: '(?P<error>Error.*)'
           - labels:
               error:
 {% endif %}
