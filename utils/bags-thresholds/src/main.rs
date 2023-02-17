@@ -18,13 +18,12 @@
 
 //! Make the set of bag thresholds to be used with pallet-bags-list.
 
-use clap::{ArgEnum, Parser};
+use clap::{Parser, ValueEnum};
 use generate_bags::generate_thresholds;
 use std::path::{Path, PathBuf};
 use vara_runtime::Runtime as VaraRuntime;
 
-#[derive(Clone, Debug, ArgEnum)]
-#[clap(rename_all = "PascalCase")]
+#[derive(Clone, Debug, ValueEnum)]
 enum Runtime {
     // TODO: uncomment once gear runtime implements pallet_staking::Config
     // Gear,
@@ -45,22 +44,28 @@ impl Runtime {
 #[derive(Debug, Parser)]
 struct Opt {
     /// How many bags to generate.
-    #[clap(long, default_value = "200")]
+    #[arg(long, default_value = "200")]
     n_bags: usize,
 
     /// Which runtime to generate.
-    #[clap(long, ignore_case = true, arg_enum, default_value = "Vara")]
+    #[arg(
+        long,
+        ignore_case = true,
+        value_enum,
+        rename_all = "PascalCase",
+        default_value = "Vara"
+    )]
     runtime: Runtime,
 
     /// Where to write the output.
     output: PathBuf,
 
     /// The total issuance of the native currency.
-    #[clap(short, long)]
+    #[arg(short, long)]
     total_issuance: u128,
 
     /// The minimum account balance (i.e. existential deposit) for the native currency.
-    #[clap(short, long)]
+    #[arg(short, long)]
     minimum_balance: u128,
 }
 
