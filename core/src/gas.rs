@@ -123,7 +123,6 @@ impl GasCounter {
     /// In case of gas reservation:
     /// We don't increase `burn` counter because `GasTree` manipulation is handled by separated function
     pub fn reduce(&mut self, amount: u64) -> ChargeResult {
-        log::trace!("reduce {amount} from {self:?}");
         match self.left.checked_sub(amount) {
             None => ChargeResult::NotEnough,
             Some(new_left) => {
