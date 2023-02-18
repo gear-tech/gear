@@ -44,9 +44,8 @@ use core::{
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
-    costs::RuntimeCosts,
     env::Ext as EnvExt,
-    gas::GasAmount,
+    gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, IncorrectAllocationDataError, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
@@ -116,6 +115,20 @@ impl From<MemoryAccessError> for TerminationReason {
     }
 }
 
+impl From<ChargeError> for TerminationReason {
+    fn from(err: ChargeError) -> Self {
+        match err {
+            ChargeError::GasLimitExceeded => {
+                ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into()
+            }
+            ChargeError::TooManyGasAdded => SystemTerminationReason::TooManyGasAdded.into(),
+            ChargeError::GasAllowanceExceeded => {
+                ActorTerminationReason::GasAllowanceExceeded.into()
+            }
+        }
+    }
+}
+
 impl<E: BackendExtError> From<E> for TerminationReason {
     fn from(err: E) -> Self {
         err.into_termination_reason()
@@ -132,7 +145,7 @@ pub enum ActorTerminationReason {
     Trap(TrapExplanation),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::From, derive_more::Display)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
 pub enum SystemTerminationReason {
     #[display(fmt = "{_0}")]
     IncorrectAllocationData(IncorrectAllocationDataError),
@@ -210,13 +223,9 @@ pub struct ExtInfo {
 }
 
 pub trait BackendExt: EnvExt {
-    type ChargeError: BackendExtError;
-
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     fn gas_amount(&self) -> GasAmount;
-
-    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::ChargeError>;
 
     /// Pre-process memory access if need.
     fn pre_process_memory_accesses(
@@ -347,7 +356,7 @@ pub trait BackendState {
     }
 }
 
-pub trait BackendTermination<E: EnvExt, M: Sized>: Sized {
+pub trait BackendTermination<E: CountersOwner, M: Sized>: Sized {
     /// Into parts
     fn into_parts(self) -> (E, M, TerminationReason);
 
@@ -362,7 +371,11 @@ pub trait BackendTermination<E: EnvExt, M: Sized>: Sized {
 
         let (mut ext, memory, termination_reason) = self.into_parts();
 
-        ext.update_counters(gas as u64, allowance as u64);
+        let gas_left = GasLeft {
+            gas: gas as u64,
+            allowance: allowance as u64,
+        };
+        ext.set_gas_left(gas_left);
 
         let termination_reason = if res.is_err() {
             if matches!(

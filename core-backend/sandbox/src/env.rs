@@ -33,6 +33,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     env::Ext,
+    gas::{CountersOwner, GasLeft},
     memory::{PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
@@ -61,7 +62,7 @@ pub enum SandboxEnvironmentError {
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment<E, EP = DispatchKind>
 where
-    E: Ext,
+    E: Ext + CountersOwner,
     EP: WasmEntry,
 {
     instance: Instance<Runtime<E>>,
@@ -72,7 +73,7 @@ where
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<E: Ext> {
+struct EnvBuilder<E: Ext + CountersOwner> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
     forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
@@ -80,7 +81,7 @@ struct EnvBuilder<E: Ext> {
 
 impl<E> EnvBuilder<E>
 where
-    E: BackendExt + 'static,
+    E: BackendExt + CountersOwner + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
@@ -100,7 +101,7 @@ where
     }
 }
 
-impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
+impl<E: Ext + CountersOwner> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
     fn from(builder: EnvBuilder<E>) -> Self {
         builder.env_def_builder
     }
@@ -108,7 +109,7 @@ impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
 
 impl<E, EP> Environment<EP> for SandboxEnvironment<E, EP>
 where
-    E: BackendExt + 'static,
+    E: CountersOwner + BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
     EP: WasmEntry,
@@ -262,7 +263,7 @@ where
             .instance_globals()
             .ok_or(System(GlobalsNotSupported))?;
 
-        let (gas, allowance) = runtime.ext.counters();
+        let GasLeft { gas, allowance } = runtime.ext.gas_left();
 
         runtime
             .globals

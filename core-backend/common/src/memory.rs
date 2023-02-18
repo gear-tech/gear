@@ -37,14 +37,6 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError;
 
-/// The type will be used some time soon to implement proper charging.
-#[derive(Debug, Clone, Encode, Decode)]
-pub enum ProcessAccessError {
-    OutOfBounds,
-    GasLimitExceeded,
-    GasAllowanceExceeded,
-}
-
 /// Memory access error during sys-call that lazy-pages have caught.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct OutOfMemoryAccessError;
@@ -139,13 +131,13 @@ pub trait MemoryOwner {
 /// manager.write_as(write1, 111).unwrap();
 /// ```
 #[derive(Debug)]
-pub struct MemoryAccessManager<E: Ext> {
+pub struct MemoryAccessManager<E> {
     reads: Vec<MemoryInterval>,
     writes: Vec<MemoryInterval>,
     _phantom: PhantomData<E>,
 }
 
-impl<E: Ext> Default for MemoryAccessManager<E> {
+impl<E> Default for MemoryAccessManager<E> {
     fn default() -> Self {
         Self {
             reads: Vec::new(),
@@ -155,7 +147,7 @@ impl<E: Ext> Default for MemoryAccessManager<E> {
     }
 }
 
-impl<E: Ext> MemoryAccessRecorder for MemoryAccessManager<E> {
+impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.reads.push(MemoryInterval { offset: ptr, size });
         WasmMemoryRead { ptr, size }

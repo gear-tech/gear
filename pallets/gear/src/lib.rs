@@ -76,7 +76,6 @@ use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
-    costs::CostPerPage,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, PageBuf},
     message::*,

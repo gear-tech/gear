@@ -33,7 +33,6 @@ use frame_support::traits::{Currency, Get};
 use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId},
-    costs::CostPerPage,
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
 };

@@ -20,6 +20,8 @@
 
 use codec::{Decode, Encode};
 
+use crate::costs::RuntimeCosts;
+
 /// This trait represents a token that can be used for charging `GasCounter`.
 ///
 /// Implementing type is expected to be super lightweight hence `Copy` (`Clone` is added
@@ -71,6 +73,7 @@ impl GasCounter {
     /// amount of gas has lead to overflow. On success returns `ChargeResult::Enough`.
     #[inline]
     pub fn charge(&mut self, amount: u64) -> ChargeResult {
+        log::trace!("charge {amount} from {self:?}");
         match self.left.checked_sub(amount) {
             None => ChargeResult::NotEnough,
             Some(new_left) => {
@@ -92,6 +95,7 @@ impl GasCounter {
     pub fn charge_token<Tok: Token>(&mut self, token: Tok) -> ChargeResult {
         let amount = token.weight();
 
+        log::trace!("charge {amount} from {self:?}");
         if let Some(new_left) = self.left.checked_sub(amount) {
             self.left = new_left;
             self.burned += amount;
@@ -143,6 +147,7 @@ impl GasCounter {
     /// In case of gas reservation:
     /// We don't increase `burn` counter because `GasTree` manipulation is handled by separated function
     pub fn reduce(&mut self, amount: u64) -> ChargeResult {
+        log::trace!("reduce {amount} from {self:?}");
         match self.left.checked_sub(amount) {
             None => ChargeResult::NotEnough,
             Some(new_left) => {
@@ -306,13 +311,58 @@ impl GasAllowanceCounter {
     }
 }
 
-/// The type will be used some time soon to implement proper charging.
+/// Charging error
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+pub enum ChargeError {
+    /// An error occurs in attempt to charge more gas than available during execution.
+    #[display(fmt = "Not enough gas to continue execution")]
+    GasLimitExceeded,
+    /// An error occurs in attempt to refund more gas than burned one.
+    #[display(fmt = "Too many gas refunded")]
+    TooManyGasAdded,
+    /// Gas allowance exceeded
+    #[display(fmt = "Gas allowance exceeded")]
+    GasAllowanceExceeded,
+}
+
+/// +_+_+
+pub trait CountersOwner {
+    /// +_+_+
+    fn charge_gas_runtime_api(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError>;
+    /// +_+_+
+    fn charge_gas(&mut self, amount: u64) -> Result<(), ChargeError>;
+    /// +_+_+
+    fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError>;
+    /// +_+_+
+    fn gas_left(&self) -> GasLeft;
+    /// +_+_+
+    fn set_gas_left(&mut self, gas_left: GasLeft);
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct GasLeft {
     /// Left gas from gas counter.
     pub gas: u64,
     /// Left gas from allowance counter.
     pub allowance: u64,
+}
+
+impl From<(u64, u64)> for GasLeft {
+    fn from(value: (u64, u64)) -> Self {
+        Self {
+            gas: value.0,
+            allowance: value.1,
+        }
+    }
+}
+
+impl From<(i64, i64)> for GasLeft {
+    fn from(value: (i64, i64)) -> Self {
+        Self {
+            gas: value.0 as u64,
+            allowance: value.1 as u64,
+        }
+    }
 }
 
 #[cfg(test)]

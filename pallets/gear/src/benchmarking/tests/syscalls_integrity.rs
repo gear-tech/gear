@@ -43,6 +43,7 @@ where
     T::AccountId: Origin,
 {
     SysCallName::all().for_each(|sys_call| {
+        log::trace!("test {sys_call:?}");
         match sys_call {
             SysCallName::Send => check_send::<T>(None),
             SysCallName::SendWGas => check_send::<T>(Some(25_000_000_000)),

@@ -33,6 +33,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     env::Ext,
+    gas::{CountersOwner, GasLeft},
     memory::{HostPointer, PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
@@ -123,7 +124,7 @@ impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
 
 impl<E, EP> Environment<EP> for WasmiEnvironment<E, EP>
 where
-    E: BackendExt + 'static,
+    E: CountersOwner + BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
     EP: WasmEntry,
@@ -224,12 +225,12 @@ where
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&store).try_into::<u32>());
 
-        let (gas, allowance) = store
+        let GasLeft { gas, allowance } = store
             .state()
             .as_ref()
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"))
             .ext
-            .counters();
+            .gas_left();
 
         let gear_gas = instance
             .get_export(&store, GLOBAL_NAME_GAS)
