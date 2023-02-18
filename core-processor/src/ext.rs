@@ -23,7 +23,7 @@ use alloc::{
 };
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    memory::OutOfMemoryAccessError,
+    memory::ProcessAccessError,
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason, TrapExplanation,
 };
@@ -295,7 +295,7 @@ impl BackendExt for Ext {
     fn pre_process_memory_accesses(
         _reads: &[MemoryInterval],
         _writes: &[MemoryInterval],
-    ) -> Result<(), OutOfMemoryAccessError> {
+    ) -> Result<(), ProcessAccessError> {
         Ok(())
     }
 }

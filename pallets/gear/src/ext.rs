@@ -20,7 +20,7 @@ use alloc::{collections::BTreeSet, vec::Vec};
 use core_processor::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    memory::OutOfMemoryAccessError,
+    memory::ProcessAccessError,
     BackendExt, ExtInfo,
 };
 use gear_core::{
@@ -63,7 +63,7 @@ impl BackendExt for LazyPagesExt {
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
-    ) -> Result<(), OutOfMemoryAccessError> {
+    ) -> Result<(), ProcessAccessError> {
         lazy_pages::pre_process_memory_accesses(reads, writes)
     }
 }

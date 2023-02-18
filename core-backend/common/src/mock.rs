@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::OutOfMemoryAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
+    memory::ProcessAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason,
 };
 use alloc::collections::BTreeSet;
@@ -273,7 +273,7 @@ impl BackendExt for MockExt {
     fn pre_process_memory_accesses(
         _reads: &[MemoryInterval],
         _writes: &[MemoryInterval],
-    ) -> Result<(), OutOfMemoryAccessError> {
+    ) -> Result<(), ProcessAccessError> {
         Ok(())
     }
 }

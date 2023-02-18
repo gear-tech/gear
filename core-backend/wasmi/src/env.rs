@@ -29,7 +29,6 @@ use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
     BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
-    STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
@@ -37,7 +36,9 @@ use gear_core::{
     memory::{HostPointer, PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::{
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
+};
 use wasmi::{
     core::Value, Engine, Extern, Global, Instance, Linker, Memory, MemoryType, Module, Store,
 };

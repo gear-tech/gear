@@ -29,7 +29,6 @@ use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
     BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
-    STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     gas::GasLeft,
@@ -38,7 +37,7 @@ use gear_core::{
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS,
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},

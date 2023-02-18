@@ -56,11 +56,8 @@ use gear_core::{
 };
 use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};
 use lazy_pages::GlobalsConfig;
-use memory::OutOfMemoryAccessError;
+use memory::ProcessAccessError;
 use scale_info::TypeInfo;
-
-// '__gear_stack_end' export is inserted by wasm-proc or wasm-builder
-pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
 pub use crate::utils::TrimmedString;
 
@@ -231,7 +228,7 @@ pub trait BackendExt: EnvExt + CountersOwner {
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
-    ) -> Result<(), OutOfMemoryAccessError>;
+    ) -> Result<(), ProcessAccessError>;
 }
 
 pub trait BackendExtError: Clone + Sized {
