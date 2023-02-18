@@ -274,7 +274,9 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_size`.
     Size,
     /// Weight of calling `gr_read`.
-    Read(u32),
+    Read,
+    /// +_+_+
+    ReadPerByte(u32),
     /// Weight of calling `gr_block_height`.
     BlockHeight,
     /// Weight of calling `gr_block_timestamp`.
@@ -326,15 +328,19 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_create_program_wgas`.
     CreateProgram(u32, u32),
     /// Weight of calling `gr_resend_push`.
-    SendPushInput(u32),
+    SendPushInput,
+    /// +_+_+
+    SendPushInputPerByte(u32),
     /// Weight of calling `gr_send_input`.
-    SendInput(u32),
+    SendInput,
     /// Weight of calling `gr_reply_push`.
     ReplyPush(u32),
-    /// Weight of calling `gr_reply_input`.
-    ReplyInput(u32),
     /// Weight of calling `gr_reply_push_input`.
-    ReplyPushInput(u32),
+    ReplyPushInput,
+    /// +_+_+
+    ReplyPushInputPerByte(u32),
+    /// Weight of calling `gr_reply_input`.
+    ReplyInput,
 }
 
 impl RuntimeCosts {
@@ -356,9 +362,8 @@ impl RuntimeCosts {
             Value => s.gr_value,
             ValueAvailable => s.gr_value_available,
             Size => s.gr_size,
-            Read(len) => s
-                .gr_read
-                .saturating_add(s.gr_read_per_byte.saturating_mul(len.into())),
+            Read => s.gr_read,
+            ReadPerByte(len) => s.gr_read_per_byte.saturating_mul(len.into()),
             BlockHeight => s.gr_block_height,
             BlockTimestamp => s.gr_block_timestamp,
             Random => s.gr_random,
@@ -407,18 +412,14 @@ impl RuntimeCosts {
                     s.gr_create_program_wgas_salt_per_byte
                         .saturating_mul(salt_len.into()),
                 ),
-            SendPushInput(len) => s
-                .gr_send_push_input
-                .saturating_add(s.gr_send_push_input_per_byte.saturating_mul(len.into())),
-            ReplyPushInput(len) => s
-                .gr_reply_push_input
-                .saturating_add(s.gr_reply_push_input_per_byte.saturating_mul(len.into())),
-            ReplyInput(len) => ReplyPushInput(len)
+            ReplyPushInput => s.gr_reply_push_input,
+            ReplyPushInputPerByte(len) => s.gr_reply_push_input_per_byte.saturating_mul(len.into()),
+            ReplyInput => ReplyPushInput.token(s).saturating_add(ReplyCommit.token(s)),
+            SendPushInput => s.gr_send_push_input,
+            SendPushInputPerByte(len) => s.gr_send_push_input_per_byte.saturating_mul(len.into()),
+            SendInput => SendInit
                 .token(s)
-                .saturating_add(ReplyCommit.token(s)),
-            SendInput(len) => SendInit
-                .token(s)
-                .saturating_add(SendPushInput(len).token(s))
+                .saturating_add(SendPushInput.token(s))
                 // TODO: replace with normal addition some time.
                 .saturating_add(SendCommit(0).token(s).weight()),
         };

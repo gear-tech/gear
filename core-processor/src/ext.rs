@@ -527,6 +527,8 @@ impl EnvExt for Ext {
 
     fn send_push_input(&mut self, handle: u32, offset: u32, len: u32) -> Result<(), Self::Error> {
         let range = self.context.message_context.check_input_range(offset, len);
+        // TODO: change to charge with no gas charge if not enoughs #+_+_+
+        self.charge_gas_runtime(RuntimeCosts::SendPushInputPerByte(range.len()))?;
 
         self.context
             .message_context
@@ -648,6 +650,8 @@ impl EnvExt for Ext {
 
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error> {
         let range = self.context.message_context.check_input_range(offset, len);
+        // TODO: change to charge with no gas charge if not enoughs #+_+_+
+        self.charge_gas_runtime(RuntimeCosts::ReplyPushInputPerByte(range.len()))?;
 
         self.context.message_context.reply_push_input(range)?;
 
@@ -689,6 +693,8 @@ impl EnvExt for Ext {
         let end = at
             .checked_add(len)
             .ok_or(MessageError::TooBigReadLen { at, len })?;
+        // TODO: change to charge with no gas charge if not enoughs #+_+_+
+        self.charge_gas_runtime(RuntimeCosts::ReadPerByte(len))?;
         let msg = self.context.message_context.current().payload();
         if end as usize > msg.len() {
             return Err(MessageError::ReadWrongRange {
