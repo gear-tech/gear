@@ -33,7 +33,6 @@ use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
     env::Ext,
-    gas::CountersOwner,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
@@ -46,9 +45,9 @@ use sp_sandbox::{HostError, ReturnValue, Value};
 
 const PTR_SPECIAL: u32 = u32::MAX;
 
-pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
+pub type SyscallOutput = Result<ReturnValue, HostError>;
 
-pub(crate) struct FuncsHandler<E: Ext + 'static> {
+pub struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
 
@@ -78,7 +77,7 @@ macro_rules! sys_trace {
 
 impl<E> FuncsHandler<E>
 where
-    E: CountersOwner + BackendExt + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
@@ -1085,7 +1084,7 @@ where
 }
 
 #[allow(clippy::type_complexity)]
-pub(crate) trait WasmCompatibleIterator {
+trait WasmCompatibleIterator {
     fn read<T: WasmCompatible>(&mut self) -> Result<T, HostError>;
 
     fn read_2<T1: WasmCompatible, T2: WasmCompatible>(&mut self) -> Result<(T1, T2), HostError> {
@@ -1249,7 +1248,7 @@ impl<'a, I: Iterator<Item = &'a Value> + 'a> WasmCompatibleIterator for I {
     }
 }
 
-pub(crate) trait WasmCompatible: Sized {
+trait WasmCompatible: Sized {
     fn from(arg: Value) -> Result<Self, HostError>;
 
     fn throw_back(self) -> ReturnValue;

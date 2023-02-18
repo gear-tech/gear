@@ -33,7 +33,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     env::Ext,
-    gas::{CountersOwner, GasLeft},
+    gas::GasLeft,
     memory::{HostPointer, PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
@@ -124,7 +124,7 @@ impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
 
 impl<E, EP> Environment<EP> for WasmiEnvironment<E, EP>
 where
-    E: CountersOwner + BackendExt + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
     EP: WasmEntry,

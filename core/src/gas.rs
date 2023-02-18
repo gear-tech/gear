@@ -72,7 +72,7 @@ impl GasCounter {
     /// Returns `ChargeResult::NotEnough` if there is not enough gas or addition of the specified
     /// amount of gas has lead to overflow. On success returns `ChargeResult::Enough`.
     #[inline]
-    pub fn charge(&mut self, amount: u64) -> ChargeResult {
+    pub fn charge_if_enough(&mut self, amount: u64) -> ChargeResult {
         match self.left.checked_sub(amount) {
             None => ChargeResult::NotEnough,
             Some(new_left) => {
@@ -322,20 +322,23 @@ pub enum ChargeError {
     GasAllowanceExceeded,
 }
 
-/// +_+_+
+/// Counters owner can change gas limit and allowance counters.
 pub trait CountersOwner {
-    /// +_+_+
-    fn charge_gas_runtime_api(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError>;
-    /// +_+_+
-    fn charge_gas(&mut self, amount: u64) -> Result<(), ChargeError>;
-    /// +_+_+
+    /// Charge for runtime api call.
+    fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError>;
+    /// Charge for runtime api call if has enough of gas, else just returns error.
+    fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError>;
+    /// Charge gas if enough, else just returns error.
+    fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError>;
+    /// Refund gas limit and gas allowance.
     fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError>;
-    /// +_+_+
+    /// Returns gas limit and gas allowance left.
     fn gas_left(&self) -> GasLeft;
-    /// +_+_+
+    /// Set gas limit and gas allowance left.
     fn set_gas_left(&mut self, gas_left: GasLeft);
 }
 
+/// Gas limit and gas allowance left.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct GasLeft {
     /// Left gas from gas counter.
@@ -377,12 +380,12 @@ mod tests {
     fn limited_gas_counter_charging() {
         let mut counter = GasCounter::new(200);
 
-        let result = counter.charge(100);
+        let result = counter.charge_if_enough(100);
 
         assert_eq!(result, ChargeResult::Enough);
         assert_eq!(counter.left(), 100);
 
-        let result = counter.charge(101);
+        let result = counter.charge_if_enough(101);
 
         assert_eq!(result, ChargeResult::NotEnough);
         assert_eq!(counter.left(), 100);
@@ -391,7 +394,7 @@ mod tests {
     #[test]
     fn charge_fails() {
         let mut counter = GasCounter::new(100);
-        assert_eq!(counter.charge(200), ChargeResult::NotEnough);
+        assert_eq!(counter.charge_if_enough(200), ChargeResult::NotEnough);
     }
 
     #[test]
@@ -408,7 +411,7 @@ mod tests {
     #[test]
     fn refund_fails() {
         let mut counter = GasCounter::new(200);
-        assert_eq!(counter.charge(100), ChargeResult::Enough);
+        assert_eq!(counter.charge_if_enough(100), ChargeResult::Enough);
         assert_eq!(counter.refund(500), ChargeResult::NotEnough);
     }
 

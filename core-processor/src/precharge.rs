@@ -96,7 +96,7 @@ impl<'a> GasPrecharger<'a> {
         if self.allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(PrechargeError::BlockGasExceeded);
         }
-        if self.counter.charge(amount) != ChargeResult::Enough {
+        if self.counter.charge_if_enough(amount) != ChargeResult::Enough {
             return Err(PrechargeError::GasExceeded(operation));
         }
 
@@ -314,7 +314,7 @@ fn check_is_executable(
 /// Charge a message for fetching the actual length of the binary code
 /// from a storage. The updated value of binary code length
 /// should be kept in standalone storage. The caller has to call this
-/// function to charge gas-counters accrodingly before fetching the value.
+/// function to charge gas-counters accordingly before fetching the value.
 ///
 /// The function also performs several additional checks:
 /// - if an actor is executable
@@ -531,6 +531,22 @@ pub fn precharge_for_memory(
 mod tests {
     use super::*;
     use gear_core::memory::GearPage;
+
+    fn prepare_allocs() -> BTreeSet<WasmPage> {
+        let data = [0u16, 1, 2, 8, 18, 25, 27, 28, 93, 146, 240, 518];
+        data.map(Into::into).map(|p: GearPage| p.to_page()).into()
+    }
+
+    fn prepare_alloc_config() -> PagesConfig {
+        PagesConfig {
+            max_pages: 32.into(),
+            lazy_pages_weights: Default::default(),
+            init_cost: 1000,
+            alloc_cost: 2000,
+            mem_grow_cost: 3000,
+            load_page_cost: 4000,
+        }
+    }
 
     fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
         (

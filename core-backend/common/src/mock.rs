@@ -64,11 +64,15 @@ impl BackendAllocExtError for Error {
 pub struct MockExt(BTreeSet<SysCallName>);
 
 impl CountersOwner for MockExt {
-    fn charge_gas_runtime_api(&mut self, _cost: RuntimeCosts) -> Result<(), ChargeError> {
+    fn charge_gas_runtime(&mut self, _cost: RuntimeCosts) -> Result<(), ChargeError> {
         Ok(())
     }
 
-    fn charge_gas(&mut self, _amount: u64) -> Result<(), ChargeError> {
+    fn charge_gas_runtime_if_enough(&mut self, _cost: RuntimeCosts) -> Result<(), ChargeError> {
+        Ok(())
+    }
+
+    fn charge_gas_if_enough(&mut self, _amount: u64) -> Result<(), ChargeError> {
         Ok(())
     }
 

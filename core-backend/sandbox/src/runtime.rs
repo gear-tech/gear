@@ -28,11 +28,7 @@ use gear_backend_common::{
     },
     BackendExt, BackendState, BackendTermination, TerminationReason,
 };
-use gear_core::{
-    costs::RuntimeCosts,
-    gas::{CountersOwner, GasLeft},
-};
-use gear_core::{costs::RuntimeCosts, env::Ext};
+use gear_core::{costs::RuntimeCosts, gas::GasLeft};
 use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
@@ -54,7 +50,7 @@ pub struct Runtime<E> {
     pub memory_manager: MemoryAccessManager<E>,
 }
 
-impl<E: CountersOwner + BackendExt> Runtime<E> {
+impl<E: BackendExt> Runtime<E> {
     // Cleans `memory_manager`, updates ext counters based on globals.
     fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
@@ -111,7 +107,7 @@ impl<E: CountersOwner + BackendExt> Runtime<E> {
     {
         self.with_globals_update(|ctx| {
             ctx.prepare_run();
-            ctx.ext.charge_gas_runtime_api(cost)?;
+            ctx.ext.charge_gas_runtime(cost)?;
             f(ctx)
         })
     }
@@ -146,7 +142,7 @@ impl<E: CountersOwner + BackendExt> Runtime<E> {
     }
 }
 
-impl<E: CountersOwner + BackendExt> MemoryAccessRecorder for Runtime<E> {
+impl<E: BackendExt> MemoryAccessRecorder for Runtime<E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.memory_manager.register_read(ptr, size)
     }
@@ -171,7 +167,7 @@ impl<E: CountersOwner + BackendExt> MemoryAccessRecorder for Runtime<E> {
     }
 }
 
-impl<E: BackendExt + CountersOwner> MemoryOwner for Runtime<E> {
+impl<E: BackendExt> MemoryOwner for Runtime<E> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.memory_manager.read(&self.memory, read)
     }
@@ -210,7 +206,7 @@ impl<E> BackendState for Runtime<E> {
     }
 }
 
-impl<E: CountersOwner> BackendTermination<E, MemoryWrap> for Runtime<E> {
+impl<E: BackendExt> BackendTermination<E, MemoryWrap> for Runtime<E> {
     fn into_parts(self) -> (E, MemoryWrap, TerminationReason) {
         let Self {
             ext,

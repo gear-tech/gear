@@ -27,6 +27,7 @@ use gear_core::{
     memory::{PageBuf, PageU32Size, WasmPage},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
+use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pallet_gear::{DebugInfo, Pallet as PalletGear};
 use sp_core::H256;
 use sp_std::collections::btree_map::BTreeMap;
@@ -751,8 +752,9 @@ fn check_changed_pages_in_storage() {
 
 #[test]
 fn check_gear_stack_end() {
-    // This test checks that all pages, before `__gear_stack_end` addr, must not be updated in storage.
-    let wat = r#"
+    // This test checks that all pages, before stack end addr, must not be updated in storage.
+    let wat = format!(
+        r#"
         (module
             (import "env" "memory" (memory 4))
             (export "init" (func $init))
@@ -779,13 +781,14 @@ fn check_gear_stack_end() {
             )
             ;; "stack" contains 0 and 1 wasm pages
             (global (;0;) (mut i32) (i32.const 0x20000))
-            (export "__gear_stack_end" (global 0))
+            (export "{STACK_END_EXPORT_NAME}" (global 0))
         )
-    "#;
+    "#
+    );
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let code = parse_wat(wat);
+        let code = parse_wat(wat.as_str());
         let program_id = generate_program_id(&code);
         let origin = RuntimeOrigin::signed(1);
 

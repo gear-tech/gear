@@ -31,7 +31,6 @@ use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
     env::Ext,
-    gas::CountersOwner,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
@@ -46,7 +45,7 @@ use wasmi::{
     AsContextMut, Caller, Func, Memory as WasmiMemory, Store,
 };
 
-pub(crate) const PTR_SPECIAL: u32 = u32::MAX;
+pub const PTR_SPECIAL: u32 = u32::MAX;
 
 pub struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
@@ -57,7 +56,7 @@ type EmptyOutput = Result<(), Trap>;
 
 impl<E> FuncsHandler<E>
 where
-    E: CountersOwner + BackendExt + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {

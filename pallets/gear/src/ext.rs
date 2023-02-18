@@ -24,6 +24,7 @@ use gear_backend_common::{
     BackendExt, ExtInfo,
 };
 use gear_core::{
+    costs::RuntimeCosts,
     env::Ext as EnvExt,
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
@@ -129,15 +130,16 @@ impl GrowHandler for LazyGrowHandler {
 }
 
 impl CountersOwner for LazyPagesExt {
-    fn charge_gas_runtime_api(
-        &mut self,
-        cost: gear_core::costs::RuntimeCosts,
-    ) -> Result<(), ChargeError> {
-        self.inner.charge_gas_runtime_api(cost)
+    fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
+        self.inner.charge_gas_runtime(cost)
     }
 
-    fn charge_gas(&mut self, amount: u64) -> Result<(), ChargeError> {
-        self.inner.charge_gas(amount)
+    fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
+        self.inner.charge_gas_runtime_if_enough(cost)
+    }
+
+    fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError> {
+        self.inner.charge_gas_if_enough(amount)
     }
 
     fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError> {

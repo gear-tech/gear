@@ -32,8 +32,7 @@ use gear_backend_common::{
     STACK_END_EXPORT_NAME,
 };
 use gear_core::{
-    env::Ext,
-    gas::{CountersOwner, GasLeft},
+    gas::GasLeft,
     memory::{PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
@@ -62,7 +61,7 @@ pub enum SandboxEnvironmentError {
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment<E, EP = DispatchKind>
 where
-    E: Ext + CountersOwner,
+    E: BackendExt,
     EP: WasmEntry,
 {
     instance: Instance<Runtime<E>>,
@@ -73,7 +72,7 @@ where
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<E: Ext + CountersOwner> {
+struct EnvBuilder<E: BackendExt> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
     forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
@@ -81,7 +80,7 @@ struct EnvBuilder<E: Ext + CountersOwner> {
 
 impl<E> EnvBuilder<E>
 where
-    E: BackendExt + CountersOwner + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
@@ -101,7 +100,7 @@ where
     }
 }
 
-impl<E: Ext + CountersOwner> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
+impl<E: BackendExt> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
     fn from(builder: EnvBuilder<E>) -> Self {
         builder.env_def_builder
     }
@@ -109,7 +108,7 @@ impl<E: Ext + CountersOwner> From<EnvBuilder<E>> for EnvironmentDefinitionBuilde
 
 impl<E, EP> Environment<EP> for SandboxEnvironment<E, EP>
 where
-    E: CountersOwner + BackendExt + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
     EP: WasmEntry,

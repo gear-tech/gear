@@ -222,7 +222,7 @@ pub struct ExtInfo {
     pub context_store: ContextStore,
 }
 
-pub trait BackendExt: EnvExt {
+pub trait BackendExt: EnvExt + CountersOwner {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     fn gas_amount(&self) -> GasAmount;
@@ -356,7 +356,7 @@ pub trait BackendState {
     }
 }
 
-pub trait BackendTermination<E: CountersOwner, M: Sized>: Sized {
+pub trait BackendTermination<E: BackendExt, M: Sized>: Sized {
     /// Into parts
     fn into_parts(self) -> (E, M, TerminationReason);
 

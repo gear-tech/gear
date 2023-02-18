@@ -24,10 +24,7 @@ use gear_backend_common::{
     },
     ActorTerminationReason, BackendExt, BackendState, TrapExplanation,
 };
-use gear_core::{
-    costs::RuntimeCosts,
-    gas::{CountersOwner, GasLeft},
-};
+use gear_core::{costs::RuntimeCosts, gas::GasLeft};
 
 use super::*;
 use crate::state::State;
@@ -52,13 +49,10 @@ pub struct CallerWrap<'a, E> {
     pub memory: WasmiMemory,
 }
 
-impl<'a, E: CountersOwner + BackendExt + 'static> CallerWrap<'a, E> {
+impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
     /// !!! Usage warning: make sure to do it before any other read/write,
     /// because it may contain register read.
-    pub(crate) fn register_and_read_value(
-        &mut self,
-        value_ptr: u32,
-    ) -> Result<u128, MemoryAccessError> {
+    pub fn register_and_read_value(&mut self, value_ptr: u32) -> Result<u128, MemoryAccessError> {
         if value_ptr != PTR_SPECIAL {
             let read_value = self.register_read_decoded(value_ptr);
             return self.read_decoded(read_value);
@@ -178,7 +172,7 @@ impl<'a, E: CountersOwner + BackendExt + 'static> CallerWrap<'a, E> {
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
         self.with_globals_update(|ctx| {
-            ctx.host_state_mut().ext.charge_gas_runtime_api(cost)?;
+            ctx.host_state_mut().ext.charge_gas_runtime(cost)?;
             f(ctx)
         })
     }
@@ -261,7 +255,7 @@ impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E> {
     }
 }
 
-impl<'a, E: CountersOwner + BackendExt + 'static> MemoryOwner for CallerWrap<'a, E> {
+impl<'a, E: BackendExt + 'static> MemoryOwner for CallerWrap<'a, E> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         let store = self.caller.as_context_mut();
         let memory = MemoryWrapRef {

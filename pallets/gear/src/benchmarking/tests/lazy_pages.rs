@@ -25,6 +25,15 @@ use crate::{
     benchmarking::{utils as common_utils, utils::PrepareConfig},
     HandleKind,
 };
+use ::alloc::collections::BTreeSet;
+use common::ProgramStorage;
+use gear_backend_common::lazy_pages::{LazyPagesWeights, Status};
+use gear_core::{
+    costs::CostPerPage,
+    memory::{GranularityPage, PageU32Size, PAGE_STORAGE_GRANULARITY},
+};
+use gear_lazy_pages_common as lazy_pages;
+use rand::{Rng, SeedableRng};
 
 pub fn lazy_pages_charging<T>()
 where

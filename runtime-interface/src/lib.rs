@@ -24,7 +24,7 @@
 use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    memory::ProcessAccessError,
+    memory::OutOfMemoryAccessError,
 };
 use gear_core::{
     gas::GasLeft,
@@ -108,13 +108,13 @@ pub trait GearRI {
         reads: &[(u32, u32)],
         writes: &[(u32, u32)],
         _gas_left: (GasLeft,), // to be used in #2216
-    ) -> (GasLeft, Result<(), ProcessAccessError>) {
+    ) -> (GasLeft, Result<(), OutOfMemoryAccessError>) {
         let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
         let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
         (
             Default::default(),
             lazy_pages::pre_process_memory_accesses(&reads, &writes)
-                .map_err(|_| ProcessAccessError::OutOfBounds),
+                .map_err(|_| OutOfMemoryAccessError),
         )
     }
 

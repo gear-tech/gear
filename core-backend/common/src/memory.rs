@@ -32,7 +32,6 @@ use core::{
 };
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
-    env::Ext,
     memory::{Memory, MemoryInterval},
 };
 use gear_core_errors::MemoryError;
@@ -51,16 +50,6 @@ pub enum MemoryAccessError {
     Decode,
     GasLimitExceeded,
     GasAllowanceExceeded,
-}
-
-impl From<ProcessAccessError> for MemoryAccessError {
-    fn from(err: ProcessAccessError) -> Self {
-        match err {
-            ProcessAccessError::OutOfBounds => MemoryError::AccessOutOfBounds.into(),
-            ProcessAccessError::GasLimitExceeded => Self::GasLimitExceeded,
-            ProcessAccessError::GasAllowanceExceeded => Self::GasAllowanceExceeded,
-        }
-    }
 }
 
 impl From<OutOfMemoryAccessError> for MemoryAccessError {
