@@ -73,7 +73,6 @@ impl GasCounter {
     /// amount of gas has lead to overflow. On success returns `ChargeResult::Enough`.
     #[inline]
     pub fn charge(&mut self, amount: u64) -> ChargeResult {
-        log::trace!("charge {amount} from {self:?}");
         match self.left.checked_sub(amount) {
             None => ChargeResult::NotEnough,
             Some(new_left) => {
@@ -95,7 +94,6 @@ impl GasCounter {
     pub fn charge_token<Tok: Token>(&mut self, token: Tok) -> ChargeResult {
         let amount = token.weight();
 
-        log::trace!("charge {amount} from {self:?}");
         if let Some(new_left) = self.left.checked_sub(amount) {
             self.left = new_left;
             self.burned += amount;
@@ -147,7 +145,6 @@ impl GasCounter {
     /// In case of gas reservation:
     /// We don't increase `burn` counter because `GasTree` manipulation is handled by separated function
     pub fn reduce(&mut self, amount: u64) -> ChargeResult {
-        log::trace!("reduce {amount} from {self:?}");
         match self.left.checked_sub(amount) {
             None => ChargeResult::NotEnough,
             Some(new_left) => {
