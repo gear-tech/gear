@@ -105,6 +105,20 @@ impl GasCounter {
         }
     }
 
+    /// Same as `Self::charge_token`, but it doesn't charge if not enough gas.
+    pub fn charge_token_if_enough<Tok: Token>(&mut self, token: Tok) -> ChargeResult {
+        let amount = token.weight();
+
+        if let Some(new_left) = self.left.checked_sub(amount) {
+            self.left = new_left;
+            self.burned += amount;
+
+            ChargeResult::Enough
+        } else {
+            ChargeResult::NotEnough
+        }
+    }
+
     /// Increase gas by `amount`.
     ///
     /// Called when gas unreservation is occurred.

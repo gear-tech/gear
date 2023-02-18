@@ -275,7 +275,7 @@ pub enum RuntimeCosts {
     Size,
     /// Weight of calling `gr_read`.
     Read,
-    /// +_+_+
+    /// Weight of calling ``gr_read` per read buffer bytes number.
     ReadPerByte(u32),
     /// Weight of calling `gr_block_height`.
     BlockHeight,
@@ -327,9 +327,9 @@ pub enum RuntimeCosts {
     Wake,
     /// Weight of calling `gr_create_program_wgas`.
     CreateProgram(u32, u32),
-    /// Weight of calling `gr_resend_push`.
+    /// Weight of calling `gr_send_push_input`.
     SendPushInput,
-    /// +_+_+
+    /// Weight per buffer bytes number in sent input.
     SendPushInputPerByte(u32),
     /// Weight of calling `gr_send_input`.
     SendInput,
@@ -337,7 +337,7 @@ pub enum RuntimeCosts {
     ReplyPush(u32),
     /// Weight of calling `gr_reply_push_input`.
     ReplyPushInput,
-    /// +_+_+
+    /// Weight per buffer bytes number in reply input.
     ReplyPushInputPerByte(u32),
     /// Weight of calling `gr_reply_input`.
     ReplyInput,

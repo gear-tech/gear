@@ -478,6 +478,13 @@ impl Ext {
             Err(ChargeError::TooManyGasAdded)
         }
     }
+
+    fn charge_gas_runtime_if_enough(&mut self, costs: RuntimeCosts) -> Result<(), ChargeError> {
+        let token = costs.token(&self.context.host_fn_weights);
+        let common_charge = self.context.gas_counter.charge_token_if_enough(token);
+        let allowance_charge = self.context.gas_allowance_counter.charge_token(token);
+        self.check_charge_results(common_charge, allowance_charge)
+    }
 }
 
 impl EnvExt for Ext {
@@ -527,8 +534,7 @@ impl EnvExt for Ext {
 
     fn send_push_input(&mut self, handle: u32, offset: u32, len: u32) -> Result<(), Self::Error> {
         let range = self.context.message_context.check_input_range(offset, len);
-        // TODO: change to charge with no gas charge if not enoughs #+_+_+
-        self.charge_gas_runtime(RuntimeCosts::SendPushInputPerByte(range.len()))?;
+        self.charge_gas_runtime_if_enough(RuntimeCosts::SendPushInputPerByte(range.len()))?;
 
         self.context
             .message_context
@@ -650,8 +656,7 @@ impl EnvExt for Ext {
 
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error> {
         let range = self.context.message_context.check_input_range(offset, len);
-        // TODO: change to charge with no gas charge if not enoughs #+_+_+
-        self.charge_gas_runtime(RuntimeCosts::ReplyPushInputPerByte(range.len()))?;
+        self.charge_gas_runtime_if_enough(RuntimeCosts::ReplyPushInputPerByte(range.len()))?;
 
         self.context.message_context.reply_push_input(range)?;
 
@@ -693,8 +698,7 @@ impl EnvExt for Ext {
         let end = at
             .checked_add(len)
             .ok_or(MessageError::TooBigReadLen { at, len })?;
-        // TODO: change to charge with no gas charge if not enoughs #+_+_+
-        self.charge_gas_runtime(RuntimeCosts::ReadPerByte(len))?;
+        self.charge_gas_runtime_if_enough(RuntimeCosts::ReadPerByte(len))?;
         let msg = self.context.message_context.current().payload();
         if end as usize > msg.len() {
             return Err(MessageError::ReadWrongRange {
