@@ -164,15 +164,13 @@ impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
             &mut GasLeft,
         ) -> Result<R, MemoryAccessError>,
     ) -> Result<R, MemoryAccessError> {
-        let mut gas_left = self.host_state_mut().ext.counters().into();
+        let mut gas_left = self.host_state_mut().ext.gas_left();
 
         let mut memory = Self::memory(&mut self.caller, self.memory);
 
         let res = f(&mut self.manager, &mut memory, &mut gas_left);
 
-        self.host_state_mut()
-            .ext
-            .update_counters(gas_left.gas, gas_left.allowance);
+        self.host_state_mut().ext.set_gas_left(gas_left);
 
         res
     }
@@ -197,7 +195,7 @@ impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
         self.with_globals_update(|ctx| {
-            ctx.host_state_mut().ext.charge_gas_runtime(cost)?;
+            ctx.host_state_mut().ext.charge_gas_runtime_api(cost)?;
             f(ctx)
         })
     }

@@ -158,7 +158,7 @@ impl<'a> GasPrecharger<'a> {
     ) -> Result<WasmPage, PrechargeError> {
         // Charging gas for static pages.
         let amount = costs.static_page.calc(static_pages);
-        self.charge_gas(GasOperation::StaticPages, amount)?;
+        self.charge_gas(PreChargeGasOperation::StaticPages, amount)?;
 
         if let Some(page) = allocations.iter().next_back() {
             // It means we somehow violated some constraints:
@@ -473,24 +473,7 @@ pub fn precharge_for_memory(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_core::memory::GearPage;
     use gear_backend_common::assert_ok;
-
-    fn prepare_allocs() -> BTreeSet<WasmPage> {
-        let data = [0u16, 1, 2, 8, 18, 25, 27, 28, 93, 146, 240, 518];
-        data.map(Into::into).map(|p: GearPage| p.to_page()).into()
-    }
-
-    fn prepare_alloc_config() -> PagesConfig {
-        PagesConfig {
-            max_pages: 32.into(),
-            lazy_pages_weights: Default::default(),
-            init_cost: 1000,
-            alloc_cost: 2000,
-            mem_grow_cost: 3000,
-            load_page_cost: 4000,
-        }
-    }
 
     fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
         (

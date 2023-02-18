@@ -159,7 +159,7 @@ fn get_access_pages(accesses: &[MemoryInterval]) -> Result<BTreeSet<LazyPage>, E
         // We can optimize this if will ignore zero bytes access in core-backend (issue #2095).
         let byte_after_last = access
             .offset
-            .checked_add(access.size.checked_sub(1).unwrap_or(0))
+            .checked_add(access.size.saturating_sub(1))
             .ok_or(Error::OutOfWasmMemoryAccess)?;
         let end = LazyPage::from_offset(byte_after_last);
         let iter = start
@@ -234,6 +234,6 @@ pub fn pre_process_memory_accesses(
         .map(|status| match status {
             Status::Normal => Ok(()),
             Status::GasLimitExceeded => Err(ProcessAccessError::GasLimitExceeded),
-            Status::GasAllowanceExceeded => Err(ProcessAccessError::GasAllowanceExceed),
+            Status::GasAllowanceExceeded => Err(ProcessAccessError::GasAllowanceExceeded),
         })?
 }

@@ -33,7 +33,7 @@ use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
 
-pub(crate) fn as_i64(v: Value) -> Option<i64> {
+pub fn as_i64(v: Value) -> Option<i64> {
     match v {
         Value::I64(i) => Some(i),
         _ => None,
@@ -149,9 +149,9 @@ impl<E: BackendExt> Runtime<E> {
             &mut GasLeft,
         ) -> Result<R, MemoryAccessError>,
     ) -> Result<R, MemoryAccessError> {
-        let mut gas_left = self.ext.counters().into();
+        let mut gas_left = self.ext.gas_left();
         let res = f(&mut self.memory_manager, &mut self.memory, &mut gas_left);
-        self.ext.update_counters(gas_left.gas, gas_left.allowance);
+        self.ext.set_gas_left(gas_left);
         res
     }
 }

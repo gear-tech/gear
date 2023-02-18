@@ -33,6 +33,7 @@ use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
     env::Ext,
+    gas::CountersOwner,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
@@ -77,7 +78,7 @@ macro_rules! sys_trace {
 
 impl<E> FuncsHandler<E>
 where
-    E: BackendExt + 'static,
+    E: CountersOwner + BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
@@ -289,7 +290,7 @@ where
             let write_buffer = ctx.memory_manager.register_write(buffer_ptr, len);
             ctx.memory_manager
                 .write(&mut ctx.memory, write_buffer, buffer, &mut gas_left)?;
-            ctx.ext.update_counters(gas_left.gas, gas_left.allowance);
+            ctx.ext.set_gas_left(gas_left);
             Ok(())
         })
     }

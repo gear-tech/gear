@@ -42,7 +42,7 @@ use gear_core_errors::MemoryError;
 pub enum ProcessAccessError {
     OutOfBounds,
     GasLimitExceeded,
-    GasAllowanceExceed,
+    GasAllowanceExceeded,
 }
 
 #[derive(Debug, Clone, derive_more::From)]

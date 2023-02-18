@@ -19,7 +19,6 @@
 //! Environment for running a module.
 
 use crate::{
-    costs::RuntimeCosts,
     gas::GasLeft,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPage},
