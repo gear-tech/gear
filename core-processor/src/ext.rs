@@ -202,7 +202,6 @@ impl BackendAllocExtError for ProcessorAllocError {
         }
     }
 }
-
 /// Structure providing externalities for running host functions.
 pub struct Ext {
     /// Processor context.
@@ -491,7 +490,10 @@ impl EnvExt for Ext {
     }
 
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
-        self.context.allocations_context.free(page)
+        self.context
+            .allocations_context
+            .free(page)
+            .map_err(Into::into)
     }
 
     fn block_height(&mut self) -> Result<u32, Self::Error> {
@@ -1097,7 +1099,7 @@ mod tests {
         );
 
         assert_eq!(
-            lack_gas_ext.charge_gas_runtime(RuntimeCosts::Free),
+            lack_gas_ext.charge_gas_runtime_api(RuntimeCosts::Free),
             Err(ChargeError::GasLimitExceeded),
         );
 
@@ -1120,7 +1122,7 @@ mod tests {
         );
 
         assert_eq!(
-            lack_allowance_ext.charge_gas_runtime(RuntimeCosts::Free),
+            lack_allowance_ext.charge_gas_runtime_api(RuntimeCosts::Free),
             Err(ChargeError::GasAllowanceExceeded),
         );
 

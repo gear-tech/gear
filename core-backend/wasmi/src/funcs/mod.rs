@@ -31,6 +31,7 @@ use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
     env::Ext,
+    gas::CountersOwner,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
@@ -56,7 +57,7 @@ type EmptyOutput = Result<(), Trap>;
 
 impl<E> FuncsHandler<E>
 where
-    E: BackendExt + 'static,
+    E: CountersOwner + BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
@@ -380,7 +381,7 @@ where
                     ctx.manager
                         .write(&mut memory, write_buffer, buffer, &mut gas_left)?;
 
-                    state.ext.update_counters(gas_left.gas, gas_left.allowance);
+                    state.ext.set_gas_left(gas_left);
 
                     Ok(())
                 },
@@ -417,7 +418,7 @@ where
 
                 let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
                 let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
-                Err(TerminationReason::Exit(inheritor_id).into())
+                Err(ActorTerminationReason::Exit(inheritor_id).into())
             })
         };
 
@@ -929,7 +930,7 @@ where
                          delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
-            log::trace!(target: "syscalls", "send_input", );
+            log::trace!(target: "syscalls", "send_input {:#x} {:#x} {} {} {:#x}", pid_value_ptr, offset, len, delay, err_mid_ptr);
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInput, |ctx| {

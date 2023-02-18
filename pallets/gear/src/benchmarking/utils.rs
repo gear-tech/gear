@@ -32,7 +32,6 @@ use core_processor::{
 use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId},
-    costs::CostPerPage,
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
 };

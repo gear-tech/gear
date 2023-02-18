@@ -77,6 +77,7 @@ impl PageCosts {
             signal_write_after_read: self.lazy_pages_write_after_read.add(self.upload_page_data),
             host_func_read_access: self.write_access_page,
             host_func_write_access: self.write_access_page.add(self.upload_page_data),
+            host_func_write_after_read_access: self.upload_page_data,
             load_page_storage_data: self.load_page_data.add(self.parachain_load_heuristic),
         }
     }

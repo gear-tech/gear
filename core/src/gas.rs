@@ -123,6 +123,7 @@ impl GasCounter {
     /// In case of gas reservation:
     /// We don't increase `burn` counter because `GasTree` manipulation is handled by separated function
     pub fn reduce(&mut self, amount: u64) -> ChargeResult {
+        log::trace!("reduce {amount} from {self:?}");
         match self.left.checked_sub(amount) {
             None => ChargeResult::NotEnough,
             Some(new_left) => {
@@ -314,22 +315,22 @@ pub struct RefundError(u64, u64);
 
 impl GasRefunder {
     /// Charge gas.
-    pub fn charge<E: Ext>(ext: &mut E, amount: u64) -> Result<Self, E::Error> {
-        ext.charge_gas(amount)?;
+    pub fn charge<C: CountersOwner>(counters: &mut C, amount: u64) -> Result<Self, ChargeError> {
+        counters.charge_gas(amount)?;
         Ok(Self { amount })
     }
 
     /// Refund gas.
-    pub fn refund<E: Ext>(
+    pub fn refund<C: CountersOwner>(
         self,
-        ext: &mut E,
+        counters: &mut C,
         amount: u64,
-    ) -> Result<Result<(), E::Error>, RefundError> {
+    ) -> Result<Result<(), ChargeError>, RefundError> {
         if self.amount < amount {
             return Err(RefundError(self.amount, amount));
         }
 
-        Ok(ext.refund_gas(amount))
+        Ok(counters.refund_gas(amount))
     }
 }
 

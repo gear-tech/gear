@@ -24,7 +24,6 @@ use gear_backend_common::{
     BackendExt, ExtInfo,
 };
 use gear_core::{
-    costs::RuntimeCosts,
     env::Ext as EnvExt,
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
