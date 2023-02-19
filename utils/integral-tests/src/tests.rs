@@ -27,7 +27,6 @@ use crate::util::{
     EXISTENTIAL_DEPOSIT, MILLISECONDS_PER_YEAR, MILLISECS_PER_BLOCK, SIGNING_KEY, TOKEN,
 };
 use frame_support::assert_ok;
-use pallet_collective::{Instance1, Instance2, Origin};
 use sp_std::collections::btree_map::BTreeMap;
 
 macro_rules! assert_approx_eq {

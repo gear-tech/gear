@@ -24,7 +24,7 @@ use gp::api::generated::api::{
     gear::Event as GearEvent,
     runtime_types::{
         frame_system::pallet::Call as SystemCall,
-        gear_common::event::{CodeChangeKind, Entry},
+        gear_common::event::{CodeChangeKind, MessageEntry},
         gear_runtime::RuntimeCall,
         pallet_balances::pallet::Call as BalancesCall,
         pallet_gear::pallet::Call as GearCall,
@@ -121,10 +121,10 @@ impl GearApi {
             .await?;
 
         for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(GearEvent::MessageEnqueued {
+            if let Event::Gear(GearEvent::MessageQueued {
                 id,
                 destination,
-                entry: Entry::Init,
+                entry: MessageEntry::Init,
                 ..
             }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
@@ -167,10 +167,10 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             match event?.as_root_event::<(Phase, Event)>()?.1 {
-                Event::Gear(GearEvent::MessageEnqueued {
+                Event::Gear(GearEvent::MessageQueued {
                     id,
                     destination,
-                    entry: Entry::Init,
+                    entry: MessageEntry::Init,
                     ..
                 }) => res.push(Ok((id.into(), destination.into()))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
@@ -300,30 +300,6 @@ impl GearApi {
         }
     }
 
-    /// Clear data from all pallet storages.
-    ///
-    /// This function, as well as a correspondent extrinsic, is temporary and
-    /// will be removed in the future.
-    ///
-    /// Sends the
-    /// [`pallet_gear::reset`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.reset)
-    /// extrinsic.
-    ///
-    /// Returned value is a hash of the block with the reset transaction.
-    pub async fn reset(&self) -> Result<H256> {
-        let tx = self.0.reset().await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(GearEvent::DatabaseWiped) =
-                event?.as_root_event::<(Phase, Event)>()?.1
-            {
-                return Ok(tx.block_hash());
-            }
-        }
-
-        Err(Error::EventNotFound)
-    }
-
     /// Send a message containing a byte slice `payload` to the `destination`.
     ///
     /// The message also contains the maximum `gas_limit` that can be spent and
@@ -357,9 +333,9 @@ impl GearApi {
             .await?;
 
         for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(GearEvent::MessageEnqueued {
+            if let Event::Gear(GearEvent::MessageQueued {
                 id,
-                entry: Entry::Handle,
+                entry: MessageEntry::Handle,
                 ..
             }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
@@ -402,10 +378,10 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             match event?.as_root_event::<(Phase, Event)>()?.1 {
-                Event::Gear(GearEvent::MessageEnqueued {
+                Event::Gear(GearEvent::MessageQueued {
                     id,
                     destination,
-                    entry: Entry::Handle,
+                    entry: MessageEntry::Handle,
                     ..
                 }) => res.push(Ok((id.into(), destination.into()))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
@@ -475,9 +451,9 @@ impl GearApi {
         let (message, _interval) = data.expect("Data appearance guaranteed above");
 
         for event in events.iter() {
-            if let Event::Gear(GearEvent::MessageEnqueued {
+            if let Event::Gear(GearEvent::MessageQueued {
                 id,
-                entry: Entry::Reply(_),
+                entry: MessageEntry::Reply(_),
                 ..
             }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
@@ -530,9 +506,9 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             match event?.as_root_event::<(Phase, Event)>()?.1 {
-                Event::Gear(GearEvent::MessageEnqueued {
+                Event::Gear(GearEvent::MessageQueued {
                     id,
-                    entry: Entry::Reply(reply_to_id),
+                    entry: MessageEntry::Reply(reply_to_id),
                     ..
                 }) => res.push(Ok((
                     id.into(),
@@ -707,10 +683,10 @@ impl GearApi {
             .await?;
 
         for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(GearEvent::MessageEnqueued {
+            if let Event::Gear(GearEvent::MessageQueued {
                 id,
                 destination,
-                entry: Entry::Init,
+                entry: MessageEntry::Init,
                 ..
             }) = event?.as_root_event::<(Phase, Event)>()?.1
             {
@@ -761,10 +737,10 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             match event?.as_root_event::<(Phase, Event)>()?.1 {
-                Event::Gear(GearEvent::MessageEnqueued {
+                Event::Gear(GearEvent::MessageQueued {
                     id,
                     destination,
-                    entry: Entry::Init,
+                    entry: MessageEntry::Init,
                     ..
                 }) => res.push(Ok((id.into(), destination.into()))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {

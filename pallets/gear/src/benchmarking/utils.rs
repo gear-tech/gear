@@ -18,14 +18,13 @@
 
 //! Utils for benchmarks.
 
-use core::ops::Range;
-
 use super::Exec;
 use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, QueueOf,
 };
 use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin};
+use core::ops::Range;
 use core_processor::{
     configs::{BlockConfig, BlockInfo, PagesConfig},
     ContextChargedForCode, ContextChargedForInstrumentation,
@@ -34,6 +33,7 @@ use frame_support::traits::{Currency, Get};
 use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId},
+    costs::CostPerPage,
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
 };
@@ -67,9 +67,17 @@ where
     let schedule = T::Schedule::get();
 
     let lazy_pages_weights = LazyPagesWeights {
-        read: schedule.memory_weights.lazy_pages_read,
-        write: schedule.memory_weights.lazy_pages_write,
-        write_after_read: schedule.memory_weights.lazy_pages_write_after_read,
+        signal_read: CostPerPage::new(schedule.memory_weights.lazy_pages_read),
+        signal_write: CostPerPage::new(schedule.memory_weights.lazy_pages_write),
+        signal_write_after_read: CostPerPage::new(
+            schedule.memory_weights.lazy_pages_write_after_read,
+        ),
+        host_func_read_access: CostPerPage::new(schedule.memory_weights.lazy_pages_read),
+        host_func_write_access: CostPerPage::new(schedule.memory_weights.lazy_pages_write),
+        host_func_write_after_read_access: CostPerPage::new(
+            schedule.memory_weights.lazy_pages_write_after_read,
+        ),
+        load_page_storage_data: CostPerPage::new(schedule.memory_weights.lazy_pages_read),
     };
 
     BlockConfig {

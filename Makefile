@@ -291,3 +291,7 @@ fuzz-vara:
 .PHONY: kill
 kill:
 	@ pkill -f 'gear |gear$' -9
+
+.PHONY: kill-rust
+kill-rust:
+	@ pgrep -f "rust" | sudo xargs kill -9

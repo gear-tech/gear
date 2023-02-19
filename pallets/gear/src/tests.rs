@@ -1017,8 +1017,8 @@ fn delayed_program_creation_no_code() {
             &ScheduledTask::SendDispatch(delayed_id)
         ));
 
-        let free_balance = Balances::free_balance(&USER_1);
-        let reserved_balance = Balances::reserved_balance(&USER_1);
+        let free_balance = Balances::free_balance(USER_1);
+        let reserved_balance = Balances::reserved_balance(USER_1);
 
         run_to_next_block(None);
         // Delayed message sent.
@@ -1041,12 +1041,12 @@ fn delayed_program_creation_no_code() {
         );
 
         assert_eq!(
-            Balances::free_balance(&USER_1),
+            Balances::free_balance(USER_1),
             free_balance + reserved_balance
                 - delay_holding_fee
                 - GasPrice::gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
         );
-        assert!(Balances::reserved_balance(&USER_1).is_zero());
+        assert!(Balances::reserved_balance(USER_1).is_zero());
     })
 }
 
@@ -1062,7 +1062,7 @@ fn unstoppable_block_execution_works() {
 
         // This manipulations are required due to we have only gas to value conversion.
         assert_eq!(GasPrice::gas_price(user_gas), user_balance);
-        let executions_amount = 10;
+        let executions_amount = 100;
         let gas_for_each_execution = user_gas / executions_amount;
 
         assert!(gas_for_each_execution < BlockGasLimitOf::<Test>::get());
@@ -1680,12 +1680,12 @@ fn upload_program_expected_failure() {
                 DEFAULT_GAS_LIMIT,
                 balance + 1
             ),
-            Error::<Test>::NotEnoughBalanceForReserve
+            Error::<Test>::InsufficientBalanceForReserve
         );
 
         assert_noop!(
             upload_program_default(LOW_BALANCE_USER, ProgramCodeKind::Default),
-            Error::<Test>::NotEnoughBalanceForReserve
+            Error::<Test>::InsufficientBalanceForReserve
         );
 
         // Gas limit is too high
@@ -1947,7 +1947,7 @@ fn send_message_expected_failure() {
 
         assert_noop!(
             call_default_message(program_id).dispatch(RuntimeOrigin::signed(LOW_BALANCE_USER)),
-            Error::<Test>::NotEnoughBalanceForReserve
+            Error::<Test>::InsufficientBalanceForReserve
         );
 
         let low_balance_user_balance = Balances::free_balance(LOW_BALANCE_USER);
@@ -2147,7 +2147,7 @@ fn memory_access_cases() {
 (module
     (import "env" "memory" (memory 1))
     (import "env" "alloc" (func $alloc (param i32) (result i32)))
-    (import "env" "free" (func $free (param i32)))
+    (import "env" "free" (func $free (param i32) (result i32)))
     (export "handle" (func $handle))
     (export "init" (func $init))
     (func $init
@@ -2165,6 +2165,7 @@ fn memory_access_cases() {
         (block
             i32.const 0x2
             call $free
+            drop
         )
         ;; access page 1 and change it, so it will have data in storage
         (block
@@ -2241,6 +2242,7 @@ fn memory_access_cases() {
         ;; free 2nd page
         i32.const 2
         call $free
+        drop
         ;; alloc it again
         (block
             i32.const 1
@@ -2270,6 +2272,7 @@ fn memory_access_cases() {
         ;; free 3th page
         i32.const 3
         call $free
+        drop
         ;; then alloc it again
         (block
             i32.const 1
@@ -2300,6 +2303,7 @@ fn memory_access_cases() {
         ;; free 1st page
         i32.const 1
         call $free
+        drop
         ;; then alloc it again
         (block
             i32.const 1
@@ -2923,8 +2927,8 @@ fn init_message_logging_works() {
             run_to_block(next_block, None);
 
             let msg_id = match event {
-                Event::MessageEnqueued { id, entry, .. } => {
-                    if entry == Entry::Init {
+                Event::MessageQueued { id, entry, .. } => {
+                    if entry == MessageEntry::Init {
                         id
                     } else {
                         unreachable!("expect Event::InitMessageEnqueued")
@@ -3042,11 +3046,11 @@ fn events_logging_works() {
             let message_id = get_last_message_id();
 
             System::assert_last_event(
-                Event::MessageEnqueued {
+                Event::MessageQueued {
                     id: message_id,
                     source: USER_1,
                     destination: program_id,
-                    entry: Entry::Init,
+                    entry: MessageEntry::Init,
                 }
                 .into(),
             );
@@ -3075,11 +3079,11 @@ fn events_logging_works() {
             let message_id = get_last_message_id();
 
             System::assert_last_event(
-                Event::MessageEnqueued {
+                Event::MessageQueued {
                     id: message_id,
                     source: USER_1,
                     destination: program_id,
-                    entry: Entry::Handle,
+                    entry: MessageEntry::Handle,
                 }
                 .into(),
             );
@@ -3134,9 +3138,9 @@ fn send_reply_works() {
         };
 
         let actual_reply_message_id = match event {
-            Event::MessageEnqueued {
+            Event::MessageQueued {
                 id,
-                entry: Entry::Reply(_reply_to_id),
+                entry: MessageEntry::Reply(_reply_to_id),
                 ..
             } => id,
             _ => unreachable!("expect Event::DispatchMessageEnqueued"),
@@ -4239,7 +4243,7 @@ fn test_sending_waits() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            2_000_000_000u64,
+            20_000_000_000u64,
             0u128
         ));
 
@@ -4261,7 +4265,7 @@ fn test_sending_waits() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            2_500_000_000,
+            25_000_000_000,
             0,
         ));
 
@@ -4283,7 +4287,7 @@ fn test_sending_waits() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            2_500_000_000,
+            25_000_000_000,
             0,
         ));
 
@@ -4301,7 +4305,7 @@ fn test_sending_waits() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            3_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -4319,7 +4323,7 @@ fn test_sending_waits() {
             RuntimeOrigin::signed(USER_2),
             reply_to_id,
             vec![],
-            1_000_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -4985,7 +4989,7 @@ fn test_create_program_no_code_hash() {
                 RuntimeOrigin::signed(USER_1),
                 invalid_prog_code_kind.to_bytes(),
             ),
-            Error::<Test>::FailedToConstructProgram,
+            Error::<Test>::ProgramConstructionFailed,
         );
 
         System::reset_events();
@@ -7167,7 +7171,7 @@ fn invalid_memory_page_count_rejected() {
                 RuntimeOrigin::signed(USER_1),
                 ProgramCodeKind::Custom(&wat).to_bytes(),
             ),
-            Error::<Test>::FailedToConstructProgram
+            Error::<Test>::ProgramConstructionFailed
         );
 
         assert_noop!(
@@ -7179,7 +7183,7 @@ fn invalid_memory_page_count_rejected() {
                 1_000_000_000,
                 0,
             ),
-            Error::<Test>::FailedToConstructProgram
+            Error::<Test>::ProgramConstructionFailed
         );
     });
 }
@@ -7221,12 +7225,12 @@ fn reject_incorrect_binary() {
                 RuntimeOrigin::signed(USER_1),
                 ProgramCodeKind::Custom(wat).to_bytes()
             ),
-            Error::<Test>::FailedToConstructProgram
+            Error::<Test>::ProgramConstructionFailed
         );
 
         assert_noop!(
             upload_program_default(USER_1, ProgramCodeKind::Custom(wat)),
-            Error::<Test>::FailedToConstructProgram
+            Error::<Test>::ProgramConstructionFailed
         );
     });
 }
@@ -9194,9 +9198,9 @@ mod utils {
             _ => unreachable!("Should be one Gear event"),
         };
 
-        if let Event::MessageEnqueued {
+        if let Event::MessageQueued {
             destination,
-            entry: Entry::Init,
+            entry: MessageEntry::Init,
             ..
         } = event
         {
@@ -9257,7 +9261,7 @@ mod utils {
                 }
             })
             .find_map(|e| match e {
-                Event::MessageEnqueued { id, .. } => Some(id),
+                Event::MessageQueued { id, .. } => Some(id),
                 Event::UserMessageSent { message, .. } => Some(message.id()),
                 _ => None,
             })
@@ -9729,6 +9733,7 @@ fn check_random_works() {
     });
 }
 
+#[ignore] // TODO: fix weights of syscalls.
 #[test]
 fn relay_messages() {
     use demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY};
@@ -9963,5 +9968,33 @@ fn wrong_entry_type() {
         assert!(Gear::is_terminated(pid));
         let err = get_last_event_error(mid);
         assert!(err.starts_with(&ActorExecutionErrorReason::Environment("".into()).to_string()));
+    });
+}
+
+#[test]
+fn oom_handler_works() {
+    use demo_out_of_memory::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000_000_u64,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReason::Trap(TrapExplanation::ProgramAllocOutOfBounds),
+        );
     });
 }

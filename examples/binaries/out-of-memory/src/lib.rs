@@ -16,41 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::process::Command;
+#![cfg_attr(not(feature = "std"), no_std)]
 
-use gear_wasm_builder::TARGET;
+extern crate alloc;
+extern crate gstd;
 
-fn run_cargo(args: &[&str]) -> bool {
-    let mut cmd = Command::new("cargo");
-    cmd.args(args);
-    cmd.arg("--color=always");
-    cmd.arg("--manifest-path=test-program/Cargo.toml");
-
-    let status = cmd.status().expect("cargo run error");
-    status.success()
+#[cfg(feature = "std")]
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-#[test]
-fn test_debug() {
-    assert!(run_cargo(&["test"]));
-}
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[test]
-fn build_debug() {
-    assert!(run_cargo(&["build"]));
-}
+#[cfg(target_arch = "wasm32")]
+mod wasm {
+    use alloc::alloc::Layout;
 
-#[test]
-fn test_release() {
-    assert!(run_cargo(&["test", "--release"]));
-}
-
-#[test]
-fn build_release() {
-    assert!(run_cargo(&["build", "--release"]));
-}
-
-#[test]
-fn build_release_for_target() {
-    assert!(run_cargo(&["build", "--release", "--target", TARGET]));
+    #[no_mangle]
+    extern "C" fn init() {
+        alloc::alloc::handle_alloc_error(Layout::new::<[u8; 64 * 1024]>());
+    }
 }

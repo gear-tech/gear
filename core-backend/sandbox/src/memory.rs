@@ -18,7 +18,7 @@
 
 //! sp-sandbox extensions for memory.
 
-use gear_core::memory::{HostPointer, Memory, PageU32Size, WasmPage};
+use gear_core::memory::{AllocError, HostPointer, Memory, PageU32Size, WasmPage};
 use gear_core_errors::MemoryError;
 use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, SandboxMemory};
 
@@ -33,11 +33,11 @@ impl MemoryWrap {
 
 /// Memory interface for the allocator.
 impl Memory for MemoryWrap {
-    fn grow(&mut self, pages: WasmPage) -> Result<(), MemoryError> {
+    fn grow(&mut self, pages: WasmPage) -> Result<(), AllocError> {
         self.0
             .grow(pages.raw())
             .map(|_| ())
-            .map_err(|_| MemoryError::ProgramAllocOutOfBounds)
+            .map_err(|_| AllocError::ProgramAllocOutOfBounds)
     }
 
     fn size(&self) -> WasmPage {
@@ -111,7 +111,7 @@ mod tests {
         // no more mem!
         assert_err!(
             ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
-            MemoryError::ProgramAllocOutOfBounds
+            AllocError::ProgramAllocOutOfBounds
         );
 
         // but we free some
@@ -144,7 +144,7 @@ mod tests {
 
         assert_err!(
             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
-            MemoryError::ProgramAllocOutOfBounds
+            AllocError::ProgramAllocOutOfBounds
         );
     }
 }

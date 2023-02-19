@@ -177,6 +177,18 @@ impl<T: Config> Pallet<T>
 where
     T::AccountId: Origin,
 {
+    // Reset of all storages.
+    #[cfg(feature = "runtime-benchmarks")]
+    pub(crate) fn reset() {
+        use common::{CodeStorage, GasProvider, ProgramStorage};
+
+        <T as Config>::ProgramStorage::reset();
+        <T as Config>::CodeStorage::reset();
+        <T as Config>::GasProvider::reset();
+        <T as Config>::Scheduler::reset();
+        <T as Config>::Messenger::reset();
+    }
+
     // TODO (issue #1239):
     // - Consider usage of `Balance` instead of gas conversions.
     // - Consider usage of some tolerance here. Missed due to identity fee.

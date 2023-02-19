@@ -87,8 +87,6 @@ macro_rules! command {
                         .par_iter()
                         .map(|fixture| {
                             new_test_ext().execute_with(|| {
-                                gear_common::reset_storage();
-
                                 let now = Instant::now();
                                 let output = run_fixture(test, fixture);
                                 let elapsed = now.elapsed();

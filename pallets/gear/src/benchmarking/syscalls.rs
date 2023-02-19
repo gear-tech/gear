@@ -113,6 +113,7 @@ where
             for page in 0..r {
                 instructions.push(I32Const(page as i32));
                 instructions.push(Call(1));
+                instructions.push(Drop);
             }
         }
         instructions.push(End);

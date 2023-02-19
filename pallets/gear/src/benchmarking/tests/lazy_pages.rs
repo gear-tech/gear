@@ -20,19 +20,20 @@
 
 use core::mem::size_of;
 
-use ::alloc::collections::BTreeSet;
-use common::ProgramStorage;
-use gear_backend_common::lazy_pages::{LazyPagesWeights, Status};
-use gear_core::memory::{GranularityPage, PageU32Size, PAGE_STORAGE_GRANULARITY};
-use rand::{Rng, SeedableRng};
-
-use gear_lazy_pages_common as lazy_pages;
-
 use super::*;
 use crate::{
     benchmarking::{utils as common_utils, utils::PrepareConfig},
     HandleKind,
 };
+use ::alloc::collections::BTreeSet;
+use common::ProgramStorage;
+use gear_backend_common::lazy_pages::{LazyPagesWeights, Status};
+use gear_core::{
+    costs::CostPerPage,
+    memory::{GranularityPage, PageU32Size, PAGE_STORAGE_GRANULARITY},
+};
+use gear_lazy_pages_common as lazy_pages;
+use rand::{Rng, SeedableRng};
 
 pub fn lazy_pages_charging<T>()
 where
@@ -130,9 +131,13 @@ where
             .map(|_i| {
                 let mut exec = exec.clone();
                 let weights = LazyPagesWeights {
-                    read: rng.gen_range(0..MAX_COST),
-                    write: rng.gen_range(0..MAX_COST),
-                    write_after_read: rng.gen_range(0..MAX_COST),
+                    signal_read: CostPerPage::new(rng.gen_range(0..MAX_COST)),
+                    signal_write: CostPerPage::new(rng.gen_range(0..MAX_COST)),
+                    signal_write_after_read: CostPerPage::new(rng.gen_range(0..MAX_COST)),
+                    host_func_read_access: CostPerPage::new(rng.gen_range(0..MAX_COST)),
+                    host_func_write_access: CostPerPage::new(rng.gen_range(0..MAX_COST)),
+                    host_func_write_after_read_access: CostPerPage::new(rng.gen_range(0..MAX_COST)),
+                    load_page_storage_data: CostPerPage::new(rng.gen_range(0..MAX_COST)),
                 };
                 exec.block_config.pages_config.lazy_pages_weights = weights.clone();
 
@@ -143,10 +148,14 @@ where
                         .checked_mul(pages.len() as u64)
                         .unwrap()
                 };
-                let charged_for_read = calc_amount(weights.read, &read_pages);
-                let charged_for_write = calc_amount(weights.write, &write_pages);
-                let charged_for_write_after_read =
-                    calc_amount(weights.write_after_read, &write_after_read_pages);
+                let charged_for_read =
+                    calc_amount(weights.host_func_read_access.one(), &read_pages);
+                let charged_for_write =
+                    calc_amount(weights.host_func_write_access.one(), &write_pages);
+                let charged_for_write_after_read = calc_amount(
+                    weights.host_func_write_after_read_access.one(),
+                    &write_after_read_pages,
+                );
                 let charged_for_pages = charged_for_read
                     .checked_add(charged_for_write)
                     .unwrap()
@@ -222,9 +231,13 @@ where
             .map(|i| {
                 let mut exec = exec.clone();
                 let weights = LazyPagesWeights {
-                    read: i,
-                    write: 10 * i,
-                    write_after_read: 100 * i,
+                    signal_read: CostPerPage::new(i),
+                    signal_write: CostPerPage::new(10 * i),
+                    signal_write_after_read: CostPerPage::new(100 * i),
+                    host_func_read_access: CostPerPage::new(i),
+                    host_func_write_access: CostPerPage::new(10 * i),
+                    host_func_write_after_read_access: CostPerPage::new(100 * i),
+                    load_page_storage_data: CostPerPage::new(i),
                 };
                 exec.block_config.pages_config.lazy_pages_weights = weights;
 
@@ -391,11 +404,7 @@ where
             Default::default(),
         )
         .unwrap();
-        exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
-            read: 0,
-            write: 0,
-            write_after_read: 0,
-        };
+        exec.block_config.pages_config.lazy_pages_weights = Default::default();
 
         let notes = core_processor::process::<ExecutionEnvironment>(
             &exec.block_config,
@@ -437,9 +446,13 @@ where
         )
         .unwrap();
         exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
-            read: 0,
-            write: 1,
-            write_after_read: 0,
+            signal_read: CostPerPage::new(0),
+            signal_write: CostPerPage::new(1),
+            signal_write_after_read: CostPerPage::new(0),
+            host_func_read_access: CostPerPage::new(0),
+            host_func_write_access: CostPerPage::new(1),
+            host_func_write_after_read_access: CostPerPage::new(0),
+            load_page_storage_data: CostPerPage::new(0),
         };
 
         let notes = core_processor::process::<ExecutionEnvironment>(
@@ -480,9 +493,13 @@ where
         )
         .unwrap();
         exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
-            read: 0,
-            write: 1,
-            write_after_read: 0,
+            signal_read: CostPerPage::new(0),
+            signal_write: CostPerPage::new(1),
+            signal_write_after_read: CostPerPage::new(0),
+            host_func_read_access: CostPerPage::new(0),
+            host_func_write_access: CostPerPage::new(1),
+            host_func_write_after_read_access: CostPerPage::new(0),
+            load_page_storage_data: CostPerPage::new(0),
         };
 
         let notes = core_processor::process::<ExecutionEnvironment>(

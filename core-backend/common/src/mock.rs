@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::OutOfMemoryAccessError, BackendExt, BackendExtError, ExtInfo, SystemReservationContext,
-    TerminationReason,
+    memory::OutOfMemoryAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
+    SystemReservationContext, TerminationReason,
 };
-use alloc::{collections::BTreeSet, string::String};
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use core::fmt;
 use gear_core::{
@@ -32,7 +32,7 @@ use gear_core::{
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
 };
-use gear_core_errors::{CoreError, MemoryError};
+use gear_core_errors::MemoryError;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Mock error
@@ -45,10 +45,16 @@ impl fmt::Display for Error {
     }
 }
 
-impl CoreError for Error {}
-
 impl BackendExtError for Error {
     fn into_termination_reason(self) -> TerminationReason {
+        unimplemented!()
+    }
+}
+
+impl BackendAllocExtError for Error {
+    type ExtError = Self;
+
+    fn into_backend_error(self) -> Result<Self::ExtError, Self> {
         unimplemented!()
     }
 }
@@ -59,8 +65,16 @@ pub struct MockExt(BTreeSet<SysCallName>);
 
 impl Ext for MockExt {
     type Error = Error;
+    type AllocError = Error;
 
-    fn alloc(&mut self, _pages: WasmPage, _mem: &mut impl Memory) -> Result<WasmPage, Self::Error> {
+    fn alloc(
+        &mut self,
+        _pages: WasmPage,
+        _mem: &mut impl Memory,
+    ) -> Result<WasmPage, Self::AllocError> {
+        Err(Error)
+    }
+    fn free(&mut self, _page: WasmPage) -> Result<(), Self::AllocError> {
         Err(Error)
     }
     fn block_height(&mut self) -> Result<u32, Self::Error> {
@@ -121,13 +135,7 @@ impl Ext for MockExt {
     fn program_id(&mut self) -> Result<ProgramId, Self::Error> {
         Ok(0.into())
     }
-    fn free(&mut self, _page: WasmPage) -> Result<(), Self::Error> {
-        Ok(())
-    }
     fn debug(&mut self, _data: &str) -> Result<(), Self::Error> {
-        Ok(())
-    }
-    fn charge_error(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
     fn read(&mut self, _at: u32, _len: u32) -> Result<&[u8], Self::Error> {
@@ -135,12 +143,6 @@ impl Ext for MockExt {
     }
     fn size(&mut self) -> Result<usize, Self::Error> {
         Ok(0)
-    }
-    fn charge_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
-        Ok(())
-    }
-    fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), Self::Error> {
-        Ok(())
     }
     fn gas_available(&mut self) -> Result<u64, Self::Error> {
         Ok(1_000_000)
@@ -230,13 +232,11 @@ impl Ext for MockExt {
     fn runtime_cost(&self, _costs: RuntimeCosts) -> u64 {
         0
     }
-
-    fn maybe_panic(&self) -> Option<String> {
-        None
-    }
 }
 
 impl BackendExt for MockExt {
+    type ChargeError = Error;
+
     fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         Ok(ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),
@@ -253,6 +253,10 @@ impl BackendExt for MockExt {
 
     fn gas_amount(&self) -> GasAmount {
         GasAmount::from(GasCounter::new(0))
+    }
+
+    fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), Self::ChargeError> {
+        unimplemented!()
     }
 
     fn pre_process_memory_accesses(

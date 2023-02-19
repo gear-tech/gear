@@ -118,8 +118,7 @@ impl pallet_timestamp::Config for Test {
 
 impl pallet_authorship::Config for Test {
     type FindAuthor = ();
-    type UncleGenerations = ();
-    type FilterUncle = ();
+
     type EventHandler = ();
 }
 

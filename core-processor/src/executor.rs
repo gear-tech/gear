@@ -525,11 +525,7 @@ where
         block_info,
         pages_config: PagesConfig {
             max_pages: 512.into(),
-            lazy_pages_weights: LazyPagesWeights {
-                read: 0,
-                write: 0,
-                write_after_read: 0,
-            },
+            lazy_pages_weights: Default::default(),
             init_cost: Default::default(),
             alloc_cost: Default::default(),
             mem_grow_cost: Default::default(),

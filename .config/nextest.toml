@@ -1,2 +1,6 @@
 [profile.ci.junit]
 path = "junit.xml"
+
+[[profile.default.overrides]]
+filter = 'test(/^property_tests::/)'
+threads-required = 2
