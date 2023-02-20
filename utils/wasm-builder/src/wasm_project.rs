@@ -19,6 +19,7 @@
 use crate::{
     crate_info::CrateInfo,
     optimize::{OptType, Optimizer},
+    smart_fs,
 };
 use anyhow::{Context, Result};
 use gmeta::MetadataRepr;
@@ -182,12 +183,12 @@ impl WasmProject {
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
 
-        fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
+        smart_fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
             .context("unable to write Cargo.toml")?;
 
         let src_dir = self.out_dir.join("src");
         fs::create_dir_all(&src_dir)?;
-        fs::write(
+        smart_fs::write(
             src_dir.join("lib.rs"),
             "#![no_std] pub use orig_project::*;",
         )
@@ -196,16 +197,17 @@ impl WasmProject {
         // Copy original `Cargo.lock` if any
         let from_lock = self.original_dir.join("Cargo.lock");
         let to_lock = self.out_dir.join("Cargo.lock");
-        let _ = fs::copy(from_lock, to_lock);
+        let _ = smart_fs::copy(from_lock, to_lock);
 
         // Write metadata
         if let Some(metadata) = &self.project_type.metadata() {
             let wasm_meta_path = self.original_dir.join("meta.txt");
             let wasm_meta_hash_path = self.original_dir.join(".metahash");
 
-            fs::write(wasm_meta_path, metadata.hex()).context("unable to write `meta.txt`")?;
+            smart_fs::write(wasm_meta_path, metadata.hex())
+                .context("unable to write `meta.txt`")?;
 
-            fs::write(wasm_meta_hash_path, format!("{:?}", metadata.hash()))
+            smart_fs::write(wasm_meta_hash_path, format!("{:?}", metadata.hash()))
                 .context("unable to write `.metahash`")?;
         }
 
@@ -245,7 +247,7 @@ impl WasmProject {
             };
 
         if !self.project_type.is_metawasm() {
-            fs::write(
+            smart_fs::write(
                 wasm_binary_rs,
                 format!(
                     r#"#[allow(unused)]
@@ -260,7 +262,7 @@ pub const WASM_BINARY_META: &[u8] = {to_meta_path};
             )
             .context("unable to write `wasm_binary.rs`")?;
         } else {
-            fs::write(
+            smart_fs::write(
                 wasm_binary_rs,
                 format!(
                     r#"#[allow(unused)]
@@ -322,7 +324,7 @@ pub const WASM_EXPORTS: &[&str] = &{exports:?};
         relative_path.set_extension("");
 
         if !self.project_type.is_metawasm() {
-            fs::write(wasm_binary_path, format!("{}", relative_path.display()))
+            smart_fs::write(wasm_binary_path, format!("{}", relative_path.display()))
                 .context("unable to write `.binpath`")?;
         }
 
