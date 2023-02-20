@@ -21,7 +21,6 @@ test_usage() {
                    you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
     rtest          run node runtime testing tool
     pallet         run pallet-gear tests
-    runtime-upgrade run runtime-upgrade test for queue processing
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
     syscalls       run syscalls integrity test in benchmarking module of pallet-gear
@@ -85,26 +84,6 @@ pallet_test() {
   cargo test -p pallet-gear-payment "$@"
   cargo test -p pallet-gear-messenger "$@"
   cargo test -p pallet-gear-gas "$@"
-}
-
-# $1 - ROOT DIR
-runtime_upgrade_test() {
-  ROOT_DIR="$1"
-  TEST_SCRIPT_PATH="$ROOT_DIR/scripts/test-utils"
-  RUNTIME_PATH="$ROOT_DIR/scripts/test-utils/gear_runtime.compact.compressed.wasm"
-  DEMO_PING_PATH="$ROOT_DIR/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
-
-  # Run node
-  RUST_LOG="pallet_gear=debug,gear::runtime=debug" $ROOT_DIR/target/release/gear \
-  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 15
-
-  # Change dir to the js script dir
-  cd "$TEST_SCRIPT_PATH"
-
-  # Run test
-  npm run upgrade "$RUNTIME_PATH" "$DEMO_PING_PATH"
-
-  # Killing node process added in js script
 }
 
 client_tests() {

@@ -56,7 +56,9 @@ impl SubstrateCli for Cli {
             #[cfg(feature = "gear-native")]
             "local" | "gear-local" => Box::new(chain_spec::gear::local_testnet_config()?),
             #[cfg(feature = "vara-native")]
-            "vara" => Box::new(chain_spec::vara::main()?),
+            "vara" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
+                &include_bytes!("../../res/vara.json")[..],
+            )?),
             #[cfg(feature = "vara-native")]
             "vara-local" => Box::new(chain_spec::vara::local_testnet_config()?),
             #[cfg(feature = "gear-native")]

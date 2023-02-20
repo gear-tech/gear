@@ -9,7 +9,7 @@ path = "bin/validator-checks.rs"
 
 [dependencies]
 gp = { package = "gear-program", path = "../../program" }
-clap = { version = "4.0.32", features = ["derive"] }
+clap = { version = "4.1.6", features = ["derive"] }
 subxt = { git = "https://github.com/paritytech/subxt", rev = "d41f6574" }
 thiserror = "1.0.38"
 futures-util = "0.3.25"
@@ -17,4 +17,4 @@ log = "0.4.16"
 env_logger = "0.10.0"
 tokio = { version = "1.23.0", features = [ "full" ] }
 parity-scale-codec = "3.1.5"
-sp-consensus-babe = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.36" }
+sp-consensus-babe = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }

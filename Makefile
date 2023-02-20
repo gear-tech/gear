@@ -223,7 +223,7 @@ test-doc:
 	@ ./scripts/gear.sh test doc
 
 .PHONY: test-release
-test-release: test-gear-release test-js gtest rtest test-runtime-upgrade
+test-release: test-gear-release test-js gtest rtest
 
 .PHONY: test-gear
 test-gear: init-js examples # \
@@ -261,10 +261,6 @@ test-pallet:
 test-pallet-release:
 	@ ./scripts/gear.sh test pallet --release
 
-.PHONY: test-runtime-upgrade
-test-runtime-upgrade: init-js examples node-release
-	@ ./scripts/gear.sh test runtime-upgrade
-
 .PHONY: test-client
 test-client: node-release examples wat-examples
 	@ ./scripts/gear.sh test client --run-node
@@ -295,3 +291,7 @@ fuzz-vara:
 .PHONY: kill
 kill:
 	@ pkill -f 'gear |gear$' -9
+
+.PHONY: kill-rust
+kill-rust:
+	@ pgrep -f "rust" | sudo xargs kill -9

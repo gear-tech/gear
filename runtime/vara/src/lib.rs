@@ -217,6 +217,7 @@ parameter_types! {
     pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
     pub const ReportLongevity: u64 =
         BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
+    pub const MaxSetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
 }
 
 impl pallet_babe::Config for Runtime {
@@ -258,16 +259,11 @@ impl pallet_grandpa::Config for Runtime {
 
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
-}
-
-parameter_types! {
-    pub const UncleGenerations: BlockNumber = 0;
+    type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
 }
 
 impl pallet_authorship::Config for Runtime {
     type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
-    type UncleGenerations = UncleGenerations;
-    type FilterUncle = ();
     type EventHandler = ();
 }
 
@@ -417,19 +413,17 @@ impl pallet_gear_staking_rewards::Config for Runtime {
 parameter_types! {
     // Six sessions in an era (4 hours)
     pub const SessionsPerEra: sp_staking::SessionIndex = 6;
-    // 7 * 6 eras for unbonding (7 days)
-    pub const BondingDuration: sp_staking::EraIndex = 6 * 7;
-    // 6 days (in eras) during which slashes can be cancelled
-    pub const SlashDeferDuration: sp_staking::EraIndex = 6 * 6;
+    // 42 eras for unbonding (7 days)
+    pub const BondingDuration: sp_staking::EraIndex = 42;
+    // 41 eras during which slashes can be cancelled (slightly less than 7 days)
+    pub const SlashDeferDuration: sp_staking::EraIndex = 41;
     pub const MaxNominatorRewardedPerValidator: u32 = 256;
     pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
-    pub OffchainRepeat: BlockNumber = 5;
     pub HistoryDepth: u32 = 84;
 }
 
-/// A majority of the council or root can cancel the slash
-// TODO: consider super-majority (for instance, 3/4 is the default for Substrate node)
-type SlashCancelOrigin = EnsureRoot<AccountId>;
+/// Only the root origin can cancel the slash
+type AdminOrigin = EnsureRoot<AccountId>;
 
 pub struct StakingBenchmarkingConfig;
 impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
@@ -469,7 +463,7 @@ impl pallet_staking::Config for Runtime {
     type SessionsPerEra = SessionsPerEra;
     type BondingDuration = BondingDuration;
     type SlashDeferDuration = SlashDeferDuration;
-    type SlashCancelOrigin = SlashCancelOrigin;
+    type AdminOrigin = AdminOrigin;
     type SessionInterface = Self;
     type EraPayout = StakingRewards;
     type NextNewSession = Session;
@@ -923,7 +917,7 @@ impl_runtime_apis_plus_common! {
 
     #[cfg(feature = "try-runtime")]
     impl frame_try_runtime::TryRuntime<Block> for Runtime {
-        fn on_runtime_upgrade(checks: bool) -> (Weight, Weight) {
+        fn on_runtime_upgrade(checks: frame_try_runtime::UpgradeCheckSelect) -> (Weight, Weight) {
             // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
             // have a backtrace here. If any of the pre/post migration checks fail, we shall stop
             // right here and right now.

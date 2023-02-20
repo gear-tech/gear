@@ -20,7 +20,7 @@ wabt = "0.10.0"
 
 [dev-dependencies]
 tokio = { version = "1.25.0", features = ["full"] }
-wat = "1.0.57"
+wat = "1.0.59"
 async-std = "1.12"
 env_logger = "0.10"
 hex-literal = "0.3"

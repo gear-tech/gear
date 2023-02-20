@@ -41,6 +41,7 @@ use gear_core::{
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
+use gear_core_errors::SimpleSignalError;
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
@@ -287,6 +288,7 @@ impl ExtManager {
     }
 
     /// Insert message into the delayed queue.
+    #[allow(unused)]
     pub(crate) fn send_delayed_dispatch(&mut self, dispatch: Dispatch, delay: u32) {
         self.delayed_dispatches
             .entry(delay)
@@ -1041,5 +1043,11 @@ impl JournalHandler for ExtManager {
 
     fn system_unreserve_gas(&mut self, _message_id: MessageId) {}
 
-    fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId) {}
+    fn send_signal(
+        &mut self,
+        _message_id: MessageId,
+        _destination: ProgramId,
+        _err: SimpleSignalError,
+    ) {
+    }
 }

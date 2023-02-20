@@ -1,11 +1,16 @@
-use super::batch::{
-    CreateProgramArgs, CreateProgramBatchOutput, SendMessageArgs, SendMessageBatchOutput,
-    UploadCodeArgs, UploadCodeBatchOutput, UploadProgramArgs, UploadProgramBatchOutput,
-};
 use crate::utils;
 use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, Future};
 use gclient::{GearApi, Result as GClientResult};
+use gear_call_gen::{CreateProgramArgs, SendMessageArgs, UploadCodeArgs, UploadProgramArgs};
+use gear_core::ids::{CodeId, MessageId, ProgramId};
+use primitive_types::H256;
+
+pub type UploadProgramBatchOutput = StandardBatchOutput;
+pub type CreateProgramBatchOutput = StandardBatchOutput;
+pub type SendMessageBatchOutput = StandardBatchOutput;
+pub type UploadCodeBatchOutput = (Vec<GClientResult<CodeId>>, H256);
+type StandardBatchOutput = (Vec<GClientResult<(MessageId, ProgramId)>>, H256);
 
 mod nonce;
 

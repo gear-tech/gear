@@ -21,7 +21,11 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use gear_backend_common::lazy_pages::LazyPagesWeights;
-use gear_core::{code, costs::HostFnWeights, memory::WasmPage};
+use gear_core::{
+    code,
+    costs::{CostPerPage, HostFnWeights},
+    memory::WasmPage,
+};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 const INIT_COST: u64 = 5000;
@@ -29,9 +33,13 @@ const ALLOC_COST: u64 = 10000;
 const MEM_GROW_COST: u64 = 10000;
 const LOAD_PAGE_COST: u64 = 3000;
 const LAZY_PAGES_WEIGHTS: LazyPagesWeights = LazyPagesWeights {
-    read: 10,
-    write: 10,
-    write_after_read: 10,
+    signal_read: CostPerPage::new(10),
+    signal_write: CostPerPage::new(10),
+    signal_write_after_read: CostPerPage::new(10),
+    host_func_read_access: CostPerPage::new(10),
+    host_func_write_access: CostPerPage::new(10),
+    host_func_write_after_read_access: CostPerPage::new(10),
+    load_page_storage_data: CostPerPage::new(10),
 };
 
 /// Contextual block information.

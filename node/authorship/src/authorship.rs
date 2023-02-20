@@ -649,7 +649,12 @@ mod tests {
         block_on(
             txpool.maintain(chain_event(
                 client
-                    .header(&BlockId::Number(0u64))
+                    .header(
+                        client
+                            .block_hash_from_id(&BlockId::Number(0u64))
+                            .unwrap()
+                            .unwrap(),
+                    )
                     .expect("header get error")
                     .expect("there should be header"),
             )),
@@ -659,7 +664,10 @@ mod tests {
             ProposerFactory::new(spawner, client.clone(), txpool.clone(), None, None);
 
         let proposer = proposer_factory.init_with_now(
-            &client.header(&block_id).unwrap().unwrap(),
+            &client
+                .header(client.block_hash_from_id(&block_id).unwrap().unwrap())
+                .expect("header get error")
+                .expect("there should be header"),
             Box::new(time::Instant::now),
         );
 
@@ -699,7 +707,12 @@ mod tests {
         block_on(
             txpool.maintain(chain_event(
                 client
-                    .header(&BlockId::Number(0u64))
+                    .header(
+                        client
+                            .block_hash_from_id(&BlockId::Number(0u64))
+                            .unwrap()
+                            .unwrap(),
+                    )
                     .expect("header get error")
                     .expect("there should be header"),
             )),
@@ -709,7 +722,10 @@ mod tests {
             ProposerFactory::new(spawner, client.clone(), txpool, None, None);
 
         let proposer = proposer_factory.init_with_now(
-            &client.header(&block_id).unwrap().unwrap(),
+            &client
+                .header(client.block_hash_from_id(&block_id).unwrap().unwrap())
+                .expect("header get error")
+                .expect("there should be header"),
             Box::new(time::Instant::now),
         );
 
@@ -777,14 +793,17 @@ mod tests {
         block_on(
             txpool.maintain(chain_event(
                 client
-                    .header(&block_id)
+                    .header(client.block_hash_from_id(&block_id).unwrap().unwrap())
                     .expect("header get error")
                     .expect("there should be header"),
             )),
         );
 
         let proposer = proposer_factory.init_with_now(
-            &client.header(&block_id).unwrap().unwrap(),
+            &client
+                .header(client.block_hash_from_id(&block_id).unwrap().unwrap())
+                .expect("header get error")
+                .expect("there should be header"),
             Box::new(time::Instant::now),
         );
 
@@ -825,14 +844,17 @@ mod tests {
         block_on(
             txpool.maintain(chain_event(
                 client
-                    .header(&best_block_id)
+                    .header(client.block_hash_from_id(&best_block_id).unwrap().unwrap())
                     .expect("header get error")
                     .expect("there should be header"),
             )),
         );
 
         let proposer = proposer_factory.init_with_now(
-            &client.header(&best_block_id).unwrap().unwrap(),
+            &client
+                .header(client.block_hash_from_id(&best_block_id).unwrap().unwrap())
+                .expect("header get error")
+                .expect("there should be header"),
             Box::new(time::Instant::now),
         );
 

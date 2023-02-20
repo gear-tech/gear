@@ -23,6 +23,18 @@ pub fn apply(store: &mut Store<StoreData>, linker: &mut Linker<StoreData>) -> Re
 
     linker.define(
         "env",
+        "gr_panic",
+        funcs::gr_panic(store.as_context_mut(), memory),
+    )?;
+
+    linker.define(
+        "env",
+        "gr_oom_panic",
+        funcs::gr_oom_panic(store.as_context_mut()),
+    )?;
+
+    linker.define(
+        "env",
         "gr_read",
         funcs::gr_read(store.as_context_mut(), memory),
     )?;

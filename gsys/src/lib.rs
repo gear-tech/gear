@@ -339,6 +339,18 @@ extern "C" {
     /// - `len`: `u32` length of the payload buffer.
     pub fn gr_debug(payload: *const BufferStart, len: Length);
 
+    /// Infallible `gr_panic` control syscall.
+    ///
+    /// Stops the execution.
+    ///
+    /// Arguments type:
+    /// - `payload`: `const ptr` for the begging of the payload buffer.
+    /// - `len`: `u32` length of the payload buffer.
+    pub fn gr_panic(payload: *const BufferStart, len: Length) -> !;
+
+    /// Infallible `gr_oom_panic` control syscall.
+    pub fn gr_oom_panic() -> !;
+
     // TODO: issue #1859
     /// Fallible `gr_error` get syscall.
     ///
@@ -408,7 +420,7 @@ extern "C" {
     /// Arguments type:
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
-    ///   Ignored if equals i32::MAX (use this for zero value for optimization).
+    ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply_commit_wgas(
@@ -422,7 +434,7 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
-    ///   Ignored if equals i32::MAX (use this for zero value for optimization).
+    ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply_commit(value: *const Value, delay: BlockNumber, err_mid: *mut LengthWithHash);
@@ -462,7 +474,7 @@ extern "C" {
     /// - `len`: `u32` defining slice length of the input buffer to use.
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
-    ///   Ignored if equals i32::MAX (use this for zero value for optimization).
+    ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply_input_wgas(
@@ -481,7 +493,7 @@ extern "C" {
     /// - `len`: `u32` length of the payload buffer.
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
-    ///   Ignored if equals i32::MAX (use this for zero value for optimization).
+    ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply_wgas(
@@ -499,7 +511,7 @@ extern "C" {
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
-    ///   Ignored if equals i32::MAX (use this for zero value for optimization).
+    ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply(
@@ -516,7 +528,7 @@ extern "C" {
     /// - `offset`: `u32` defining start index of the input buffer to use.
     /// - `len`: `u32` defining slice length of the input buffer to use.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
-    ///   Ignored if equals i32::MAX (use this for zero value for optimization).
+    ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply_input(

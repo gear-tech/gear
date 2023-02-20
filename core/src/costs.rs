@@ -18,9 +18,63 @@
 
 //! Costs module.
 
-use crate::gas::Token;
-
+use crate::{gas::Token, memory::PageU32Size};
 use codec::{Decode, Encode};
+use core::{fmt::Debug, marker::PhantomData};
+
+/// Cost per one memory page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub struct CostPerPage<P: PageU32Size> {
+    cost: u64,
+    _phantom: PhantomData<P>,
+}
+
+impl<P: PageU32Size> CostPerPage<P> {
+    /// Constant constructor if `From<u64>` bound can't be used.
+    pub const fn new(cost: u64) -> Self {
+        Self {
+            cost,
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Calculate cost for `pages`.
+    pub fn calc(&self, pages: P) -> u64 {
+        self.cost.saturating_mul(pages.raw() as u64)
+    }
+    /// Cost for one page.
+    pub fn one(&self) -> u64 {
+        self.cost
+    }
+    /// Returns another [CostPerPage] with increased `cost` to `other.cost`.
+    pub fn add(&self, other: Self) -> Self {
+        self.cost.saturating_add(other.cost).into()
+    }
+}
+
+impl<P: PageU32Size> From<u64> for CostPerPage<P> {
+    fn from(cost: u64) -> Self {
+        Self {
+            cost,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<P: PageU32Size> From<CostPerPage<P>> for u64 {
+    fn from(value: CostPerPage<P>) -> Self {
+        value.cost
+    }
+}
+
+impl<P: PageU32Size> Default for CostPerPage<P> {
+    fn default() -> Self {
+        Self {
+            cost: 0,
+            _phantom: PhantomData,
+        }
+    }
+}
 
 /// Describes the weight for each imported function that a program is allowed to call.
 #[derive(Clone, Encode, Decode, PartialEq, Eq, Default)]
@@ -182,9 +236,17 @@ impl Token for RuntimeToken {
     }
 }
 
+impl RuntimeToken {
+    fn saturating_add(self, other: Self) -> u64 {
+        self.weight.saturating_add(other.weight)
+    }
+}
+
 /// Enumerates syscalls that can be charged by gas meter.
 #[derive(Debug, Copy, Clone)]
 pub enum RuntimeCosts {
+    /// Charge zero gas
+    Null,
     /// Weight of calling `alloc`.
     Alloc,
     /// Weight of calling `free`.
@@ -219,20 +281,26 @@ pub enum RuntimeCosts {
     BlockTimestamp,
     /// Weight of calling `gr_random`.
     Random,
+    /// Weight of calling `gr_send`.
+    Send(u32),
     /// Weight of calling `gr_send_init`.
     SendInit,
     /// Weight of calling `gr_send_push`.
     SendPush(u32),
     /// Weight of calling `gr_send_commit`.
     SendCommit(u32),
+    /// Weight of calling `gr_reservation_send`.
+    ReservationSend(u32),
     /// Weight of calling `gr_reservation_send_commit`.
     ReservationSendCommit(u32),
+    /// Weight of calling `gr_reply`.
+    Reply,
     /// Weight of calling `gr_reply_commit`.
     ReplyCommit,
+    /// Weight of calling `gr_reservation_reply`.
+    ReservationReply,
     /// Weight of calling `gr_reservation_reply_commit`.
     ReservationReplyCommit,
-    /// Weight of calling `gr_reply_push`.
-    ReplyPush(u32),
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
     /// Weight of calling `gr_signal_from`.
@@ -259,7 +327,13 @@ pub enum RuntimeCosts {
     CreateProgram(u32, u32),
     /// Weight of calling `gr_resend_push`.
     SendPushInput(u32),
-    /// Weight of calling `gr_rereply_push`.
+    /// Weight of calling `gr_send_input`.
+    SendInput(u32),
+    /// Weight of calling `gr_reply_push`.
+    ReplyPush(u32),
+    /// Weight of calling `gr_reply_input`.
+    ReplyInput(u32),
+    /// Weight of calling `gr_reply_push_input`.
     ReplyPushInput(u32),
 }
 
@@ -268,6 +342,7 @@ impl RuntimeCosts {
     pub fn token(&self, s: &HostFnWeights) -> RuntimeToken {
         use self::RuntimeCosts::*;
         let weight = match *self {
+            Null => 0,
             Alloc => s.alloc,
             Free => s.free,
             ReserveGas => s.gr_reserve_gas,
@@ -287,6 +362,7 @@ impl RuntimeCosts {
             BlockHeight => s.gr_block_height,
             BlockTimestamp => s.gr_block_timestamp,
             Random => s.gr_random,
+            Send(len) => SendInit.token(s).saturating_add(SendPush(len).token(s)),
             SendInit => s.gr_send_init,
             SendPush(len) => s
                 .gr_send_push
@@ -294,11 +370,16 @@ impl RuntimeCosts {
             SendCommit(len) => s
                 .gr_send_commit
                 .saturating_add(s.gr_send_commit_per_byte.saturating_mul(len.into())),
+            ReservationSend(len) => SendInit
+                .token(s)
+                .saturating_add(ReservationSendCommit(len).token(s)),
             ReservationSendCommit(len) => s.gr_reservation_send_commit.saturating_add(
                 s.gr_reservation_send_commit_per_byte
                     .saturating_mul(len.into()),
             ),
+            Reply => ReplyCommit.token(s).weight(),
             ReplyCommit => s.gr_reply_commit,
+            ReservationReply => ReservationReplyCommit.token(s).weight,
             ReservationReplyCommit => s.gr_reservation_reply_commit,
             ReplyPush(len) => s
                 .gr_reply_push
@@ -332,6 +413,14 @@ impl RuntimeCosts {
             ReplyPushInput(len) => s
                 .gr_reply_push_input
                 .saturating_add(s.gr_reply_push_input_per_byte.saturating_mul(len.into())),
+            ReplyInput(len) => ReplyPushInput(len)
+                .token(s)
+                .saturating_add(ReplyCommit.token(s)),
+            SendInput(len) => SendInit
+                .token(s)
+                .saturating_add(SendPushInput(len).token(s))
+                // TODO: replace with normal addition some time.
+                .saturating_add(SendCommit(0).token(s).weight()),
         };
         RuntimeToken { weight }
     }

@@ -73,6 +73,7 @@ use gear_core::{
     message::{DispatchKind, SignalMessage, StatusCode},
     reservation::GasReservationSlot,
 };
+use gear_core_errors::SimpleSignalError;
 use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{
@@ -337,7 +338,12 @@ where
         slot
     }
 
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId) {
+    fn send_signal(
+        &mut self,
+        message_id: MessageId,
+        destination: ProgramId,
+        err: SimpleSignalError,
+    ) {
         let reserved = GasHandlerOf::<T>::system_unreserve(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         if reserved != 0 {
@@ -349,7 +355,7 @@ where
             );
 
             // Creating signal message.
-            let trap_signal = SignalMessage::new(message_id, core_processor::ERR_STATUS_CODE)
+            let trap_signal = SignalMessage::new(message_id, err)
                 .into_dispatch(message_id, destination)
                 .into_stored();
 

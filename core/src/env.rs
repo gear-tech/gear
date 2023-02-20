@@ -24,9 +24,9 @@ use crate::{
     memory::{Memory, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
-use alloc::{collections::BTreeSet, string::String};
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
-use gear_core_errors::CoreError;
+use core::fmt::{Debug, Display};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Page access rights.
@@ -40,15 +40,27 @@ pub enum PageAction {
     None,
 }
 
-/// External api for managing memory, messages, allocations and gas-counting.
+/// External api for managing memory, messages, and gas-counting.
 pub trait Ext {
     /// An error issued in api
-    type Error: CoreError;
+    type Error;
+    /// An error issued during allocation
+    type AllocError: Display;
 
     /// Allocate number of pages.
     ///
     /// The resulting page number should point to `pages` consecutive memory pages.
-    fn alloc(&mut self, pages: WasmPage, mem: &mut impl Memory) -> Result<WasmPage, Self::Error>;
+    fn alloc(
+        &mut self,
+        pages: WasmPage,
+        mem: &mut impl Memory,
+    ) -> Result<WasmPage, Self::AllocError>;
+
+    /// Free specific memory page.
+    ///
+    /// Unlike traditional allocator, if multiple pages allocated via `alloc`, all pages
+    /// should be `free`-d separately.
+    fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError>;
 
     /// Get the current block height.
     fn block_height(&mut self) -> Result<u32, Self::Error>;
@@ -156,19 +168,10 @@ pub trait Ext {
     /// Get the id of program itself
     fn program_id(&mut self) -> Result<ProgramId, Self::Error>;
 
-    /// Free specific memory page.
-    ///
-    /// Unlike traditional allocator, if multiple pages allocated via `alloc`, all pages
-    /// should be `free`-d separately.
-    fn free(&mut self, page: WasmPage) -> Result<(), Self::Error>;
-
     /// Send debug message.
     ///
     /// This should be no-op in release builds.
     fn debug(&mut self, data: &str) -> Result<(), Self::Error>;
-
-    /// Charge gas for gr_error.
-    fn charge_error(&mut self) -> Result<(), Self::Error>;
 
     /// Interrupt the program, saving it's state.
     fn leave(&mut self) -> Result<(), Self::Error>;
@@ -181,15 +184,6 @@ pub trait Ext {
 
     /// Returns a random seed for the current block with message id as a subject, along with the time in the past since when it was determinable by chain observers.
     fn random(&mut self) -> Result<(&[u8], u32), Self::Error>;
-
-    /// Charge some extra gas.
-    fn charge_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
-
-    /// Charge gas by `RuntimeCosts` token.
-    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error>;
-
-    /// Refund some gas.
-    fn refund_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
     /// Reserve some gas for a few blocks.
     fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error>;
@@ -248,7 +242,4 @@ pub trait Ext {
 
     /// Get runtime cost weight.
     fn runtime_cost(&self, costs: RuntimeCosts) -> u64;
-
-    /// Get possible panic string.
-    fn maybe_panic(&self) -> Option<String>;
 }

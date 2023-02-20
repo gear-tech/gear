@@ -383,8 +383,8 @@ mod tests {
         let bn_before_schedule = 5;
         let scheduled_delay = 10;
         system.0.borrow_mut().send_delayed_dispatch(
-            scheduled_delay,
             Dispatch::new(DispatchKind::Handle, message),
+            scheduled_delay,
         );
 
         let mailbox = system.get_mailbox(destination_user_id);

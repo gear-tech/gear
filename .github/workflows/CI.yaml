@@ -255,10 +255,6 @@ jobs:
           cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
           ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
 
-      - name: "Test: Runtime upgrade and queue processing"
-        if: github.ref != 'refs/heads/master' # to be deleted
-        run: ./scripts/gear.sh test runtime-upgrade
-
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
           cargo build -p gear-cli --release --features runtime-benchmarks
@@ -339,6 +335,9 @@ jobs:
           cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
           cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
           cp target/production/gear artifact/
           cp target/release/gear-test artifact/
           cp target/release/wasm-proc artifact/
@@ -480,9 +479,6 @@ jobs:
         run: |
           cargo build -p gear-cli --release --features=runtime-test
           ./scripts/gear.sh test rtest gear
-
-      - name: "Test: Runtime upgrade and queue processing"
-        run: ./scripts/gear.sh test runtime-upgrade
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
