@@ -97,3 +97,14 @@ fn skip_wasm_build() {
 
     assert!(wasm_binary_rs().contains("WASM_BINARY: &[u8] = include_bytes"));
 }
+
+#[test]
+fn no_infinite_build() {
+    fs::write("test-program/src/rebuild_test.rs", "mod a {}").unwrap();
+
+    CargoRunner::new().args(["build"]).run();
+
+    fs::write("test-program/src/rebuild_test.rs", "mod b {}").unwrap();
+
+    CargoRunner::new().args(["build"]).run();
+}

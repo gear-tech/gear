@@ -23,4 +23,7 @@ fn main() {
 
     let out_dir = env::var("OUT_DIR").unwrap();
     fs::write(".out_dir", out_dir).unwrap();
+
+    // to be built by other tests
+    fs::write("src/rebuild_test.rs", "").unwrap();
 }
