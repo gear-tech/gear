@@ -532,8 +532,8 @@ fn delayed_send_user_message_payment() {
         );
 
         // Gas should be reserved until message is holding.
-        assert_eq!(Balances::reserved_balance(&USER_1), delay_holding_fee);
-        let free_balance = Balances::free_balance(&USER_1) + Balances::reserved_balance(&USER_1);
+        assert_eq!(Balances::reserved_balance(USER_1), delay_holding_fee);
+        let free_balance = Balances::free_balance(&USER_1) + Balances::reserved_balance(USER_1);
 
         // Run blocks before sending message.
         run_to_block(delay + 2, None);
@@ -554,7 +554,7 @@ fn delayed_send_user_message_payment() {
 
         run_to_next_block(None);
 
-        assert_eq!(Balances::reserved_balance(&USER_1), 0);
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
         assert_eq!(
             free_balance - delay_holding_fee + reserve_for_fee,
             Balances::free_balance(&USER_1)
@@ -624,7 +624,7 @@ fn delayed_send_user_message_with_reservation() {
 
         // Gas should be reserved until message is holding.
         assert_eq!(
-            Balances::reserved_balance(&USER_1),
+            Balances::reserved_balance(USER_1),
             mailbox_gas_threshold + delay_holding_fee
         );
 
@@ -649,7 +649,7 @@ fn delayed_send_user_message_with_reservation() {
 
         // TODO: deal with reserve_for in reserve
         assert_eq!(
-            Balances::reserved_balance(&USER_1),
+            Balances::reserved_balance(USER_1),
             mailbox_gas_threshold + reserve_for_fee
         );
     }
@@ -723,8 +723,8 @@ fn delayed_send_program_message_payment() {
         );
 
         // Gas should be reserved until message is holding.
-        assert_eq!(Balances::reserved_balance(&USER_1), delay_holding_fee);
-        let free_balance = Balances::free_balance(&USER_1) + Balances::reserved_balance(&USER_1);
+        assert_eq!(Balances::reserved_balance(USER_1), delay_holding_fee);
+        let free_balance = Balances::free_balance(&USER_1) + Balances::reserved_balance(USER_1);
 
         // Run blocks to release message.
         run_to_block(delay + 2, None);
@@ -740,7 +740,7 @@ fn delayed_send_program_message_payment() {
         // Block where message processed
         run_to_next_block(None);
 
-        assert_eq!(Balances::reserved_balance(&USER_1), 0);
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
         assert_eq!(
             free_balance - delay_holding_fee + reserve_for_fee,
             Balances::free_balance(&USER_1)
@@ -832,7 +832,7 @@ fn delayed_send_program_message_with_reservation() {
 
         // Gas should be reserved until message is holding.
         assert_eq!(
-            Balances::reserved_balance(&USER_1),
+            Balances::reserved_balance(USER_1),
             GasPrice::gas_price(reservation_amount) + reservation_holding_fee
         );
 
@@ -848,7 +848,7 @@ fn delayed_send_program_message_with_reservation() {
         // Block where message processed
         run_to_next_block(None);
 
-        assert_eq!(Balances::reserved_balance(&USER_1), 0);
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
     }
 
     init_logger();
@@ -936,7 +936,7 @@ fn delayed_send_program_message_with_low_reservation() {
 
         // Gas should be reserved until message is holding.
         assert_eq!(
-            Balances::reserved_balance(&USER_1),
+            Balances::reserved_balance(USER_1),
             GasPrice::gas_price(reservation_amount) + reservation_holding_fee
         );
 
@@ -952,7 +952,7 @@ fn delayed_send_program_message_with_low_reservation() {
         // Block where message processed
         run_to_next_block(None);
 
-        assert_eq!(Balances::reserved_balance(&USER_1), 0);
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
     }
 
     init_logger();
