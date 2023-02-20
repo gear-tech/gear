@@ -288,7 +288,6 @@ impl ExtManager {
     }
 
     /// Insert message into the delayed queue.
-    #[allow(unused)]
     pub(crate) fn send_delayed_dispatch(&mut self, dispatch: Dispatch, delay: u32) {
         self.delayed_dispatches
             .entry(delay)
@@ -833,9 +832,14 @@ impl JournalHandler for ExtManager {
         &mut self,
         _message_id: MessageId,
         dispatch: Dispatch,
-        _delay: u32,
+        delay: u32,
         _reservation: Option<ReservationId>,
     ) {
+        if delay > 0 {
+            self.send_delayed_dispatch(dispatch, delay);
+            return;
+        }
+
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
         if !self.is_user(&dispatch.destination()) {
