@@ -36,41 +36,42 @@ impl CargoRunner {
         self
     }
 
-    fn run(self) -> bool {
+    #[track_caller]
+    fn run(self) {
         let mut cmd = self.0;
         cmd.arg("--color=always");
         cmd.arg("--manifest-path=test-program/Cargo.toml");
 
         let status = cmd.status().expect("cargo run error");
-        status.success()
+        assert!(status.success());
     }
 }
 
 #[test]
 fn test_debug() {
-    assert!(CargoRunner::new().args(["test"]).run());
+    CargoRunner::new().args(["test"]).run();
 }
 
 #[test]
 fn build_debug() {
-    assert!(CargoRunner::new().args(["build"]).run());
+    CargoRunner::new().args(["build"]).run()
 }
 
 #[test]
 fn test_release() {
-    assert!(CargoRunner::new().args(["test", "--release"]).run());
+    CargoRunner::new().args(["test", "--release"]).run()
 }
 
 #[test]
 fn build_release() {
-    assert!(CargoRunner::new().args(["build", "--release"]).run());
+    CargoRunner::new().args(["build", "--release"]).run()
 }
 
 #[test]
 fn build_release_for_target() {
-    assert!(CargoRunner::new()
+    CargoRunner::new()
         .args(["build", "--release", "--target", TARGET])
-        .run());
+        .run()
 }
 
 #[test]
@@ -82,17 +83,17 @@ fn skip_wasm_build() {
         fs::read_to_string(wasm_binary_rs).unwrap()
     }
 
-    assert!(CargoRunner::new()
+    CargoRunner::new()
         .args(["build"])
         .env("SKIP_WASM_BUILD", "1")
-        .run());
+        .run();
 
     assert!(wasm_binary_rs().contains("WASM_BINARY: &[u8] = &[]"));
 
-    assert!(CargoRunner::new()
+    CargoRunner::new()
         .args(["build"])
         .env("SKIP_WASM_BUILD", "0")
-        .run());
+        .run();
 
     assert!(wasm_binary_rs().contains("WASM_BINARY: &[u8] = include_bytes"));
 }
