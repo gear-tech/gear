@@ -533,14 +533,14 @@ fn delayed_send_user_message_payment() {
 
         // Gas should be reserved until message is holding.
         assert_eq!(Balances::reserved_balance(USER_1), delay_holding_fee);
-        let free_balance = Balances::free_balance(&USER_1) + Balances::reserved_balance(USER_1);
+        let total_balance = Balances::free_balance(USER_1) + Balances::reserved_balance(USER_1);
 
         // Run blocks before sending message.
         run_to_block(delay + 2, None);
 
         let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
 
-        // Check that delayed task was created
+        // Check that delayed task was created.
         assert!(TaskPoolOf::<Test>::contains(
             &(delay + 3),
             &ScheduledTask::SendUserMessage {
@@ -549,21 +549,35 @@ fn delayed_send_user_message_payment() {
             }
         ));
 
-        // Mailbox should be empty
+        // Mailbox should be empty.
         assert!(MailboxOf::<Test>::is_empty(&USER_2));
 
         run_to_next_block(None);
 
+        // Check that last event is UserMessageSent.
+        let last_event = match System::events().last().map(|r| r.event.clone()) {
+            Some(MockRuntimeEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+        match last_event {
+            Event::UserMessageSent { message, .. } => assert_eq!(delayed_id, message.id()),
+            _ => unreachable!("Test failed: expected Event::UserMessageSent"),
+        }
+
+        // Mailbox should be empty.
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
+
+        // Check balances match and gas charging is correct.
         assert_eq!(Balances::reserved_balance(USER_1), 0);
         assert_eq!(
-            free_balance - delay_holding_fee + reserve_for_fee,
-            Balances::free_balance(&USER_1)
+            total_balance - delay_holding_fee + reserve_for_fee,
+            Balances::free_balance(USER_1)
         );
     }
 
     init_logger();
 
-    for i in 1..4 {
+    for i in 2..4 {
         new_test_ext().execute_with(|| scenario(i));
     }
 }
@@ -633,7 +647,7 @@ fn delayed_send_user_message_with_reservation() {
 
         let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
 
-        // Check that delayed task was created
+        // Check that delayed task was created.
         assert!(TaskPoolOf::<Test>::contains(
             &(delay + 3),
             &ScheduledTask::SendUserMessage {
@@ -642,12 +656,25 @@ fn delayed_send_user_message_with_reservation() {
             }
         ));
 
-        // Mailbox should be empty
+        // Mailbox should be empty.
         assert!(MailboxOf::<Test>::is_empty(&USER_2));
 
         run_to_next_block(None);
 
-        // TODO: deal with reserve_for in reserve
+        // Check that last event is UserMessageSent.
+        let last_event = match System::events().last().map(|r| r.event.clone()) {
+            Some(MockRuntimeEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+        match last_event {
+            Event::UserMessageSent { message, .. } => assert_eq!(delayed_id, message.id()),
+            _ => unreachable!("Test failed: expected Event::UserMessageSent"),
+        }
+
+        // Mailbox should not be empty.
+        assert!(!MailboxOf::<Test>::is_empty(&USER_2));
+
+        // TODO: deal with reserve_for in reserve.
         assert_eq!(
             Balances::reserved_balance(USER_1),
             mailbox_gas_threshold + reserve_for_fee
@@ -656,7 +683,7 @@ fn delayed_send_user_message_with_reservation() {
 
     init_logger();
 
-    for i in 1..4 {
+    for i in 2..4 {
         new_test_ext().execute_with(|| scenario(i));
     }
 }
@@ -724,32 +751,43 @@ fn delayed_send_program_message_payment() {
 
         // Gas should be reserved until message is holding.
         assert_eq!(Balances::reserved_balance(USER_1), delay_holding_fee);
-        let free_balance = Balances::free_balance(&USER_1) + Balances::reserved_balance(USER_1);
+        let total_balance = Balances::free_balance(USER_1) + Balances::reserved_balance(USER_1);
 
         // Run blocks to release message.
         run_to_block(delay + 2, None);
 
         let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
 
-        // Check that delayed task was created
+        // Check that delayed task was created.
         assert!(TaskPoolOf::<Test>::contains(
             &(delay + 3),
             &ScheduledTask::SendDispatch(delayed_id)
         ));
 
-        // Block where message processed
+        // Block where message processed.
         run_to_next_block(None);
 
+        // Check that last event is MessagesDispatched.
+        let last_event = match System::events().last().map(|r| r.event.clone()) {
+            Some(MockRuntimeEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+        match last_event {
+            Event::MessagesDispatched { .. } => {}
+            _ => unreachable!("Test failed: expected Event::MessagesDispatched"),
+        }
+
+        // Check that gas was charged correctly.
         assert_eq!(Balances::reserved_balance(USER_1), 0);
         assert_eq!(
-            free_balance - delay_holding_fee + reserve_for_fee,
-            Balances::free_balance(&USER_1)
+            total_balance - delay_holding_fee + reserve_for_fee,
+            Balances::free_balance(USER_1)
         );
     }
 
     init_logger();
 
-    for i in 1..4 {
+    for i in 2..4 {
         new_test_ext().execute_with(|| scenario(i));
     }
 }
@@ -848,12 +886,22 @@ fn delayed_send_program_message_with_reservation() {
         // Block where message processed
         run_to_next_block(None);
 
+        // Check that last event is MessagesDispatched.
+        let last_event = match System::events().last().map(|r| r.event.clone()) {
+            Some(MockRuntimeEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+        match last_event {
+            Event::MessagesDispatched { .. } => {}
+            _ => unreachable!("Test failed: expected Event::MessagesDispatched"),
+        }
+
         assert_eq!(Balances::reserved_balance(USER_1), 0);
     }
 
     init_logger();
 
-    for i in 1..4 {
+    for i in 2..4 {
         new_test_ext().execute_with(|| scenario(i));
     }
 }
@@ -952,12 +1000,22 @@ fn delayed_send_program_message_with_low_reservation() {
         // Block where message processed
         run_to_next_block(None);
 
+        // Check that last event is MessagesDispatched.
+        let last_event = match System::events().last().map(|r| r.event.clone()) {
+            Some(MockRuntimeEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+        match last_event {
+            Event::MessagesDispatched { .. } => {}
+            _ => unreachable!("Test failed: expected Event::MessagesDispatched"),
+        }
+
         assert_eq!(Balances::reserved_balance(USER_1), 0);
     }
 
     init_logger();
 
-    for i in 1..4 {
+    for i in 2..4 {
         new_test_ext().execute_with(|| scenario(i));
     }
 }

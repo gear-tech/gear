@@ -61,21 +61,6 @@ mod wasm {
     }
 
     #[no_mangle]
-    extern "C" fn handle_reply() {
-        if msg::status_code().expect("Infallible") == 0 {
-            let gas_limit: u64 = msg::load().expect("Failed to decode `gas_limit: u64'");
-            msg::send_with_gas_delayed(
-                unsafe { DESTINATION },
-                b"proxied message",
-                gas_limit,
-                msg::value(),
-                unsafe { DELAY },
-            )
-            .expect("Failed to proxy message");
-        }
-    }
-
-    #[no_mangle]
     extern "C" fn init() {
         let args: InputArgs = msg::load().expect("Failed to decode `InputArgs'");
         unsafe {
