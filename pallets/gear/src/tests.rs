@@ -8012,7 +8012,10 @@ fn gas_reservations_check_params() {
             RuntimeOrigin::signed(USER_1),
             demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            InitAction::CheckArgs.encode(),
+            InitAction::CheckArgs {
+                mailbox_threshold: <Test as Config>::MailboxThreshold::get(),
+            }
+            .encode(),
             10_000_000_000,
             0,
         ));

@@ -690,6 +690,10 @@ impl EnvExt for Ext {
             return Err(ReservationError::ZeroReservationDuration.into());
         }
 
+        if amount < self.context.mailbox_threshold {
+            return Err(ReservationError::ReservationBelowMailboxThreshold.into());
+        }
+
         let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
             .saturating_mul(self.context.reservation);
         let reduce_amount = amount.saturating_add(reserve);

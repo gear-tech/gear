@@ -52,7 +52,7 @@ enum WakeState {
 pub enum InitAction {
     Normal,
     Wait,
-    CheckArgs,
+    CheckArgs { mailbox_threshold: u64 },
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -108,7 +108,7 @@ extern "C" fn init() {
                 exec::exit(msg::source());
             }
         },
-        InitAction::CheckArgs => {
+        InitAction::CheckArgs { mailbox_threshold } => {
             assert_eq!(
                 ReservationId::reserve(0, 10),
                 Err(ContractError::Ext(ExtError::Reservation(
@@ -124,7 +124,14 @@ extern "C" fn init() {
             );
 
             assert_eq!(
-                ReservationId::reserve(1, u32::MAX),
+                ReservationId::reserve(mailbox_threshold - 1, 1),
+                Err(ContractError::Ext(ExtError::Reservation(
+                    ReservationError::ReservationBelowMailboxThreshold
+                )))
+            );
+
+            assert_eq!(
+                ReservationId::reserve(mailbox_threshold, u32::MAX),
                 Err(ContractError::Ext(ExtError::Reservation(
                     ReservationError::InsufficientGasForReservation
                 )))
