@@ -24,6 +24,7 @@ use gear_backend_common::{
     },
     ActorTerminationReason, BackendExt, BackendState, TrapExplanation,
 };
+use gear_core::costs::RuntimeCosts;
 
 use super::*;
 use crate::state::State;
@@ -162,8 +163,7 @@ where
         f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
     }
 
-    #[track_caller]
-    pub fn run<T, F>(&mut self, f: F) -> Result<T, Trap>
+    fn with_globals_update<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
@@ -178,12 +178,28 @@ where
     }
 
     #[track_caller]
-    pub fn run_fallible<T: Sized, F, R>(&mut self, res_ptr: u32, f: F) -> Result<(), Trap>
+    pub fn run<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Trap>
+    where
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+    {
+        self.with_globals_update(|ctx| {
+            ctx.host_state_mut().ext.charge_gas_runtime(cost)?;
+            f(ctx)
+        })
+    }
+
+    #[track_caller]
+    pub fn run_fallible<T: Sized, F, R>(
+        &mut self,
+        res_ptr: u32,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> Result<(), Trap>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
         R: From<Result<T, u32>> + Sized,
     {
-        self.run(|ctx: &mut Self| -> Result<_, TerminationReason> {
+        self.run(cost, |ctx: &mut Self| -> Result<_, TerminationReason> {
             let res = f(ctx);
             let res = ctx.host_state_mut().process_fallible_func_result(res)?;
 
@@ -194,24 +210,18 @@ where
         })
     }
 
-    // pub fn run<T, F>(&mut self, f: F) -> Result<T, Trap>
-    // where
-    //     F: FnOnce(&mut Self) -> Result<T, FuncError<E::Error>>,
-    // {
-    //     self.run_internal(f)
-    // }
-
     #[track_caller]
     pub fn run_fallible_state_taken<T: Sized, F, R>(
         &mut self,
         res_ptr: u32,
+        cost: RuntimeCosts,
         f: F,
     ) -> Result<(), Trap>
     where
         F: FnOnce(&mut Self, &mut State<E>) -> Result<T, TerminationReason>,
         R: From<Result<T, u32>> + Sized,
     {
-        self.run(|ctx| {
+        self.run(cost, |ctx| {
             let res = ctx.with_state_taken(f);
             let res = ctx.host_state_mut().process_fallible_func_result(res)?;
 
@@ -223,11 +233,11 @@ where
     }
 
     #[track_caller]
-    pub fn run_state_taken<T, F>(&mut self, f: F) -> Result<T, Trap>
+    pub fn run_state_taken<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Trap>
     where
         F: FnOnce(&mut Self, &mut State<E>) -> Result<T, TerminationReason>,
     {
-        self.run(|ctx| ctx.with_state_taken(f))
+        self.run(cost, |ctx| ctx.with_state_taken(f))
     }
 }
 

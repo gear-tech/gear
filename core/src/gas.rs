@@ -92,19 +92,16 @@ impl GasCounter {
     pub fn charge_token<Tok: Token>(&mut self, token: Tok) -> ChargeResult {
         let amount = token.weight();
 
-        match self.left.checked_sub(amount) {
-            None => {
-                self.burned += self.left;
-                self.left = 0;
+        if let Some(new_left) = self.left.checked_sub(amount) {
+            self.left = new_left;
+            self.burned += amount;
 
-                ChargeResult::NotEnough
-            }
-            Some(new_left) => {
-                self.left = new_left;
-                self.burned += amount;
+            ChargeResult::Enough
+        } else {
+            self.burned += self.left;
+            self.left = 0;
 
-                ChargeResult::Enough
-            }
+            ChargeResult::NotEnough
         }
     }
 
