@@ -389,6 +389,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-recursion"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b015a331cc64ebd1774ba119538573603427eaace0a1950c423ab971f903796"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "async-std"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3442,6 +3453,7 @@ dependencies = [
  "hex-literal",
  "log",
  "parity-scale-codec",
+ "rand 0.8.5",
  "subxt",
  "thiserror",
  "tokio",
@@ -3754,6 +3766,7 @@ name = "gear-program"
 version = "0.1.5"
 dependencies = [
  "anyhow",
+ "async-recursion",
  "base64 0.21.0",
  "blake2-rfc",
  "cfg-if",

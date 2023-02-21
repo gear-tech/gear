@@ -46,6 +46,9 @@ pub struct Opt {
     /// Commands.
     #[command(subcommand)]
     pub command: Command,
+    /// How many times we'll retry when RPC requests failed.
+    #[arg(short, long, default_value = "5")]
+    pub retry: u16,
     /// Enable verbose logs.
     #[arg(short, long)]
     pub verbose: bool,
