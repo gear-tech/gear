@@ -28,6 +28,7 @@ use core::{
     num::NonZeroU32,
     ops::{Deref, DerefMut},
 };
+use gear_core_errors::MemoryError;
 use scale_info::TypeInfo;
 
 /// A WebAssembly page has a constant size of 64KiB.
@@ -122,7 +123,7 @@ impl Decode for PageBuf {
 
 impl EncodeLike for PageBuf {}
 
-impl fmt::Debug for PageBuf {
+impl Debug for PageBuf {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -395,8 +396,6 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq + PartialOrd + Ord 
     }
 }
 
-pub use gear_core_errors::MemoryError as Error;
-
 /// Page number.
 #[derive(
     Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord, Hash, TypeInfo, Default,
@@ -438,7 +437,7 @@ impl PageU32Size for WasmPage {
 }
 
 /// Page with size [PAGE_STORAGE_GRANULARITY].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Default, Encode, Decode, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GranularityPage(u32);
 
 impl PageU32Size for GranularityPage {
@@ -483,16 +482,16 @@ static_assertions::const_assert!(
 /// Backend wasm memory interface.
 pub trait Memory {
     /// Grow memory by number of pages.
-    fn grow(&mut self, pages: WasmPage) -> Result<(), Error>;
+    fn grow(&mut self, pages: WasmPage) -> Result<(), AllocError>;
 
     /// Return current size of the memory.
     fn size(&self) -> WasmPage;
 
     /// Set memory region at specific pointer.
-    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error>;
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError>;
 
     /// Reads memory contents at the given offset into a buffer.
-    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error>;
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError>;
 
     /// Returns native addr of wasm memory buffer in wasm executor
     fn get_buffer_host_addr(&mut self) -> Option<HostPointer> {
@@ -522,11 +521,12 @@ pub struct AllocationsContext {
 }
 
 /// Before and after memory grow actions.
+#[must_use]
 pub trait GrowHandler {
     /// Before grow action
     fn before_grow_action(mem: &mut impl Memory) -> Self;
     /// After grow action
-    fn after_grow_action(self, mem: &mut impl Memory) -> Result<(), Error>;
+    fn after_grow_action(self, mem: &mut impl Memory);
 }
 
 /// Grow handler do nothing implementation
@@ -536,9 +536,29 @@ impl GrowHandler for NoopGrowHandler {
     fn before_grow_action(_mem: &mut impl Memory) -> Self {
         NoopGrowHandler
     }
-    fn after_grow_action(self, _mem: &mut impl Memory) -> Result<(), Error> {
-        Ok(())
-    }
+    fn after_grow_action(self, _mem: &mut impl Memory) {}
+}
+
+/// Incorrect allocation data error
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+#[display(fmt = "Allocated memory pages or memory size are incorrect")]
+pub struct IncorrectAllocationDataError;
+
+/// Allocation error
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
+pub enum AllocError {
+    /// Incorrect allocation data error
+    #[from]
+    #[display(fmt = "{_0}")]
+    IncorrectAllocationData(IncorrectAllocationDataError),
+    /// The error occurs when a program tries to allocate more memory than
+    /// allowed.
+    #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
+    ProgramAllocOutOfBounds,
+    /// The error occurs in attempt to free-up a memory page from static area or
+    /// outside additionally allocated for this program.
+    #[display(fmt = "Page {_0} cannot be freed by the current program")]
+    InvalidFree(u32),
 }
 
 /// Alloc method result.
@@ -580,21 +600,19 @@ impl AllocationsContext {
         &mut self,
         pages: WasmPage,
         mem: &mut impl Memory,
-    ) -> Result<AllocInfo, Error> {
+    ) -> Result<AllocInfo, AllocError> {
         let mem_size = mem.size();
         let mut start = self.static_pages;
         let mut start_page = None;
         for &end in self.allocations.iter().chain(iter::once(&mem_size)) {
-            let page_gap = end
-                .sub(start)
-                .map_err(|_| Error::IncorrectAllocationsSetOrMemSize)?;
+            let page_gap = end.sub(start).map_err(|_| IncorrectAllocationDataError)?;
 
             if page_gap >= pages {
                 start_page = Some(start);
                 break;
             }
 
-            start = end.inc().map_err(|_| Error::OutOfBounds)?;
+            start = end.inc().map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
         }
 
         let (start, not_grown) = if let Some(start) = start_page {
@@ -610,9 +628,11 @@ impl AllocationsContext {
                     unreachable!("Cannot increment last allocation: {}, but we checked in loop above that it can be done", err)
                 }))
                 .unwrap_or(self.static_pages);
-            let end = start.add(pages).map_err(|_| Error::OutOfBounds)?;
+            let end = start
+                .add(pages)
+                .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
             if end > self.max_pages {
-                return Err(Error::OutOfBounds);
+                return Err(AllocError::ProgramAllocOutOfBounds);
             }
 
             // Panic is impossible, because in loop above we checked it.
@@ -630,7 +650,7 @@ impl AllocationsContext {
 
             let grow_handler = G::before_grow_action(mem);
             mem.grow(extra_grow)?;
-            grow_handler.after_grow_action(mem)?;
+            grow_handler.after_grow_action(mem);
 
             // Panic is impossible, because of way `extra_grow` was calculated.
             let not_grown = pages.sub(extra_grow).unwrap_or_else(|err| {
@@ -659,11 +679,9 @@ impl AllocationsContext {
     /// Free specific page.
     ///
     /// Currently running program should own this page.
-    pub fn free(&mut self, page: WasmPage) -> Result<(), Error> {
-        if page > self.max_pages {
-            Err(Error::OutOfBounds)
-        } else if page < self.static_pages || !self.allocations.remove(&page) {
-            Err(Error::InvalidFree(page.0))
+    pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
+        if page < self.static_pages || page >= self.max_pages || !self.allocations.remove(&page) {
+            Err(AllocError::InvalidFree(page.0))
         } else {
             Ok(())
         }
@@ -733,14 +751,14 @@ mod tests {
     #[test]
     fn free_fails() {
         let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(0), WasmPage(0));
-        assert_eq!(ctx.free(WasmPage(1)), Err(Error::OutOfBounds));
+        assert_eq!(ctx.free(WasmPage(1)), Err(AllocError::InvalidFree(1)));
 
         let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(1), WasmPage(0));
-        assert_eq!(ctx.free(WasmPage(0)), Err(Error::InvalidFree(0)));
+        assert_eq!(ctx.free(WasmPage(0)), Err(AllocError::InvalidFree(0)));
 
         let mut ctx =
             AllocationsContext::new(BTreeSet::from([WasmPage(0)]), WasmPage(1), WasmPage(1));
-        assert_eq!(ctx.free(WasmPage(1)), Err(Error::InvalidFree(1)));
+        assert_eq!(ctx.free(WasmPage(1)), Err(AllocError::InvalidFree(1)));
     }
 
     #[test]

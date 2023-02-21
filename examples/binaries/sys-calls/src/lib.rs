@@ -106,6 +106,7 @@ mod wasm {
     use super::Kind;
     use codec::Encode;
     use gstd::{
+        errors::{SimpleCodec, SimpleExecutionError, SimpleSignalError},
         exec, format,
         msg::{self, MessageHandle},
         prog, ActorId, CodeId, MessageId, ReservationId,
@@ -113,8 +114,11 @@ mod wasm {
 
     static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);
     static mut ORIGIN: Option<ActorId> = None;
-    static mut SIGNAL_DETAILS: (MessageId, i32, ActorId) =
-        (MessageId::new([0; 32]), 0, ActorId::zero());
+    static mut SIGNAL_DETAILS: (MessageId, SimpleSignalError, ActorId) = (
+        MessageId::new([0; 32]),
+        SimpleSignalError::Execution(SimpleExecutionError::Unknown),
+        ActorId::zero(),
+    );
     static mut DO_PANIC: bool = false;
 
     #[no_mangle]
@@ -313,7 +317,11 @@ mod wasm {
                     panic!();
                 } else {
                     unsafe {
-                        SIGNAL_DETAILS = (msg::id(), 1, msg::source());
+                        SIGNAL_DETAILS = (
+                            msg::id(),
+                            SimpleSignalError::Execution(SimpleExecutionError::Panic),
+                            msg::source(),
+                        );
                         DO_PANIC = true;
                     }
                     exec::system_reserve_gas(1_000_000_000).unwrap();
@@ -495,8 +503,8 @@ mod wasm {
         let (signal_from, status_code, source) = unsafe { SIGNAL_DETAILS };
 
         assert_eq!(
-            msg::status_code(),
-            Ok(status_code),
+            <_>::from_status_code(msg::status_code().unwrap()),
+            Some(status_code),
             "Kind::SignalDetails: status code test failed"
         );
         assert_eq!(

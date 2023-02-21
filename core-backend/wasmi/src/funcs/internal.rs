@@ -22,11 +22,26 @@ use gear_backend_common::{
         MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
         WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    ActorSyscallFuncError, BackendExt,
+    ActorTerminationReason, BackendExt, BackendState, TrapExplanation,
 };
+use gear_core::costs::RuntimeCosts;
 
 use super::*;
 use crate::state::State;
+
+pub fn caller_host_state_mut<'a, 'b: 'a, E>(caller: &'a mut Caller<'b, Option<E>>) -> &'a mut E {
+    caller
+        .host_data_mut()
+        .as_mut()
+        .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
+}
+
+pub fn caller_host_state_take<'a, 'b: 'a, E>(caller: &'a mut Caller<'b, Option<E>>) -> E {
+    caller
+        .host_data_mut()
+        .take()
+        .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
+}
 
 pub(crate) struct CallerWrap<'a, E>
 where
@@ -40,9 +55,23 @@ where
 
 impl<'a, E> CallerWrap<'a, E>
 where
-    E: Ext + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
 {
+    /// !!! Usage warning: make sure to do it before any other read/write,
+    /// because it may contain register read.
+    pub(crate) fn register_and_read_value(
+        &mut self,
+        value_ptr: u32,
+    ) -> Result<u128, MemoryAccessError> {
+        if value_ptr != PTR_SPECIAL {
+            let read_value = self.register_read_decoded(value_ptr);
+            return self.read_decoded(read_value);
+        }
+
+        Ok(0)
+    }
+
     #[track_caller]
     pub fn prepare(
         caller: Caller<'a, HostState<E>>,
@@ -56,8 +85,10 @@ where
         };
 
         if forbidden {
-            wrapper.host_state_mut().err =
-                ActorSyscallFuncError::Core(E::Error::forbidden_function()).into();
+            wrapper.host_state_mut().set_termination_reason(
+                ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into(),
+            );
+
             return Err(TrapCode::Unreachable.into());
         }
 
@@ -84,10 +115,7 @@ where
 
     #[track_caller]
     pub fn host_state_mut(&mut self) -> &mut State<E> {
-        self.caller
-            .host_data_mut()
-            .as_mut()
-            .expect("host_state should be set before execution")
+        caller_host_state_mut(&mut self.caller)
     }
 
     #[track_caller]
@@ -99,7 +127,19 @@ where
         }
     }
 
-    #[track_caller]
+    fn with_state_taken<F, T, Err>(&mut self, f: F) -> Result<T, Err>
+    where
+        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, Err>,
+    {
+        let mut state = caller_host_state_take(&mut self.caller);
+
+        let res = f(self, &mut state);
+
+        self.caller.host_data_mut().replace(state);
+
+        res
+    }
+
     fn update_globals(&mut self) {
         let (gas, allowance) = self.host_state_mut().ext.counters();
 
@@ -123,13 +163,12 @@ where
         f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
     }
 
-    #[track_caller]
-    pub fn run<T, F>(&mut self, f: F) -> Result<T, Trap>
+    fn with_globals_update<T, F>(&mut self, f: F) -> Result<T, Trap>
     where
-        F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
         let result = f(self).map_err(|err| {
-            self.host_state_mut().err = err;
+            self.host_state_mut().set_termination_reason(err);
             Trap::from(TrapCode::Unreachable)
         });
 
@@ -139,26 +178,66 @@ where
     }
 
     #[track_caller]
-    pub fn run_state_taken<T, F>(&mut self, f: F) -> Result<T, Trap>
+    pub fn run<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Trap>
     where
-        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, SyscallFuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
-        let mut state = self
-            .caller
-            .host_data_mut()
-            .take()
-            .expect("State must be set before execution");
-
-        let result = f(self, &mut state);
-
-        self.caller.host_data_mut().replace(state);
-
-        self.update_globals();
-
-        result.map_err(|err| {
-            self.host_state_mut().err = err;
-            Trap::from(TrapCode::Unreachable)
+        self.with_globals_update(|ctx| {
+            ctx.host_state_mut().ext.charge_gas_runtime(cost)?;
+            f(ctx)
         })
+    }
+
+    #[track_caller]
+    pub fn run_fallible<T: Sized, F, R>(
+        &mut self,
+        res_ptr: u32,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> Result<(), Trap>
+    where
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        R: From<Result<T, u32>> + Sized,
+    {
+        self.run(cost, |ctx: &mut Self| -> Result<_, TerminationReason> {
+            let res = f(ctx);
+            let res = ctx.host_state_mut().process_fallible_func_result(res)?;
+
+            // TODO: move above or make normal process memory access.
+            let write_res = ctx.register_write_as::<R>(res_ptr);
+
+            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+        })
+    }
+
+    #[track_caller]
+    pub fn run_fallible_state_taken<T: Sized, F, R>(
+        &mut self,
+        res_ptr: u32,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> Result<(), Trap>
+    where
+        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, TerminationReason>,
+        R: From<Result<T, u32>> + Sized,
+    {
+        self.run(cost, |ctx| {
+            let res = ctx.with_state_taken(f);
+            let res = ctx.host_state_mut().process_fallible_func_result(res)?;
+
+            // TODO: move above or make normal process memory access.
+            let write_res = ctx.register_write_as::<R>(res_ptr);
+
+            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+        })
+    }
+
+    #[track_caller]
+    pub fn run_state_taken<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Trap>
+    where
+        F: FnOnce(&mut Self, &mut State<E>) -> Result<T, TerminationReason>,
+    {
+        self.run(cost, |ctx| ctx.with_state_taken(f))
     }
 }
 

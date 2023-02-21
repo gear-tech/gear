@@ -442,60 +442,54 @@ where
 
     assert_eq!(
         blockchain
-            .header(BlockId::Number(0))
+            .block_hash_from_id(&BlockId::Number(0))
             .unwrap()
-            .unwrap()
-            .hash(),
+            .unwrap(),
         genesis_hash
     );
     assert_eq!(blockchain.hash(0).unwrap().unwrap(), genesis_hash);
 
     assert_eq!(
         blockchain
-            .header(BlockId::Number(1))
+            .block_hash_from_id(&BlockId::Number(1))
             .unwrap()
-            .unwrap()
-            .hash(),
+            .unwrap(),
         a1.hash()
     );
     assert_eq!(blockchain.hash(1).unwrap().unwrap(), a1.hash());
 
     assert_eq!(
         blockchain
-            .header(BlockId::Number(2))
+            .block_hash_from_id(&BlockId::Number(2))
             .unwrap()
-            .unwrap()
-            .hash(),
+            .unwrap(),
         a2.hash()
     );
     assert_eq!(blockchain.hash(2).unwrap().unwrap(), a2.hash());
 
     assert_eq!(
         blockchain
-            .header(BlockId::Number(3))
+            .block_hash_from_id(&BlockId::Number(3))
             .unwrap()
-            .unwrap()
-            .hash(),
+            .unwrap(),
         a3.hash()
     );
     assert_eq!(blockchain.hash(3).unwrap().unwrap(), a3.hash());
 
     assert_eq!(
         blockchain
-            .header(BlockId::Number(4))
+            .block_hash_from_id(&BlockId::Number(4))
             .unwrap()
-            .unwrap()
-            .hash(),
+            .unwrap(),
         a4.hash()
     );
     assert_eq!(blockchain.hash(4).unwrap().unwrap(), a4.hash());
 
     assert_eq!(
         blockchain
-            .header(BlockId::Number(5))
+            .block_hash_from_id(&BlockId::Number(5))
             .unwrap()
-            .unwrap()
-            .hash(),
+            .unwrap(),
         a5.hash()
     );
     assert_eq!(blockchain.hash(5).unwrap().unwrap(), a5.hash());

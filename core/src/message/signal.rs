@@ -21,6 +21,7 @@ use crate::{
     message::{Dispatch, DispatchKind, Message, SignalDetails, StatusCode},
 };
 use codec::{Decode, Encode};
+use gear_core_errors::{SimpleCodec, SimpleSignalError};
 use scale_info::TypeInfo;
 
 /// Message for signal entry point.
@@ -34,8 +35,9 @@ pub struct SignalMessage {
 
 impl SignalMessage {
     /// Creates a new [`SignalMessage`].
-    pub fn new(origin_msg_id: MessageId, status_code: StatusCode) -> Self {
+    pub fn new(origin_msg_id: MessageId, err: SimpleSignalError) -> Self {
         let id = MessageId::generate_signal(origin_msg_id);
+        let status_code = err.into_status_code();
 
         Self { id, status_code }
     }

@@ -26,9 +26,10 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    BackendExt, BackendExtError, BackendState, SyscallFuncError,
+    BackendExt, BackendExtError, BackendState, BackendTermination, TerminationReason,
 };
-use gear_core::env::Ext;
+use gear_core::{costs::RuntimeCosts, env::Ext};
+use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
 
@@ -42,7 +43,8 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
 pub(crate) struct Runtime<E: Ext> {
     pub ext: E,
     pub memory: MemoryWrap,
-    pub err: SyscallFuncError<E::Error>,
+    pub fallible_syscall_error: Option<ExtError>,
+    pub termination_reason: TerminationReason,
     pub globals: sp_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
     pub memory_manager: MemoryAccessManager<E>,
@@ -50,13 +52,11 @@ pub(crate) struct Runtime<E: Ext> {
 
 impl<E> Runtime<E>
 where
-    E: Ext,
+    E: BackendExt,
     E::Error: BackendExtError,
 {
-    pub(crate) fn run_any<T, F>(&mut self, f: F) -> Result<T, HostError>
-    where
-        F: FnOnce(&mut Self) -> Result<T, SyscallFuncError<E::Error>>,
-    {
+    // Cleans `memory_manager`, updates ext counters based on globals.
+    fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
 
         let gas = self
@@ -72,12 +72,10 @@ where
             .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
         self.ext.update_counters(gas as u64, allowance as u64);
+    }
 
-        let result = f(self).map_err(|err| {
-            self.err = err;
-            HostError
-        });
-
+    // Updates globals after execution.
+    fn update_globals(&mut self) {
         let (gas, allowance) = self.ext.counters();
 
         self.globals
@@ -91,25 +89,62 @@ where
             .unwrap_or_else(|e| {
                 unreachable!("Globals must be checked during env creation: {:?}", e)
             });
+    }
+
+    fn with_globals_update<T, F>(&mut self, f: F) -> Result<T, HostError>
+    where
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+    {
+        let result = f(self).map_err(|err| {
+            self.set_termination_reason(err);
+            HostError
+        });
+
+        self.update_globals();
 
         result
     }
 
-    pub(crate) fn run<F>(&mut self, f: F) -> SyscallOutput
+    pub fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, HostError>
     where
-        F: FnOnce(&mut Self) -> Result<(), SyscallFuncError<E::Error>>,
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
-        self.run_any(f).map(|_| ReturnValue::Unit)
+        self.with_globals_update(|ctx| {
+            ctx.prepare_run();
+            ctx.ext
+                .charge_gas_runtime(cost)
+                .map_err(|err| err.into_termination_reason())?;
+            f(ctx)
+        })
     }
-}
 
-impl<E> BackendState<E::Error> for Runtime<E>
-where
-    E: Ext,
-    E::Error: BackendExtError,
-{
-    fn err_mut(&mut self) -> &mut SyscallFuncError<E::Error> {
-        &mut self.err
+    pub fn run_fallible<T: Sized, F, R>(
+        &mut self,
+        res_ptr: u32,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> SyscallOutput
+    where
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        R: From<Result<T, u32>> + Sized,
+    {
+        self.run_any(cost, |ctx| {
+            let res = f(ctx);
+            let res = ctx.process_fallible_func_result(res)?;
+
+            // TODO: move above or make normal process memory access.
+            let write_res = ctx.memory_manager.register_write_as::<R>(res_ptr);
+
+            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+        })
+        .map(|_| ReturnValue::Unit)
+    }
+
+    pub fn run<F>(&mut self, cost: RuntimeCosts, f: F) -> SyscallOutput
+    where
+        F: FnOnce(&mut Self) -> Result<(), TerminationReason>,
+    {
+        self.run_any(cost, f).map(|_| ReturnValue::Unit)
     }
 }
 
@@ -167,5 +202,27 @@ where
         obj: T,
     ) -> Result<(), MemoryAccessError> {
         self.memory_manager.write_as(&mut self.memory, write, obj)
+    }
+}
+
+impl<E: BackendExt> BackendState for Runtime<E> {
+    fn set_termination_reason(&mut self, reason: TerminationReason) {
+        self.termination_reason = reason;
+    }
+
+    fn set_fallible_syscall_error(&mut self, err: ExtError) {
+        self.fallible_syscall_error = Some(err);
+    }
+}
+
+impl<E: Ext + BackendExt> BackendTermination<E, MemoryWrap> for Runtime<E> {
+    fn into_parts(self) -> (E, MemoryWrap, TerminationReason) {
+        let Self {
+            ext,
+            memory,
+            termination_reason,
+            ..
+        } = self;
+        (ext, memory, termination_reason)
     }
 }

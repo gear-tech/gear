@@ -31,7 +31,7 @@ use scale_info::TypeInfo;
 /// Same as `gear_core::message::DispatchKind`,
 /// but with additional info about reply.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
-pub enum Entry {
+pub enum MessageEntry {
     /// Init entry point.
     Init,
     /// Handle entry point.

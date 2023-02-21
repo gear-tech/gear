@@ -154,7 +154,7 @@ impl IncomingDispatch {
         )
     }
 
-    /// Decompose IncomingDispatch for it's components: DispatchKind, IncomingMessage and Option<ContextStore>.
+    /// Decompose IncomingDispatch for it's components: DispatchKind, IncomingMessage and `Option<ContextStore>`.
     pub fn into_parts(self) -> (DispatchKind, IncomingMessage, Option<ContextStore>) {
         self.into()
     }

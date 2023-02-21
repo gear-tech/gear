@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(clippy::redundant_clone)]
+
 use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_network::NetworkService;
@@ -253,10 +255,7 @@ where
                     slot_duration,
                 );
 
-            let uncles =
-                sp_authorship::InherentDataProvider::<<Block as BlockT>::Header>::check_inherents();
-
-            Ok((slot, timestamp, uncles))
+            Ok((slot, timestamp))
         },
         &task_manager.spawn_essential_handle(),
         config.prometheus_registry(),
@@ -353,7 +352,7 @@ where
 }
 
 /// Creates a full service from the configuration.
-pub fn new_full_base<RuntimeApi, ExecutorDispatch, Runtime, Extrinsic>(
+pub fn new_full_base<RuntimeApi, ExecutorDispatch>(
     mut config: Configuration,
     disable_hardware_benchmarks: bool,
     with_startup_data: impl FnOnce(
@@ -622,20 +621,18 @@ pub fn new_full(
 ) -> Result<TaskManager, ServiceError> {
     match &config.chain_spec {
         #[cfg(feature = "gear-native")]
-        spec if spec.is_gear() => new_full_base::<
-            gear_runtime::RuntimeApi,
-            GearExecutorDispatch,
-            gear_runtime::Runtime,
-            gear_runtime::UncheckedExtrinsic,
-        >(config, disable_hardware_benchmarks, |_, _| ())
+        spec if spec.is_gear() => new_full_base::<gear_runtime::RuntimeApi, GearExecutorDispatch>(
+            config,
+            disable_hardware_benchmarks,
+            |_, _| (),
+        )
         .map(|NewFullBase { task_manager, .. }| task_manager),
         #[cfg(feature = "vara-native")]
-        spec if spec.is_vara() => new_full_base::<
-            vara_runtime::RuntimeApi,
-            VaraExecutorDispatch,
-            vara_runtime::Runtime,
-            vara_runtime::UncheckedExtrinsic,
-        >(config, disable_hardware_benchmarks, |_, _| ())
+        spec if spec.is_vara() => new_full_base::<vara_runtime::RuntimeApi, VaraExecutorDispatch>(
+            config,
+            disable_hardware_benchmarks,
+            |_, _| (),
+        )
         .map(|NewFullBase { task_manager, .. }| task_manager),
         _ => Err(ServiceError::Other("Invalid chain spec".into())),
     }

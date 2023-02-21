@@ -276,20 +276,6 @@ impl CodeMetadata {
     }
 }
 
-// TODO: delete the fn after next upgrade
-pub fn reset_storage() {
-    const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
-    sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
-
-    const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
-    sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
-
-    const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
-    sp_io::storage::clear_prefix(STORAGE_PROGRAM_STATE_WAIT_PREFIX, None);
-
-    sp_io::storage::clear_prefix(b"g::wait::", None);
-}
-
 /// A trait whose purpose is to extract the `Call` variant of an extrinsic
 pub trait ExtractCall<Call> {
     fn extract_call(&self) -> Call;

@@ -69,7 +69,7 @@ pub struct Person {
     pub name: String,
 }
 
-#[derive(TypeInfo, Decode, Encode, Clone, Debug)]
+#[derive(TypeInfo, Decode, Encode, Clone, Debug, PartialEq)]
 pub struct Wallet {
     pub id: Id,
     pub person: Person,
@@ -94,8 +94,8 @@ impl Wallet {
                     hex: [2].to_vec(),
                 },
                 person: Person {
-                    surname: "OtherName".into(),
-                    name: "OtherSurname".into(),
+                    surname: "OtherSurname".into(),
+                    name: "OtherName".into(),
                 },
             },
         ]

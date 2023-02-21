@@ -76,6 +76,7 @@ use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    costs::CostPerPage,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, PageBuf},
     message::*,
@@ -271,22 +272,22 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// User send message to program, which was successfully
-        /// added to gear message queue.
-        MessageEnqueued {
+        /// User sends message to program, which was successfully
+        /// added to the Gear message queue.
+        MessageQueued {
             /// Generated id of the message.
             id: MessageId,
             /// Account id of the source of the message.
             source: T::AccountId,
-            /// Program id, who is a destination of the message.
+            /// Program id, who is the message's destination.
             destination: ProgramId,
             /// Entry point for processing of the message.
-            /// On the sending stage, processing function
-            /// of program is always known.
-            entry: Entry,
+            /// On the sending stage, the processing function
+            /// of the program is always known.
+            entry: MessageEntry,
         },
 
-        /// Somebody sent message to user.
+        /// Somebody sent a message to the user.
         UserMessageSent {
             /// Message sent.
             message: StoredMessage,
@@ -302,34 +303,29 @@ pub mod pallet {
         },
 
         /// Message marked as "read" and removes it from `Mailbox`.
-        /// This event only affects messages, which were
-        /// already inserted in `Mailbox` before.
+        /// This event only affects messages that were
+        /// already inserted in `Mailbox`.
         UserMessageRead {
             /// Id of the message read.
             id: MessageId,
-            /// The reason of the reading (removal from `Mailbox`).
+            /// The reason for the reading (removal from `Mailbox`).
             ///
             /// NOTE: See more docs about reasons at `gear_common::event`.
             reason: UserMessageReadReason,
         },
 
-        /// The result of the messages processing within the block.
+        /// The result of processing the messages within the block.
         MessagesDispatched {
             /// Total amount of messages removed from message queue.
             total: MessengerCapacityOf<T>,
             /// Execution statuses of the messages, which were already known
-            /// by `Event::MessageEnqueued` (sent from user to program).
+            /// by `Event::MessageQueued` (sent from user to program).
             statuses: BTreeMap<MessageId, DispatchStatus>,
             /// Ids of programs, which state changed during queue processing.
             state_changes: BTreeSet<ProgramId>,
         },
 
-        /// Temporary `Event` variant, showing that all storages was cleared.
-        ///
-        /// Will be removed in favor of proper database migrations.
-        DatabaseWiped,
-
-        /// Messages execution delayed (waited) and it was successfully
+        /// Messages execution delayed (waited) and successfully
         /// added to gear waitlist.
         MessageWaited {
             /// Id of the message waited.
@@ -337,8 +333,8 @@ pub mod pallet {
             /// Origin message id, which started messaging chain with programs,
             /// where currently waited message was created.
             ///
-            /// Used for identifying by user, that this message associated
-            /// with him and with the concrete initial message.
+            /// Used to identify by the user that this message associated
+            /// with him and the concrete initial message.
             origin: Option<GasNodeId<MessageId, ReservationId>>,
             /// The reason of the waiting (addition to `Waitlist`).
             ///
@@ -362,7 +358,7 @@ pub mod pallet {
             reason: MessageWokenReason,
         },
 
-        /// Any data related to programs codes changed.
+        /// Any data related to program codes changed.
         CodeChanged {
             /// Id of the code affected.
             id: CodeId,
@@ -389,12 +385,12 @@ pub mod pallet {
     // Gear pallet error.
     #[pallet::error]
     pub enum Error<T> {
-        /// Message wasn't found in mailbox.
+        /// Message wasn't found in the mailbox.
         MessageNotFound,
         /// Not enough balance to reserve.
         ///
-        /// Usually occurs when gas_limit specified is such that origin account can't afford the message.
-        NotEnoughBalanceForReserve,
+        /// Usually occurs when the gas_limit specified is such that the origin account can't afford the message.
+        InsufficientBalanceForReserve,
         /// Gas limit too high.
         ///
         /// Occurs when an extrinsic's declared `gas_limit` is greater than a block's maximum gas limit.
@@ -405,25 +401,25 @@ pub mod pallet {
         ProgramAlreadyExists,
         /// Program is terminated.
         ///
-        /// Program init ended up with failure, so such message destination is unavailable anymore.
+        /// Program init failed, so such message destination is no longer unavailable.
         InactiveProgram,
         /// Message gas tree is not found.
         ///
-        /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
+        /// When a message claimed from the mailbox has a corrupted or non-extant gas tree associated.
         NoMessageTree,
         /// Code already exists.
         ///
-        /// Occurs when trying to save to storage a program code, that has been saved there.
+        /// Occurs when trying to save to storage a program code that has been saved there.
         CodeAlreadyExists,
-        /// Code not exists.
+        /// Code does not exist.
         ///
         /// Occurs when trying to get a program code from storage, that doesn't exist.
-        CodeNotExists,
+        CodeDoesntExist,
         /// The code supplied to `upload_code` or `upload_program` exceeds the limit specified in the
         /// current schedule.
         CodeTooLarge,
         /// Failed to create a program.
-        FailedToConstructProgram,
+        ProgramConstructionFailed,
         /// Value doesn't cover ExistentialDeposit.
         ValueLessThanMinimal,
         /// Messages storage corrupted.
@@ -474,7 +470,7 @@ pub mod pallet {
         fn on_runtime_upgrade() -> Weight {
             log::debug!(target: "gear::runtime", "⚙️ Runtime upgrade");
 
-            Weight::MAX
+            Zero::zero()
         }
 
         /// Initialization
@@ -541,7 +537,7 @@ pub mod pallet {
             let module =
                 gear_wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
                     log::debug!("Module failed to load: {:?}", e);
-                    Error::<T>::FailedToConstructProgram
+                    Error::<T>::ProgramConstructionFailed
                 })?;
 
             let code = Code::new_raw(
@@ -553,7 +549,7 @@ pub mod pallet {
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
+                Error::<T>::ProgramConstructionFailed
             })?;
 
             let code_and_id = CodeAndId::new(code);
@@ -582,7 +578,7 @@ pub mod pallet {
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             CurrencyOf::<T>::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
             let origin = who.clone().into_origin();
 
@@ -626,11 +622,11 @@ pub mod pallet {
 
             QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
-            Self::deposit_event(Event::MessageEnqueued {
+            Self::deposit_event(Event::MessageQueued {
                 id: message_id,
                 source: who,
                 destination: program_id,
-                entry: Entry::Init,
+                entry: MessageEntry::Init,
             });
 
             Ok(().into())
@@ -652,7 +648,7 @@ pub mod pallet {
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
+                Error::<T>::ProgramConstructionFailed
             })?;
 
             let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
@@ -1008,9 +1004,23 @@ pub mod pallet {
             let pages_config = PagesConfig {
                 max_pages: schedule.limits.memory_pages.into(),
                 lazy_pages_weights: LazyPagesWeights {
-                    read: schedule.memory_weights.lazy_pages_read,
-                    write: schedule.memory_weights.lazy_pages_write,
-                    write_after_read: schedule.memory_weights.lazy_pages_write_after_read,
+                    signal_read: CostPerPage::new(schedule.memory_weights.lazy_pages_read),
+                    signal_write: CostPerPage::new(schedule.memory_weights.lazy_pages_write),
+                    signal_write_after_read: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_write_after_read,
+                    ),
+                    host_func_read_access: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_read,
+                    ),
+                    host_func_write_access: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_write,
+                    ),
+                    host_func_write_after_read_access: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_write_after_read,
+                    ),
+                    load_page_storage_data: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_read,
+                    ),
                 },
                 init_cost: schedule.memory_weights.initial_cost,
                 alloc_cost: schedule.memory_weights.allocation_cost,
@@ -1118,7 +1128,7 @@ pub mod pallet {
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
+                Error::<T>::ProgramConstructionFailed
             })?;
 
             ensure!(
@@ -1180,7 +1190,7 @@ pub mod pallet {
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             <T as Config>::Currency::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
             Ok(packet)
         }
@@ -1217,11 +1227,11 @@ pub mod pallet {
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
-            let event = Event::MessageEnqueued {
+            let event = Event::MessageQueued {
                 id: dispatch.id(),
                 source: who,
                 destination: dispatch.destination(),
-                entry: Entry::Init,
+                entry: MessageEntry::Init,
             };
 
             QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
@@ -1378,6 +1388,7 @@ pub mod pallet {
         /// # NOTE
         ///
         /// For the details of this extrinsic, see `upload_code`.
+        // Always charge the same gas value
         #[pallet::call_index(2)]
         #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32))]
         pub fn create_program(
@@ -1391,7 +1402,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             // Check if code exists.
-            let code = T::CodeStorage::get_code(code_id).ok_or(Error::<T>::CodeNotExists)?;
+            let code = T::CodeStorage::get_code(code_id).ok_or(Error::<T>::CodeDoesntExist)?;
 
             // Check `gas_limit` and `value`
             Self::check_gas_limit_and_value(gas_limit, value)?;
@@ -1459,13 +1470,13 @@ pub mod pallet {
                 // That's because destination can fail to be initialized, while this dispatch message is next
                 // in the queue.
                 CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
-                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                    .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 CurrencyOf::<T>::reserve(&who, gas_limit_reserve)
-                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                    .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
                 // # Safety
                 //
@@ -1476,11 +1487,11 @@ pub mod pallet {
 
                 let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
 
-                Self::deposit_event(Event::MessageEnqueued {
+                Self::deposit_event(Event::MessageQueued {
                     id: message.id(),
                     source: who,
                     destination: message.destination(),
-                    entry: Entry::Handle,
+                    entry: MessageEntry::Handle,
                 });
 
                 QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
@@ -1501,7 +1512,7 @@ pub mod pallet {
                 value.unique_saturated_into(),
                 ExistenceRequirement::AllowDeath,
             )
-            .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+            .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
             Pallet::<T>::deposit_event(Event::UserMessageSent {
                 message,
@@ -1570,7 +1581,7 @@ pub mod pallet {
             // Note, that message is not guaranteed to be successfully executed,
             // that's why value is not immediately transferred.
             CurrencyOf::<T>::reserve(&origin, gas_limit_reserve + value)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
@@ -1595,11 +1606,11 @@ pub mod pallet {
             );
 
             // Pre-generating appropriate event to avoid dispatch cloning.
-            let event = Event::MessageEnqueued {
+            let event = Event::MessageQueued {
                 id: dispatch.id(),
                 source: origin,
                 destination: dispatch.destination(),
-                entry: Entry::Reply(mailboxed.id()),
+                entry: MessageEntry::Reply(mailboxed.id()),
             };
 
             // Queueing dispatch.
@@ -1657,25 +1668,8 @@ pub mod pallet {
             })
         }
 
-        /// Reset all pallet associated storage.
-        #[pallet::call_index(6)]
-        #[pallet::weight(0)]
-        pub fn reset(origin: OriginFor<T>) -> DispatchResult {
-            ensure_root(origin)?;
-            <T as Config>::Scheduler::reset();
-            <T as Config>::GasProvider::reset();
-            <T as Config>::Messenger::reset();
-            ProgramStorageOf::<T>::reset();
-            <T as Config>::CodeStorage::reset();
-            common::reset_storage();
-
-            Self::deposit_event(Event::DatabaseWiped);
-
-            Ok(())
-        }
-
         /// Process message queue
-        #[pallet::call_index(7)]
+        #[pallet::call_index(6)]
         #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
         pub fn run(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
@@ -1725,7 +1719,7 @@ pub mod pallet {
         /// Sets `ExecuteInherent` flag.
         ///
         /// Requires root origin (eventually, will only be set via referendum)
-        #[pallet::call_index(8)]
+        #[pallet::call_index(7)]
         #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
         pub fn set_execute_inherent(origin: OriginFor<T>, value: bool) -> DispatchResult {
             ensure_root(origin)?;
@@ -1743,7 +1737,7 @@ pub mod pallet {
     {
         type Gas = GasUnitOf<T>;
 
-        fn run_queue(initial_gas: GasUnitOf<T>) -> GasUnitOf<T> {
+        fn run_queue(initial_gas: Self::Gas) -> Self::Gas {
             // Setting adjusted initial gas allowance
             GasAllowanceOf::<T>::put(initial_gas);
 
@@ -1781,7 +1775,7 @@ pub mod pallet {
                 BalanceStatus::Free,
             )?;
 
-            if leftover > 0_u128.unique_saturated_into() {
+            if !leftover.is_zero() {
                 log::debug!(
                     target: "essential",
                     "Reserved funds not fully repatriated from {} to 0x{:?} : amount = {:?}, leftover = {:?}",

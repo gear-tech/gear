@@ -18,14 +18,18 @@
 
 //! Common structures for processing.
 
-use crate::{executor::SystemPrepareMemoryError, precharge::GasOperation, ActorPrepareMemoryError};
+use crate::{
+    executor::SystemPrepareMemoryError, precharge::PreChargeGasOperation, ActorPrepareMemoryError,
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use gear_backend_common::{SystemReservationContext, SystemSyscallFuncError, TrapExplanation};
+use gear_backend_common::{
+    SystemReservationContext, SystemTerminationReason, TrapExplanation, TrimmedString,
+};
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -36,7 +40,7 @@ use gear_core::{
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{MemoryError, SimpleExecutionError, SimpleSignalError};
 use scale_info::TypeInfo;
 
 /// Kind of the dispatch result.
@@ -315,6 +319,8 @@ pub enum JournalNote {
         message_id: MessageId,
         /// Program ID which signal will be sent to.
         destination: ProgramId,
+        /// Simple signal error.
+        err: SimpleSignalError,
     },
 }
 
@@ -395,7 +401,12 @@ pub trait JournalHandler {
     /// Do system unreservation.
     fn system_unreserve_gas(&mut self, message_id: MessageId);
     /// Send system signal.
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId);
+    fn send_signal(
+        &mut self,
+        message_id: MessageId,
+        destination: ProgramId,
+        err: SimpleSignalError,
+    );
 }
 
 /// Execution error
@@ -404,7 +415,7 @@ pub enum ExecutionError {
     /// Actor execution error
     #[display(fmt = "{_0}")]
     Actor(ActorExecutionError),
-    /// System execution erorr
+    /// System execution error
     #[display(fmt = "{_0}")]
     System(SystemExecutionError),
 }
@@ -422,24 +433,39 @@ pub struct ActorExecutionError {
 /// Reason of execution error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum ActorExecutionErrorReason {
-    /// Not enough gas to perform an operation.
+    /// Not enough gas to perform an operation during precharge.
     #[display(fmt = "Not enough gas to {_0}")]
-    GasExceeded(GasOperation),
+    PreChargeGasLimitExceeded(PreChargeGasOperation),
     /// Prepare memory error
     #[display(fmt = "{_0}")]
     PrepareMemory(ActorPrepareMemoryError),
-    /// Module start error
-    #[display(fmt = "Failed to instantiate module because of trap in start function")]
-    ModuleStart,
-    /// Ext error
+    /// Backend error
+    #[display(fmt = "Environment error: {_0}")]
+    Environment(TrimmedString),
+    /// Trap explanation
     #[display(fmt = "{_0}")]
-    Ext(TrapExplanation),
-    /// Not executable actor.
-    #[display(fmt = "Not executable actor")]
-    NonExecutable,
-    /// Message killed from storage as out of rent.
-    #[display(fmt = "Out of rent")]
-    OutOfRent,
+    Trap(TrapExplanation),
+}
+
+impl ActorExecutionErrorReason {
+    /// Convert self into [`SimpleExecutionError`]
+    pub fn as_simple(&self) -> SimpleExecutionError {
+        match self {
+            ActorExecutionErrorReason::PreChargeGasLimitExceeded(_) => {
+                SimpleExecutionError::GasLimitExceeded
+            }
+            ActorExecutionErrorReason::PrepareMemory(_) => SimpleExecutionError::Unknown,
+            ActorExecutionErrorReason::Environment(_) => SimpleExecutionError::Unknown,
+            ActorExecutionErrorReason::Trap(expl) => match expl {
+                TrapExplanation::GasLimitExceeded => SimpleExecutionError::GasLimitExceeded,
+                TrapExplanation::ForbiddenFunction => SimpleExecutionError::Unknown,
+                TrapExplanation::ProgramAllocOutOfBounds => SimpleExecutionError::MemoryExceeded,
+                TrapExplanation::Ext(_err) => SimpleExecutionError::Ext,
+                TrapExplanation::Panic(_) => SimpleExecutionError::Panic,
+                TrapExplanation::Unknown => SimpleExecutionError::Unknown,
+            },
+        }
+    }
 }
 
 /// System execution error
@@ -452,10 +478,10 @@ pub enum SystemExecutionError {
     /// Environment error
     #[display(fmt = "Backend error: {_0}")]
     Environment(String),
-    /// Sys-call function error
+    /// Termination reason
     #[from]
     #[display(fmt = "Syscall function error: {_0}")]
-    SyscallFunc(SystemSyscallFuncError),
+    TerminationReason(SystemTerminationReason),
     /// Error during `into_ext_info()` call
     #[display(fmt = "`into_ext_info()` error: {_0}")]
     IntoExtInfo(MemoryError),

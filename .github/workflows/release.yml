@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags: ['*']
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - id: version
+        run: echo "VERSION=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_OUTPUT
+
+      - name: Show version
+        run: echo ${{ steps.version.outputs.VERSION }}
+
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+
+  build:
+    needs: prepare
+    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set cargo path
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+          profile: minimal
+
+      - name: Install build deps
+        run: |
+          sudo apt update -y
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
+          sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+          sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
+          sudo chmod +x /usr/bin/cachepot
+
+      # TODO: Use default features after #2236
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: >
+            -p gear-cli --profile production
+            --no-default-features -F gear-native -F vara-native -F lazy-pages
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p artifact
+          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
+          cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
+          cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
+          cp target/production/gear artifact/
+          strip artifact/gear || true
+
+      - name: Publish
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifact/*
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          draft: true

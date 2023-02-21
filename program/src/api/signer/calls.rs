@@ -1,13 +1,20 @@
 //! gear api calls
 use crate::api::{
+    config::GearConfig,
     signer::Signer,
     types::{InBlock, TxStatus},
 };
 use anyhow::anyhow;
+use async_recursion::async_recursion;
 use subxt::{
     ext::codec::Encode,
-    tx::{StaticTxPayload, TxPayload},
+    tx::{StaticTxPayload, TxPayload, TxProgress},
+    Error as SubxtError, OnlineClient,
 };
+
+type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
+
+const ERRORS_REQUIRE_RETRYING: [&str; 2] = ["Connection reset by peer", "Connection refused"];
 
 mod balances {
     use crate::api::{generated::api::tx, signer::Signer, types::InBlock};
@@ -46,13 +53,6 @@ mod gear {
         /// `pallet_gear::claim_value`
         pub async fn claim_value(&self, message_id: MessageId) -> InBlock {
             let ex = tx().gear().claim_value(message_id.into());
-
-            self.process(ex).await
-        }
-
-        /// `pallet_gear::reset`
-        pub async fn reset(&self) -> InBlock {
-            let ex = tx().gear().reset();
 
             self.process(ex).await
         }
@@ -137,23 +137,49 @@ impl Signer {
         }
     }
 
-    /// listen transaction process and print logs
+    /// Wrapper for submit and watch with error handling.
+    #[async_recursion(?Send)]
+    async fn sign_and_submit_then_watch<CallData: Encode>(
+        &self,
+        tx: &StaticTxPayload<CallData>,
+        counter: u16,
+    ) -> Result<TxProgressT, SubxtError> {
+        let process = if let Some(nonce) = self.nonce {
+            self.api
+                .tx()
+                .create_signed_with_nonce(tx, &self.signer, nonce, Default::default())?
+                .submit_and_watch()
+                .await
+        } else {
+            self.api
+                .tx()
+                .sign_and_submit_then_watch_default(tx, &self.signer)
+                .await
+        };
+
+        if counter >= self.retry {
+            return process;
+        }
+
+        // TODO: Add more patterns for this retrying job.
+        if let Err(SubxtError::Rpc(rpc_error)) = &process {
+            let error_string = rpc_error.to_string();
+            for error in ERRORS_REQUIRE_RETRYING {
+                if error_string.contains(error) {
+                    return self.sign_and_submit_then_watch(tx, counter + 1).await;
+                }
+            }
+        }
+
+        process
+    }
+
+    /// Listen transaction process and print logs.
     pub async fn process<CallData: Encode>(&self, tx: StaticTxPayload<CallData>) -> InBlock {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;
-        let mut process = if let Some(nonce) = self.nonce {
-            self.api
-                .tx()
-                .create_signed_with_nonce(&tx, &self.signer, nonce, Default::default())?
-                .submit_and_watch()
-                .await?
-        } else {
-            self.api
-                .tx()
-                .sign_and_submit_then_watch_default(&tx, &self.signer)
-                .await?
-        };
+        let mut process = self.sign_and_submit_then_watch(&tx, 0).await?;
 
         // Get extrinsic details.
         let (pallet, name) = {

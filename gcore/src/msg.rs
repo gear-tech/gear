@@ -19,7 +19,7 @@
 //! Messaging API for Gear programs.
 //!
 //! This module contains an API to process incoming messages and synchronously
-//! send outcoming ones. Messages are the primary communication interface
+//! send outgoing ones. Messages are the primary communication interface
 //! between actors (users and programs).
 //!
 //! Every Gear program has code that handles messages. During message
@@ -46,6 +46,16 @@ use crate::{
 };
 use gear_core_errors::ExtError;
 use gsys::{HashWithValue, LengthWithCode, LengthWithHandle, LengthWithHash, TwoHashesWithValue};
+
+const PTR_SPECIAL: *const u128 = u32::MAX as *const u128;
+
+fn value_ptr(value: &u128) -> *const u128 {
+    if *value == 0 {
+        PTR_SPECIAL
+    } else {
+        value as *const u128
+    }
+}
 
 /// Get the status code of the message being processed.
 ///
@@ -188,11 +198,7 @@ pub fn reply_delayed(payload: &[u8], value: u128, delay: u32) -> Result<MessageI
         .try_into()
         .map_err(|_| ExtError::SyscallUsage)?;
 
-    let value_ptr = if value == 0 {
-        i32::MAX as *const u128
-    } else {
-        &value as *const u128
-    };
+    let value_ptr = value_ptr(&value);
 
     unsafe {
         gsys::gr_reply(
@@ -301,11 +307,7 @@ pub fn reply_with_gas_delayed(
         .try_into()
         .map_err(|_| ExtError::SyscallUsage)?;
 
-    let value_ptr = if value == 0 {
-        i32::MAX as *const u128
-    } else {
-        &value as *const u128
-    };
+    let value_ptr = value_ptr(&value);
 
     unsafe {
         gsys::gr_reply_wgas(
@@ -366,11 +368,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
     let mut res: LengthWithHash = Default::default();
 
-    let value_ptr = if value == 0 {
-        i32::MAX as *const u128
-    } else {
-        &value as *const u128
-    };
+    let value_ptr = value_ptr(&value);
 
     unsafe { gsys::gr_reply_commit(value_ptr, delay, res.as_mut_ptr()) }
     SyscallError(res.length).into_result()?;
@@ -405,11 +403,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
 pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) -> Result<MessageId> {
     let mut res: LengthWithHash = Default::default();
 
-    let value_ptr = if value == 0 {
-        i32::MAX as *const u128
-    } else {
-        &value as *const u128
-    };
+    let value_ptr = value_ptr(&value);
 
     unsafe { gsys::gr_reply_commit_wgas(gas_limit, value_ptr, delay, res.as_mut_ptr()) }
     SyscallError(res.length).into_result()?;
@@ -548,11 +542,7 @@ pub fn reply_input(value: u128, offset: u32, len: u32) -> Result<MessageId> {
 pub fn reply_input_delayed(value: u128, offset: u32, len: u32, delay: u32) -> Result<MessageId> {
     let mut res: LengthWithHash = Default::default();
 
-    let value_ptr = if value == 0 {
-        i32::MAX as *const u128
-    } else {
-        &value as *const u128
-    };
+    let value_ptr = value_ptr(&value);
 
     unsafe {
         gsys::gr_reply_input(offset, len, value_ptr, delay, res.as_mut_ptr());
@@ -590,11 +580,7 @@ pub fn reply_input_with_gas_delayed(
 ) -> Result<MessageId> {
     let mut res: LengthWithHash = Default::default();
 
-    let value_ptr = if value == 0 {
-        i32::MAX as *const u128
-    } else {
-        &value as *const u128
-    };
+    let value_ptr = value_ptr(&value);
 
     unsafe {
         gsys::gr_reply_input_wgas(offset, len, gas_limit, value_ptr, delay, res.as_mut_ptr());
@@ -604,7 +590,7 @@ pub fn reply_input_with_gas_delayed(
     Ok(MessageId(res.hash))
 }
 
-/// Same as [`send`], but resends the incoming message.
+/// Same as [`send`], but forwards the incoming message payload.
 pub fn send_input(destination: ActorId, value: u128, offset: u32, len: u32) -> Result<MessageId> {
     send_input_delayed(destination, value, offset, len, 0)
 }

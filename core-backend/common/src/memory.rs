@@ -37,55 +37,44 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError;
 
-/// Memory access error.
-#[derive(Debug, Clone, Copy, Encode, Decode, derive_more::Display)]
-#[display(fmt = "Out of memory access error")]
+/// The type will be used some time soon to implement proper charging.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum ProcessAccessError {
+    OutOfBounds,
+    GasLimitExceeded,
+    GasAllowanceExceeded,
+}
+
+/// Memory access error during sys-call that lazy-pages have caught.
+#[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct OutOfMemoryAccessError;
 
-#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
+#[derive(Debug, Clone, derive_more::From)]
 pub enum MemoryAccessError {
-    Actor(ActorMemoryAccessError),
-    System(SystemMemoryAccessError),
+    #[from]
+    Memory(MemoryError),
+    #[from]
+    RuntimeBuffer(RuntimeBufferSizeError),
+    // TODO: remove #2164
+    Decode,
+    GasLimitExceeded,
+    GasAllowanceExceeded,
 }
 
-impl From<MemoryError> for MemoryAccessError {
-    fn from(err: MemoryError) -> Self {
-        Self::Actor(err.into())
-    }
-}
-
-impl From<RuntimeBufferSizeError> for MemoryAccessError {
-    fn from(err: RuntimeBufferSizeError) -> Self {
-        Self::Actor(err.into())
+impl From<ProcessAccessError> for MemoryAccessError {
+    fn from(err: ProcessAccessError) -> Self {
+        match err {
+            ProcessAccessError::OutOfBounds => MemoryError::AccessOutOfBounds.into(),
+            ProcessAccessError::GasLimitExceeded => Self::GasLimitExceeded,
+            ProcessAccessError::GasAllowanceExceeded => Self::GasAllowanceExceeded,
+        }
     }
 }
 
 impl From<OutOfMemoryAccessError> for MemoryAccessError {
-    fn from(err: OutOfMemoryAccessError) -> Self {
-        Self::System(err.into())
+    fn from(_: OutOfMemoryAccessError) -> Self {
+        MemoryError::AccessOutOfBounds.into()
     }
-}
-
-#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
-pub enum ActorMemoryAccessError {
-    #[from]
-    #[display(fmt = "{_0}")]
-    Memory(MemoryError),
-    #[from]
-    #[display(fmt = "{_0}")]
-    RuntimeBuffer(RuntimeBufferSizeError),
-}
-
-#[derive(Debug, Clone, derive_more::Display, derive_more::From)]
-pub enum SystemMemoryAccessError {
-    #[from]
-    #[display(fmt = "{_0}")]
-    OutOfBounds(OutOfMemoryAccessError),
-    // TODO: remove #2164
-    #[display(fmt = "Cannot decode read memory")]
-    DecodeError,
-    #[display(fmt = "Buffer size {_0} is not equal to pre-registered size {_1}")]
-    WrongBufferSize(usize, u32),
 }
 
 /// Memory accesses recorder/registrar, which allow to register new accesses.
@@ -220,10 +209,13 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         if self.reads.is_empty() && self.writes.is_empty() {
             return Ok(());
         }
-        E::pre_process_memory_accesses(&self.reads, &self.writes)?;
+
+        let res = E::pre_process_memory_accesses(&self.reads, &self.writes);
+
         self.reads.clear();
         self.writes.clear();
-        Ok(())
+
+        res.map_err(Into::into)
     }
 
     /// Pre-process registered accesses if need and read data from `memory` to `buff`.
@@ -256,8 +248,7 @@ impl<E: BackendExt> MemoryAccessManager<E> {
     ) -> Result<T, MemoryAccessError> {
         let mut buff = RuntimeBuffer::try_new_default(T::max_encoded_len())?.into_vec();
         self.read_into_buf(memory, read.ptr, &mut buff)?;
-        let decoded =
-            T::decode_all(&mut &buff[..]).map_err(|_| SystemMemoryAccessError::DecodeError)?;
+        let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
         Ok(decoded)
     }
 
@@ -279,7 +270,7 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         buff: &[u8],
     ) -> Result<(), MemoryAccessError> {
         if buff.len() != write.size as usize {
-            return Err(SystemMemoryAccessError::WrongBufferSize(buff.len(), write.size).into());
+            unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
         }
         self.pre_process_memory_accesses()?;
         memory.write(write.ptr, buff).map_err(Into::into)

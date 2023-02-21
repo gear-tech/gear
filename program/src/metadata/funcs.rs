@@ -11,18 +11,19 @@ pub fn alloc(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Extern
             memory
                 .clone()
                 .grow(caller.as_context_mut(), pages as u64)
-                .map_err(|e| {
-                    log::error!("{:?}", e);
-
-                    Trap::i32_exit(1)
-                })
-                .map(|pages| pages as i32)
+                .map_or_else(
+                    |err| {
+                        log::error!("{err:?}");
+                        u32::MAX as i32
+                    },
+                    |pages| pages as i32,
+                )
         },
     ))
 }
 
 pub fn free(ctx: impl AsContextMut<Data = StoreData>) -> Extern {
-    Extern::Func(Func::wrap(ctx, |_: i32| {}))
+    Extern::Func(Func::wrap(ctx, |_: i32| 0))
 }
 
 pub fn gr_debug(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Extern {
@@ -44,6 +45,34 @@ pub fn gr_debug(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Ext
             Ok(())
         },
     ))
+}
+
+pub fn gr_panic(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Extern {
+    Extern::Func(Func::wrap(
+        ctx,
+        move |caller: Caller<'_, StoreData>, ptr: u32, len: i32| {
+            let (ptr, len) = (ptr as usize, len as usize);
+
+            let mut msg = vec![0; len];
+            memory
+                .clone()
+                .read(caller.as_context(), ptr, &mut msg)
+                .map_err(|e| {
+                    log::error!("{:?}", e);
+                    Trap::i32_exit(1)
+                })?;
+
+            log::error!("panic occurred: {:?}", String::from_utf8_lossy(&msg));
+            Ok(())
+        },
+    ))
+}
+
+pub fn gr_oom_panic(ctx: impl AsContextMut<Data = StoreData>) -> Extern {
+    Extern::Func(Func::wrap(ctx, move |_caller: Caller<'_, StoreData>| {
+        log::error!("OOM panic occurred");
+        Ok(())
+    }))
 }
 
 pub fn gr_read(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Extern {

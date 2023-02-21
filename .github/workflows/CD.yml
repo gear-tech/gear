@@ -23,7 +23,7 @@ jobs:
         run: echo "tag=ghcr.io/gear-tech/node:0.1.0-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
 
   docker:
-    runs-on: xeon
+    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
     needs: tag-image
     steps:
       - name: Checkout repo
@@ -138,5 +138,7 @@ jobs:
             ${{secrets.GEAR_NODE_3}} name=testnet-rpc-node rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             ${{secrets.GEAR_NODE_4}} name=testnet-gear03 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             ${{secrets.GEAR_NODE_5}} name=testnet-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.GEAR_NODE_6}} name=testnet-gear05 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.GEAR_NODE_7}} name=testnet-gear06 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             ${{secrets.ARCHIVE_NODE}} name=testnet-archive-node validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             ${{secrets.ARCHIVE_RPC_NODE}} name=testnet-archive-rpc-node rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}

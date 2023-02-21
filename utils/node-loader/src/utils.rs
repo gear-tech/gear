@@ -1,17 +1,14 @@
-use crate::{batch_pool::generators, SmallRng};
+use crate::SmallRng;
 use anyhow::{anyhow, Result};
-use dyn_clonable::*;
 use futures::Future;
 use futures_timer::Delay;
 use gclient::WSAddress;
-use rand::{Rng, RngCore, SeedableRng};
 use reqwest::Client;
 use std::{
     collections::HashMap,
     fs::File,
     io::Write,
     iter,
-    ops::Deref,
     result::Result as StdResult,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -35,7 +32,7 @@ pub fn now() -> u64 {
 }
 
 pub fn dump_with_seed(seed: u64) -> Result<()> {
-    let code = generators::generate_gear_program::<SmallRng>(seed);
+    let code = gear_call_gen::generate_gear_program::<SmallRng>(seed);
 
     let mut file = File::create("out.wasm")?;
     file.write_all(&code)?;
@@ -76,41 +73,6 @@ pub fn iterator_with_args<T, F: FnMut() -> T>(
 
 pub fn convert_iter<V, T: Into<V>>(args: Vec<T>) -> impl IntoIterator<Item = V> {
     args.into_iter().map(Into::into)
-}
-
-#[clonable]
-pub trait LoaderRngCore: RngCore + Clone {}
-impl<T: RngCore + Clone> LoaderRngCore for T {}
-
-pub trait LoaderRng: Rng + SeedableRng + 'static + Clone {}
-impl<T: Rng + SeedableRng + 'static + Clone> LoaderRng for T {}
-
-#[derive(Debug, Clone)]
-pub struct NonEmptyVec<T>(Vec<T>);
-
-impl<T> NonEmptyVec<T> {
-    pub fn try_from_iter<I>(other: I) -> Result<Self, ()>
-    where
-        I: Iterator<Item = T>,
-    {
-        let mut peekable = other.peekable();
-        (peekable.peek().is_some())
-            .then_some(Self(peekable.collect()))
-            .ok_or(())
-    }
-
-    pub fn ring_get(&self, index: usize) -> &T {
-        assert!(!self.is_empty(), "NonEmptyVec instance is empty");
-        &self[index % self.len()]
-    }
-}
-
-impl<T> Deref for NonEmptyVec<T> {
-    type Target = [T];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
 }
 
 pub trait SwapResult {

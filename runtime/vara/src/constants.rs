@@ -21,13 +21,18 @@ pub mod currency {
     use runtime_primitives::Balance;
 
     /// The existential deposit.
-    pub const EXISTENTIAL_DEPOSIT: Balance = MILLICENTS;
+    pub const EXISTENTIAL_DEPOSIT: Balance = 10_000_000_000_000; // 10 Vara
 
     // TODO: review quantities based on economic model (issue #1277)
-    pub const UNITS: Balance = 10_000_000_000;
-    pub const DOLLARS: Balance = UNITS; // 10_000_000_000
-    pub const CENTS: Balance = DOLLARS / 100; // 100_000_000
-    pub const MILLICENTS: Balance = CENTS / 1_000; // 100_000
+    pub const UNITS: Balance = 1_000_000_000_000; // 10^(-12) precision
+    pub const DOLLARS: Balance = UNITS * 20; // 1 token is worth ~$0.05
+    pub const CENTS: Balance = DOLLARS / 100; // 200_000_000_000
+    pub const MILLICENTS: Balance = CENTS / 1_000; // 200_000_000
+
+    /// Function that defines runtime constants used in voting
+    pub const fn deposit(items: u32, bytes: u32) -> Balance {
+        items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
+    }
 }
 
 /// Time and block constants
@@ -51,7 +56,11 @@ pub mod time {
     /// `SLOT_DURATION` should have the same value.
     ///
     /// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
-    pub const MILLISECS_PER_BLOCK: Moment = 1000;
+
+    pub const MILLISECS_PER_BLOCK: Moment = 2400;
+
+    // Milliseconds per year for the Julian year (365.25 days).
+    pub const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
 
     // NOTE: Currently it is not possible to change the slot duration after the chain has started.
     //       Attempting to do so will brick block production.
@@ -65,7 +74,7 @@ pub mod time {
 
     // NOTE: Currently it is not possible to change the epoch duration after the chain has started.
     //       Attempting to do so will brick block production.
-    pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 10 * MINUTES;
+    pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 40 * MINUTES;
     pub const EPOCH_DURATION_IN_SLOTS: u64 = {
         const SLOT_FILL_RATE: f64 = MILLISECS_PER_BLOCK as f64 / SLOT_DURATION as f64;
 

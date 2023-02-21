@@ -21,8 +21,9 @@
 use crate::state::HostState;
 use gear_core::{
     env::Ext,
-    memory::{Error, HostPointer, Memory, PageU32Size, WasmPage},
+    memory::{AllocError, HostPointer, Memory, PageU32Size, WasmPage},
 };
+use gear_core_errors::MemoryError;
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
 
 pub struct MemoryWrapRef<'a, E: Ext + 'static> {
@@ -31,11 +32,11 @@ pub struct MemoryWrapRef<'a, E: Ext + 'static> {
 }
 
 impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
-    fn grow(&mut self, pages: WasmPage) -> Result<(), Error> {
+    fn grow(&mut self, pages: WasmPage) -> Result<(), AllocError> {
         self.memory
             .grow(&mut self.store, Pages(pages.raw() as usize))
             .map(|_| ())
-            .map_err(|_| Error::OutOfBounds)
+            .map_err(|_| AllocError::ProgramAllocOutOfBounds)
     }
 
     fn size(&self) -> WasmPage {
@@ -43,16 +44,16 @@ impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
             .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
     }
 
-    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
         self.memory
             .write(&mut self.store, offset as usize, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 
-    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
         self.memory
             .read(&self.store, offset as usize, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
@@ -78,11 +79,11 @@ impl<E: Ext + 'static> MemoryWrap<E> {
 
 /// Memory interface for the allocator.
 impl<E: Ext + 'static> Memory for MemoryWrap<E> {
-    fn grow(&mut self, pages: WasmPage) -> Result<(), Error> {
+    fn grow(&mut self, pages: WasmPage) -> Result<(), AllocError> {
         self.memory
             .grow(&mut self.store, Pages(pages.raw() as usize))
             .map(|_| ())
-            .map_err(|_| Error::OutOfBounds)
+            .map_err(|_| AllocError::ProgramAllocOutOfBounds)
     }
 
     fn size(&self) -> WasmPage {
@@ -90,16 +91,16 @@ impl<E: Ext + 'static> Memory for MemoryWrap<E> {
             .expect("Unexpected backend behavior: wasm memory is bigger then u32::MAX")
     }
 
-    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
         self.memory
             .write(&mut self.store, offset as usize, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 
-    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
         self.memory
             .read(&self.store, offset as usize, buffer)
-            .map_err(|_| Error::MemoryAccessError)
+            .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
@@ -112,10 +113,7 @@ mod tests {
     use crate::state::State;
 
     use super::*;
-    use gear_backend_common::{
-        assert_err, assert_ok, memory::SystemMemoryAccessError, mock::MockExt,
-        SystemSyscallFuncError,
-    };
+    use gear_backend_common::{assert_err, assert_ok, mock::MockExt, ActorTerminationReason};
     use gear_core::memory::{AllocInfo, AllocationsContext, NoopGrowHandler};
     use wasmi::{Engine, Store};
 
@@ -132,8 +130,8 @@ mod tests {
             &engine,
             Some(State {
                 ext: MockExt::default(),
-                err: SystemSyscallFuncError::MemoryAccess(SystemMemoryAccessError::DecodeError)
-                    .into(),
+                fallible_syscall_error: None,
+                termination_reason: ActorTerminationReason::Success.into(),
             }),
         );
 
@@ -174,7 +172,7 @@ mod tests {
         // no more mem!
         assert_err!(
             ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap),
-            Error::OutOfBounds
+            AllocError::ProgramAllocOutOfBounds
         );
 
         // but we free some
@@ -207,7 +205,7 @@ mod tests {
 
         assert_err!(
             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap),
-            Error::OutOfBounds
+            AllocError::ProgramAllocOutOfBounds
         );
     }
 }

@@ -20,7 +20,11 @@ mod utils;
 
 /// Gear api wrapper.
 #[derive(Clone)]
-pub struct Api(OnlineClient<GearConfig>);
+pub struct Api {
+    /// How many times we'll retry when rpc requests failed.
+    pub retry: u16,
+    client: OnlineClient<GearConfig>,
+}
 
 impl Api {
     /// Create new API client.
@@ -30,15 +34,29 @@ impl Api {
 
     /// Create new API client with timeout.
     pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
-        Ok(Self(
-            OnlineClient::from_rpc_client(Arc::new(RpcClient::new(url, timeout).await?)).await?,
-        ))
+        Ok(Self {
+            // Retry our failed RPC requests for 5 times by default.
+            retry: 5,
+            client: OnlineClient::from_rpc_client(Arc::new(RpcClient::new(url, timeout).await?))
+                .await?,
+        })
+    }
+
+    /// Setup retry times and return the API instance.
+    pub fn with_retry(mut self, retry: u16) -> Self {
+        self.retry = retry;
+        self
+    }
+
+    /// Subscribe all blocks
+    pub async fn blocks(&self) -> Result<types::Blocks> {
+        Ok(types::Blocks(self.client.blocks().subscribe_all().await?))
     }
 
     /// Subscribe finalized blocks
-    pub async fn finalized_blocks(&self) -> Result<types::FinalizedBlocks> {
-        Ok(types::FinalizedBlocks(
-            self.0.blocks().subscribe_finalized().await?,
+    pub async fn finalized_blocks(&self) -> Result<types::Blocks> {
+        Ok(types::Blocks(
+            self.client.blocks().subscribe_finalized().await?,
         ))
     }
 
@@ -57,12 +75,12 @@ impl Deref for Api {
     type Target = OnlineClient<GearConfig>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.client
     }
 }
 
 impl DerefMut for Api {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.client
     }
 }

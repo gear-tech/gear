@@ -24,26 +24,28 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    ActorSyscallFuncError, BackendExt, BackendExtError, BackendState, IntoExtErrorForResult,
-    SyscallFuncError, TerminationReason,
+    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendState,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
+    buffer::RuntimeBuffer,
+    costs::RuntimeCosts,
     env::Ext,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
+use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
-    BlockNumberWithHash, Hash, HashWithValue, LengthWithCode, LengthWithGas, LengthWithHandle,
-    LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
+    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
+    LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
 };
 use wasmi::{
     core::{Trap, TrapCode, Value},
     AsContextMut, Caller, Func, Memory as WasmiMemory, Store,
 };
 
-// TODO: change it to u32::MAX (issue #2027)
-const PTR_SPECIAL: u32 = i32::MAX as u32;
+pub(crate) const PTR_SPECIAL: u32 = u32::MAX;
 
 pub struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
@@ -56,6 +58,7 @@ impl<E> FuncsHandler<E>
 where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
+    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
     pub fn send(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
@@ -67,10 +70,9 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Send(len), |ctx| {
                 let read_hash_val = ctx.register_read_as(pid_value_ptr);
                 let read_payload = ctx.register_read(payload_ptr, len);
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let HashWithValue {
                     hash: destination,
@@ -79,12 +81,10 @@ where
                 let payload = ctx.read(read_payload)?.try_into()?;
 
                 let state = ctx.host_state_mut();
-                let res = state
+                state
                     .ext
                     .send(HandlePacket::new(destination.into(), payload, value), delay)
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
+                    .map_err(Into::into)
             })
         };
 
@@ -106,10 +106,9 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Send(len), |ctx| {
                 let read_hash_val = ctx.register_read_as(pid_value_ptr);
                 let read_payload = ctx.register_read(payload_ptr, len);
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
 
                 let HashWithValue {
                     hash: destination,
@@ -118,15 +117,13 @@ where
                 let payload = ctx.read(read_payload)?.try_into()?;
 
                 let state = ctx.host_state_mut();
-                let res = state
+                state
                     .ext
                     .send(
                         HandlePacket::new_with_gas(destination.into(), payload, gas_limit, value),
                         delay,
                     )
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
+                    .map_err(Into::into)
             })
         };
 
@@ -146,27 +143,28 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let read_pid_value = ctx.register_read_as(pid_value_ptr);
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::SendCommit(0),
+                |ctx| {
+                    let read_pid_value = ctx.register_read_as(pid_value_ptr);
 
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_pid_value)?;
+                    let HashWithValue {
+                        hash: destination,
+                        value,
+                    } = ctx.read_as(read_pid_value)?;
 
-                let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .send_commit(
-                        handle,
-                        HandlePacket::new(destination.into(), Default::default(), value),
-                        delay,
-                    )
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .send_commit(
+                            handle,
+                            HandlePacket::new(destination.into(), Default::default(), value),
+                            delay,
+                        )
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -186,32 +184,33 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let read_pid_value = ctx.register_read_as(pid_value_ptr);
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::SendCommit(0),
+                |ctx| {
+                    let read_pid_value = ctx.register_read_as(pid_value_ptr);
 
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_pid_value)?;
+                    let HashWithValue {
+                        hash: destination,
+                        value,
+                    } = ctx.read_as(read_pid_value)?;
 
-                let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .send_commit(
-                        handle,
-                        HandlePacket::new_with_gas(
-                            destination.into(),
-                            Default::default(),
-                            gas_limit,
-                            value,
-                        ),
-                        delay,
-                    )
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .send_commit(
+                            handle,
+                            HandlePacket::new_with_gas(
+                                destination.into(),
+                                Default::default(),
+                                gas_limit,
+                                value,
+                            ),
+                            delay,
+                        )
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -225,14 +224,14 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, err_handle_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let write_err_handle = ctx.register_write_as(err_handle_ptr);
-
-                let state = ctx.host_state_mut();
-                let res = state.ext.send_init().into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_handle, LengthWithHandle::from(res))?;
-                Ok(())
-            })
+            ctx.run_fallible::<_, _, LengthWithHandle>(
+                err_handle_ptr,
+                RuntimeCosts::SendInit,
+                |ctx| {
+                    let state = ctx.host_state_mut();
+                    state.ext.send_init().map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -251,21 +250,12 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::SendPush(len), |ctx| {
                 let read_payload = ctx.register_read(payload_ptr, len);
-                let write_err_len = ctx.register_write_as(err_ptr);
-
                 let payload = ctx.read(read_payload)?;
 
                 let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .send_push(handle, &payload)
-                    .into_ext_error(&mut state.err)?;
-                let len = res.err().unwrap_or(0);
-
-                ctx.write_as(write_err_len, len.to_le_bytes())
-                    .map_err(Into::into)
+                state.ext.send_push(handle, &payload).map_err(Into::into)
             })
         };
 
@@ -286,30 +276,31 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
-                let read_payload = ctx.register_read(payload_ptr, len);
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::ReservationSend(len),
+                |ctx| {
+                    let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
+                    let read_payload = ctx.register_read(payload_ptr, len);
 
-                let TwoHashesWithValue {
-                    hash1: reservation_id,
-                    hash2: destination,
-                    value,
-                } = ctx.read_as(read_rid_pid_value)?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+                    let TwoHashesWithValue {
+                        hash1: reservation_id,
+                        hash2: destination,
+                        value,
+                    } = ctx.read_as(read_rid_pid_value)?;
+                    let payload = ctx.read(read_payload)?.try_into()?;
 
-                let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .reservation_send(
-                        reservation_id.into(),
-                        HandlePacket::new(destination.into(), payload, value),
-                        delay,
-                    )
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .reservation_send(
+                            reservation_id.into(),
+                            HandlePacket::new(destination.into(), payload, value),
+                            delay,
+                        )
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -328,29 +319,30 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::ReservationSend(0),
+                |ctx| {
+                    let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
 
-                let TwoHashesWithValue {
-                    hash1: reservation_id,
-                    hash2: destination,
-                    value,
-                } = ctx.read_as(read_rid_pid_value)?;
+                    let TwoHashesWithValue {
+                        hash1: reservation_id,
+                        hash2: destination,
+                        value,
+                    } = ctx.read_as(read_rid_pid_value)?;
 
-                let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .reservation_send_commit(
-                        reservation_id.into(),
-                        handle,
-                        HandlePacket::new(destination.into(), Default::default(), value),
-                        delay,
-                    )
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .reservation_send_commit(
+                            reservation_id.into(),
+                            handle,
+                            HandlePacket::new(destination.into(), Default::default(), value),
+                            delay,
+                        )
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -365,20 +357,16 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_state_taken(|ctx, state| {
-                let write_err_len = ctx.register_write_as(err_len_ptr);
-                let length = match state.ext.read(at, len).into_ext_error(&mut state.err)? {
-                    Ok(buf) => {
-                        let write_buffer = ctx.register_write(buffer_ptr, len);
-                        ctx.write(write_buffer, buf)?;
-                        0u32
-                    }
-                    Err(err_len) => err_len,
-                };
+            ctx.run_fallible_state_taken::<_, _, LengthBytes>(
+                err_len_ptr,
+                RuntimeCosts::Read(len),
+                |ctx, state| {
+                    let buffer = state.ext.read(at, len)?;
 
-                ctx.write_as(write_err_len, length.to_le_bytes())
-                    .map_err(Into::into)
-            })
+                    let write_buffer = ctx.register_write(buffer_ptr, len);
+                    ctx.write(write_buffer, buffer).map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -388,15 +376,10 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, length_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run(RuntimeCosts::Size, |ctx| {
+                let size = ctx.host_state_mut().ext.size()? as u32;
+
                 let write_size = ctx.register_write_as(length_ptr);
-
-                let size = ctx
-                    .host_state_mut()
-                    .ext
-                    .size()
-                    .map_err(ActorSyscallFuncError::Core)? as u32;
-
                 ctx.write_as(write_size, size.to_le_bytes())
                     .map_err(Into::into)
             })
@@ -409,17 +392,13 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, inheritor_id_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| -> Result<(), _> {
+            ctx.run(RuntimeCosts::Exit, |ctx| -> Result<(), _> {
                 let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
-
                 let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
 
-                ctx.host_state_mut()
-                    .ext
-                    .exit()
-                    .map_err(ActorSyscallFuncError::Core)?;
+                ctx.host_state_mut().ext.exit()?;
 
-                Err(ActorSyscallFuncError::Terminated(TerminationReason::Exit(inheritor_id)).into())
+                Err(ActorTerminationReason::Exit(inheritor_id).into())
             })
         };
 
@@ -434,14 +413,14 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, err_code_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let write_err_code = ctx.register_write_as(err_code_ptr);
-
-                let state = ctx.host_state_mut();
-                let res = state.ext.status_code().into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_code, LengthWithCode::from(res))?;
-                Ok(())
-            })
+            ctx.run_fallible::<_, _, LengthWithCode>(
+                err_code_ptr,
+                RuntimeCosts::StatusCode,
+                |ctx| {
+                    let state = ctx.host_state_mut();
+                    state.ext.status_code().map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -453,14 +432,21 @@ where
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_state_taken(|ctx, state| {
-                let mut mem = ctx.memory();
-                let page = state
-                    .ext
-                    .alloc(pages, &mut mem)
-                    .map_err(ActorSyscallFuncError::Core)?;
-                log::debug!("Alloc {:?} pages at {:?}", pages, page);
-                Ok((page.raw(),))
+            ctx.run_state_taken(RuntimeCosts::Alloc, |ctx, state| {
+                let res = state.ext.alloc(pages, &mut ctx.memory());
+                let res = state.process_alloc_func_result(res)?;
+                let page = match res {
+                    Ok(page) => {
+                        log::debug!("Alloc {pages:?} pages at {page:?}");
+                        page.raw()
+                    }
+                    Err(err) => {
+                        log::debug!("Alloc failed: {err}");
+                        u32::MAX
+                    }
+                };
+
+                Ok((page,))
             })
         };
 
@@ -468,18 +454,25 @@ where
     }
 
     pub fn free(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>, page: u32| -> EmptyOutput {
+        let func = move |caller: Caller<'_, HostState<E>>, page: u32| -> FnResult<i32> {
             let page = WasmPage::new(page).map_err(|_| Trap::Code(TrapCode::Unreachable))?;
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                ctx.host_state_mut()
-                    .ext
-                    .free(page)
-                    .map(|_| log::debug!("Free {:?}", page))
-                    .map_err(ActorSyscallFuncError::Core)?;
-                Ok(())
+            ctx.run_state_taken(RuntimeCosts::Free, |_ctx, state| {
+                let res = state.ext.free(page);
+                let res = state.process_alloc_func_result(res)?;
+
+                match &res {
+                    Ok(()) => {
+                        log::debug!("Free {page:?}");
+                    }
+                    Err(err) => {
+                        log::debug!("Free failed: {err}");
+                    }
+                };
+
+                Ok((res.is_err() as i32,))
             })
         };
 
@@ -494,15 +487,10 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, height_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run(RuntimeCosts::BlockHeight, |ctx| {
+                let height = ctx.host_state_mut().ext.block_height()?;
+
                 let write_height = ctx.register_write_as(height_ptr);
-
-                let height = ctx
-                    .host_state_mut()
-                    .ext
-                    .block_height()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_height, height.to_le_bytes())
                     .map_err(Into::into)
             })
@@ -519,15 +507,10 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, timestamp_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run(RuntimeCosts::BlockTimestamp, |ctx| {
+                let timestamp = ctx.host_state_mut().ext.block_timestamp()?;
+
                 let write_timestamp = ctx.register_write_as(timestamp_ptr);
-
-                let timestamp = ctx
-                    .host_state_mut()
-                    .ext
-                    .block_timestamp()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_timestamp, timestamp.to_le_bytes())
                     .map_err(Into::into)
             })
@@ -540,15 +523,10 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, origin_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run(RuntimeCosts::Origin, |ctx| {
+                let origin = ctx.host_state_mut().ext.origin()?;
+
                 let write_origin = ctx.register_write_as(origin_ptr);
-
-                let origin = ctx
-                    .host_state_mut()
-                    .ext
-                    .origin()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_origin, origin.into_bytes())
                     .map_err(Into::into)
             })
@@ -567,25 +545,16 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply, |ctx| {
                 let read_payload = ctx.register_read(payload_ptr, len);
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
 
                 let state = ctx.host_state_mut();
-                let res = state
+                state
                     .ext
                     .reply(ReplyPacket::new(payload, value), delay)
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
+                    .map_err(Into::into)
             })
         };
 
@@ -607,25 +576,16 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply, |ctx| {
                 let read_payload = ctx.register_read(payload_ptr, len);
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                let value = ctx.register_and_read_value(value_ptr)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
 
                 let state = ctx.host_state_mut();
-                let res = state
+                state
                     .ext
                     .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
+                    .map_err(Into::into)
             })
         };
 
@@ -644,24 +604,19 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::ReplyCommit,
+                |ctx| {
+                    let value = ctx.register_and_read_value(value_ptr)?;
 
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
-
-                let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -680,27 +635,22 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::ReplyCommit,
+                |ctx| {
+                    let value = ctx.register_and_read_value(value_ptr)?;
 
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded::<u128>(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
-
-                let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .reply_commit(
-                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                        delay,
-                    )
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .reply_commit(
+                            ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                            delay,
+                        )
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -720,29 +670,30 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let read_rid_value = ctx.register_read_as(rid_value_ptr);
-                let read_payload = ctx.register_read(payload_ptr, len);
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::ReservationReply,
+                |ctx| {
+                    let read_rid_value = ctx.register_read_as(rid_value_ptr);
+                    let read_payload = ctx.register_read(payload_ptr, len);
 
-                let HashWithValue {
-                    hash: reservation_id,
-                    value,
-                } = ctx.read_as(read_rid_value)?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+                    let HashWithValue {
+                        hash: reservation_id,
+                        value,
+                    } = ctx.read_as(read_rid_value)?;
+                    let payload = ctx.read(read_payload)?.try_into()?;
 
-                let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .reservation_reply(
-                        reservation_id.into(),
-                        ReplyPacket::new(payload, value),
-                        delay,
-                    )
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .reservation_reply(
+                            reservation_id.into(),
+                            ReplyPacket::new(payload, value),
+                            delay,
+                        )
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -760,27 +711,28 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let read_rid_value = ctx.register_read_as(rid_value_ptr);
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::ReservationReplyCommit,
+                |ctx| {
+                    let read_rid_value = ctx.register_read_as(rid_value_ptr);
 
-                let HashWithValue {
-                    hash: reservation_id,
-                    value,
-                } = ctx.read_as(read_rid_value)?;
+                    let HashWithValue {
+                        hash: reservation_id,
+                        value,
+                    } = ctx.read_as(read_rid_value)?;
 
-                let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .reservation_reply_commit(
-                        reservation_id.into(),
-                        ReplyPacket::new(Default::default(), value),
-                        delay,
-                    )
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .reservation_reply_commit(
+                            reservation_id.into(),
+                            ReplyPacket::new(Default::default(), value),
+                            delay,
+                        )
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -790,13 +742,9 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, err_mid_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyTo, |ctx| {
                 let state = ctx.host_state_mut();
-                let res = state.ext.reply_to().into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
+                state.ext.reply_to().map_err(Into::into)
             })
         };
 
@@ -811,13 +759,9 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, err_mid_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
-
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SignalFrom, |ctx| {
                 let state = ctx.host_state_mut();
-                let res = state.ext.signal_from().into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
+                state.ext.signal_from().map_err(Into::into)
             })
         };
 
@@ -836,21 +780,12 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::ReplyPush(len), |ctx| {
                 let read_payload = ctx.register_read(payload_ptr, len);
-                let write_err_len = ctx.register_write_as(err_ptr);
-
                 let payload = ctx.read(read_payload)?;
 
                 let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .reply_push(&payload)
-                    .into_ext_error(&mut state.err)?;
-                let len = res.err().unwrap_or(0);
-
-                ctx.write_as(write_err_len, len.to_le_bytes())
-                    .map_err(Into::into)
+                state.ext.reply_push(&payload).map_err(Into::into)
             })
         };
 
@@ -871,27 +806,23 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::ReplyInput(len),
+                |ctx| {
+                    let value = ctx.register_and_read_value(value_ptr)?;
 
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                    let state = ctx.host_state_mut();
+                    let mut f = || {
+                        state.ext.reply_push_input(offset, len)?;
+                        state
+                            .ext
+                            .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+                    };
 
-                let state = ctx.host_state_mut();
-                let mut f = || {
-                    state.ext.reply_push_input(offset, len)?;
-                    state
-                        .ext
-                        .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-                };
-                let res = f().into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
-            })
+                    f().map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -909,19 +840,14 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let write_err_len = ctx.register_write_as(err_ptr);
-
-                let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .reply_push_input(offset, len)
-                    .into_ext_error(&mut state.err)?;
-                let len = res.err().unwrap_or(0);
-
-                ctx.write_as(write_err_len, len.to_le_bytes())
-                    .map_err(Into::into)
-            })
+            ctx.run_fallible::<_, _, LengthBytes>(
+                err_ptr,
+                RuntimeCosts::ReplyPushInput(len),
+                |ctx| {
+                    let state = ctx.host_state_mut();
+                    state.ext.reply_push_input(offset, len).map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -942,28 +868,24 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::ReplyInput(len),
+                |ctx| {
+                    let value = ctx.register_and_read_value(value_ptr)?;
 
-                let value = if value_ptr != PTR_SPECIAL {
-                    let read_value = ctx.register_read_decoded(value_ptr);
-                    ctx.read_decoded(read_value)?
-                } else {
-                    0
-                };
+                    let state = ctx.host_state_mut();
+                    let mut f = || {
+                        state.ext.reply_push_input(offset, len)?;
+                        state.ext.reply_commit(
+                            ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                            delay,
+                        )
+                    };
 
-                let state = ctx.host_state_mut();
-                let mut f = || {
-                    state.ext.reply_push_input(offset, len)?;
-                    state.ext.reply_commit(
-                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                        delay,
-                    )
-                };
-                let res = f().into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
-            })
+                    f().map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -983,29 +905,31 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let read_pid_value = ctx.register_read_as(pid_value_ptr);
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::SendInput(len),
+                |ctx| {
+                    let read_pid_value = ctx.register_read_as(pid_value_ptr);
 
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_pid_value)?;
+                    let HashWithValue {
+                        hash: destination,
+                        value,
+                    } = ctx.read_as(read_pid_value)?;
 
-                let state = ctx.host_state_mut();
-                let mut f = || {
-                    let handle = state.ext.send_init()?;
-                    state.ext.send_push_input(handle, offset, len)?;
-                    state.ext.send_commit(
-                        handle,
-                        HandlePacket::new(destination.into(), Default::default(), value),
-                        delay,
-                    )
-                };
-                let res = f().into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    let mut f = || {
+                        let handle = state.ext.send_init()?;
+                        state.ext.send_push_input(handle, offset, len)?;
+                        state.ext.send_commit(
+                            handle,
+                            HandlePacket::new(destination.into(), Default::default(), value),
+                            delay,
+                        )
+                    };
+
+                    f().map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -1024,19 +948,17 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let write_err_len = ctx.register_write_as(err_ptr);
-
-                let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .send_push_input(handle, offset, len)
-                    .into_ext_error(&mut state.err)?;
-                let len = res.err().unwrap_or(0);
-
-                ctx.write_as(write_err_len, len.to_le_bytes())
-                    .map_err(Into::into)
-            })
+            ctx.run_fallible::<_, _, LengthBytes>(
+                err_ptr,
+                RuntimeCosts::SendPushInput(len),
+                |ctx| {
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .send_push_input(handle, offset, len)
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -1057,34 +979,36 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let read_pid_value = ctx.register_read_as(pid_value_ptr);
-                let write_err_mid = ctx.register_write_as(err_mid_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::SendInput(len),
+                |ctx| {
+                    let read_pid_value = ctx.register_read_as(pid_value_ptr);
 
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_pid_value)?;
+                    let HashWithValue {
+                        hash: destination,
+                        value,
+                    } = ctx.read_as(read_pid_value)?;
 
-                let state = ctx.host_state_mut();
-                let mut f = || {
-                    let handle = state.ext.send_init()?;
-                    state.ext.send_push_input(handle, offset, len)?;
-                    state.ext.send_commit(
-                        handle,
-                        HandlePacket::new_with_gas(
-                            destination.into(),
-                            Default::default(),
-                            gas_limit,
-                            value,
-                        ),
-                        delay,
-                    )
-                };
-                let res = f().into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid, LengthWithHash::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    let mut f = || {
+                        let handle = state.ext.send_init()?;
+                        state.ext.send_push_input(handle, offset, len)?;
+                        state.ext.send_commit(
+                            handle,
+                            HandlePacket::new_with_gas(
+                                destination.into(),
+                                Default::default(),
+                                gas_limit,
+                                value,
+                            ),
+                            delay,
+                        )
+                    };
+
+                    f().map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -1095,20 +1019,49 @@ where
             move |caller: Caller<'_, HostState<E>>, string_ptr: u32, len: u32| -> EmptyOutput {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-                ctx.run(|ctx| {
+                ctx.run(RuntimeCosts::Debug(len), |ctx| {
                     let read_data = ctx.register_read(string_ptr, len);
 
-                    let data = ctx.read(read_data)?;
+                    let data: RuntimeBuffer = ctx.read(read_data)?.try_into()?;
 
-                    let s = String::from_utf8(data)?;
-                    ctx.host_state_mut()
-                        .ext
-                        .debug(&s)
-                        .map_err(ActorSyscallFuncError::Core)?;
-
-                    Ok(())
+                    let s = String::from_utf8(data.into_vec())?;
+                    ctx.host_state_mut().ext.debug(&s).map_err(Into::into)
                 })
             };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn panic(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
+        let func =
+            move |caller: Caller<'_, HostState<E>>, string_ptr: u32, len: u32| -> EmptyOutput {
+                let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
+
+                ctx.run(RuntimeCosts::Null, |ctx| {
+                    let read_data = ctx.register_read(string_ptr, len);
+                    let data = ctx.read(read_data).unwrap_or_default();
+
+                    let s = String::from_utf8_lossy(&data).to_string();
+
+                    Err(ActorTerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
+                })
+            };
+
+        Func::wrap(store, func)
+    }
+
+    pub fn oom_panic(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
+        let func = move |caller: Caller<'_, HostState<E>>| -> EmptyOutput {
+            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
+
+            ctx.run(RuntimeCosts::Null, |_ctx| {
+                Err(ActorTerminationReason::Trap(TrapExplanation::ProgramAllocOutOfBounds).into())
+            })
+        };
 
         Func::wrap(store, func)
     }
@@ -1125,16 +1078,9 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let write_err_rid = ctx.register_write_as(err_rid_ptr);
-
+            ctx.run_fallible::<_, _, LengthWithHash>(err_rid_ptr, RuntimeCosts::ReserveGas, |ctx| {
                 let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .reserve_gas(gas, duration)
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_rid, LengthWithHash::from(res))?;
-                Ok(())
+                state.ext.reserve_gas(gas, duration).map_err(Into::into)
             })
         };
 
@@ -1152,17 +1098,17 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let read_reservation_id = ctx.register_read_decoded(reservation_id_ptr);
-                let write_err_unreserved = ctx.register_write_as(err_unreserved_ptr);
+            ctx.run_fallible::<_, _, LengthWithGas>(
+                err_unreserved_ptr,
+                RuntimeCosts::UnreserveGas,
+                |ctx| {
+                    let read_reservation_id = ctx.register_read_decoded(reservation_id_ptr);
+                    let id = ctx.read_decoded(read_reservation_id)?;
 
-                let id = ctx.read_decoded(read_reservation_id)?;
-
-                let state = ctx.host_state_mut();
-                let res = state.ext.unreserve_gas(id).into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_unreserved, LengthWithGas::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    state.ext.unreserve_gas(id).map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -1176,18 +1122,9 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, gas: u64, err_ptr: u32| {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let write_err_len = ctx.register_write_as(err_ptr);
-
+            ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::SystemReserveGas, |ctx| {
                 let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .system_reserve_gas(gas)
-                    .into_ext_error(&mut state.err)?;
-                let len = res.err().unwrap_or(0);
-
-                ctx.write_as(write_err_len, len.to_le_bytes())
-                    .map_err(Into::into)
+                state.ext.system_reserve_gas(gas).map_err(Into::into)
             })
         };
 
@@ -1202,15 +1139,10 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, gas_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run(RuntimeCosts::GasAvailable, |ctx| {
+                let gas = ctx.host_state_mut().ext.gas_available()?;
+
                 let write_gas = ctx.register_write_as(gas_ptr);
-
-                let gas = ctx
-                    .host_state_mut()
-                    .ext
-                    .gas_available()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_gas, gas.to_le_bytes())
                     .map_err(Into::into)
             })
@@ -1227,15 +1159,10 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, message_id_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run(RuntimeCosts::MsgId, |ctx| {
+                let message_id = ctx.host_state_mut().ext.message_id()?;
+
                 let write_message_id = ctx.register_write_as(message_id_ptr);
-
-                let message_id = ctx
-                    .host_state_mut()
-                    .ext
-                    .message_id()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_message_id, message_id.into_bytes())
                     .map_err(Into::into)
             })
@@ -1252,15 +1179,10 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, program_id_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run(RuntimeCosts::ProgramId, |ctx| {
+                let program_id = ctx.host_state_mut().ext.program_id()?;
+
                 let write_program_id = ctx.register_write_as(program_id_ptr);
-
-                let program_id = ctx
-                    .host_state_mut()
-                    .ext
-                    .program_id()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_program_id, program_id.into_bytes())
                     .map_err(Into::into)
             })
@@ -1273,15 +1195,10 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, source_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run(RuntimeCosts::Source, |ctx| {
+                let source = ctx.host_state_mut().ext.source()?;
+
                 let write_source = ctx.register_write_as(source_ptr);
-
-                let source = ctx
-                    .host_state_mut()
-                    .ext
-                    .source()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_source, source.into_bytes())
                     .map_err(Into::into)
             })
@@ -1294,15 +1211,10 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, value_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run(RuntimeCosts::Value, |ctx| {
+                let value = ctx.host_state_mut().ext.value()?;
+
                 let write_value = ctx.register_write_as(value_ptr);
-
-                let value = ctx
-                    .host_state_mut()
-                    .ext
-                    .value()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_value, value.to_le_bytes())
                     .map_err(Into::into)
             })
@@ -1319,15 +1231,10 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, value_ptr: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run(RuntimeCosts::ValueAvailable, |ctx| {
+                let value_available = ctx.host_state_mut().ext.value_available()?;
+
                 let write_value = ctx.register_write_as(value_ptr);
-
-                let value_available = ctx
-                    .host_state_mut()
-                    .ext
-                    .value_available()
-                    .map_err(ActorSyscallFuncError::Core)?;
-
                 ctx.write_as(write_value, value_available.to_le_bytes())
                     .map_err(Into::into)
             })
@@ -1343,17 +1250,13 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run(RuntimeCosts::Random, |ctx| {
                 let read_subject = ctx.register_read_decoded(subject_ptr);
                 let write_bn_random = ctx.register_write_as::<BlockNumberWithHash>(bn_random_ptr);
 
                 let raw_subject: Hash = ctx.read_decoded(read_subject)?;
 
-                let (random, bn) = ctx
-                    .host_state_mut()
-                    .ext
-                    .random()
-                    .map_err(ActorSyscallFuncError::Core)?;
+                let (random, bn) = ctx.host_state_mut().ext.random()?;
                 let subject = [&raw_subject, random].concat();
 
                 let mut hash = [0; 32];
@@ -1371,15 +1274,9 @@ where
         let func = move |caller: Caller<'_, HostState<E>>| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| -> Result<(), _> {
-                Err(ctx
-                    .host_state_mut()
-                    .ext
-                    .leave()
-                    .map_err(ActorSyscallFuncError::Core)
-                    .err()
-                    .unwrap_or(ActorSyscallFuncError::Terminated(TerminationReason::Leave)))
-                .map_err(Into::into)
+            ctx.run(RuntimeCosts::Leave, |ctx| -> Result<(), _> {
+                ctx.host_state_mut().ext.leave()?;
+                Err(ActorTerminationReason::Leave.into())
             })
         };
 
@@ -1390,20 +1287,9 @@ where
         let func = move |caller: Caller<'_, HostState<E>>| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| -> Result<(), _> {
-                Err(ctx
-                    .host_state_mut()
-                    .ext
-                    .wait()
-                    .map_err(ActorSyscallFuncError::Core)
-                    .err()
-                    .unwrap_or_else(|| {
-                        ActorSyscallFuncError::Terminated(TerminationReason::Wait(
-                            None,
-                            MessageWaitedType::Wait,
-                        ))
-                    }))
-                .map_err(Into::into)
+            ctx.run(RuntimeCosts::Wait, |ctx| -> Result<(), _> {
+                ctx.host_state_mut().ext.wait()?;
+                Err(ActorTerminationReason::Wait(None, MessageWaitedType::Wait).into())
             })
         };
 
@@ -1414,20 +1300,9 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, duration: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| -> Result<(), _> {
-                Err(ctx
-                    .host_state_mut()
-                    .ext
-                    .wait_for(duration)
-                    .map_err(ActorSyscallFuncError::Core)
-                    .err()
-                    .unwrap_or_else(|| {
-                        ActorSyscallFuncError::Terminated(TerminationReason::Wait(
-                            Some(duration),
-                            MessageWaitedType::WaitFor,
-                        ))
-                    }))
-                .map_err(Into::into)
+            ctx.run(RuntimeCosts::WaitFor, |ctx| -> Result<(), _> {
+                ctx.host_state_mut().ext.wait_for(duration)?;
+                Err(ActorTerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
             })
         };
 
@@ -1442,21 +1317,13 @@ where
         let func = move |caller: Caller<'_, HostState<E>>, duration: u32| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| -> Result<(), _> {
-                Err(ActorSyscallFuncError::Terminated(TerminationReason::Wait(
-                    Some(duration),
-                    if ctx
-                        .host_state_mut()
-                        .ext
-                        .wait_up_to(duration)
-                        .map_err(ActorSyscallFuncError::Core)?
-                    {
-                        MessageWaitedType::WaitUpToFull
-                    } else {
-                        MessageWaitedType::WaitUpTo
-                    },
-                ))
-                .into())
+            ctx.run(RuntimeCosts::WaitUpTo, |ctx| -> Result<(), _> {
+                let waited_type = if ctx.host_state_mut().ext.wait_up_to(duration)? {
+                    MessageWaitedType::WaitUpToFull
+                } else {
+                    MessageWaitedType::WaitUpTo
+                };
+                Err(ActorTerminationReason::Wait(Some(duration), waited_type).into())
             })
         };
 
@@ -1471,21 +1338,13 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
+            ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::Wake, |ctx| {
                 let read_message_id = ctx.register_read_decoded(message_id_ptr);
-                let write_err_len = ctx.register_write_as(err_ptr);
 
                 let message_id = ctx.read_decoded(read_message_id)?;
 
                 let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .wake(message_id, delay)
-                    .into_ext_error(&mut state.err)?;
-                let len = res.err().unwrap_or(0);
-
-                ctx.write_as(write_err_len, len.to_le_bytes())
-                    .map_err(Into::into)
+                state.ext.wake(message_id, delay).map_err(Into::into)
             })
         };
 
@@ -1508,27 +1367,31 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let read_cid_value = ctx.register_read_as(cid_value_ptr);
-                let read_salt = ctx.register_read(salt_ptr, salt_len);
-                let read_payload = ctx.register_read(payload_ptr, payload_len);
-                let write_err_mid_pid = ctx.register_write_as(err_mid_pid_ptr);
+            ctx.run_fallible::<_, _, LengthWithTwoHashes>(
+                err_mid_pid_ptr,
+                RuntimeCosts::CreateProgram(payload_len, salt_len),
+                |ctx| {
+                    let read_cid_value = ctx.register_read_as(cid_value_ptr);
+                    let read_salt = ctx.register_read(salt_ptr, salt_len);
+                    let read_payload = ctx.register_read(payload_ptr, payload_len);
 
-                let HashWithValue {
-                    hash: code_id,
-                    value,
-                } = ctx.read_as(read_cid_value)?;
-                let salt = ctx.read(read_salt)?.try_into()?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+                    let HashWithValue {
+                        hash: code_id,
+                        value,
+                    } = ctx.read_as(read_cid_value)?;
+                    let salt = ctx.read(read_salt)?.try_into()?;
+                    let payload = ctx.read(read_payload)?.try_into()?;
 
-                let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid_pid, LengthWithTwoHashes::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .create_program(
+                            InitPacket::new(code_id.into(), salt, payload, value),
+                            delay,
+                        )
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -1551,30 +1414,37 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let read_cid_value = ctx.register_read_as(cid_value_ptr);
-                let read_salt = ctx.register_read(salt_ptr, salt_len);
-                let read_payload = ctx.register_read(payload_ptr, payload_len);
-                let write_err_mid_pid = ctx.register_write_as(err_mid_pid_ptr);
+            ctx.run_fallible::<_, _, LengthWithTwoHashes>(
+                err_mid_pid_ptr,
+                RuntimeCosts::CreateProgram(payload_len, salt_len),
+                |ctx| {
+                    let read_cid_value = ctx.register_read_as(cid_value_ptr);
+                    let read_salt = ctx.register_read(salt_ptr, salt_len);
+                    let read_payload = ctx.register_read(payload_ptr, payload_len);
 
-                let HashWithValue {
-                    hash: code_id,
-                    value,
-                } = ctx.read_as(read_cid_value)?;
-                let salt = ctx.read(read_salt)?.try_into()?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+                    let HashWithValue {
+                        hash: code_id,
+                        value,
+                    } = ctx.read_as(read_cid_value)?;
+                    let salt = ctx.read(read_salt)?.try_into()?;
+                    let payload = ctx.read(read_payload)?.try_into()?;
 
-                let state = ctx.host_state_mut();
-                let res = state
-                    .ext
-                    .create_program(
-                        InitPacket::new_with_gas(code_id.into(), salt, payload, gas_limit, value),
-                        delay,
-                    )
-                    .into_ext_error(&mut state.err)?;
-                ctx.write_as(write_err_mid_pid, LengthWithTwoHashes::from(res))?;
-                Ok(())
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .create_program(
+                            InitPacket::new_with_gas(
+                                code_id.into(),
+                                salt,
+                                payload,
+                                gas_limit,
+                                value,
+                            ),
+                            delay,
+                        )
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -1587,25 +1457,20 @@ where
               -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(|ctx| {
-                let last_err = ctx.host_state_mut().last_err();
-                let write_err_len = ctx.register_write_as(err_len_ptr);
-                let len: u32 = match last_err {
-                    Ok(err) => {
-                        let err = err.encode();
-                        let write_error_bytes = ctx.register_write(err_buf_ptr, err.len() as u32);
-                        ctx.write(write_error_bytes, err.as_ref())?;
-                        0
-                    }
-                    Err(err) => err.encoded_size() as u32,
-                };
+            ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::Error, |ctx| {
+                let state = ctx.host_state_mut();
 
-                ctx.host_state_mut()
-                    .ext
-                    .charge_error()
-                    .map_err(ActorSyscallFuncError::Core)?;
-                ctx.write_as(write_err_len, len.to_le_bytes())?;
-                Ok(())
+                if let Some(err) = state.fallible_syscall_error.as_ref() {
+                    let err = err.encode();
+                    let write_error_bytes = ctx.register_write(err_buf_ptr, err.len() as u32);
+                    ctx.write(write_error_bytes, err.as_ref())
+                        .map_err(Into::into)
+                } else {
+                    Err(
+                        ActorTerminationReason::Trap(TrapExplanation::Ext(ExtError::SyscallUsage))
+                            .into(),
+                    )
+                }
             })
         };
 
@@ -1614,12 +1479,9 @@ where
 
     pub fn out_of_gas(store: &mut Store<HostState<E>>) -> Func {
         let func = move |mut caller: Caller<'_, HostState<E>>| -> EmptyOutput {
-            let host_state = caller
-                .host_data_mut()
-                .as_mut()
-                .expect("host_state should be set before execution");
-
-            host_state.err = ActorSyscallFuncError::Core(host_state.ext.out_of_gas()).into();
+            let host_state = internal::caller_host_state_mut(&mut caller);
+            let termination_reason = host_state.ext.out_of_gas().into_termination_reason();
+            host_state.set_termination_reason(termination_reason);
             Err(TrapCode::Unreachable.into())
         };
 
@@ -1628,13 +1490,9 @@ where
 
     pub fn out_of_allowance(store: &mut Store<HostState<E>>) -> Func {
         let func = move |mut caller: Caller<'_, HostState<E>>| -> EmptyOutput {
-            let host_state = caller
-                .host_data_mut()
-                .as_mut()
-                .expect("host_state should be set before execution");
-
-            host_state.err = ActorSyscallFuncError::Core(host_state.ext.out_of_allowance()).into();
-
+            let host_state = internal::caller_host_state_mut(&mut caller);
+            let termination_reason = host_state.ext.out_of_allowance().into_termination_reason();
+            host_state.set_termination_reason(termination_reason);
             Err(TrapCode::Unreachable.into())
         };
 
