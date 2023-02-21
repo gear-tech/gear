@@ -472,9 +472,10 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_signal_from(r: u32, ) -> Weight {
-        Weight::from_ref_time(102_171_092 as u64)
-            // Standard Error: 14_288
-            .saturating_add(Weight::from_ref_time(3_640_149 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(143_776_429 as u64)
+            // Standard Error: 110_504
+            .saturating_add(Weight::from_ref_time(324_263_076 as u64).saturating_mul(r as u64))
+            .saturating_add(T::DbWeight::get().reads(7 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_push_input(r: u32, ) -> Weight {
@@ -1222,9 +1223,10 @@ impl WeightInfo for () {
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_signal_from(r: u32, ) -> Weight {
-        Weight::from_ref_time(102_171_092 as u64)
-            // Standard Error: 14_288
-            .saturating_add(Weight::from_ref_time(3_640_149 as u64).saturating_mul(r as u64))
+        Weight::from_ref_time(143_776_429 as u64)
+            // Standard Error: 110_504
+            .saturating_add(Weight::from_ref_time(324_263_076 as u64).saturating_mul(r as u64))
+            .saturating_add(RocksDbWeight::get().reads(7 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_push_input(r: u32, ) -> Weight {
