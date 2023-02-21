@@ -1268,6 +1268,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `SavedCode(H256)` - when the code is saved in storage.
         #[pallet::call_index(0)]
+        // Always charge the same gas value.
         #[pallet::weight(
             <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
         )]
@@ -1326,6 +1327,7 @@ pub mod pallet {
         /// The funds stored by a ghost program will be release to the author once the program
         /// has been removed.
         #[pallet::call_index(1)]
+        // Always charge the same gas value.
         #[pallet::weight(
             <T as Config>::WeightInfo::upload_program(code.len() as u32 / 1024, salt.len() as u32)
         )]
@@ -1388,8 +1390,8 @@ pub mod pallet {
         /// # NOTE
         ///
         /// For the details of this extrinsic, see `upload_code`.
-        // Always charge the same gas value
         #[pallet::call_index(2)]
+        // Always charge the same gas value.
         #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32))]
         pub fn create_program(
             origin: OriginFor<T>,
@@ -1433,6 +1435,9 @@ pub mod pallet {
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
         #[pallet::call_index(3)]
+        // May charge different gas value in 2 different cases:
+        //  - Message sent to program.
+        //  - Message sent to user.
         #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32)
                 .max(<T as Config>::WeightInfo::send_message_user_interaction(payload.len() as u32)))]
         pub fn send_message(
@@ -1540,6 +1545,8 @@ pub mod pallet {
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
         #[pallet::call_index(4)]
+        // May charge different gas value depend on is value zero or not.
+        // Non-zero value may cause of extra database access.
         #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32)
             .max(<T as Config>::WeightInfo::send_reply_zero_balance(payload.len() as u32)))]
         pub fn send_reply(
@@ -1643,6 +1650,8 @@ pub mod pallet {
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
         #[pallet::call_index(5)]
+        // May charge different gas value depend on is value zero or not.
+        // Non-zero value may cause of extra database access.
         #[pallet::weight(<T as Config>::WeightInfo::claim_value()
             .max(<T as Config>::WeightInfo::claim_value_zero_balance()))]
         pub fn claim_value(
@@ -1670,6 +1679,7 @@ pub mod pallet {
 
         /// Process message queue
         #[pallet::call_index(6)]
+        // Always charge the same gas value.
         #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
         pub fn run(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
@@ -1720,6 +1730,7 @@ pub mod pallet {
         ///
         /// Requires root origin (eventually, will only be set via referendum)
         #[pallet::call_index(7)]
+        // Always charge the same gas value.
         #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
         pub fn set_execute_inherent(origin: OriginFor<T>, value: bool) -> DispatchResult {
             ensure_root(origin)?;
