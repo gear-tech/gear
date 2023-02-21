@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_wasm_builder::TARGET;
-use std::{fs, path::PathBuf, process::Command};
+use std::{fs, process::Command};
 
 struct CargoRunner(Command);
 
@@ -28,11 +28,6 @@ impl CargoRunner {
 
     fn args<const SIZE: usize>(mut self, args: [&str; SIZE]) -> Self {
         self.0.args(args);
-        self
-    }
-
-    fn env(mut self, k: &str, v: &str) -> Self {
-        self.0.env(k, v);
         self
     }
 
