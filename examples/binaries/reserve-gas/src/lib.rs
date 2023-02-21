@@ -112,7 +112,7 @@ extern "C" fn init() {
             assert_eq!(
                 ReservationId::reserve(0, 10),
                 Err(ContractError::Ext(ExtError::Reservation(
-                    ReservationError::ZeroReservationAmount
+                    ReservationError::ReservationBelowMailboxThreshold
                 )))
             );
 
