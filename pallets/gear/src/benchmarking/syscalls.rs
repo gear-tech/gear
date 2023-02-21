@@ -42,6 +42,7 @@ use gear_core::{
     reservation::GasReservationSlot,
 };
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
+use sp_core::Get;
 use sp_runtime::traits::UniqueSaturatedInto;
 
 pub(crate) struct Benches<T>
