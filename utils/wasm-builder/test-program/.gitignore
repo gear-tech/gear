@@ -1,4 +1,3 @@
 Cargo.lock
 .binpath
-.out_dir
 src/rebuild_test.rs

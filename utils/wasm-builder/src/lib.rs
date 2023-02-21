@@ -68,15 +68,11 @@ impl WasmBuilder {
 
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
-        let f = || {
-            if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() {
-                return Ok(());
-            }
+        if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() {
+            return;
+        }
 
-            self.build_project()
-        };
-
-        if let Err(e) = f() {
+        if let Err(e) = self.build_project() {
             eprintln!("error: {e}");
             e.chain()
                 .skip(1)

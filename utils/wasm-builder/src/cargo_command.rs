@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{ensure, Context, Result};
+use anyhow::{ensure, Result};
 use std::{path::PathBuf, process::Command};
 
 use crate::builder_error::BuilderError;

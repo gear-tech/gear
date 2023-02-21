@@ -75,30 +75,6 @@ fn build_release_for_target() {
 }
 
 #[test]
-fn skip_wasm_build() {
-    fn wasm_binary_rs() -> String {
-        let out_dir = fs::read_to_string("test-program/.out_dir").unwrap();
-        let out_dir = PathBuf::from(out_dir);
-        let wasm_binary_rs = out_dir.join("wasm_binary.rs");
-        fs::read_to_string(wasm_binary_rs).unwrap()
-    }
-
-    CargoRunner::new()
-        .args(["build"])
-        .env("SKIP_WASM_BUILD", "1")
-        .run();
-
-    assert!(wasm_binary_rs().contains("WASM_BINARY: &[u8] = &[]"));
-
-    CargoRunner::new()
-        .args(["build"])
-        .env("SKIP_WASM_BUILD", "0")
-        .run();
-
-    assert!(wasm_binary_rs().contains("WASM_BINARY: &[u8] = include_bytes"));
-}
-
-#[test]
 fn no_infinite_build() {
     fs::write("test-program/src/rebuild_test.rs", "mod a {}").unwrap();
 
