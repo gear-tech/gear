@@ -68,14 +68,9 @@ impl WasmBuilder {
 
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
-        let check_env = |name: &str| {
-            let var = env::var(name).ok().as_deref().map(str::to_lowercase);
-            ["1", "true"].map(Some).contains(&var.as_deref())
-        };
-
         let f = || {
-            if check_env(&self.cargo.skip_pkg_build_env()) || check_env("SKIP_WASM_BUILD") {
-                return self.wasm_project.write_wasm_binary_rs(None);
+            if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() {
+                return Ok(());
             }
 
             self.build_project()
