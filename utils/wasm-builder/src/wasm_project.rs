@@ -183,12 +183,12 @@ impl WasmProject {
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
 
-        smart_fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
+        fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
             .context("unable to write Cargo.toml")?;
 
         let src_dir = self.out_dir.join("src");
         fs::create_dir_all(&src_dir)?;
-        smart_fs::write(
+        fs::write(
             src_dir.join("lib.rs"),
             "#![no_std] pub use orig_project::*;",
         )
@@ -197,7 +197,7 @@ impl WasmProject {
         // Copy original `Cargo.lock` if any
         let from_lock = self.original_dir.join("Cargo.lock");
         let to_lock = self.out_dir.join("Cargo.lock");
-        let _ = smart_fs::copy(from_lock, to_lock);
+        let _ = fs::copy(from_lock, to_lock);
 
         // Write metadata
         if let Some(metadata) = &self.project_type.metadata() {
@@ -247,7 +247,7 @@ impl WasmProject {
             };
 
         if !self.project_type.is_metawasm() {
-            smart_fs::write(
+            fs::write(
                 wasm_binary_rs,
                 format!(
                     r#"#[allow(unused)]
@@ -262,7 +262,7 @@ pub const WASM_BINARY_META: &[u8] = {to_meta_path};
             )
             .context("unable to write `wasm_binary.rs`")?;
         } else {
-            smart_fs::write(
+            fs::write(
                 wasm_binary_rs,
                 format!(
                     r#"#[allow(unused)]

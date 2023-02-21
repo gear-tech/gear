@@ -21,104 +21,46 @@
 //! because cargo looks for `mtime` metadata file parameter
 
 use anyhow::Result;
-use std::{fmt, fmt::Display, fs, path::Path};
+use std::{fs, path::Path};
 
 const LINEAR_COMPARISON_FILE_SIZE: u64 = 4096;
 
-enum MaybeChangedData<'a> {
-    Contents(&'a [u8]),
-    Path(&'a Path),
-}
-
-impl MaybeChangedData<'_> {
-    fn exists(&self) -> bool {
-        match self {
-            MaybeChangedData::Contents(_) => true,
-            MaybeChangedData::Path(path) => path.exists(),
-        }
-    }
-
-    fn len(&self) -> Result<u64> {
-        Ok(match self {
-            MaybeChangedData::Contents(contents) => contents.len() as u64,
-            MaybeChangedData::Path(path) => fs::metadata(path)?.len(),
-        })
-    }
-
-    fn check_linear_comparison_size(&self) -> Result<()> {
-        let len = self.len()?;
-        if len > LINEAR_COMPARISON_FILE_SIZE {
-            // gear-wasm-builder doesn't write such big files
-            unreachable!("{} is too large", self);
-        }
-
-        Ok(())
-    }
-
-    fn compare_content(&self, path: &Path) -> Result<bool> {
-        self.check_linear_comparison_size()?;
-        MaybeChangedData::Path(path).check_linear_comparison_size()?;
-
-        let new = fs::read(path)?;
-
-        let old_vec;
-        let old = match *self {
-            MaybeChangedData::Contents(contents) => contents,
-            MaybeChangedData::Path(path) => {
-                old_vec = fs::read(path)?;
-                &old_vec
-            }
-        };
-
-        Ok(new != old)
-    }
-
-    fn check_changed(self, path: &Path) -> Result<bool> {
-        if !path.exists() {
-            return Ok(true);
-        }
-
-        if !self.exists() {
-            return Ok(true);
-        }
-
-        let metadata = fs::metadata(path)?;
-        if metadata.len() != self.len()? {
-            return Ok(true);
-        }
-
-        if self.compare_content(path)? {
-            return Ok(true);
-        }
-
-        Ok(false)
+#[track_caller]
+fn assert_linear_comparison_size(len: u64) {
+    if len > LINEAR_COMPARISON_FILE_SIZE {
+        // gear-wasm-builder doesn't write such big files
+        unreachable!("File content is too large");
     }
 }
 
-impl Display for MaybeChangedData<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MaybeChangedData::Contents(_) => write!(f, "Some content"),
-            MaybeChangedData::Path(path) => write!(f, "{}", path.display()),
-        }
+fn check_changed(path: &Path, contents: &[u8]) -> Result<bool> {
+    // file does not exist
+    let Ok(metadata) = fs::metadata(path) else {
+        return Ok(true);
+    };
+
+    if metadata.len() != contents.len() as u64 {
+        return Ok(true);
     }
+
+    assert_linear_comparison_size(metadata.len());
+    assert_linear_comparison_size(contents.len() as u64);
+
+    let old_data = fs::read(path)?;
+    let new_data = contents;
+    if old_data != new_data {
+        return Ok(true);
+    }
+
+    Ok(false)
 }
 
 pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> Result<()> {
     let path = path.as_ref();
     let contents = contents.as_ref();
-    if MaybeChangedData::Contents(contents).check_changed(path)? {
+
+    if check_changed(path, contents)? {
         fs::write(path, contents)?;
-    }
-
-    Ok(())
-}
-
-pub fn copy<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> Result<()> {
-    let from = from.as_ref();
-    let to = to.as_ref();
-    if MaybeChangedData::Path(from).check_changed(to)? {
-        fs::copy(from, to)?;
     }
 
     Ok(())
