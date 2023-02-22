@@ -1,7 +1,6 @@
 name: Release
 
 on:
-  pull_request: # FIXME: Remove after debug
   push:
     tags: ['*']
 
@@ -75,7 +74,6 @@ jobs:
           strip artifact/gear || true
 
       - name: Publish
-        if: github.event_name == 'push' # FIXME: Remove after debug
         uses: softprops/action-gh-release@v1
         with:
           files: artifact/*
