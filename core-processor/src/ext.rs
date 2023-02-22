@@ -83,6 +83,8 @@ pub struct ProcessorContext {
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
+    /// Cost of holding a message in dispatch stash.
+    pub dispatch_hold_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
     /// Cost for reservation holding.
@@ -451,6 +453,23 @@ impl Ext {
         }
     }
 
+    fn charge_for_dispatch_stash_hold(&mut self, delay: u32) -> Result<(), ProcessorError> {
+        if delay != 0 {
+            // Take delay and get cost of block.
+            // reserve = wait_cost * (delay + reserve_for).
+            let cost_per_block = self.context.dispatch_hold_cost;
+            let waiting_reserve = (self.context.reserve_for as u64)
+                .saturating_add(delay as u64)
+                .saturating_mul(cost_per_block);
+
+            // Reduse gas for block waiting in dispatch stash.
+            if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
+                return Err(MessageError::InsufficientGasForDelayedSending.into());
+            }
+        }
+        Ok(())
+    }
+
     fn refund_gas(&mut self, val: u64) -> Result<(), ChargeError> {
         if self.context.gas_counter.refund(val) == ChargeResult::Enough {
             self.context.gas_allowance_counter.refund(val);
@@ -527,6 +546,8 @@ impl EnvExt for Ext {
         self.charge_expiring_resources(&msg)?;
         self.charge_sending_fee(delay)?;
 
+        self.charge_for_dispatch_stash_hold(delay)?;
+
         let msg_id = self
             .context
             .message_context
@@ -549,6 +570,8 @@ impl EnvExt for Ext {
         self.charge_message_value(msg.value())?;
         self.charge_sending_fee(delay)?;
 
+        self.charge_for_dispatch_stash_hold(delay)?;
+
         self.context.gas_reserver.mark_used(id)?;
 
         let msg_id = self
@@ -570,6 +593,8 @@ impl EnvExt for Ext {
         self.charge_expiring_resources(&msg)?;
         self.charge_sending_fee(delay)?;
 
+        self.charge_for_dispatch_stash_hold(delay)?;
+
         let msg_id = self
             .context
             .message_context
@@ -589,6 +614,8 @@ impl EnvExt for Ext {
         // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
         self.charge_sending_fee(delay)?;
+
+        self.charge_for_dispatch_stash_hold(delay)?;
 
         self.context.gas_reserver.mark_used(id)?;
 
@@ -818,6 +845,8 @@ impl EnvExt for Ext {
         self.charge_expiring_resources(&packet)?;
         self.charge_sending_fee(delay)?;
 
+        self.charge_for_dispatch_stash_hold(delay)?;
+
         let code_hash = packet.code_id();
 
         // Send a message for program creation
@@ -1014,6 +1043,7 @@ mod tests {
                 forbidden_funcs: Default::default(),
                 mailbox_threshold: 0,
                 waitlist_cost: 0,
+                dispatch_hold_cost: 0,
                 reserve_for: 0,
                 reservation: 0,
                 random_data: ([0u8; 32].to_vec(), 0),

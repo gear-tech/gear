@@ -2049,6 +2049,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-proxy-reservation-with-gas"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "demo-proxy-with-gas"
 version = "0.1.0"
 dependencies = [
@@ -5251,9 +5261,9 @@ dependencies = [
 
 [[package]]
 name = "libfuzzer-sys"
-version = "0.4.6"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "beb09950ae85a0a94b27676cccf37da5ff13f27076aa1adbc6545dd0d0e1bd4e"
+checksum = "c8fff891139ee62800da71b7fd5b508d570b9ad95e614a53c6f453ca08366038"
 dependencies = [
  "arbitrary",
  "cc",
@@ -6862,6 +6872,7 @@ dependencies = [
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",
+ "demo-proxy-reservation-with-gas",
  "demo-proxy-with-gas",
  "demo-reserve-gas",
  "demo-send-from-reservation",

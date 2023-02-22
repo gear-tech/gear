@@ -56,6 +56,7 @@ pub const MAX_RESERVATIONS: u64 = 256;
 pub const INITIAL_RANDOM_SEED: u64 = 42;
 pub const MODULE_INSTRUMENTATION_BYTE_COST: u64 = 13;
 pub const MODULE_INSTRUMENTATION_COST: u64 = 297;
+pub const DISPATCH_HOLD_COST: u64 = 200;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -475,6 +476,7 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         forbidden_funcs: Default::default(),
         mailbox_threshold: MAILBOX_THRESHOLD,
         waitlist_cost: WAITLIST_COST,
+        dispatch_hold_cost: DISPATCH_HOLD_COST,
         reserve_for: RESERVE_FOR,
         reservation: RESERVATION_COST,
         read_cost: READ_COST,

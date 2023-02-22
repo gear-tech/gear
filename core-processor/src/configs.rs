@@ -97,6 +97,8 @@ pub struct ExecutionSettings {
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
+    /// Cost of holding a message in dispatch stash.
+    pub dispatch_hold_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
     /// Cost for reservation holding.
@@ -132,6 +134,8 @@ pub struct BlockConfig {
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
+    /// Cost of holding a message in dispatch stash.
+    pub dispatch_hold_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
     /// Cost for reservation holding.

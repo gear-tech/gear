@@ -41,6 +41,7 @@ members = [
     "examples/binaries/proxy",
     "examples/binaries/proxy-relay",
     "examples/binaries/proxy-with-gas",
+    "examples/binaries/proxy-reservation-with-gas",
     "examples/binaries/reserve-gas",
     "examples/binaries/send-from-reservation",
     "examples/binaries/signal-entry",
