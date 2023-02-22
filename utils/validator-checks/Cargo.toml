@@ -9,7 +9,7 @@ path = "bin/validator-checks.rs"
 
 [dependencies]
 gp = { package = "gear-program", path = "../../program" }
-clap = { version = "4.0.32", features = ["derive"] }
+clap = { version = "4.1.6", features = ["derive"] }
 subxt = { git = "https://github.com/paritytech/subxt", rev = "d41f6574" }
 thiserror = "1.0.38"
 futures-util = "0.3.25"
