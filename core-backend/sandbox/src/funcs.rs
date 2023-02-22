@@ -47,7 +47,7 @@ const PTR_SPECIAL: u32 = u32::MAX;
 
 pub type SyscallOutput = Result<ReturnValue, HostError>;
 
-pub struct FuncsHandler<E: Ext + 'static> {
+pub(crate) struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
 

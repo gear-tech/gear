@@ -45,9 +45,9 @@ use wasmi::{
     AsContextMut, Caller, Func, Memory as WasmiMemory, Store,
 };
 
-pub const PTR_SPECIAL: u32 = u32::MAX;
+pub(crate) const PTR_SPECIAL: u32 = u32::MAX;
 
-pub struct FuncsHandler<E: Ext + 'static> {
+pub(crate) struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
 

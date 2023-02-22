@@ -19,9 +19,10 @@
 use gear_backend_common::{BackendExt, BackendState, BackendTermination, TerminationReason};
 use gear_core_errors::ExtError;
 
-pub type HostState<E> = Option<State<E>>;
+pub(crate) type HostState<E> = Option<State<E>>;
 
-pub struct State<E> {
+/// It's supposed that `E` implements [BackendExt]
+pub(crate) struct State<E> {
     pub ext: E,
     pub fallible_syscall_error: Option<ExtError>,
     pub termination_reason: TerminationReason,

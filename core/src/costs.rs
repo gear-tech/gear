@@ -20,7 +20,6 @@
 
 use crate::{gas::Token, memory::PageU32Size};
 use codec::{Decode, Encode};
-
 use core::{fmt::Debug, marker::PhantomData};
 
 /// Cost per one memory page.
@@ -229,6 +228,12 @@ pub struct HostFnWeights {
 #[derive(Copy, Clone)]
 pub struct RuntimeToken {
     weight: u64,
+}
+
+impl From<RuntimeToken> for u64 {
+    fn from(value: RuntimeToken) -> Self {
+        value.weight
+    }
 }
 
 impl Token for RuntimeToken {

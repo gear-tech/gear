@@ -29,21 +29,23 @@ use gear_core::{costs::RuntimeCosts, gas::GasLeft};
 use super::*;
 use crate::state::State;
 
-pub fn caller_host_state_mut<'a, 'b: 'a, E>(caller: &'a mut Caller<'b, Option<E>>) -> &'a mut E {
+pub(crate) fn caller_host_state_mut<'a, 'b: 'a, E>(
+    caller: &'a mut Caller<'b, Option<E>>,
+) -> &'a mut E {
     caller
         .host_data_mut()
         .as_mut()
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
-pub fn caller_host_state_take<'a, 'b: 'a, E>(caller: &'a mut Caller<'b, Option<E>>) -> E {
+pub(crate) fn caller_host_state_take<'a, 'b: 'a, E>(caller: &'a mut Caller<'b, Option<E>>) -> E {
     caller
         .host_data_mut()
         .take()
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
-pub struct CallerWrap<'a, E> {
+pub(crate) struct CallerWrap<'a, E> {
     pub caller: Caller<'a, HostState<E>>,
     pub manager: MemoryAccessManager<E>,
     pub memory: WasmiMemory,

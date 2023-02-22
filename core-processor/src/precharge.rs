@@ -93,7 +93,7 @@ impl<'a> GasPrecharger<'a> {
         operation: PreChargeGasOperation,
         amount: u64,
     ) -> Result<(), PrechargeError> {
-        if self.allowance_counter.charge(amount) != ChargeResult::Enough {
+        if self.allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
             return Err(PrechargeError::BlockGasExceeded);
         }
         if self.counter.charge_if_enough(amount) != ChargeResult::Enough {

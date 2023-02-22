@@ -32,7 +32,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{
         ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
-        GasLeft, ValueCounter,
+        GasLeft, Token, ValueCounter,
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
@@ -436,22 +436,28 @@ impl Ext {
 impl CountersOwner for Ext {
     fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
         let token = cost.token(&self.context.host_fn_weights);
-        let common_charge = self.context.gas_counter.charge_token(token);
-        let allowance_charge = self.context.gas_allowance_counter.charge_token(token);
+        let common_charge = self.context.gas_counter.charge(token);
+        let allowance_charge = self.context.gas_allowance_counter.charge(token);
         self.check_charge_results(common_charge, allowance_charge)
     }
 
     fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
-        let token = cost.token(&self.context.host_fn_weights);
-        let common_charge = self.context.gas_counter.charge_token_if_enough(token);
-        let allowance_charge = self.context.gas_allowance_counter.charge_token(token);
-        self.check_charge_results(common_charge, allowance_charge)
+        let amount = cost.token(&self.context.host_fn_weights).weight();
+        self.charge_gas_if_enough(amount)
     }
 
     fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError> {
-        let common_charge = self.context.gas_counter.charge_if_enough(amount);
-        let allowance_charge = self.context.gas_allowance_counter.charge(amount);
-        self.check_charge_results(common_charge, allowance_charge)
+        if self.context.gas_counter.charge_if_enough(amount) != ChargeResult::Enough {
+            return Err(ChargeError::GasLimitExceeded);
+        }
+        if self.context.gas_allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
+            if self.context.gas_counter.refund(amount) != ChargeResult::Enough {
+                // We have just charged `amount` from `self.gas_counter`, so this must be correct.
+                unreachable!("Cannot refund {amount} for `gas_counter`");
+            }
+            return Err(ChargeError::GasAllowanceExceeded);
+        }
+        Ok(())
     }
 
     fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError> {
@@ -475,16 +481,25 @@ impl CountersOwner for Ext {
 
         let gas_left = self.context.gas_counter.left();
         if gas_left > gas {
-            self.context.gas_counter.charge_if_enough(gas_left - gas);
+            if self.context.gas_counter.charge_if_enough(gas_left - gas) != ChargeResult::Enough {
+                // We checked above that `gas_left` is bigger than `gas`
+                unreachable!("Cannot charge {gas} from `gas_counter`");
+            }
         } else {
             self.context.gas_counter.refund(gas - gas_left);
         }
 
         let allowance_left = self.context.gas_allowance_counter.left();
         if allowance_left > allowance {
-            self.context
+            if self
+                .context
                 .gas_allowance_counter
-                .charge(allowance_left - allowance);
+                .charge_if_enough(allowance_left - allowance)
+                != ChargeResult::Enough
+            {
+                // We checked above that `allowance_left` is bigger than `allowance`
+                unreachable!("Cannot charge {allowance} from `gas_allowance_counter`");
+            }
         } else {
             self.context
                 .gas_allowance_counter

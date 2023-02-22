@@ -82,8 +82,8 @@ where
 }
 
 struct GlobalsAccessProvider<E: Ext> {
-    pub instance: Instance,
-    pub store: Option<Store<HostState<E>>>,
+    instance: Instance,
+    store: Option<Store<HostState<E>>>,
 }
 
 impl<E: Ext> GlobalsAccessProvider<E> {

@@ -45,7 +45,7 @@ use core::{
 use gear_core::{
     buffer::RuntimeBufferSizeError,
     env::Ext as EnvExt,
-    gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
+    gas::{ChargeError, CountersOwner, GasAmount},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, IncorrectAllocationDataError, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
@@ -368,11 +368,7 @@ pub trait BackendTermination<E: BackendExt, M: Sized>: Sized {
 
         let (mut ext, memory, termination_reason) = self.into_parts();
 
-        let gas_left = GasLeft {
-            gas: gas as u64,
-            allowance: allowance as u64,
-        };
-        ext.set_gas_left(gas_left);
+        ext.set_gas_left((gas, allowance).into());
 
         let termination_reason = if res.is_err() {
             if matches!(
