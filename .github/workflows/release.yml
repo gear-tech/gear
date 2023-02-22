@@ -52,7 +52,7 @@ jobs:
           cp -vf target/release/wasm-proc ./
 
       # TODO: Use default features after #2236
-      - name: Build
+      - name: Build binaries
         run: >
           cargo build -p gear-cli --profile production
           --no-default-features -F gear-native -F vara-native -F lazy-pages
@@ -60,7 +60,7 @@ jobs:
       - name: Test runtimes
         run: |
           ./wasm-proc --check-runtime-imports target/production/wbuild/gear-runtime/gear_runtime.wasm
-          ./wasm-proc --check-runtime-imports target/production/wbuild/gear-runtime/vara_runtime.wasm
+          ./wasm-proc --check-runtime-imports target/production/wbuild/vara-runtime/vara_runtime.wasm
 
       - name: Prepare artifacts
         run: |
