@@ -9502,3 +9502,86 @@ fn oom_handler_works() {
         );
     });
 }
+
+#[test]
+fn alloc_charge_error() {
+    const WAT: &str = r#"
+(module
+    (import "env" "memory" (memory 1))
+    (import "env" "alloc" (func $alloc (param i32) (result i32)))
+    (export "init" (func $init))
+    (func $init
+        i32.const 0xff
+        call $alloc
+        drop
+    )
+)
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(WAT).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            500_000_000_u64,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
+        );
+    });
+}
+
+#[test]
+fn free_usage_error() {
+    const WAT: &str = r#"
+(module
+    (import "env" "memory" (memory 1))
+    (import "env" "free" (func $free (param i32) (result i32)))
+    (export "init" (func $init))
+    (func $init
+        ;; free impossible and non-existing page
+        i32.const 0xffffffff
+        call $free
+        ;; free must return 1 so we will get `unreachable` instruction
+        i32.const 0
+        i32.eq
+        br_if 0
+        unreachable
+    )
+)
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(WAT).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            500_000_000_u64,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
+        );
+    });
+}
