@@ -6727,13 +6727,13 @@ fn reject_incorrect_binary() {
         assert_noop!(
             Gear::upload_code(
                 RuntimeOrigin::signed(USER_1),
-                ProgramCodeKind::Custom(wat).to_bytes()
+                ProgramCodeKind::CustomInvalid(wat).to_bytes()
             ),
             Error::<Test>::ProgramConstructionFailed
         );
 
         assert_noop!(
-            upload_program_default(USER_1, ProgramCodeKind::Custom(wat)),
+            upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(wat)),
             Error::<Test>::ProgramConstructionFailed
         );
     });
@@ -8866,12 +8866,14 @@ mod utils {
     pub(super) enum ProgramCodeKind<'a> {
         Default,
         Custom(&'a str),
+        CustomInvalid(&'a str),
         GreedyInit,
         OutgoingWithValueInHandle,
     }
 
     impl<'a> ProgramCodeKind<'a> {
         pub(super) fn to_bytes(self) -> Vec<u8> {
+            let mut validate = true;
             let source = match self {
                 ProgramCodeKind::Default => {
                     r#"
@@ -8949,10 +8951,14 @@ mod utils {
                     )"#
                 }
                 ProgramCodeKind::Custom(code) => code,
+                ProgramCodeKind::CustomInvalid(code) => {
+                    validate = false;
+                    code
+                }
             };
 
             wabt::Wat2Wasm::new()
-                .validate(false)
+                .validate(validate)
                 .convert(source)
                 .expect("failed to parse module")
                 .as_ref()
