@@ -21,7 +21,7 @@ use gear_wasm_builder::optimize::{OptType, Optimizer};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 53] = [
+const RT_ALLOWED_IMPORTS: [&str; 63] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -31,6 +31,8 @@ const RT_ALLOWED_IMPORTS: [&str; 53] = [
     "ext_crypto_finish_batch_verify_version_1",
     "ext_crypto_secp256k1_ecdsa_recover_compressed_version_2",
     "ext_crypto_sr25519_generate_version_1",
+    "ext_crypto_sr25519_public_keys_version_1",
+    "ext_crypto_sr25519_sign_version_1",
     "ext_crypto_sr25519_verify_version_2",
     "ext_crypto_start_batch_verify_version_1",
     // From `GearRI` (runtime-interface/scr/lib.rs)
@@ -55,6 +57,15 @@ const RT_ALLOWED_IMPORTS: [&str; 53] = [
     "ext_misc_print_hex_version_1",
     "ext_misc_print_utf8_version_1",
     "ext_misc_runtime_version_version_1",
+    // From `Offchain` (substrate/primitives/io/src/lib.rs)
+    "ext_offchain_index_set_version_1",
+    "ext_offchain_is_validator_version_1",
+    "ext_offchain_local_storage_compare_and_set_version_1",
+    "ext_offchain_local_storage_get_version_1",
+    "ext_offchain_local_storage_set_version_1",
+    "ext_offchain_network_state_version_1",
+    "ext_offchain_random_seed_version_1",
+    "ext_offchain_submit_transaction_version_1",
     // From `Sandbox` (substrate/primitives/io/src/lib.rs)
     "ext_sandbox_get_buff_version_1",
     "ext_sandbox_get_global_val_version_1",
