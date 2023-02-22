@@ -424,7 +424,7 @@ impl Ext {
                 .saturating_add(delay as u64)
                 .saturating_mul(cost_per_block);
 
-            // Reduse gas for block waiting in dispatch stash.
+            // Reduce gas for block waiting in dispatch stash.
             if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
                 return Err(MessageError::InsufficientGasForDelayedSending.into());
             }
