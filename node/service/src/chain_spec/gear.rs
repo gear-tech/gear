@@ -193,6 +193,28 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                         hex!["559f99f172dcfef6c6894cfe53312b3f11d67c3ac0c29ead872d3ec37f7fcffa"]
                             .unchecked_into(),
                     ),
+                    (
+                        // 5CJg2Mc7FMvPVFVqVfKaxFtzsE6RMT1YSF64eYWW6sncEtgB
+                        hex!["0aa743eb5db9f9c38946d400691c2485dbb375a859b200b72b20c47082a9bd2a"]
+                            .into(),
+                        // 5CJg2Mc7FMvPVFVqVfKaxFtzsE6RMT1YSF64eYWW6sncEtgB
+                        hex!["0aa743eb5db9f9c38946d400691c2485dbb375a859b200b72b20c47082a9bd2a"]
+                            .unchecked_into(),
+                        // 5CJg2Mc7FMvPVFVqVfKaxFtzsE6RMT1YSF64eYWW6sncEtgB
+                        hex!["a7fe148cc70d41a43fd05675c91cf8e2e5eb76e86a97fd68cecfe1ae3153d51c"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // 5Hn3BW9nPR2oqFwE1o8TPKocRQvnU8uWSFrCG8N4fve11HKh
+                        hex!["fcb3481db4819f320c13b6a1f4a448a26337c7d6960e1bd11bda10ed465f6d39"]
+                            .into(),
+                        // 5Hn3BW9nPR2oqFwE1o8TPKocRQvnU8uWSFrCG8N4fve11HKh
+                        hex!["fcb3481db4819f320c13b6a1f4a448a26337c7d6960e1bd11bda10ed465f6d39"]
+                            .unchecked_into(),
+                        // 5DbB6izfM1UWBxPnuRb6g3EXUuFshXdTsefeKeXRxXoGPbX2
+                        hex!["43794d2eebad03da5723ee479f30e3769b4f7f5d0c1b0a5078b95e08303f0384"]
+                            .unchecked_into(),
+                    ),
                 ],
                 // Sudo account
                 // 5CtLwzLdsTZnyA3TN7FUV58FV4NZ1tUuTDM9yjwRuvt6ac1i
