@@ -67,6 +67,7 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
 };
 use gear_core_errors::*;
+use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
@@ -9513,24 +9514,24 @@ mod utils {
 #[test]
 fn check_gear_stack_end_fail() {
     // This test checks, that in case user makes WASM file with incorrect
-    // `__gear_stack_end`, then execution will end with an error.
-    macro_rules! wat_template {
-        () => {
+    // gear stack end export, then execution will end with an error.
+    let wat_template = |addr| {
+        format!(
             r#"
             (module
                 (import "env" "memory" (memory 4))
                 (export "init" (func $init))
                 (func $init)
-                (global (;0;) (mut i32) (i32.const {}))
-                (export "__gear_stack_end" (global 0))
-            )"#
-        };
-    }
+                (global (;0;) (mut i32) (i32.const {addr}))
+                (export "{STACK_END_EXPORT_NAME}" (global 0))
+            )"#,
+        )
+    };
 
     init_logger();
     new_test_ext().execute_with(|| {
         // Check error when stack end bigger then static mem size
-        let wat = format!(wat_template!(), "0x50000");
+        let wat = wat_template(0x50000);
         Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
@@ -9556,7 +9557,7 @@ fn check_gear_stack_end_fail() {
         );
 
         // Check error when stack end is not aligned
-        let wat = format!(wat_template!(), "0x10001");
+        let wat = wat_template(0x10001);
         Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
@@ -9579,7 +9580,7 @@ fn check_gear_stack_end_fail() {
         );
 
         // Check OK if stack end is suitable
-        let wat = format!(wat_template!(), "0x10000");
+        let wat = wat_template(0x10000);
         Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             ProgramCodeKind::Custom(wat.as_str()).to_bytes(),

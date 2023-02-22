@@ -29,16 +29,15 @@ use gear_backend_common::{
     lazy_pages::{GlobalsAccessMod, GlobalsConfig},
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
     BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
-    STACK_END_EXPORT_NAME,
 };
 use gear_core::{
-    env::Ext,
+    gas::GasLeft,
     memory::{PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS,
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -61,7 +60,7 @@ pub enum SandboxEnvironmentError {
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment<E, EP = DispatchKind>
 where
-    E: Ext,
+    E: BackendExt,
     EP: WasmEntry,
 {
     instance: Instance<Runtime<E>>,
@@ -72,7 +71,7 @@ where
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<E: Ext> {
+struct EnvBuilder<E: BackendExt> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
     forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
@@ -100,7 +99,7 @@ where
     }
 }
 
-impl<E: Ext> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
+impl<E: BackendExt> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
     fn from(builder: EnvBuilder<E>) -> Self {
         builder.env_def_builder
     }
@@ -262,7 +261,7 @@ where
             .instance_globals()
             .ok_or(System(GlobalsNotSupported))?;
 
-        let (gas, allowance) = runtime.ext.counters();
+        let GasLeft { gas, allowance } = runtime.ext.gas_left();
 
         runtime
             .globals

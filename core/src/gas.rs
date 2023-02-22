@@ -20,12 +20,14 @@
 
 use codec::{Decode, Encode};
 
+use crate::costs::RuntimeCosts;
+
 /// This trait represents a token that can be used for charging `GasCounter`.
 ///
 /// Implementing type is expected to be super lightweight hence `Copy` (`Clone` is added
 /// for consistency). If inlined there should be no observable difference compared
 /// to a hand-written code.
-pub trait Token: Copy + Clone {
+pub trait Token: Copy + Clone + Into<u64> {
     /// Return the amount of gas that should be taken by this token.
     ///
     /// This function should be really lightweight and must not fail. It is not
@@ -67,41 +69,33 @@ impl GasCounter {
 
     /// Account for used gas.
     ///
-    /// Returns `ChargeResult::NotEnough` if there is not enough gas or addition of the specified
-    /// amount of gas has lead to overflow. On success returns `ChargeResult::Enough`.
-    #[inline]
-    pub fn charge(&mut self, amount: u64) -> ChargeResult {
-        match self.left.checked_sub(amount) {
-            None => ChargeResult::NotEnough,
-            Some(new_left) => {
-                self.left = new_left;
-                self.burned += amount;
-
-                ChargeResult::Enough
-            }
+    /// If there is no enough gas, then makes saturating charge and returns `NotEnough`.
+    /// Else charges gas and returns `Enough`.
+    pub fn charge<T: Into<u64> + Copy>(&mut self, amount: T) -> ChargeResult {
+        if let Some(new_left) = self.left.checked_sub(amount.into()) {
+            self.left = new_left;
+            self.burned += amount.into();
+            ChargeResult::Enough
+        } else {
+            self.burned += self.left;
+            self.left = 0;
+            ChargeResult::NotEnough
         }
     }
 
     /// Account for used gas.
     ///
-    /// Amount is calculated by the given `token`.
-    ///
-    /// Returns `ChargeResult::NotEnough` if there is not enough gas or addition of the specified
-    /// amount of gas has lead to overflow. On success returns `ChargeResult::Enough`.
-    #[inline]
-    pub fn charge_token<Tok: Token>(&mut self, token: Tok) -> ChargeResult {
-        let amount = token.weight();
+    /// If there is no enough gas, then does nothing and returns `ChargeResult::NotEnough`.
+    /// Else charges gas and returns `ChargeResult::Enough`.
+    pub fn charge_if_enough<T: Into<u64> + Copy>(&mut self, amount: T) -> ChargeResult {
+        match self.left.checked_sub(amount.into()) {
+            None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.left = new_left;
+                self.burned += amount.into();
 
-        if let Some(new_left) = self.left.checked_sub(amount) {
-            self.left = new_left;
-            self.burned += amount;
-
-            ChargeResult::Enough
-        } else {
-            self.burned += self.left;
-            self.left = 0;
-
-            ChargeResult::NotEnough
+                ChargeResult::Enough
+            }
         }
     }
 
@@ -242,45 +236,30 @@ impl GasAllowanceCounter {
         self.0 as u64
     }
 
-    /// Charge `amount` of gas.
-    #[inline]
-    pub fn charge(&mut self, amount: u64) -> ChargeResult {
-        let amount = amount as u128;
-
-        match self.0.checked_sub(amount) {
-            None => ChargeResult::NotEnough,
-            Some(new_left) => {
-                self.0 = new_left;
-
-                ChargeResult::Enough
-            }
+    /// Account for used gas allowance.
+    ///
+    /// If there is no enough gas, then makes saturating charge and returns `NotEnough`.
+    /// Else charges gas and returns `Enough`.
+    pub fn charge<T: Into<u64>>(&mut self, amount: T) -> ChargeResult {
+        if let Some(new_left) = self.0.checked_sub(Into::<u64>::into(amount) as u128) {
+            self.0 = new_left;
+            ChargeResult::Enough
+        } else {
+            self.0 = 0;
+            ChargeResult::NotEnough
         }
     }
 
-    /// Account for used gas.
+    /// Account for used gas allowance.
     ///
-    /// Amount is calculated by the given `token`.
-    ///
-    /// Returns `ChargeResult::NotEnough` if there is not enough gas or addition of the specified
-    /// amount of gas has lead to overflow. On success returns `ChargeResult::Enough`.
-    ///
-    /// NOTE that amount is always consumed, i.e. if there is not enough gas
-    /// then the counter will be set to zero.
-    #[inline]
-    pub fn charge_token<Tok: Token>(&mut self, token: Tok) -> ChargeResult {
-        let amount = token.weight() as u128;
-
-        match self.0.checked_sub(amount) {
-            None => {
-                self.0 = 0;
-
-                ChargeResult::NotEnough
-            }
-            Some(new_left) => {
-                self.0 = new_left;
-
-                ChargeResult::Enough
-            }
+    /// If there is no enough gas, then does nothing and returns `ChargeResult::NotEnough`.
+    /// Else charges gas and returns `ChargeResult::Enough`.
+    pub fn charge_if_enough<T: Into<u64>>(&mut self, amount: T) -> ChargeResult {
+        if let Some(new_left) = self.0.checked_sub(Into::<u64>::into(amount) as u128) {
+            self.0 = new_left;
+            ChargeResult::Enough
+        } else {
+            ChargeResult::NotEnough
         }
     }
 
@@ -292,13 +271,58 @@ impl GasAllowanceCounter {
     }
 }
 
-/// The type will be used some time soon to implement proper charging.
+/// Charging error
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+pub enum ChargeError {
+    /// An error occurs in attempt to charge more gas than available during execution.
+    #[display(fmt = "Not enough gas to continue execution")]
+    GasLimitExceeded,
+    /// An error occurs in attempt to refund more gas than burned one.
+    #[display(fmt = "Too many gas refunded")]
+    TooManyGasAdded,
+    /// Gas allowance exceeded
+    #[display(fmt = "Gas allowance exceeded")]
+    GasAllowanceExceeded,
+}
+
+/// Counters owner can change gas limit and allowance counters.
+pub trait CountersOwner {
+    /// Charge for runtime api call.
+    fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError>;
+    /// Charge for runtime api call if has enough of gas, else just returns error.
+    fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError>;
+    /// Charge gas if enough, else just returns error.
+    fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError>;
+    /// Refund gas limit and gas allowance.
+    fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError>;
+    /// Returns gas limit and gas allowance left.
+    fn gas_left(&self) -> GasLeft;
+    /// Set gas limit and gas allowance left.
+    fn set_gas_left(&mut self, gas_left: GasLeft);
+}
+
+/// Gas limit and gas allowance left.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct GasLeft {
     /// Left gas from gas counter.
     pub gas: u64,
     /// Left gas from allowance counter.
     pub allowance: u64,
+}
+
+impl From<(u64, u64)> for GasLeft {
+    fn from((gas, allowance): (u64, u64)) -> Self {
+        Self { gas, allowance }
+    }
+}
+
+impl From<(i64, i64)> for GasLeft {
+    fn from((gas, allowance): (i64, i64)) -> Self {
+        Self {
+            gas: gas as u64,
+            allowance: allowance as u64,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -316,12 +340,12 @@ mod tests {
     fn limited_gas_counter_charging() {
         let mut counter = GasCounter::new(200);
 
-        let result = counter.charge(100);
+        let result = counter.charge_if_enough(100u64);
 
         assert_eq!(result, ChargeResult::Enough);
         assert_eq!(counter.left(), 100);
 
-        let result = counter.charge(101);
+        let result = counter.charge_if_enough(101u64);
 
         assert_eq!(result, ChargeResult::NotEnough);
         assert_eq!(counter.left(), 100);
@@ -330,7 +354,7 @@ mod tests {
     #[test]
     fn charge_fails() {
         let mut counter = GasCounter::new(100);
-        assert_eq!(counter.charge(200), ChargeResult::NotEnough);
+        assert_eq!(counter.charge_if_enough(200u64), ChargeResult::NotEnough);
     }
 
     #[test]
@@ -341,13 +365,13 @@ mod tests {
         });
 
         let mut counter = GasCounter::new(10);
-        assert_eq!(counter.charge_token(token), ChargeResult::NotEnough);
+        assert_eq!(counter.charge(token), ChargeResult::NotEnough);
     }
 
     #[test]
     fn refund_fails() {
         let mut counter = GasCounter::new(200);
-        assert_eq!(counter.charge(100), ChargeResult::Enough);
+        assert_eq!(counter.charge_if_enough(100u64), ChargeResult::Enough);
         assert_eq!(counter.refund(500), ChargeResult::NotEnough);
     }
 
@@ -359,6 +383,6 @@ mod tests {
         });
 
         let mut counter = GasAllowanceCounter::new(10);
-        assert_eq!(counter.charge_token(token), ChargeResult::NotEnough);
+        assert_eq!(counter.charge(token), ChargeResult::NotEnough);
     }
 }

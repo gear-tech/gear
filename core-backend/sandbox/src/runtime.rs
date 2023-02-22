@@ -26,9 +26,9 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    BackendExt, BackendExtError, BackendState, BackendTermination, TerminationReason,
+    BackendExt, BackendState, BackendTermination, TerminationReason,
 };
-use gear_core::{costs::RuntimeCosts, env::Ext};
+use gear_core::{costs::RuntimeCosts, gas::GasLeft};
 use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
@@ -40,7 +40,7 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
     }
 }
 
-pub(crate) struct Runtime<E: Ext> {
+pub(crate) struct Runtime<E> {
     pub ext: E,
     pub memory: MemoryWrap,
     pub fallible_syscall_error: Option<ExtError>,
@@ -50,11 +50,7 @@ pub(crate) struct Runtime<E: Ext> {
     pub memory_manager: MemoryAccessManager<E>,
 }
 
-impl<E> Runtime<E>
-where
-    E: BackendExt,
-    E::Error: BackendExtError,
-{
+impl<E: BackendExt> Runtime<E> {
     // Cleans `memory_manager`, updates ext counters based on globals.
     fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
@@ -71,12 +67,12 @@ where
             .and_then(as_i64)
             .unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
-        self.ext.update_counters(gas as u64, allowance as u64);
+        self.ext.set_gas_left((gas, allowance).into());
     }
 
     // Updates globals after execution.
     fn update_globals(&mut self) {
-        let (gas, allowance) = self.ext.counters();
+        let GasLeft { gas, allowance } = self.ext.gas_left();
 
         self.globals
             .set_global_val(GLOBAL_NAME_GAS, Value::I64(gas as i64))
@@ -111,9 +107,7 @@ where
     {
         self.with_globals_update(|ctx| {
             ctx.prepare_run();
-            ctx.ext
-                .charge_gas_runtime(cost)
-                .map_err(|err| err.into_termination_reason())?;
+            ctx.ext.charge_gas_runtime(cost)?;
             f(ctx)
         })
     }
@@ -148,7 +142,7 @@ where
     }
 }
 
-impl<E: Ext> MemoryAccessRecorder for Runtime<E> {
+impl<E: BackendExt> MemoryAccessRecorder for Runtime<E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.memory_manager.register_read(ptr, size)
     }
@@ -173,10 +167,7 @@ impl<E: Ext> MemoryAccessRecorder for Runtime<E> {
     }
 }
 
-impl<E> MemoryOwner for Runtime<E>
-where
-    E: BackendExt,
-{
+impl<E: BackendExt> MemoryOwner for Runtime<E> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.memory_manager.read(&self.memory, read)
     }
@@ -205,7 +196,7 @@ where
     }
 }
 
-impl<E: BackendExt> BackendState for Runtime<E> {
+impl<E> BackendState for Runtime<E> {
     fn set_termination_reason(&mut self, reason: TerminationReason) {
         self.termination_reason = reason;
     }
@@ -215,7 +206,7 @@ impl<E: BackendExt> BackendState for Runtime<E> {
     }
 }
 
-impl<E: Ext + BackendExt> BackendTermination<E, MemoryWrap> for Runtime<E> {
+impl<E: BackendExt> BackendTermination<E, MemoryWrap> for Runtime<E> {
     fn into_parts(self) -> (E, MemoryWrap, TerminationReason) {
         let Self {
             ext,

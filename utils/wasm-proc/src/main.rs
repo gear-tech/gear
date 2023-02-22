@@ -102,11 +102,11 @@ struct Args {
     #[arg(long)]
     skip_opt: bool,
 
-    /// Don't export `__gear_stack_end`
+    /// Don't create gear stack end export
     #[arg(long)]
     skip_stack_end: bool,
 
-    /// Strip custom sections of wasm binarires
+    /// Strip custom sections of wasm binaries
     #[arg(long, default_value = "true")]
     strip_custom_sections: bool,
 

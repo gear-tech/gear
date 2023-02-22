@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::OutOfMemoryAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
+    memory::ProcessAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason,
 };
 use alloc::collections::BTreeSet;
@@ -26,7 +26,7 @@ use core::fmt;
 use gear_core::{
     costs::RuntimeCosts,
     env::Ext,
-    gas::{GasAmount, GasCounter},
+    gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
@@ -62,6 +62,33 @@ impl BackendAllocExtError for Error {
 /// Mock ext
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct MockExt(BTreeSet<SysCallName>);
+
+impl CountersOwner for MockExt {
+    fn charge_gas_runtime(&mut self, _cost: RuntimeCosts) -> Result<(), ChargeError> {
+        Ok(())
+    }
+
+    fn charge_gas_runtime_if_enough(&mut self, _cost: RuntimeCosts) -> Result<(), ChargeError> {
+        Ok(())
+    }
+
+    fn charge_gas_if_enough(&mut self, _amount: u64) -> Result<(), ChargeError> {
+        Ok(())
+    }
+
+    fn refund_gas(&mut self, _amount: u64) -> Result<(), ChargeError> {
+        Ok(())
+    }
+
+    fn gas_left(&self) -> GasLeft {
+        GasLeft {
+            gas: 0,
+            allowance: 0,
+        }
+    }
+
+    fn set_gas_left(&mut self, _gas_left: GasLeft) {}
+}
 
 impl Ext for MockExt {
     type Error = Error;
@@ -188,12 +215,6 @@ impl Ext for MockExt {
         Ok(0)
     }
 
-    fn counters(&self) -> (u64, u64) {
-        (0, 0)
-    }
-
-    fn update_counters(&mut self, _gas: u64, _allowance: u64) {}
-
     fn out_of_allowance(&mut self) -> Self::Error {
         Error
     }
@@ -228,15 +249,9 @@ impl Ext for MockExt {
     fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
-
-    fn runtime_cost(&self, _costs: RuntimeCosts) -> u64 {
-        0
-    }
 }
 
 impl BackendExt for MockExt {
-    type ChargeError = Error;
-
     fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         Ok(ExtInfo {
             gas_amount: GasAmount::from(GasCounter::new(0)),
@@ -255,14 +270,10 @@ impl BackendExt for MockExt {
         GasAmount::from(GasCounter::new(0))
     }
 
-    fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), Self::ChargeError> {
-        unimplemented!()
-    }
-
     fn pre_process_memory_accesses(
         _reads: &[MemoryInterval],
         _writes: &[MemoryInterval],
-    ) -> Result<(), OutOfMemoryAccessError> {
+    ) -> Result<(), ProcessAccessError> {
         Ok(())
     }
 }

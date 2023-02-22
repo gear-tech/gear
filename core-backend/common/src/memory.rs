@@ -32,7 +32,6 @@ use core::{
 };
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
-    env::Ext,
     memory::{Memory, MemoryInterval},
 };
 use gear_core_errors::MemoryError;
@@ -44,10 +43,6 @@ pub enum ProcessAccessError {
     GasLimitExceeded,
     GasAllowanceExceeded,
 }
-
-/// Memory access error during sys-call that lazy-pages have caught.
-#[derive(Debug, Clone, Copy, Encode, Decode)]
-pub struct OutOfMemoryAccessError;
 
 #[derive(Debug, Clone, derive_more::From)]
 pub enum MemoryAccessError {
@@ -68,12 +63,6 @@ impl From<ProcessAccessError> for MemoryAccessError {
             ProcessAccessError::GasLimitExceeded => Self::GasLimitExceeded,
             ProcessAccessError::GasAllowanceExceeded => Self::GasAllowanceExceeded,
         }
-    }
-}
-
-impl From<OutOfMemoryAccessError> for MemoryAccessError {
-    fn from(_: OutOfMemoryAccessError) -> Self {
-        MemoryError::AccessOutOfBounds.into()
     }
 }
 
@@ -139,13 +128,13 @@ pub trait MemoryOwner {
 /// manager.write_as(write1, 111).unwrap();
 /// ```
 #[derive(Debug)]
-pub struct MemoryAccessManager<E: Ext> {
+pub struct MemoryAccessManager<E> {
     reads: Vec<MemoryInterval>,
     writes: Vec<MemoryInterval>,
     _phantom: PhantomData<E>,
 }
 
-impl<E: Ext> Default for MemoryAccessManager<E> {
+impl<E> Default for MemoryAccessManager<E> {
     fn default() -> Self {
         Self {
             reads: Vec::new(),
@@ -155,7 +144,7 @@ impl<E: Ext> Default for MemoryAccessManager<E> {
     }
 }
 
-impl<E: Ext> MemoryAccessRecorder for MemoryAccessManager<E> {
+impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.reads.push(MemoryInterval { offset: ptr, size });
         WasmMemoryRead { ptr, size }
