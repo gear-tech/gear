@@ -312,7 +312,7 @@ impl BackendExt for Ext {
     }
 
     fn gas_amount(&self) -> GasAmount {
-        self.context.gas_counter.clone().into()
+        self.context.gas_counter.gas_amount()
     }
 
     fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::ChargeError> {
@@ -957,7 +957,7 @@ impl Ext {
         }
 
         let info = ExtInfo {
-            gas_amount: gas_counter.into(),
+            gas_amount: gas_counter.gas_amount(),
             gas_reserver,
             system_reservation_context,
             allocations: (allocations != initial_allocations)

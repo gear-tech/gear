@@ -248,6 +248,7 @@ where
 }
 
 /// An instantiated and deployed program.
+#[derive(Clone)]
 struct Program<T: Config> {
     addr: H256,
     caller: T::AccountId,
@@ -309,7 +310,6 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
     BalanceOf::<T>::max_value() / 2u32.into()
 }
 
-#[derive(Clone)]
 pub struct Exec<T: Config> {
     #[allow(unused)]
     ext_manager: ExtManager<T>,

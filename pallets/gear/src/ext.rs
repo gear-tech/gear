@@ -59,7 +59,7 @@ impl BackendExt for LazyPagesExt {
     }
 
     fn gas_amount(&self) -> GasAmount {
-        self.inner.context.gas_counter.clone().into()
+        self.inner.context.gas_counter.gas_amount()
     }
 
     fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::ChargeError> {

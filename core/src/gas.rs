@@ -48,9 +48,9 @@ pub enum ChargeResult {
 
 /// Gas counter with some predefined maximum gas.
 ///
-/// `Copy` trait isn't implemented for the type (however could be)
-/// in order to make the data only moveable, preventing implicit copying.
-#[derive(Clone, Debug)]
+/// `Copy` and `Clone` traits aren't implemented for the type (however could be)
+/// in order to make the data only moveable, preventing explicit and implicit copying.
+#[derive(Debug)]
 pub struct GasCounter {
     left: u64,
     burned: u64,
@@ -164,6 +164,14 @@ impl GasCounter {
     pub fn burned(&self) -> u64 {
         self.burned
     }
+
+    /// Get gas amount.
+    pub fn gas_amount(&self) -> GasAmount {
+        GasAmount {
+            left: self.left,
+            burned: self.burned,
+        }
+    }
 }
 
 /// Read-only representation of consumed `GasCounter`.
@@ -185,14 +193,6 @@ impl GasAmount {
     /// Report how much gas were burned.
     pub fn burned(&self) -> u64 {
         self.burned
-    }
-}
-
-impl From<GasCounter> for GasAmount {
-    fn from(gas_counter: GasCounter) -> Self {
-        let GasCounter { left, burned } = gas_counter;
-
-        Self { left, burned }
     }
 }
 

@@ -19,6 +19,7 @@
 use super::*;
 use common::ActiveProgram;
 use core::convert::TryFrom;
+use core_processor::calculate_gas_for_non_subsequent_execution;
 use gear_core::memory::WasmPage;
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -198,14 +199,6 @@ where
                 };
 
                 let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
-                let subsequent_burned = if !subsequent_execution {
-                    core_processor::precharge_for_memory(&block_config, context.clone(), true)
-                        .map(|c| c.gas_counter().burned())
-                        .unwrap_or(0)
-                } else {
-                    0
-                };
-
                 let context = match core_processor::precharge_for_memory(
                     &block_config,
                     context,
@@ -217,7 +210,16 @@ where
                     }
                 };
 
-                may_be_returned += context.gas_counter().burned() - subsequent_burned;
+                let actor_data = context.actor_data();
+                // if it is subsequent execution => we burned 0 gas
+                // if it is NOT subsequent execution => we burned SOME gas
+                if !subsequent_execution {
+                    may_be_returned += calculate_gas_for_non_subsequent_execution(
+                        &block_config.pages_config,
+                        &actor_data.allocations,
+                        actor_data.static_pages,
+                    )
+                }
 
                 let memory_pages = match Self::get_and_track_memory_pages(
                     &mut ext_manager,
