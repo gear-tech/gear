@@ -200,7 +200,7 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                         // 5CJg2Mc7FMvPVFVqVfKaxFtzsE6RMT1YSF64eYWW6sncEtgB
                         hex!["0aa743eb5db9f9c38946d400691c2485dbb375a859b200b72b20c47082a9bd2a"]
                             .unchecked_into(),
-                        // 5CJg2Mc7FMvPVFVqVfKaxFtzsE6RMT1YSF64eYWW6sncEtgB
+                        // 5FryLBTmjxW4RATZcMyWeEcLuyMUG7eeKwiQcMZkTNQv4aLC
                         hex!["a7fe148cc70d41a43fd05675c91cf8e2e5eb76e86a97fd68cecfe1ae3153d51c"]
                             .unchecked_into(),
                     ),
