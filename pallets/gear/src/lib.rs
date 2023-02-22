@@ -863,6 +863,7 @@ pub mod pallet {
 
         /// Delayed tasks processing.
         pub fn process_tasks(ext_manager: &mut ExtManager<T>) {
+            // mikita
             // Current block number.
             let bn: u32 = Self::block_number().unique_saturated_into();
 
@@ -920,7 +921,7 @@ pub mod pallet {
                     // Making sure we have gas to remove next task
                     // or update missed blocks.
                     if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
-                        stopped_at = Some(bn.into());
+                        stopped_at = Some(process_bn.into());
                         log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
                     }
@@ -1465,7 +1466,7 @@ pub mod pallet {
                 // This is unreachable since the `message_id` is new generated
                 // with `Self::next_message_id`.
                 GasHandlerOf::<T>::create(who.clone(), message.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e)); // mikita
 
                 let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
 
