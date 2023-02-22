@@ -555,13 +555,13 @@ fn delayed_send_user_message_payment() {
         run_to_next_block(None);
 
         // Check that last event is UserMessageSent.
-        let last_event = match System::events().last().map(|r| r.event.clone()) {
-            Some(MockRuntimeEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
+        let last_event = match get_last_event() {
+            MockRuntimeEvent::Gear(e) => e,
+            _ => panic!("Should be one Gear event"),
         };
         match last_event {
             Event::UserMessageSent { message, .. } => assert_eq!(delayed_id, message.id()),
-            _ => unreachable!("Test failed: expected Event::UserMessageSent"),
+            _ => panic!("Test failed: expected Event::UserMessageSent"),
         }
 
         // Mailbox should be empty.
@@ -662,13 +662,13 @@ fn delayed_send_user_message_with_reservation() {
         run_to_next_block(None);
 
         // Check that last event is UserMessageSent.
-        let last_event = match System::events().last().map(|r| r.event.clone()) {
-            Some(MockRuntimeEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
+        let last_event = match get_last_event() {
+            MockRuntimeEvent::Gear(e) => e,
+            _ => panic!("Should be one Gear event"),
         };
         match last_event {
             Event::UserMessageSent { message, .. } => assert_eq!(delayed_id, message.id()),
-            _ => unreachable!("Test failed: expected Event::UserMessageSent"),
+            _ => panic!("Test failed: expected Event::UserMessageSent"),
         }
 
         // Mailbox should not be empty.
@@ -768,14 +768,7 @@ fn delayed_send_program_message_payment() {
         run_to_next_block(None);
 
         // Check that last event is MessagesDispatched.
-        let last_event = match System::events().last().map(|r| r.event.clone()) {
-            Some(MockRuntimeEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-        match last_event {
-            Event::MessagesDispatched { .. } => {}
-            _ => unreachable!("Test failed: expected Event::MessagesDispatched"),
-        }
+        assert_last_dequeued(2);
 
         // Check that gas was charged correctly.
         assert_eq!(Balances::reserved_balance(USER_1), 0);
@@ -887,14 +880,7 @@ fn delayed_send_program_message_with_reservation() {
         run_to_next_block(None);
 
         // Check that last event is MessagesDispatched.
-        let last_event = match System::events().last().map(|r| r.event.clone()) {
-            Some(MockRuntimeEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-        match last_event {
-            Event::MessagesDispatched { .. } => {}
-            _ => unreachable!("Test failed: expected Event::MessagesDispatched"),
-        }
+        assert_last_dequeued(2);
 
         assert_eq!(Balances::reserved_balance(USER_1), 0);
     }
@@ -1001,14 +987,7 @@ fn delayed_send_program_message_with_low_reservation() {
         run_to_next_block(None);
 
         // Check that last event is MessagesDispatched.
-        let last_event = match System::events().last().map(|r| r.event.clone()) {
-            Some(MockRuntimeEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-        match last_event {
-            Event::MessagesDispatched { .. } => {}
-            _ => unreachable!("Test failed: expected Event::MessagesDispatched"),
-        }
+        assert_last_dequeued(2);
 
         assert_eq!(Balances::reserved_balance(USER_1), 0);
     }
