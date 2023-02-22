@@ -865,7 +865,7 @@ pub mod pallet {
         pub fn process_tasks(ext_manager: &mut ExtManager<T>) {
             // mikita
             // Current block number.
-            let bn: u32 = Self::block_number().unique_saturated_into();
+            let current_bn: u32 = Self::block_number().unique_saturated_into();
 
             // Taking first block number, those has some incomplete tasks held.
             // If there are no such blocks, we charge for single read, because
@@ -877,7 +877,7 @@ pub mod pallet {
                 })
                 .unwrap_or_else(|| {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().reads(1).ref_time());
-                    (bn.into(), true)
+                    (current_bn.into(), true)
                 });
 
             // When we had to stop processing due to insufficient gas allowance.
@@ -887,11 +887,12 @@ pub mod pallet {
             let first_block_int: u32 = first_missed_block.unique_saturated_into();
 
             // Iterating over all blocks.
-            for process_bn in first_block_int..=bn {
+            for process_bn in first_block_int..=current_bn {
                 let process_bn_v: T::BlockNumber = process_bn.into();
 
                 // Tasks drain iterator.
                 let tasks = TaskPoolOf::<T>::drain_prefix_keys(process_bn_v);
+
                 // Checking gas allowance.
                 //
                 // Making sure we have gas to remove next task
@@ -902,7 +903,7 @@ pub mod pallet {
                     break;
                 }
 
-                // Iterating over tasks, scheduled on `bn`.
+                // Iterating over tasks, scheduled on `process_bn`.
                 for task in tasks {
                     log::debug!("Processing task: {:?}", task);
 
@@ -921,7 +922,7 @@ pub mod pallet {
                     // Making sure we have gas to remove next task
                     // or update missed blocks.
                     if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
-                        stopped_at = Some(process_bn.into());
+                        stopped_at = Some(process_bn_v);
                         log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
                     }
