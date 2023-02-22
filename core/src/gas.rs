@@ -311,19 +311,16 @@ pub struct GasLeft {
 }
 
 impl From<(u64, u64)> for GasLeft {
-    fn from(value: (u64, u64)) -> Self {
-        Self {
-            gas: value.0,
-            allowance: value.1,
-        }
+    fn from((gas, allowance): (u64, u64)) -> Self {
+        Self { gas, allowance }
     }
 }
 
 impl From<(i64, i64)> for GasLeft {
-    fn from(value: (i64, i64)) -> Self {
+    fn from((gas, allowance): (i64, i64)) -> Self {
         Self {
-            gas: value.0 as u64,
-            allowance: value.1 as u64,
+            gas: gas as u64,
+            allowance: allowance as u64,
         }
     }
 }

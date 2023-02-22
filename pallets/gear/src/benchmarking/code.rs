@@ -125,6 +125,7 @@ impl ImportedMemory {
             min_pages: max_pages::<T>() as u32,
         }
     }
+
     pub fn new_with_pages(min_pages: u32) -> Self {
         Self { min_pages }
     }

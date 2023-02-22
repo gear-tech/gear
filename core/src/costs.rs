@@ -281,7 +281,7 @@ pub enum RuntimeCosts {
     Size,
     /// Weight of calling `gr_read`.
     Read,
-    /// Weight of calling ``gr_read` per read buffer bytes number.
+    /// Weight of calling `gr_read` per read buffer bytes number.
     ReadPerByte(u32),
     /// Weight of calling `gr_block_height`.
     BlockHeight,
