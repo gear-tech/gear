@@ -48,11 +48,7 @@ fn check_changed(path: &Path, contents: &[u8]) -> Result<bool> {
 
     let old_data = fs::read(path)?;
     let new_data = contents;
-    if old_data != new_data {
-        return Ok(true);
-    }
-
-    Ok(false)
+    Ok(old_data != new_data)
 }
 
 pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> Result<()> {
