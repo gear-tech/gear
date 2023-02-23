@@ -6,9 +6,11 @@ use crate::api::{
 };
 use anyhow::anyhow;
 use async_recursion::async_recursion;
+use gear_core::ids::{CodeId, MessageId, ProgramId};
+use sp_runtime::AccountId32;
 use subxt::{
-    ext::codec::Encode,
-    tx::{StaticTxPayload, TxPayload, TxProgress},
+    dynamic::Value,
+    tx::{DynamicTxPayload, TxProgress},
     Error as SubxtError, OnlineClient,
 };
 
@@ -16,102 +18,130 @@ type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
 
 const ERRORS_REQUIRE_RETRYING: [&str; 2] = ["Connection reset by peer", "Connection refused"];
 
-mod balances {
-    use crate::api::{generated::api::tx, signer::Signer, types::InBlock};
-    use sp_runtime::AccountId32;
+// pallet-balances
+impl Signer {
+    /// `pallet_balances::transfer`
+    pub async fn transfer(&self, dest: impl Into<AccountId32>, value: u128) -> InBlock {
+        let tx = subxt::dynamic::tx(
+            "Balances",
+            "transfer",
+            vec![
+                Value::unnamed_variant("Id", [Value::from_bytes(&dest.into())]),
+                Value::u128(value),
+            ],
+        );
 
-    impl Signer {
-        /// `pallet_balances::transfer`
-        pub async fn transfer(&self, destination: impl Into<AccountId32>, value: u128) -> InBlock {
-            let ex = tx().balances().transfer(destination.into().into(), value);
-            self.process(ex).await
-        }
+        self.process(tx).await
     }
 }
 
-mod gear {
-    use crate::api::{generated::api::tx, signer::Signer, types::InBlock};
-    use gear_core::ids::{CodeId, MessageId, ProgramId};
+impl Signer {
+    /// `pallet_gear::create_program`
+    pub async fn create_program(
+        &self,
+        code_id: CodeId,
+        salt: Vec<u8>,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+    ) -> InBlock {
+        let tx = subxt::dynamic::tx(
+            "Gear",
+            "create_program",
+            vec![
+                Value::from_bytes(code_id),
+                Value::from_bytes(salt),
+                Value::from_bytes(payload),
+                Value::u128(gas_limit as u128),
+                Value::u128(value),
+            ],
+        );
 
-    impl Signer {
-        /// `pallet_gear::create_program`
-        pub async fn create_program(
-            &self,
-            code_id: CodeId,
-            salt: Vec<u8>,
-            payload: Vec<u8>,
-            gas_limit: u64,
-            value: u128,
-        ) -> InBlock {
-            let ex = tx()
-                .gear()
-                .create_program(code_id.into(), salt, payload, gas_limit, value);
+        self.process(tx).await
+    }
 
-            self.process(ex).await
-        }
+    /// `pallet_gear::claim_value`
+    pub async fn claim_value(&self, message_id: MessageId) -> InBlock {
+        let tx = subxt::dynamic::tx("Gear", "claim_value", vec![Value::from_bytes(message_id)]);
+        self.process(tx).await
+    }
 
-        /// `pallet_gear::claim_value`
-        pub async fn claim_value(&self, message_id: MessageId) -> InBlock {
-            let ex = tx().gear().claim_value(message_id.into());
+    /// `pallet_gear::send_message`
+    pub async fn send_message(
+        &self,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+    ) -> InBlock {
+        let tx = subxt::dynamic::tx(
+            "Gear",
+            "send_message",
+            vec![
+                Value::from_bytes(destination),
+                Value::from_bytes(payload),
+                Value::u128(gas_limit as u128),
+                Value::u128(value),
+            ],
+        );
 
-            self.process(ex).await
-        }
+        self.process(tx).await
+    }
 
-        /// `pallet_gear::send_message`
-        pub async fn send_message(
-            &self,
-            destination: ProgramId,
-            payload: Vec<u8>,
-            gas_limit: u64,
-            value: u128,
-        ) -> InBlock {
-            let ex = tx()
-                .gear()
-                .send_message(destination.into(), payload, gas_limit, value);
+    /// `pallet_gear::send_reply`
+    pub async fn send_reply(
+        &self,
+        reply_to_id: MessageId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+    ) -> InBlock {
+        let tx = subxt::dynamic::tx(
+            "Gear",
+            "send_reply",
+            vec![
+                Value::from_bytes(reply_to_id),
+                Value::from_bytes(payload),
+                Value::u128(gas_limit as u128),
+                Value::u128(value),
+            ],
+        );
 
-            self.process(ex).await
-        }
+        self.process(tx).await
+    }
 
-        /// `pallet_gear::send_reply`
-        pub async fn send_reply(
-            &self,
-            reply_to_id: MessageId,
-            payload: Vec<u8>,
-            gas_limit: u64,
-            value: u128,
-        ) -> InBlock {
-            let ex = tx()
-                .gear()
-                .send_reply(reply_to_id.into(), payload, gas_limit, value);
+    /// `pallet_gear::upload_code`
+    pub async fn upload_code(&self, code: Vec<u8>) -> InBlock {
+        let tx = subxt::dynamic::tx("Gear", "upload_code", vec![Value::from_bytes(code)]);
+        self.process(tx).await
+    }
 
-            self.process(ex).await
-        }
+    /// `pallet_gear::upload_program`
+    pub async fn upload_program(
+        &self,
+        code: Vec<u8>,
+        salt: Vec<u8>,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+    ) -> InBlock {
+        let tx = subxt::dynamic::tx(
+            "Gear",
+            "upload_program",
+            vec![
+                Value::from_bytes(code),
+                Value::from_bytes(salt),
+                Value::from_bytes(payload),
+                Value::u128(gas_limit as u128),
+                Value::u128(value),
+            ],
+        );
 
-        /// `pallet_gear::upload_code`
-        pub async fn upload_code(&self, code: Vec<u8>) -> InBlock {
-            let ex = tx().gear().upload_code(code);
-
-            self.process(ex).await
-        }
-
-        /// `pallet_gear::upload_program`
-        pub async fn upload_program(
-            &self,
-            code: Vec<u8>,
-            salt: Vec<u8>,
-            payload: Vec<u8>,
-            gas_limit: u64,
-            value: u128,
-        ) -> InBlock {
-            let ex = tx()
-                .gear()
-                .upload_program(code, salt, payload, gas_limit, value);
-
-            self.process(ex).await
-        }
+        self.process(tx).await
     }
 }
 
+// Singer utils
 impl Signer {
     /// Propagates log::info for given status.
     pub(crate) fn log_status(&self, status: &TxStatus) {
@@ -139,9 +169,9 @@ impl Signer {
 
     /// Wrapper for submit and watch with error handling.
     #[async_recursion(?Send)]
-    async fn sign_and_submit_then_watch<CallData: Encode>(
+    async fn sign_and_submit_then_watch<'a>(
         &self,
-        tx: &StaticTxPayload<CallData>,
+        tx: &DynamicTxPayload<'a>,
         counter: u16,
     ) -> Result<TxProgressT, SubxtError> {
         let process = if let Some(nonce) = self.nonce {
@@ -175,21 +205,14 @@ impl Signer {
     }
 
     /// Listen transaction process and print logs.
-    pub async fn process<CallData: Encode>(&self, tx: StaticTxPayload<CallData>) -> InBlock {
+    pub async fn process<'a>(&self, tx: DynamicTxPayload<'a>) -> InBlock {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;
         let mut process = self.sign_and_submit_then_watch(&tx, 0).await?;
 
         // Get extrinsic details.
-        let (pallet, name) = {
-            if let Some(details) = tx.validation_details() {
-                (details.pallet_name, details.call_name)
-            } else {
-                ("Unknown", "Unknown")
-            }
-        };
-
+        let (pallet, name) = (tx.pallet_name(), tx.call_name());
         log::info!("Submitted extrinsic {}::{}", pallet, name);
 
         while let Some(status) = process.next_item().await {

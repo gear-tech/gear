@@ -56,10 +56,10 @@ impl Program {
         } = self.action.clone();
 
         // Get program
-        let program = api.gprog(pid).await.expect("program not found");
+        let program = api.gprog(pid).await?;
         let code_id = program.code_hash;
         let code = api.code_storage(code_id.0).await?;
-        let pages = api.gpages(pid, program).await.expect("pages not found");
+        let pages = api.gpages(pid, program).await?;
 
         // Query state
         let state = Metadata::read(

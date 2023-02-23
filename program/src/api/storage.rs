@@ -1,4 +1,4 @@
-//! gear storage apis
+//! Gear storage apis
 use crate::{
     api::{
         generated::api::runtime_types::{
