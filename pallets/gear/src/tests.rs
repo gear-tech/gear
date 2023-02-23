@@ -910,7 +910,7 @@ fn delayed_send_program_message_with_low_reservation() {
         ));
 
         let program_address = utils::get_last_program_id();
-        let reservation_amount = 100u64;
+        let reservation_amount = <Test as Config>::MailboxThreshold::get();
 
         // Upload program that sends message to another program.
         assert_ok!(Gear::upload_program(
