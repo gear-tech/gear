@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_call_gen::{GearCall, SendMessageArgs, UploadProgramArgs};
+use gear_call_gen::{GearCall, SendMessageArgs, UploadProgramArgs, GearProgGenConfig};
 use gear_common::{storage::Limiter, GasPrice, event::ProgramChangeKind};
 use gear_core::ids::ProgramId;
 use gear_utils::NonEmpty;
@@ -65,6 +65,12 @@ pub fn run(start_seed: u64) {
     let sender = runtime::account(ALICE);
     let test_ext = TEST_EXT.get_or_init(|| Mutex::new(new_test_ext()));
     let context = CONTEXT.get_or_init(|| Mutex::new(Context::new()));
+    let config = { 
+        let mut config = GearProgGenConfig::new_normal();
+        config.remove_recursion = (1, 1).into();
+
+        config
+    };
 
     test_ext.lock().execute_with(|| {
         let res = BalancesPallet::<Runtime>::set_balance(
@@ -94,6 +100,7 @@ pub fn run(start_seed: u64) {
                 rand.next_u64(),
                 rand.next_u64(),
                 240_000_000_000,
+                config
             )
             .into(),
             1 => match NonEmpty::from_vec(context.lock().programs.clone()) {
@@ -107,6 +114,7 @@ pub fn run(start_seed: u64) {
                     rand.next_u64(),
                     rand.next_u64(),
                     240_000_000_000,
+                    config
                 )
                 .into(),
             },

@@ -3,6 +3,7 @@ use anyhow::{anyhow, Result};
 use futures::Future;
 use futures_timer::Delay;
 use gclient::WSAddress;
+use gear_call_gen::GearProgGenConfig;
 use reqwest::Client;
 use std::{
     collections::HashMap,
@@ -32,7 +33,15 @@ pub fn now() -> u64 {
 }
 
 pub fn dump_with_seed(seed: u64) -> Result<()> {
-    let code = gear_call_gen::generate_gear_program::<SmallRng>(seed);
+    // 12252158550374057547
+    let config = {
+        let mut config = GearProgGenConfig::new_normal();
+        config.remove_recursion = (1, 1).into();
+        config.
+
+        config
+    };
+    let code = gear_call_gen::generate_gear_program::<SmallRng>(seed, config);
 
     let mut file = File::create("out.wasm")?;
     file.write_all(&code)?;
