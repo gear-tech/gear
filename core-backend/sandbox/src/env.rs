@@ -79,7 +79,7 @@ struct EnvBuilder<E: BackendExt> {
 
 impl<E> EnvBuilder<E>
 where
-    E: BackendExt + CountersOwner + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
@@ -107,7 +107,7 @@ impl<E: BackendExt> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime
 
 impl<E, EP> Environment<EP> for SandboxEnvironment<E, EP>
 where
-    E: CountersOwner + BackendExt + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
     EP: WasmEntry,

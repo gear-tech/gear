@@ -32,7 +32,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{
         ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
-        GasLeft, Token, ValueCounter, GasRefunder,
+        GasLeft, GasRefunder, Token, ValueCounter,
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
@@ -1099,7 +1099,7 @@ mod tests {
         );
 
         assert_eq!(
-            lack_gas_ext.charge_gas_runtime_api(RuntimeCosts::Free),
+            lack_gas_ext.charge_gas_runtime(RuntimeCosts::Free),
             Err(ChargeError::GasLimitExceeded),
         );
 
@@ -1122,7 +1122,7 @@ mod tests {
         );
 
         assert_eq!(
-            lack_allowance_ext.charge_gas_runtime_api(RuntimeCosts::Free),
+            lack_allowance_ext.charge_gas_runtime(RuntimeCosts::Free),
             Err(ChargeError::GasAllowanceExceeded),
         );
 

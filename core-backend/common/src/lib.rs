@@ -97,16 +97,13 @@ impl From<FromUtf8Error> for TerminationReason {
 impl From<MemoryAccessError> for TerminationReason {
     fn from(err: MemoryAccessError) -> Self {
         match err {
-            MemoryAccessError::Memory(err) => {
-                ActorTerminationReason::Trap(TrapExplanation::Ext(err.into()))
+            MemoryAccessError::Memory(err) => TrapExplanation::Ext(err.into()).into(),
+            MemoryAccessError::RuntimeBuffer(_) => {
+                TrapExplanation::Ext(MemoryError::RuntimeAllocOutOfBounds.into()).into()
             }
-            MemoryAccessError::RuntimeBuffer(_) => ActorTerminationReason::Trap(
-                TrapExplanation::Ext(MemoryError::RuntimeAllocOutOfBounds.into()),
-            ),
             MemoryAccessError::Decode => unreachable!("{:?}", err),
-            MemoryAccessError::GasLimitExceeded | MemoryAccessError::GasAllowanceExceeded => {
-                unimplemented!("#2216")
-            }
+            MemoryAccessError::GasLimitExceeded => TrapExplanation::GasLimitExceeded.into(),
+            MemoryAccessError::GasAllowanceExceeded => ActorTerminationReason::GasAllowanceExceeded,
         }
         .into()
     }
@@ -132,13 +129,20 @@ impl<E: BackendExtError> From<E> for TerminationReason {
     }
 }
 
-#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+// impl From<TrapExplanation> for TerminationReason {
+//     fn from(trap: TrapExplanation) -> Self {
+//         ActorTerminationReason::Trap(trap).into()
+//     }
+// }
+
+#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
 pub enum ActorTerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
     Wait(Option<u32>, MessageWaitedType),
     GasAllowanceExceeded,
+    #[from]
     Trap(TrapExplanation),
 }
 
