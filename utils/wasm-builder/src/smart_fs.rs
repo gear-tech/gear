@@ -46,9 +46,8 @@ fn check_changed(path: &Path, contents: &[u8]) -> Result<bool> {
     assert_linear_comparison_size(metadata.len());
     assert_linear_comparison_size(contents.len() as u64);
 
-    let old_data = fs::read(path)?;
-    let new_data = contents;
-    Ok(old_data != new_data)
+    let old_contents = fs::read(path)?;
+    Ok(old_contents != contents)
 }
 
 pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> Result<()> {
