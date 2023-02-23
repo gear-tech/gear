@@ -27,7 +27,7 @@
 
 use gear_backend_common::{
     lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    memory::OutOfMemoryAccessError,
+    memory::ProcessAccessError,
 };
 use gear_core::memory::{
     GearPage, GranularityPage, MemoryInterval, PageU32Size, WasmPage, GEAR_PAGE_SIZE,
@@ -248,16 +248,14 @@ impl PageU32Size for LazyPage {
     }
 }
 
-fn get_access_pages(
-    accesses: &[MemoryInterval],
-) -> Result<BTreeSet<LazyPage>, OutOfMemoryAccessError> {
+fn get_access_pages(accesses: &[MemoryInterval]) -> Result<BTreeSet<LazyPage>, ProcessAccessError> {
     let mut set = BTreeSet::new();
     for access in accesses {
         let first_page = LazyPage::from_offset(access.offset);
         let byte_after_last = access
             .offset
             .checked_add(access.size)
-            .ok_or(OutOfMemoryAccessError)?;
+            .ok_or(ProcessAccessError::OutOfBounds)?;
         // TODO: here we suppose zero byte access like one byte access, because
         // backend memory impl can access memory even in case access has size 0.
         // We can optimize this if will ignore zero bytes access in core-backend (issue #2095).
@@ -271,7 +269,7 @@ fn get_access_pages(
 pub fn pre_process_memory_accesses(
     reads: &[MemoryInterval],
     writes: &[MemoryInterval],
-) -> Result<(), OutOfMemoryAccessError> {
+) -> Result<(), ProcessAccessError> {
     let mut read_pages = get_access_pages(reads)?;
     let write_pages = get_access_pages(writes)?;
     for page in write_pages.iter() {
@@ -291,7 +289,9 @@ pub fn pre_process_memory_accesses(
             )
         })
         .map_err(|err| match err {
-            Error::OutOfWasmMemoryAccess | Error::WasmMemSizeIsNotSet => OutOfMemoryAccessError,
+            Error::OutOfWasmMemoryAccess | Error::WasmMemSizeIsNotSet => {
+                ProcessAccessError::OutOfBounds
+            }
             err => panic!("Lazy-pages unexpected error: {}", err),
         })
 }

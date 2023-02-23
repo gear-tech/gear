@@ -19,7 +19,6 @@
 //! Environment for running a module.
 
 use crate::{
-    costs::RuntimeCosts,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
@@ -226,12 +225,6 @@ pub trait Ext {
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName>;
 
-    /// Return gas and gas allowance left in the counters.
-    fn counters(&self) -> (u64, u64);
-
-    /// Update counters with the provided values.
-    fn update_counters(&mut self, gas: u64, allowance: u64);
-
     // TODO: remove `out_of_gas` and `out_of_allowance` in #2212
 
     /// Handler for the case when gas is out.
@@ -239,7 +232,4 @@ pub trait Ext {
 
     /// Handler for the case when gas allowance is out.
     fn out_of_allowance(&mut self) -> Self::Error;
-
-    /// Get runtime cost weight.
-    fn runtime_cost(&self, costs: RuntimeCosts) -> u64;
 }
