@@ -214,11 +214,12 @@ where
                 // if it is subsequent execution => we burned 0 gas
                 // if it is NOT subsequent execution => we burned SOME gas
                 if !subsequent_execution {
-                    may_be_returned += calculate_gas_for_non_subsequent_execution(
+                    let amount = calculate_gas_for_non_subsequent_execution(
                         &block_config.pages_config,
                         &actor_data.allocations,
                         actor_data.static_pages,
-                    )
+                    );
+                    may_be_returned = may_be_returned.saturating_add(amount);
                 }
 
                 let memory_pages = match Self::get_and_track_memory_pages(
