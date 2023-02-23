@@ -1,8 +1,5 @@
 //! gear api utils
-use crate::{
-    api::{generated::api::runtime_types::sp_runtime::DispatchError, Api},
-    result::Result,
-};
+use crate::{metadata::runtime_types::sp_runtime::DispatchError, result::Result, Api};
 use parity_scale_codec::Encode;
 use subxt::error::{DispatchError as SubxtDispatchError, Error, ModuleError, ModuleErrorData};
 

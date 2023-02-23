@@ -1,6 +1,6 @@
 //! Integration tests for command `send`
 use crate::common::{self, Result, ALICE_SS58_ADDRESS as ADDRESS};
-use gear_program::api::Api;
+use gsdk::Api;
 
 const REWARD_PER_BLOCK: u128 = 3_000_000; // 3_000 gas * 1_000 value per gas
 
@@ -9,7 +9,7 @@ async fn test_command_claim_works() -> Result<()> {
     let node = common::create_messager().await?;
 
     // Check the mailbox of the testing account
-    let api = Api::new(Some(&node.ws())).await?.try_signer(None)?;
+    let api = Api::new(Some(&node.ws())).await?.signer("//Alice", None)?;
     let mailbox = api.mailbox(common::alice_account_id(), 10).await?;
 
     assert_eq!(mailbox.len(), 1);

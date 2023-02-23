@@ -1,15 +1,13 @@
 //! Gear storage apis
 use crate::{
-    api::{
-        generated::api::runtime_types::{
-            frame_system::AccountInfo,
-            gear_common::{storage::primitives::Interval, ActiveProgram, Program},
-            gear_core::{code::InstrumentedCode, message::stored::StoredMessage},
-            pallet_balances::AccountData,
-        },
-        types, Api,
+    metadata::runtime_types::{
+        frame_system::AccountInfo,
+        gear_common::{storage::primitives::Interval, ActiveProgram, Program},
+        gear_core::{code::InstrumentedCode, message::stored::StoredMessage},
+        pallet_balances::AccountData,
     },
-    result::{ClientError, Result},
+    result::{Error, Result},
+    types, Api,
 };
 use gear_core::memory::GEAR_PAGE_SIZE;
 use hex::ToHex;
@@ -40,7 +38,7 @@ impl Api {
                 .await?
                 .fetch(address)
                 .await?
-                .ok_or(ClientError::StorageNotFound)?
+                .ok_or(Error::StorageNotFound)?
                 .into_encoded()
                 .as_ref(),
         )?)
@@ -105,7 +103,7 @@ impl Api {
 
         match program {
             Program::Active(p) => Ok(p),
-            _ => Err(ClientError::ProgramTerminated.into()),
+            _ => Err(Error::ProgramTerminated.into()),
         }
     }
 
@@ -128,7 +126,7 @@ impl Api {
                 .await?
                 .fetch_raw(&lookup_bytes)
                 .await?
-                .ok_or_else(|| ClientError::PageNotFound(page.0, pid.encode_hex()))?;
+                .ok_or_else(|| Error::PageNotFound(page.0, pid.encode_hex()))?;
             let decoded = <[u8; GEAR_PAGE_SIZE]>::decode(&mut &encoded_page[..])?;
             pages.insert(page.0, decoded.to_vec());
         }

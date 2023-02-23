@@ -1,7 +1,6 @@
 //! Integration tests for command `upload`
-
 use crate::common::{self, env, logs};
-use gear_program::api::Api;
+use gsdk::Api;
 
 #[tokio::test]
 async fn test_command_upload_works() {
@@ -13,7 +12,7 @@ async fn test_command_upload_works() {
     let api = Api::new(Some(&node.ws()))
         .await
         .expect("build api failed")
-        .try_signer(None)
+        .signer("//Alice", None)
         .expect("get signer failed");
 
     let code_hash = common::hash(demo_meta::WASM_BINARY);

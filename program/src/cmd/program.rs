@@ -1,7 +1,7 @@
 //! Command `program`.
-use crate::{api::Api, metadata::Metadata, result::Result, utils};
+use crate::{metadata::Metadata, result::Result, utils};
 use clap::Parser;
-use sp_core::H256;
+use gsdk::{ext::sp_core::H256, Api};
 use std::{fs, path::PathBuf};
 
 /// Read program state, etc.

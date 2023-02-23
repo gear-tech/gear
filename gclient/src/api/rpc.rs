@@ -19,13 +19,13 @@
 
 use crate::{api::Result, GearApi};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
-use gp::api::types::GasInfo;
+use gp::{
+    api::types::GasInfo,
+    ext::{sp_core::H256, sp_runtime::DeserializeOwned},
+};
 use parity_scale_codec::{Decode, Encode};
 use std::path::Path;
-use subxt::{
-    ext::{sp_core::H256, sp_runtime::DeserializeOwned},
-    rpc::{rpc_params, RpcParams},
-};
+use subxt::rpc::{rpc_params, RpcParams};
 
 use crate::utils;
 

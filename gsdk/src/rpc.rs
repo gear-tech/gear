@@ -1,9 +1,6 @@
 //! gear api rpc methods
 #![allow(clippy::too_many_arguments)]
-use crate::{
-    api::{types::GasInfo, Api},
-    result::Result,
-};
+use crate::{result::Result, types::GasInfo, Api};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
 use subxt::rpc::rpc_params;

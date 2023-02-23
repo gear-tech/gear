@@ -1,6 +1,6 @@
 //! Integration tests for command `deploy`
 use crate::common::{self, logs, Result};
-use gear_program::api::Api;
+use gsdk::Api;
 
 // Testing account
 //

@@ -1,6 +1,6 @@
 //! Utils
 
-use crate::{api::signer::Signer, result::Result};
+use crate::{result::Result, signer::Signer};
 
 impl Signer {
     /// Get self balance

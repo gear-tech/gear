@@ -3777,7 +3777,6 @@ name = "gear-program"
 version = "0.1.5"
 dependencies = [
  "anyhow",
- "async-recursion",
  "base64 0.21.0",
  "blake2-rfc",
  "cfg-if",
@@ -3787,11 +3786,8 @@ dependencies = [
  "demo-waiter",
  "dirs",
  "env_logger 0.10.0",
- "frame-metadata",
- "futures",
- "futures-util",
  "gear-core",
- "gear-runtime-interface",
+ "gsdk",
  "hex",
  "jsonrpsee",
  "keyring",
@@ -3801,22 +3797,11 @@ dependencies = [
  "messager",
  "nacl",
  "parity-scale-codec",
- "parity-wasm 0.45.0",
- "primitive-types",
  "rand 0.8.5",
- "sc-executor",
- "sc-executor-common",
  "scale-info",
  "schnorrkel",
  "serde",
  "serde_json",
- "sp-core 16.0.0",
- "sp-io 7.0.0",
- "sp-runtime 18.0.0",
- "substrate-wasm-builder",
- "subxt",
- "subxt-codegen",
- "syn",
  "thiserror",
  "tokio",
  "wasmtime 1.0.2",
@@ -4379,6 +4364,30 @@ dependencies = [
  "ff",
  "rand_core 0.6.4",
  "subtle",
+]
+
+[[package]]
+name = "gsdk"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-recursion",
+ "base64 0.21.0",
+ "futures",
+ "futures-util",
+ "gear-core",
+ "hex",
+ "jsonrpsee",
+ "log",
+ "parity-scale-codec",
+ "primitive-types",
+ "serde",
+ "serde_json",
+ "sp-core 16.0.0",
+ "sp-runtime 18.0.0",
+ "subxt",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]

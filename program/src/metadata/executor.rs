@@ -2,16 +2,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 //! WASM executor for getting metadata from `*.meta.wasm`
-use crate::{
-    api::types::GearPages,
-    metadata::{
-        env,
-        ext::Ext,
-        result::{Error, Result},
-        StoreData,
-    },
+use crate::metadata::{
+    env,
+    ext::Ext,
+    result::{Error, Result},
+    StoreData,
 };
 use gear_core::memory::GEAR_PAGE_SIZE;
+use gsdk::types::GearPages;
 use wasmtime::{
     AsContext, AsContextMut, Config, Engine, Extern, Func, Instance, Linker, Memory, Module, Store,
     Val,

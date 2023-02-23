@@ -1,6 +1,7 @@
 //! Command `claim`
-use crate::{api::signer::Signer, result::Result, utils};
+use crate::{result::Result, utils};
 use clap::Parser;
+use gsdk::signer::Signer;
 
 /// Claim value from mailbox.
 #[derive(Parser, Debug)]

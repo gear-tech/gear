@@ -5,18 +5,16 @@ pub mod key;
 pub mod node;
 
 use crate::{
-    api::config::GearConfig,
     keystore::key::Key,
     result::{Error, Result},
     utils,
 };
+use gsdk::{config::GearConfig, ext::sp_core::sr25519, PairSigner};
 use lazy_static::lazy_static;
-use sp_core::sr25519;
 use std::{
     fs,
     path::{Path, PathBuf},
 };
-use subxt::tx::PairSigner;
 
 lazy_static! {
     // @WARNING: THIS WILL ONLY BE SECURE IF THE keystore IS SECURE.

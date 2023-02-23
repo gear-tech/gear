@@ -1,5 +1,5 @@
 //! gear api calls
-use crate::api::{
+use crate::{
     config::GearConfig,
     signer::Signer,
     types::{InBlock, TxStatus},

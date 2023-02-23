@@ -57,6 +57,7 @@ members = [
     "gcore",
     "gear-test",
     "gmeta",
+    "gsdk",
     "gstd",
     "gsys",
     "gtest",

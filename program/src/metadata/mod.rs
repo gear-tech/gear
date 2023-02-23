@@ -13,13 +13,10 @@ pub mod registry;
 pub mod result;
 mod tests;
 
-use crate::{
-    api::types::GearPages,
-    metadata::{registry::LocalRegistry, result::Result},
-};
+use crate::metadata::{registry::LocalRegistry, result::Result};
+use gsdk::{ext::sp_runtime::traits::Saturating, types::GearPages};
 pub use result::Error;
 use scale_info::{form::PortableForm, PortableRegistry};
-use sp_runtime::traits::Saturating;
 use std::fmt;
 use wasmtime::AsContextMut;
 

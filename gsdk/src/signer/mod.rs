@@ -1,8 +1,8 @@
 //! Gear api with signer
 use crate::{
-    api::{config::GearConfig, Api},
-    keystore,
+    config::GearConfig,
     result::{Error, Result},
+    Api,
 };
 use std::ops::{Deref, DerefMut};
 use subxt::tx::PairSigner;
@@ -45,33 +45,6 @@ impl Signer {
         })
     }
 
-    /// New signer from cache
-    pub fn cache(api: Api, passwd: Option<&str>) -> Result<Self> {
-        Ok(Self {
-            api,
-            signer: keystore::cache(passwd)?,
-            nonce: None,
-        })
-    }
-
-    /// New signer from keyring
-    pub fn keyring(api: Api, passwd: Option<&str>) -> Result<Self> {
-        Ok(Self {
-            api,
-            signer: keystore::keyring(passwd)?,
-            nonce: None,
-        })
-    }
-
-    /// Try new signer from keyring or cache.
-    pub fn try_new(api: Api, passwd: Option<&str>) -> Result<Self> {
-        if let Ok(s) = Self::cache(api.clone(), passwd) {
-            Ok(s)
-        } else {
-            Self::keyring(api, passwd)
-        }
-    }
-
     pub fn set_nonce(&mut self, nonce: u32) {
         self.nonce = Some(nonce)
     }
@@ -84,6 +57,16 @@ impl Signer {
     /// Get address of the current signer
     pub fn account_id(&self) -> &AccountId32 {
         self.signer.account_id()
+    }
+}
+
+impl From<(Api, PairSigner<GearConfig, Pair>)> for Signer {
+    fn from((api, signer): (Api, PairSigner<GearConfig, Pair>)) -> Self {
+        Signer {
+            api,
+            signer,
+            nonce: None,
+        }
     }
 }
 

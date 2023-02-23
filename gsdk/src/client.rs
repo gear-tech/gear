@@ -1,5 +1,5 @@
 //! RPC client for Gear API.
-use crate::result::{ClientError, Result};
+use crate::result::{Error, Result};
 use futures_util::{StreamExt, TryStreamExt};
 use jsonrpsee::{
     core::{
@@ -49,17 +49,17 @@ impl RpcClient {
                     .request_timeout(Duration::from_millis(timeout))
                     .build(url)
                     .await
-                    .map_err(ClientError::SubxtRpc)?,
+                    .map_err(Error::SubxtRpc)?,
             ))
         } else if url.starts_with("http") {
             Ok(Self::Http(
                 HttpClientBuilder::default()
                     .request_timeout(Duration::from_millis(timeout))
                     .build(url)
-                    .map_err(ClientError::SubxtRpc)?,
+                    .map_err(Error::SubxtRpc)?,
             ))
         } else {
-            Err(ClientError::InvalidUrl.into())
+            Err(Error::InvalidUrl.into())
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::common::{self, logs, Result};
-use gear_program::api::Api;
+use gsdk::Api;
 use parity_scale_codec::Encode;
 
 #[tokio::test]

@@ -1,20 +1,21 @@
 //! command `info`
-use crate::{
-    api::{
-        generated::api::runtime_types::{
-            gear_common::storage::primitives::Interval,
-            gear_core::message::{
-                common::{MessageDetails, ReplyDetails, SignalDetails},
-                stored::StoredMessage,
-            },
-        },
-        signer::Signer,
-    },
-    result::{Error, Result},
-};
+use crate::result::{Error, Result};
+
 use clap::Parser;
-use sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT};
-use sp_runtime::AccountId32;
+use gsdk::{
+    ext::{
+        sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
+        sp_runtime::AccountId32,
+    },
+    metadata::runtime_types::{
+        gear_common::storage::primitives::Interval,
+        gear_core::message::{
+            common::{MessageDetails, ReplyDetails, SignalDetails},
+            stored::StoredMessage,
+        },
+    },
+    signer::Signer,
+};
 use std::fmt;
 
 #[derive(Debug, Parser)]

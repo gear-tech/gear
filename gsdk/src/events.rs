@@ -1,15 +1,13 @@
 //! Events api
 use crate::{
-    api::{
-        config::GearConfig,
-        generated::api::{system::Event as SystemEvent, Event},
-        Api,
-    },
-    result::{ClientError, Result},
+    config::GearConfig,
+    metadata::{system::Event as SystemEvent, Event},
+    result::{Error, Result},
+    Api,
 };
 use subxt::{
     blocks::ExtrinsicEvents as TxEvents,
-    error::{DispatchError, Error},
+    error::{DispatchError, Error as SubxtError},
     events::{EventDetails, Phase},
     tx::TxInBlock,
     OnlineClient,
@@ -29,7 +27,7 @@ impl Api {
                 if ev.variant_name() == "ExtrinsicFailed" {
                     Self::capture_weight_info(&ev)?;
 
-                    return Err(Error::from(DispatchError::decode_from(
+                    return Err(SubxtError::from(DispatchError::decode_from(
                         ev.field_bytes(),
                         &self.metadata(),
                     ))
@@ -56,6 +54,6 @@ impl Api {
             log::info!("\tWeight cost: {:?}", dispatch_info.weight);
         }
 
-        Err(ClientError::EventNotFound.into())
+        Err(Error::EventNotFound)
     }
 }

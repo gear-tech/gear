@@ -1,9 +1,6 @@
 //! RPC calls with signer
 #![allow(clippy::too_many_arguments)]
-use crate::{
-    api::{signer::Signer, types::GasInfo},
-    result::Result,
-};
+use crate::{result::Result, signer::Signer, types::GasInfo};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
 

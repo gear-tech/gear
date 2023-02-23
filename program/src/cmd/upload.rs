@@ -1,6 +1,7 @@
 //! Command `upload`
-use crate::{api::signer::Signer, result::Result};
+use crate::result::Result;
 use clap::Parser;
+use gsdk::signer::Signer;
 use std::{fs, path::PathBuf};
 
 /// Saves program `code` in storage.

@@ -1,8 +1,10 @@
 //! command `key`
 use crate::{keystore::key::Key as KeyT, result::Result};
 use clap::Parser;
-use sp_core::{ecdsa, ed25519, sr25519, Pair};
-use sp_runtime::traits::IdentifyAccount;
+use gsdk::ext::{
+    sp_core::{ecdsa, ed25519, sr25519, Pair},
+    sp_runtime::traits::IdentifyAccount,
+};
 use std::{fmt::Display, result::Result as StdResult, str::FromStr};
 
 /// Cryptography scheme

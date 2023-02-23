@@ -27,9 +27,11 @@ use crate::{
     EventListener,
 };
 use error::*;
-use gp::api::{signer::Signer, Api};
+use gp::{
+    api::{signer::Signer, Api},
+    ext::sp_runtime::AccountId32,
+};
 use std::{marker::PhantomData, ops::Deref};
-use subxt::ext::sp_runtime::AccountId32;
 
 /// The API instance contains methods to access the node.
 #[derive(Clone)]

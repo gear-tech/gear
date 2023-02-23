@@ -22,7 +22,8 @@ use gp::api::{
     config::GearConfig,
     generated::api::{runtime_types::gear_runtime::RuntimeEvent, storage},
 };
-use subxt::{ext::sp_core::H256, rpc::ChainBlock};
+use gp::ext::sp_core::H256;
+use subxt::rpc::types::ChainBlock;
 
 type GearBlock = ChainBlock<GearConfig>;
 

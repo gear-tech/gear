@@ -5,18 +5,25 @@ use config::GearConfig;
 use core::ops::{Deref, DerefMut};
 use signer::Signer;
 use std::sync::Arc;
+pub use subxt::tx::PairSigner;
 use subxt::OnlineClient;
 
 mod client;
 pub mod config;
 mod constants;
 pub mod events;
-pub mod generated;
+pub mod metadata;
+pub mod result;
 mod rpc;
 pub mod signer;
 mod storage;
 pub mod types;
 mod utils;
+
+pub mod ext {
+    pub use sp_core;
+    pub use sp_runtime;
+}
 
 /// Gear api wrapper.
 #[derive(Clone)]
@@ -63,11 +70,6 @@ impl Api {
     /// New signer from api
     pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
         Signer::new(self, suri, passwd)
-    }
-
-    /// Try new signer from api
-    pub fn try_signer(self, passwd: Option<&str>) -> Result<Signer> {
-        Signer::try_new(self, passwd)
     }
 }
 

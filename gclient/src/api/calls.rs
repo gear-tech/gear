@@ -19,30 +19,30 @@
 use super::{GearApi, Result};
 use crate::{utils, Error};
 use gear_core::ids::*;
-use gp::api::generated::api::{
-    balances::Event as BalancesEvent,
-    gear::Event as GearEvent,
-    runtime_types::{
-        frame_system::pallet::Call as SystemCall,
-        gear_common::event::{CodeChangeKind, MessageEntry},
-        gear_runtime::RuntimeCall,
-        pallet_balances::pallet::Call as BalancesCall,
-        pallet_gear::pallet::Call as GearCall,
-        sp_weights::weight_v2::Weight,
+use gp::{
+    api::generated::api::{
+        balances::Event as BalancesEvent,
+        gear::Event as GearEvent,
+        runtime_types::{
+            frame_system::pallet::Call as SystemCall,
+            gear_common::event::{CodeChangeKind, MessageEntry},
+            gear_runtime::RuntimeCall,
+            pallet_balances::pallet::Call as BalancesCall,
+            pallet_gear::pallet::Call as GearCall,
+            sp_weights::weight_v2::Weight,
+        },
+        tx,
+        utility::Event as UtilityEvent,
+        Event,
     },
-    tx,
-    utility::Event as UtilityEvent,
-    Event,
-};
-use parity_scale_codec::Encode;
-use std::{collections::BTreeMap, path::Path};
-use subxt::{
-    events::Phase,
     ext::{
         sp_core::H256,
         sp_runtime::{AccountId32, MultiAddress},
     },
 };
+use parity_scale_codec::Encode;
+use std::{collections::BTreeMap, path::Path};
+use subxt::events::Phase;
 
 impl GearApi {
     /// Transfer `value` to `destination`'s account.

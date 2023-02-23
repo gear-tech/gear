@@ -1,7 +1,6 @@
 //! Shared types
 use crate::{
-    api::{config::GearConfig, generated::api::runtime_types::gear_common::ActiveProgram},
-    result::Result,
+    config::GearConfig, metadata::runtime_types::gear_common::ActiveProgram, result::Result,
 };
 use futures::{Stream, StreamExt};
 use parity_scale_codec::{Decode, Encode};

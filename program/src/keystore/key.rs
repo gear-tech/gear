@@ -1,13 +1,15 @@
 //! SURI manager
-use crate::{
-    api::config::GearConfig,
-    result::{Error, Result},
+use crate::result::{Error, Result};
+use gsdk::{
+    config::GearConfig,
+    ext::{
+        sp_core::Pair,
+        sp_runtime::{MultiSignature, MultiSigner},
+    },
+    PairSigner,
 };
 use keyring::Entry;
-use sp_core::Pair;
-use sp_runtime::{MultiSignature, MultiSigner};
 use std::env;
-use subxt::tx::PairSigner;
 
 type SignerAndSeed<P> = (PairSigner<GearConfig, P>, Option<Vec<u8>>);
 

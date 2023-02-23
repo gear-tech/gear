@@ -1,9 +1,6 @@
 #![cfg(feature = "bin")]
 use common::env;
-use gear_program::{
-    api::Api,
-    result::{ClientError, Error},
-};
+use gsdk::{result::Error, Api};
 use std::path::PathBuf;
 
 mod cmd;
@@ -14,9 +11,7 @@ mod rpc;
 async fn api_timeout() {
     assert!(matches!(
         Api::new_with_timeout(None, Some(10)).await.err(),
-        Some(Error::Client(ClientError::SubxtRpc(
-            jsonrpsee::core::Error::Transport(..)
-        )))
+        Some(Error::SubxtRpc(jsonrpsee::core::Error::Transport(..)))
     ));
 }
 

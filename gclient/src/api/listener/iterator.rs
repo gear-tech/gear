@@ -19,15 +19,15 @@
 use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
-use gp::api::{
-    config::GearConfig,
-    generated::api::{gear::Event as GearEvent, Event},
-    types::Blocks,
-};
-use subxt::{
-    events::{Events, Phase},
+use gp::{
+    api::{
+        config::GearConfig,
+        generated::api::{gear::Event as GearEvent, Event},
+        types::Blocks,
+    },
     ext::sp_core::H256,
 };
+use subxt::events::{Events, Phase};
 
 /// Event listener that allows catching and processing events propagated through
 /// the network.

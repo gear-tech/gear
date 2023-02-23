@@ -1,8 +1,9 @@
 //! commands
 #![cfg(feature = "cli")]
-use crate::{api::Api, result::Result};
+use crate::{keystore, result::Result};
 use clap::Parser;
 use env_logger::{Builder, Env};
+use gsdk::Api;
 use log::LevelFilter;
 
 pub mod claim;
@@ -102,7 +103,7 @@ impl Opt {
 
     /// Create api client from endpoint
     async fn api(&self) -> Result<Api> {
-        Api::new(self.endpoint.as_deref()).await
+        Api::new(self.endpoint.as_deref()).await.map_err(Into::into)
     }
 
     /// Execute command sync
@@ -122,9 +123,13 @@ impl Opt {
             Command::Program(program) => program.exec(self.api().await?).await?,
             Command::Update(update) => update.exec().await?,
             sub => {
-                let signer = Api::new(self.endpoint.as_deref())
-                    .await?
-                    .try_signer(self.passwd.as_deref())?;
+                let api = self.api().await?;
+                let pair = if let Ok(s) = keystore::cache(self.passwd.as_deref()) {
+                    s
+                } else {
+                    keystore::keyring(self.passwd.as_deref())?
+                };
+                let signer = (api, pair).into();
 
                 match sub {
                     Command::Claim(claim) => claim.exec(signer).await?,
