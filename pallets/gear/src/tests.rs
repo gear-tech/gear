@@ -9517,6 +9517,8 @@ fn alloc_charge_error() {
     (import "env" "alloc" (func $alloc (param i32) (result i32)))
     (export "init" (func $init))
     (func $init
+        ;; we are trying to allocate so many pages with such small gas limit
+        ;; that we will get `GasLimitExceeded` error
         i32.const 0xff
         call $alloc
         drop
