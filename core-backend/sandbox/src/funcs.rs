@@ -33,7 +33,6 @@ use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
     env::Ext,
-    gas::CountersOwner,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
