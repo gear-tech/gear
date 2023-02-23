@@ -166,7 +166,7 @@ impl GasCounter {
     }
 
     /// Get gas amount.
-    pub fn gas_amount(&self) -> GasAmount {
+    pub fn to_amount(&self) -> GasAmount {
         GasAmount {
             left: self.left,
             burned: self.burned,
