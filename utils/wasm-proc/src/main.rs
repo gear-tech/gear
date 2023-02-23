@@ -57,8 +57,9 @@ const RT_ALLOWED_IMPORTS: [&str; 63] = [
     "ext_misc_print_hex_version_1",
     "ext_misc_print_utf8_version_1",
     "ext_misc_runtime_version_version_1",
-    // From `Offchain` (substrate/primitives/io/src/lib.rs)
+    // From `OffchainIndex` (substrate/primitives/io/src/lib.rs)
     "ext_offchain_index_set_version_1",
+    // From `Offchain` (substrate/primitives/io/src/lib.rs)    
     "ext_offchain_is_validator_version_1",
     "ext_offchain_local_storage_compare_and_set_version_1",
     "ext_offchain_local_storage_get_version_1",
