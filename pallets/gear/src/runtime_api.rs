@@ -99,7 +99,6 @@ where
         let mut min_limit = 0;
         let mut reserved = 0;
         let mut burned = 0;
-        let mut may_be_returned = 0;
 
         let mut ext_manager = ExtManager::<T>::default();
 
@@ -119,11 +118,9 @@ where
             // todo #1987 : consider to make more common for use in process_queue too
             let build_journal = || {
                 let program_id = queued_dispatch.destination();
-                let gas_allowance = GasAllowanceOf::<T>::get();
-                log::trace!("gas allowance = {gas_allowance}");
                 let precharged_dispatch = match core_processor::precharge_for_program(
                     &block_config,
-                    gas_allowance,
+                    GasAllowanceOf::<T>::get(),
                     queued_dispatch.into_incoming(gas_limit),
                     actor_id,
                 ) {
@@ -206,8 +203,6 @@ where
                         return journal;
                     }
                 };
-
-                may_be_returned += 0;
 
                 let memory_pages = match Self::get_and_track_memory_pages(
                     &mut ext_manager,
@@ -292,7 +287,7 @@ where
             min_limit,
             reserved,
             burned,
-            may_be_returned,
+            0,
             waited,
         })
     }

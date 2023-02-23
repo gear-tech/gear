@@ -78,7 +78,7 @@ macro_rules! sys_trace {
 
 impl<E> FuncsHandler<E>
 where
-    E: CountersOwner + BackendExt + 'static,
+    E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {

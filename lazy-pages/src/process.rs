@@ -30,7 +30,7 @@ use crate::{
 
 /// `process_lazy_pages` use struct which implements this trait,
 /// to process in custom logic two cases: host function call and signal.
-pub trait AccessHandler {
+pub(crate) trait AccessHandler {
     type Pages;
     type Output;
 
@@ -128,7 +128,7 @@ unsafe fn load_data_for_page(
 /// This can cause conflicts in data about pages that have data in storage.
 /// So, to avoid this we upload all pages from PSG interval (which is 16kBit now),
 /// and restrict to run node on machines, that have native page number bigger than PSG.
-pub unsafe fn process_lazy_pages<H: AccessHandler>(
+pub(crate) unsafe fn process_lazy_pages<H: AccessHandler>(
     mut ctx: RefMut<LazyPagesExecutionContext>,
     mut handler: H,
     pages: H::Pages,

@@ -94,14 +94,14 @@ fn apply_for_global_internal(
 }
 
 #[derive(Debug)]
-pub enum GearGlobal {
+pub(crate) enum GearGlobal {
     GasLimit,
     AllowanceLimit,
     #[allow(unused)]
     Flags,
 }
 
-pub unsafe fn apply_for_global(
+pub(crate) unsafe fn apply_for_global(
     globals_config: &GlobalsConfig,
     global: GearGlobal,
     f: impl FnMut(u64) -> Result<Option<u64>, Error>,

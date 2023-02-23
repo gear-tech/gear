@@ -33,7 +33,7 @@ use crate::{
     LAZY_PAGES_PROGRAM_CONTEXT,
 };
 
-pub struct HostFuncAccessHandler<'a> {
+pub(crate) struct HostFuncAccessHandler<'a> {
     pub is_write: bool,
     pub gas_left: &'a mut GasLeft,
 }

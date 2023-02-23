@@ -33,14 +33,14 @@ use crate::{
     utils, LAZY_PAGES_PROGRAM_CONTEXT,
 };
 
-pub trait UserSignalHandler {
+pub(crate) trait UserSignalHandler {
     /// # Safety
     ///
     /// It's expected handler calls sys-calls to protect memory
     unsafe fn handle(info: ExceptionInfo) -> Result<(), Error>;
 }
 
-pub struct DefaultUserSignalHandler;
+pub(crate) struct DefaultUserSignalHandler;
 
 impl UserSignalHandler for DefaultUserSignalHandler {
     unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
@@ -49,7 +49,7 @@ impl UserSignalHandler for DefaultUserSignalHandler {
 }
 
 #[derive(Debug)]
-pub struct ExceptionInfo {
+pub(crate) struct ExceptionInfo {
     /// Address where fault is occurred
     pub fault_addr: *const (),
     pub is_write: Option<bool>,
@@ -100,7 +100,7 @@ unsafe fn user_signal_handler_internal(
 
 /// User signal handler. Logic can depends on lazy-pages version.
 /// See also "user_signal_handler_internal".
-pub unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
+pub(crate) unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
     log::debug!("Interrupted, exception info = {:?}", info);
     LAZY_PAGES_PROGRAM_CONTEXT.with(|ctx| user_signal_handler_internal(ctx.borrow_mut(), info))
 }
