@@ -1,13 +1,8 @@
 //! Command `program`.
-use crate::{
-    api::Api,
-    metadata::Metadata,
-    result::{Error, Result},
-    utils,
-};
+use crate::{api::Api, metadata::Metadata, result::Result, utils};
 use clap::Parser;
+use sp_core::H256;
 use std::{fs, path::PathBuf};
-use subxt::ext::sp_core::H256;
 
 /// Read program state, etc.
 #[derive(Clone, Debug, Parser)]
@@ -61,13 +56,10 @@ impl Program {
         } = self.action.clone();
 
         // Get program
-        let program = api.gprog(pid).await?;
+        let program = api.gprog(pid).await.expect("program not found");
         let code_id = program.code_hash;
-        let code = api
-            .code_storage(code_id.0)
-            .await?
-            .ok_or_else(|| Error::CodeNotFound(self.pid.clone()))?;
-        let pages = api.gpages(pid, program).await?;
+        let code = api.code_storage(code_id.0).await?;
+        let pages = api.gpages(pid, program).await.expect("pages not found");
 
         // Query state
         let state = Metadata::read(

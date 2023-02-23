@@ -4,14 +4,10 @@ use crate::{
     result::{Error, Result},
 };
 use keyring::Entry;
+use sp_core::Pair;
+use sp_runtime::{MultiSignature, MultiSigner};
 use std::env;
-use subxt::{
-    ext::{
-        sp_core::Pair,
-        sp_runtime::{MultiSignature, MultiSigner},
-    },
-    tx::PairSigner,
-};
+use subxt::tx::PairSigner;
 
 type SignerAndSeed<P> = (PairSigner<GearConfig, P>, Option<Vec<u8>>);
 

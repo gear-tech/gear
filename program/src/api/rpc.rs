@@ -5,7 +5,8 @@ use crate::{
     result::Result,
 };
 use gear_core::ids::{CodeId, MessageId, ProgramId};
-use subxt::{ext::sp_core::H256, rpc::rpc_params};
+use sp_core::H256;
+use subxt::rpc::rpc_params;
 
 impl Api {
     /// gear_calculateInitCreateGas

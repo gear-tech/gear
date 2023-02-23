@@ -2,7 +2,7 @@
 use crate::result::Result;
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
-use subxt::ext::sp_core::{crypto::Ss58Codec, sr25519, Pair, U256};
+use sp_core::{crypto::Ss58Codec, sr25519, Pair, U256};
 
 const NONCE_LENGTH: usize = 24;
 const SCRYPT_LENGTH: usize = 32 + (3 * 4);

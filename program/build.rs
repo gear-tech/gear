@@ -10,7 +10,7 @@ use std::{
     process::{Command, Stdio},
 };
 use substrate_wasm_builder::WasmBuilder;
-use subxt_codegen::DerivesRegistry;
+use subxt_codegen::{DerivesRegistry, TypeSubstitutes};
 use syn::ItemMod;
 
 const WASM_MAGIC_NUMBER_PREFIX: usize = 4;
@@ -112,9 +112,15 @@ fn codegen(mut encoded: &[u8], item_mod: ItemMod) -> String {
 
     // Genreate code.
     let crate_path = Default::default();
+    let type_substitutes = TypeSubstitutes::new(&crate_path);
     let generator = subxt_codegen::RuntimeGenerator::new(metadata);
     generator
-        .generate_runtime(item_mod, DerivesRegistry::new(&crate_path), crate_path)
+        .generate_runtime(
+            item_mod,
+            DerivesRegistry::new(&crate_path),
+            type_substitutes,
+            crate_path,
+        )
         .to_string()
 }
 

@@ -11,11 +11,12 @@ use crate::{
     utils,
 };
 use lazy_static::lazy_static;
+use sp_core::sr25519;
 use std::{
     fs,
     path::{Path, PathBuf},
 };
-use subxt::{ext::sp_core::sr25519, tx::PairSigner};
+use subxt::tx::PairSigner;
 
 lazy_static! {
     // @WARNING: THIS WILL ONLY BE SECURE IF THE keystore IS SECURE.

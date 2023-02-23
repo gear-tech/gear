@@ -18,7 +18,7 @@ const ERRORS_REQUIRE_RETRYING: [&str; 2] = ["Connection reset by peer", "Connect
 
 mod balances {
     use crate::api::{generated::api::tx, signer::Signer, types::InBlock};
-    use subxt::ext::sp_runtime::AccountId32;
+    use sp_runtime::AccountId32;
 
     impl Signer {
         /// `pallet_balances::transfer`

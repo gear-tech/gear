@@ -13,11 +13,9 @@ use crate::{
     result::{Error, Result},
 };
 use clap::Parser;
+use sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT};
+use sp_runtime::AccountId32;
 use std::fmt;
-use subxt::ext::{
-    sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
-    sp_runtime::AccountId32,
-};
 
 #[derive(Debug, Parser)]
 pub enum Action {

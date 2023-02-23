@@ -4,8 +4,9 @@ pub use self::{
     result::{Error, Result},
 };
 use blake2_rfc::blake2b;
+use sp_core::crypto::Ss58Codec;
+use sp_runtime::AccountId32;
 use std::process::{Command, Output};
-use subxt::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 
 pub mod env;
 pub mod logs;

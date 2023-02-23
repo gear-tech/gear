@@ -1,7 +1,7 @@
 //! Custom result
 
 use crate::api::types::TxStatus;
-use subxt::ext::sp_core::H256;
+use sp_core::H256;
 
 /// transaction error
 #[derive(Debug, thiserror::Error)]
@@ -101,7 +101,7 @@ pub enum Error {
     #[error(transparent)]
     Subxt(#[from] subxt::Error),
     #[error(transparent)]
-    SubxtPublic(#[from] subxt::ext::sp_core::crypto::PublicError),
+    SubxtPublic(#[from] sp_core::crypto::PublicError),
     #[error(transparent)]
     SubxtMetadata(#[from] subxt::error::MetadataError),
     #[error(transparent)]

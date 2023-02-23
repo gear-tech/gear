@@ -2,8 +2,10 @@
 //!
 //! see <https://github.com/gear-tech/gear/blob/f48450dd9bad2efb9cb3fb13353464ca73e7b7f9/runtime/src/lib.rs#L183>
 use subxt::{
-    ext::{sp_core, sp_runtime},
-    tx::PolkadotExtrinsicParams,
+    config::{
+        polkadot::PolkadotExtrinsicParams,
+        substrate::{BlakeTwo256, SubstrateHeader},
+    },
     Config,
 };
 
@@ -15,12 +17,11 @@ pub struct GearConfig;
 
 impl Config for GearConfig {
     type Index = u32;
-    type BlockNumber = u32;
     type Hash = sp_core::H256;
-    type Hashing = sp_runtime::traits::BlakeTwo256;
+    type Hasher = BlakeTwo256;
     type AccountId = sp_runtime::AccountId32;
     type Address = sp_runtime::MultiAddress<Self::AccountId, ()>;
-    type Header = sp_runtime::generic::Header<Self::BlockNumber, sp_runtime::traits::BlakeTwo256>;
+    type Header = SubstrateHeader<u32, BlakeTwo256>;
     type Signature = sp_runtime::MultiSignature;
     type ExtrinsicParams = PolkadotExtrinsicParams<Self>;
 }

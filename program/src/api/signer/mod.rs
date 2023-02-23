@@ -5,13 +5,10 @@ use crate::{
     result::{Error, Result},
 };
 use std::ops::{Deref, DerefMut};
-use subxt::{
-    ext::{
-        sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
-        sp_runtime::AccountId32,
-    },
-    tx::PairSigner,
-};
+use subxt::tx::PairSigner;
+
+use sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT};
+use sp_runtime::AccountId32;
 
 mod calls;
 mod rpc;

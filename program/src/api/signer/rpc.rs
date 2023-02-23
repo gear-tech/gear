@@ -5,7 +5,7 @@ use crate::{
     result::Result,
 };
 use gear_core::ids::{CodeId, MessageId, ProgramId};
-use subxt::ext::sp_core::H256;
+use sp_core::H256;
 
 impl Signer {
     /// public key of the signer in H256

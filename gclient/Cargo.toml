@@ -11,8 +11,8 @@ gear-core = { path = "../core" }
 futures = "0.3"
 anyhow = "1.0"
 hex = "0.4"
-subxt = { git = "https://github.com/paritytech/subxt", rev = "d41f6574" }
-parity-scale-codec = "3.2.1"
+subxt = "^0.27.0"
+parity-scale-codec = "3"
 rand = "0.8.5"
 thiserror = "1.0.38"
 futures-timer = "3.0.2"

@@ -1,7 +1,8 @@
 //! command `transfer`
 use crate::{api::signer::Signer, result::Result};
 use clap::Parser;
-use subxt::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
+use sp_core::crypto::Ss58Codec;
+use sp_runtime::AccountId32;
 
 /// Transfer value.
 ///
