@@ -195,7 +195,7 @@ impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
         self.with_globals_update(|ctx| {
-            ctx.host_state_mut().ext.charge_gas_runtime_api(cost)?;
+            ctx.host_state_mut().ext.charge_gas_runtime(cost)?;
             f(ctx)
         })
     }
