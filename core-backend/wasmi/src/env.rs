@@ -29,14 +29,16 @@ use gear_backend_common::{
     lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
     BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
-    STACK_END_EXPORT_NAME,
 };
 use gear_core::{
     env::Ext,
+    gas::GasLeft,
     memory::{HostPointer, PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::{
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
+};
 use wasmi::{
     core::Value, Engine, Extern, Global, Instance, Linker, Memory, MemoryType, Module, Store,
 };
@@ -80,8 +82,8 @@ where
 }
 
 struct GlobalsAccessProvider<E: Ext> {
-    pub instance: Instance,
-    pub store: Option<Store<HostState<E>>>,
+    instance: Instance,
+    store: Option<Store<HostState<E>>>,
 }
 
 impl<E: Ext> GlobalsAccessProvider<E> {
@@ -224,12 +226,12 @@ where
             .and_then(Extern::into_global)
             .and_then(|g| g.get(&store).try_into::<u32>());
 
-        let (gas, allowance) = store
+        let GasLeft { gas, allowance } = store
             .state()
             .as_ref()
             .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`"))
             .ext
-            .counters();
+            .gas_left();
 
         let gear_gas = instance
             .get_export(&store, GLOBAL_NAME_GAS)

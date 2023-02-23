@@ -417,7 +417,11 @@ where
         let new_node = match new_node_key {
             NodeCreationKey::Cut(_) => {
                 let id = Self::get_external(key)?;
-                GasNode::Cut { id, value: amount }
+                GasNode::Cut {
+                    id,
+                    value: amount,
+                    lock: Zero::zero(),
+                }
             }
             NodeCreationKey::SpecifiedLocal(_) => {
                 node.increase_spec_refs();
@@ -591,10 +595,8 @@ where
             return Err(InternalError::node_was_consumed().into());
         }
 
-        if let Some(lock) = node.lock() {
-            if !lock.is_zero() {
-                return Err(InternalError::consumed_with_lock().into());
-            }
+        if !node.lock().is_zero() {
+            return Err(InternalError::consumed_with_lock().into());
         }
 
         if let Some(system_reserve) = node.system_reserve() {
@@ -753,11 +755,6 @@ where
         // Taking node to lock into.
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
-        // Validating node type to be able to lock.
-        if !node.is_lockable() {
-            return Err(InternalError::forbidden().into());
-        }
-
         // Validating that node is not consumed.
         if node.is_consumed() {
             return Err(InternalError::node_was_consumed().into());
@@ -793,9 +790,7 @@ where
             ancestor_node
         };
 
-        let node_lock = node
-            .lock_mut()
-            .ok_or_else(InternalError::unexpected_node_type)?;
+        let node_lock = node.lock_mut();
 
         *node_lock = node_lock.saturating_add(amount);
 
@@ -822,11 +817,6 @@ where
         // Taking node to unlock from.
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
-        // Validating node type to be able to lock.
-        if !node.is_lockable() {
-            return Err(InternalError::forbidden().into());
-        }
-
         // Validating that node is not consumed.
         if node.is_consumed() {
             return Err(InternalError::node_was_consumed().into());
@@ -838,9 +828,7 @@ where
         }
 
         // Mutating locked value of queried node.
-        let node_lock = node
-            .lock_mut()
-            .ok_or_else(InternalError::unexpected_node_type)?;
+        let node_lock = node.lock_mut();
 
         if *node_lock < amount {
             return Err(InternalError::insufficient_balance().into());
@@ -877,7 +865,7 @@ where
         let key = key.into();
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
-        node.lock().ok_or_else(|| InternalError::forbidden().into())
+        Ok(node.lock())
     }
 
     fn reserve(

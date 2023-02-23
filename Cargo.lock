@@ -2049,6 +2049,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-proxy-reservation-with-gas"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "demo-proxy-with-gas"
 version = "0.1.0"
 dependencies = [
@@ -4131,6 +4141,7 @@ dependencies = [
  "anyhow",
  "cargo_metadata 0.15.3",
  "colored",
+ "gear-wasm-instrument",
  "gmeta",
  "log",
  "pathdiff",
@@ -6906,6 +6917,7 @@ dependencies = [
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",
+ "demo-proxy-reservation-with-gas",
  "demo-proxy-with-gas",
  "demo-reserve-gas",
  "demo-send-from-reservation",
@@ -6973,6 +6985,7 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-common",
  "gear-core",
+ "gear-wasm-instrument",
  "hex-literal",
  "log",
  "pallet-authorship",

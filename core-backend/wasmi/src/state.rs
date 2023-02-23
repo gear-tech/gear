@@ -16,19 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_backend_common::{BackendState, BackendTermination, TerminationReason};
-use gear_core::env::Ext;
+use gear_backend_common::{BackendExt, BackendState, BackendTermination, TerminationReason};
 use gear_core_errors::ExtError;
 
-pub type HostState<E> = Option<State<E>>;
+pub(crate) type HostState<E> = Option<State<E>>;
 
-pub struct State<E: Ext> {
+/// It's supposed that `E` implements [BackendExt]
+pub(crate) struct State<E> {
     pub ext: E,
     pub fallible_syscall_error: Option<ExtError>,
     pub termination_reason: TerminationReason,
 }
 
-impl<E: Ext> BackendTermination<E, ()> for State<E> {
+impl<E: BackendExt> BackendTermination<E, ()> for State<E> {
     fn into_parts(self) -> (E, (), TerminationReason) {
         let State {
             ext,
@@ -39,7 +39,7 @@ impl<E: Ext> BackendTermination<E, ()> for State<E> {
     }
 }
 
-impl<E: Ext> BackendState for State<E> {
+impl<E> BackendState for State<E> {
     fn set_termination_reason(&mut self, reason: TerminationReason) {
         self.termination_reason = reason;
     }

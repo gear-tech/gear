@@ -93,10 +93,10 @@ impl<'a> GasPrecharger<'a> {
         operation: PreChargeGasOperation,
         amount: u64,
     ) -> Result<(), PrechargeError> {
-        if self.allowance_counter.charge(amount) != ChargeResult::Enough {
+        if self.allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
             return Err(PrechargeError::BlockGasExceeded);
         }
-        if self.counter.charge(amount) != ChargeResult::Enough {
+        if self.counter.charge_if_enough(amount) != ChargeResult::Enough {
             return Err(PrechargeError::GasExceeded(operation));
         }
 
@@ -314,7 +314,7 @@ fn check_is_executable(
 /// Charge a message for fetching the actual length of the binary code
 /// from a storage. The updated value of binary code length
 /// should be kept in standalone storage. The caller has to call this
-/// function to charge gas-counters accrodingly before fetching the value.
+/// function to charge gas-counters accordingly before fetching the value.
 ///
 /// The function also performs several additional checks:
 /// - if an actor is executable

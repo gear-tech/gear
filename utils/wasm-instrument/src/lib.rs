@@ -42,6 +42,10 @@ pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 pub const GLOBAL_NAME_ALLOWANCE: &str = "gear_allowance";
 pub const GLOBAL_NAME_FLAGS: &str = "gear_flags";
 
+/// '__gear_stack_end' export is inserted by wasm-proc or wasm-builder,
+/// it indicates the end of program stack memory.
+pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
+
 pub fn inject<R: Rules>(
     module: elements::Module,
     rules: &R,

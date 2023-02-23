@@ -174,6 +174,7 @@ impl pallet_gear_scheduler::Config for Test {
     type WaitlistCost = ConstU64<100>;
     type MailboxCost = ConstU64<100>;
     type ReservationCost = ConstU64<100>;
+    type DispatchHoldCost = ConstU64<100>;
 }
 
 impl pallet_gear_gas::Config for Test {
