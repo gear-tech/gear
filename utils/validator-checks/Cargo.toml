@@ -8,7 +8,7 @@ name = "validator-checks"
 path = "bin/validator-checks.rs"
 
 [dependencies]
-gp = { package = "gear-program", path = "../../program" }
+gsdk = { path = "../../gsdk" }
 clap = { version = "4.1.6", features = ["derive"] }
 subxt = "^0.27.0"
 thiserror = "1.0.38"

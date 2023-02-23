@@ -1,8 +1,7 @@
 //! Gear storage apis
 use crate::{
     metadata::runtime_types::{
-        frame_system::AccountInfo,
-        frame_system::EventRecord,
+        frame_system::{AccountInfo, EventRecord},
         gear_common::{storage::primitives::Interval, ActiveProgram, Program},
         gear_core::{code::InstrumentedCode, message::stored::StoredMessage},
         gear_runtime::RuntimeEvent,
