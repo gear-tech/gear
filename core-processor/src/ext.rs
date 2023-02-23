@@ -740,12 +740,12 @@ impl EnvExt for Ext {
     fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error> {
         self.charge_gas_if_enough(self.context.message_context.settings().reservation_fee())?;
 
-        if amount == 0 {
-            return Err(ReservationError::ZeroReservationAmount.into());
-        }
-
         if duration == 0 {
             return Err(ReservationError::ZeroReservationDuration.into());
+        }
+
+        if amount < self.context.mailbox_threshold {
+            return Err(ReservationError::ReservationBelowMailboxThreshold.into());
         }
 
         let reserve = u64::from(self.context.reserve_for.saturating_add(duration))

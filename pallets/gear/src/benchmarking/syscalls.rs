@@ -42,6 +42,7 @@ use gear_core::{
     reservation::GasReservationSlot,
 };
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
+use sp_core::Get;
 use sp_runtime::traits::UniqueSaturatedInto;
 
 pub(crate) struct Benches<T>
@@ -130,6 +131,7 @@ where
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
         let err_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
+        let mailbox_threshold = <T as Config>::MailboxThreshold::get(); // It is not allowed to reserve less than mailbox threshold
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -138,7 +140,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 vec![
                     // gas amount
-                    Regular(Instruction::I64Const(1)),
+                    Regular(Instruction::I64Const(mailbox_threshold as i64)),
                     // duration
                     Regular(Instruction::I32Const(1)),
                     // err_rid ptr
