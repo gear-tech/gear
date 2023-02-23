@@ -289,7 +289,7 @@ impl BackendExt for Ext {
     }
 
     fn gas_amount(&self) -> GasAmount {
-        self.context.gas_counter.clone().into()
+        self.context.gas_counter.to_amount()
     }
 
     fn pre_process_memory_accesses(
@@ -986,7 +986,7 @@ impl Ext {
         }
 
         let info = ExtInfo {
-            gas_amount: gas_counter.into(),
+            gas_amount: gas_counter.to_amount(),
             gas_reserver,
             system_reservation_context,
             allocations: (allocations != initial_allocations)

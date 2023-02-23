@@ -118,18 +118,17 @@ where
             }
         }
 
-        let exec = common_utils::prepare_exec::<T>(
-            source,
-            HandleKind::Handle(program_id),
-            vec![],
-            0..0,
-            Default::default(),
-        )
-        .unwrap();
-
         let charged: Vec<(u64, u64)> = (0..2)
             .map(|_i| {
-                let mut exec = exec.clone();
+                let mut exec = common_utils::prepare_exec::<T>(
+                    source,
+                    HandleKind::Handle(program_id),
+                    vec![],
+                    0..0,
+                    Default::default(),
+                )
+                .unwrap();
+
                 let weights = LazyPagesWeights {
                     signal_read: CostPerPage::new(rng.gen_range(0..MAX_COST)),
                     signal_write: CostPerPage::new(rng.gen_range(0..MAX_COST)),
@@ -218,18 +217,19 @@ where
             ..Default::default()
         });
         let instance = Program::<T>::new(code, vec![]).unwrap();
-        let exec = common_utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-            vec![],
-            0..0,
-            Default::default(),
-        )
-        .unwrap();
 
         let charged: Vec<u64> = (0..2)
             .map(|i| {
-                let mut exec = exec.clone();
+                let instance = instance.clone();
+                let mut exec = common_utils::prepare_exec::<T>(
+                    instance.caller.into_origin(),
+                    HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+                    vec![],
+                    0..0,
+                    Default::default(),
+                )
+                .unwrap();
+
                 let weights = LazyPagesWeights {
                     signal_read: CostPerPage::new(i),
                     signal_write: CostPerPage::new(10 * i),

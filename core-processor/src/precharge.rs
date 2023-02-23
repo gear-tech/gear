@@ -172,12 +172,7 @@ impl<'a> GasPrecharger<'a> {
         allocations: &BTreeSet<WasmPage>,
         static_pages: WasmPage,
     ) -> Result<(), PrechargeError> {
-        // TODO: check calculation is safe: #2007.
-        let allocations = allocations.len() as u64;
-        let static_pages = static_pages.raw() as u64;
-        let amount = settings
-            .load_page_cost
-            .saturating_mul(allocations.saturating_add(static_pages));
+        let amount = calculate_gas_for_load_memory(settings, allocations, static_pages);
         self.charge_gas(PreChargeGasOperation::LoadMemory, amount)
     }
 
@@ -196,6 +191,16 @@ impl<'a> GasPrecharger<'a> {
             .mem_grow_cost
             .saturating_mul(max_wasm_page.saturating_add(1).saturating_sub(static_pages));
         self.charge_gas(PreChargeGasOperation::GrowMemory, amount)
+    }
+
+    /// Charge gas for non-subsequent execution.
+    fn charge_gas_for_non_subsequent_execution(
+        &mut self,
+        settings: &PagesConfig,
+        allocations: &BTreeSet<WasmPage>,
+        static_pages: WasmPage,
+    ) -> Result<(), PrechargeError> {
+        self.charge_gas_for_load_memory(settings, allocations, static_pages)
     }
 
     /// Charge gas for pages init/load/grow and checks that there is enough gas for that.
@@ -227,7 +232,7 @@ impl<'a> GasPrecharger<'a> {
         };
 
         if !subsequent_execution {
-            self.charge_gas_for_load_memory(settings, allocations, static_pages)?;
+            self.charge_gas_for_non_subsequent_execution(settings, allocations, static_pages)?;
         }
 
         self.charge_gas_for_grow_memory(settings, max_wasm_page, static_pages)?;
@@ -252,6 +257,28 @@ pub fn calculate_gas_for_program(read_cost: u64, _per_byte_cost: u64) -> u64 {
 /// Calculates gas amount required to charge for code loading.
 pub fn calculate_gas_for_code(read_cost: u64, per_byte_cost: u64, code_len_bytes: u64) -> u64 {
     read_cost.saturating_add(code_len_bytes.saturating_mul(per_byte_cost))
+}
+
+fn calculate_gas_for_load_memory(
+    settings: &PagesConfig,
+    allocations: &BTreeSet<WasmPage>,
+    static_pages: WasmPage,
+) -> u64 {
+    // TODO: check calculation is safe: #2007.
+    let allocations = allocations.len() as u64;
+    let static_pages = static_pages.raw() as u64;
+    settings
+        .load_page_cost
+        .saturating_mul(allocations.saturating_add(static_pages))
+}
+
+/// Calculate gas amount required to charge for non-subsequent execution.
+pub fn calculate_gas_for_non_subsequent_execution(
+    settings: &PagesConfig,
+    allocations: &BTreeSet<WasmPage>,
+    static_pages: WasmPage,
+) -> u64 {
+    calculate_gas_for_load_memory(settings, allocations, static_pages)
 }
 
 #[derive(Debug)]
@@ -341,7 +368,7 @@ pub fn precharge_for_code_length(
     if !actor_data.code_exports.contains(&dispatch.kind()) {
         return Err(process_success(
             SuccessfulDispatchResultKind::Success,
-            DispatchResult::success(dispatch, destination_id, gas_counter.into()),
+            DispatchResult::success(dispatch, destination_id, gas_counter.to_amount()),
         ));
     }
 
