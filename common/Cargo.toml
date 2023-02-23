@@ -6,9 +6,9 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
-primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
+codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
+primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"] }
 log = "0.4.17"
 derive_more = "0.99.17"
 
@@ -28,8 +28,8 @@ frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tec
 gear-wasm-instrument = { path = "../utils/wasm-instrument", default-features = false, optional = true }
 
 [dev-dependencies]
-hex-literal = "0.3.3"
-proptest = "1.0.0"
+hex-literal = "0.3.4"
+proptest = "1.1.0"
 gear-utils = { path = "../utils/utils" }
 
 [features]
