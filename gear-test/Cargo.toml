@@ -20,7 +20,7 @@ log = "0.4.17"
 rayon = "1.6"
 rand = "0.8.5"
 gear-wasm-instrument = { path = "../utils/wasm-instrument", default-features = false }
-primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
+primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"] }
 once_cell = "1.17.1"
 
 # Internal deps
@@ -32,7 +32,7 @@ gear-backend-common = { path = "../core-backend/common" }
 gear-backend-wasmi = { path = "../core-backend/wasmi" }
 
 [dev-dependencies]
-parity-scale-codec = { version = "3.1.2", features = ["derive"], default-features = false }
+parity-scale-codec = { version = "3.4.0", features = ["derive"], default-features = false }
 
 [[bin]]
 name = "gear-test"

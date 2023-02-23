@@ -12,7 +12,7 @@ repository = "https://github.com/gear-tech/gear"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.4.0", features = ["derive"] }
 futures = "0.3.26"
 futures-timer = "3.0.1"
 hex-literal = "0.3.4"

@@ -9,7 +9,7 @@ license = "GPL-3.0"
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0.96", features = ["full"] }
+syn = { version = "1.0.108", features = ["full"] }
 quote = "1.0.18"
 proc-macro2 = "1.0.39"
 

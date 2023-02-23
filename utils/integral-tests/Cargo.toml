@@ -6,9 +6,9 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.4.0", features = ["derive"] }
 log = { version = "0.4.17" }
-scale-info = { version = "2.1.1", features = ["derive"] }
+scale-info = { version = "2.3.1", features = ["derive"] }
 static_assertions = "1.1.0"
 cfg-if = "1.0"
 rand = { version = "0.8.5", features = ["small_rng"] }
