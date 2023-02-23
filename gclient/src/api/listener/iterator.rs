@@ -19,13 +19,11 @@
 use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
-use gp::{
-    api::{
-        config::GearConfig,
-        generated::api::{gear::Event as GearEvent, Event},
-        types::Blocks,
-    },
+use gsdk::{
+    config::GearConfig,
     ext::sp_core::H256,
+    metadata::{gear::Event as GearEvent, Event},
+    types::Blocks,
 };
 use subxt::events::{Events, Phase};
 

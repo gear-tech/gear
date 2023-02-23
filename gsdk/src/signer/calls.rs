@@ -1,12 +1,14 @@
 //! gear api calls
 use crate::{
     config::GearConfig,
+    metadata::runtime_types::{gear_runtime::RuntimeCall, sp_weights::weight_v2::Weight},
     signer::Signer,
     types::{InBlock, TxStatus},
 };
 use anyhow::anyhow;
 use async_recursion::async_recursion;
 use gear_core::ids::{CodeId, MessageId, ProgramId};
+use parity_scale_codec::Encode;
 use sp_runtime::AccountId32;
 use subxt::{
     dynamic::Value,
@@ -26,7 +28,7 @@ impl Signer {
             "Balances",
             "transfer",
             vec![
-                Value::unnamed_variant("Id", [Value::from_bytes(&dest.into())]),
+                Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
                 Value::u128(value),
             ],
         );
@@ -35,6 +37,7 @@ impl Signer {
     }
 }
 
+// pallet-gear
 impl Signer {
     /// `pallet_gear::create_program`
     pub async fn create_program(
@@ -134,6 +137,40 @@ impl Signer {
                 Value::from_bytes(payload),
                 Value::u128(gas_limit as u128),
                 Value::u128(value),
+            ],
+        );
+
+        self.process(tx).await
+    }
+}
+
+// pallet-utility
+impl Signer {
+    /// `pallet_utility::force_batch`
+    pub async fn force_batch(&self, calls: Vec<RuntimeCall>) -> InBlock {
+        let tx = subxt::dynamic::tx(
+            "Utility",
+            "force_batch",
+            calls
+                .into_iter()
+                .map(|c| Value::from_bytes(c.encode()))
+                .collect::<Vec<Value>>(),
+        );
+
+        self.process(tx).await
+    }
+}
+
+// pallet-sudo
+impl Signer {
+    /// `pallet_utility::force_batch`
+    pub async fn sudo_unchecked_weight(&self, call: RuntimeCall, weight: Weight) -> InBlock {
+        let tx = subxt::dynamic::tx(
+            "Sudo",
+            "sudo_unchecked_weight",
+            vec![
+                Value::from_bytes(call.encode()),
+                Value::from_bytes(weight.encode()),
             ],
         );
 

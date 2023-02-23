@@ -19,8 +19,12 @@
 use super::{GearApi, Result};
 use crate::{utils, Error};
 use gear_core::ids::*;
-use gp::{
-    api::generated::api::{
+use gsdk::{
+    ext::{
+        sp_core::H256,
+        sp_runtime::{AccountId32, MultiAddress},
+    },
+    metadata::{
         balances::Event as BalancesEvent,
         gear::Event as GearEvent,
         runtime_types::{
@@ -31,13 +35,8 @@ use gp::{
             pallet_gear::pallet::Call as GearCall,
             sp_weights::weight_v2::Weight,
         },
-        tx,
         utility::Event as UtilityEvent,
         Event,
-    },
-    ext::{
-        sp_core::H256,
-        sp_runtime::{AccountId32, MultiAddress},
     },
 };
 use parity_scale_codec::Encode;
@@ -160,9 +159,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex).await?;
-
+        let tx = self.0.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -275,9 +272,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex).await?;
-
+        let tx = self.0.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -371,9 +366,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex).await?;
-
+        let tx = self.0.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -499,9 +492,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex).await?;
-
+        let tx = self.0.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -598,9 +589,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex).await?;
-
+        let tx = self.0.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -730,9 +719,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex).await?;
-
+        let tx = self.0.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -827,21 +814,21 @@ impl GearApi {
     /// [`pallet_system::set_code`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code)
     /// extrinsic.
     pub async fn set_code(&self, code: impl AsRef<[u8]>) -> Result<H256> {
-        let ex = tx().sudo().sudo_unchecked_weight(
-            RuntimeCall::System(SystemCall::set_code {
-                code: code.as_ref().to_vec(),
-            }),
-            Weight {
-                ref_time: 0,
-                // # TODO
-                //
-                // Check this field
-                proof_size: Default::default(),
-            },
-        );
-
-        let tx = self.0.process(ex).await?;
-
+        let tx = self
+            .0
+            .sudo_unchecked_weight(
+                RuntimeCall::System(SystemCall::set_code {
+                    code: code.as_ref().to_vec(),
+                }),
+                Weight {
+                    ref_time: 0,
+                    // # TODO
+                    //
+                    // Check this field
+                    proof_size: Default::default(),
+                },
+            )
+            .await?;
         Ok(tx.wait_for_success().await?.block_hash())
     }
 
@@ -865,22 +852,23 @@ impl GearApi {
         new_free: u128,
         new_reserved: u128,
     ) -> Result<H256> {
-        let ex = tx().sudo().sudo_unchecked_weight(
-            RuntimeCall::Balances(BalancesCall::set_balance {
-                who: to.into(),
-                new_free,
-                new_reserved,
-            }),
-            Weight {
-                ref_time: 0,
-                // # TODO
-                //
-                // Check this field
-                proof_size: Default::default(),
-            },
-        );
-        let tx = self.0.process(ex).await?;
-
+        let tx = self
+            .0
+            .sudo_unchecked_weight(
+                RuntimeCall::Balances(BalancesCall::set_balance {
+                    who: to.into(),
+                    new_free,
+                    new_reserved,
+                }),
+                Weight {
+                    ref_time: 0,
+                    // # TODO
+                    //
+                    // Check this field
+                    proof_size: Default::default(),
+                },
+            )
+            .await?;
         Ok(tx.wait_for_success().await?.block_hash())
     }
 }

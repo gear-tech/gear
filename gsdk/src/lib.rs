@@ -1,12 +1,12 @@
 //! Gear api
-use crate::result::Result;
 use client::RpcClient;
 use config::GearConfig;
 use core::ops::{Deref, DerefMut};
+pub use result::{Error, Result};
 use signer::Signer;
 use std::sync::Arc;
-pub use subxt::tx::PairSigner;
 use subxt::OnlineClient;
+pub use subxt::{dynamic::Value, tx::PairSigner};
 
 mod client;
 pub mod config;
@@ -19,7 +19,6 @@ pub mod signer;
 mod storage;
 pub mod types;
 mod utils;
-
 pub mod ext {
     pub use sp_core;
     pub use sp_runtime;

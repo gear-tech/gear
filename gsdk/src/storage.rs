@@ -2,8 +2,10 @@
 use crate::{
     metadata::runtime_types::{
         frame_system::AccountInfo,
+        frame_system::EventRecord,
         gear_common::{storage::primitives::Interval, ActiveProgram, Program},
         gear_core::{code::InstrumentedCode, message::stored::StoredMessage},
+        gear_runtime::RuntimeEvent,
         pallet_balances::AccountData,
     },
     result::{Error, Result},
@@ -25,7 +27,7 @@ use subxt::{
 
 impl Api {
     /// Shortcut for fetching storage.
-    async fn fetch_storage<'a, Address, Value>(&self, address: &'a Address) -> Result<Value>
+    pub async fn fetch_storage<'a, Address, Value>(&self, address: &'a Address) -> Result<Value>
     where
         Address:
             StorageAddress<IsFetchable = Yes, IsDefaultable = Yes, Target = DecodedValueThunk> + 'a,
@@ -44,22 +46,26 @@ impl Api {
         )?)
     }
 
-    ////
-    // frame-system
-    ////
+    /// Get program pages from program id.
+    pub async fn program_pages(&self, pid: H256) -> Result<types::GearPages> {
+        self.gpages(pid, self.gprog(pid).await?).await
+    }
+}
 
+// frame-system
+impl Api {
     /// Get account info by address
     pub async fn info(&self, address: &str) -> Result<AccountInfo<u32, AccountData<u128>>> {
         let dest = AccountId32::from_ss58check(address)?;
         let addr = subxt::dynamic::storage("System", "Account", vec![Value::from_bytes(dest)]);
 
-        Ok(self.fetch_storage(&addr).await?)
+        self.fetch_storage(&addr).await
     }
 
     /// Get block number.
     pub async fn number(&self) -> Result<u32> {
         let addr = subxt::dynamic::storage_root("System", "Number");
-        Ok(self.fetch_storage(&addr).await?)
+        self.fetch_storage(&addr).await
     }
 
     /// Get balance by account address
@@ -67,20 +73,87 @@ impl Api {
         Ok(self.info(address).await?.data.free)
     }
 
-    ////
-    // pallet-session
-    ////
+    // Get events from the block
+    pub async fn get_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
+        let addr = subxt::dynamic::storage_root("System", "Events");
+        let thunk = self
+            .storage()
+            .at(block_hash)
+            .await?
+            .fetch(&addr)
+            .await?
+            .ok_or(Error::StorageNotFound)?
+            .into_encoded();
 
+        Ok(
+            Vec::<EventRecord<RuntimeEvent, H256>>::decode(&mut thunk.as_ref())?
+                .into_iter()
+                .map(|ev| ev.event)
+                .collect(),
+        )
+    }
+}
+
+// pallet-timestamp
+impl Api {
+    /// Return a timestamp of the block.
+    pub async fn block_timestamp(&self, block_hash: Option<H256>) -> Result<u64> {
+        let addr = subxt::dynamic::storage_root("Timestamp", "now");
+        let thunk = self
+            .storage()
+            .at(block_hash)
+            .await?
+            .fetch(&addr)
+            .await?
+            .ok_or(Error::StorageNotFound)?
+            .into_encoded();
+
+        Ok(u64::decode(&mut thunk.as_ref())?)
+    }
+}
+
+// pallet-session
+impl Api {
     /// Get all validators from pallet_session.
     pub async fn validators(&self) -> Result<Vec<AccountId32>> {
         let addr = subxt::dynamic::storage_root("Session", "Validators");
-        Ok(self.fetch_storage(&addr).await?)
+        self.fetch_storage(&addr).await
+    }
+}
+
+// pallet-gear
+impl Api {
+    /// Check whether the message queue processing is stopped or not.
+    pub async fn execute_inherent(&self) -> Result<bool> {
+        let addr = subxt::dynamic::storage_root("Gear", "ExecuteInherent");
+        let thunk = self
+            .storage()
+            .at(None)
+            .await?
+            .fetch_or_default(&addr)
+            .await?
+            .into_encoded();
+
+        Ok(bool::decode(&mut thunk.as_ref())?)
     }
 
-    ////
-    // pallet-gear
-    ////
+    /// Get gear block number.
+    pub async fn gear_block_number(&self, block_hash: Option<H256>) -> Result<u64> {
+        let addr = subxt::dynamic::storage_root("Gear", "BlockNumber");
+        let thunk = self
+            .storage()
+            .at(block_hash)
+            .await?
+            .fetch_or_default(&addr)
+            .await?
+            .into_encoded();
 
+        Ok(u64::decode(&mut thunk.as_ref())?)
+    }
+}
+
+// pallet-gear-program
+impl Api {
     /// Get `InstrumentedCode` by `code_hash`
     pub async fn code_storage(&self, code_hash: [u8; 32]) -> Result<InstrumentedCode> {
         let addr = subxt::dynamic::storage(
@@ -88,7 +161,7 @@ impl Api {
             "CodeStorage",
             vec![Value::from_bytes(code_hash)],
         );
-        Ok(self.fetch_storage(&addr).await?)
+        self.fetch_storage(&addr).await
     }
 
     /// Get active program from program id.
@@ -103,7 +176,7 @@ impl Api {
 
         match program {
             Program::Active(p) => Ok(p),
-            _ => Err(Error::ProgramTerminated.into()),
+            _ => Err(Error::ProgramTerminated),
         }
     }
 
@@ -133,13 +206,31 @@ impl Api {
 
         Ok(pages)
     }
+}
 
-    /// Get program pages from program id.
-    pub async fn program_pages(&self, pid: H256) -> Result<types::GearPages> {
-        self.gpages(pid, self.gprog(pid).await?).await
+// pallet-gear-messenger
+impl Api {
+    /// Get a message identified by `message_id` from the `account_id`'s
+    /// mailbox.
+    pub async fn get_from_account_mailbox(
+        &self,
+        account_id: AccountId32,
+        message_id: impl AsRef<[u8]>,
+    ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
+        let addr = subxt::dynamic::storage(
+            "GearMessenger",
+            "Mailbox",
+            vec![
+                Value::from_bytes(account_id),
+                Value::from_bytes(message_id.as_ref()),
+            ],
+        );
+
+        let data: Option<(StoredMessage, Interval<u32>)> = self.fetch_storage(&addr).await.ok();
+        Ok(data.map(|(m, i)| (m, i)))
     }
 
-    /// Get mailbox of address
+    /// Get mailbox from address
     pub async fn mailbox(
         &self,
         address: AccountId32,

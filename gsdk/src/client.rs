@@ -59,7 +59,7 @@ impl RpcClient {
                     .map_err(Error::SubxtRpc)?,
             ))
         } else {
-            Err(Error::InvalidUrl.into())
+            Err(Error::InvalidUrl)
         }
     }
 }

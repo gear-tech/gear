@@ -3459,7 +3459,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "gear-core",
- "gear-program",
+ "gsdk",
  "hex",
  "hex-literal",
  "log",
@@ -4387,7 +4387,6 @@ dependencies = [
  "sp-runtime 18.0.0",
  "subxt",
  "thiserror",
- "tokio",
 ]
 
 [[package]]
