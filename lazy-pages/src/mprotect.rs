@@ -80,7 +80,7 @@ unsafe fn sys_mprotect_interval(
 
 /// Mprotect native memory interval [`addr`, `addr` + `size`].
 /// Protection mask is set according to protection arguments, `prot_exec` is set as false always.
-pub fn mprotect_interval(
+pub(crate) fn mprotect_interval(
     addr: usize,
     size: usize,
     prot_read: bool,
@@ -91,7 +91,7 @@ pub fn mprotect_interval(
 
 /// Protect all pages in memory interval, except pages from `except_pages`.
 /// If `protect` is true then restrict read/write access, else allow them.
-pub fn mprotect_mem_interval_except_pages(
+pub(crate) fn mprotect_mem_interval_except_pages(
     mem_addr: usize,
     start_offset: usize,
     mem_size: usize,
@@ -129,7 +129,7 @@ pub fn mprotect_mem_interval_except_pages(
 }
 
 /// Mprotect all pages from `pages`.
-pub fn mprotect_pages<P: PageU32Size + Ord>(
+pub(crate) fn mprotect_pages<P: PageU32Size + Ord>(
     mem_addr: usize,
     pages: impl Iterator<Item = P>,
     prot_read: bool,

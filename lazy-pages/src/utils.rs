@@ -29,7 +29,7 @@ use crate::common::{Error, LazyPage, LazyPagesExecutionContext, PagePrefix};
 /// for 1..=3, 5..=7, 9..=9 consequently.
 /// `indexes` must be sorted and uniq.
 /// If `f` returns an Err then end execution without remain indexes handling.
-pub fn with_inclusive_ranges<P: PageU32Size + Ord, E>(
+pub(crate) fn with_inclusive_ranges<P: PageU32Size + Ord, E>(
     pages: &BTreeSet<P>,
     mut f: impl FnMut(PagesIterInclusive<P>) -> Result<(), E>,
 ) -> Result<(), E> {
@@ -68,7 +68,7 @@ pub fn with_inclusive_ranges<P: PageU32Size + Ord, E>(
     f(iter)
 }
 
-pub fn handle_psg_case_one_page(
+pub(crate) fn handle_psg_case_one_page(
     ctx: &mut RefMut<LazyPagesExecutionContext>,
     page: LazyPage,
 ) -> Result<PagesIterInclusive<LazyPage>, Error> {

@@ -71,7 +71,7 @@ pub enum LazyPagesVersion {
 }
 
 #[derive(Default, Debug)]
-pub struct LazyPagesExecutionContext {
+pub(crate) struct LazyPagesExecutionContext {
     /// Pointer to the begin of wasm memory buffer
     pub wasm_mem_addr: Option<usize>,
     /// Wasm memory buffer size, to identify whether signal is from wasm memory buffer.
@@ -160,7 +160,7 @@ impl PageU32Size for LazyPage {
 /// 2) page number in little endian bytes order
 /// First part is always the same, so we can copy it to buffer
 /// once and then use it for all pages.
-pub struct PagePrefix {
+pub(crate) struct PagePrefix {
     buffer: Vec<u8>,
 }
 

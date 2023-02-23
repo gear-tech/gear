@@ -200,11 +200,11 @@ fn init_for_thread_internal() -> Result<(), ThreadInitError> {
     TLS.with(|tls| tls.as_ref().map(|_| ()).map_err(|err| *err))
 }
 
-pub unsafe fn init_for_thread() -> Result<(), String> {
+pub(crate) unsafe fn init_for_thread() -> Result<(), String> {
     init_for_thread_internal().map_err(|err| err.to_string())
 }
 
-pub unsafe fn setup_signal_handler<H>() -> io::Result<()>
+pub(crate) unsafe fn setup_signal_handler<H>() -> io::Result<()>
 where
     H: UserSignalHandler,
 {

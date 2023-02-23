@@ -129,12 +129,6 @@ impl<E: BackendExtError> From<E> for TerminationReason {
     }
 }
 
-// impl From<TrapExplanation> for TerminationReason {
-//     fn from(trap: TrapExplanation) -> Self {
-//         ActorTerminationReason::Trap(trap).into()
-//     }
-// }
-
 #[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
 pub enum ActorTerminationReason {
     Exit(ProgramId),
