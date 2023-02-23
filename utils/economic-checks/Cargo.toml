@@ -48,7 +48,7 @@ sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.
 
 [dev-dependencies]
 wat = "1.0"
-wasmprinter = "0.2.51"
+wasmprinter = "0.2.52"
 demo-compose = { path = "../../examples/binaries/compose" }
 gstd = { path = "../../gstd" }
 
