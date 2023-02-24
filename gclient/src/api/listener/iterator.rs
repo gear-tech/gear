@@ -140,7 +140,7 @@ impl EventListener {
     ) -> Option<T> {
         events
             .iter()
-            .filter_map(|event| predicate(event.ok()?.as_root_event::<(Phase, Event)>().ok()?.1))
+            .filter_map(|event| predicate(event.ok()?.as_root_event::<Event>().ok()?))
             .next()
     }
 }

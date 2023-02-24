@@ -137,7 +137,7 @@ impl Api {
     }
 
     /// Get gear block number.
-    pub async fn gear_block_number(&self, block_hash: Option<H256>) -> Result<u64> {
+    pub async fn gear_block_number(&self, block_hash: Option<H256>) -> Result<u32> {
         let addr = subxt::dynamic::storage_root("Gear", "BlockNumber");
         let thunk = self
             .storage()
@@ -147,7 +147,7 @@ impl Api {
             .await?
             .into_encoded();
 
-        Ok(u64::decode(&mut thunk.as_ref())?)
+        Ok(u32::decode(&mut thunk.as_ref())?)
     }
 }
 
