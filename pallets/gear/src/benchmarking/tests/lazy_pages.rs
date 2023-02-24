@@ -330,10 +330,9 @@ where
         });
         let instance = Program::<T>::new(code, vec![]).unwrap();
 
-        let charged: Vec<u64> = (0..2)
-            .map(|i| {
-                let instance = instance.clone();
-                let mut exec = common_utils::prepare_exec::<T>(
+        let charged = |i| {
+            let instance = instance.clone();
+            let mut exec = common_utils::prepare_exec::<T>(
                     instance.caller.into_origin(),
                     HandleKind::Handle(ProgramId::from_origin(instance.addr)),
                     vec![],
@@ -341,44 +340,41 @@ where
                     Default::default(),
                 )
                 .unwrap();
+            let read = (read_cost * i).into();
+            let write = (write_cost * i).into();
+            let write_after_read = (write_after_read_cost * i).into();
 
-                let read = (read_cost * i).into();
-                let write = (write_cost * i).into();
-                let write_after_read = (write_after_read_cost * i).into();
+            exec.block_config.page_costs.lazy_pages_read = read;
+            exec.block_config.page_costs.lazy_pages_write = write;
+            exec.block_config.page_costs.lazy_pages_write_after_read = write_after_read;
 
-                exec.block_config.page_costs.lazy_pages_read = read;
-                exec.block_config.page_costs.lazy_pages_write = write;
-                exec.block_config.page_costs.lazy_pages_write_after_read = write_after_read;
+            let notes = core_processor::process::<ExecutionEnvironment>(
+                &exec.block_config,
+                exec.context,
+                exec.random_data,
+                exec.memory_pages,
+            )
+            .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
-                let notes = core_processor::process::<ExecutionEnvironment>(
-                    &exec.block_config,
-                    exec.context,
-                    exec.random_data,
-                    exec.memory_pages,
-                )
-                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
-
-                let mut gas_burned = 0;
-                for note in notes.into_iter() {
-                    match note {
-                        JournalNote::GasBurned { amount, .. } => gas_burned = amount,
-                        JournalNote::MessageDispatched {
-                            outcome:
-                                DispatchOutcome::InitFailure { .. }
-                                | DispatchOutcome::MessageTrap { .. },
-                            ..
-                        } => {
-                            panic!("Process was not successful")
-                        }
-                        _ => {}
+            let mut gas_burned = 0;
+            for note in notes.into_iter() {
+                match note {
+                    JournalNote::GasBurned { amount, .. } => gas_burned = amount,
+                    JournalNote::MessageDispatched {
+                        outcome:
+                            DispatchOutcome::InitFailure { .. } | DispatchOutcome::MessageTrap { .. },
+                        ..
+                    } => {
+                        panic!("Process was not successful")
                     }
+                    _ => {}
                 }
+            }
 
-                gas_burned
-            })
-            .collect();
+            gas_burned
+        };
 
-        assert_eq!(charged[1].checked_sub(charged[0]).unwrap(), expected);
+        assert_eq!(charged(1).checked_sub(charged(0)).unwrap(), expected);
     };
 
     test(
@@ -623,6 +619,3 @@ where
         );
     };
 }
-
-// +_+_+
-// TODO: add test which check lazy-pages charging and sys-calls interaction (issue #2093).
