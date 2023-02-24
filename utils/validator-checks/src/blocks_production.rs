@@ -1,11 +1,8 @@
 //! Utils for checking blocks production.
-use gsdk::{
-    config::GearConfig,
-    ext::sp_runtime::{generic::DigestItem, traits::Header, AccountId32},
-};
+use gsdk::{config::GearConfig, ext::sp_runtime::AccountId32};
 use parity_scale_codec::Decode;
 use sp_consensus_babe::{digests::PreDigest as BabePreDigest, BABE_ENGINE_ID};
-use subxt::{blocks, OnlineClient};
+use subxt::{blocks, config::substrate::DigestItem, OnlineClient};
 
 /// Gear block.
 pub type Block = blocks::Block<GearConfig, OnlineClient<GearConfig>>;
@@ -37,7 +34,7 @@ impl BlocksProduction {
             return true;
         }
 
-        let logs = block.header().digest().logs();
+        let logs = &block.header().digest.logs;
         if let Some(DigestItem::PreRuntime(engine, bytes)) = logs.get(0) {
             if *engine == BABE_ENGINE_ID {
                 if let Some(author) = BabePreDigest::decode(&mut bytes.as_ref())

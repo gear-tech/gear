@@ -34,7 +34,7 @@ impl FunctionBuilder {
     }
 }
 
-pub fn build<E>(
+pub(crate) fn build<E>(
     store: &mut Store<HostState<E>>,
     memory: Memory,
     forbidden_funcs: BTreeSet<SysCallName>,

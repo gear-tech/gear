@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pwasm_utils::parity_wasm::elements::{ExportEntry, Instruction, Internal, Module, ValueType};
 
-/// Insert '__gear_stack_end' export in `module` if there is global '__stack_pointer'.
+/// Insert stack end addr export in `module` if there is global '__stack_pointer'.
 /// By default rust compilation into wasm creates global '__stack_pointer', which
 /// initialized by end of stack address. Unfortunately this global is not export.
 /// By default '__stack_pointer' has number 0 in globals, so if there is '__stack_pointer' in
@@ -67,7 +68,7 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &str> {
             .ok_or("Cannot find export section")?;
         let x = export_section.entries_mut();
         x.push(ExportEntry::new(
-            "__gear_stack_end".to_string(),
+            STACK_END_EXPORT_NAME.to_string(),
             Internal::Global(0),
         ));
         Ok(())

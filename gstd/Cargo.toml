@@ -11,12 +11,11 @@ gcore = { path = "../gcore", features = ["codec"] }
 gstd-codegen = { path = "codegen" }
 gear-core-errors = { path = "../core-errors" }
 hashbrown = "0.13.2"
-
 bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 codec = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive", "full"]}
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
-primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"]}
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"]}
+scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 
 static_assertions = "1"
