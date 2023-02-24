@@ -25,14 +25,6 @@ use std::{fs, path::Path};
 
 const LINEAR_COMPARISON_FILE_SIZE: u64 = 4096;
 
-#[track_caller]
-fn assert_linear_comparison_size(len: u64) {
-    if len > LINEAR_COMPARISON_FILE_SIZE {
-        // gear-wasm-builder doesn't write such big files
-        unreachable!("File content is too large");
-    }
-}
-
 fn check_changed(path: &Path, contents: &[u8]) -> Result<bool> {
     // file does not exist
     let Ok(metadata) = fs::metadata(path) else {
@@ -43,8 +35,8 @@ fn check_changed(path: &Path, contents: &[u8]) -> Result<bool> {
         return Ok(true);
     }
 
-    assert_linear_comparison_size(metadata.len());
-    assert_linear_comparison_size(contents.len() as u64);
+    // gear-wasm-builder doesn't write such big files
+    assert!(metadata.len() <= LINEAR_COMPARISON_FILE_SIZE);
 
     let old_contents = fs::read(path)?;
     Ok(old_contents != contents)
