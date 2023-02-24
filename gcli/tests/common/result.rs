@@ -3,7 +3,7 @@ pub enum Error {
     #[error("No stderr was found.")]
     EmptyStderr,
     #[error(transparent)]
-    GearProgram(#[from] gear_program::result::Error),
+    GCli(#[from] gcli::result::Error),
     #[error(transparent)]
     GSdk(#[from] gsdk::result::Error),
     #[error(transparent)]

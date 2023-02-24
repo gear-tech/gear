@@ -12,8 +12,8 @@ keywords = ["gear", "cli", "wasm"]
 readme = "./README.md"
 
 [[bin]]
-path = "bin/gprogram.rs"
-name = "gprogram"
+path = "bin/gcli.rs"
+name = "gcli"
 required-features = [ "bin" ]
 
 [dependencies]
