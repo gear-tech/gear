@@ -133,8 +133,7 @@ jobs:
       - run: echo "DUMMY"
 
   build-win:
-    if: always() &&
-      (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E1-forcewindows'))
+    if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E1-forcewindows')
     needs: build
     runs-on: ci-win
     defaults:
@@ -276,8 +275,7 @@ jobs:
             --release
 
   build-macos-x86:
-    if: always() &&
-      (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos'))
+    if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')
     needs: build
     runs-on: macos-latest
     steps:
