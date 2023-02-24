@@ -695,7 +695,7 @@ fn delayed_send_program_message_payment() {
 
     // Testing that correct gas amount will be reserved and payed for holding.
     fn scenario(delay: u64) {
-        // Upload empty program that recieve the message.
+        // Upload empty program that receive the message.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
@@ -792,7 +792,7 @@ fn delayed_send_program_message_with_reservation() {
 
     // Testing that correct gas amount will be reserved and payed for holding.
     fn scenario(delay: u64) {
-        // Upload empty program that recieve the message.
+        // Upload empty program that receive the message.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
@@ -899,7 +899,7 @@ fn delayed_send_program_message_with_low_reservation() {
 
     // Testing that correct gas amount will be reserved and payed for holding.
     fn scenario(delay: u64) {
-        // Upload empty program that recieve the message.
+        // Upload empty program that receive the message.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
