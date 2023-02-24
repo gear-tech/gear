@@ -181,28 +181,6 @@ pub fn calculate_gas_for_code(read_cost: u64, per_byte_cost: u64, code_len_bytes
     read_cost.saturating_add(code_len_bytes.saturating_mul(per_byte_cost))
 }
 
-fn calculate_gas_for_load_memory(
-    settings: &PagesConfig,
-    allocations: &BTreeSet<WasmPage>,
-    static_pages: WasmPage,
-) -> u64 {
-    // TODO: check calculation is safe: #2007.
-    let allocations = allocations.len() as u64;
-    let static_pages = static_pages.raw() as u64;
-    settings
-        .load_page_cost
-        .saturating_mul(allocations.saturating_add(static_pages))
-}
-
-/// Calculate gas amount required to charge for non-subsequent execution.
-pub fn calculate_gas_for_non_subsequent_execution(
-    settings: &PagesConfig,
-    allocations: &BTreeSet<WasmPage>,
-    static_pages: WasmPage,
-) -> u64 {
-    calculate_gas_for_load_memory(settings, allocations, static_pages)
-}
-
 #[derive(Debug)]
 pub enum SuccessfulDispatchResultKind {
     Exit(ProgramId),

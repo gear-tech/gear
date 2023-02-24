@@ -19,7 +19,6 @@
 use super::*;
 use common::ActiveProgram;
 use core::convert::TryFrom;
-use core_processor::calculate_gas_for_non_subsequent_execution;
 use gear_core::memory::WasmPage;
 use gear_wasm_instrument::syscalls::SysCallName;
 

@@ -41,9 +41,9 @@ pub use executor::{execute_wasm, ActorPrepareMemoryError};
 pub use ext::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
 pub use handler::handle_journal;
 pub use precharge::{
-    calculate_gas_for_code, calculate_gas_for_non_subsequent_execution, calculate_gas_for_program,
-    precharge_for_code, precharge_for_code_length, precharge_for_instrumentation,
-    precharge_for_memory, precharge_for_program,
+    calculate_gas_for_code, calculate_gas_for_program, precharge_for_code,
+    precharge_for_code_length, precharge_for_instrumentation, precharge_for_memory,
+    precharge_for_program,
 };
 pub use processing::process;
 

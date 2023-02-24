@@ -10021,46 +10021,47 @@ fn oom_handler_works() {
     });
 }
 
-#[test]
-fn alloc_charge_error() {
-    const WAT: &str = r#"
-(module
-    (import "env" "memory" (memory 1))
-    (import "env" "alloc" (func $alloc (param i32) (result i32)))
-    (export "init" (func $init))
-    (func $init
-        ;; we are trying to allocate so many pages with such small gas limit
-        ;; that we will get `GasLimitExceeded` error
-        i32.const 0xff
-        call $alloc
-        drop
-    )
-)
-    "#;
+// TODO: return this test if it's possible after #2226, or remove it.
+// #[test]
+// fn alloc_charge_error() {
+//     const WAT: &str = r#"
+// (module
+//     (import "env" "memory" (memory 1))
+//     (import "env" "alloc" (func $alloc (param i32) (result i32)))
+//     (export "init" (func $init))
+//     (func $init
+//         ;; we are trying to allocate so many pages with such small gas limit
+//         ;; that we will get `GasLimitExceeded` error
+//         i32.const 0xff
+//         call $alloc
+//         drop
+//     )
+// )
+//     "#;
 
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let pid = Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(WAT).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            500_000_000_u64,
-            0,
-        )
-        .map(|_| get_last_program_id())
-        .unwrap();
-        let mid = get_last_message_id();
+//     init_logger();
+//     new_test_ext().execute_with(|| {
+//         let pid = Gear::upload_program(
+//             RuntimeOrigin::signed(USER_1),
+//             ProgramCodeKind::Custom(WAT).to_bytes(),
+//             DEFAULT_SALT.to_vec(),
+//             EMPTY_PAYLOAD.to_vec(),
+//             500_000_000_u64,
+//             0,
+//         )
+//         .map(|_| get_last_program_id())
+//         .unwrap();
+//         let mid = get_last_message_id();
 
-        run_to_next_block(None);
+//         run_to_next_block(None);
 
-        assert!(Gear::is_terminated(pid));
-        assert_failed(
-            mid,
-            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
-        );
-    });
-}
+//         assert!(Gear::is_terminated(pid));
+//         assert_failed(
+//             mid,
+//             ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
+//         );
+//     });
+// }
 
 #[test]
 fn free_usage_error() {

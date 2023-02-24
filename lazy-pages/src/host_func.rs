@@ -105,7 +105,6 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
             }
         };
 
-        // log::trace!("gas left = {:?}", self.gas_left);
         for page in pages.to_iter() {
             let amount_for_page = if self.is_write() {
                 for_write(ctx, page)
