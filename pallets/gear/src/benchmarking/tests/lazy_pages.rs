@@ -250,8 +250,7 @@ where
 
         // execute program with random page costs
         let mut run = |_| {
-            let mut exec = exec.clone();
-            let exec = common_utils::prepare_exec::<T>(
+            let mut exec = common_utils::prepare_exec::<T>(
                 source,
                 HandleKind::Handle(program_id),
                 vec![],
@@ -318,9 +317,9 @@ where
     T::AccountId: Origin,
 {
     let psg = PAGE_STORAGE_GRANULARITY as i32;
-    let read_cost = 1;
-    let write_cost = 10;
-    let write_after_read_cost = 100;
+    let read_cost = 1u64;
+    let write_cost = 10u64;
+    let write_after_read_cost = 100u64;
 
     let test = |instrs, expected| {
         let code = WasmModule::<T>::from(ModuleDefinition {
@@ -330,7 +329,7 @@ where
         });
         let instance = Program::<T>::new(code, vec![]).unwrap();
 
-        let charged = |i| {
+        let charged = |i: u64| {
             let instance = instance.clone();
             let mut exec = common_utils::prepare_exec::<T>(
                 instance.caller.into_origin(),
