@@ -1,5 +1,5 @@
 [package]
-name = "gear-program"
+name = "gcli"
 version = "0.1.5"
 authors = ["Gear Technologies"]
 edition = "2021"
@@ -51,16 +51,9 @@ demo-meta = { path = "../examples/binaries/meta" }
 demo-waiter = { path = "../examples/binaries/waiter" }
 
 [features]
-default = [ "gear" ]
 bin = [ "cli" ]
 cli = [ "color-eyre", "clap" ]
 node-key = [ "libp2p" ]
-gear = [ ]
-vara = [ ]
-
-# The features below are used in the build script.
-debug-mode = []
-lazy-pages = []
 
 [package.metadata.docs.rs]
 all-features = true

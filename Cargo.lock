@@ -3457,6 +3457,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "gcli"
+version = "0.1.5"
+dependencies = [
+ "anyhow",
+ "base64 0.21.0",
+ "blake2-rfc",
+ "cfg-if",
+ "clap 4.1.6",
+ "color-eyre",
+ "demo-meta",
+ "demo-waiter",
+ "dirs",
+ "env_logger 0.10.0",
+ "gear-core",
+ "gsdk",
+ "hex",
+ "jsonrpsee",
+ "keyring",
+ "lazy_static",
+ "libp2p",
+ "log",
+ "messager",
+ "nacl",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "scale-info",
+ "schnorrkel",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "wasmtime 1.0.2",
+ "whoami",
+]
+
+[[package]]
 name = "gclient"
 version = "0.1.0"
 dependencies = [
@@ -3613,7 +3649,7 @@ dependencies = [
  "frame-benchmarking-cli",
  "frame-system",
  "futures",
- "gear-program",
+ "gcli",
  "gear-runtime",
  "gear-runtime-primitives",
  "gear-runtime-test-cli",
@@ -3780,42 +3816,6 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber 0.3.16",
-]
-
-[[package]]
-name = "gear-program"
-version = "0.1.5"
-dependencies = [
- "anyhow",
- "base64 0.21.0",
- "blake2-rfc",
- "cfg-if",
- "clap 4.1.6",
- "color-eyre",
- "demo-meta",
- "demo-waiter",
- "dirs",
- "env_logger 0.10.0",
- "gear-core",
- "gsdk",
- "hex",
- "jsonrpsee",
- "keyring",
- "lazy_static",
- "libp2p",
- "log",
- "messager",
- "nacl",
- "parity-scale-codec",
- "rand 0.8.5",
- "scale-info",
- "schnorrkel",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "wasmtime 1.0.2",
- "whoami",
 ]
 
 [[package]]
