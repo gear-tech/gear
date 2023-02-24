@@ -8257,8 +8257,6 @@ fn system_reservation_accumulate_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        const REPETITIONS: usize = 5;
-
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
