@@ -7,6 +7,14 @@ on:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
   pull_request:
     branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
+    types:
+      # default behavior
+      - opened
+      - synchronize
+      - reopened
+      # necessary behavior
+      - labeled
+      - unlabeled
   workflow_dispatch:
 
 env:
@@ -133,7 +141,7 @@ jobs:
       - run: echo "DUMMY"
 
   build-win:
-    if: ${{ (github.ref == 'refs/heads/master') || contains(github.event.pull_request.labels.*.name, 'E1-forcewindows') }}
+    if: ${{ github.ref == 'refs/heads/master' || github.event.label.name == 'E1-forcewindows' }}
     needs: build
     runs-on: ci-win
     defaults:
@@ -275,7 +283,7 @@ jobs:
             --release
 
   build-macos-x86:
-    if: ${{ (github.ref == 'refs/heads/master') || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }}
+    if: ${{ github.ref == 'refs/heads/master' || github.event.label.name == 'E2-forcemacos' }}
     needs: build
     runs-on: macos-latest
     steps:
