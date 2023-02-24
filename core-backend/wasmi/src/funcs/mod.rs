@@ -437,11 +437,11 @@ where
                 let res = state.process_alloc_func_result(res)?;
                 let page = match res {
                     Ok(page) => {
-                        log::debug!("Alloc {pages:?} pages at {page:?}");
+                        log::trace!("Alloc {pages:?} pages at {page:?}");
                         page.raw()
                     }
                     Err(err) => {
-                        log::debug!("Alloc failed: {err}");
+                        log::trace!("Alloc failed: {err}");
                         u32::MAX
                     }
                 };
@@ -465,10 +465,10 @@ where
 
                 match &res {
                     Ok(()) => {
-                        log::debug!("Free {page:?}");
+                        log::trace!("Free {page:?}");
                     }
                     Err(err) => {
-                        log::debug!("Free failed: {err}");
+                        log::trace!("Free failed: {err}");
                     }
                 };
 
