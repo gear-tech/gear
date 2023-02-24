@@ -372,7 +372,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: "Install: Setup MSYS2 environment"
         uses: msys2/setup-msys2@v2
@@ -509,7 +509,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: "ACTIONS: Setup caching"
         uses: actions/cache@v3
