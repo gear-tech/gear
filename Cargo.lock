@@ -3313,17 +3313,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fs4"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ea55201cc351fdb478217c0fb641b59813da9b4efe4c414a9d8f989a657d149"
-dependencies = [
- "libc",
- "rustix 0.35.13",
- "winapi",
-]
-
-[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9711,9 +9700,9 @@ version = "0.1.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#c788a310f38937065a37c161aa45eebf5f3d0e88"
 dependencies = [
  "clap 4.1.6",
- "fs4",
  "futures",
  "log",
+ "nix 0.26.2",
  "sc-client-db",
  "sc-utils",
  "sp-core 7.0.0",
