@@ -151,10 +151,7 @@ impl Signer {
         let tx = subxt::dynamic::tx(
             "Utility",
             "force_batch",
-            calls
-                .into_iter()
-                .map(|c| Value::from_bytes(c.encode()))
-                .collect::<Vec<Value>>(),
+            vec![calls.into_iter().map(Value::from).collect::<Vec<Value>>()],
         );
 
         self.process(tx).await

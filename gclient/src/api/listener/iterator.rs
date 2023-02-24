@@ -25,7 +25,7 @@ use gsdk::{
     metadata::{gear::Event as GearEvent, Event},
     types::Blocks,
 };
-use subxt::events::{Events, Phase};
+use subxt::events::Events;
 
 /// Event listener that allows catching and processing events propagated through
 /// the network.
@@ -71,7 +71,7 @@ impl EventProcessor for EventListener {
 
         while let Some(events) = self.0.next_events().await {
             for event in events?.iter() {
-                if let Some(data) = predicate(event?.as_root_event::<(Phase, Event)>()?.1) {
+                if let Some(data) = predicate(event?.as_root_event::<Event>()?) {
                     res.push(data);
                 }
             }

@@ -47,7 +47,6 @@ pub enum Error {
     Codec(#[from] parity_scale_codec::Error),
     #[error("Code not found {0}")]
     CodeNotFound(String),
-
     #[error(transparent)]
     Hex(#[from] hex::FromHexError),
     #[error("Unable to get the name of the current executable binary")]

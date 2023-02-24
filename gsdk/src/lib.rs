@@ -12,7 +12,7 @@ mod client;
 pub mod config;
 mod constants;
 pub mod events;
-pub mod metadata;
+mod metadata;
 pub mod result;
 mod rpc;
 pub mod signer;
