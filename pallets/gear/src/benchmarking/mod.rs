@@ -1188,6 +1188,28 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    lazy_pages_host_func_read {
+        let p in 1 .. code::max_pages::<T>() as u32;
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_host_func_read((p as u16).into())?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    lazy_pages_host_func_write {
+        let p in 1 .. code::max_pages::<T>() as u32;
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_host_func_write((p as u16).into())?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     // w_load = w_bench
     instr_i64load {
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;

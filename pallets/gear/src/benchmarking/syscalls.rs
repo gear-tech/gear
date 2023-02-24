@@ -60,6 +60,8 @@ where
 {
     // size of error length field
     const ERR_LEN_SIZE: u32 = size_of::<u32>() as u32;
+    const GR_DEBUG_STRING_LEN: u32 = 100;
+    const GR_READ_BUFFER_LEN: u32 = 100;
 
     fn prepare_handle(
         code: WasmModule<T>,
@@ -262,7 +264,7 @@ where
 
     pub fn gr_read(r: u32) -> Result<Exec<T>, &'static str> {
         let buffer_offset = 1;
-        let buffer_len = 100u32;
+        let buffer_len = Self::GR_READ_BUFFER_LEN;
 
         let err_len_offset = buffer_offset + buffer_len;
         let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_len_offset);
@@ -1097,7 +1099,7 @@ where
 
     pub fn gr_debug(r: u32) -> Result<Exec<T>, &'static str> {
         let string_offset = 1;
-        let string_len = 100;
+        let string_len = Self::GR_DEBUG_STRING_LEN;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1108,7 +1110,7 @@ where
                     // payload ptr
                     Instruction::I32Const(string_offset),
                     // payload len
-                    Instruction::I32Const(string_len),
+                    Instruction::I32Const(string_len as i32),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -1404,5 +1406,49 @@ where
             );
         }
         Ok(exec)
+    }
+
+    pub fn lazy_pages_host_func_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Debug],
+            handle_body: Some(body::repeated_dyn(
+                wasm_pages.to_page::<GearPage>().raw(),
+                vec![
+                    // payload ptr
+                    Counter(0, GearPage::size()),
+                    // payload len
+                    Regular(Instruction::I32Const(Self::GR_DEBUG_STRING_LEN as i32)),
+                    // CALL
+                    Regular(Instruction::Call(0)),
+                ],
+            )),
+            ..Default::default()
+        });
+        Self::prepare_handle(code, 0, 0..0)
+    }
+
+    pub fn lazy_pages_host_func_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Read],
+            handle_body: Some(body::repeated_dyn(
+                wasm_pages.to_page::<GearPage>().raw(),
+                vec![
+                    // at
+                    Regular(Instruction::I32Const(0)),
+                    // len
+                    Regular(Instruction::I32Const(Self::GR_READ_BUFFER_LEN as i32)),
+                    // buffer ptr
+                    Counter(0, GearPage::size()),
+                    // err len ptr
+                    Regular(Instruction::I32Const(0)),
+                    // CALL
+                    Regular(Instruction::Call(0)),
+                ],
+            )),
+            ..Default::default()
+        });
+        Self::prepare_handle(code, 0, 0..0)
     }
 }
