@@ -126,3 +126,4 @@ sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.
 # TODO: remove after bytecodealliance/wasmtime#5494 or Substrate update
 wasmtime-runtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }
 wasmtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }
+
