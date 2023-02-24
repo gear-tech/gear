@@ -333,20 +333,18 @@ where
         let charged = |i| {
             let instance = instance.clone();
             let mut exec = common_utils::prepare_exec::<T>(
-                    instance.caller.into_origin(),
-                    HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-                    vec![],
-                    0..0,
-                    Default::default(),
-                )
-                .unwrap();
-            let read = (read_cost * i).into();
-            let write = (write_cost * i).into();
-            let write_after_read = (write_after_read_cost * i).into();
+                instance.caller.into_origin(),
+                HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+                vec![],
+                0..0,
+                Default::default(),
+            )
+            .unwrap();
 
-            exec.block_config.page_costs.lazy_pages_read = read;
-            exec.block_config.page_costs.lazy_pages_write = write;
-            exec.block_config.page_costs.lazy_pages_write_after_read = write_after_read;
+            exec.block_config.page_costs.lazy_pages_read = (read_cost * i).into();
+            exec.block_config.page_costs.lazy_pages_write = (write_cost * i).into();
+            exec.block_config.page_costs.lazy_pages_write_after_read =
+                (write_after_read_cost * i).into();
 
             let notes = core_processor::process::<ExecutionEnvironment>(
                 &exec.block_config,
