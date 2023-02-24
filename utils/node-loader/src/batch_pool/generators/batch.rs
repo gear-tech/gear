@@ -7,7 +7,7 @@ use crate::{
 use anyhow::Result;
 use futures::FutureExt;
 use gear_call_gen::{
-    CallGenRng, CallGenRngCore, CreateProgramArgs, SendMessageArgs, UploadCodeArgs,
+    CallGenRng, CallGenRngCore, CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadCodeArgs,
     UploadProgramArgs,
 };
 use gear_core::ids::{CodeId, ProgramId};
@@ -42,6 +42,7 @@ pub enum Batch {
     UploadCode(Vec<UploadCodeArgs>),
     SendMessage(Vec<SendMessageArgs>),
     CreateProgram(Vec<CreateProgramArgs>),
+    SendReply(Vec<SendReplyArgs>),
 }
 
 pub struct BatchWithSeed {
@@ -56,6 +57,7 @@ impl BatchWithSeed {
             Batch::UploadCode(_) => "upload_code",
             Batch::SendMessage(_) => "send_message",
             Batch::CreateProgram(_) => "create_program",
+            Batch::SendReply(_) => "send_reply",
         }
     }
 }
@@ -101,7 +103,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
 
     pub fn generate(&mut self, context: Context) -> BatchWithSeed {
         let seed = self.batch_gen_rng.next_u64();
-        let spec = self.batch_gen_rng.gen_range(0..=3u8);
+        let spec = self.batch_gen_rng.gen_range(0..=4u8);
         let rt_settings = self.rt_settings;
 
         let batch = match spec {
@@ -126,6 +128,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
                 }
                 None => self.gen_upload_program_batch(seed, rt_settings),
             },
+            4 => todo!(),
             _ => unreachable!(),
         };
 

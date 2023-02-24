@@ -21,6 +21,7 @@
 mod create_program;
 mod rand_utils;
 mod send_message;
+mod send_reply;
 mod upload_code;
 mod upload_program;
 
@@ -29,6 +30,7 @@ pub type Seed = u64;
 pub use create_program::CreateProgramArgs;
 pub use rand_utils::{CallGenRng, CallGenRngCore};
 pub use send_message::SendMessageArgs;
+pub use send_reply::SendReplyArgs;
 pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
 
@@ -42,6 +44,8 @@ pub enum GearCall {
     CreateProgram(CreateProgramArgs),
     /// Upload program call args.
     UploadCode(UploadCodeArgs),
+    /// Send reply call args.
+    SendReply(SendReplyArgs),
 }
 
 pub fn generate_gear_program<Rng: CallGenRng>(seed: u64) -> Vec<u8> {

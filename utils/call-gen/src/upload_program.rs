@@ -66,7 +66,7 @@ impl UploadProgramArgs {
         rng.fill_bytes(&mut payload);
 
         log::debug!(
-            "Generated `upload_program` batch with code seed = {code_seed}, salt = {}, payload = {}",
+            "Generated `upload_program` call with code seed = {code_seed}, salt = {}, payload = {}",
             hex::encode(&salt),
             hex::encode(&payload)
         );

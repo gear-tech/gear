@@ -73,7 +73,7 @@ impl CreateProgramArgs {
         rng.fill_bytes(&mut payload);
 
         log::debug!(
-            "Generated `create_program` batch with code id = {code}, salt = {} payload = {}",
+            "Generated `create_program` call with code id = {code}, salt = {} payload = {}",
             hex::encode(&salt),
             hex::encode(&payload)
         );

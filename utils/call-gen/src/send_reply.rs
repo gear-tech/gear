@@ -16,38 +16,37 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Send message args generator.
+//! Send reply args generator.
 
 use crate::{CallGenRng, GearCall, Seed};
-use gear_core::ids::ProgramId;
+use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
-// destination, payload, gas, value
-type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);
+// reply to message id, payload, gas limit, value
+type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128);
 
-/// Send message args
+/// Send reply args
 ///
-/// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::send_message` call.
-pub struct SendMessageArgs(pub SendMessageArgsInner);
+/// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::send_reply` call.
+pub struct SendReplyArgs(pub SendReplyArgsInner);
 
-impl From<SendMessageArgs> for SendMessageArgsInner {
-    fn from(args: SendMessageArgs) -> Self {
+impl From<SendReplyArgs> for SendReplyArgsInner {
+    fn from(args: SendReplyArgs) -> Self {
         args.0
     }
 }
 
-// TODO #2204 use macros for From and TryFrom calls
-impl From<SendMessageArgs> for GearCall {
-    fn from(args: SendMessageArgs) -> Self {
-        GearCall::SendMessage(args)
+impl From<SendReplyArgs> for GearCall {
+    fn from(args: SendReplyArgs) -> Self {
+        GearCall::SendReply(args)
     }
 }
 
-impl TryFrom<GearCall> for SendMessageArgs {
+impl TryFrom<GearCall> for SendReplyArgs {
     type Error = ();
 
     fn try_from(call: GearCall) -> Result<Self, Self::Error> {
-        if let GearCall::SendMessage(call) = call {
+        if let GearCall::SendReply(call) = call {
             Ok(call)
         } else {
             Err(())
@@ -55,29 +54,29 @@ impl TryFrom<GearCall> for SendMessageArgs {
     }
 }
 
-impl SendMessageArgs {
-    /// Generates `pallet_gear::Pallet::<T>::send_message` call arguments.
-    pub fn generate<Rng: CallGenRng>(
-        existing_programs: NonEmpty<ProgramId>,
+impl SendReplyArgs {
+    /// Generates `pallet_gear::Pallet::<T>::send_reply` call arguments.
+    fn generate<Rng: CallGenRng>(
+        mailbox: &mut NonEmpty<MessageId>,
         rng_seed: Seed,
         gas_limit: u64,
     ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
-        let program_idx = rng.next_u64() as usize;
-        let &destination = existing_programs.ring_get(program_idx);
+        let message_idx = rng.next_u64() as usize;
+        let &message_id = mailbox.ring_get(message_idx);
 
         let mut payload = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut payload);
 
         log::debug!(
-            "Generated `send_message` call with destination = {destination}, payload = {}",
+            "Generated `send_reply` call with message id = {message_id}, payload = {}",
             hex::encode(&payload)
         );
 
         // TODO #2203
         let value = 0;
 
-        Self((destination, payload, gas_limit, value))
+        Self((message_id, payload, gas_limit, value))
     }
 }

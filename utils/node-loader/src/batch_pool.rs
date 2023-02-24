@@ -171,6 +171,7 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> 
             let messages = process_ex_results(ex_results);
             process_events(api.into_gear_api(), messages, block_hash, true).await
         }
+        Batch::SendReply(_args) => todo!(),
     }
 }
 
