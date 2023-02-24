@@ -126,3 +126,6 @@ subxt = { git = "https://github.com/paritytech/subxt", rev = "d41f6574" }
 # TODO: remove after bytecodealliance/wasmtime#5494 or Substrate update
 wasmtime-runtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }
 wasmtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }
+
+# TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
+blake3 = { git = "https://github.com/Sporif/BLAKE3", branch = "fix-clang-cl-cross" }
