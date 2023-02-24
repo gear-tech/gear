@@ -18,6 +18,7 @@
 
 #![allow(clippy::redundant_clone)]
 
+use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_network::NetworkService;
@@ -437,7 +438,8 @@ where
 
     let role = config.role.clone();
     let force_authoring = config.force_authoring;
-    let backoff_authoring_blocks: Option<()> = None;
+    let backoff_authoring_blocks =
+        Some(sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default());
     let name = config.network.node_name.clone();
     let enable_grandpa = !config.disable_grandpa;
     let prometheus_registry = config.prometheus_registry().cloned();
@@ -458,6 +460,11 @@ where
 
     if let Some(hwbench) = hwbench {
         sc_sysinfo::print_hwbench(&hwbench);
+        if !SUBSTRATE_REFERENCE_HARDWARE.check_hardware(&hwbench) && role.is_authority() {
+            log::warn!(
+                "⚠️  The hardware does not meet the minimal requirements for role 'Authority'."
+            );
+        }
 
         if let Some(ref mut telemetry) = telemetry {
             let telemetry_handle = telemetry.handle();
@@ -482,6 +489,7 @@ where
             telemetry.as_ref().map(|x| x.handle()),
         );
 
+        let client_clone = client.clone();
         let slot_duration = babe_link.config().slot_duration();
         let babe_config = sc_consensus_babe::BabeParams {
             keystore: keystore_container.sync_keystore(),
@@ -491,16 +499,25 @@ where
             block_import,
             sync_oracle: network.clone(),
             justification_sync_link: network.clone(),
-            create_inherent_data_providers: move |_, ()| async move {
-                let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+            create_inherent_data_providers: move |parent, ()| {
+                let client_clone = client_clone.clone();
+                async move {
+                    let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-                let slot =
+                    let slot =
                         sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
                             *timestamp,
                             slot_duration,
                         );
 
-                Ok((slot, timestamp))
+                    let storage_proof =
+                        sp_transaction_storage_proof::registration::new_data_provider(
+                            &*client_clone,
+                            &parent,
+                        )?;
+
+                    Ok((slot, timestamp, storage_proof))
+                }
             },
             force_authoring,
             backoff_authoring_blocks,

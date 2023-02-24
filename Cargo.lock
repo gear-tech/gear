@@ -3987,6 +3987,7 @@ dependencies = [
  "sc-consensus-babe",
  "sc-consensus-babe-rpc",
  "sc-consensus-epochs",
+ "sc-consensus-slots",
  "sc-executor",
  "sc-finality-grandpa",
  "sc-finality-grandpa-rpc",
@@ -4018,6 +4019,7 @@ dependencies = [
  "sp-storage 7.0.0",
  "sp-timestamp",
  "sp-transaction-pool",
+ "sp-transaction-storage-proof",
  "sp-trie 7.0.0",
  "substrate-build-script-utils",
  "substrate-frame-rpc-system",
@@ -11783,9 +11785,9 @@ checksum = "7c68d531d83ec6c531150584c42a4290911964d5f0d79132b193b67252a23b71"
 
 [[package]]
 name = "syn"
-version = "1.0.108"
+version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d56e159d99e6c2b93995d171050271edb50ecc5288fbc7cc17de8fdce4e58c14"
+checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
 dependencies = [
  "proc-macro2",
  "quote",
