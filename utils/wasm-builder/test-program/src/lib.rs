@@ -1,5 +1,7 @@
 #![no_std]
 
+include!("rebuild_test.rs");
+
 use gstd::{debug, msg};
 
 #[no_mangle]
