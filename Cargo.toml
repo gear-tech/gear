@@ -128,4 +128,4 @@ wasmtime-runtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc
 wasmtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }
 
 # TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
-blake3 = { git = "https://github.com/Sporif/BLAKE3", branch = "fix-clang-cl-cross" }
+blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "fix-clang-cl-cross" }
