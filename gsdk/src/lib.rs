@@ -3,10 +3,11 @@ use client::RpcClient;
 use config::GearConfig;
 use core::ops::{Deref, DerefMut};
 pub use result::{Error, Result};
+pub use signer::PairSigner;
 use signer::Signer;
 use std::sync::Arc;
+pub use subxt::dynamic::Value;
 use subxt::OnlineClient;
-pub use subxt::{dynamic::Value, tx::PairSigner};
 
 mod client;
 pub mod config;

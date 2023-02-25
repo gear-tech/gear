@@ -4,13 +4,14 @@ use crate::{
     result::{Error, Result},
     Api,
 };
+pub use pair_signer::PairSigner;
 use std::ops::{Deref, DerefMut};
-use subxt::tx::PairSigner;
 
 use sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT};
 use sp_runtime::AccountId32;
 
 mod calls;
+mod pair_signer;
 mod rpc;
 mod utils;
 
