@@ -229,7 +229,7 @@ jobs:
           cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gprogram --features pallet-gear-debug/lazy-pages --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
@@ -238,9 +238,7 @@ jobs:
         run: ./scripts/gear.sh test gtest
 
       - name: "Test: Program CLI"
-        run: |
-          cargo nextest run --release -p gear-program --features bin
-          cargo nextest run --release -p gear-program --no-default-features --features bin,vara
+        run: cargo nextest run --release -p gcli --features bin
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --run-node
