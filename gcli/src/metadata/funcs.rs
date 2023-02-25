@@ -38,7 +38,7 @@ pub fn gr_debug(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Ext
                 .read(caller.as_context(), ptr, &mut msg)
                 .map_err(|e| {
                     log::error!("{:?}", e);
-                    Trap::i32_exit(1)
+                    Trap::UnreachableCodeReached
                 })?;
 
             log::debug!("{:?}", String::from_utf8_lossy(&msg));
@@ -59,7 +59,7 @@ pub fn gr_panic(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Ext
                 .read(caller.as_context(), ptr, &mut msg)
                 .map_err(|e| {
                     log::error!("{:?}", e);
-                    Trap::i32_exit(1)
+                    Trap::UnreachableCodeReached
                 })?;
 
             log::error!("panic occurred: {:?}", String::from_utf8_lossy(&msg));
@@ -87,7 +87,7 @@ pub fn gr_read(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Exte
                 payload.copy_from_slice(&msg[at..(at + len)]);
             } else {
                 log::error!("overflow");
-                return Err(Trap::i32_exit(1));
+                return Err(Trap::UnreachableCodeReached.into());
             }
 
             let len: u32 = memory
@@ -102,8 +102,10 @@ pub fn gr_read(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Exte
                 .write(caller.as_context_mut(), err, &len.to_le_bytes())
                 .map_err(|e| {
                     log::error!("{:?}", e);
-                    Trap::i32_exit(1)
-                })
+                    Trap::UnreachableCodeReached
+                })?;
+
+            Ok(())
         },
     ))
 }
@@ -148,9 +150,10 @@ pub fn gr_size(ctx: impl AsContextMut<Data = StoreData>, memory: Memory) -> Exte
                 )
                 .map_err(|e| {
                     log::error!("{:?}", e);
+                    Trap::UnreachableCodeReached
+                })?;
 
-                    Trap::i32_exit(1)
-                })
+            Ok(())
         },
     ))
 }
