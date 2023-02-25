@@ -4522,8 +4522,8 @@ dependencies = [
  "primitive-types",
  "serde",
  "serde_json",
- "sp-core 7.0.0",
- "sp-runtime 7.0.0",
+ "sp-core 16.0.0",
+ "sp-runtime 18.0.0",
  "subxt",
  "thiserror",
 ]
