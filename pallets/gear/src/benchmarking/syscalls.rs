@@ -1449,6 +1449,42 @@ where
             )),
             ..Default::default()
         });
+
+        let instance = Program::<T>::new(code, vec![])?;
+
+        utils::prepare_exec::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![0; Self::GR_READ_BUFFER_LEN as usize],
+            0..0,
+            Default::default(),
+        )
+    }
+
+    pub fn lazy_pages_host_func_read_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+        let subject_ptr = 1;
+        let subject_len = 32;
+        let bn_random_ptr = subject_ptr + subject_len;
+
+        // check that we are far from page end
+        assert!(bn_random_ptr < GearPage::size() / 2);
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Random],
+            handle_body: Some(body::repeated_dyn(
+                wasm_pages.to_page::<GearPage>().raw(),
+                vec![
+                    // subject ptr
+                    Counter(subject_ptr, GearPage::size()),
+                    // bn_random ptr
+                    Counter(bn_random_ptr, GearPage::size()),
+                    // CALL
+                    Regular(Instruction::Call(0)),
+                ],
+            )),
+            ..Default::default()
+        });
         Self::prepare_handle(code, 0, 0..0)
     }
 }
