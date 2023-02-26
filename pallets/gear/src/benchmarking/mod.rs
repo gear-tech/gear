@@ -1189,7 +1189,7 @@ benchmarks! {
     }
 
     lazy_pages_host_func_read {
-        let p in 1 .. code::max_pages::<T>() as u32;
+        let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_host_func_read((p as u16).into())?;
     }: {
@@ -1200,9 +1200,20 @@ benchmarks! {
     }
 
     lazy_pages_host_func_write {
-        let p in 1 .. code::max_pages::<T>() as u32;
+        let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_host_func_write((p as u16).into())?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    lazy_pages_host_func_read_write {
+        let p in 0 .. code::max_pages::<T>() as u32;
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_host_func_read_write((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
