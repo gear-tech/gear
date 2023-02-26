@@ -18,7 +18,10 @@
 
 //! Lazy-pages structures for common usage.
 
-use std::{collections::BTreeSet, num::NonZeroU32};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    num::NonZeroU32,
+};
 
 use gear_backend_common::lazy_pages::{
     GlobalsAccessError, GlobalsConfig, LazyPagesWeights, Status,
@@ -77,7 +80,7 @@ pub(crate) struct LazyPagesExecutionContext {
     /// Wasm memory buffer size, to identify whether signal is from wasm memory buffer.
     pub wasm_mem_size: Option<WasmPage>,
     /// Current program prefix in storage
-    pub program_storage_prefix: Option<Vec<u8>>,
+    program_storage_prefix: Option<PagePrefix>,
     /// Wasm addresses of lazy-pages, that have been read or write accessed at least once.
     /// Lazy page here is page, which has `size = max(native_page_size, gear_page_size)`.
     pub accessed_pages: BTreeSet<LazyPage>,
@@ -104,6 +107,8 @@ pub(crate) struct LazyPagesExecutionContext {
     pub status: Option<Status>,
     /// Lazy-pages accesses weights.
     pub lazy_pages_weights: LazyPagesWeights,
+    /// Cache information about whether page has data in storage
+    pub page_has_data_in_storage: BTreeMap<GranularityPage, bool>,
 }
 
 impl LazyPagesExecutionContext {
@@ -134,6 +139,45 @@ impl LazyPagesExecutionContext {
             Ok(())
         }
     }
+    pub fn set_program_prefix(&mut self, prefix: Vec<u8>) {
+        self.program_storage_prefix = Some(PagePrefix::new_from_program_prefix(prefix));
+    }
+    pub fn get_key_for_page(&mut self, page: GearPage) -> Result<&[u8], Error> {
+        self.program_storage_prefix
+            .as_mut()
+            .map(|prefix| prefix.calc_key_for_page(page))
+            .ok_or(Error::ProgramPrefixIsNotSet)
+    }
+    pub fn page_has_data_in_storage(&mut self, page: GearPage) -> Result<bool, Error> {
+        if let Some(&res) = self.page_has_data_in_storage.get(&page.to_page()) {
+            return Ok(res);
+        }
+        if sp_io::storage::exists(self.get_key_for_page(page)?) {
+            self.page_has_data_in_storage.insert(page.to_page(), true);
+            Ok(true)
+        } else {
+            self.page_has_data_in_storage.insert(page.to_page(), false);
+            Ok(false)
+        }
+    }
+    pub fn load_page_data_from_storage(
+        &mut self,
+        page: GearPage,
+        buffer: &mut [u8],
+    ) -> Result<(), Error> {
+        if let Some(size) = sp_io::storage::read(self.get_key_for_page(page)?, buffer, 0) {
+            self.page_has_data_in_storage.insert(page.to_page(), true);
+            if size != GearPage::size() {
+                return Err(Error::InvalidPageDataSize {
+                    expected: GearPage::size(),
+                    actual: size,
+                });
+            }
+        } else {
+            self.page_has_data_in_storage.insert(page.to_page(), false);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
@@ -160,25 +204,25 @@ impl PageU32Size for LazyPage {
 /// 2) page number in little endian bytes order
 /// First part is always the same, so we can copy it to buffer
 /// once and then use it for all pages.
-pub(crate) struct PagePrefix {
+#[derive(Debug)]
+struct PagePrefix {
     buffer: Vec<u8>,
 }
 
 impl PagePrefix {
     /// New page prefix from program prefix
-    pub fn new_from_program_prefix(program_prefix: &[u8]) -> Self {
+    fn new_from_program_prefix(mut program_prefix: Vec<u8>) -> Self {
+        program_prefix.extend_from_slice(&u32::MAX.to_le_bytes());
         Self {
-            buffer: [program_prefix, &u32::MAX.to_le_bytes()].concat(),
+            buffer: program_prefix,
         }
     }
+
     /// Returns key in storage for `page`.
-    pub fn calc_key_for_page(&mut self, page: GearPage) -> &[u8] {
+    fn calc_key_for_page(&mut self, page: GearPage) -> &[u8] {
         let len = self.buffer.len();
         self.buffer[len - std::mem::size_of::<u32>()..len]
             .copy_from_slice(page.raw().to_le_bytes().as_slice());
         &self.buffer
-    }
-    pub fn calc_once(program_prefix: &[u8], page: GearPage) -> Vec<u8> {
-        [program_prefix, page.raw().to_le_bytes().as_slice()].concat()
     }
 }

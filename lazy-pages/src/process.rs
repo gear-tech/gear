@@ -24,7 +24,7 @@ use gear_backend_common::lazy_pages::Status;
 use gear_core::memory::{GearPage, GranularityPage, PageU32Size, PagesIterInclusive};
 
 use crate::{
-    common::{Error, LazyPage, LazyPagesExecutionContext, PagePrefix},
+    common::{Error, LazyPage, LazyPagesExecutionContext},
     mprotect,
 };
 
@@ -81,25 +81,15 @@ pub(crate) trait AccessHandler {
 
 /// Load data for `page` from storage.
 unsafe fn load_data_for_page(
+    ctx: &mut RefMut<LazyPagesExecutionContext>,
     wasm_mem_addr: usize,
-    prefix: &mut PagePrefix,
     page: LazyPage,
 ) -> Result<(), Error> {
     for gear_page in page.to_pages_iter::<GearPage>() {
         let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(gear_page.offset() as usize);
         let buffer_as_slice =
             std::slice::from_raw_parts_mut(page_buffer_ptr, GearPage::size() as usize);
-        let res = sp_io::storage::read(prefix.calc_key_for_page(gear_page), buffer_as_slice, 0);
-
-        log::trace!("{:?} has data in storage: {}", gear_page, res.is_some());
-
-        // Check data size is valid.
-        if let Some(size) = res.filter(|&size| size != GearPage::size()) {
-            return Err(Error::InvalidPageDataSize {
-                expected: GearPage::size(),
-                actual: size,
-            });
-        }
+        ctx.load_page_data_from_storage(gear_page, buffer_as_slice)?;
     }
     Ok(())
 }
@@ -156,11 +146,11 @@ pub(crate) unsafe fn process_lazy_pages<H: AccessHandler>(
 
     let stack_end = ctx.stack_end_wasm_page;
     let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
-    let mut prefix = PagePrefix::new_from_program_prefix(
-        ctx.program_storage_prefix
-            .as_ref()
-            .ok_or(Error::ProgramPrefixIsNotSet)?,
-    );
+    // let mut prefix = PagePrefix::new_from_program_prefix(
+    //     ctx.program_storage_prefix
+    //         .as_ref()
+    //         .ok_or(Error::ProgramPrefixIsNotSet)?,
+    // );
 
     // Returns `true` if new status is not `Normal`.
     let update_status = |ctx: &mut RefMut<LazyPagesExecutionContext>, status| {
@@ -216,24 +206,23 @@ pub(crate) unsafe fn process_lazy_pages<H: AccessHandler>(
                     H::check_read_from_accessed_memory()?;
                 }
             } else {
-                let unprotected =
-                    if sp_io::storage::exists(prefix.calc_key_for_page(lazy_page.to_page())) {
-                        // Need to set read/write access.
-                        mprotect::mprotect_interval(
-                            wasm_mem_addr + lazy_page.offset() as usize,
-                            LazyPage::size() as usize,
-                            true,
-                            true,
-                        )?;
-                        let status = handler.charge_for_data_loading(&mut ctx, granularity_page)?;
-                        if update_status(&mut ctx, status)? {
-                            return Ok(());
-                        }
-                        load_data_for_page(wasm_mem_addr, &mut prefix, lazy_page)?;
-                        true
-                    } else {
-                        false
-                    };
+                let unprotected = if ctx.page_has_data_in_storage(lazy_page.to_page())? {
+                    // Set read/write access, in order to load data from storage to page memory
+                    mprotect::mprotect_interval(
+                        wasm_mem_addr + lazy_page.offset() as usize,
+                        LazyPage::size() as usize,
+                        true,
+                        true,
+                    )?;
+                    let status = handler.charge_for_data_loading(&mut ctx, granularity_page)?;
+                    if update_status(&mut ctx, status)? {
+                        return Ok(());
+                    }
+                    load_data_for_page(&mut ctx, wasm_mem_addr, lazy_page)?;
+                    true
+                } else {
+                    false
+                };
 
                 // Add `lazy_page` to accessed pages.
                 ctx.accessed_pages.insert(lazy_page);
