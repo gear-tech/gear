@@ -114,7 +114,7 @@ pub fn initialize_for_program(
         ctx.lazy_pages_weights = lazy_pages_weights;
 
         program_storage_prefix.extend_from_slice(&program_id);
-        ctx.program_storage_prefix = Some(program_storage_prefix);
+        ctx.set_program_prefix(program_storage_prefix);
         ctx.status.replace(Status::Normal);
 
         if let Some(addr) = wasm_mem_addr {

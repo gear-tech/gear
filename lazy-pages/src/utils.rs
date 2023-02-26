@@ -22,7 +22,7 @@ use std::{cell::RefMut, collections::BTreeSet};
 
 use gear_core::memory::{GranularityPage, PageU32Size, PagesIterInclusive};
 
-use crate::common::{Error, LazyPage, LazyPagesExecutionContext, PagePrefix};
+use crate::common::{Error, LazyPage, LazyPagesExecutionContext};
 
 /// Call `f` for all inclusive ranges from `indexes`.
 /// For example: `indexes` = {1,2,3,5,6,7,9}, then `f` will be called
@@ -72,20 +72,13 @@ pub(crate) fn handle_psg_case_one_page(
     ctx: &mut RefMut<LazyPagesExecutionContext>,
     page: LazyPage,
 ) -> Result<PagesIterInclusive<LazyPage>, Error> {
-    // Accessed granularity page.
-    let granularity_page: GranularityPage = page.to_page();
-    // First gear page in accessed granularity page.
-    let gear_page = granularity_page.to_page();
-
-    let program_prefix = ctx
-        .program_storage_prefix
-        .as_ref()
-        .ok_or(Error::ProgramPrefixIsNotSet)?;
-    let prefix = PagePrefix::calc_once(program_prefix, gear_page);
-
-    if !sp_io::storage::exists(&prefix) {
-        Ok(granularity_page.to_pages_iter())
-    } else {
+    if ctx.page_has_data_in_storage(page.to_page())? {
+        // if at least one gear page has data in storage, then all pages from corresponding
+        // `GranularityPage` have data in storage, therefor all gear pages from `page`
+        // have data in storage. So, this is not psg case and we can handle only one `LazyPage`.
         Ok(page.iter_once())
+    } else {
+        //
+        Ok(page.to_page::<GranularityPage>().to_pages_iter())
     }
 }
