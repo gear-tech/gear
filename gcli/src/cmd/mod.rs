@@ -1,5 +1,4 @@
 //! commands
-#![cfg(feature = "cli")]
 use crate::{keystore, result::Result};
 use clap::Parser;
 use env_logger::{Builder, Env};
@@ -40,7 +39,7 @@ pub enum Command {
     Update(update::Update),
 }
 
-/// Entrypoint of cli `gear`
+/// `gear` client cli.
 #[derive(Debug, Parser)]
 #[command(name = "gear-program")]
 pub struct Opt {

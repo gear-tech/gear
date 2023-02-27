@@ -1,13 +1,9 @@
-# gear-program
+# gcli
 
 [![CI][ci1]][ci2]
-[![crates.io][c1]][c2]
 [![docs][docs1]][docs2]
 [![downloads][d1]][d2]
 [![License][l1]][l2]
-
-[c1]: https://img.shields.io/crates/v/gear-program.svg
-[c2]: https://crates.io/crates/gear-program
 
 [ci1]: https://github.com/gear-tech/gear/workflows/CI/badge.svg
 [ci2]: https://github.com/gear-tech/gear/actions/workflows/CI.yaml
@@ -24,43 +20,43 @@
 
 ## Getting Started
 
-To install gear-program via <kbd>cargo</kbd>
+To install `gcli` via <kbd>cargo</kbd>
 
 ```sh
-$ cargo install --git https://github.com/gear-tech/gear gear-program --features bin,gear
+$ cargo install --git https://github.com/gear-tech/gear gcli
 ```
 
 Usages:
 
 ```sh
 $ gear
-gear-program 0.1.5
+`gear` client cli
 
-USAGE:
-    gear [OPTIONS] <SUBCOMMAND>
+Usage: gcli [OPTIONS] <COMMAND>
 
-OPTIONS:
-    -e, --endpoint <ENDPOINT>    Gear node rpc endpoint
-    -h, --help                   Print help information
-    -p, --passwd <PASSWD>        Password of the signer account
-    -v, --verbose                Enable verbose logs
+Commands:
+  claim           Claim value from mailbox
+  create          Deploy program to gear node
+  info            Get account info from ss58address
+  key             Keypair utils
+  login           Log in to account
+  meta            Show metadata structure, read types from registry, etc
+  new             Create a new gear program
+  program         Read program state, etc
+  reply           Sends a reply message
+  send            Sends a message to a program or to another account
+  upload          Saves program `code` in storage
+  upload-program  Deploy program to gear node
+  transfer        Transfer value
+  update          Update self from crates.io or github
+  help            Print this message or the help of the given subcommand(s)
 
-SUBCOMMANDS:
-    claim             Claim value from mailbox
-    create            Deploy program to gear node
-    help              Print this message or the help of the given subcommand(s)
-    info              Get account info from ss58address
-    key               Keypair utils
-    login             Log in to account
-    meta              Show metadata structure, read types from registry, etc
-    new               Create a new gear program
-    program           Read program state, etc
-    reply             Sends a reply message
-    send              Sends a message to a program or to another account
-    transfer          Transfer value
-    update            Update self from crates.io or github
-    upload            Saves program `code` in storage
-    upload-program    Deploy program to gear node
+Options:
+  -r, --retry <RETRY>        How many times we'll retry when RPC requests failed [default: 5]
+  -v, --verbose              Enable verbose logs
+  -e, --endpoint <ENDPOINT>  Gear node rpc endpoint
+  -p, --passwd <PASSWD>      Password of the signer account
+  -h, --help                 Print help
 ```
 
 Now, let's create a <kbd>new</kbd> gear program and upload it to the staging testnet!
