@@ -571,7 +571,7 @@ benchmarks! {
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
         assert!(MailboxOf::<T>::is_empty(&caller));
-        assert!(MailboxOf::<T>::is_empty(&user_id));
+        assert!(MailboxOf::<T>::is_empty(user_id));
     }
 
     send_reply {
