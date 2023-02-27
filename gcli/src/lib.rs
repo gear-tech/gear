@@ -104,7 +104,6 @@
 //!
 //! GPL v3.0
 
-// pub mod api;
 pub mod cmd;
 pub mod keystore;
 pub mod metadata;

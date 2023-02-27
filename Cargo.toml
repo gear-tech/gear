@@ -54,6 +54,7 @@ members = [
     "examples/binaries/waiter",
     "examples/binaries/waiting-proxy",
     "galloc",
+    "gcli",
     "gclient",
     "gcore",
     "gear-test",
@@ -66,7 +67,6 @@ members = [
     "node/service",
     "node/authorship",
     "pallets/*",
-    "gcli",
     "runtime/gear",
     "runtime/vara",
     "utils/gear-runtime-test-cli",
@@ -119,10 +119,6 @@ lto = "fat"
 codegen-units = 1
 
 [patch.crates-io]
-# Two dependencies below go for `subxt v0.25.0`
-sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-
 # TODO: remove after Substrate update
 wasmtime-runtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }
 wasmtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }

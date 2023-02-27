@@ -41,7 +41,7 @@ pub enum Command {
 
 /// `gear` client cli.
 #[derive(Debug, Parser)]
-#[command(name = "gear-program")]
+#[command(name = "gcli")]
 pub struct Opt {
     /// Commands.
     #[command(subcommand)]

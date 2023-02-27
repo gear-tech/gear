@@ -1,6 +1,5 @@
 //! command `info`
 use crate::result::{Error, Result};
-
 use clap::Parser;
 use gsdk::{
     ext::{
