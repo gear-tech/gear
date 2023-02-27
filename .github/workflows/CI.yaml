@@ -572,7 +572,7 @@ jobs:
           
       - name: "Install: cargo-xwin"
         run: |
-          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.14.0/cargo-xwin-v0.14.0.x86_64-unknown-linux-musl.tar.gz | tar Jxf -
+          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.14.0/cargo-xwin-v0.14.0.x86_64-unknown-linux-musl.tar.gz | tar zxf -
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
       - name: "Build: wasm-proc"
