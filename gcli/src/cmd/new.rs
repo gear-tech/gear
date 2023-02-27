@@ -58,14 +58,7 @@ impl New {
     }
 
     fn help() {
-        println!(
-            "Available templates:
-	{}",
-            TEMPLATES.join(
-                "
-	"
-            )
-        );
+        println!("Available templates: \n\n{}", TEMPLATES.join("\n"));
     }
 
     /// run command new
