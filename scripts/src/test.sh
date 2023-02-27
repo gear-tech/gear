@@ -29,7 +29,11 @@ EOF
 }
 
 workspace_test() {
-  cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
+  if [ "$CARGO" = "cargo xwin" ]; then
+    $CARGO test --workspace "$@" --no-fail-fast
+  else
+    cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
+  fi
 }
 
 # $1 - ROOT DIR

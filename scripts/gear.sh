@@ -8,11 +8,18 @@ SCRIPTS="$ROOT_DIR/scripts/src"
 TARGET_DIR="$ROOT_DIR/target"
 CARGO_HACK="hack"
 CARGO_NEXTEST="nextest"
+CARGO="cargo"
+
+. "$SCRIPTS"/common.sh
+
+if [ "$CARGO_BUILD_TARGET" = "x86_64-pc-windows-msvc" ]; then
+  CARGO="cargo xwin"
+  header "Using cargo-xwin"
+fi
 
 . "$SCRIPTS"/build.sh
 . "$SCRIPTS"/check.sh
 . "$SCRIPTS"/clippy.sh
-. "$SCRIPTS"/common.sh
 . "$SCRIPTS"/coverage.sh
 . "$SCRIPTS"/docker.sh
 . "$SCRIPTS"/format.sh
