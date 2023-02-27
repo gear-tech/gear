@@ -333,7 +333,7 @@ pub mod sudo {
     pub mod events {
         use super::runtime_types;
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "A sudo just took place. \[result\]"]
+        #[doc = "A sudo just took place. "]
         pub struct Sudid {
             pub sudo_result: ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
         }
@@ -342,7 +342,7 @@ pub mod sudo {
             const EVENT: &'static str = "Sudid";
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "The \[sudoer\] just switched identity; the old key is supplied if one existed."]
+        #[doc = "The sudoer just switched identity; the old key is supplied if one existed."]
         pub struct KeyChanged {
             pub old_sudoer: ::core::option::Option<::sp_core::crypto::AccountId32>,
         }
@@ -351,7 +351,7 @@ pub mod sudo {
             const EVENT: &'static str = "KeyChanged";
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "A sudo just took place. \[result\]"]
+        #[doc = "A sudo just took place. "]
         pub struct SudoAsDone {
             pub sudo_result: ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
         }
@@ -2709,18 +2709,18 @@ pub mod runtime_types {
 			"]
             pub enum Event {
                 #[codec(index = 0)]
-                #[doc = "A sudo just took place. \[result\]"]
+                #[doc = "A sudo just took place. "]
                 Sudid {
                     sudo_result:
                         ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
                 },
                 #[codec(index = 1)]
-                #[doc = "The \[sudoer\] just switched identity; the old key is supplied if one existed."]
+                #[doc = "The sudoer just switched identity; the old key is supplied if one existed."]
                 KeyChanged {
                     old_sudoer: ::core::option::Option<::sp_core::crypto::AccountId32>,
                 },
                 #[codec(index = 2)]
-                #[doc = "A sudo just took place. \[result\]"]
+                #[doc = "A sudo just took place. "]
                 SudoAsDone {
                     sudo_result:
                         ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
