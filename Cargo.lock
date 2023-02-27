@@ -1977,6 +1977,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-mutex-debug"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "demo-ncompose"
 version = "0.1.0"
 dependencies = [
@@ -2015,6 +2025,18 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
+]
+
+[[package]]
+name = "demo-ping-debug"
+version = "0.1.0"
+dependencies = [
+ "galloc",
+ "gcore",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -6868,8 +6890,10 @@ dependencies = [
  "demo-init-wait-reply-exit",
  "demo-init-with-value",
  "demo-mul-by-const",
+ "demo-mutex-debug",
  "demo-new-meta",
  "demo-out-of-memory",
+ "demo-ping-debug",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",

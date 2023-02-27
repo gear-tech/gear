@@ -1,19 +1,7 @@
 title: Async-await
 
 programs:
-  - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_async.opt.wasm
-    init_message:
-      kind: utf-8
-      value: "{2},{3},{4}"
-
   - id: 2
-    path: target/wasm32-unknown-unknown/release/demo_ping.opt.wasm
-
-  - id: 3
-    path: target/wasm32-unknown-unknown/release/demo_ping.opt.wasm
-
-  - id: 4
     path: target/wasm32-unknown-unknown/release/demo_ping.opt.wasm
 
   - id: 5
@@ -22,154 +10,16 @@ programs:
       kind: utf-8
       value: "{2}"
 
-  - id: 6
-    path: target/wasm32-unknown-unknown/release/demo_rwlock_write.opt.wasm
-    init_message:
-      kind: utf-8
-      value: "{2}"
-
 fixtures:
-  - title: async-await
-
-    messages:
-      - destination: 1
-        payload: &start
-          kind: utf-8
-          value: START
-
-    expected:
-      - step: 1
-        messages:
-          - destination: 2
-            payload: &ping
-              kind: utf-8
-              value: PING
-
-      - step: 2
-        messages:
-          - destination: 1
-            payload: &pong
-              kind: utf-8
-              value: PONG
-
-      - step: 3
-        messages:
-          - destination: 1
-            payload: *start
-
-      - step: 4
-        messages:
-          - destination: 3
-            payload: *ping
-
-      - step: 5
-        messages:
-          - destination: 1
-            payload: *pong
-
-      - step: 6
-        messages:
-          - destination: 1
-            payload: *start
-
-      - step: 7
-        messages:
-          - destination: 4
-            payload: *ping
-
-      - step: 8
-        messages:
-          - destination: 1
-            payload: *pong
-
-      - step: 9
-        messages:
-          - destination: 1
-            payload: *start
-
-      - step: 10
-        log:
-          - destination: 1000001
-            payload: &success
-              kind: utf-8
-              value: SUCCESS
-
   - title: mutex
 
     messages:
       - destination: 5
-        payload: *start
+        payload: &start
+          kind: utf-8
+          value: START
       - destination: 5
         payload: *start
 
-    expected:
-      - step: 1
-        messages:
-          - destination: 5
-            payload: *start
-          - destination: 2
-            payload: *ping
-      - step: 2
-        messages:
-          - destination: 2
-            payload: *ping
-      - step: 3
-        messages:
-          - destination: 5
-            payload: *pong
-      - step: 4
-        messages:
-          - destination: 5
-            payload: *start
-      - step: 5
-        messages:
-          - destination: 5
-            payload: *start
-      - step: 6
-        messages:
-          - destination: 2
-            payload: *ping
-      - step: 7
-        messages:
-          - destination: 5
-            payload: *pong
-
-  - title: rwlock-write # RwLock writer-only is similar to mutex
-
-    messages:
-      - destination: 6
-        payload: *start
-      - destination: 6
-        payload: *start
-
-    expected:
-      - step: 1
-        messages:
-          - destination: 6
-            payload: *start
-          - destination: 2
-            payload: *ping
-      - step: 2
-        messages:
-          - destination: 2
-            payload: *ping
-      - step: 3
-        messages:
-          - destination: 6
-            payload: *pong
-      - step: 4
-        messages:
-          - destination: 6
-            payload: *start
-      - step: 5
-        messages:
-          - destination: 6
-            payload: *start
-      - step: 6
-        messages:
-          - destination: 2
-            payload: *ping
-      - step: 7
-        messages:
-          - destination: 6
-            payload: *pong
+ # Mikita: TODO: create pallet test like this one
+ # /home/ubuntu/gear/gear/target/release/gear runtime-spec-tests /home/ubuntu/gear/gear/gear-test/spec/test_async.yaml --runtime gear

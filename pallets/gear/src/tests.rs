@@ -1001,6 +1001,47 @@ fn delayed_send_program_message_with_low_reservation() {
 }
 
 #[test]
+fn mutex_async_ping_message() {
+    use demo_ping_debug::{WASM_BINARY as WASM_PING_BINARY};
+    use demo_mutex_debug::{WASM_BINARY as WASM_MUTEX_BINARY};
+
+    fn scenario() {
+        // Upload program that sends and wait for reply from PING program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let ping_program_address = utils::get_last_program_id();
+
+        // Upload program that sends and wait for reply from PING program
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_MUTEX_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping_program_address.encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            0,
+        ));
+
+        let mutex_program_address = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(ping_program_address));
+        assert!(Gear::is_initialized(mutex_program_address));
+
+    }
+
+    init_logger();
+
+    new_test_ext().execute_with(|| scenario());
+}
+
+#[test]
 fn delayed_program_creation_no_code() {
     init_logger();
 
