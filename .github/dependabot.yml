@@ -5,6 +5,13 @@ updates:
     labels: ["A4-insubstantial", "E1-forcewindows", "E2-forcemacos"]
     schedule:
       interval: "daily"
+
+  - package-ecosystem: "cargo"
+    directory: "/examples/"
+    labels: ["A4-insubstantial"]
+    schedule:
+      interval: "daily"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     labels: ["A4-insubstantial"]
