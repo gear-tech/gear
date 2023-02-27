@@ -571,7 +571,8 @@ benchmarks! {
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
         assert!(MailboxOf::<T>::is_empty(&caller));
-        assert!(MailboxOf::<T>::is_empty(user_id));
+        let user = T::AccountId::from_origin(user_id.into_origin());
+        assert!(MailboxOf::<T>::is_empty(&user));
     }
 
     send_reply {
