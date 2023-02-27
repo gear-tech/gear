@@ -502,6 +502,7 @@ jobs:
     runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
     env:
       XWIN_ARCH: x86_64
+      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
