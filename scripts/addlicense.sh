@@ -1,3 +1,7 @@
+#!/bin/sh
+
+readonly HEADER='// This file is part of Gear.'
+readonly LICENSE='
 // This file is part of Gear.
 //
 // Copyright (C) 2021-2022 Gear Technologies Inc.
@@ -14,25 +18,17 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
+// along with this program. If not, see <https://www.gnu.org/licenses/>.'
 
-#![cfg_attr(not(feature = "std"), feature(alloc_error_handler))]
-#![cfg_attr(not(feature = "std"), feature(const_btree_new))]
-#![cfg_attr(not(feature = "std"), no_std)]
-
-#[cfg(feature = "std")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+function main() {
+    for file in "$@"
+    do
+        header="$(head -n 1 $file)"
+        if [ "$header" != "$HEADER" ]
+        then
+            echo "${LICENSE:1}\n\n$(cat $file)" > "$file"
+        fi
+    done
 }
 
-#[cfg(feature = "std")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
-#[cfg(not(feature = "std"))]
-mod wasm {
-    include! {"./code.rs"}
-}
-
-pub const SEND_REPLY: &[u8] = b"send";
-pub const REPLY_REPLY: &[u8] = b"reply";
-pub const SENT_VALUE: u128 = 1_000_000;
+main $@

@@ -1,3 +1,21 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! gear api calls
 use crate::{
     config::GearConfig,
@@ -180,24 +198,24 @@ impl Signer {
     /// Propagates log::info for given status.
     pub(crate) fn log_status(&self, status: &TxStatus) {
         match status {
-            TxStatus::Future => log::info!("\tStatus: Future"),
-            TxStatus::Ready => log::info!("\tStatus: Ready"),
-            TxStatus::Broadcast(v) => log::info!("\tStatus: Broadcast( {v:?} )"),
+            TxStatus::Future => log::info!("	Status: Future"),
+            TxStatus::Ready => log::info!("	Status: Ready"),
+            TxStatus::Broadcast(v) => log::info!("	Status: Broadcast( {v:?} )"),
             TxStatus::InBlock(b) => log::info!(
-                "\tStatus: InBlock( block hash: {}, extrinsic hash: {} )",
+                "	Status: InBlock( block hash: {}, extrinsic hash: {} )",
                 b.block_hash(),
                 b.extrinsic_hash()
             ),
-            TxStatus::Retracted(h) => log::info!("\tStatus: Retracted( {h} )"),
-            TxStatus::FinalityTimeout(h) => log::info!("\tStatus: FinalityTimeout( {h} )"),
+            TxStatus::Retracted(h) => log::info!("	Status: Retracted( {h} )"),
+            TxStatus::FinalityTimeout(h) => log::info!("	Status: FinalityTimeout( {h} )"),
             TxStatus::Finalized(b) => log::info!(
-                "\tStatus: Finalized( block hash: {}, extrinsic hash: {} )",
+                "	Status: Finalized( block hash: {}, extrinsic hash: {} )",
                 b.block_hash(),
                 b.extrinsic_hash()
             ),
-            TxStatus::Usurped(h) => log::info!("\tStatus: Usurped( {h} )"),
-            TxStatus::Dropped => log::info!("\tStatus: Dropped"),
-            TxStatus::Invalid => log::info!("\tStatus: Invalid"),
+            TxStatus::Usurped(h) => log::info!("	Status: Usurped( {h} )"),
+            TxStatus::Dropped => log::info!("	Status: Dropped"),
+            TxStatus::Invalid => log::info!("	Status: Invalid"),
         }
     }
 

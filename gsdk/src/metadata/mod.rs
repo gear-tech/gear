@@ -1,3 +1,21 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! Static metadata.
 #![allow(dead_code, unused_imports, non_camel_case_types)]
 #![allow(clippy::all)]
@@ -92,7 +110,10 @@ pub mod system {
 pub mod grandpa {
 
     use super::runtime_types;
-    #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+    #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
     pub type Event = runtime_types::pallet_grandpa::pallet::Event;
     pub mod events {
         use super::runtime_types;
@@ -129,7 +150,10 @@ pub mod balances {
 
     use super::runtime_types;
 
-    #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+    #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
     pub type Event = runtime_types::pallet_balances::pallet::Event;
     pub mod events {
         use super::runtime_types;
@@ -246,7 +270,10 @@ pub mod balances {
 pub mod transaction_payment {
 
     use super::runtime_types;
-    #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+    #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
     pub type Event = runtime_types::pallet_transaction_payment::pallet::Event;
     pub mod events {
         use super::runtime_types;
@@ -269,7 +296,10 @@ pub mod session {
 
     use super::runtime_types;
 
-    #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+    #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
     pub type Event = runtime_types::pallet_session::pallet::Event;
     pub mod events {
         use super::runtime_types;
@@ -295,12 +325,15 @@ pub mod sudo {
 
     use super::runtime_types;
 
-    #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+    #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
     pub type Event = runtime_types::pallet_sudo::pallet::Event;
     pub mod events {
         use super::runtime_types;
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "A sudo just took place. \\[result\\]"]
+        #[doc = "A sudo just took place. \[result\]"]
         pub struct Sudid {
             pub sudo_result: ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
         }
@@ -309,7 +342,7 @@ pub mod sudo {
             const EVENT: &'static str = "Sudid";
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "The \\[sudoer\\] just switched identity; the old key is supplied if one existed."]
+        #[doc = "The \[sudoer\] just switched identity; the old key is supplied if one existed."]
         pub struct KeyChanged {
             pub old_sudoer: ::core::option::Option<::sp_core::crypto::AccountId32>,
         }
@@ -318,7 +351,7 @@ pub mod sudo {
             const EVENT: &'static str = "KeyChanged";
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "A sudo just took place. \\[result\\]"]
+        #[doc = "A sudo just took place. \[result\]"]
         pub struct SudoAsDone {
             pub sudo_result: ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
         }
@@ -333,7 +366,10 @@ pub mod utility {
 
     use super::runtime_types;
 
-    #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+    #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
     pub type Event = runtime_types::pallet_utility::pallet::Event;
     pub mod events {
         use super::runtime_types;
@@ -394,7 +430,10 @@ pub mod gear {
 
     use super::runtime_types;
 
-    #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+    #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
     pub type Event = runtime_types::pallet_gear::pallet::Event;
     pub mod events {
         use super::runtime_types;
@@ -1453,7 +1492,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+            #[doc = "
+			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
+			of this pallet.
+			"]
             pub enum Error {
                 #[codec(index = 0)]
                 #[doc = "An equivocation proof provided as part of an equivocation report is invalid."]
@@ -1585,7 +1627,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+            #[doc = "
+			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
+			of this pallet.
+			"]
             pub enum Error {
                 #[codec(index = 0)]
                 #[doc = "Vesting balance too high to send value"]
@@ -1615,7 +1660,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+            #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
             pub enum Event {
                 #[codec(index = 0)]
                 #[doc = "An account was created with some free balance."]
@@ -1881,7 +1929,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+            #[doc = "
+			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
+			of this pallet.
+			"]
             pub enum Error {
                 #[codec(index = 0)]
                 #[doc = "Message wasn't found in the mailbox."]
@@ -1941,7 +1992,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+            #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
             pub enum Event {
                 #[codec(index = 0)]
                 #[doc = "User sends message to program, which was successfully"]
@@ -2187,7 +2241,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+            #[doc = "
+			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
+			of this pallet.
+			"]
             pub enum Error {
                 #[codec(index = 0)]
                 Forbidden,
@@ -2239,7 +2296,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+            #[doc = "
+			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
+			of this pallet.
+			"]
             pub enum Error {
                 #[codec(index = 0)]
                 #[doc = "Occurs when given key already exists in queue."]
@@ -2301,7 +2361,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+            #[doc = "
+			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
+			of this pallet.
+			"]
             pub enum Error {
                 #[codec(index = 0)]
                 DuplicateItem,
@@ -2321,7 +2384,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+            #[doc = "
+			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
+			of this pallet.
+			"]
             pub enum Error {
                 #[codec(index = 0)]
                 #[doc = "Occurs when given task already exists in task pool."]
@@ -2395,7 +2461,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+            #[doc = "
+			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
+			of this pallet.
+			"]
             pub enum Error {
                 #[codec(index = 0)]
                 #[doc = "Attempt to signal GRANDPA pause when the authority set isn't live"]
@@ -2424,7 +2493,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+            #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
             pub enum Event {
                 #[codec(index = 0)]
                 #[doc = "New authority set has been applied."]
@@ -2536,7 +2608,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+            #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
             pub enum Event {
                 #[codec(index = 0)]
                 #[doc = "New session has happened. Note that the argument is the session index, not the"]
@@ -2628,21 +2703,24 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+            #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
             pub enum Event {
                 #[codec(index = 0)]
-                #[doc = "A sudo just took place. \\[result\\]"]
+                #[doc = "A sudo just took place. \[result\]"]
                 Sudid {
                     sudo_result:
                         ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
                 },
                 #[codec(index = 1)]
-                #[doc = "The \\[sudoer\\] just switched identity; the old key is supplied if one existed."]
+                #[doc = "The \[sudoer\] just switched identity; the old key is supplied if one existed."]
                 KeyChanged {
                     old_sudoer: ::core::option::Option<::sp_core::crypto::AccountId32>,
                 },
                 #[codec(index = 2)]
-                #[doc = "A sudo just took place. \\[result\\]"]
+                #[doc = "A sudo just took place. \[result\]"]
                 SudoAsDone {
                     sudo_result:
                         ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
@@ -2690,7 +2768,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+            #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
             pub enum Event {
                 #[codec(index = 0)]
                 #[doc = "A transaction fee `actual_fee`, of which `tip` was added to the minimum inclusion fee,"]
@@ -2828,7 +2909,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+            #[doc = "
+			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
+			of this pallet.
+			"]
             pub enum Error {
                 #[codec(index = 0)]
                 #[doc = "Too many calls batched."]
@@ -2837,7 +2921,10 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+            #[doc = "
+			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
+			by this pallet.
+			"]
             pub enum Event {
                 #[codec(index = 0)]
                 #[doc = "Batch of dispatches did not complete fully. Index of first failing dispatch given, as"]
