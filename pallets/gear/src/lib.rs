@@ -1327,7 +1327,7 @@ pub mod pallet {
         /// The funds stored by a ghost program will be release to the author once the program
         /// has been removed.
         #[pallet::call_index(1)]
-        // Always charge the same gas value.
+        // May charge different gas value depending on is code exists in storage and code lenght.
         #[pallet::weight(
             <T as Config>::WeightInfo::upload_program(code.len() as u32 / 1024, salt.len() as u32)
         )]
@@ -1438,7 +1438,7 @@ pub mod pallet {
         // May charge different gas value in 2 different cases:
         //  - Message sent to program.
         //  - Message sent to user.
-        #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32)
+        #[pallet::weight(<T as Config>::WeightInfo::send_message_program_interaction(payload.len() as u32)
                 .max(<T as Config>::WeightInfo::send_message_user_interaction(payload.len() as u32)))]
         pub fn send_message(
             origin: OriginFor<T>,
@@ -1467,7 +1467,7 @@ pub mod pallet {
                 ),
             );
 
-            // Program interaction
+            // Program interaction.
             if ProgramStorageOf::<T>::program_exists(destination) {
                 ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
@@ -1501,12 +1501,14 @@ pub mod pallet {
 
                 QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
                 return Ok(PostDispatchInfo {
-                    actual_weight: Some(<T as Config>::WeightInfo::send_message(payload_len)),
+                    actual_weight: Some(
+                        <T as Config>::WeightInfo::send_message_program_interaction(payload_len),
+                    ),
                     pays_fee: Pays::No,
                 });
             }
 
-            // User inteeraction
+            // User interaction.
             let message = message.into_stored(ProgramId::from_origin(origin));
 
             CurrencyOf::<T>::transfer(
@@ -1652,8 +1654,8 @@ pub mod pallet {
         #[pallet::call_index(5)]
         // May charge different gas value depend on is value zero or not.
         // Non-zero value may cause of extra database access.
-        #[pallet::weight(<T as Config>::WeightInfo::claim_value()
-            .max(<T as Config>::WeightInfo::claim_value_zero_balance()))]
+        #[pallet::weight(<T as Config>::WeightInfo::claim_value_non_zero_value()
+            .max(<T as Config>::WeightInfo::claim_value_zero_value()))]
         pub fn claim_value(
             origin: OriginFor<T>,
             message_id: MessageId,
@@ -1667,12 +1669,12 @@ pub mod pallet {
 
             if mailboxed.value().is_zero() {
                 return Ok(PostDispatchInfo {
-                    actual_weight: Some(<T as Config>::WeightInfo::claim_value_zero_balance()),
+                    actual_weight: Some(<T as Config>::WeightInfo::claim_value_zero_value()),
                     pays_fee: Pays::No,
                 });
             }
             Ok(PostDispatchInfo {
-                actual_weight: Some(<T as Config>::WeightInfo::claim_value()),
+                actual_weight: Some(<T as Config>::WeightInfo::claim_value_non_zero_value()),
                 pays_fee: Pays::No,
             })
         }

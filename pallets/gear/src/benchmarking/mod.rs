@@ -110,7 +110,6 @@ const API_BENCHMARK_BATCHES: u32 = 20;
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
 
 const PROGRAM_ID_DEFAULT: u32 = 100;
-
 const GAS_LIMIT_EXT: u64 = 100_000_000;
 const DEPOSIT_AMOUNT: u64 = 100_000_000_000_000;
 
@@ -414,7 +413,7 @@ benchmarks! {
         ExecutionEnvironment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
-    claim_value {
+    claim_value_non_zero_value {
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, DEPOSIT_AMOUNT.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, PROGRAM_ID_DEFAULT);
@@ -436,13 +435,13 @@ benchmarks! {
         ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller.clone()), original_message_id)
+    }: claim_value(RawOrigin::Signed(caller.clone()), original_message_id)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
         assert!(MailboxOf::<T>::is_empty(&caller));
     }
 
-    claim_value_zero_balance {
+    claim_value_zero_value {
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, DEPOSIT_AMOUNT.unique_saturated_into());
 
@@ -543,7 +542,7 @@ benchmarks! {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
 
-    send_message {
+    send_message_program_interaction {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, DEPOSIT_AMOUNT.unique_saturated_into());
@@ -554,7 +553,7 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller), program_id, payload, GAS_LIMIT_EXT, minimum_balance)
+    }: send_message(RawOrigin::Signed(caller), program_id, payload, GAS_LIMIT_EXT, minimum_balance)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
@@ -564,14 +563,15 @@ benchmarks! {
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, DEPOSIT_AMOUNT.unique_saturated_into());
         let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
-        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, PROGRAM_ID_DEFAULT).into_origin());
+        let user_id = ProgramId::from(12345);
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);
-    }: send_message(RawOrigin::Signed(caller.clone()), program_id, payload, GAS_LIMIT_EXT, minimum_balance)
+    }: send_message(RawOrigin::Signed(caller.clone()), user_id, payload, GAS_LIMIT_EXT, minimum_balance)
     verify {
-        assert!(!matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
+        assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
         assert!(MailboxOf::<T>::is_empty(&caller));
+        assert!(MailboxOf::<T>::is_empty(&user_id));
     }
 
     send_reply {
