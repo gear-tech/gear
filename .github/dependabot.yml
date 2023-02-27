@@ -8,7 +8,7 @@ updates:
 
   - package-ecosystem: "cargo"
     directory: "/examples/"
-    labels: ["A4-insubstantial", "E1-forcewindows", "E2-forcemacos"]
+    labels: ["A4-insubstantial"]
     schedule:
       interval: "daily"
 
