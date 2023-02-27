@@ -23,7 +23,7 @@ use runtime_primitives::{AccountId, AccountPublic, Balance};
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{sr25519::Public, Pair, Public as TPublic};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
-use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount, Saturating};
+use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
 
 pub const ALICE: u64 = 1_000_001;
 

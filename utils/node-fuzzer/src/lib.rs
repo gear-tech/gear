@@ -20,15 +20,15 @@ mod runtime;
 
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{CallGenRng, GearCall, GearProgGenConfig, SendMessageArgs, UploadProgramArgs};
-use gear_common::{event::ProgramChangeKind, storage::Limiter, GasPrice};
+use gear_common::event::ProgramChangeKind;
 use gear_core::ids::ProgramId;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeEvent, RuntimeOrigin, System};
 use gear_utils::NonEmpty;
 use once_cell::sync::OnceCell;
 use pallet_balances::Pallet as BalancesPallet;
-use pallet_gear::{BlockGasLimitOf, Config, Event, GasAllowanceOf};
-use parking_lot::{Mutex, RawMutex};
-use rand::{rngs::SmallRng, Rng, RngCore, SeedableRng};
+use pallet_gear::Event;
+use parking_lot::Mutex;
+use rand::rngs::SmallRng;
 use runtime::*;
 use sp_io::TestExternalities;
 

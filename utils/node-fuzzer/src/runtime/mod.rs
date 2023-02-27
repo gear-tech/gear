@@ -31,7 +31,6 @@ use sp_io::TestExternalities;
 
 pub use account::{account, ALICE};
 pub use block::{run_to_block, run_to_next_block, DEFAULT_GAS_LIMIT};
-use sp_runtime::DispatchErrorWithPostInfo;
 
 mod account;
 mod block;

@@ -316,8 +316,8 @@ case "$COMMAND" in
         client_tests "$ROOT_DIR" "$@"; ;;
 
       fuzz)
-        header "Running fuzzer for system consistency check"
-        run_fuzzer "$ROOT_DIR" "$@"; ;;
+        header "Running fuzzer for runtime panick checks"
+        run_fuzzer "$ROOT_DIR" ;;
 
       syscalls)
         header "Running syscalls integrity test of pallet-gear 'benchmarking' module on WASMI executor"
