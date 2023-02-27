@@ -2,7 +2,7 @@
 name = "gear-cli"
 version = "0.1.0"
 authors = ["Gear Technologies"]
-edition = "2018"
+edition = "2021"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
