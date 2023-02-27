@@ -447,13 +447,16 @@ pub struct MemoryWeights<T: Config> {
     /// it does not include cost for loading page data from storage.
     pub lazy_pages_write_after_read: u64,
 
+    /// +_+_+
+    pub lazy_pages_host_func_read: u64,
+    /// +_+_+
+    pub lazy_pages_host_func_write: u64,
+    /// +_+_+
+    pub lazy_pages_host_func_write_after_read: u64,
+
     /// Cost per one [GranularityPage] data loading from storage
     /// and moving it in program memory.
     pub load_page_data: u64,
-
-    /// Cost per one [GranularityPage] processing write accesses after execution.
-    /// Does not include cost for uploading page to storage.
-    pub write_access_page: u64,
 
     /// Cost per one [GranularityPage] uploading data to storage.
     pub upload_page_data: u64,
@@ -482,8 +485,10 @@ impl<T: Config> From<MemoryWeights<T>> for PageCosts {
             lazy_pages_read: val.lazy_pages_read.into(),
             lazy_pages_write: val.lazy_pages_write.into(),
             lazy_pages_write_after_read: val.lazy_pages_write_after_read.into(),
+            lazy_pages_host_func_read: val.lazy_pages_host_func_read.into(),
+            lazy_pages_host_func_write: val.lazy_pages_host_func_write.into(),
+            lazy_pages_host_func_write_after_read: val.lazy_pages_host_func_write_after_read.into(),
             load_page_data: val.load_page_data.into(),
-            write_access_page: val.write_access_page.into(),
             upload_page_data: val.upload_page_data.into(),
             static_page: val.static_page.into(),
             mem_grow: val.mem_grow.into(),
@@ -792,17 +797,31 @@ impl<T: Config> Default for MemoryWeights<T> {
             };
         }
 
+        // Memory access thru host function benchmark uses a syscall,
+        // which accesses memory. So, we have to subtract corresponding syscall weight.
+        macro_rules! host_func_access {
+            ($name:ident, $syscall:ident) => {
+                cost_per_granularity_page!($name).saturating_sub(cost_batched!($syscall))
+            };
+        }
+
         let lazy_pages_read = cost_per_granularity_page!(lazy_pages_read);
-        let lazy_pages_write = cost_per_granularity_page!(lazy_pages_write);
+        let lazy_pages_host_func_read = host_func_access!(lazy_pages_host_func_read, gr_debug);
         let kb_number_in_one_granularity_page = GranularityPage::size() as u64 / 1024;
 
         Self {
             lazy_pages_read,
-            lazy_pages_write,
+            lazy_pages_write: cost_per_granularity_page!(lazy_pages_write),
             lazy_pages_write_after_read: cost_per_granularity_page!(lazy_pages_write_after_read),
+            lazy_pages_host_func_read,
+            lazy_pages_host_func_write: host_func_access!(lazy_pages_host_func_write, gr_read),
+            lazy_pages_host_func_write_after_read: host_func_access!(
+                lazy_pages_host_func_read_write,
+                gr_random
+            )
+            .saturating_sub(lazy_pages_host_func_read),
             load_page_data: cost_per_granularity_page!(lazy_pages_read_storage_data)
                 .saturating_sub(lazy_pages_read),
-            write_access_page: lazy_pages_write - lazy_pages_read,
             // TODO: add for upload cost here (cost for one db write) (issue #2226).
             upload_page_data: cost!(db_write_per_kb)
                 .saturating_mul(kb_number_in_one_granularity_page),
