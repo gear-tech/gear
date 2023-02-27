@@ -311,22 +311,26 @@ jobs:
         run: cargo build -p gear-cli --profile production
 
       - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
+        #if: ${{ github.event_name == 'push' }}
         continue-on-error: true
-        run: |
-          tar -cf /tmp/build_target_${{ github.ref_name }}.tar ./target
-          tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
+        run: >
+          ls -la \
+          && sudo tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target \
+          && sudo tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot \
+          && sudo tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git \
+          && sudo mv /tmp/*.tar /root/cache/
+
 
       - name: "Cache: Pack to temp"
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
-        run: |
-          tar -cf /tmp/build_target.tar ./target
-          tar -cf /tmp/build_cache.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
+        run: >
+          ls -la \
+          && sudo tar -cf /tmp/build_target.tar ./target \
+          && sudo tar -cf /tmp/build_cache.tar /tmp/cachepot \
+          && sudo tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          && sudo mkdir -p /root/cache/${{ github.event.pull_request.number }} \
+          && sudo mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
 
       - name: Prepare artifacts
         if: github.event_name == 'push'
