@@ -117,11 +117,12 @@ jobs:
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
-        run: |
-          tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target
-          tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot
-          tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
+        run: >
+          ls -la \
+          && sudo tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target \
+          && sudo tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot \
+          && sudo tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git \
+          && sudo mv /tmp/*.tar /root/cache/
 
   build:
     # needs: spec_version
