@@ -51,12 +51,15 @@ pub struct PageCosts {
     /// Cost per one [GranularityPage] `write after read` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
     pub lazy_pages_write_after_read: CostPerPage<GranularityPage>,
+    /// +_+_+
+    pub lazy_pages_host_func_read: CostPerPage<GranularityPage>,
+    /// +_+_+
+    pub lazy_pages_host_func_write: CostPerPage<GranularityPage>,
+    /// +_+_+
+    pub lazy_pages_host_func_write_after_read: CostPerPage<GranularityPage>,
     /// Cost per one [GranularityPage] data loading from storage
     /// and moving it in program memory.
     pub load_page_data: CostPerPage<GranularityPage>,
-    /// Cost per one [GranularityPage] processing write accesses after execution.
-    /// Does not include cost for uploading page to storage.
-    pub write_access_page: CostPerPage<GranularityPage>,
     /// Cost per one [GranularityPage] uploading data to storage.
     pub upload_page_data: CostPerPage<GranularityPage>,
     /// Cost per one [WasmPage] static page. Static pages can have static data,
@@ -75,9 +78,11 @@ impl PageCosts {
             signal_read: self.lazy_pages_read,
             signal_write: self.lazy_pages_write.add(self.upload_page_data),
             signal_write_after_read: self.lazy_pages_write_after_read.add(self.upload_page_data),
-            host_func_read_access: self.write_access_page,
-            host_func_write_access: self.write_access_page.add(self.upload_page_data),
-            host_func_write_after_read_access: self.upload_page_data,
+            host_func_read_access: self.lazy_pages_host_func_read,
+            host_func_write_access: self.lazy_pages_host_func_write.add(self.upload_page_data),
+            host_func_write_after_read_access: self
+                .lazy_pages_host_func_write_after_read
+                .add(self.upload_page_data),
             load_page_storage_data: self.load_page_data.add(self.parachain_load_heuristic),
         }
     }
@@ -89,8 +94,10 @@ impl PageCosts {
             lazy_pages_read: a,
             lazy_pages_write: a,
             lazy_pages_write_after_read: a,
+            lazy_pages_host_func_read: a,
+            lazy_pages_host_func_write: a,
+            lazy_pages_host_func_write_after_read: a,
             load_page_data: a,
-            write_access_page: a,
             upload_page_data: a,
             static_page: b,
             mem_grow: b,

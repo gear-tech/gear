@@ -263,8 +263,14 @@ where
             exec.block_config.page_costs.lazy_pages_write = rng.gen_range(0..MAX_COST).into();
             exec.block_config.page_costs.lazy_pages_write_after_read =
                 rng.gen_range(0..MAX_COST).into();
+            exec.block_config.page_costs.lazy_pages_host_func_read =
+                rng.gen_range(0..MAX_COST).into();
+            exec.block_config.page_costs.lazy_pages_host_func_write =
+                rng.gen_range(0..MAX_COST).into();
+            exec.block_config
+                .page_costs
+                .lazy_pages_host_func_write_after_read = rng.gen_range(0..MAX_COST).into();
             exec.block_config.page_costs.load_page_data = rng.gen_range(0..MAX_COST).into();
-            exec.block_config.page_costs.write_access_page = rng.gen_range(0..MAX_COST).into();
             exec.block_config.page_costs.upload_page_data = rng.gen_range(0..MAX_COST).into();
 
             let charged_for_pages = page_sets.charged_for_pages(&exec.block_config.page_costs);
