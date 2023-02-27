@@ -15,7 +15,7 @@ fuzz_target!(|seed: u64| {
     dump_seed(seed).expect("internal error: failed dumping seed");
 
     log::info!("Running the seed {seed}");
-    let _ = node_fuzzer::run(seed);
+    node_fuzzer::run(seed);
 });
 
 fn init_logger() {
