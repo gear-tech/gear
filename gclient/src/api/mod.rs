@@ -27,9 +27,8 @@ use crate::{
     EventListener,
 };
 use error::*;
-use gp::api::{signer::Signer, Api};
+use gsdk::{ext::sp_runtime::AccountId32, signer::Signer, Api};
 use std::{marker::PhantomData, ops::Deref};
-use subxt::ext::sp_runtime::AccountId32;
 
 /// The API instance contains methods to access the node.
 #[derive(Clone)]
@@ -135,7 +134,7 @@ impl GearApi {
     ///
     /// ```
     /// use gclient::{GearApi, Result};
-    /// use subxt::ext::sp_runtime::AccountId32;
+    /// use gsdk::ext::sp_runtime::AccountId32;
     /// # use hex_literal::hex;
     ///
     /// #[tokio::test]

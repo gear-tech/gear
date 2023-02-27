@@ -25,7 +25,7 @@ pub use subscription::*;
 use crate::{Error, Result};
 use async_trait::async_trait;
 use gear_core::ids::MessageId;
-use gp::api::generated::api::{
+use gsdk::metadata::{
     gear::Event as GearEvent,
     runtime_types::{
         gear_common::event::DispatchStatus as GenDispatchStatus,

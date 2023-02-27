@@ -19,15 +19,13 @@
 use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
-use gp::api::{
+use gsdk::{
     config::GearConfig,
-    generated::api::{gear::Event as GearEvent, Event},
+    ext::sp_core::H256,
+    metadata::{gear::Event as GearEvent, Event},
     types::Blocks,
 };
-use subxt::{
-    events::{Events, Phase},
-    ext::sp_core::H256,
-};
+use subxt::events::Events;
 
 /// Event listener that allows catching and processing events propagated through
 /// the network.
@@ -73,7 +71,7 @@ impl EventProcessor for EventListener {
 
         while let Some(events) = self.0.next_events().await {
             for event in events?.iter() {
-                if let Some(data) = predicate(event?.as_root_event::<(Phase, Event)>()?.1) {
+                if let Some(data) = predicate(event?.as_root_event::<Event>()?) {
                     res.push(data);
                 }
             }
@@ -142,7 +140,7 @@ impl EventListener {
     ) -> Option<T> {
         events
             .iter()
-            .filter_map(|event| predicate(event.ok()?.as_root_event::<(Phase, Event)>().ok()?.1))
+            .filter_map(|event| predicate(event.ok()?.as_root_event::<Event>().ok()?))
             .next()
     }
 }
