@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg(feature = "bin")]
 use common::env;
 use gsdk::{result::Error, Api};
 use std::path::PathBuf;
