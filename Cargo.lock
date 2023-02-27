@@ -3449,6 +3449,7 @@ dependencies = [
  "futures-timer",
  "gear-core",
  "gear-program",
+ "gear-utils",
  "hex",
  "hex-literal",
  "log",
@@ -6367,7 +6368,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arbitrary",
- "env_logger 0.10.0",
  "frame-support",
  "frame-system",
  "gear-call-gen",
@@ -6382,13 +6382,9 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
- "pallet-gear-gas",
- "pallet-gear-messenger",
- "pallet-gear-program",
  "parity-scale-codec",
  "parking_lot 0.12.1",
  "rand 0.8.5",
- "sc-service",
  "sp-consensus-babe",
  "sp-consensus-slots",
  "sp-core",
@@ -6401,7 +6397,10 @@ dependencies = [
 name = "node-fuzzer-fuzz"
 version = "0.1.0"
 dependencies = [
+ "env_logger 0.10.0",
+ "gear-utils",
  "libfuzzer-sys",
+ "log",
  "node-fuzzer",
 ]
 

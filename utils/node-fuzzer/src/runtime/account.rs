@@ -17,11 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_common::Origin;
-use runtime_primitives::{AccountId, AccountPublic};
+use gear_runtime::Runtime;
+use pallet_gear::BlockGasLimitOf;
+use runtime_primitives::{AccountId, AccountPublic, Balance};
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{sr25519::Public, Pair, Public as TPublic};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
-use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
+use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount, Saturating};
 
 pub const ALICE: u64 = 1_000_001;
 
@@ -30,7 +32,7 @@ pub fn account<T: Origin>(v: T) -> AccountId {
     AccountId::unchecked_from(v.into_origin())
 }
 
-// TODO [sab] BabeId and GrandpaId are not needed at first?
+// TODO #2307 BabeId and GrandpaId are not needed at first?
 /// Generate authority keys.
 pub fn authority_keys_from_seed(s: &str) -> (AccountId, BabeId, GrandpaId) {
     (
@@ -53,4 +55,8 @@ pub fn get_pub_key_from_seed<T: TPublic>(seed: &str) -> <T::Pair as Pair>::Publi
     T::Pair::from_string(&format!("//{}", seed), None)
         .expect("static values are valid; qed")
         .public()
+}
+
+pub fn acc_max_balance() -> Balance {
+    BlockGasLimitOf::<Runtime>::get().saturating_mul(20) as u128
 }

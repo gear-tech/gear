@@ -16,35 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_call_gen::{GearCall, SendMessageArgs, UploadProgramArgs, GearProgGenConfig};
-use gear_common::{storage::Limiter, GasPrice, event::ProgramChangeKind};
+mod runtime;
+
+use frame_support::pallet_prelude::DispatchResultWithPostInfo;
+use gear_call_gen::{CallGenRng, GearCall, GearProgGenConfig, SendMessageArgs, UploadProgramArgs};
+use gear_common::{event::ProgramChangeKind, storage::Limiter, GasPrice};
 use gear_core::ids::ProgramId;
+use gear_runtime::{AccountId, Gear, Runtime, RuntimeEvent, RuntimeOrigin, System};
 use gear_utils::NonEmpty;
-use gear_runtime::{Gear, Runtime, RuntimeOrigin, System, RuntimeEvent};
 use once_cell::sync::OnceCell;
 use pallet_balances::Pallet as BalancesPallet;
-use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf, Event};
-use parking_lot::Mutex;
+use pallet_gear::{BlockGasLimitOf, Config, Event, GasAllowanceOf};
+use parking_lot::{Mutex, RawMutex};
 use rand::{rngs::SmallRng, Rng, RngCore, SeedableRng};
 use runtime::*;
 use sp_io::TestExternalities;
 
-mod generator;
-mod runtime;
+type ContextMutex = Mutex<Context>;
 
 // Saving ext is planned to be multithreaded, so sync primitive is used
 // TODO #2189
 static TEST_EXT: OnceCell<Mutex<TestExternalities>> = OnceCell::new();
 static CONTEXT: OnceCell<Mutex<Context>> = OnceCell::new();
-
-// TODO:
-// 1. send_message
-// 2. test panic reproduction
-// 3. Fix gasAllowance put low value (249...000) before execution.
-// 4. Change SmallRng to something more reproducible.
-// 5. Logging to file
-// 6. Cleanup
-// 7. Remove recursions from generated programs
 
 struct Context {
     programs: Vec<ProgramId>,
@@ -59,117 +52,117 @@ impl Context {
 }
 
 /// Runs all the fuzz testing internal machinery.
-pub fn run(start_seed: u64) {
-    init_logger();
-
+pub fn run(seed: u64) {
     let sender = runtime::account(ALICE);
     let test_ext = TEST_EXT.get_or_init(|| Mutex::new(new_test_ext()));
     let context = CONTEXT.get_or_init(|| Mutex::new(Context::new()));
-    let config = { 
-        let mut config = GearProgGenConfig::new_normal();
-        config.remove_recursion = (1, 1).into();
-
-        config
-    };
 
     test_ext.lock().execute_with(|| {
-        let res = BalancesPallet::<Runtime>::set_balance(
-            RuntimeOrigin::root(),
-            sender.clone().into(),
-            <Runtime as Config>::GasPrice::gas_price(BlockGasLimitOf::<Runtime>::get() * 20),
-            BalancesPallet::<Runtime>::reserved_balance(&sender),
-        );
-        log::info!("Balance update res {:?}", res);
+        // Increase maximum balance of the `sender`.
+        {
+            increase_to_max_balance(sender.clone())
+                .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
+            log::info!(
+                "Current balance of the sender - {}",
+                BalancesPallet::<Runtime>::free_balance(&sender)
+            );
+        }
 
-        GasAllowanceOf::<Runtime>::put(250_000_000_000);
+        // Generate gear call.
+        let call = generate_gear_call::<SmallRng>(seed, context);
 
-        log::info!(
-            "Balance of the sender {}",
-            BalancesPallet::<Runtime>::free_balance(&sender)
-        );
-        log::info!(
-            "Block gas limit in the beginning {}",
-            GasAllowanceOf::<Runtime>::get()
-        );
+        // Execute gear call.
+        let call_res = execute_gear_call(sender, call);
+        log::info!("Extrinsic result: {call_res:?}");
 
-        let mut rand = SmallRng::seed_from_u64(start_seed);
-
-        // Generate args
-        let call: GearCall = match rand.gen_range(0..=1) {
-            0 => UploadProgramArgs::generate::<SmallRng>(
-                rand.next_u64(),
-                rand.next_u64(),
-                240_000_000_000,
-                config
-            )
-            .into(),
-            1 => match NonEmpty::from_vec(context.lock().programs.clone()) {
-                Some(existing_programs) => SendMessageArgs::generate::<SmallRng>(
-                    existing_programs,
-                    rand.next_u64(),
-                    240_000_000_000,
-                )
-                .into(),
-                None => UploadProgramArgs::generate::<SmallRng>(
-                    rand.next_u64(),
-                    rand.next_u64(),
-                    240_000_000_000,
-                    config
-                )
-                .into(),
-            },
-            _ => unreachable!(),
-        };
-
-        // Execute calls
-        let call_res = match call {
-            GearCall::UploadProgram(args) => {
-                let UploadProgramArgs((code, salt, payload, gas_limit, value)) = args;
-                Gear::upload_program(
-                    RuntimeOrigin::signed(sender),
-                    code,
-                    salt,
-                    payload,
-                    gas_limit,
-                    value,
-                )
-            }
-            GearCall::SendMessage(args) => {
-                let SendMessageArgs((destination, payload, gas_limit, value)) = args;
-                Gear::send_message(
-                    RuntimeOrigin::signed(sender),
-                    destination,
-                    payload,
-                    gas_limit,
-                    value,
-                )
-            }
-            _ => unreachable!("unsupported currently"),
-        };
-        log::info!("Extrinsic result {call_res:?}");
-
-        // TODO [sab] catch panic here and save the ext.
+        // Run task and message queues with max possible gas limit.
         run_to_next_block();
 
-        let mut initialized_programs: Vec<_> = System::events()
-            .into_iter()
-            .filter_map(|v| 
-                if let RuntimeEvent::Gear(Event::ProgramChanged { id, change: ProgramChangeKind::Active { .. } }) = v.event {
-                    Some(id)
-                } else {
-                    None
-                }
-            )
-            .collect();
-        
-        context.lock().programs.append(&mut initialized_programs);
-
+        // Update context after the run.
+        update_context(context)
     });
 }
 
-fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> GearCall {
+    let config = fuzzer_config();
+    let mut rand = Rng::seed_from_u64(seed);
+
+    match rand.gen_range(0..=1) {
+        0 => UploadProgramArgs::generate::<Rng>(
+            rand.next_u64(),
+            rand.next_u64(),
+            DEFAULT_GAS_LIMIT,
+            config,
+        )
+        .into(),
+        1 => match NonEmpty::from_vec(context.lock().programs.clone()) {
+            Some(existing_programs) => SendMessageArgs::generate::<Rng>(
+                existing_programs,
+                rand.next_u64(),
+                DEFAULT_GAS_LIMIT,
+            )
+            .into(),
+            None => UploadProgramArgs::generate::<Rng>(
+                rand.next_u64(),
+                rand.next_u64(),
+                DEFAULT_GAS_LIMIT,
+                config,
+            )
+            .into(),
+        },
+        _ => unreachable!("Generate in range 0..=1."),
+    }
+}
+
+fn fuzzer_config() -> GearProgGenConfig {
+    let mut config = GearProgGenConfig::new_normal();
+    config.remove_recursion = (1, 1).into();
+
+    config
+}
+
+fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {
+    match call {
+        GearCall::UploadProgram(args) => {
+            let UploadProgramArgs((code, salt, payload, gas_limit, value)) = args;
+            Gear::upload_program(
+                RuntimeOrigin::signed(sender),
+                code,
+                salt,
+                payload,
+                gas_limit,
+                value,
+            )
+        }
+        GearCall::SendMessage(args) => {
+            let SendMessageArgs((destination, payload, gas_limit, value)) = args;
+            Gear::send_message(
+                RuntimeOrigin::signed(sender),
+                destination,
+                payload,
+                gas_limit,
+                value,
+            )
+        }
+        _ => unreachable!("Unsupported currently."),
+    }
+}
+
+fn update_context(context: &ContextMutex) {
+    let mut initialized_programs: Vec<_> = System::events()
+        .into_iter()
+        .filter_map(|v| {
+            if let RuntimeEvent::Gear(Event::ProgramChanged {
+                id,
+                change: ProgramChangeKind::Active { .. },
+            }) = v.event
+            {
+                Some(id)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    context.lock().programs.append(&mut initialized_programs);
 }

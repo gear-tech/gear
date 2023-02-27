@@ -29,6 +29,11 @@ use sp_consensus_babe::{
 use sp_consensus_slots::Slot;
 use sp_runtime::{Digest, DigestItem};
 
+/// This is set to some big constant, instead of setting to `BlockGasLimitOf::<Runtime>::get`
+/// because of the known possible dead-lock for the message in the queue, when it's valid gas
+/// limit is more than maximum possible gas rest for the queue execution.
+pub const DEFAULT_GAS_LIMIT: u64 = 240_000_000_000;
+
 /// Run gear-protocol to the next block with max gas given for the execution.
 pub fn run_to_next_block() {
     run_to_block(System::block_number() + 1, None);
@@ -76,27 +81,12 @@ pub fn on_initialize() {
     Gear::on_initialize(System::block_number());
 }
 
-// TODO [sab] why without system?
 /// Run on_finalize hooks in pallets reversed order, as they appear in `AllPalletsWithSystem`.
-pub(crate) fn on_finalize_without_system() {
+// TODO #2307
+pub fn on_finalize_without_system() {
     let bn = System::block_number();
     Gear::on_finalize(bn);
     GearMessenger::on_finalize(bn);
     GearGas::on_finalize(bn);
     Authorship::on_finalize(bn);
 }
-
-// // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
-// pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
-//     GearPayment::on_finalize(current_blk);
-//     GearGas::on_finalize(current_blk);
-//     Gear::on_finalize(current_blk);
-//     GearMessenger::on_finalize(current_blk);
-//     GearProgram::on_finalize(current_blk);
-//     Authorship::on_finalize(current_blk);
-//     TransactionPayment::on_finalize(current_blk);
-//     Balances::on_finalize(current_blk);
-//     Grandpa::on_finalize(current_blk);
-//     Babe::on_finalize(current_blk);
-//     System::on_finalize(current_blk);
-// }

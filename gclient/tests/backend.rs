@@ -38,7 +38,7 @@ async fn backend_errors_handled_by_sandbox() -> Result<()> {
     let (mid, _pid, _) = api
         .upload_program_bytes(
             WASM_BINARY,
-            gclient::now_in_micros().to_le_bytes(),
+            gclient::now_micros().to_le_bytes(),
             [],
             gas_limit,
             0,

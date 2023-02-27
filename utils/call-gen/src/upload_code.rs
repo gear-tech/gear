@@ -18,7 +18,7 @@
 
 //! Upload code args generator.
 
-use crate::{CallGenRng, GearCall, Seed, GearProgGenConfig};
+use crate::{CallGenRng, GearCall, GearProgGenConfig, Seed};
 
 /// Upload code args
 ///

@@ -1,19 +1,18 @@
 [package]
 name = "node-fuzzer-fuzz"
 version = "0.1.0"
+authors = ["Gear Technologies"]
 edition = "2021"
-
-[profile.release]
-lto = "fat"
-debug-assertions = false
-incremental = false
 
 [package.metadata]
 cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-node-fuzzer = { path = "..", features = ["lazy-pages"] }
+node-fuzzer = { path = ".." }
+gear-utils = { path = "../../utils" }
+env_logger = "0.10"
+log = { version = "0.4.17" }
 
 [[bin]]
 name = "main"

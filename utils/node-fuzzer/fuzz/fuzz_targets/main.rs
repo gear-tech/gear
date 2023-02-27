@@ -1,8 +1,51 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
+use std::{
+    fs::{File, OpenOptions},
+    io::Write,
+    path::Path,
+};
 
-fuzz_target!(|a: u64| {
-    println!("generated - {a}");
-    let _ = node_fuzzer::run(a);
+const SEEDS_STORE: &str = "fuzzing_seeds";
+
+fuzz_target!(|seed: u64| {
+    init_logger();
+
+    dump_seed(seed).expect("internal error: failed dumping seed");
+
+    log::info!("Running the seed {seed}");
+    let _ = node_fuzzer::run(seed);
 });
+
+fn init_logger() {
+    let _ = env_logger::Builder::from_default_env()
+        .format_module_path(false)
+        .format_level(true)
+        .try_init();
+}
+
+// Dumps seed to the file before running fuzz test.
+//
+// Puts in the beginning the timestamp string if file is new.
+fn dump_seed(seed: u64) -> Result<(), String> {
+    let is_new_file = !Path::new(SEEDS_STORE).exists();
+    let dump_timestamp_if_new = |file: &mut File| {
+        if is_new_file {
+            writeln!(file, "Started fuzzing at {}", gear_utils::now_millis())
+        } else {
+            Ok(())
+        }
+    };
+
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(SEEDS_STORE)
+        .map_err(|e| e.to_string())
+        .and_then(|mut file| {
+            dump_timestamp_if_new(&mut file)
+                .and_then(|_| writeln!(file, "{seed}"))
+                .map_err(|e| e.to_string())
+        })
+}

@@ -18,25 +18,31 @@
 
 use account::*;
 use block::*;
-use frame_support::traits::{Currency, GenesisBuild};
+use frame_support::{
+    dispatch::DispatchResultWithPostInfo,
+    traits::{Currency, GenesisBuild},
+};
 use frame_system::GenesisConfig as SystemConfig;
-use gear_runtime::{Balances, Runtime, SessionConfig, SessionKeys};
-use pallet_balances::GenesisConfig as BalancesConfig;
+use gear_common::GasPrice;
+use gear_runtime::{AccountId, Balances, Runtime, RuntimeOrigin, SessionConfig, SessionKeys};
+use pallet_balances::{GenesisConfig as BalancesConfig, Pallet as BalancesPallet};
+use pallet_gear::Config as GearConfig;
 use sp_io::TestExternalities;
 
 pub use account::{account, ALICE};
-pub use block::{run_to_block, run_to_next_block};
+pub use block::{run_to_block, run_to_next_block, DEFAULT_GAS_LIMIT};
+use sp_runtime::DispatchErrorWithPostInfo;
 
 mod account;
 mod block;
 
-// Build genesis storage according to the mock runtime.
+/// Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> TestExternalities {
     let mut t = SystemConfig::default().build_storage::<Runtime>().unwrap();
 
     let authorities = vec![authority_keys_from_seed("Authority")];
     // Vector of tuples of accounts and their balances
-    let balances = vec![(account(ALICE), 1 << 60)];
+    let balances = vec![(account(ALICE), account::acc_max_balance())];
 
     BalancesConfig::<Runtime> {
         balances: balances
@@ -52,7 +58,7 @@ pub fn new_test_ext() -> TestExternalities {
     .assimilate_storage(&mut t)
     .unwrap();
 
-    // TODO [sab] needed for the runtime fuzzer?
+    // TODO #2307 needed for the runtime fuzzer?
     SessionConfig {
         keys: authorities
             .into_iter()
@@ -78,4 +84,14 @@ pub fn new_test_ext() -> TestExternalities {
     });
 
     ext
+}
+
+pub fn increase_to_max_balance(who: AccountId) -> DispatchResultWithPostInfo {
+    let new_reserved = BalancesPallet::<Runtime>::reserved_balance(&who);
+    BalancesPallet::<Runtime>::set_balance(
+        RuntimeOrigin::root(),
+        who.into(),
+        <Runtime as GearConfig>::GasPrice::gas_price(account::acc_max_balance() as u64),
+        new_reserved,
+    )
 }

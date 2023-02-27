@@ -19,6 +19,7 @@
 //! Useful utilities needed for testing and other stuff.
 
 pub use nonempty::NonEmpty;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Trait describes a collection which can get a value by it's index.
 /// The index can be in any range, even [length(implementor), ..).
@@ -36,4 +37,21 @@ impl<V> RingGet<V> for NonEmpty<V> {
         // Guaranteed to have value, because index is in the range of [0; self.len()).
         self.get(index % self.len()).expect("guaranteed to be some")
     }
+}
+
+/// Returns time elapsed since [`UNIX_EPOCH`] in milliseconds.
+pub fn now_millis() -> u64 {
+    now_duration().as_millis() as u64
+}
+
+/// Returns time elapsed since [`UNIX_EPOCH`] in microseconds.
+pub fn now_micros() -> u128 {
+    now_duration().as_micros()
+}
+
+/// Returns [`Duration`] from [`UNIX_EPOCH`] until now.
+pub fn now_duration() -> Duration {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Internal error: current time before UNIX Epoch")
 }

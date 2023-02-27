@@ -1,15 +1,13 @@
 [package]
 name = "node-fuzzer"
 version = "0.1.0"
+authors = ["Gear Technologies"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = { version = "1.0.68" }
 arbitrary = "1.2.3"
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
-env_logger = "0.10"
 hex = "0.4.3"
 log = { version = "0.4.17" }
 once_cell = "1.17.0"
@@ -17,20 +15,16 @@ parking_lot = "0.12.1"
 rand = { version = "0.8.0", features = ["small_rng"] }
 
 gear-call-gen = { path = "../call-gen" }
-runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
+runtime-primitives = { path = "../../runtime/primitives", package = "gear-runtime-primitives", default-features = false }
 gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
 gear-utils = { path = "../utils" }
-gear-runtime = { path = "../../runtime/gear" }
+gear-runtime = { path = "../../runtime/gear", features = ['lazy-pages'] }
 pallet-gear = { path = "../../pallets/gear" }
-pallet-gear-gas = { path = "../../pallets/gas" }
-pallet-gear-messenger = { version = "1.0.0", path = "../../pallets/gear-messenger" }
-pallet-gear-program = { path = "../../pallets/gear-program" }
 
 frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-core = { version = "7.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
@@ -38,15 +32,3 @@ sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-te
 sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-
-[profile.release]
-lto = "fat"
-debug-assertions = false
-incremental = false
-
-[features]
-default = ["lazy-pages"]
-lazy-pages = [
-    "pallet-gear/lazy-pages",
-    "gear-runtime/lazy-pages",
-]
