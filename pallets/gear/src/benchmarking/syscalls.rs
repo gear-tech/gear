@@ -42,6 +42,7 @@ use gear_core::{
     reservation::GasReservationSlot,
 };
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
+use sp_core::Get;
 use sp_runtime::traits::UniqueSaturatedInto;
 
 pub(crate) struct Benches<T>
@@ -130,6 +131,7 @@ where
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
         let err_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
+        let mailbox_threshold = <T as Config>::MailboxThreshold::get(); // It is not allowed to reserve less than mailbox threshold
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -138,7 +140,7 @@ where
                 r * API_BENCHMARK_BATCH_SIZE,
                 vec![
                     // gas amount
-                    Regular(Instruction::I64Const(1)),
+                    Regular(Instruction::I64Const(mailbox_threshold as i64)),
                     // duration
                     Regular(Instruction::I32Const(1)),
                     // err_rid ptr
@@ -875,44 +877,21 @@ where
     }
 
     pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
-        let err_mid_ptr = 1;
-        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_ptr);
-
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::SignalFrom],
-            reply_body: Some(body::repeated_dyn(
+            handle_body: Some(body::repeated_dyn(
                 r * API_BENCHMARK_BATCH_SIZE,
                 vec![
                     // err_mid ptr
-                    Counter(err_mid_ptr, Self::ERR_LEN_SIZE),
+                    Regular(Instruction::I32Const(0xffff)),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
             )),
             ..Default::default()
         });
-        let instance = Program::<T>::new(code, vec![])?;
-        let msg_id = MessageId::from(10);
-        let msg = Message::new(
-            msg_id,
-            instance.addr.as_bytes().into(),
-            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
-            Default::default(),
-            Some(1_000_000),
-            0,
-            None,
-        )
-        .into_stored();
-        MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
-            .expect("Error during mailbox insertion");
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Signal(msg_id, 1),
-            vec![],
-            err_len_ptrs,
-            Default::default(),
-        )
+        Self::prepare_handle(code, 0, 0..0)
     }
 
     pub fn gr_reply_push_input(r: u32) -> Result<Exec<T>, &'static str> {

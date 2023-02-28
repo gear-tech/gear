@@ -41,6 +41,7 @@ members = [
     "examples/binaries/proxy",
     "examples/binaries/proxy-relay",
     "examples/binaries/proxy-with-gas",
+    "examples/binaries/proxy-reservation-with-gas",
     "examples/binaries/reserve-gas",
     "examples/binaries/send-from-reservation",
     "examples/binaries/signal-entry",
@@ -53,10 +54,12 @@ members = [
     "examples/binaries/waiter",
     "examples/binaries/waiting-proxy",
     "galloc",
+    "gcli",
     "gclient",
     "gcore",
     "gear-test",
     "gmeta",
+    "gsdk",
     "gstd",
     "gsys",
     "gtest",
@@ -64,28 +67,27 @@ members = [
     "node/service",
     "node/authorship",
     "pallets/*",
-    "program",
     "runtime/gear",
     "runtime/vara",
-    "utils/gear-runtime-test-cli",
-    "utils/regression-analysis",
-    "utils/junit-common",
-    "utils/wasm-proc",
-    "utils/wasm-builder",
-    "utils/wasm-info",
+    "utils/bags-thresholds",
+    "utils/call-gen",
     "utils/economic-checks",
     "utils/economic-checks/fuzz",
-    "utils/wasm-gen",
-    "utils/wasm-instrument",
-    "utils/node-loader/",
-    "utils/test-runtime",
-    "utils/test-runtime/client",
-    "utils/validator-checks",
-    "utils/call-gen",
-    "utils/utils",
-    "utils/bags-thresholds",
+    "utils/gear-runtime-test-cli",
     # TODO: Remove gov deps
     # "utils/integral-tests",
+    "utils/junit-common",
+    "utils/node-loader/",
+    "utils/regression-analysis",
+    "utils/test-runtime",
+    "utils/test-runtime/client",
+    "utils/utils",
+    "utils/validator-checks",
+    "utils/wasm-builder",
+    "utils/wasm-gen",
+    "utils/wasm-info",
+    "utils/wasm-instrument",
+    "utils/wasm-proc",
 ]
 
 [profile.release]
@@ -117,11 +119,9 @@ lto = "fat"
 codegen-units = 1
 
 [patch.crates-io]
-# Two dependencies below go for `subxt v0.25.0`
-sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-subxt = { git = "https://github.com/paritytech/subxt", rev = "d41f6574" }
-
-# TODO: remove after bytecodealliance/wasmtime#5494 or Substrate update
+# TODO: remove after Substrate update
 wasmtime-runtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }
 wasmtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }
+
+# TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
+blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "fix-clang-cl-cross" }

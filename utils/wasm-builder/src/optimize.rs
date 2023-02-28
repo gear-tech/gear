@@ -1,6 +1,7 @@
 use crate::builder_error::BuilderError;
 use anyhow::{Context, Result};
 use colored::Colorize;
+use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pwasm_utils::{
     parity_wasm,
     parity_wasm::elements::{Internal, Module, Section, Serialize},
@@ -19,7 +20,7 @@ const OPTIMIZED_EXPORTS: [&str; 7] = [
     "init",
     "state",
     "metahash",
-    "__gear_stack_end",
+    STACK_END_EXPORT_NAME,
 ];
 
 /// Type of the output wasm.

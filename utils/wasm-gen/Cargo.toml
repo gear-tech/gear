@@ -13,8 +13,8 @@ wasmprinter = "0.2"
 gsys = { path = "../../gsys" }
 
 [dev-dependencies]
-rand = { version = "0.8.0", features = ["small_rng"] }
-wasmparser = { version = "0.99.0" }
-wat = "1.0.59"
+rand = { version = "0.8.5", features = ["small_rng"] }
+wasmparser = "0.101.1"
+wat = "1.0.60"
 indicatif = "*"
-proptest = "1.0.0"
+proptest = "1.1.0"

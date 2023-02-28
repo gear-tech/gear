@@ -28,6 +28,7 @@ use gear_wasm_instrument::{
         },
     },
     syscalls::SysCallName,
+    STACK_END_EXPORT_NAME,
 };
 pub use gsys;
 use gsys::HashWithValue;
@@ -472,7 +473,7 @@ impl<'a> WasmGen<'a> {
     }
 
     // ~1% of cases with invalid stack size not a multiple of the page size
-    // ~1% of cases with invalid stask size that is biger than import memory
+    // ~1% of cases with invalid stack size that is bigger than import memory
     // ~1% of cases stack size is not generated at all
     // all other cases should be valid
     fn get_gear_stack_end_seed(&mut self, min_memory_size_pages: u32) -> GearStackEndExportSeed {
@@ -559,7 +560,7 @@ impl<'a> WasmGen<'a> {
             return (
                 builder::from_module(module)
                     .export()
-                    .field("__gear_stack_end")
+                    .field(STACK_END_EXPORT_NAME)
                     .internal()
                     .global(last_element_num.try_into().unwrap())
                     .build()

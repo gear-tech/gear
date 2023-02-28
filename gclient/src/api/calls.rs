@@ -19,30 +19,28 @@
 use super::{GearApi, Result};
 use crate::{utils, Error};
 use gear_core::ids::*;
-use gp::api::generated::api::{
-    balances::Event as BalancesEvent,
-    gear::Event as GearEvent,
-    runtime_types::{
-        frame_system::pallet::Call as SystemCall,
-        gear_common::event::{CodeChangeKind, MessageEntry},
-        gear_runtime::RuntimeCall,
-        pallet_balances::pallet::Call as BalancesCall,
-        pallet_gear::pallet::Call as GearCall,
-        sp_weights::weight_v2::Weight,
-    },
-    tx,
-    utility::Event as UtilityEvent,
-    Event,
-};
-use parity_scale_codec::Encode;
-use std::{collections::BTreeMap, path::Path};
-use subxt::{
-    events::Phase,
+use gsdk::{
     ext::{
         sp_core::H256,
         sp_runtime::{AccountId32, MultiAddress},
     },
+    metadata::{
+        balances::Event as BalancesEvent,
+        gear::Event as GearEvent,
+        runtime_types::{
+            frame_system::pallet::Call as SystemCall,
+            gear_common::event::{CodeChangeKind, MessageEntry},
+            gear_runtime::RuntimeCall,
+            pallet_balances::pallet::Call as BalancesCall,
+            pallet_gear::pallet::Call as GearCall,
+            sp_weights::weight_v2::Weight,
+        },
+        utility::Event as UtilityEvent,
+        Event,
+    },
 };
+use parity_scale_codec::Encode;
+use std::{collections::BTreeMap, path::Path};
 
 impl GearApi {
     /// Transfer `value` to `destination`'s account.
@@ -59,7 +57,7 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Balances(BalancesEvent::Transfer { .. }) =
-                event?.as_root_event::<(Phase, Event)>()?.1
+                event?.as_root_event::<Event>()?
             {
                 return Ok(tx.block_hash());
             }
@@ -126,7 +124,7 @@ impl GearApi {
                 destination,
                 entry: MessageEntry::Init,
                 ..
-            }) = event?.as_root_event::<(Phase, Event)>()?.1
+            }) = event?.as_root_event::<Event>()?
             {
                 return Ok((id.into(), destination.into(), tx.block_hash()));
             }
@@ -160,13 +158,11 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex).await?;
-
+        let tx = self.0.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<(Phase, Event)>()?.1 {
+            match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
                     destination,
@@ -231,7 +227,7 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Gear(GearEvent::UserMessageRead { .. }) =
-                event?.as_root_event::<(Phase, Event)>()?.1
+                event?.as_root_event::<Event>()?
             {
                 return Ok((
                     value.expect("Data appearance guaranteed above"),
@@ -275,13 +271,11 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex).await?;
-
+        let tx = self.0.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<(Phase, Event)>()?.1 {
+            match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::UserMessageRead { id, .. }) => res.push(Ok(values
                     .remove(&id.into())
                     .flatten()
@@ -337,7 +331,7 @@ impl GearApi {
                 id,
                 entry: MessageEntry::Handle,
                 ..
-            }) = event?.as_root_event::<(Phase, Event)>()?.1
+            }) = event?.as_root_event::<Event>()?
             {
                 return Ok((id.into(), tx.block_hash()));
             }
@@ -371,13 +365,11 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex).await?;
-
+        let tx = self.0.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<(Phase, Event)>()?.1 {
+            match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
                     destination,
@@ -455,7 +447,7 @@ impl GearApi {
                 id,
                 entry: MessageEntry::Reply(_),
                 ..
-            }) = event?.as_root_event::<(Phase, Event)>()?.1
+            }) = event?.as_root_event::<Event>()?
             {
                 return Ok((id.into(), message.value(), tx.block_hash()));
             }
@@ -499,13 +491,11 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex).await?;
-
+        let tx = self.0.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<(Phase, Event)>()?.1 {
+            match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
                     entry: MessageEntry::Reply(reply_to_id),
@@ -568,7 +558,7 @@ impl GearApi {
             if let Event::Gear(GearEvent::CodeChanged {
                 id,
                 change: CodeChangeKind::Active { .. },
-            }) = event?.as_root_event::<(Phase, Event)>()?.1
+            }) = event?.as_root_event::<Event>()?
             {
                 return Ok((id.into(), tx.block_hash()));
             }
@@ -598,13 +588,11 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex).await?;
-
+        let tx = self.0.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<(Phase, Event)>()?.1 {
+            match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::CodeChanged {
                     id,
                     change: CodeChangeKind::Active { .. },
@@ -688,7 +676,7 @@ impl GearApi {
                 destination,
                 entry: MessageEntry::Init,
                 ..
-            }) = event?.as_root_event::<(Phase, Event)>()?.1
+            }) = event?.as_root_event::<Event>()?
             {
                 return Ok((id.into(), destination.into(), tx.block_hash()));
             }
@@ -730,13 +718,11 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let ex = tx().utility().force_batch(calls);
-        let tx = self.0.process(ex).await?;
-
+        let tx = self.0.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<(Phase, Event)>()?.1 {
+            match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
                     destination,
@@ -827,21 +813,21 @@ impl GearApi {
     /// [`pallet_system::set_code`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code)
     /// extrinsic.
     pub async fn set_code(&self, code: impl AsRef<[u8]>) -> Result<H256> {
-        let ex = tx().sudo().sudo_unchecked_weight(
-            RuntimeCall::System(SystemCall::set_code {
-                code: code.as_ref().to_vec(),
-            }),
-            Weight {
-                ref_time: 0,
-                // # TODO
-                //
-                // Check this field
-                proof_size: Default::default(),
-            },
-        );
-
-        let tx = self.0.process(ex).await?;
-
+        let tx = self
+            .0
+            .sudo_unchecked_weight(
+                RuntimeCall::System(SystemCall::set_code {
+                    code: code.as_ref().to_vec(),
+                }),
+                Weight {
+                    ref_time: 0,
+                    // # TODO
+                    //
+                    // Check this field
+                    proof_size: Default::default(),
+                },
+            )
+            .await?;
         Ok(tx.wait_for_success().await?.block_hash())
     }
 
@@ -865,22 +851,23 @@ impl GearApi {
         new_free: u128,
         new_reserved: u128,
     ) -> Result<H256> {
-        let ex = tx().sudo().sudo_unchecked_weight(
-            RuntimeCall::Balances(BalancesCall::set_balance {
-                who: to.into(),
-                new_free,
-                new_reserved,
-            }),
-            Weight {
-                ref_time: 0,
-                // # TODO
-                //
-                // Check this field
-                proof_size: Default::default(),
-            },
-        );
-        let tx = self.0.process(ex).await?;
-
+        let tx = self
+            .0
+            .sudo_unchecked_weight(
+                RuntimeCall::Balances(BalancesCall::set_balance {
+                    who: to.into(),
+                    new_free,
+                    new_reserved,
+                }),
+                Weight {
+                    ref_time: 0,
+                    // # TODO
+                    //
+                    // Check this field
+                    proof_size: Default::default(),
+                },
+            )
+            .await?;
         Ok(tx.wait_for_success().await?.block_hash())
     }
 }

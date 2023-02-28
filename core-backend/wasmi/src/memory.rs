@@ -26,7 +26,7 @@ use gear_core::{
 use gear_core_errors::MemoryError;
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
 
-pub struct MemoryWrapRef<'a, E: Ext + 'static> {
+pub(crate) struct MemoryWrapRef<'a, E: Ext + 'static> {
     pub memory: WasmiMemory,
     pub store: StoreContextMut<'a, HostState<E>>,
 }
@@ -63,16 +63,16 @@ impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
 
 /// Wrapper for [`wasmi::Memory`].
 pub struct MemoryWrap<E: Ext + 'static> {
-    pub memory: WasmiMemory,
-    pub store: Store<HostState<E>>,
+    pub(crate) memory: WasmiMemory,
+    pub(crate) store: Store<HostState<E>>,
 }
 
 impl<E: Ext + 'static> MemoryWrap<E> {
     /// Wrap [`wasmi::Memory`] for Memory trait.
-    pub fn new(memory: WasmiMemory, store: Store<HostState<E>>) -> Self {
+    pub(crate) fn new(memory: WasmiMemory, store: Store<HostState<E>>) -> Self {
         MemoryWrap { memory, store }
     }
-    pub fn into_store(self) -> Store<HostState<E>> {
+    pub(crate) fn into_store(self) -> Store<HostState<E>> {
         self.store
     }
 }

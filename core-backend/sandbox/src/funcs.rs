@@ -45,7 +45,7 @@ use sp_sandbox::{HostError, ReturnValue, Value};
 
 const PTR_SPECIAL: u32 = u32::MAX;
 
-pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
+pub type SyscallOutput = Result<ReturnValue, HostError>;
 
 pub(crate) struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
@@ -282,7 +282,7 @@ where
 
         let (at, len, buffer_ptr, err_len_ptr) = args.iter().read_4()?;
 
-        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::Read(len), |ctx| {
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::Read, |ctx| {
             let buffer = ctx.ext.read(at, len)?;
 
             let write_buffer = ctx.memory_manager.register_write(buffer_ptr, len);
@@ -344,11 +344,11 @@ where
             let res = ctx.process_alloc_func_result(res)?;
             let page = match res {
                 Ok(page) => {
-                    log::debug!("Alloc {pages:?} pages at {page:?}");
+                    log::trace!("Alloc {pages:?} pages at {page:?}");
                     page.raw()
                 }
                 Err(err) => {
-                    log::debug!("Alloc failed: {err}");
+                    log::trace!("Alloc failed: {err}");
                     u32::MAX
                 }
             };
@@ -368,10 +368,10 @@ where
 
             match &res {
                 Ok(()) => {
-                    log::debug!("Free {page:?}");
+                    log::trace!("Free {page:?}");
                 }
                 Err(err) => {
-                    log::debug!("Free failed: {err}");
+                    log::trace!("Free failed: {err}");
                 }
             };
 
@@ -612,21 +612,17 @@ where
 
         let (offset, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run_fallible::<_, _, LengthWithHash>(
-            err_mid_ptr,
-            RuntimeCosts::ReplyInput(len),
-            |ctx| {
-                let value = Self::register_and_read_value(ctx, value_ptr)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyInput, |ctx| {
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
 
-                let mut f = || {
-                    ctx.ext.reply_push_input(offset, len)?;
-                    ctx.ext
-                        .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-                };
+            let mut f = || {
+                ctx.ext.reply_push_input(offset, len)?;
+                ctx.ext
+                    .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+            };
 
-                f().map_err(Into::into)
-            },
-        )
+            f().map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reply_push_input` syscall.
@@ -635,11 +631,9 @@ where
 
         let (offset, len, err_len_ptr) = args.iter().read_3()?;
 
-        ctx.run_fallible::<_, _, LengthBytes>(
-            err_len_ptr,
-            RuntimeCosts::ReplyPushInput(len),
-            |ctx| ctx.ext.reply_push_input(offset, len).map_err(Into::into),
-        )
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::ReplyPushInput, |ctx| {
+            ctx.ext.reply_push_input(offset, len).map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reply_input_wgas` syscall.
@@ -648,23 +642,19 @@ where
 
         let (offset, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
-        ctx.run_fallible::<_, _, LengthWithHash>(
-            err_mid_ptr,
-            RuntimeCosts::ReplyInput(len),
-            |ctx| {
-                let value = Self::register_and_read_value(ctx, value_ptr)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyInput, |ctx| {
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
 
-                let mut f = || {
-                    ctx.ext.reply_push_input(offset, len)?;
-                    ctx.ext.reply_commit(
-                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                        delay,
-                    )
-                };
+            let mut f = || {
+                ctx.ext.reply_push_input(offset, len)?;
+                ctx.ext.reply_commit(
+                    ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                    delay,
+                )
+            };
 
-                f().map_err(Into::into)
-            },
-        )
+            f().map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_send_input` syscall.
@@ -673,7 +663,7 @@ where
 
         let (pid_value_ptr, offset, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInput(len), |ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInput, |ctx| {
             let read_pid_value = ctx.register_read_as(pid_value_ptr);
             let HashWithValue {
                 hash: destination,
@@ -700,15 +690,11 @@ where
 
         let (handle, offset, len, err_len_ptr) = args.iter().read_4()?;
 
-        ctx.run_fallible::<_, _, LengthBytes>(
-            err_len_ptr,
-            RuntimeCosts::SendPushInput(len),
-            |ctx| {
-                ctx.ext
-                    .send_push_input(handle, offset, len)
-                    .map_err(Into::into)
-            },
-        )
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::SendPushInput, |ctx| {
+            ctx.ext
+                .send_push_input(handle, offset, len)
+                .map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_send_push_input_wgas` syscall.
@@ -717,7 +703,7 @@ where
 
         let (pid_value_ptr, offset, len, gas_limit, delay, err_mid_ptr) = args.iter().read_6()?;
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInput(len), |ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInput, |ctx| {
             let read_pid_value = ctx.register_read_as(pid_value_ptr);
             let HashWithValue {
                 hash: destination,
@@ -1098,7 +1084,7 @@ where
 }
 
 #[allow(clippy::type_complexity)]
-pub(crate) trait WasmCompatibleIterator {
+trait WasmCompatibleIterator {
     fn read<T: WasmCompatible>(&mut self) -> Result<T, HostError>;
 
     fn read_2<T1: WasmCompatible, T2: WasmCompatible>(&mut self) -> Result<(T1, T2), HostError> {
@@ -1262,7 +1248,7 @@ impl<'a, I: Iterator<Item = &'a Value> + 'a> WasmCompatibleIterator for I {
     }
 }
 
-pub(crate) trait WasmCompatible: Sized {
+trait WasmCompatible: Sized {
     fn from(arg: Value) -> Result<Self, HostError>;
 
     fn throw_back(self) -> ReturnValue;

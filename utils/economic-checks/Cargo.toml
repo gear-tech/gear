@@ -6,18 +6,18 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive"] }
-log = { version = "0.4.17" }
-parity-wasm = { version = "0.45.0" }
-parking_lot = "0.12.0"
-primitive-types = { version = "0.12.0", features = ["scale-info"] }
+codec = { package = "parity-scale-codec", version = "3.4.0", features = ["derive"] }
+log = "0.4.17"
+parity-wasm = "0.45.0"
+parking_lot = "0.12.1"
+primitive-types = { version = "0.12.1", features = ["scale-info"] }
 rand = { version = "0.8.5", features = ["std_rng"] }
 serde = "1"
 env_logger = "0.10"
 hex = "0.4.3"
-arbitrary = { version = "1" }
-wasm-mutate = "0.2.19"
-wasmparser = "0.99.0"
+arbitrary = "1"
+wasm-mutate = "0.2.20"
+wasmparser = "0.101.1"
 
 # Internal deps
 common = { package = "gear-common", path = "../../common" }
@@ -48,7 +48,7 @@ sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.
 
 [dev-dependencies]
 wat = "1.0"
-wasmprinter = "0.2.51"
+wasmprinter = "0.2.52"
 demo-compose = { path = "../../examples/binaries/compose" }
 gstd = { path = "../../gstd" }
 
