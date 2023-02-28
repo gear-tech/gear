@@ -4740,7 +4740,8 @@ fn terminated_locking_funds() {
             .expect("code should be in the storage");
         let code_length = code.code().len();
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-        let module_instantiation = schedule.module_instantiation_per_byte * code_length as u64;
+        let module_instantiation =
+            schedule.module_instantiation_per_byte.ref_time() * code_length as u64;
         let system_reservation = demo_init_fail_sender::system_reserve();
         let gas_for_code_len = read_cost;
 
@@ -4755,7 +4756,9 @@ fn terminated_locking_funds() {
                 + gas_for_code_len
                 + core_processor::calculate_gas_for_code(
                     read_cost,
-                    <Test as Config>::Schedule::get().db_read_per_byte,
+                    <Test as Config>::Schedule::get()
+                        .db_read_per_byte
+                        .ref_time(),
                     code_length as u64
                 )
                 + module_instantiation,
@@ -5930,10 +5933,10 @@ fn gas_spent_precalculated() {
         .unwrap();
 
         let schedule = <Test as Config>::Schedule::get();
-        let per_byte_cost = schedule.db_read_per_byte;
+        let per_byte_cost = schedule.db_read_per_byte.ref_time();
         let const_i64_cost = schedule.instruction_weights.i64const;
         let set_local_cost = schedule.instruction_weights.local_set;
-        let module_instantiation_per_byte = schedule.module_instantiation_per_byte;
+        let module_instantiation_per_byte = schedule.module_instantiation_per_byte.ref_time();
 
         // gas_charge call in handle and "add" func
         let gas_cost = gas_spent_init
@@ -5959,7 +5962,7 @@ fn gas_spent_precalculated() {
         let get_local_cost = schedule.instruction_weights.local_get;
         let add_cost = schedule.instruction_weights.i64add;
         let module_instantiation = module_instantiation_per_byte * code.len() as u64;
-        let load_page_cost = schedule.memory_weights.load_cost;
+        let load_page_cost = schedule.memory_weights.load_cost.ref_time();
 
         let total_cost = {
             let cost = call_cost
@@ -7053,7 +7056,9 @@ fn missing_functions_are_not_executed() {
 
         let program_cost = core_processor::calculate_gas_for_program(
             DbWeightOf::<Test>::get().reads(1).ref_time(),
-            <Test as Config>::Schedule::get().db_read_per_byte,
+            <Test as Config>::Schedule::get()
+                .db_read_per_byte
+                .ref_time(),
         );
         // there is no execution so the values should be equal
         assert_eq!(min_limit, program_cost);
@@ -7694,8 +7699,10 @@ fn signal_during_prepare() {
 
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         let schedule = <Test as Config>::Schedule::get();
-        let program_gas =
-            core_processor::calculate_gas_for_program(read_cost, schedule.db_read_per_byte);
+        let program_gas = core_processor::calculate_gas_for_program(
+            read_cost,
+            schedule.db_read_per_byte.ref_time(),
+        );
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),

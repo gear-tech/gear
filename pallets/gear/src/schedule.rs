@@ -24,6 +24,7 @@
 use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
+use frame_support::{weights::Weight, DefaultNoBound};
 use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights, message};
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
@@ -36,10 +37,11 @@ use sp_std::{marker::PhantomData, vec::Vec};
 /// How many API calls are executed in a single batch. The reason for increasing the amount
 /// of API calls in batches (per benchmark component increase) is so that the linear regression
 /// has an easier time determining the contribution of that component.
-pub const API_BENCHMARK_BATCH_SIZE: u32 = 100;
+pub const API_BENCHMARK_BATCH_SIZE: u32 = 80;
 
-/// How many instructions are executed in a single batch.
-pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 1000;
+/// How many instructions are executed in a single batch. The reasoning is the same
+/// as for `API_BENCHMARK_BATCH_SIZE`.
+pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
@@ -91,19 +93,19 @@ pub struct Schedule<T: Config> {
     pub memory_weights: MemoryWeights<T>,
 
     /// WASM module instantiation per byte cost.
-    pub module_instantiation_per_byte: u64,
+    pub module_instantiation_per_byte: Weight,
 
     /// Single db write per byte cost.
-    pub db_write_per_byte: u64,
+    pub db_write_per_byte: Weight,
 
     /// Single db read per byte cost.
-    pub db_read_per_byte: u64,
+    pub db_read_per_byte: Weight,
 
     /// WASM code instrumentation base cost.
-    pub code_instrumentation_cost: u64,
+    pub code_instrumentation_cost: Weight,
 
     /// WASM code instrumentation per-byte cost.
-    pub code_instrumentation_byte_cost: u64,
+    pub code_instrumentation_byte_cost: Weight,
 }
 
 /// Describes the upper limits on various metrics.
@@ -199,7 +201,7 @@ impl Limits {
 ///    that use them as supporting instructions. Supporting means mainly pushing arguments
 ///    and dropping return values in order to maintain a valid module.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-#[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, ScheduleDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct InstructionWeights<T: Config> {
     /// Version of the instruction weights.
@@ -227,6 +229,7 @@ pub struct InstructionWeights<T: Config> {
     pub call: u32,
     pub call_indirect: u32,
     pub call_indirect_per_param: u32,
+    // pub call_per_local: u32,
     pub local_get: u32,
     pub local_set: u32,
     pub local_tee: u32,
@@ -276,148 +279,148 @@ pub struct InstructionWeights<T: Config> {
 #[scale_info(skip_type_params(T))]
 pub struct HostFnWeights<T: Config> {
     /// Weight of calling `alloc`.
-    pub alloc: u64,
+    pub alloc: Weight,
 
     /// Weight of calling `alloc`.
-    pub free: u64,
+    pub free: Weight,
 
     /// Weight of calling `gr_reserve_gas`.
-    pub gr_reserve_gas: u64,
+    pub gr_reserve_gas: Weight,
 
     /// Weight of calling `gr_unreserve_gas`
-    pub gr_unreserve_gas: u64,
+    pub gr_unreserve_gas: Weight,
 
     /// Weight of calling `gr_system_reserve_gas`
-    pub gr_system_reserve_gas: u64,
+    pub gr_system_reserve_gas: Weight,
 
     /// Weight of calling `gr_gas_available`.
-    pub gr_gas_available: u64,
+    pub gr_gas_available: Weight,
 
     /// Weight of calling `gr_message_id`.
-    pub gr_message_id: u64,
+    pub gr_message_id: Weight,
 
     /// Weight of calling `gr_origin`.
-    pub gr_origin: u64,
+    pub gr_origin: Weight,
 
     /// Weight of calling `gr_program_id`.
-    pub gr_program_id: u64,
+    pub gr_program_id: Weight,
 
     /// Weight of calling `gr_source`.
-    pub gr_source: u64,
+    pub gr_source: Weight,
 
     /// Weight of calling `gr_value`.
-    pub gr_value: u64,
+    pub gr_value: Weight,
 
     /// Weight of calling `gr_value_available`.
-    pub gr_value_available: u64,
+    pub gr_value_available: Weight,
 
     /// Weight of calling `gr_size`.
-    pub gr_size: u64,
+    pub gr_size: Weight,
 
     /// Weight of calling `gr_read`.
-    pub gr_read: u64,
+    pub gr_read: Weight,
 
     /// Weight per payload byte by `gr_read`.
-    pub gr_read_per_byte: u64,
+    pub gr_read_per_byte: Weight,
 
     /// Weight of calling `gr_block_height`.
-    pub gr_block_height: u64,
+    pub gr_block_height: Weight,
 
     /// Weight of calling `gr_block_timestamp`.
-    pub gr_block_timestamp: u64,
+    pub gr_block_timestamp: Weight,
 
     /// Weight of calling `gr_random`.
-    pub gr_random: u64,
+    pub gr_random: Weight,
 
     /// Weight of calling `gr_value_available`.
-    pub gr_send_init: u64,
+    pub gr_send_init: Weight,
 
     /// Weight of calling `gr_send_push`.
-    pub gr_send_push: u64,
+    pub gr_send_push: Weight,
 
     /// Weight per payload byte by `gr_send_push`.
-    pub gr_send_push_per_byte: u64,
+    pub gr_send_push_per_byte: Weight,
 
     /// Weight of calling `gr_send_commit`.
-    pub gr_send_commit: u64,
+    pub gr_send_commit: Weight,
 
     /// Weight per payload byte by `gr_send_commit`.
-    pub gr_send_commit_per_byte: u64,
+    pub gr_send_commit_per_byte: Weight,
 
     /// Weight of calling `gr_reservation_send_commit`.
-    pub gr_reservation_send_commit: u64,
+    pub gr_reservation_send_commit: Weight,
 
     /// Weight per payload byte by `gr_reservation_send_commit`.
-    pub gr_reservation_send_commit_per_byte: u64,
+    pub gr_reservation_send_commit_per_byte: Weight,
 
     /// Weight of calling `gr_reply_commit`.
-    pub gr_reply_commit: u64,
+    pub gr_reply_commit: Weight,
 
     /// Weight of calling `gr_reservation_reply_commit`.
-    pub gr_reservation_reply_commit: u64,
+    pub gr_reservation_reply_commit: Weight,
 
     /// Weight of calling `gr_reply_push`.
-    pub gr_reply_push: u64,
+    pub gr_reply_push: Weight,
 
     /// Weight per payload byte by `gr_reply_push`.
-    pub gr_reply_push_per_byte: u64,
+    pub gr_reply_push_per_byte: Weight,
 
     /// Weight of calling `gr_reply_to`.
-    pub gr_reply_to: u64,
+    pub gr_reply_to: Weight,
 
     /// Weight of calling `gr_signal_from`.
-    pub gr_signal_from: u64,
+    pub gr_signal_from: Weight,
 
     /// Weight of calling `gr_reply_push_input`.
-    pub gr_reply_push_input: u64,
+    pub gr_reply_push_input: Weight,
 
     /// Weight per payload byte by `gr_reply_push_input`.
-    pub gr_reply_push_input_per_byte: u64,
+    pub gr_reply_push_input_per_byte: Weight,
 
     /// Weight of calling `gr_send_push_input`.
-    pub gr_send_push_input: u64,
+    pub gr_send_push_input: Weight,
 
     /// Weight per payload byte by `gr_send_push_input`.
-    pub gr_send_push_input_per_byte: u64,
+    pub gr_send_push_input_per_byte: Weight,
 
     /// Weight of calling `gr_debug`.
-    pub gr_debug: u64,
+    pub gr_debug: Weight,
 
     /// Weight per payload byte by `gr_debug_per_byte`.
-    pub gr_debug_per_byte: u64,
+    pub gr_debug_per_byte: Weight,
 
     /// Weight of calling `gr_error`.
-    pub gr_error: u64,
+    pub gr_error: Weight,
 
     /// Weight of calling `gr_status_code`.
-    pub gr_status_code: u64,
+    pub gr_status_code: Weight,
 
     /// Weight of calling `gr_exit`.
-    pub gr_exit: u64,
+    pub gr_exit: Weight,
 
     /// Weight of calling `gr_leave`.
-    pub gr_leave: u64,
+    pub gr_leave: Weight,
 
     /// Weight of calling `gr_wait`.
-    pub gr_wait: u64,
+    pub gr_wait: Weight,
 
     /// Weight of calling `gr_wait_for`.
-    pub gr_wait_for: u64,
+    pub gr_wait_for: Weight,
 
     /// Weight of calling `gr_wait_up_to`.
-    pub gr_wait_up_to: u64,
+    pub gr_wait_up_to: Weight,
 
     /// Weight of calling `gr_wake`.
-    pub gr_wake: u64,
+    pub gr_wake: Weight,
 
     /// Weight of calling `create_program_wgas`.
-    pub gr_create_program_wgas: u64,
+    pub gr_create_program_wgas: Weight,
 
     /// Weight per payload byte by `create_program_wgas`.
-    pub gr_create_program_wgas_payload_per_byte: u64,
+    pub gr_create_program_wgas_payload_per_byte: Weight,
 
     /// Weight per salt byte by `create_program_wgas`.
-    pub gr_create_program_wgas_salt_per_byte: u64,
+    pub gr_create_program_wgas_salt_per_byte: Weight,
 
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
@@ -430,25 +433,25 @@ pub struct HostFnWeights<T: Config> {
 #[scale_info(skip_type_params(T))]
 pub struct MemoryWeights<T: Config> {
     /// Lazy-pages read access cost per one gear page.
-    pub lazy_pages_read: u64,
+    pub lazy_pages_read: Weight,
 
     /// Lazy-pages write access cost per one gear page.
-    pub lazy_pages_write: u64,
+    pub lazy_pages_write: Weight,
 
     /// Lazy-pages write after read access cost per one gear page.
-    pub lazy_pages_write_after_read: u64,
+    pub lazy_pages_write_after_read: Weight,
 
     /// Weight of initial page.
-    pub initial_cost: u64,
+    pub initial_cost: Weight,
 
     /// Weight of allocated page.
-    pub allocation_cost: u64,
+    pub allocation_cost: Weight,
 
     /// Weight of growing page.
-    pub grow_cost: u64,
+    pub grow_cost: Weight,
 
     /// Weight of loading page.
-    pub load_cost: u64,
+    pub load_cost: Weight,
 
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
@@ -462,21 +465,42 @@ macro_rules! replace_token {
 }
 
 macro_rules! call_zero {
-	($name:ident, $( $arg:expr ),*) => {
-		<T as Config>::WeightInfo::$name($( replace_token!($arg 0) ),*)
-	};
+    ($name:ident, $( $arg:expr ),*) => {
+        <T as Config>::WeightInfo::$name($( replace_token!($arg 0) ),*)
+    };
 }
 
 macro_rules! cost_args {
-	($name:ident, $( $arg: expr ),+) => {
-		(<T as Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+))).ref_time()
-	}
+    ($name:ident, $( $arg: expr ),+) => {
+        (<T as Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+))).ref_time()
+    }
 }
 
 macro_rules! cost_batched_args {
-	($name:ident, $( $arg: expr ),+) => {
-		cost_args!($name, $( $arg ),+) / u64::from(API_BENCHMARK_BATCH_SIZE)
-	}
+    ($name:ident, $( $arg: expr ),+) => {
+        cost_args!($name, $( $arg ),+) / u64::from(API_BENCHMARK_BATCH_SIZE)
+    }
+}
+
+macro_rules! cost_instr_no_params_with_batch_size {
+    ($name:ident, $batch_size:expr) => {
+        (cost_args!($name, 1) / u64::from($batch_size)) as u32
+    };
+}
+
+macro_rules! cost_instr_with_batch_size {
+    ($name:ident, $num_params:expr, $batch_size:expr) => {
+        cost_instr_no_params_with_batch_size!($name, $batch_size).saturating_sub(
+            (cost_instr_no_params_with_batch_size!(instr_i64const, $batch_size) / 2)
+                .saturating_mul($num_params),
+        )
+    };
+}
+
+macro_rules! cost_instr {
+    ($name:ident, $num_params:expr) => {
+        cost_instr_with_batch_size!($name, $num_params, INSTR_BENCHMARK_BATCH_SIZE)
+    };
 }
 
 macro_rules! cost_instr_batched {
@@ -486,15 +510,15 @@ macro_rules! cost_instr_batched {
 }
 
 macro_rules! cost_byte_args {
-	($name:ident, $( $arg: expr ),+) => {
-		cost_args!($name, $( $arg ),+) / 1024
-	}
+    ($name:ident, $( $arg: expr ),+) => {
+        cost_args!($name, $( $arg ),+) / 1024
+    }
 }
 
 macro_rules! cost_byte_batched_args {
-	($name:ident, $( $arg: expr ),+) => {
-		cost_batched_args!($name, $( $arg ),+) / 1024
-	}
+    ($name:ident, $( $arg: expr ),+) => {
+        cost_batched_args!($name, $( $arg ),+) / 1024
+    }
 }
 
 macro_rules! cost {
@@ -521,6 +545,12 @@ macro_rules! cost_byte_batched {
     };
 }
 
+macro_rules! to_weight {
+    ($ref_time:expr $(, $proof_size:expr )?) => {
+        Weight::from_ref_time($ref_time)$(.set_proof_size($proof_size))?
+    };
+}
+
 impl<T: Config> Default for Schedule<T> {
     fn default() -> Self {
         Self {
@@ -528,11 +558,11 @@ impl<T: Config> Default for Schedule<T> {
             instruction_weights: Default::default(),
             host_fn_weights: Default::default(),
             memory_weights: Default::default(),
-            db_write_per_byte: cost_byte!(db_write_per_kb),
-            db_read_per_byte: cost_byte!(db_read_per_kb),
-            module_instantiation_per_byte: cost_byte!(instantiate_module_per_kb),
-            code_instrumentation_cost: call_zero!(reinstrument_per_kb, 0).ref_time(),
-            code_instrumentation_byte_cost: cost_byte!(reinstrument_per_kb),
+            db_write_per_byte: to_weight!(cost_byte!(db_write_per_kb)),
+            db_read_per_byte: to_weight!(cost_byte!(db_read_per_kb)),
+            module_instantiation_per_byte: to_weight!(cost_byte!(instantiate_module_per_kb)),
+            code_instrumentation_cost: call_zero!(reinstrument_per_kb, 0),
+            code_instrumentation_byte_cost: to_weight!(cost_byte!(reinstrument_per_kb)),
         }
     }
 }
@@ -571,55 +601,56 @@ impl<T: Config> Default for InstructionWeights<T> {
         Self {
             version: 5,
             i64const,
-            i64load: cost!(instr_i64load, 0),
-            i64store: cost!(instr_i64store, 0),
-            select: cost!(instr_select, 2),
-            r#if: cost!(instr_if, 0),
-            br: cost!(instr_br, 0),
-            br_if: cost!(instr_br_if, 1),
-            br_table: cost!(instr_br_table, 0),
+            i64load: cost!(instr_i64load, 2),
+            i64store: cost!(instr_i64store, 2),
+            select: cost!(instr_select, 4),
+            r#if: cost!(instr_if, 3),
+            br: cost!(instr_br, 2),
+            br_if: cost!(instr_br_if, 3),
+            br_table: cost!(instr_br_table, 3),
             br_table_per_entry: cost!(instr_br_table_per_entry, 0),
-            call,
-            call_indirect: cost!(instr_call_indirect, 0),
+            call: cost!(instr_call, 2),
+            call_indirect: cost!(instr_call_indirect, 3),
             call_indirect_per_param: cost!(instr_call_indirect_per_param, 1),
-            local_get: cost!(instr_local_get, 0),
+            // call_per_local: cost!(instr_call_per_local, 1),
+            local_get: cost!(instr_local_get, 1),
             local_set: cost!(instr_local_set, 1),
-            local_tee: cost!(instr_local_tee, 1),
-            global_get: cost!(instr_global_get, 0),
+            local_tee: cost!(instr_local_tee, 2),
+            global_get: cost!(instr_global_get, 1),
             global_set: cost!(instr_global_set, 1),
-            memory_current: cost!(instr_memory_current, 0),
-            i64clz: cost!(instr_i64clz, 1),
-            i64ctz: cost!(instr_i64ctz, 1),
-            i64popcnt: cost!(instr_i64popcnt, 1),
-            i64eqz: cost!(instr_i64eqz, 1),
-            i64extendsi32: cost!(instr_i64extendsi32, 0),
-            i64extendui32: cost!(instr_i64extendui32, 0),
-            i32wrapi64: cost!(instr_i32wrapi64, 1),
-            i64eq: cost!(instr_i64eq, 2),
-            i64ne: cost!(instr_i64ne, 2),
-            i64lts: cost!(instr_i64lts, 2),
-            i64ltu: cost!(instr_i64ltu, 2),
-            i64gts: cost!(instr_i64gts, 2),
-            i64gtu: cost!(instr_i64gtu, 2),
-            i64les: cost!(instr_i64les, 2),
-            i64leu: cost!(instr_i64leu, 2),
-            i64ges: cost!(instr_i64ges, 2),
-            i64geu: cost!(instr_i64geu, 2),
-            i64add: cost!(instr_i64add, 2),
-            i64sub: cost!(instr_i64sub, 2),
-            i64mul: cost!(instr_i64mul, 2),
-            i64divs: cost!(instr_i64divs, 2),
-            i64divu: cost!(instr_i64divu, 2),
-            i64rems: cost!(instr_i64rems, 2),
-            i64remu: cost!(instr_i64remu, 2),
-            i64and: cost!(instr_i64and, 2),
-            i64or: cost!(instr_i64or, 2),
-            i64xor: cost!(instr_i64xor, 2),
-            i64shl: cost!(instr_i64shl, 2),
-            i64shrs: cost!(instr_i64shrs, 2),
-            i64shru: cost!(instr_i64shru, 2),
-            i64rotl: cost!(instr_i64rotl, 2),
-            i64rotr: cost!(instr_i64rotr, 2),
+            memory_current: cost!(instr_memory_current, 1),
+            i64clz: cost!(instr_i64clz, 2),
+            i64ctz: cost!(instr_i64ctz, 2),
+            i64popcnt: cost!(instr_i64popcnt, 2),
+            i64eqz: cost!(instr_i64eqz, 2),
+            i64extendsi32: cost!(instr_i64extendsi32, 2),
+            i64extendui32: cost!(instr_i64extendui32, 2),
+            i32wrapi64: cost!(instr_i32wrapi64, 2),
+            i64eq: cost!(instr_i64eq, 3),
+            i64ne: cost!(instr_i64ne, 3),
+            i64lts: cost!(instr_i64lts, 3),
+            i64ltu: cost!(instr_i64ltu, 3),
+            i64gts: cost!(instr_i64gts, 3),
+            i64gtu: cost!(instr_i64gtu, 3),
+            i64les: cost!(instr_i64les, 3),
+            i64leu: cost!(instr_i64leu, 3),
+            i64ges: cost!(instr_i64ges, 3),
+            i64geu: cost!(instr_i64geu, 3),
+            i64add: cost!(instr_i64add, 3),
+            i64sub: cost!(instr_i64sub, 3),
+            i64mul: cost!(instr_i64mul, 3),
+            i64divs: cost!(instr_i64divs, 3),
+            i64divu: cost!(instr_i64divu, 3),
+            i64rems: cost!(instr_i64rems, 3),
+            i64remu: cost!(instr_i64remu, 3),
+            i64and: cost!(instr_i64and, 3),
+            i64or: cost!(instr_i64or, 3),
+            i64xor: cost!(instr_i64xor, 3),
+            i64shl: cost!(instr_i64shl, 3),
+            i64shrs: cost!(instr_i64shrs, 3),
+            i64shru: cost!(instr_i64shru, 3),
+            i64rotl: cost!(instr_i64rotl, 3),
+            i64rotr: cost!(instr_i64rotr, 3),
             _phantom: PhantomData,
         }
     }
@@ -628,54 +659,60 @@ impl<T: Config> Default for InstructionWeights<T> {
 impl<T: Config> HostFnWeights<T> {
     pub fn into_core(self) -> CoreHostFnWeights {
         CoreHostFnWeights {
-            alloc: self.alloc,
-            free: self.free,
-            gr_reserve_gas: self.gr_reserve_gas,
-            gr_unreserve_gas: self.gr_unreserve_gas,
-            gr_system_reserve_gas: self.gr_system_reserve_gas,
-            gr_gas_available: self.gr_gas_available,
-            gr_message_id: self.gr_message_id,
-            gr_origin: self.gr_origin,
-            gr_program_id: self.gr_program_id,
-            gr_source: self.gr_source,
-            gr_value: self.gr_value,
-            gr_value_available: self.gr_value_available,
-            gr_size: self.gr_size,
-            gr_read: self.gr_read,
-            gr_read_per_byte: self.gr_read_per_byte,
-            gr_block_height: self.gr_block_height,
-            gr_block_timestamp: self.gr_block_timestamp,
-            gr_random: self.gr_random,
-            gr_send_init: self.gr_send_init,
-            gr_send_push: self.gr_send_push,
-            gr_send_push_per_byte: self.gr_send_push_per_byte,
-            gr_send_commit: self.gr_send_commit,
-            gr_send_commit_per_byte: self.gr_send_commit_per_byte,
-            gr_reservation_send_commit: self.gr_reservation_send_commit,
-            gr_reservation_send_commit_per_byte: self.gr_reservation_send_commit_per_byte,
-            gr_reply_commit: self.gr_reply_commit,
-            gr_reservation_reply_commit: self.gr_reservation_reply_commit,
-            gr_reply_push: self.gr_reply_push,
-            gr_reply_push_per_byte: self.gr_reply_push_per_byte,
-            gr_debug: self.gr_debug,
-            gr_debug_per_byte: self.gr_debug_per_byte,
-            gr_error: self.gr_error,
-            gr_reply_to: self.gr_reply_to,
-            gr_signal_from: self.gr_signal_from,
-            gr_status_code: self.gr_status_code,
-            gr_exit: self.gr_exit,
-            gr_leave: self.gr_leave,
-            gr_wait: self.gr_wait,
-            gr_wait_for: self.gr_wait_for,
-            gr_wait_up_to: self.gr_wait_up_to,
-            gr_wake: self.gr_wake,
-            gr_create_program_wgas: self.gr_create_program_wgas,
-            gr_create_program_wgas_payload_per_byte: self.gr_create_program_wgas_payload_per_byte,
-            gr_create_program_wgas_salt_per_byte: self.gr_create_program_wgas_salt_per_byte,
-            gr_send_push_input: self.gr_send_push_input,
-            gr_send_push_input_per_byte: self.gr_send_push_input_per_byte,
-            gr_reply_push_input: self.gr_reply_push_input,
-            gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte,
+            alloc: self.alloc.ref_time(),
+            free: self.free.ref_time(),
+            gr_reserve_gas: self.gr_reserve_gas.ref_time(),
+            gr_unreserve_gas: self.gr_unreserve_gas.ref_time(),
+            gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
+            gr_gas_available: self.gr_gas_available.ref_time(),
+            gr_message_id: self.gr_message_id.ref_time(),
+            gr_origin: self.gr_origin.ref_time(),
+            gr_program_id: self.gr_program_id.ref_time(),
+            gr_source: self.gr_source.ref_time(),
+            gr_value: self.gr_value.ref_time(),
+            gr_value_available: self.gr_value_available.ref_time(),
+            gr_size: self.gr_size.ref_time(),
+            gr_read: self.gr_read.ref_time(),
+            gr_read_per_byte: self.gr_read_per_byte.ref_time(),
+            gr_block_height: self.gr_block_height.ref_time(),
+            gr_block_timestamp: self.gr_block_timestamp.ref_time(),
+            gr_random: self.gr_random.ref_time(),
+            gr_send_init: self.gr_send_init.ref_time(),
+            gr_send_push: self.gr_send_push.ref_time(),
+            gr_send_push_per_byte: self.gr_send_push_per_byte.ref_time(),
+            gr_send_commit: self.gr_send_commit.ref_time(),
+            gr_send_commit_per_byte: self.gr_send_commit_per_byte.ref_time(),
+            gr_reservation_send_commit: self.gr_reservation_send_commit.ref_time(),
+            gr_reservation_send_commit_per_byte: self
+                .gr_reservation_send_commit_per_byte
+                .ref_time(),
+            gr_reply_commit: self.gr_reply_commit.ref_time(),
+            gr_reservation_reply_commit: self.gr_reservation_reply_commit.ref_time(),
+            gr_reply_push: self.gr_reply_push.ref_time(),
+            gr_reply_push_per_byte: self.gr_reply_push_per_byte.ref_time(),
+            gr_debug: self.gr_debug.ref_time(),
+            gr_debug_per_byte: self.gr_debug_per_byte.ref_time(),
+            gr_error: self.gr_error.ref_time(),
+            gr_reply_to: self.gr_reply_to.ref_time(),
+            gr_signal_from: self.gr_signal_from.ref_time(),
+            gr_status_code: self.gr_status_code.ref_time(),
+            gr_exit: self.gr_exit.ref_time(),
+            gr_leave: self.gr_leave.ref_time(),
+            gr_wait: self.gr_wait.ref_time(),
+            gr_wait_for: self.gr_wait_for.ref_time(),
+            gr_wait_up_to: self.gr_wait_up_to.ref_time(),
+            gr_wake: self.gr_wake.ref_time(),
+            gr_create_program_wgas: self.gr_create_program_wgas.ref_time(),
+            gr_create_program_wgas_payload_per_byte: self
+                .gr_create_program_wgas_payload_per_byte
+                .ref_time(),
+            gr_create_program_wgas_salt_per_byte: self
+                .gr_create_program_wgas_salt_per_byte
+                .ref_time(),
+            gr_send_push_input: self.gr_send_push_input.ref_time(),
+            gr_send_push_input_per_byte: self.gr_send_push_input_per_byte.ref_time(),
+            gr_reply_push_input: self.gr_reply_push_input.ref_time(),
+            gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte.ref_time(),
         }
     }
 }
@@ -683,65 +720,67 @@ impl<T: Config> HostFnWeights<T> {
 impl<T: Config> Default for HostFnWeights<T> {
     fn default() -> Self {
         Self {
-            alloc: cost_batched!(alloc),
-            free: cost_batched!(free),
-            gr_reserve_gas: cost_batched!(gr_reserve_gas),
-            gr_system_reserve_gas: cost_batched!(gr_system_reserve_gas),
-            gr_unreserve_gas: cost_batched!(gr_unreserve_gas),
-            gr_gas_available: cost_batched!(gr_gas_available),
-            gr_message_id: cost_batched!(gr_message_id),
-            gr_origin: cost_batched!(gr_origin),
-            gr_program_id: cost_batched!(gr_program_id),
-            gr_source: cost_batched!(gr_source),
-            gr_value: cost_batched!(gr_value),
-            gr_value_available: cost_batched!(gr_value_available),
-            gr_size: cost_batched!(gr_size),
-            gr_read: cost_batched!(gr_read),
-            gr_read_per_byte: cost_byte_batched!(gr_read_per_kb),
-            gr_block_height: cost_batched!(gr_block_height),
-            gr_block_timestamp: cost_batched!(gr_block_timestamp),
-            gr_random: cost_batched!(gr_random),
-            gr_send_init: cost_batched!(gr_send_init),
-            gr_send_push: cost_batched!(gr_send_push),
-            gr_send_push_per_byte: cost_byte_batched!(gr_send_push_per_kb),
-            gr_send_commit: cost_batched!(gr_send_commit),
-            gr_send_commit_per_byte: cost_byte_batched!(gr_send_commit_per_kb),
-            gr_reservation_send_commit: cost_batched!(gr_reservation_send_commit),
-            gr_reservation_send_commit_per_byte: cost_byte_batched!(
+            alloc: to_weight!(cost_batched!(alloc)),
+            free: to_weight!(cost_batched!(free)),
+            gr_reserve_gas: to_weight!(cost_batched!(gr_reserve_gas)),
+            gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),
+            gr_unreserve_gas: to_weight!(cost_batched!(gr_unreserve_gas)),
+            gr_gas_available: to_weight!(cost_batched!(gr_gas_available)),
+            gr_message_id: to_weight!(cost_batched!(gr_message_id)),
+            gr_origin: to_weight!(cost_batched!(gr_origin)),
+            gr_program_id: to_weight!(cost_batched!(gr_program_id)),
+            gr_source: to_weight!(cost_batched!(gr_source)),
+            gr_value: to_weight!(cost_batched!(gr_value)),
+            gr_value_available: to_weight!(cost_batched!(gr_value_available)),
+            gr_size: to_weight!(cost_batched!(gr_size)),
+            gr_read: to_weight!(cost_batched!(gr_read)),
+            gr_read_per_byte: to_weight!(cost_byte_batched!(gr_read_per_kb)),
+            gr_block_height: to_weight!(cost_batched!(gr_block_height)),
+            gr_block_timestamp: to_weight!(cost_batched!(gr_block_timestamp)),
+            gr_random: to_weight!(cost_batched!(gr_random)),
+            gr_send_init: to_weight!(cost_batched!(gr_send_init)),
+            gr_send_push: to_weight!(cost_batched!(gr_send_push)),
+            gr_send_push_per_byte: to_weight!(cost_byte_batched!(gr_send_push_per_kb)),
+            gr_send_commit: to_weight!(cost_batched!(gr_send_commit)),
+            gr_send_commit_per_byte: to_weight!(cost_byte_batched!(gr_send_commit_per_kb)),
+            gr_reservation_send_commit: to_weight!(cost_batched!(gr_reservation_send_commit)),
+            gr_reservation_send_commit_per_byte: to_weight!(cost_byte_batched!(
                 gr_reservation_send_commit_per_kb
-            ),
-            gr_reply_commit: cost_batched!(gr_reply_commit),
-            gr_reservation_reply_commit: cost_batched!(gr_reservation_reply_commit),
-            gr_reply_push: cost_batched!(gr_reply_push),
-            gr_reply_push_per_byte: cost_byte_batched!(gr_reply_push_per_kb),
-            gr_debug: cost_batched!(gr_debug),
-            gr_debug_per_byte: cost_byte_batched!(gr_debug_per_kb),
+            )),
+            gr_reply_commit: to_weight!(cost_batched!(gr_reply_commit)),
+            gr_reservation_reply_commit: to_weight!(cost_batched!(gr_reservation_reply_commit)),
+            gr_reply_push: to_weight!(cost_batched!(gr_reply_push)),
+            gr_reply_push_per_byte: to_weight!(cost_byte_batched!(gr_reply_push_per_kb)),
+            gr_debug: to_weight!(cost_batched!(gr_debug)),
+            gr_debug_per_byte: to_weight!(cost_byte_batched!(gr_debug_per_kb)),
             // TODO: https://github.com/gear-tech/gear/issues/1846
-            gr_error: cost_batched!(gr_error),
-            gr_reply_to: cost_batched!(gr_reply_to),
-            gr_signal_from: cost_batched!(gr_signal_from),
-            gr_status_code: cost_batched!(gr_status_code),
-            gr_exit: cost!(gr_exit),
-            gr_leave: cost!(gr_leave),
-            gr_wait: cost!(gr_wait),
-            gr_wait_for: cost!(gr_wait_for),
-            gr_wait_up_to: cost!(gr_wait_up_to),
-            gr_wake: cost_batched!(gr_wake),
-            gr_create_program_wgas: cost_batched!(gr_create_program_wgas),
-            gr_create_program_wgas_payload_per_byte: cost_byte_batched_args!(
+            gr_error: to_weight!(cost_batched!(gr_error)),
+            gr_reply_to: to_weight!(cost_batched!(gr_reply_to)),
+            gr_signal_from: to_weight!(cost_batched!(gr_signal_from)),
+            gr_status_code: to_weight!(cost_batched!(gr_status_code)),
+            gr_exit: to_weight!(cost!(gr_exit)),
+            gr_leave: to_weight!(cost!(gr_leave)),
+            gr_wait: to_weight!(cost!(gr_wait)),
+            gr_wait_for: to_weight!(cost!(gr_wait_for)),
+            gr_wait_up_to: to_weight!(cost!(gr_wait_up_to)),
+            gr_wake: to_weight!(cost_batched!(gr_wake)),
+            gr_create_program_wgas: to_weight!(cost_batched!(gr_create_program_wgas)),
+            gr_create_program_wgas_payload_per_byte: to_weight!(cost_byte_batched_args!(
                 gr_create_program_wgas_per_kb,
                 1,
                 0
-            ),
-            gr_create_program_wgas_salt_per_byte: cost_byte_batched_args!(
+            )),
+            gr_create_program_wgas_salt_per_byte: to_weight!(cost_byte_batched_args!(
                 gr_create_program_wgas_per_kb,
                 0,
                 1
-            ),
-            gr_send_push_input: cost_batched!(gr_send_push_input),
-            gr_send_push_input_per_byte: cost_byte_batched!(gr_send_push_input_per_kb),
-            gr_reply_push_input: cost_batched!(gr_reply_push_input),
-            gr_reply_push_input_per_byte: cost_byte_batched!(gr_reply_push_input_per_kb),
+            )),
+            gr_send_push_input: to_weight!(cost_batched!(gr_send_push_input)),
+            gr_send_push_input_per_byte: to_weight!(cost_byte_batched!(gr_send_push_input_per_kb)),
+            gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
+            gr_reply_push_input_per_byte: to_weight!(cost_byte_batched!(
+                gr_reply_push_input_per_kb
+            )),
             _phantom: PhantomData,
         }
     }
@@ -751,13 +790,13 @@ impl<T: Config> Default for MemoryWeights<T> {
     fn default() -> Self {
         Self {
             // TODO: set values for lazy-pages from WeightInfo (issue #1893)
-            lazy_pages_read: 100,
-            lazy_pages_write: 100,
-            lazy_pages_write_after_read: 100,
-            initial_cost: <T as Config>::WeightInfo::initial_cost().ref_time(),
-            allocation_cost: <T as Config>::WeightInfo::allocation_cost().ref_time(),
-            grow_cost: <T as Config>::WeightInfo::grow_cost().ref_time(),
-            load_cost: <T as Config>::WeightInfo::load_cost().ref_time(),
+            lazy_pages_read: Weight::from_ref_time(100),
+            lazy_pages_write: Weight::from_ref_time(100),
+            lazy_pages_write_after_read: Weight::from_ref_time(100),
+            initial_cost: <T as Config>::WeightInfo::initial_cost(),
+            allocation_cost: <T as Config>::WeightInfo::allocation_cost(),
+            grow_cost: <T as Config>::WeightInfo::grow_cost(),
+            load_cost: <T as Config>::WeightInfo::load_cost(),
             _phantom: PhantomData,
         }
     }
@@ -871,6 +910,10 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
     fn memory_grow_cost(&self) -> gas_metering::MemoryGrowCost {
         gas_metering::MemoryGrowCost::Free
     }
+
+    // fn call_per_local_cost(&self) -> u32 {
+    //     self.schedule.instruction_weights.call_per_local
+    // }
 }
 
 #[cfg(test)]

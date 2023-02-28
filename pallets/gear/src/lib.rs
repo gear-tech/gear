@@ -1004,28 +1004,38 @@ pub mod pallet {
             let pages_config = PagesConfig {
                 max_pages: schedule.limits.memory_pages.into(),
                 lazy_pages_weights: LazyPagesWeights {
-                    signal_read: CostPerPage::new(schedule.memory_weights.lazy_pages_read),
-                    signal_write: CostPerPage::new(schedule.memory_weights.lazy_pages_write),
+                    signal_read: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_read.ref_time(),
+                    ),
+                    signal_write: CostPerPage::new(
+                        schedule.memory_weights.lazy_pages_write.ref_time(),
+                    ),
                     signal_write_after_read: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_write_after_read,
+                        schedule
+                            .memory_weights
+                            .lazy_pages_write_after_read
+                            .ref_time(),
                     ),
                     host_func_read_access: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_read,
+                        schedule.memory_weights.lazy_pages_read.ref_time(),
                     ),
                     host_func_write_access: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_write,
+                        schedule.memory_weights.lazy_pages_write.ref_time(),
                     ),
                     host_func_write_after_read_access: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_write_after_read,
+                        schedule
+                            .memory_weights
+                            .lazy_pages_write_after_read
+                            .ref_time(),
                     ),
                     load_page_storage_data: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_read,
+                        schedule.memory_weights.lazy_pages_read.ref_time(),
                     ),
                 },
-                init_cost: schedule.memory_weights.initial_cost,
-                alloc_cost: schedule.memory_weights.allocation_cost,
-                mem_grow_cost: schedule.memory_weights.grow_cost,
-                load_page_cost: schedule.memory_weights.load_cost,
+                init_cost: schedule.memory_weights.initial_cost.ref_time(),
+                alloc_cost: schedule.memory_weights.allocation_cost.ref_time(),
+                mem_grow_cost: schedule.memory_weights.grow_cost.ref_time(),
+                load_page_cost: schedule.memory_weights.load_cost.ref_time(),
             };
 
             BlockConfig {
@@ -1042,12 +1052,12 @@ pub mod pallet {
                 reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
                 write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-                write_per_byte_cost: schedule.db_write_per_byte,
-                read_per_byte_cost: schedule.db_read_per_byte,
-                module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
+                write_per_byte_cost: schedule.db_write_per_byte.ref_time(),
+                read_per_byte_cost: schedule.db_read_per_byte.ref_time(),
+                module_instantiation_byte_cost: schedule.module_instantiation_per_byte.ref_time(),
                 max_reservations: T::ReservationsLimit::get(),
-                code_instrumentation_cost: schedule.code_instrumentation_cost,
-                code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost,
+                code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
+                code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
             }
         }
 
