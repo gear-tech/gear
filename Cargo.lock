@@ -12411,7 +12411,7 @@ checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 [[package]]
 name = "wabt"
 version = "0.10.0"
-source = "git+https://github.com/gear-tech/wabt-rs?branch=al-win-crt#488d368020a99653eb1b0442c2bd7f5d99d493ce"
+source = "git+https://github.com/gear-tech/wabt-rs?branch=al-win-crt#4f75824f6740e981415f8eed02aeedd28ac0b15e"
 dependencies = [
  "serde",
  "serde_derive",
@@ -12422,7 +12422,7 @@ dependencies = [
 [[package]]
 name = "wabt-sys"
 version = "0.8.0"
-source = "git+https://github.com/gear-tech/wabt-rs?branch=al-win-crt#488d368020a99653eb1b0442c2bd7f5d99d493ce"
+source = "git+https://github.com/gear-tech/wabt-rs?branch=al-win-crt#4f75824f6740e981415f8eed02aeedd28ac0b15e"
 dependencies = [
  "cc",
  "cmake",
