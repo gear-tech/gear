@@ -558,7 +558,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang-14 curl libssl-dev llvm-14 libudev-dev cmake wabt protobuf-compiler wget bzip2 wine64
+          sudo apt install -y git clang-12 curl libssl-dev llvm-12 libudev-dev cmake wabt protobuf-compiler wget bzip2 wine64
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
           sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
