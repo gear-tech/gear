@@ -77,7 +77,7 @@ impl Program {
         let program = api.gprog(pid).await?;
         let code_id = program.code_hash;
         let code = api.code_storage(code_id.0).await?;
-        let pages = api.gpages(pid, program).await?;
+        let pages = api.gpages(pid, &program).await?;
 
         // Query state
         let state = Metadata::read(

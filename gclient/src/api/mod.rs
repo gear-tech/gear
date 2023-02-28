@@ -102,7 +102,7 @@ impl GearApi {
     /// Create an [`EventListener`] to subscribe and handle continuously
     /// incoming events.
     pub async fn subscribe(&self) -> Result<EventListener> {
-        let events = self.0.finalized_blocks().await?;
+        let events = self.0.api().finalized_blocks().await?;
         Ok(EventListener(events))
     }
 
@@ -122,8 +122,9 @@ impl GearApi {
     /// Actually sends the `system_accountNextIndex` RPC to the node.
     pub async fn rpc_nonce(&self) -> Result<u32> {
         self.0
+            .api()
             .rpc()
-            .system_account_next_index(self.0.signer.account_id())
+            .system_account_next_index(self.0.account_id())
             .await
             .map_err(Into::into)
     }

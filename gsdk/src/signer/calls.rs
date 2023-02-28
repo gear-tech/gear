@@ -239,7 +239,7 @@ impl Signer {
                 .await
         };
 
-        if counter >= self.retry {
+        if counter >= self.api().retry {
             return process;
         }
 

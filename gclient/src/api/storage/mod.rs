@@ -52,6 +52,7 @@ impl GearApi {
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
         let data: Option<(stored::StoredMessage, Interval<u32>)> = self
             .0
+            .api()
             .get_from_account_mailbox(account_id.into_account_id(), message_id)
             .await?;
         Ok(data.map(|(m, i)| (m.into(), i)))
@@ -60,6 +61,7 @@ impl GearApi {
     async fn account_data(&self, account_id: impl IntoAccountId32) -> Result<AccountData<u128>> {
         Ok(self
             .0
+            .api()
             .info(&account_id.into_account_id().to_ss58check())
             .await?
             .data)

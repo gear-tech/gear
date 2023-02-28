@@ -43,7 +43,7 @@ pub struct Transfer {
 impl Transfer {
     /// Execute command transfer.
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let address = signer.signer.account_id();
+        let address = signer.account_id();
 
         println!("From: {}", address.to_ss58check());
         println!("To: {}", self.destination);

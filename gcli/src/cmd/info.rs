@@ -77,7 +77,7 @@ impl Info {
 
     /// Get balance of address
     pub async fn balance(signer: Signer, address: &str) -> Result<()> {
-        let info = signer.info(address).await?;
+        let info = signer.api().info(address).await?;
 
         println!("{info:#?}");
 
@@ -87,6 +87,7 @@ impl Info {
     /// Get mailbox of address
     pub async fn mailbox(signer: Signer, address: &str, count: u32) -> Result<()> {
         let mails = signer
+            .api()
             .mailbox(
                 AccountId32::from_ss58check(address).map_err(|_| Error::InvalidPublic)?,
                 count,
