@@ -4130,7 +4130,7 @@ dependencies = [
 name = "gear-utils"
 version = "0.1.0"
 dependencies = [
- "env_logger 0.10.0",
+ "env_logger",
  "nonempty",
 ]
 
@@ -6523,7 +6523,7 @@ dependencies = [
 name = "node-fuzzer-fuzz"
 version = "0.1.0"
 dependencies = [
- "env_logger 0.10.0",
+ "env_logger",
  "gear-utils",
  "libfuzzer-sys",
  "log",
