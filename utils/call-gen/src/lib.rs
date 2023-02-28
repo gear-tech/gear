@@ -45,10 +45,10 @@ pub enum GearCall {
     UploadCode(UploadCodeArgs),
 }
 
-pub fn generate_gear_program<Rng: CallGenRng>(
-    existing_programs: Vec<ProgramId>,
-    seed: u64,
-) -> Vec<u8> {
+/// Function generates WASM-binary of a Gear program with the
+/// specified `seed`. `programs` may specify addresses which
+/// can be used for send-calls.
+pub fn generate_gear_program<Rng: CallGenRng>(programs: Vec<ProgramId>, seed: u64) -> Vec<u8> {
     use arbitrary::Unstructured;
     use gear_wasm_gen::gsys;
 
@@ -62,7 +62,7 @@ pub fn generate_gear_program<Rng: CallGenRng>(
     let mut config = gear_wasm_gen::GearConfig::new_normal();
     config.print_test_info = Some(format!("Gear program seed = '{seed}'"));
 
-    let addresses = existing_programs
+    let addresses = programs
         .iter()
         .map(|pid| gsys::HashWithValue {
             hash: pid.into_bytes(),
