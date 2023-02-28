@@ -16,15 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// Modified implementation of the basic block-authorship logic from
-// https://github.com/paritytech/substrate/tree/master/client/basic-authorship.
-// The block proposer explicitly pushes the `pallet_gear::run`
-// extrinsic at the end of each block.
-
-mod authorship;
-mod block_builder;
-
-#[cfg(test)]
-mod tests;
-
-pub use crate::authorship::{Proposer, ProposerFactory, DEFAULT_BLOCK_SIZE_LIMIT};
+pub mod client;
+pub mod genesis;
+pub mod keyring;
