@@ -36,10 +36,13 @@ use super::runtime_types::{
     gear_common::event::*,
     gear_core::{ids as generated_ids, message as generated_message},
     gear_runtime::{RuntimeCall, RuntimeEvent},
+    pallet_balances::pallet::Call as BalancesCall,
     pallet_gear::pallet::Call as GearCall,
+    pallet_sudo::pallet::Call as SudoCall,
 };
 use gear_core::{ids, message, message::StoredMessage};
 use parity_scale_codec::{Decode, Encode};
+use sp_runtime::MultiAddress;
 use subxt::dynamic::Value;
 
 type ApiEvent = super::Event;
@@ -157,87 +160,129 @@ impl_basic! {
 
 impl From<RuntimeCall> for Value {
     fn from(call: RuntimeCall) -> Value {
-        // Parse gear call only for now.
-        let gear_call = if let RuntimeCall::Gear(gear_call) = call {
-            gear_call
-        } else {
-            unimplemented!("only support calls from pallet-gear for now.")
-        };
-
-        // Parse the function signature.
-        let variant = match gear_call {
-            GearCall::upload_code { code } => {
-                Value::named_variant("upload_code", [("code", Value::from_bytes(code))])
-            }
-            GearCall::upload_program {
-                code,
-                salt,
-                init_payload,
-                gas_limit,
-                value,
-            } => Value::named_variant(
-                "upload_program",
-                [
-                    ("code", Value::from_bytes(code)),
-                    ("salt", Value::from_bytes(salt)),
-                    ("init_payload", Value::from_bytes(init_payload)),
-                    ("gas_limit", Value::u128(gas_limit as u128)),
-                    ("value", Value::u128(value as u128)),
-                ],
-            ),
-            GearCall::create_program {
-                code_id,
-                salt,
-                init_payload,
-                gas_limit,
-                value,
-            } => Value::named_variant(
-                "create_program",
-                [
-                    ("code_id", Value::from_bytes(code_id.0)),
-                    ("salt", Value::from_bytes(salt)),
-                    ("init_payload", Value::from_bytes(init_payload)),
-                    ("gas_limit", Value::u128(gas_limit as u128)),
-                    ("value", Value::u128(value as u128)),
-                ],
-            ),
-            GearCall::send_message {
-                destination,
-                payload,
-                gas_limit,
-                value,
-            } => Value::named_variant(
-                "send_message",
-                [
-                    ("destination", Value::from_bytes(destination.0)),
-                    ("payload", Value::from_bytes(payload)),
-                    ("gas_limit", Value::u128(gas_limit as u128)),
-                    ("value", Value::u128(value as u128)),
-                ],
-            ),
-            GearCall::send_reply {
-                reply_to_id,
-                payload,
-                gas_limit,
-                value,
-            } => Value::named_variant(
-                "send_reply",
-                [
-                    ("reply_to_id", Value::from_bytes(reply_to_id.0)),
-                    ("payload", Value::from_bytes(payload)),
-                    ("gas_limit", Value::u128(gas_limit as u128)),
-                    ("value", Value::u128(value as u128)),
-                ],
-            ),
-            GearCall::claim_value { message_id } => Value::named_variant(
-                "claim_value",
-                [("message_id", Value::from_bytes(message_id.0))],
-            ),
-            _ => {
-                unimplemented!("calls that won't be used in batch call")
-            }
-        };
-
-        Value::unnamed_variant("Gear", [variant])
+        match call {
+            RuntimeCall::Gear(gear_call) => gear_call_to_scale_value(gear_call),
+            RuntimeCall::Sudo(sudo_call) => sudo_call_to_scale_value(sudo_call),
+            RuntimeCall::Balances(balances_call) => balances_call_to_scale_value(balances_call),
+            _ => unimplemented!("only support calls from pallet-gear for now."),
+        }
     }
+}
+
+fn gear_call_to_scale_value(call: GearCall) -> Value {
+    let variant = match call {
+        GearCall::upload_code { code } => {
+            Value::named_variant("upload_code", [("code", Value::from_bytes(code))])
+        }
+        GearCall::upload_program {
+            code,
+            salt,
+            init_payload,
+            gas_limit,
+            value,
+        } => Value::named_variant(
+            "upload_program",
+            [
+                ("code", Value::from_bytes(code)),
+                ("salt", Value::from_bytes(salt)),
+                ("init_payload", Value::from_bytes(init_payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+            ],
+        ),
+        GearCall::create_program {
+            code_id,
+            salt,
+            init_payload,
+            gas_limit,
+            value,
+        } => Value::named_variant(
+            "create_program",
+            [
+                ("code_id", Value::from_bytes(code_id.0)),
+                ("salt", Value::from_bytes(salt)),
+                ("init_payload", Value::from_bytes(init_payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+            ],
+        ),
+        GearCall::send_message {
+            destination,
+            payload,
+            gas_limit,
+            value,
+        } => Value::named_variant(
+            "send_message",
+            [
+                ("destination", Value::from_bytes(destination.0)),
+                ("payload", Value::from_bytes(payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+            ],
+        ),
+        GearCall::send_reply {
+            reply_to_id,
+            payload,
+            gas_limit,
+            value,
+        } => Value::named_variant(
+            "send_reply",
+            [
+                ("reply_to_id", Value::from_bytes(reply_to_id.0)),
+                ("payload", Value::from_bytes(payload)),
+                ("gas_limit", Value::u128(gas_limit as u128)),
+                ("value", Value::u128(value as u128)),
+            ],
+        ),
+        GearCall::claim_value { message_id } => Value::named_variant(
+            "claim_value",
+            [("message_id", Value::from_bytes(message_id.0))],
+        ),
+        _ => {
+            unimplemented!("calls that won't be used in batch call");
+        }
+    };
+
+    Value::unnamed_variant("Gear", [variant])
+}
+
+fn sudo_call_to_scale_value(call: SudoCall) -> Value {
+    let variant = match call {
+        SudoCall::sudo_unchecked_weight { call, weight } => Value::named_variant(
+            "sudo_unchecked_weight",
+            [
+                ("call", (*call).into()),
+                ("weight", Value::from_bytes(weight.encode())),
+            ],
+        ),
+        _ => unimplemented!("calls that won't be used in batch call"),
+    };
+
+    Value::unnamed_variant("Sudo", [variant])
+}
+
+fn balances_call_to_scale_value(call: BalancesCall) -> Value {
+    let variant = match call {
+        BalancesCall::set_balance {
+            who,
+            new_free,
+            new_reserved,
+        } => {
+            let id = match who {
+                MultiAddress::Id(id) => id,
+                _ => unreachable!("internal error: unused multi-address variant occurred"),
+            };
+            Value::named_variant(
+                "set_balance",
+                [
+                    ("who", Value::unnamed_variant("Id", [Value::from_bytes(id)])),
+                    ("new_free", Value::u128(new_free)),
+                    ("new_reserved", Value::u128(new_reserved)),
+                ],
+            )
+        }
+        _ => unreachable!("calls that won't be used in batch call"),
+    };
+
+    Value::unnamed_variant("Balances", [variant])
 }

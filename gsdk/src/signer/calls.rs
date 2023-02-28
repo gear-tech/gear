@@ -183,10 +183,7 @@ impl Signer {
         let tx = subxt::dynamic::tx(
             "Sudo",
             "sudo_unchecked_weight",
-            vec![
-                Value::from_bytes(call.encode()),
-                Value::from_bytes(weight.encode()),
-            ],
+            vec![call.into(), Value::from_bytes(weight.encode())],
         );
 
         self.process(tx).await
