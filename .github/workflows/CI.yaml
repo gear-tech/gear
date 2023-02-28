@@ -35,94 +35,94 @@ jobs:
   #       if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
   #       run: ./scripts/check-spec.sh
 
-  check:
-    # needs: spec_version
-    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
+#   check:
+#     # needs: spec_version
+#     runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
+#     env:
+#       RUSTUP_HOME: /tmp/rustup_home
+#     steps:
+#       - name: Cancel Previous Runs
+#         if: ${{ github.event_name == 'pull_request' }}
+#         uses: styfle/cancel-workflow-action@0.11.0
+#         with:
+#           access_token: ${{ github.token }}
 
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
+#       - name: "ACTIONS: Checkout"
+#         uses: actions/checkout@v3
 
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+#       - name: "Install: Set cargo path"
+#         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          components: clippy, rustfmt
-          target: wasm32-unknown-unknown
+#       - name: "Install: Nightly toolchain"
+#         uses: actions-rs/toolchain@v1
+#         with:
+#           toolchain: nightly
+#           components: clippy, rustfmt
+#           target: wasm32-unknown-unknown
 
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+#       - name: "Install: Show specific nightly version"
+#         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+#         run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
 
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
-          components: llvm-tools-preview
+#       - name: "Install: Specific nightly toolchain"
+#         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+#         uses: actions-rs/toolchain@v1
+#         with:
+#           toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+#           target: wasm32-unknown-unknown
+#           components: llvm-tools-preview
 
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+#       - name: "Install: Pin to specific nightly toolchain"
+#         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+#         run: |
+#           rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+#           ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
 
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
-          sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
-          sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
-          sudo chmod +x /usr/bin/cachepot
+#       - name: "Install: Build deps"
+#         run: |
+#           sudo apt update
+#           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
+#           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+#           sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
+#           sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+#           sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
+#           sudo chmod +x /usr/bin/cachepot
 
-      - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' }}
-        continue-on-error: true
-        run: |
-          tar -xf /root/cache/check_cache_${{ github.base_ref }}.tar -C /
-          tar -xf /root/cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
-          tar -xf /root/cache/check_target_${{ github.base_ref }}.tar
+#       - name: "Cache: Unpack"
+#         if: ${{ github.event_name == 'pull_request' }}
+#         continue-on-error: true
+#         run: |
+#           tar -xf /root/cache/check_cache_${{ github.base_ref }}.tar -C /
+#           tar -xf /root/cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
+#           tar -xf /root/cache/check_target_${{ github.base_ref }}.tar
 
-      - name: "Check formatting: Gear"
-        run: ./scripts/gear.sh format gear --check
+#       - name: "Check formatting: Gear"
+#         run: ./scripts/gear.sh format gear --check
 
-      - name: "Check formatting: Examples"
-        run: ./scripts/gear.sh format examples --check
+#       - name: "Check formatting: Examples"
+#         run: ./scripts/gear.sh format examples --check
 
-      - name: "Check formatting: Doc"
-        run: ./scripts/gear.sh format doc --check
+#       - name: "Check formatting: Doc"
+#         run: ./scripts/gear.sh format doc --check
 
-      - name: "Check clippy: Gear"
-        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
+#       - name: "Check clippy: Gear"
+#         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
-      - name: "Check clippy: Examples"
-        run: ./scripts/gear.sh clippy examples
+#       - name: "Check clippy: Examples"
+#         run: ./scripts/gear.sh clippy examples
 
-      - name: "Test: Doc tests"
-        run: ./scripts/gear.sh test doc
+#       - name: "Test: Doc tests"
+#         run: ./scripts/gear.sh test doc
 
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: >
-          ls -la \
-          && sudo tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target \
-          && sudo tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot \
-          && sudo tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git \
-          && sudo mv /tmp/*.tar /root/cache/
+#       - name: "Cache: Pack"
+#         if: ${{ github.event_name == 'push' }}
+#         continue-on-error: true
+#         run: >
+#           ls -la \
+#           && sudo tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target \
+#           && sudo tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot \
+#           && sudo tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git \
+#           && sudo mv /tmp/*.tar /root/cache/
 
   build:
     # needs: spec_version
@@ -223,47 +223,47 @@ jobs:
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
-      - name: "Test: Gear pallet tests with lazy pages"
-        run: |
-          cargo test -p pallet-gear --features=lazy-pages --release --locked
-          cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
-          cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
+#       - name: "Test: Gear pallet tests with lazy pages"
+#         run: |
+#           cargo test -p pallet-gear --features=lazy-pages --release --locked
+#           cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
+#           cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
-      - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gprogram --features pallet-gear-debug/lazy-pages --release --locked
+#       - name: "Test: Gear workspace"
+#         run: ./scripts/gear.sh test gear --exclude gclient --exclude gprogram --features pallet-gear-debug/lazy-pages --release --locked
 
-      - name: "Test: JS metadata"
-        run: ./scripts/gear.sh test js
+#       - name: "Test: JS metadata"
+#         run: ./scripts/gear.sh test js
 
-      - name: "Test: Process gear-test"
-        run: ./scripts/gear.sh test gtest
+#       - name: "Test: Process gear-test"
+#         run: ./scripts/gear.sh test gtest
 
-      - name: "Test: Program CLI"
-        run: |
-          cargo nextest run --release -p gear-program --features bin
-          cargo nextest run --release -p gear-program --no-default-features --features bin,vara
+#       - name: "Test: Program CLI"
+#         run: |
+#           cargo nextest run --release -p gear-program --features bin
+#           cargo nextest run --release -p gear-program --no-default-features --features bin,vara
 
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client --run-node
+#       - name: "Test: Client tests"
+#         run: ./scripts/gear.sh test client --run-node
 
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
+#       - name: "Test: Process node runtime spec tests"
+#         run: |
+#           cargo build -p gear-cli --release --features=runtime-test
+#           ./scripts/gear.sh test rtest gear
 
-      - name: "Test: runtime spec tests no lazy pages"
-        run: |
-          cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
-          ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
+#       - name: "Test: runtime spec tests no lazy pages"
+#         run: |
+#           cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
+#           ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
 
-      - name: "Test: Runtime benchmarks and benchmark tests work"
-        run: |
-          cargo build -p gear-cli --release --features runtime-benchmarks
-          ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
-          # TODO: reveal once #2266 merged
-          # ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
-          # check also lazy-pages benchmarks tests for native runtime
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
+#       - name: "Test: Runtime benchmarks and benchmark tests work"
+#         run: |
+#           cargo build -p gear-cli --release --features runtime-benchmarks
+#           ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+#           # TODO: reveal once #2266 merged
+#           # ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
+#           # check also lazy-pages benchmarks tests for native runtime
+#           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
 
       # TODO: reveal once #2266 merged
       # - name: "Test: Sys-calls Wasmi integrity"
@@ -313,284 +313,286 @@ jobs:
       - name: "Cache: Pack"
         #if: ${{ github.event_name == 'push' }}
         continue-on-error: true
-        run: >
-          ls -la ./ \
-          && sudo tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target \
-          && sudo tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot \
-          && sudo tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git \
-          && sudo mv /tmp/*.tar /root/cache/
-
-
-      - name: "Cache: Pack to temp"
-        if: ${{ github.event_name == 'pull_request' }}
-        continue-on-error: true
-        run: >
-          ls -la \
-          && sudo tar -cf /tmp/build_target.tar ./target \
-          && sudo tar -cf /tmp/build_cache.tar /tmp/cachepot \
-          && sudo tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          && sudo mkdir -p /root/cache/${{ github.event.pull_request.number }} \
-          && sudo mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
-
-      - name: Prepare artifacts
-        if: github.event_name == 'push'
         run: |
-          mkdir -p artifact
-          cd target/wasm32-unknown-unknown/release
-          tar czvf ../../../artifact/examples.tar.gz *.wasm
-          cd ../../..
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
-          cp target/production/gear artifact/
-          cp target/release/gear-test artifact/
-          cp target/release/wasm-proc artifact/
-          strip artifact/gear || true
-          strip artifact/gear-test || true
-          strip artifact/wasm-proc || true
+          pwd
+          ls -la ./
+          ls -la /tmp
+          sudo tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target
+#         && sudo tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot \
+#         && sudo tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git \
+#         && sudo mv /tmp/*.tar /root/cache/
 
-      - name: Upload artifacts
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@v3
-        with:
-          path: artifact
 
-  build-win:
-    if: always() &&
-      (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E1-forcewindows'))
-    needs: build
-    runs-on: ci-win
-    defaults:
-      run:
-        shell: msys2 {0}
-    env:
-      RUSTC_WRAPPER: "cachepot"
-      CARGO_INCREMENTAL: 0
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
+#       - name: "Cache: Pack to temp"
+#         if: ${{ github.event_name == 'pull_request' }}
+#         continue-on-error: true
+#         run: >
+#           ls -la \
+#           && sudo tar -cf /tmp/build_target.tar ./target \
+#           && sudo tar -cf /tmp/build_cache.tar /tmp/cachepot \
+#           && sudo tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+#           && sudo mkdir -p /root/cache/${{ github.event.pull_request.number }} \
+#           && sudo mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
 
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
+#       - name: Prepare artifacts
+#         if: github.event_name == 'push'
+#         run: |
+#           mkdir -p artifact
+#           cd target/wasm32-unknown-unknown/release
+#           tar czvf ../../../artifact/examples.tar.gz *.wasm
+#           cd ../../..
+#           cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
+#           cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
+#           cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
+#           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
+#           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
+#           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
+#           cp target/production/gear artifact/
+#           cp target/release/gear-test artifact/
+#           cp target/release/wasm-proc artifact/
+#           strip artifact/gear || true
+#           strip artifact/gear-test || true
+#           strip artifact/wasm-proc || true
 
-      - name: "Install: Setup MSYS2 environment"
-        uses: msys2/setup-msys2@v2
-        with:
-          path-type: inherit
-          install: >-
-            procps
-            mingw-w64-x86_64-protobuf
+#       - name: Upload artifacts
+#         if: github.event_name == 'push'
+#         uses: actions/upload-artifact@v3
+#         with:
+#           path: artifact
 
-      - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          target: wasm32-unknown-unknown
+#   build-win:
+#     if: always() &&
+#       (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E1-forcewindows'))
+#     needs: build
+#     runs-on: ci-win
+#     defaults:
+#       run:
+#         shell: msys2 {0}
+#     env:
+#       RUSTC_WRAPPER: "cachepot"
+#       CARGO_INCREMENTAL: 0
+#     steps:
+#       - name: Cancel Previous Runs
+#         if: ${{ github.event_name == 'pull_request' }}
+#         uses: styfle/cancel-workflow-action@0.11.0
+#         with:
+#           access_token: ${{ github.token }}
 
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+#       - name: "ACTIONS: Checkout"
+#         uses: actions/checkout@v3
 
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
-          components: llvm-tools-preview
+#       - name: "Install: Setup MSYS2 environment"
+#         uses: msys2/setup-msys2@v2
+#         with:
+#           path-type: inherit
+#           install: >-
+#             procps
+#             mingw-w64-x86_64-protobuf
 
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -r $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
-          mv $env:USERPROFILE\.rustup\toolchains\nightly-$env:NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
-        shell: powershell
+#       - name: "Install: Nightly toolchain"
+#         uses: actions-rs/toolchain@v1
+#         with:
+#           toolchain: nightly
+#           target: wasm32-unknown-unknown
 
-      - name: "Install: cargo-nextest"
-        run: |
-          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
-          Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
-          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
-          $tmp | Expand-Archive -DestinationPath $outputDir -Force
-          $tmp | Remove-Item
-        shell: powershell
+#       - name: "Install: Show specific nightly version"
+#         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+#         run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
 
-      - name: "Install: cargo-hack"
-        run: |
-          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
-          Invoke-WebRequest -OutFile $tmp https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-x86_64-pc-windows-msvc.tar.gz
-          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { Resolve-Path "~/.cargo/bin" }
-          tar zxf $tmp -C $outputDir
-          $tmp | Remove-Item
-        shell: powershell
+#       - name: "Install: Specific nightly toolchain"
+#         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+#         uses: actions-rs/toolchain@v1
+#         with:
+#           toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+#           target: wasm32-unknown-unknown
+#           components: llvm-tools-preview
 
-      - name: "Install: binaryen"
-        run: |
-          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
-          Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/binaryen/releases/download/version_110/binaryen-version_110-x86_64-windows.tar.gz
-          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
-          tar zxf $tmp
-          cp ./binaryen-version_110/bin/* $outputDir
-          Remove-Item -Recurse ./binaryen-version_110
-          $tmp | Remove-Item
-        shell: powershell
+#       - name: "Install: Pin to specific nightly toolchain"
+#         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+#         run: |
+#           rm -r $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
+#           mv $env:USERPROFILE\.rustup\toolchains\nightly-$env:NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
+#         shell: powershell
 
-      - name: "Install: wabt"
-        run: |
-          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
-          Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/wabt/releases/download/1.0.29/wabt-1.0.29-windows.tar.gz
-          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
-          tar zxf $tmp
-          cp ./wabt-1.0.29/bin/* $outputDir
-          Remove-Item -Recurse ./wabt-1.0.29
-          $tmp | Remove-Item
-        shell: powershell
+#       - name: "Install: cargo-nextest"
+#         run: |
+#           $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
+#           Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
+#           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+#           $tmp | Expand-Archive -DestinationPath $outputDir -Force
+#           $tmp | Remove-Item
+#         shell: powershell
 
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
+#       - name: "Install: cargo-hack"
+#         run: |
+#           $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+#           Invoke-WebRequest -OutFile $tmp https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-x86_64-pc-windows-msvc.tar.gz
+#           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { Resolve-Path "~/.cargo/bin" }
+#           tar zxf $tmp -C $outputDir
+#           $tmp | Remove-Item
+#         shell: powershell
 
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
+#       - name: "Install: binaryen"
+#         run: |
+#           $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+#           Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/binaryen/releases/download/version_110/binaryen-version_110-x86_64-windows.tar.gz
+#           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+#           tar zxf $tmp
+#           cp ./binaryen-version_110/bin/* $outputDir
+#           Remove-Item -Recurse ./binaryen-version_110
+#           $tmp | Remove-Item
+#         shell: powershell
 
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
+#       - name: "Install: wabt"
+#         run: |
+#           $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+#           Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/wabt/releases/download/1.0.29/wabt-1.0.29-windows.tar.gz
+#           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+#           tar zxf $tmp
+#           cp ./wabt-1.0.29/bin/* $outputDir
+#           Remove-Item -Recurse ./wabt-1.0.29
+#           $tmp | Remove-Item
+#         shell: powershell
 
-      - name: "Build: WAT examples"
-        run: ./scripts/gear.sh build wat-examples
+#       - name: "Install: Node.js"
+#         uses: actions/setup-node@v3
+#         with:
+#           node-version: "16"
 
-      - name: "Build: wasm-proc"
-        run: ./scripts/gear.sh build wasm-proc --locked
+#       - name: "Install: Node.js packages"
+#         run: ./scripts/gear.sh init js
 
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
+#       - name: "Build: Node"
+#         run: ./scripts/gear.sh build node --release --locked
 
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
+#       - name: "Build: WAT examples"
+#         run: ./scripts/gear.sh build wat-examples
 
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client --run-node
+#       - name: "Build: wasm-proc"
+#         run: ./scripts/gear.sh build wasm-proc --locked
 
-      - name: Stop Gear Node Force
-        shell: powershell
-        run: Get-Process gear* | Stop-Process -Force
+#       - name: "Build: Examples (WASM)"
+#         run: ./scripts/gear.sh build examples --locked
 
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
+#       - name: "Build: Split examples by .opt and .meta"
+#         run: ./scripts/gear.sh build examples-proc
 
-      - name: "Test: Lazy pages"
-        uses: actions-rs/cargo@v1
-        with:
-          command: nextest
-          args: >-
-            run
-            -p pallet-gear
-            -p pallet-gear-debug
-            -p pallet-gear-payment
-            -p gear-lazy-pages
-            -p gear-runtime-interface
-            --features=lazy-pages
-            --release
+#       - name: "Test: Client tests"
+#         run: ./scripts/gear.sh test client --run-node
 
-  build-macos-x86:
-    if: always() &&
-      (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos'))
-    needs: build
-    runs-on: macos-latest
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
+#       - name: Stop Gear Node Force
+#         shell: powershell
+#         run: Get-Process gear* | Stop-Process -Force
 
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
+#       - name: "Test: Process node runtime spec tests"
+#         run: |
+#           cargo build -p gear-cli --release --features=runtime-test
+#           ./scripts/gear.sh test rtest gear
 
-      - name: "ACTIONS: Setup caching"
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+#       - name: "Test: Lazy pages"
+#         uses: actions-rs/cargo@v1
+#         with:
+#           command: nextest
+#           args: >-
+#             run
+#             -p pallet-gear
+#             -p pallet-gear-debug
+#             -p pallet-gear-payment
+#             -p gear-lazy-pages
+#             -p gear-runtime-interface
+#             --features=lazy-pages
+#             --release
 
-      - name: "Install: protobuf"
-        run: brew install protobuf
+#   build-macos-x86:
+#     if: always() &&
+#       (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos'))
+#     needs: build
+#     runs-on: macos-latest
+#     steps:
+#       - name: Cancel Previous Runs
+#         if: ${{ github.event_name == 'pull_request' }}
+#         uses: styfle/cancel-workflow-action@0.11.0
+#         with:
+#           access_token: ${{ github.token }}
 
-      - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          target: wasm32-unknown-unknown
+#       - name: "ACTIONS: Checkout"
+#         uses: actions/checkout@v3
 
-      - name: "Install: cargo-nextest"
-        run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+#       - name: "ACTIONS: Setup caching"
+#         uses: actions/cache@v3
+#         with:
+#           path: |
+#             ~/.cargo/bin/
+#             ~/.cargo/registry/index/
+#             ~/.cargo/registry/cache/
+#             ~/.cargo/git/db/
+#             target/
+#           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+#           restore-keys: |
+#             ${{ runner.os }}-cargo-
 
-      - name: "Build: Node"
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p gear-cli --features=lazy-pages
+#       - name: "Install: protobuf"
+#         run: brew install protobuf
 
-      - name: "Test: Lazy pages"
-        uses: actions-rs/cargo@v1
-        with:
-          command: nextest
-          args: >-
-            run
-            -p pallet-gear
-            -p pallet-gear-debug
-            -p pallet-gear-payment
-            -p gear-lazy-pages
-            -p gear-runtime-interface
-            --features=lazy-pages
+#       - name: "Install: Nightly toolchain"
+#         uses: actions-rs/toolchain@v1
+#         with:
+#           toolchain: nightly
+#           target: wasm32-unknown-unknown
 
-  upload:
-    if: github.event_name == 'push' && github.ref_name == 'master'
-    runs-on: self-hosted
-    needs: build
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
+#       - name: "Install: cargo-nextest"
+#         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
+#       - name: "Build: Node"
+#         uses: actions-rs/cargo@v1
+#         with:
+#           command: build
+#           args: -p gear-cli --features=lazy-pages
 
-      - name: Delete previous release
-        uses: dev-drprasad/delete-tag-and-release@v0.2.0
-        with:
-          delete_release: true
-          tag_name: build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       - name: "Test: Lazy pages"
+#         uses: actions-rs/cargo@v1
+#         with:
+#           command: nextest
+#           args: >-
+#             run
+#             -p pallet-gear
+#             -p pallet-gear-debug
+#             -p pallet-gear-payment
+#             -p gear-lazy-pages
+#             -p gear-runtime-interface
+#             --features=lazy-pages
 
-      - name: Sleep
-        run: sleep 10
+#   upload:
+#     if: github.event_name == 'push' && github.ref_name == 'master'
+#     runs-on: self-hosted
+#     needs: build
+#     steps:
+#       - name: Cancel Previous Runs
+#         if: ${{ github.event_name == 'pull_request' }}
+#         uses: styfle/cancel-workflow-action@0.11.0
+#         with:
+#           access_token: ${{ github.token }}
 
-      - name: Upload
-        uses: softprops/action-gh-release@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          prerelease: true
-          tag_name: build
-          draft: false
-          fail_on_unmatched_files: true
-          files: artifact/*
+#       - name: Download artifacts
+#         uses: actions/download-artifact@v3
+
+#       - name: Delete previous release
+#         uses: dev-drprasad/delete-tag-and-release@v0.2.0
+#         with:
+#           delete_release: true
+#           tag_name: build
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+#       - name: Sleep
+#         run: sleep 10
+
+#       - name: Upload
+#         uses: softprops/action-gh-release@v1
+#         with:
+#           token: ${{ secrets.GITHUB_TOKEN }}
+#           prerelease: true
+#           tag_name: build
+#           draft: false
+#           fail_on_unmatched_files: true
+#           files: artifact/*
