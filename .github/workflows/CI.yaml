@@ -584,8 +584,6 @@ jobs:
       - name: "Install: set TARGET"
         run: echo "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc" >> $GITHUB_ENV
 
-      - run: echo "alias cargo='cargo xwin'" >> ~/.bashrc
-
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
