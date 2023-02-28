@@ -252,7 +252,13 @@ fn sudo_call_to_scale_value(call: SudoCall) -> Value {
             "sudo_unchecked_weight",
             [
                 ("call", (*call).into()),
-                ("weight", Value::from_bytes(weight.encode())),
+                (
+                    "weight",
+                    Value::named_composite([
+                        ("ref_time", Value::u128(weight.ref_time as u128)),
+                        ("proof_size", Value::u128(weight.proof_size as u128)),
+                    ]),
+                ),
             ],
         ),
         _ => unimplemented!("calls that won't be used in batch call"),

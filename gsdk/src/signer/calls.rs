@@ -26,7 +26,6 @@ use crate::{
 use anyhow::anyhow;
 use async_recursion::async_recursion;
 use gear_core::ids::{CodeId, MessageId, ProgramId};
-use parity_scale_codec::Encode;
 use sp_runtime::AccountId32;
 use subxt::{
     dynamic::Value,
@@ -184,7 +183,13 @@ impl Signer {
             "Sudo",
             "sudo_unchecked_weight",
             // As `call` implements conversion to `Value`.
-            vec![call.into(), Value::from_bytes(weight.encode())],
+            vec![
+                call.into(),
+                Value::named_composite([
+                    ("ref_time", Value::u128(weight.ref_time as u128)),
+                    ("proof_size", Value::u128(weight.proof_size as u128)),
+                ]),
+            ],
         );
 
         self.process(tx).await
