@@ -12,9 +12,9 @@ repository = "https://github.com/gear-tech/gear"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.4.0", features = ["derive"] }
 futures = "0.3.26"
-futures-timer = "3.0.1"
+futures-timer = "3.0.2"
 log = "0.4.17"
 
 # Gear
@@ -44,7 +44,7 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.
 
 [dev-dependencies]
 parking_lot = "0.12.1"
-scale-info = { version = "2.1.1", features = ["derive"] }
+scale-info = { version = "2.3.1", features = ["derive"] }
 sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }

@@ -910,7 +910,7 @@ fn delayed_send_program_message_with_low_reservation() {
         ));
 
         let program_address = utils::get_last_program_id();
-        let reservation_amount = 100u64;
+        let reservation_amount = <Test as Config>::MailboxThreshold::get();
 
         // Upload program that sends message to another program.
         assert_ok!(Gear::upload_program(
@@ -7261,13 +7261,13 @@ fn reject_incorrect_binary() {
         assert_noop!(
             Gear::upload_code(
                 RuntimeOrigin::signed(USER_1),
-                ProgramCodeKind::Custom(wat).to_bytes()
+                ProgramCodeKind::CustomInvalid(wat).to_bytes()
             ),
             Error::<Test>::ProgramConstructionFailed
         );
 
         assert_noop!(
-            upload_program_default(USER_1, ProgramCodeKind::Custom(wat)),
+            upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(wat)),
             Error::<Test>::ProgramConstructionFailed
         );
     });
@@ -8257,8 +8257,6 @@ fn system_reservation_accumulate_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        const REPETITIONS: usize = 5;
-
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
@@ -8546,7 +8544,10 @@ fn gas_reservations_check_params() {
             RuntimeOrigin::signed(USER_1),
             demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            InitAction::CheckArgs.encode(),
+            InitAction::CheckArgs {
+                mailbox_threshold: <Test as Config>::MailboxThreshold::get(),
+            }
+            .encode(),
             10_000_000_000,
             0,
         ));
@@ -9400,12 +9401,14 @@ mod utils {
     pub(super) enum ProgramCodeKind<'a> {
         Default,
         Custom(&'a str),
+        CustomInvalid(&'a str),
         GreedyInit,
         OutgoingWithValueInHandle,
     }
 
     impl<'a> ProgramCodeKind<'a> {
         pub(super) fn to_bytes(self) -> Vec<u8> {
+            let mut validate = true;
             let source = match self {
                 ProgramCodeKind::Default => {
                     r#"
@@ -9483,10 +9486,14 @@ mod utils {
                     )"#
                 }
                 ProgramCodeKind::Custom(code) => code,
+                ProgramCodeKind::CustomInvalid(code) => {
+                    validate = false;
+                    code
+                }
             };
 
             wabt::Wat2Wasm::new()
-                .validate(false)
+                .validate(validate)
                 .convert(source)
                 .expect("failed to parse module")
                 .as_ref()
@@ -10033,6 +10040,91 @@ fn oom_handler_works() {
         assert_failed(
             mid,
             ActorExecutionErrorReason::Trap(TrapExplanation::ProgramAllocOutOfBounds),
+        );
+    });
+}
+
+#[test]
+fn alloc_charge_error() {
+    const WAT: &str = r#"
+(module
+    (import "env" "memory" (memory 1))
+    (import "env" "alloc" (func $alloc (param i32) (result i32)))
+    (export "init" (func $init))
+    (func $init
+        ;; we are trying to allocate so many pages with such small gas limit
+        ;; that we will get `GasLimitExceeded` error
+        i32.const 0xff
+        call $alloc
+        drop
+    )
+)
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(WAT).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            500_000_000_u64,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
+        );
+    });
+}
+
+#[test]
+fn free_usage_error() {
+    const WAT: &str = r#"
+(module
+    (import "env" "memory" (memory 1))
+    (import "env" "free" (func $free (param i32) (result i32)))
+    (export "init" (func $init))
+    (func $init
+        ;; free impossible and non-existing page
+        i32.const 0xffffffff
+        call $free
+        ;; free must return 1 so we will get `unreachable` instruction
+        i32.const 0
+        i32.eq
+        br_if 0
+        unreachable
+    )
+)
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(WAT).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            500_000_000_u64,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .unwrap();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(pid));
+        assert_failed(
+            mid,
+            ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
         );
     });
 }

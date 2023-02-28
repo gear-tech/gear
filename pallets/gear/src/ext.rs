@@ -57,7 +57,7 @@ impl BackendExt for LazyPagesExt {
     }
 
     fn gas_amount(&self) -> GasAmount {
-        self.inner.context.gas_counter.clone().into()
+        self.inner.context.gas_counter.to_amount()
     }
 
     fn pre_process_memory_accesses(

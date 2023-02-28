@@ -13,9 +13,9 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
-primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
+codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
+primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"] }
 log = { version = "0.4.17", default-features = false }
 
 # Internal deps
@@ -39,7 +39,7 @@ serde = "1.0.152"
 env_logger = "0.10"
 wabt = "0.10"
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
-hex-literal = "0.3.3"
+hex-literal = "0.3.4"
 frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 pallet-gear-gas = { path = "../gas" }

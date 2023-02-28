@@ -27,6 +27,7 @@ mod builder_error;
 mod cargo_command;
 mod crate_info;
 pub mod optimize;
+mod smart_fs;
 mod stack_end;
 mod wasm_project;
 
@@ -67,9 +68,10 @@ impl WasmBuilder {
 
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
-        if env::var(self.cargo.skip_build_env()).is_ok() {
+        if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() {
             return;
         }
+
         if let Err(e) = self.build_project() {
             eprintln!("error: {e}");
             e.chain()
