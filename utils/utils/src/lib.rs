@@ -55,3 +55,19 @@ pub fn now_duration() -> Duration {
         .duration_since(UNIX_EPOCH)
         .expect("Internal error: current time before UNIX Epoch")
 }
+
+/// Initialize a simple logger from env.
+///
+/// Does show:
+/// - level
+/// - timestamp
+/// - module
+///
+/// Does not show
+/// - module path
+pub fn init_default_logger() {
+    let _ = env_logger::Builder::from_default_env()
+        .format_module_path(false)
+        .format_level(true)
+        .try_init();
+}

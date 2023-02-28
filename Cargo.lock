@@ -4116,6 +4116,7 @@ dependencies = [
 name = "gear-utils"
 version = "0.1.0"
 dependencies = [
+ "env_logger 0.10.0",
  "nonempty",
 ]
 
@@ -6391,6 +6392,7 @@ dependencies = [
  "sp-finality-grandpa",
  "sp-io",
  "sp-runtime",
+ "structopt",
 ]
 
 [[package]]

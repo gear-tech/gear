@@ -10,20 +10,13 @@ use std::{
 const SEEDS_STORE: &str = "fuzzing_seeds";
 
 fuzz_target!(|seed: u64| {
-    init_logger();
+    gear_utils::init_default_logger();
 
     dump_seed(seed).expect("internal error: failed dumping seed");
 
     log::info!("Running the seed {seed}");
     node_fuzzer::run(seed);
 });
-
-fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
-}
 
 // Dumps seed to the file before running fuzz test.
 //
