@@ -202,7 +202,7 @@ impl WasmProject {
             let wasm_meta_path = self.original_dir.join("meta.txt");
             let wasm_meta_hash_path = self.original_dir.join(".metahash");
 
-            smart_fs::write(wasm_meta_path, metadata.hex())
+            smart_fs::write_metadata(wasm_meta_path, metadata)
                 .context("unable to write `meta.txt`")?;
 
             smart_fs::write(wasm_meta_hash_path, format!("{:?}", metadata.hash()))
