@@ -178,11 +178,12 @@ impl Signer {
 
 // pallet-sudo
 impl Signer {
-    /// `pallet_utility::force_batch`
+    /// `pallet_sudo::sudo_unchecked_weight`
     pub async fn sudo_unchecked_weight(&self, call: RuntimeCall, weight: Weight) -> InBlock {
         let tx = subxt::dynamic::tx(
             "Sudo",
             "sudo_unchecked_weight",
+            // As `call` implements conversion to `Value`.
             vec![call.into(), Value::from_bytes(weight.encode())],
         );
 

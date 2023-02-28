@@ -164,7 +164,7 @@ impl From<RuntimeCall> for Value {
             RuntimeCall::Gear(gear_call) => gear_call_to_scale_value(gear_call),
             RuntimeCall::Sudo(sudo_call) => sudo_call_to_scale_value(sudo_call),
             RuntimeCall::Balances(balances_call) => balances_call_to_scale_value(balances_call),
-            _ => unimplemented!("only support calls from pallet-gear for now."),
+            _ => unimplemented!("other calls aren't supported for now."),
         }
     }
 }
