@@ -26,7 +26,7 @@ env_logger = "0.10.0"
 gear-core = { path = "../core" }
 hex = "0.4.3"
 jsonrpsee = { version = "^0.16", features = [ "http-client", "ws-client" ] }
-keyring = "1.2.1"
+keyring = "2.0.1"
 lazy_static = "1.4.0"
 libp2p = { version = "0.51.0", features = [ "identify" ], optional = true }
 log = "0.4.17"
