@@ -62,9 +62,6 @@ async fn test_action_mailbox_works() -> Result<()> {
     let node = common::create_messager().await?;
     let output = common::gear(&["-e", &node.ws(), "info", ALICE_SS58_ADDRESS, "mailbox"])?;
 
-    println!("{}", output.stdout.convert());
-    println!("{}", EXPECTED_MAILBOX);
-
     assert!(output.stdout.convert().contains(EXPECTED_MAILBOX.trim()));
 
     Ok(())
