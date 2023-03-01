@@ -435,24 +435,29 @@ pub struct HostFnWeights<T: Config> {
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct MemoryWeights<T: Config> {
-    /// Cost per one [GranularityPage] `read` processing in lazy-pages,
+    /// Cost per one [GranularityPage] signal `read` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_read: u64,
+    pub signal_read: u64,
 
-    /// Cost per one [GranularityPage] `write` processing in lazy-pages,
+    /// Cost per one [GranularityPage] signal `write` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_write: u64,
+    pub signal_write: u64,
 
-    /// Cost per one [GranularityPage] `write after read` processing in lazy-pages,
+    /// Cost per one [GranularityPage] signal `write after read` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_write_after_read: u64,
+    pub signal_write_after_read: u64,
 
-    /// +_+_+
-    pub lazy_pages_host_func_read: u64,
-    /// +_+_+
-    pub lazy_pages_host_func_write: u64,
-    /// +_+_+
-    pub lazy_pages_host_func_write_after_read: u64,
+    /// Cost per one [GranularityPage] host func `read` access processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub host_func_read: u64,
+
+    /// Cost per one [GranularityPage] host func `write` access processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub host_func_write: u64,
+
+    /// Cost per one [GranularityPage] host func `write after read` access processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub host_func_write_after_read: u64,
 
     /// Cost per one [GranularityPage] data loading from storage
     /// and moving it in program memory.
@@ -482,12 +487,12 @@ pub struct MemoryWeights<T: Config> {
 impl<T: Config> From<MemoryWeights<T>> for PageCosts {
     fn from(val: MemoryWeights<T>) -> Self {
         Self {
-            lazy_pages_read: val.lazy_pages_read.into(),
-            lazy_pages_write: val.lazy_pages_write.into(),
-            lazy_pages_write_after_read: val.lazy_pages_write_after_read.into(),
-            lazy_pages_host_func_read: val.lazy_pages_host_func_read.into(),
-            lazy_pages_host_func_write: val.lazy_pages_host_func_write.into(),
-            lazy_pages_host_func_write_after_read: val.lazy_pages_host_func_write_after_read.into(),
+            signal_read: val.signal_read.into(),
+            signal_write: val.signal_write.into(),
+            signal_write_after_read: val.signal_write_after_read.into(),
+            host_func_read: val.host_func_read.into(),
+            host_func_write: val.host_func_write.into(),
+            host_func_write_after_read: val.host_func_write_after_read.into(),
             load_page_data: val.load_page_data.into(),
             upload_page_data: val.upload_page_data.into(),
             static_page: val.static_page.into(),
@@ -806,20 +811,17 @@ impl<T: Config> Default for MemoryWeights<T> {
         }
 
         let lazy_pages_read = cost_per_granularity_page!(lazy_pages_read);
-        let lazy_pages_host_func_read = host_func_access!(lazy_pages_host_func_read, gr_debug);
+        let host_func_read = host_func_access!(host_func_read, gr_debug);
         let kb_number_in_one_granularity_page = GranularityPage::size() as u64 / 1024;
 
         Self {
-            lazy_pages_read,
-            lazy_pages_write: cost_per_granularity_page!(lazy_pages_write),
-            lazy_pages_write_after_read: cost_per_granularity_page!(lazy_pages_write_after_read),
-            lazy_pages_host_func_read,
-            lazy_pages_host_func_write: host_func_access!(lazy_pages_host_func_write, gr_read),
-            lazy_pages_host_func_write_after_read: host_func_access!(
-                lazy_pages_host_func_read_write,
-                gr_random
-            )
-            .saturating_sub(lazy_pages_host_func_read),
+            signal_read: lazy_pages_read,
+            signal_write: cost_per_granularity_page!(lazy_pages_write),
+            signal_write_after_read: cost_per_granularity_page!(lazy_pages_write_after_read),
+            host_func_read,
+            host_func_write: host_func_access!(host_func_write, gr_read),
+            host_func_write_after_read: host_func_access!(host_func_read_write, gr_random)
+                .saturating_sub(host_func_read),
             load_page_data: cost_per_granularity_page!(lazy_pages_read_storage_data)
                 .saturating_sub(lazy_pages_read),
             // TODO: add for upload cost here (cost for one db write) (issue #2226).

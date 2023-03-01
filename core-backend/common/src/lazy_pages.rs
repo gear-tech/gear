@@ -47,11 +47,11 @@ pub struct LazyPagesWeights {
     /// First write access cost for page, which has been already read accessed.
     pub signal_write_after_read: CostPerPage<GranularityPage>,
     /// First read page access cost from host function call.
-    pub host_func_read_access: CostPerPage<GranularityPage>,
+    pub host_func_read: CostPerPage<GranularityPage>,
     /// First write page access cost from host function call.
-    pub host_func_write_access: CostPerPage<GranularityPage>,
+    pub host_func_write: CostPerPage<GranularityPage>,
     /// First write page access cost from host function call.
-    pub host_func_write_after_read_access: CostPerPage<GranularityPage>,
+    pub host_func_write_after_read: CostPerPage<GranularityPage>,
     /// Loading page data from storage cost.
     pub load_page_storage_data: CostPerPage<GranularityPage>,
 }

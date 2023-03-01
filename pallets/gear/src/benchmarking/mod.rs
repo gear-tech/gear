@@ -99,7 +99,7 @@ use sp_runtime::{
 };
 use sp_std::prelude::*;
 
-const MAX_PAYLOAD_LEN: u32 = 16 * 64 * 1024;
+const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const MAX_PAGES: u32 = 512;
 
@@ -1188,10 +1188,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    lazy_pages_host_func_read {
-        let p in 0 .. code::max_pages::<T>() as u32;
+    host_func_read {
+        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_host_func_read((p as u16).into())?;
+        let exec = Benches::<T>::host_func_read((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1199,10 +1199,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    lazy_pages_host_func_write {
-        let p in 0 .. code::max_pages::<T>() as u32;
+    host_func_write {
+        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_host_func_write((p as u16).into())?;
+        let exec = Benches::<T>::host_func_write((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1210,10 +1210,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    lazy_pages_host_func_read_write {
-        let p in 0 .. code::max_pages::<T>() as u32;
+    host_func_read_write {
+        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_host_func_read_write((p as u16).into())?;
+        let exec = Benches::<T>::host_func_write_after_read((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }

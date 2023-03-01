@@ -42,31 +42,44 @@ pub struct BlockInfo {
 /// Memory/allocation config.
 #[derive(Clone, Debug, Decode, Encode, Default)]
 pub struct PageCosts {
-    /// Cost per one [GranularityPage] `read` processing in lazy-pages,
+    /// Cost per one [GranularityPage] signal `read` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_read: CostPerPage<GranularityPage>,
-    /// Cost per one [GranularityPage] `write` processing in lazy-pages,
+    pub signal_read: CostPerPage<GranularityPage>,
+
+    /// Cost per one [GranularityPage] signal `write` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_write: CostPerPage<GranularityPage>,
-    /// Cost per one [GranularityPage] `write after read` processing in lazy-pages,
+    pub signal_write: CostPerPage<GranularityPage>,
+
+    /// Cost per one [GranularityPage] signal `write after read` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_write_after_read: CostPerPage<GranularityPage>,
-    /// +_+_+
-    pub lazy_pages_host_func_read: CostPerPage<GranularityPage>,
-    /// +_+_+
-    pub lazy_pages_host_func_write: CostPerPage<GranularityPage>,
-    /// +_+_+
-    pub lazy_pages_host_func_write_after_read: CostPerPage<GranularityPage>,
+    pub signal_write_after_read: CostPerPage<GranularityPage>,
+
+    /// Cost per one [GranularityPage] host func `read` access processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub host_func_read: CostPerPage<GranularityPage>,
+
+    /// Cost per one [GranularityPage] host func `write` access processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub host_func_write: CostPerPage<GranularityPage>,
+
+    /// Cost per one [GranularityPage] host func `write after read` access processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub host_func_write_after_read: CostPerPage<GranularityPage>,
+
     /// Cost per one [GranularityPage] data loading from storage
     /// and moving it in program memory.
     pub load_page_data: CostPerPage<GranularityPage>,
+
     /// Cost per one [GranularityPage] uploading data to storage.
     pub upload_page_data: CostPerPage<GranularityPage>,
+
     /// Cost per one [WasmPage] static page. Static pages can have static data,
     /// and executor must to move this data to static pages before execution.
     pub static_page: CostPerPage<WasmPage>,
+
     /// Cost per one [WasmPage] for memory growing.
     pub mem_grow: CostPerPage<WasmPage>,
+
     /// Cost per one granularity page storage read, when para-chain execution.
     pub parachain_load_heuristic: CostPerPage<GranularityPage>,
 }
@@ -75,14 +88,12 @@ impl PageCosts {
     /// Calculates and returns weights for lazy-pages.
     pub fn lazy_pages_weights(&self) -> LazyPagesWeights {
         LazyPagesWeights {
-            signal_read: self.lazy_pages_read,
-            signal_write: self.lazy_pages_write.add(self.upload_page_data),
-            signal_write_after_read: self.lazy_pages_write_after_read.add(self.upload_page_data),
-            host_func_read_access: self.lazy_pages_host_func_read,
-            host_func_write_access: self.lazy_pages_host_func_write.add(self.upload_page_data),
-            host_func_write_after_read_access: self
-                .lazy_pages_host_func_write_after_read
-                .add(self.upload_page_data),
+            signal_read: self.signal_read,
+            signal_write: self.signal_write.add(self.upload_page_data),
+            signal_write_after_read: self.signal_write_after_read.add(self.upload_page_data),
+            host_func_read: self.host_func_read,
+            host_func_write: self.host_func_write.add(self.upload_page_data),
+            host_func_write_after_read: self.host_func_write_after_read.add(self.upload_page_data),
             load_page_storage_data: self.load_page_data.add(self.parachain_load_heuristic),
         }
     }
@@ -91,12 +102,12 @@ impl PageCosts {
         let a = 1000.into();
         let b = 4000.into();
         Self {
-            lazy_pages_read: a,
-            lazy_pages_write: a,
-            lazy_pages_write_after_read: a,
-            lazy_pages_host_func_read: a,
-            lazy_pages_host_func_write: a,
-            lazy_pages_host_func_write_after_read: a,
+            signal_read: a,
+            signal_write: a,
+            signal_write_after_read: a,
+            host_func_read: a,
+            host_func_write: a,
+            host_func_write_after_read: a,
             load_page_data: a,
             upload_page_data: a,
             static_page: b,

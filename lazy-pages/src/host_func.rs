@@ -91,7 +91,7 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
 
         let for_write = |ctx: &mut RefMut<LazyPagesExecutionContext>, page| {
             if ctx.set_write_charged(page) {
-                ctx.lazy_pages_weights.host_func_write_access.one()
+                ctx.lazy_pages_weights.host_func_write.one()
             } else {
                 0
             }
@@ -99,7 +99,7 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
 
         let for_read = |ctx: &mut RefMut<LazyPagesExecutionContext>, page| {
             if ctx.set_read_charged(page) {
-                ctx.lazy_pages_weights.host_func_read_access.one()
+                ctx.lazy_pages_weights.host_func_read.one()
             } else {
                 0
             }
