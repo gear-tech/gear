@@ -176,7 +176,7 @@ fn validators_rewards_disbursement_works() {
         run_to_block(era_duration + 1);
 
         // We don't check the correctness of inflation calculation as it has been verified
-        let (expected_payout_0, expected_remainder) = compute_total_payout(
+        let (expected_payout_0, _expected_remainder) = compute_total_payout(
             0,
             initial_total_stakeable,
             initial_total_issuance,
@@ -194,6 +194,9 @@ fn validators_rewards_disbursement_works() {
 
         // Total issuance shouldn't have changed
         assert_eq!(total_issuance, initial_total_issuance);
+        // Overriding the `expected_remainder` with 0 since the remainder should've been burned
+        // TODO: remove the below when the `Treasury` part is no longer burnt
+        let expected_remainder = 0;
         // Treasury has been replenished
         assert_eq!(
             treasury_balance,
@@ -227,7 +230,7 @@ fn validators_rewards_disbursement_works() {
         let total_staked = num_validators as u128 * VALIDATOR_STAKE;
         assert_eq!(total_staked, Staking::eras_total_stake(1));
 
-        let (expected_payout_1, expected_remainder) = compute_total_payout(
+        let (expected_payout_1, _expected_remainder) = compute_total_payout(
             total_staked,
             initial_total_stakeable,
             initial_total_issuance,
@@ -261,6 +264,8 @@ fn validators_rewards_disbursement_works() {
 
         // Total issuance shouldn't have changed, again
         assert_eq!(total_issuance, initial_total_issuance);
+        // TODO: remove the below when the `Treasury` part is no longer burnt
+        let expected_remainder = 0;
         // Treasury has potentially been replenished
         assert_eq!(
             treasury_balance,
@@ -381,7 +386,7 @@ fn nominators_rewards_disbursement_works() {
         run_to_block(era_duration + 1);
 
         // We don't check the correctness of inflation calculation as it has been verified
-        let (expected_payout_0, expected_remainder) = compute_total_payout(
+        let (expected_payout_0, _expected_remainder) = compute_total_payout(
             0,
             initial_total_stakeable,
             initial_total_issuance,
@@ -399,6 +404,8 @@ fn nominators_rewards_disbursement_works() {
 
         // Total issuance shouldn't have changed
         assert_eq!(total_issuance, initial_total_issuance);
+        // TODO: remove the below when the `Treasury` part is no longer burnt
+        let expected_remainder = 0;
         // Treasury has been replenished
         assert_eq!(
             treasury_balance,
@@ -438,7 +445,7 @@ fn nominators_rewards_disbursement_works() {
         let total_staked = validators_own_stake + validators_other_stake;
         assert_eq!(total_staked, Staking::eras_total_stake(1));
 
-        let (expected_payout_1, expected_remainder) = compute_total_payout(
+        let (expected_payout_1, _expected_remainder) = compute_total_payout(
             total_staked,
             initial_total_stakeable,
             initial_total_issuance,
@@ -472,6 +479,8 @@ fn nominators_rewards_disbursement_works() {
 
         // Total issuance shouldn't have changed, again
         assert_eq!(total_issuance, initial_total_issuance);
+        // TODO: remove the below when the `Treasury` part is no longer burnt
+        let expected_remainder = 0;
         // Treasury has potentially been replenished
         assert_eq!(
             treasury_balance,

@@ -307,7 +307,7 @@ impl pallet_staking::Config for Test {
     type CurrencyToVote = U128CurrencyToVote;
     type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
-    type RewardRemainder = pallet_gear_staking_rewards::RewardsStash<Self, Treasury>;
+    type RewardRemainder = ();
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury;
     type Reward = StakingRewards;
