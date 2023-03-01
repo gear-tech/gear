@@ -28,7 +28,7 @@ type GearBlock = ChainBlock<GearConfig>;
 impl GearApi {
     /// Return the total gas limit per block (also known as a gas budget).
     pub fn block_gas_limit(&self) -> Result<u64> {
-        self.0.gas_limit().map_err(Into::into)
+        self.0.api().gas_limit().map_err(Into::into)
     }
 
     /// The expected average block time at which BABE should be creating blocks.
@@ -38,13 +38,14 @@ impl GearApi {
     /// security parameter `c` (where `1 - c` represents the probability of a
     /// slot being empty).
     pub fn expected_block_time(&self) -> Result<u64> {
-        self.0.expected_block_time().map_err(Into::into)
+        self.0.api().expected_block_time().map_err(Into::into)
     }
 
     // Get block data
     async fn get_block_at(&self, block_hash: Option<H256>) -> Result<GearBlock> {
         Ok(self
             .0
+            .api()
             .rpc()
             .block(block_hash)
             .await?
@@ -64,7 +65,7 @@ impl GearApi {
 
     /// Return vector of events contained in the last block.
     pub async fn last_events(&self) -> Result<Vec<RuntimeEvent>> {
-        self.0.get_events_at(None).await.map_err(Into::into)
+        self.0.api().get_events_at(None).await.map_err(Into::into)
     }
 
     /// Return a number of the specified block identified by the `block_hash`.
@@ -75,6 +76,7 @@ impl GearApi {
     /// Get a hash of a block identified by its `block_number`.
     pub async fn get_block_hash(&self, block_number: u32) -> Result<H256> {
         self.0
+            .api()
             .rpc()
             .block_hash(Some(block_number.into()))
             .await?
@@ -87,6 +89,7 @@ impl GearApi {
     /// epoch.
     pub async fn last_block_timestamp(&self) -> Result<u64> {
         self.0
+            .api()
             .block_timestamp(None)
             .await
             .map_err(|_| Error::TimestampNotFound)
@@ -96,6 +99,7 @@ impl GearApi {
     /// the `block_hash`.
     pub async fn events_at(&self, block_hash: H256) -> Result<Vec<RuntimeEvent>> {
         self.0
+            .api()
             .get_events_at(Some(block_hash))
             .await
             .map_err(Into::into)
@@ -137,7 +141,7 @@ impl GearApi {
 
     /// Check whether the message queue processing is stopped or not.
     pub async fn queue_processing_enabled(&self) -> Result<bool> {
-        self.0.execute_inherent().await.map_err(Into::into)
+        self.0.api().execute_inherent().await.map_err(Into::into)
     }
 
     /// Looks at two blocks from the stream and checks if the Gear block number
@@ -146,13 +150,13 @@ impl GearApi {
         let mut listener = self.subscribe().await?;
 
         let current = listener.next_block_hash().await?;
-        let gear_current = self.0.gear_block_number(Some(current)).await?;
+        let gear_current = self.0.api().gear_block_number(Some(current)).await?;
 
         let mut next = current;
         while next == current {
             next = listener.next_block_hash().await?;
         }
-        let gear_next = self.0.gear_block_number(Some(next)).await?;
+        let gear_next = self.0.api().gear_block_number(Some(next)).await?;
 
         Ok(gear_next <= gear_current)
     }

@@ -27,14 +27,14 @@ async fn test_command_upload_works() {
     node.wait(logs::gear_node::IMPORTING_BLOCKS)
         .expect("node timeout");
 
-    let api = Api::new(Some(&node.ws()))
+    let signer = Api::new(Some(&node.ws()))
         .await
         .expect("build api failed")
         .signer("//Alice", None)
         .expect("get signer failed");
 
     let code_hash = common::hash(demo_meta::WASM_BINARY);
-    assert!(api.code_storage(code_hash).await.is_err());
+    assert!(signer.api().code_storage(code_hash).await.is_err());
 
     let _ = common::gear(&[
         "-e",
@@ -44,5 +44,5 @@ async fn test_command_upload_works() {
     ])
     .expect("run command upload failed");
 
-    assert!(api.code_storage(code_hash).await.is_ok());
+    assert!(signer.api().code_storage(code_hash).await.is_ok());
 }

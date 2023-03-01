@@ -419,6 +419,7 @@ impl GearApi {
 
     async fn rpc_request<T: DeserializeOwned>(&self, method: &str, params: RpcParams) -> Result<T> {
         self.0
+            .api()
             .rpc()
             .request(method, params)
             .await

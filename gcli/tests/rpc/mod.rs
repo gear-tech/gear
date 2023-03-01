@@ -87,7 +87,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
         )
         .await?;
 
-    assert!(signer.gprog(pid.into()).await.is_ok());
+    assert!(signer.api().gprog(pid.into()).await.is_ok());
 
     // 2. calculate handle gas and send message.
     let gas_info = signer
@@ -124,14 +124,14 @@ async fn test_calculate_reply_gas() -> Result<()> {
         )
         .await?;
 
-    assert!(signer.gprog(pid.into()).await.is_ok());
+    assert!(signer.api().gprog(pid.into()).await.is_ok());
 
     // 2. send wait message.
     signer
         .send_message(pid.into(), payload.encode(), 100_000_000_000, 0)
         .await?;
 
-    let mailbox = signer.mailbox(alice_account_id, 10).await?;
+    let mailbox = signer.api().mailbox(alice_account_id, 10).await?;
     assert_eq!(mailbox.len(), 1);
     let message_id = mailbox[0].0.id.clone().into();
 

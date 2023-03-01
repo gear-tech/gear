@@ -23,8 +23,6 @@ use crate::{
     Api,
 };
 pub use pair_signer::PairSigner;
-use std::ops::{Deref, DerefMut};
-
 use sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT};
 use sp_runtime::AccountId32;
 
@@ -37,7 +35,7 @@ mod utils;
 pub struct Signer {
     api: Api,
     /// Current signer.
-    pub signer: PairSigner<GearConfig, Pair>,
+    signer: PairSigner<GearConfig, Pair>,
     nonce: Option<u32>,
 }
 
@@ -77,6 +75,11 @@ impl Signer {
     pub fn account_id(&self) -> &AccountId32 {
         self.signer.account_id()
     }
+
+    /// Get reference to inner unsigned api
+    pub fn api(&self) -> &Api {
+        &self.api
+    }
 }
 
 impl From<(Api, PairSigner<GearConfig, Pair>)> for Signer {
@@ -86,19 +89,5 @@ impl From<(Api, PairSigner<GearConfig, Pair>)> for Signer {
             signer,
             nonce: None,
         }
-    }
-}
-
-impl Deref for Signer {
-    type Target = Api;
-
-    fn deref(&self) -> &Self::Target {
-        &self.api
-    }
-}
-
-impl DerefMut for Signer {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.api
     }
 }

@@ -170,7 +170,7 @@ impl GearApi {
                     ..
                 }) => res.push(Ok((id.into(), destination.into()))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
-                    res.push(Err(self.0.decode_error(error).into()))
+                    res.push(Err(self.0.api().decode_error(error).into()))
                 }
                 _ => (),
             }
@@ -281,7 +281,7 @@ impl GearApi {
                     .flatten()
                     .expect("Data appearance guaranteed above"))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
-                    res.push(Err(self.0.decode_error(error).into()))
+                    res.push(Err(self.0.api().decode_error(error).into()))
                 }
                 _ => (),
             }
@@ -377,7 +377,7 @@ impl GearApi {
                     ..
                 }) => res.push(Ok((id.into(), destination.into()))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
-                    res.push(Err(self.0.decode_error(error).into()))
+                    res.push(Err(self.0.api().decode_error(error).into()))
                 }
                 _ => (),
             }
@@ -508,7 +508,7 @@ impl GearApi {
                         .expect("Data appearance guaranteed above"),
                 ))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
-                    res.push(Err(self.0.decode_error(error).into()))
+                    res.push(Err(self.0.api().decode_error(error).into()))
                 }
                 _ => (),
             }
@@ -600,7 +600,7 @@ impl GearApi {
                     res.push(Ok(id.into()));
                 }
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
-                    res.push(Err(self.0.decode_error(error).into()))
+                    res.push(Err(self.0.api().decode_error(error).into()))
                 }
                 _ => (),
             }
@@ -730,7 +730,7 @@ impl GearApi {
                     ..
                 }) => res.push(Ok((id.into(), destination.into()))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
-                    res.push(Err(self.0.decode_error(error).into()))
+                    res.push(Err(self.0.api().decode_error(error).into()))
                 }
                 _ => (),
             }
