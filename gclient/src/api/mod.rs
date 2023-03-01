@@ -22,10 +22,13 @@ pub mod listener;
 mod rpc;
 pub mod storage;
 
-use crate::{node::ws::WSAddress, EventListener};
+use crate::{
+    node::{ws::WSAddress, Node},
+    EventListener,
+};
 use error::*;
-use gp::api::{signer::Signer, Api};
-use subxt::ext::sp_runtime::AccountId32;
+use gsdk::{ext::sp_runtime::AccountId32, signer::Signer, Api};
+use std::{marker::PhantomData, ops::Deref};
 
 /// The API instance contains methods to access the node.
 #[derive(Clone)]
@@ -74,6 +77,17 @@ impl GearApi {
     }
 
     /// Create and init a new `GearApi` instance that will be used with the
+    /// local node working in developer mode (running with `--dev` argument)
+    /// and spawned programmatically via the `[crate::Node]` struct.
+    pub async fn node(node: &Node) -> Result<GearApiWithNode> {
+        let api = Self::init(node.ws_address().clone()).await?;
+        Ok(GearApiWithNode {
+            api,
+            phantom: PhantomData,
+        })
+    }
+
+    /// Create and init a new `GearApi` instance that will be used with the
     /// public Gear testnet.
     pub async fn gear() -> Result<Self> {
         Self::init(WSAddress::gear()).await
@@ -88,7 +102,7 @@ impl GearApi {
     /// Create an [`EventListener`] to subscribe and handle continuously
     /// incoming events.
     pub async fn subscribe(&self) -> Result<EventListener> {
-        let events = self.0.finalized_blocks().await?;
+        let events = self.0.api().finalized_blocks().await?;
         Ok(EventListener(events))
     }
 
@@ -108,8 +122,9 @@ impl GearApi {
     /// Actually sends the `system_accountNextIndex` RPC to the node.
     pub async fn rpc_nonce(&self) -> Result<u32> {
         self.0
+            .api()
             .rpc()
-            .system_account_next_index(self.0.signer.account_id())
+            .system_account_next_index(self.0.account_id())
             .await
             .map_err(Into::into)
     }
@@ -120,7 +135,7 @@ impl GearApi {
     ///
     /// ```
     /// use gclient::{GearApi, Result};
-    /// use subxt::ext::sp_runtime::AccountId32;
+    /// use gsdk::ext::sp_runtime::AccountId32;
     /// # use hex_literal::hex;
     ///
     /// #[tokio::test]
@@ -133,5 +148,21 @@ impl GearApi {
     /// ```
     pub fn account_id(&self) -> &AccountId32 {
         self.0.account_id()
+    }
+}
+
+/// A struct playing a role of smart pointer to a `GearApi` instance
+/// created for working with a programmatically spawn node and preventing
+/// the refernced node being destroyed before the instance.
+pub struct GearApiWithNode<'a> {
+    api: GearApi,
+    phantom: PhantomData<&'a Node>,
+}
+
+impl Deref for GearApiWithNode<'_> {
+    type Target = GearApi;
+
+    fn deref(&self) -> &Self::Target {
+        &self.api
     }
 }

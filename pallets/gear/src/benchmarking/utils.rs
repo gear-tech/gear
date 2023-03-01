@@ -96,6 +96,7 @@ where
         forbidden_funcs: Default::default(),
         mailbox_threshold,
         waitlist_cost,
+        dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash(),
         reserve_for,
         reservation,
         read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),

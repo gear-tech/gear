@@ -146,6 +146,10 @@ pub enum MessageError {
     /// The error occurs when functions related to status code, used without required context.
     #[display(fmt = "No status code in reply/signal context")]
     NoStatusCodeContext = 15,
+
+    /// An error occurs in attempt to charge gas for dispatch stash hold.
+    #[display(fmt = "Not enough gas to hold dispatch message")]
+    InsufficientGasForDelayedSending = 16,
 }
 
 /// Error using waiting syscalls.
@@ -200,6 +204,9 @@ pub enum ReservationError {
     /// An error occurs in attempt to reserve zero gas.
     #[display(fmt = "Reservation amount cannot be zero")]
     ZeroReservationAmount = 4,
+    /// An error occurs in attempt to reserve gas less than mailbox threshold.
+    #[display(fmt = "Reservation amount cannot be below mailbox threshold")]
+    ReservationBelowMailboxThreshold = 5,
 }
 
 /// Execution error.

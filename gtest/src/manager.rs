@@ -19,8 +19,8 @@
 use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
-    Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, INITIAL_RANDOM_SEED,
-    MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
+    Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
+    INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
     RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
 };
@@ -721,6 +721,7 @@ impl ExtManager {
             forbidden_funcs: Default::default(),
             mailbox_threshold: MAILBOX_THRESHOLD,
             waitlist_cost: WAITLIST_COST,
+            dispatch_hold_cost: DISPATCH_HOLD_COST,
             reserve_for: RESERVE_FOR,
             reservation: RESERVATION_COST,
             read_cost: READ_COST,

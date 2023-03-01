@@ -13,11 +13,11 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 parity-wasm = { version = "0.45.0", default-features = false, optional = true }
-primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
+primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"] }
 
 # Internal dependencies
 common = { package = "gear-common", path = "../../common", default-features = false }

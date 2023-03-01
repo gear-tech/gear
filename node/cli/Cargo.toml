@@ -2,7 +2,7 @@
 name = "gear-cli"
 version = "0.1.0"
 authors = ["Gear Technologies"]
-edition = "2018"
+edition = "2021"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -16,8 +16,8 @@ name = "gear"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.1.6", features = ["derive"] }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+clap = { version = "4.1.8", features = ["derive"] }
+scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17" }
 futures = "0.3.26"
 
@@ -53,31 +53,28 @@ frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear
 try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", optional = true }
 
 # Program CLI
-gear-program = { path = "../../program", features = [ "cli" ], optional = true }
+gcli = { path = "../../gcli", optional = true }
 
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 
 [features]
-default = ["gear-native", "vara-native", "lazy-pages", "gear-program"]
+default = ["gear-native", "vara-native", "lazy-pages", "cli"]
 gear-native = [
 	"service/gear-native",
 	"gear-runtime-test-cli?/gear-native",
 	"gear-runtime",
-	"gear-program?/gear"
 ]
 vara-native = [
 	"service/vara-native",
 	"gear-runtime-test-cli?/vara-native",
 	"vara-runtime",
-	"gear-program?/vara"
 ]
 lazy-pages = [
 	"service/lazy-pages",
 	"gear-runtime-test-cli?/lazy-pages",
 	"vara-runtime?/lazy-pages",
 	"gear-runtime?/lazy-pages",
-	"gear-program?/lazy-pages",
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",
@@ -87,11 +84,10 @@ debug-mode = [
 	"service/debug-mode",
 	"gear-runtime?/debug-mode",
 	"vara-runtime?/debug-mode",
-	"gear-program?/debug-mode",
 ]
 try-runtime = [
 	"service/try-runtime",
 	"try-runtime-cli/try-runtime",
 ]
 runtime-test = ["gear-runtime-test-cli"]
-program = ["gear-program"]
+cli = [ "gcli" ]

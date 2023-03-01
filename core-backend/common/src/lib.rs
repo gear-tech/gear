@@ -44,9 +44,8 @@ use core::{
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
-    costs::RuntimeCosts,
     env::Ext as EnvExt,
-    gas::GasAmount,
+    gas::{ChargeError, CountersOwner, GasAmount},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, IncorrectAllocationDataError, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
@@ -57,11 +56,8 @@ use gear_core::{
 };
 use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};
 use lazy_pages::GlobalsConfig;
-use memory::OutOfMemoryAccessError;
+use memory::ProcessAccessError;
 use scale_info::TypeInfo;
-
-// '__gear_stack_end' export is inserted by wasm-proc or wasm-builder
-pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
 pub use crate::utils::TrimmedString;
 
@@ -116,6 +112,20 @@ impl From<MemoryAccessError> for TerminationReason {
     }
 }
 
+impl From<ChargeError> for TerminationReason {
+    fn from(err: ChargeError) -> Self {
+        match err {
+            ChargeError::GasLimitExceeded => {
+                ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into()
+            }
+            ChargeError::TooManyGasAdded => SystemTerminationReason::TooManyGasAdded.into(),
+            ChargeError::GasAllowanceExceeded => {
+                ActorTerminationReason::GasAllowanceExceeded.into()
+            }
+        }
+    }
+}
+
 impl<E: BackendExtError> From<E> for TerminationReason {
     fn from(err: E) -> Self {
         err.into_termination_reason()
@@ -132,7 +142,7 @@ pub enum ActorTerminationReason {
     Trap(TrapExplanation),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::From, derive_more::Display)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
 pub enum SystemTerminationReason {
     #[display(fmt = "{_0}")]
     IncorrectAllocationData(IncorrectAllocationDataError),
@@ -209,20 +219,16 @@ pub struct ExtInfo {
     pub context_store: ContextStore,
 }
 
-pub trait BackendExt: EnvExt {
-    type ChargeError: BackendExtError;
-
+pub trait BackendExt: EnvExt + CountersOwner {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     fn gas_amount(&self) -> GasAmount;
-
-    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::ChargeError>;
 
     /// Pre-process memory access if need.
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
-    ) -> Result<(), OutOfMemoryAccessError>;
+    ) -> Result<(), ProcessAccessError>;
 }
 
 pub trait BackendExtError: Clone + Sized {
@@ -347,7 +353,7 @@ pub trait BackendState {
     }
 }
 
-pub trait BackendTermination<E: EnvExt, M: Sized>: Sized {
+pub trait BackendTermination<E: BackendExt, M: Sized>: Sized {
     /// Into parts
     fn into_parts(self) -> (E, M, TerminationReason);
 
@@ -362,7 +368,7 @@ pub trait BackendTermination<E: EnvExt, M: Sized>: Sized {
 
         let (mut ext, memory, termination_reason) = self.into_parts();
 
-        ext.update_counters(gas as u64, allowance as u64);
+        ext.set_gas_left((gas, allowance).into());
 
         let termination_reason = if res.is_err() {
             if matches!(

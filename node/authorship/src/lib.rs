@@ -24,4 +24,7 @@
 mod authorship;
 mod block_builder;
 
+#[cfg(test)]
+mod tests;
+
 pub use crate::authorship::{Proposer, ProposerFactory, DEFAULT_BLOCK_SIZE_LIMIT};

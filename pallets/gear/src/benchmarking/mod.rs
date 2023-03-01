@@ -181,6 +181,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         forbidden_funcs: Default::default(),
         mailbox_threshold: 0,
         waitlist_cost: 0,
+        dispatch_hold_cost: 0,
         reserve_for: 0,
         reservation: 0,
         random_data: ([0u8; 32].to_vec(), 0),
@@ -248,6 +249,7 @@ where
 }
 
 /// An instantiated and deployed program.
+#[derive(Clone)]
 struct Program<T: Config> {
     addr: H256,
     caller: T::AccountId,
@@ -309,7 +311,6 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
     BalanceOf::<T>::max_value() / 2u32.into()
 }
 
-#[derive(Clone)]
 pub struct Exec<T: Config> {
     #[allow(unused)]
     ext_manager: ExtManager<T>,

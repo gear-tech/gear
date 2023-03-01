@@ -43,6 +43,7 @@ pub use frame_support::{
 };
 use frame_system::limits::{BlockLength, BlockWeights};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
+pub use pallet_gear_payment::CustomChargeTransactionPayment;
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
@@ -322,6 +323,7 @@ parameter_types! {
     pub const WaitlistCost: u64 = 100;
     pub const MailboxCost: u64 = 100;
     pub const ReservationCost: u64 = 100;
+    pub const DispatchHoldCost: u64 = 100;
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
@@ -366,6 +368,7 @@ impl pallet_gear_scheduler::Config for Runtime {
     type WaitlistCost = WaitlistCost;
     type MailboxCost = MailboxCost;
     type ReservationCost = ReservationCost;
+    type DispatchHoldCost = DispatchHoldCost;
 }
 
 impl pallet_gear_gas::Config for Runtime {
@@ -475,7 +478,7 @@ pub type SignedExtra = (
     frame_system::CheckEra<Runtime>,
     frame_system::CheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
-    pallet_gear_payment::CustomChargeTransactionPayment<Runtime>,
+    CustomChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =

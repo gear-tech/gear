@@ -50,6 +50,8 @@ use frame_system::{
     EnsureRoot,
 };
 pub use pallet_gear::manager::{ExtManager, HandleKind};
+pub use pallet_gear_payment::CustomChargeTransactionPayment;
+pub use pallet_gear_staking_rewards::StakingBlackList;
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
@@ -456,7 +458,9 @@ impl pallet_staking::Config for Runtime {
     type CurrencyToVote = U128CurrencyToVote;
     type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
-    type RewardRemainder = pallet_gear_staking_rewards::RewardsStash<Self, Treasury>;
+    // Burning the reward remainder for now.
+    // TODO: set remainder back to `RewardsStash<Self, Treasury>` to stop burning `Treasury` part.
+    type RewardRemainder = ();
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury;
     type Reward = StakingRewards;
@@ -596,6 +600,7 @@ parameter_types! {
     pub const WaitlistCost: u64 = 100;
     pub const MailboxCost: u64 = 100;
     pub const ReservationCost: u64 = 100;
+    pub const DispatchHoldCost: u64 = 100;
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
@@ -640,6 +645,7 @@ impl pallet_gear_scheduler::Config for Runtime {
     type WaitlistCost = WaitlistCost;
     type MailboxCost = MailboxCost;
     type ReservationCost = ReservationCost;
+    type DispatchHoldCost = DispatchHoldCost;
 }
 
 impl pallet_gear_gas::Config for Runtime {
@@ -812,7 +818,7 @@ pub type SignedExtra = (
     // RELEASE: remove before final release
     DisableValueTransfers,
     // Keep as long as it's needed
-    pallet_gear_staking_rewards::StakingBlackList<Runtime>,
+    StakingBlackList<Runtime>,
     frame_system::CheckNonZeroSender<Runtime>,
     frame_system::CheckSpecVersion<Runtime>,
     frame_system::CheckTxVersion<Runtime>,
@@ -820,7 +826,7 @@ pub type SignedExtra = (
     frame_system::CheckEra<Runtime>,
     frame_system::CheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
-    pallet_gear_payment::CustomChargeTransactionPayment<Runtime>,
+    CustomChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =

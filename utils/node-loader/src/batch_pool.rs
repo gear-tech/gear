@@ -299,12 +299,20 @@ async fn create_renew_balance_task(
                     root_target_balance + user_balance_demand,
                     0,
                 )
-                .await?;
+                .await
+                .map_err(|e| {
+                    tracing::info!("Failed to set balance of the root address: {e}");
+                    e
+                })?;
             root_api
                 .transfer(ProgramId::from(user_address.as_ref()), user_balance_demand)
-                .await?;
+                .await
+                .map_err(|e| {
+                    tracing::info!("Failed to transfer to user address: {e}");
+                    e
+                })?;
 
-            tracing::info!("Renewed balances!");
+            tracing::info!("Successfully renewed balances!");
         }
     })
 }

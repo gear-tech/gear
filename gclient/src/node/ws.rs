@@ -59,7 +59,22 @@ impl WSAddress {
     /// assert_eq!(address, WSAddress::new("ws://127.0.0.1", 9944));
     /// ```
     pub fn dev() -> Self {
-        Self::new(Self::LOCALHOST, Self::DEFAULT_PORT)
+        Self::dev_with_port(Self::DEFAULT_PORT)
+    }
+
+    /// Return the address of the local node working in developer mode (running
+    /// with `--dev` argument).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gclient::WSAddress;
+    ///
+    /// let address = WSAddress::dev_with_port(1234);
+    /// assert_eq!(address, WSAddress::new("ws://127.0.0.1", 1234));
+    /// ```
+    pub fn dev_with_port(port: u16) -> Self {
+        Self::new(Self::LOCALHOST, port)
     }
 
     /// Return the default address of the public Gear testnet node.

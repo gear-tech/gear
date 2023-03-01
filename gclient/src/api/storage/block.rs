@@ -18,18 +18,17 @@
 
 use super::{GearApi, Result};
 use crate::Error;
-use gp::api::{
-    config::GearConfig,
-    generated::api::{runtime_types::gear_runtime::RuntimeEvent, storage},
+use gsdk::{
+    config::GearConfig, ext::sp_core::H256, metadata::runtime_types::gear_runtime::RuntimeEvent,
 };
-use subxt::{ext::sp_core::H256, rpc::ChainBlock};
+use subxt::{config::Header, rpc::types::ChainBlock};
 
 type GearBlock = ChainBlock<GearConfig>;
 
 impl GearApi {
     /// Return the total gas limit per block (also known as a gas budget).
     pub fn block_gas_limit(&self) -> Result<u64> {
-        self.0.gas_limit().map_err(Into::into)
+        self.0.api().gas_limit().map_err(Into::into)
     }
 
     /// The expected average block time at which BABE should be creating blocks.
@@ -39,33 +38,19 @@ impl GearApi {
     /// security parameter `c` (where `1 - c` represents the probability of a
     /// slot being empty).
     pub fn expected_block_time(&self) -> Result<u64> {
-        self.0.expected_block_time().map_err(Into::into)
+        self.0.api().expected_block_time().map_err(Into::into)
     }
 
     // Get block data
     async fn get_block_at(&self, block_hash: Option<H256>) -> Result<GearBlock> {
         Ok(self
             .0
+            .api()
             .rpc()
             .block(block_hash)
             .await?
             .ok_or(Error::BlockDataNotFound)?
             .block)
-    }
-
-    // Get events from the block
-    async fn get_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
-        let at = storage().system().events();
-
-        Ok(self
-            .0
-            .storage()
-            .fetch(&at, block_hash)
-            .await?
-            .ok_or(Error::StorageNotFound)?
-            .into_iter()
-            .map(|ev| ev.event)
-            .collect())
     }
 
     /// Return a hash of the last block.
@@ -80,7 +65,7 @@ impl GearApi {
 
     /// Return vector of events contained in the last block.
     pub async fn last_events(&self) -> Result<Vec<RuntimeEvent>> {
-        self.get_events_at(None).await
+        self.0.api().get_events_at(None).await.map_err(Into::into)
     }
 
     /// Return a number of the specified block identified by the `block_hash`.
@@ -91,6 +76,7 @@ impl GearApi {
     /// Get a hash of a block identified by its `block_number`.
     pub async fn get_block_hash(&self, block_number: u32) -> Result<H256> {
         self.0
+            .api()
             .rpc()
             .block_hash(Some(block_number.into()))
             .await?
@@ -102,18 +88,21 @@ impl GearApi {
     /// The timestamp is the number of milliseconds elapsed since the Unix
     /// epoch.
     pub async fn last_block_timestamp(&self) -> Result<u64> {
-        let at = storage().timestamp().now();
         self.0
-            .storage()
-            .fetch(&at, None)
-            .await?
-            .ok_or(Error::TimestampNotFound)
+            .api()
+            .block_timestamp(None)
+            .await
+            .map_err(|_| Error::TimestampNotFound)
     }
 
     /// Return vector of events contained in the specified block identified by
     /// the `block_hash`.
     pub async fn events_at(&self, block_hash: H256) -> Result<Vec<RuntimeEvent>> {
-        self.get_events_at(Some(block_hash)).await
+        self.0
+            .api()
+            .get_events_at(Some(block_hash))
+            .await
+            .map_err(Into::into)
     }
 
     /// Return vector of events contained in blocks since the block identified
@@ -152,8 +141,7 @@ impl GearApi {
 
     /// Check whether the message queue processing is stopped or not.
     pub async fn queue_processing_enabled(&self) -> Result<bool> {
-        let at = storage().gear().execute_inherent();
-        Ok(self.0.storage().fetch_or_default(&at, None).await?)
+        self.0.api().execute_inherent().await.map_err(Into::into)
     }
 
     /// Looks at two blocks from the stream and checks if the Gear block number
@@ -161,20 +149,14 @@ impl GearApi {
     pub async fn queue_processing_stalled(&self) -> Result<bool> {
         let mut listener = self.subscribe().await?;
 
-        let at = storage().gear().block_number();
-
         let current = listener.next_block_hash().await?;
-        let gear_current = self
-            .0
-            .storage()
-            .fetch_or_default(&at, Some(current))
-            .await?;
+        let gear_current = self.0.api().gear_block_number(Some(current)).await?;
 
         let mut next = current;
         while next == current {
             next = listener.next_block_hash().await?;
         }
-        let gear_next = self.0.storage().fetch_or_default(&at, Some(next)).await?;
+        let gear_next = self.0.api().gear_block_number(Some(next)).await?;
 
         Ok(gear_next <= gear_current)
     }

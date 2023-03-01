@@ -24,46 +24,37 @@ use gear_backend_common::{
     },
     ActorTerminationReason, BackendExt, BackendState, TrapExplanation,
 };
-use gear_core::costs::RuntimeCosts;
+use gear_core::{costs::RuntimeCosts, gas::GasLeft};
 
 use super::*;
 use crate::state::State;
 
-pub fn caller_host_state_mut<'a, 'b: 'a, E>(caller: &'a mut Caller<'b, Option<E>>) -> &'a mut E {
+pub(crate) fn caller_host_state_mut<'a, 'b: 'a, E>(
+    caller: &'a mut Caller<'b, Option<E>>,
+) -> &'a mut E {
     caller
         .host_data_mut()
         .as_mut()
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
-pub fn caller_host_state_take<'a, 'b: 'a, E>(caller: &'a mut Caller<'b, Option<E>>) -> E {
+pub(crate) fn caller_host_state_take<'a, 'b: 'a, E>(caller: &'a mut Caller<'b, Option<E>>) -> E {
     caller
         .host_data_mut()
         .take()
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
-pub(crate) struct CallerWrap<'a, E>
-where
-    E: Ext + 'static,
-    E::Error: BackendExtError,
-{
-    caller: Caller<'a, HostState<E>>,
-    manager: MemoryAccessManager<E>,
-    memory: WasmiMemory,
+pub(crate) struct CallerWrap<'a, E> {
+    pub caller: Caller<'a, HostState<E>>,
+    pub manager: MemoryAccessManager<E>,
+    pub memory: WasmiMemory,
 }
 
-impl<'a, E> CallerWrap<'a, E>
-where
-    E: BackendExt + 'static,
-    E::Error: BackendExtError,
-{
+impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
     /// !!! Usage warning: make sure to do it before any other read/write,
     /// because it may contain register read.
-    pub(crate) fn register_and_read_value(
-        &mut self,
-        value_ptr: u32,
-    ) -> Result<u128, MemoryAccessError> {
+    pub fn register_and_read_value(&mut self, value_ptr: u32) -> Result<u128, MemoryAccessError> {
         if value_ptr != PTR_SPECIAL {
             let read_value = self.register_read_decoded(value_ptr);
             return self.read_decoded(read_value);
@@ -94,21 +85,21 @@ where
 
         let f = || {
             let gas_global = wrapper.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
-            let gas = gas_global.get(&wrapper.caller).try_into::<i64>()? as u64;
+            let gas = gas_global.get(&wrapper.caller).try_into::<i64>()?;
 
             let allowance_global = wrapper
                 .caller
                 .get_export(GLOBAL_NAME_ALLOWANCE)?
                 .into_global()?;
-            let allowance = allowance_global.get(&wrapper.caller).try_into::<i64>()? as u64;
+            let allowance = allowance_global.get(&wrapper.caller).try_into::<i64>()?;
 
-            Some((gas, allowance))
+            Some((gas, allowance).into())
         };
 
-        let (gas, allowance) =
+        let gas_left =
             f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
 
-        wrapper.host_state_mut().ext.update_counters(gas, allowance);
+        wrapper.host_state_mut().ext.set_gas_left(gas_left);
 
         Ok(wrapper)
     }
@@ -141,7 +132,7 @@ where
     }
 
     fn update_globals(&mut self) {
-        let (gas, allowance) = self.host_state_mut().ext.counters();
+        let GasLeft { gas, allowance } = self.host_state_mut().ext.gas_left();
 
         let mut f = || {
             let gas_global = self.caller.get_export(GLOBAL_NAME_GAS)?.into_global()?;
@@ -241,11 +232,7 @@ where
     }
 }
 
-impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E>
-where
-    E: Ext + 'static,
-    E::Error: BackendExtError,
-{
+impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.manager.register_read(ptr, size)
     }
@@ -270,11 +257,7 @@ where
     }
 }
 
-impl<'a, E> MemoryOwner for CallerWrap<'a, E>
-where
-    E: BackendExt + 'static,
-    E::Error: BackendExtError,
-{
+impl<'a, E: BackendExt + 'static> MemoryOwner for CallerWrap<'a, E> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         let store = self.caller.as_context_mut();
         let memory = MemoryWrapRef {
