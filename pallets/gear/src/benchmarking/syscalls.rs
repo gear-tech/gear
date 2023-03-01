@@ -309,7 +309,7 @@ where
         assert!(
             WasmPage::from_offset((buffer_offset + buffer_len) as u32) < Self::MAX_PAGES.into()
         );
-        assert!(buffer_len < MAX_PAYLOAD_LEN as i32);
+        assert!(buffer_len <= MAX_PAYLOAD_LEN as i32);
 
         let instrs_batch = body::with_result_check(
             0,
