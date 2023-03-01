@@ -458,7 +458,9 @@ impl pallet_staking::Config for Runtime {
     type CurrencyToVote = U128CurrencyToVote;
     type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
-    type RewardRemainder = pallet_gear_staking_rewards::RewardsStash<Self, Treasury>;
+    // Burning the reward remainder for now.
+    // TODO: set remainder back to `RewardsStash<Self, Treasury>` to stop burning `Treasury` part.
+    type RewardRemainder = ();
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury;
     type Reward = StakingRewards;
