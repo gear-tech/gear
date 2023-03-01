@@ -44,10 +44,12 @@ pub trait WeightInfo {
         {{c.name}}: u32, {{/each~}}
     ) -> Weight;
     {{/each}}
+    {{#if (eq pallet "pallet_gear")}}
     fn instr_i64const(r: u32, ) -> Weight;
+    {{/if}}
 }
 
-/// Weights for {{pallet}} using the Substrate node and recommended hardware.
+/// Weights for {{pallet}} using the Gear node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
 {{#if (eq pallet "frame_system")}}
 impl<T: frame_system::Config> frame_system::WeightInfo for SubstrateWeight<T> {
@@ -55,7 +57,7 @@ impl<T: frame_system::Config> frame_system::WeightInfo for SubstrateWeight<T> {
 impl<T: frame_system::Config> {{pallet}}::WeightInfo for SubstrateWeight<T> {
 {{/if}}
     {{#each benchmarks as |benchmark|}}
-    {{~#if (eq benchmark.name "instr_call")}}
+    {{#if (eq benchmark.name "instr_call")}}
             {{#each benchmark.component_weight as |cw|}}
             {{underscore cw.slope}}).saturating_mul(r.into()))
             {{/each}}
@@ -111,7 +113,7 @@ impl<T: frame_system::Config> {{pallet}}::WeightInfo for SubstrateWeight<T> {
 // For backwards compatibility and tests
 impl WeightInfo for () {
     {{#each benchmarks as |benchmark|}}
-    {{~#if (eq benchmark.name "instr_call")}}
+    {{#if (eq benchmark.name "instr_call")}}
             {{#each benchmark.component_weight as |cw|}}
             {{underscore cw.slope}}).saturating_mul(r.into()))
             {{/each}}
