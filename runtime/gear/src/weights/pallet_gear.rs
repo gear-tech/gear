@@ -119,6 +119,7 @@ pub trait WeightInfo {
     fn instr_global_get(r: u32, ) -> Weight;
     fn instr_global_set(r: u32, ) -> Weight;
     fn instr_memory_current(r: u32, ) -> Weight;
+    fn instr_i64const(r: u32, ) -> Weight;
     fn instr_i64clz(r: u32, ) -> Weight;
     fn instr_i64ctz(r: u32, ) -> Weight;
     fn instr_i64popcnt(r: u32, ) -> Weight;
@@ -604,6 +605,12 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 25_999
             .saturating_add(Weight::from_ref_time(71_477_903 as u64).saturating_mul(p as u64))
             .saturating_add(T::DbWeight::get().reads(8192 as u64))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_i64const(r: u32, ) -> Weight {
+        Weight::from_ref_time((7_712_113 - 6_794_195) as u64)
+            // Standard Error: 4_230
+            .saturating_add(Weight::from_ref_time((5_101_537 - 4_889_354) as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64load(r: u32, ) -> Weight {
@@ -1357,6 +1364,12 @@ impl WeightInfo for () {
             // Standard Error: 25_999
             .saturating_add(Weight::from_ref_time(71_477_903 as u64).saturating_mul(p as u64))
             .saturating_add(RocksDbWeight::get().reads(8192 as u64))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_i64const(r: u32, ) -> Weight {
+        Weight::from_ref_time((7_712_113 - 6_794_195) as u64)
+            // Standard Error: 4_230
+            .saturating_add(Weight::from_ref_time((5_101_537 - 4_889_354) as u64).saturating_mul(r as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64load(r: u32, ) -> Weight {
