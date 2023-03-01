@@ -44,6 +44,7 @@ pub trait WeightInfo {
         {{c.name}}: u32, {{/each~}}
     ) -> Weight;
     {{/each}}
+    fn instr_i64const(r: u32, ) -> Weight;
 }
 
 /// Weights for {{pallet}} using the Substrate node and recommended hardware.
@@ -54,6 +55,12 @@ impl<T: frame_system::Config> frame_system::WeightInfo for SubstrateWeight<T> {
 impl<T: frame_system::Config> {{pallet}}::WeightInfo for SubstrateWeight<T> {
 {{/if}}
     {{#each benchmarks as |benchmark|}}
+    {{~#if (eq benchmark.name "instr_call")}}
+            {{#each benchmark.component_weight as |cw|}}
+            {{underscore cw.slope}}).saturating_mul(r.into()))
+            {{/each}}
+    }
+    {{/if}}
     {{#each benchmark.component_ranges as |range|}}
     /// The range of component `{{range.name}}` is `[{{range.min}}, {{range.max}}]`.
     {{/each}}
@@ -91,12 +98,25 @@ impl<T: frame_system::Config> {{pallet}}::WeightInfo for SubstrateWeight<T> {
 			.saturating_add(Weight::from_proof_size({{cp.slope}}).saturating_mul({{cp.name}}.into()))
 			{{/each}}
     }
+    {{#if (eq benchmark.name "instr_call_const")}}
+    fn instr_i64const(r: u32, ) -> Weight {
+		Weight::from_ref_time(0)
+            {{#each benchmark.component_weight as |cw|}}
+            .saturating_add(Weight::from_ref_time({{underscore cw.slope}} -
+            {{/each}}
+    {{/if}}
     {{/each}}
 }
 
 // For backwards compatibility and tests
 impl WeightInfo for () {
     {{#each benchmarks as |benchmark|}}
+    {{~#if (eq benchmark.name "instr_call")}}
+            {{#each benchmark.component_weight as |cw|}}
+            {{underscore cw.slope}}).saturating_mul(r.into()))
+            {{/each}}
+    }
+    {{/if}}
     {{#each benchmark.component_ranges as |range|}}
     /// The range of component `{{range.name}}` is `[{{range.min}}, {{range.max}}]`.
     {{/each}}
@@ -134,5 +154,12 @@ impl WeightInfo for () {
 			.saturating_add(Weight::from_proof_size({{cp.slope}}).saturating_mul({{cp.name}}.into()))
 			{{/each}}
     }
+    {{#if (eq benchmark.name "instr_call_const")}}
+    fn instr_i64const(r: u32, ) -> Weight {
+		Weight::from_ref_time(0)
+            {{#each benchmark.component_weight as |cw|}}
+            .saturating_add(Weight::from_ref_time({{underscore cw.slope}} -
+            {{/each}}
+    {{/if}}
     {{/each}}
 }

@@ -24,7 +24,7 @@
 use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
-use frame_support::{weights::Weight, DefaultNoBound};
+use frame_support::weights::Weight;
 use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights, message};
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
@@ -503,12 +503,6 @@ macro_rules! cost_instr {
     };
 }
 
-macro_rules! cost_instr_batched {
-    ($name:ident) => {
-        (cost_args!($name, 1) / INSTR_BENCHMARK_BATCH_SIZE as u64) as u32
-    };
-}
-
 macro_rules! cost_byte_args {
     ($name:ident, $( $arg: expr ),+) => {
         cost_args!($name, $( $arg ),+) / 1024
@@ -587,70 +581,59 @@ impl Default for Limits {
 
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
-        let call = cost_instr_batched!(instr_call);
-        let call_const = cost_instr_batched!(instr_call_const);
-        let i64const = call_const.saturating_sub(call);
-
-        macro_rules! cost {
-            // $name.BenchWeight - $num * I64ConstWeight
-            ($name:ident, $num:expr) => {
-                (cost_instr_batched!($name).saturating_sub((i64const).saturating_mul($num)) as u32)
-            };
-        }
-
         Self {
             version: 5,
-            i64const,
-            i64load: cost!(instr_i64load, 2),
-            i64store: cost!(instr_i64store, 2),
-            select: cost!(instr_select, 4),
-            r#if: cost!(instr_if, 3),
-            br: cost!(instr_br, 2),
-            br_if: cost!(instr_br_if, 3),
-            br_table: cost!(instr_br_table, 3),
-            br_table_per_entry: cost!(instr_br_table_per_entry, 0),
-            call: cost!(instr_call, 2),
-            call_indirect: cost!(instr_call_indirect, 3),
-            call_indirect_per_param: cost!(instr_call_indirect_per_param, 1),
-            // call_per_local: cost!(instr_call_per_local, 1),
-            local_get: cost!(instr_local_get, 1),
-            local_set: cost!(instr_local_set, 1),
-            local_tee: cost!(instr_local_tee, 2),
-            global_get: cost!(instr_global_get, 1),
-            global_set: cost!(instr_global_set, 1),
-            memory_current: cost!(instr_memory_current, 1),
-            i64clz: cost!(instr_i64clz, 2),
-            i64ctz: cost!(instr_i64ctz, 2),
-            i64popcnt: cost!(instr_i64popcnt, 2),
-            i64eqz: cost!(instr_i64eqz, 2),
-            i64extendsi32: cost!(instr_i64extendsi32, 2),
-            i64extendui32: cost!(instr_i64extendui32, 2),
-            i32wrapi64: cost!(instr_i32wrapi64, 2),
-            i64eq: cost!(instr_i64eq, 3),
-            i64ne: cost!(instr_i64ne, 3),
-            i64lts: cost!(instr_i64lts, 3),
-            i64ltu: cost!(instr_i64ltu, 3),
-            i64gts: cost!(instr_i64gts, 3),
-            i64gtu: cost!(instr_i64gtu, 3),
-            i64les: cost!(instr_i64les, 3),
-            i64leu: cost!(instr_i64leu, 3),
-            i64ges: cost!(instr_i64ges, 3),
-            i64geu: cost!(instr_i64geu, 3),
-            i64add: cost!(instr_i64add, 3),
-            i64sub: cost!(instr_i64sub, 3),
-            i64mul: cost!(instr_i64mul, 3),
-            i64divs: cost!(instr_i64divs, 3),
-            i64divu: cost!(instr_i64divu, 3),
-            i64rems: cost!(instr_i64rems, 3),
-            i64remu: cost!(instr_i64remu, 3),
-            i64and: cost!(instr_i64and, 3),
-            i64or: cost!(instr_i64or, 3),
-            i64xor: cost!(instr_i64xor, 3),
-            i64shl: cost!(instr_i64shl, 3),
-            i64shrs: cost!(instr_i64shrs, 3),
-            i64shru: cost!(instr_i64shru, 3),
-            i64rotl: cost!(instr_i64rotl, 3),
-            i64rotr: cost!(instr_i64rotr, 3),
+            i64const: cost_instr!(instr_i64const, 1),
+            i64load: cost_instr!(instr_i64load, 2),
+            i64store: cost_instr!(instr_i64store, 2),
+            select: cost_instr!(instr_select, 4),
+            r#if: cost_instr!(instr_if, 3),
+            br: cost_instr!(instr_br, 2),
+            br_if: cost_instr!(instr_br_if, 3),
+            br_table: cost_instr!(instr_br_table, 3),
+            br_table_per_entry: cost_instr!(instr_br_table_per_entry, 0),
+            call: cost_instr!(instr_call, 2),
+            call_indirect: cost_instr!(instr_call_indirect, 3),
+            call_indirect_per_param: cost_instr!(instr_call_indirect_per_param, 1),
+            // call_per_local: cost_instr!(instr_call_per_local, 1),
+            local_get: cost_instr!(instr_local_get, 1),
+            local_set: cost_instr!(instr_local_set, 1),
+            local_tee: cost_instr!(instr_local_tee, 2),
+            global_get: cost_instr!(instr_global_get, 1),
+            global_set: cost_instr!(instr_global_set, 1),
+            memory_current: cost_instr!(instr_memory_current, 1),
+            i64clz: cost_instr!(instr_i64clz, 2),
+            i64ctz: cost_instr!(instr_i64ctz, 2),
+            i64popcnt: cost_instr!(instr_i64popcnt, 2),
+            i64eqz: cost_instr!(instr_i64eqz, 2),
+            i64extendsi32: cost_instr!(instr_i64extendsi32, 2),
+            i64extendui32: cost_instr!(instr_i64extendui32, 2),
+            i32wrapi64: cost_instr!(instr_i32wrapi64, 2),
+            i64eq: cost_instr!(instr_i64eq, 3),
+            i64ne: cost_instr!(instr_i64ne, 3),
+            i64lts: cost_instr!(instr_i64lts, 3),
+            i64ltu: cost_instr!(instr_i64ltu, 3),
+            i64gts: cost_instr!(instr_i64gts, 3),
+            i64gtu: cost_instr!(instr_i64gtu, 3),
+            i64les: cost_instr!(instr_i64les, 3),
+            i64leu: cost_instr!(instr_i64leu, 3),
+            i64ges: cost_instr!(instr_i64ges, 3),
+            i64geu: cost_instr!(instr_i64geu, 3),
+            i64add: cost_instr!(instr_i64add, 3),
+            i64sub: cost_instr!(instr_i64sub, 3),
+            i64mul: cost_instr!(instr_i64mul, 3),
+            i64divs: cost_instr!(instr_i64divs, 3),
+            i64divu: cost_instr!(instr_i64divu, 3),
+            i64rems: cost_instr!(instr_i64rems, 3),
+            i64remu: cost_instr!(instr_i64remu, 3),
+            i64and: cost_instr!(instr_i64and, 3),
+            i64or: cost_instr!(instr_i64or, 3),
+            i64xor: cost_instr!(instr_i64xor, 3),
+            i64shl: cost_instr!(instr_i64shl, 3),
+            i64shrs: cost_instr!(instr_i64shrs, 3),
+            i64shru: cost_instr!(instr_i64shru, 3),
+            i64rotl: cost_instr!(instr_i64rotl, 3),
+            i64rotr: cost_instr!(instr_i64rotr, 3),
             _phantom: PhantomData,
         }
     }
