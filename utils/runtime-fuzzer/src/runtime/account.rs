@@ -25,7 +25,9 @@ use sp_core::{sr25519::Public, Pair, Public as TPublic};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
 
-pub const ALICE: u64 = 1_000_001;
+pub fn alice() -> AccountId {
+    sp_keyring::Sr25519Keyring::Alice.to_account_id()
+}
 
 /// Get account from [`gear_common::Origin`] implementor.
 pub fn account<T: Origin>(v: T) -> AccountId {

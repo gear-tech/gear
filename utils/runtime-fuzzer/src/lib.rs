@@ -53,7 +53,7 @@ impl Context {
 
 /// Runs all the fuzz testing internal machinery.
 pub fn run(seed: u64) {
-    let sender = runtime::account(ALICE);
+    let sender = runtime::account(runtime::alice());
     let test_ext = TEST_EXT.get_or_init(|| Mutex::new(new_test_ext()));
     let context = CONTEXT.get_or_init(|| Mutex::new(Context::new()));
 

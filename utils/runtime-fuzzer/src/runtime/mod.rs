@@ -29,7 +29,7 @@ use pallet_balances::{GenesisConfig as BalancesConfig, Pallet as BalancesPallet}
 use pallet_gear::Config as GearConfig;
 use sp_io::TestExternalities;
 
-pub use account::{account, ALICE};
+pub use account::{account, alice};
 pub use block::{default_gas_limit, run_to_block, run_to_next_block};
 
 mod account;
@@ -41,7 +41,7 @@ pub fn new_test_ext() -> TestExternalities {
 
     let authorities = vec![authority_keys_from_seed("Authority")];
     // Vector of tuples of accounts and their balances
-    let balances = vec![(account(ALICE), account::acc_max_balance())];
+    let balances = vec![(account(account::alice()), account::acc_max_balance())];
 
     BalancesConfig::<Runtime> {
         balances: balances
