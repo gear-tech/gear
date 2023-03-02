@@ -592,11 +592,10 @@ jobs:
       - name: "Build: wasm-proc"
         run: ./scripts/gear.sh build wasm-proc --locked
 
-      - name: "Install: set TARGET"
-        run: echo "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc" >> $GITHUB_ENV
-
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
+        env:
+          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
       - name: "Build: WAT examples"
         run: ./scripts/gear.sh build wat-examples
@@ -609,11 +608,15 @@ jobs:
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --run-node
+        env:
+          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
       - name: "Test: Process node runtime spec tests"
         run: |
           cargo xwin build -p gear-cli --release --features=runtime-test
           ./scripts/gear.sh test rtest gear
+        env:
+          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
@@ -628,6 +631,8 @@ jobs:
             -p gear-runtime-interface
             --features=lazy-pages
             --release
+        env:
+          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
   build-macos-x86:
     if: always() &&
