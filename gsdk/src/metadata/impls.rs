@@ -33,6 +33,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::runtime_types::{
+    frame_system::pallet::Call as SystemCall,
     gear_common::event::*,
     gear_core::{ids as generated_ids, message as generated_message},
     gear_runtime::{RuntimeCall, RuntimeEvent},
@@ -154,7 +155,7 @@ macro_rules! impl_basic {
 
 impl_basic! {
     ApiEvent, RuntimeEvent, generated_ids::MessageId,
-    generated_ids::ProgramId, generated_ids::CodeId,
+    generated_ids::ProgramId, generated_ids::CodeId, generated_ids::ReservationId,
     Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>
 }
 
@@ -164,6 +165,7 @@ impl From<RuntimeCall> for Value {
             RuntimeCall::Gear(gear_call) => gear_call_to_scale_value(gear_call),
             RuntimeCall::Sudo(sudo_call) => sudo_call_to_scale_value(sudo_call),
             RuntimeCall::Balances(balances_call) => balances_call_to_scale_value(balances_call),
+            RuntimeCall::System(system_call) => system_call_to_scale_value(system_call),
             _ => unimplemented!("other calls aren't supported for now."),
         }
     }
@@ -291,4 +293,24 @@ fn balances_call_to_scale_value(call: BalancesCall) -> Value {
     };
 
     Value::unnamed_variant("Balances", [variant])
+}
+
+fn system_call_to_scale_value(call: SystemCall) -> Value {
+    let variant = match call {
+        SystemCall::set_storage { items } => {
+            let items_as_values: Vec<Value> = items
+                .iter()
+                .map(|i| {
+                    Value::unnamed_composite([Value::from_bytes(&i.0), Value::from_bytes(&i.1)])
+                })
+                .collect();
+            Value::named_variant(
+                "set_storage",
+                [("items", Value::unnamed_composite(items_as_values))],
+            )
+        }
+        _ => unreachable!("other calls aren't supported for now."),
+    };
+
+    Value::unnamed_variant("System", [variant])
 }
