@@ -1,6 +1,5 @@
 use crate::builder_error::BuilderError;
 use anyhow::{Context, Result};
-use colored::Colorize;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pwasm_utils::{
     parity_wasm,
@@ -10,8 +9,8 @@ use std::{
     ffi::OsStr,
     fs::metadata,
     path::{Path, PathBuf},
-    process::Command,
 };
+use wasm_opt::{OptimizationOptions, Pass};
 
 const OPTIMIZED_EXPORTS: [&str; 7] = [
     "handle",
@@ -168,59 +167,28 @@ pub fn do_optimization(
     optimization_level: &str,
     keep_debug_symbols: bool,
 ) -> Result<()> {
-    // check `wasm-opt` is installed
-    let which = which::which("wasm-opt");
-    if which.is_err() {
-        return Err(anyhow::anyhow!(
-            "wasm-opt not found! Make sure the binary is in your PATH environment.\n\n\
-            We use this tool to optimize the size of your contract's Wasm binary.\n\n\
-            wasm-opt is part of the binaryen package. You can find detailed\n\
-            installation instructions on https://github.com/WebAssembly/binaryen#tools.\n\n\
-            There are ready-to-install packages for many platforms:\n\
-            * Debian/Ubuntu: apt-get install binaryen\n\
-            * Homebrew: brew install binaryen\n\
-            * Arch Linux: pacman -S binaryen\n\
-            * Windows: binary releases at https://github.com/WebAssembly/binaryen/releases"
-                .bright_yellow()
-        ));
-    }
-    let wasm_opt_path = which
-        .as_ref()
-        .expect("we just checked if `which` returned an err; qed")
-        .as_path();
-    log::info!("Path to wasm-opt executable: {}", wasm_opt_path.display());
-
     log::info!(
         "Optimization level passed to wasm-opt: {}",
         optimization_level
     );
-    let mut command = Command::new(wasm_opt_path);
-    command
-        .arg(dest_wasm)
-        .arg(format!("-O{optimization_level}"))
-        .arg("-o")
-        .arg(dest_optimized)
-        // the memory in our module is imported, `wasm-opt` needs to be told that
-        // the memory is initialized to zeroes, otherwise it won't run the
-        // memory-packing pre-pass.
-        .arg("--zero-filled-memory")
-        .arg("--dae")
-        .arg("--vacuum");
-    if keep_debug_symbols {
-        command.arg("-g");
-    }
-    log::info!("Invoking wasm-opt with {:?}", command);
-    let output = command.output().unwrap();
 
-    if !output.status.success() {
-        let err = std::str::from_utf8(&output.stderr)
-            .expect("Cannot convert stderr output of wasm-opt to string")
-            .trim();
-        panic!(
-            "The wasm-opt optimization failed.\n\n\
-            The error which wasm-opt returned was: \n{err}"
-        );
+    match optimization_level {
+        "0" => OptimizationOptions::new_opt_level_0(),
+        "1" => OptimizationOptions::new_opt_level_1(),
+        "2" => OptimizationOptions::new_opt_level_2(),
+        "3" => OptimizationOptions::new_opt_level_3(),
+        "4" => OptimizationOptions::new_opt_level_4(),
+        "s" => OptimizationOptions::new_optimize_for_size(),
+        "z" => OptimizationOptions::new_optimize_for_size_aggressively(),
+        _ => panic!("Invalid optimization level {}", optimization_level),
     }
+    .add_pass(Pass::Dae)
+    .add_pass(Pass::Vacuum)
+    .zero_filled_memory(true)
+    .debug_info(keep_debug_symbols)
+    .run(dest_wasm, dest_optimized)
+    .expect("The wasm-opt optimization failed");
+
     Ok(())
 }
 
