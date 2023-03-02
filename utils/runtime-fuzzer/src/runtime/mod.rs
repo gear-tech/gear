@@ -30,7 +30,7 @@ use pallet_gear::Config as GearConfig;
 use sp_io::TestExternalities;
 
 pub use account::{account, ALICE};
-pub use block::{run_to_block, run_to_next_block, DEFAULT_GAS_LIMIT};
+pub use block::{run_to_block, run_to_next_block, default_gas_limit};
 
 mod account;
 mod block;

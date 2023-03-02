@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Script to reproduce crashes found by `node-fuzzer`.
+//! Script to reproduce crashes found by `runtime-fuzzer`.
 //!
 //! This file is a temporary solution until #2313 is implemented.
 //! Fuzzer dumps all the seed into the file, so the full run can
@@ -36,13 +36,13 @@ use structopt::StructOpt;
 pub struct Params {
     /// Path to the file, which contains seeds from previously run fuzzer.
     #[structopt(short = "p", long, parse(from_os_str))]
-    pub seeds_path: PathBuf,
+    pub path: PathBuf,
 }
 
 fn main() -> Result<()> {
     gear_utils::init_default_logger();
 
-    let mut file_reader = create_file_reader(Params::from_args().seeds_path)?;
+    let mut file_reader = create_file_reader(Params::from_args().path)?;
 
     // Read and check seeds file header.
     let header = read_seeds_file_header(&mut file_reader)?;

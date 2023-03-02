@@ -1,5 +1,5 @@
 [package]
-name = "node-fuzzer"
+name = "runtime-fuzzer"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2021"

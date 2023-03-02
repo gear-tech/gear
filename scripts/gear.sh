@@ -316,7 +316,7 @@ case "$COMMAND" in
         client_tests "$ROOT_DIR" "$@"; ;;
 
       fuzz)
-        header "Running fuzzer for runtime panick checks"
+        header "Running fuzzer for runtime panic checks"
         run_fuzzer "$ROOT_DIR" ;;
 
       syscalls)

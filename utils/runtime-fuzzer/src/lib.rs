@@ -91,7 +91,7 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
         0 => UploadProgramArgs::generate::<Rng>(
             rand.next_u64(),
             rand.next_u64(),
-            DEFAULT_GAS_LIMIT,
+            default_gas_limit(),
             config,
         )
         .into(),
@@ -99,13 +99,13 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
             Some(existing_programs) => SendMessageArgs::generate::<Rng>(
                 existing_programs,
                 rand.next_u64(),
-                DEFAULT_GAS_LIMIT,
+                default_gas_limit(),
             )
             .into(),
             None => UploadProgramArgs::generate::<Rng>(
                 rand.next_u64(),
                 rand.next_u64(),
-                DEFAULT_GAS_LIMIT,
+                default_gas_limit(),
                 config,
             )
             .into(),

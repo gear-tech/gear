@@ -110,10 +110,10 @@ run_fuzzer() {
   ROOT_DIR="$1"
 
   # Navigate to fuzzer dir
-  cd $ROOT_DIR/utils/node-fuzzer
+  cd $ROOT_DIR/utils/runtime-fuzzer
 
   # Run fuzzer
-  RUST_LOG="debug,node_fuzzer_fuzz=debug,wasmi,libfuzzer_sys,node_fuzzer=debug,gear,pallet_gear,gear-core-processor,gear-backend-wasmi,gwasm'" \
+  RUST_LOG="debug,runtime_fuzzer_fuzz=debug,wasmi,libfuzzer_sys,node_fuzzer=debug,gear,pallet_gear,gear-core-processor,gear-backend-wasmi,gwasm'" \
   cargo fuzz run --release --sanitizer=none main
 }
 

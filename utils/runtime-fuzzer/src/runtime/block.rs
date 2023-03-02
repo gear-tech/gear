@@ -20,19 +20,22 @@ use codec::Encode;
 use frame_support::traits::{OnFinalize, OnInitialize};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_common::QueueRunner;
-use gear_runtime::{Authorship, Gear, GearGas, GearMessenger, Runtime, System};
+use gear_runtime::{Authorship, Gear, GearGas, GearMessenger, Runtime, System, BlockGasLimit};
 use pallet_gear::BlockGasLimitOf;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     BABE_ENGINE_ID,
 };
 use sp_consensus_slots::Slot;
-use sp_runtime::{Digest, DigestItem};
+use sp_runtime::{Digest, DigestItem, Perbill};
 
-/// This is set to some big constant, instead of setting to `BlockGasLimitOf::<Runtime>::get`
-/// because of the known possible dead-lock for the message in the queue, when it's valid gas
+/// This is not set to `BlockGasLimitOf::<Runtime>::get`, because of the 
+/// known possible dead-lock for the message in the queue, when it's valid gas
 /// limit is more than maximum possible gas rest for the queue execution.
-pub const DEFAULT_GAS_LIMIT: u64 = 240_000_000_000;
+// # TODO 2328
+pub fn default_gas_limit() -> u64 {
+    Perbill::from_percent(90).mul_ceil(BlockGasLimit::get())
+}
 
 /// Run gear-protocol to the next block with max gas given for the execution.
 pub fn run_to_next_block() {

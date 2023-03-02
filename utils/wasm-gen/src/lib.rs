@@ -61,8 +61,7 @@ impl Ratio {
 }
 
 impl From<(u32, u32)> for Ratio {
-    fn from(ratio: (u32, u32)) -> Self {
-        let (numerator, denominator) = ratio;
+    fn from((numerator, denominator): (u32, u32)) -> Self {
         Self {
             numerator,
             denominator,
