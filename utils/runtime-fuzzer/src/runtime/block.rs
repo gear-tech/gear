@@ -34,7 +34,7 @@ use sp_runtime::{Digest, DigestItem, Perbill};
 /// limit is more than maximum possible gas rest for the queue execution.
 // # TODO 2328
 pub fn default_gas_limit() -> u64 {
-    Perbill::from_percent(90).mul_ceil(BlockGasLimit::get())
+    Perbill::from_percent(95).mul_ceil(BlockGasLimit::get())
 }
 
 /// Run gear-protocol to the next block with max gas given for the execution.
