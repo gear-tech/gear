@@ -32,6 +32,13 @@ test_run_node() {
   $EXE_RUNNER $TARGET_DIR/release/gear "$@"
 }
 
+cargo_test_gclient() {
+  if [ "$CARGO" = "cargo xwin" ]; then
+    $CARGO test -p gclient -- -- --test-threads 1 
+  else
+    cargo test -p gclient -- --test-threads 1
+  fi
+}
 
 workspace_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
@@ -103,9 +110,9 @@ client_tests() {
     RUST_LOG="pallet_gear=debug,gear::runtime=debug" test_run_node \
       --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
 
-    $CARGO test -p gclient -- --test-threads 1 || pkill -f 'gear |gear$' -9 | pkill -f 'gear |gear$' -9
+    cargo_test_gclient || pkill -f 'gear |gear$' -9 | pkill -f 'gear |gear$' -9
   else
-    $CARGO test -p gclient -- --test-threads 1
+    cargo_test_gclient test -p gclient -- --test-threads 1
   fi
 }
 
