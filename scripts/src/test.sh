@@ -98,9 +98,9 @@ client_tests() {
     RUST_LOG="pallet_gear=debug,gear::runtime=debug" $ROOT_DIR/target/release/gear \
       --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
 
-    cargo test -p gclient -- --test-threads 1 || pkill -f 'gear |gear$' -9 | pkill -f 'gear |gear$' -9
+    $CARGO test -p gclient -- --test-threads 1 || pkill -f 'gear |gear$' -9 | pkill -f 'gear |gear$' -9
   else
-    cargo test -p gclient -- --test-threads 1
+    $CARGO test -p gclient -- --test-threads 1
   fi
 }
 
