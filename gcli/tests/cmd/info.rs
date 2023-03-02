@@ -40,7 +40,7 @@ const EXPECTED_MAILBOX: &str = r#"
     value: 1000000,
     details: None,
     interval: Interval {
-        start: 2,
+        start: 3,
         finish: 32,
     },
 }
