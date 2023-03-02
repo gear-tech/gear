@@ -34,8 +34,16 @@ async fn api_timeout() {
 
 #[test]
 fn paths() {
-    assert!(PathBuf::from(env::bin("gear")).exists());
-    assert!(PathBuf::from(env::bin("gcli")).exists());
-    assert!(PathBuf::from(env::wasm_bin("demo_meta.opt.wasm")).exists());
-    assert!(PathBuf::from(env::wasm_bin("demo_meta.meta.wasm")).exists());
+    [
+        env::bin("gear"),
+        env::bin("gcli"),
+        env::wasm_bin("demo_meta.opt.wasm"),
+        env::wasm_bin("demo_meta.meta.wasm"),
+    ]
+    .into_iter()
+    .for_each(|path| {
+        if !PathBuf::from(&path).exists() {
+            panic!("{} not found.", path)
+        }
+    })
 }

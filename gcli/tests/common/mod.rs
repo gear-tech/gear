@@ -23,7 +23,10 @@ pub use self::{
 };
 use blake2_rfc::blake2b;
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
-use std::process::{Command, Output};
+use std::{
+    io::ErrorKind,
+    process::{Command, Output},
+};
 
 pub mod env;
 pub mod logs;
@@ -34,9 +37,16 @@ pub mod traits;
 
 pub const ALICE_SS58_ADDRESS: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
 
-/// Run binary `gear`
+/// Run binary `gear`.
 pub fn gear(args: &[&str]) -> Result<Output> {
-    Ok(Command::new(env::bin("gcli")).args(args).output()?)
+    let bin = env::bin("gcli");
+    Command::new(&bin).args(args).output().map_err(|e| {
+        if e.kind() == ErrorKind::NotFound {
+            return Error::NotFound(bin);
+        }
+
+        return e.into();
+    })
 }
 
 /// Creates a unique identifier by passing given argument to blake2b hash-function.

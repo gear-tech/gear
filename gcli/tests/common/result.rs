@@ -20,6 +20,8 @@
 pub enum Error {
     #[error("No stderr was found.")]
     EmptyStderr,
+    #[error("{0} not found.")]
+    NotFound(String),
     #[error(transparent)]
     GCli(#[from] gcli::result::Error),
     #[error(transparent)]

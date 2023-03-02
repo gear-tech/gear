@@ -31,7 +31,7 @@ pub struct Node {
 }
 
 impl Node {
-    /// node websocket addr
+    /// Node websocket addr.
     pub fn ws(&self) -> String {
         format!("ws://{}:{}", port::LOCALHOST, self.port)
     }
@@ -39,15 +39,8 @@ impl Node {
     /// Run gear with docker in development mode.
     pub fn dev() -> Result<Self> {
         let port = port::pick();
-        let port_string = port.to_string();
-
-        let args = vec!["--ws-port", &port_string, "--tmp", "--dev"];
-
-        #[cfg(all(feature = "vara", not(feature = "gear")))]
-        let args = [args, vec!["--force-vara"]].concat();
-
         let ps = Command::new(env::bin("gear"))
-            .args(args)
+            .args(["--ws-port", &port.to_string(), "--tmp", "--dev"])
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
@@ -55,7 +48,7 @@ impl Node {
         Ok(Self { ps, port })
     }
 
-    /// Wait for the block importing
+    /// Wait for log string.
     pub fn wait(&mut self, log: &str) -> Result<String> {
         let stderr = self.ps.stderr.as_mut();
         let reader = BufReader::new(stderr.ok_or(Error::EmptyStderr)?);
