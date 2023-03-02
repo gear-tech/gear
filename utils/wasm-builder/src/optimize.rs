@@ -184,6 +184,9 @@ pub fn do_optimization(
     }
     .add_pass(Pass::Dae)
     .add_pass(Pass::Vacuum)
+    // the memory in our module is imported, `wasm-opt` needs to be told that
+    // the memory is initialized to zeroes, otherwise it won't run the
+    // memory-packing pre-pass.
     .zero_filled_memory(true)
     .debug_info(keep_debug_symbols)
     .run(dest_wasm, dest_optimized)
