@@ -91,11 +91,11 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
     // 2. calculate handle gas and send message.
     let gas_info = signer
-        .calculate_handle_gas(None, pid.into(), vec![], 0, true, None)
+        .calculate_handle_gas(None, pid, vec![], 0, true, None)
         .await?;
 
     signer
-        .send_message(pid.into(), vec![], gas_info.min_limit, 0)
+        .send_message(pid, vec![], gas_info.min_limit, 0)
         .await?;
 
     Ok(())
@@ -128,7 +128,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     // 2. send wait message.
     signer
-        .send_message(pid.into(), payload.encode(), 100_000_000_000, 0)
+        .send_message(pid, payload.encode(), 100_000_000_000, 0)
         .await?;
 
     let mailbox = signer.api().mailbox(alice_account_id, 10).await?;

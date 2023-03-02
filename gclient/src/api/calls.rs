@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{GearApi, Result};
-use crate::{utils, Error};
+use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
 use gear_core::ids::*;
 use gsdk::{
     ext::{
@@ -202,6 +202,74 @@ impl GearApi {
     ) -> Result<(MessageId, ProgramId, H256)> {
         self.create_program_bytes(code_id, salt, payload.encode(), gas_limit, value)
             .await
+    }
+
+    /// Migrates an active program identified by `src_program_id` onto another
+    /// node identified by `tgt_node_api` and returns the migrated program
+    /// identifier.
+    pub async fn migrate_program(
+        &self,
+        src_program_id: ProgramId,
+        tgt_node_api: &GearApi,
+    ) -> Result<ProgramId> {
+        // TODO: Ideally we have to check program is not already there (via gprog, for
+        // example). Do we want to override it? If yes, then we have to check
+        // migration is done to another node (network). How?
+        // Another solution might be that we crate a brand new ProgramId which would
+        // allow us to migrate program even withing the same node/network
+
+        let tgt_program_id = src_program_id;
+
+        // Collect data from the source program
+        let src_free_balance = self.free_balance(src_program_id).await?;
+        let src_reserved_balance = self.reserved_balance(src_program_id).await?;
+
+        let src_program = self.0.api().gprog(src_program_id.into()).await?;
+
+        let src_program_pages = self
+            .0
+            .api()
+            .gpages(src_program_id.into(), &src_program)
+            .await?;
+
+        let src_code_len = self.0.api().gcode_len(src_program.code_hash.into()).await?;
+
+        let src_code = self.0.api().gcode(src_program.code_hash.into()).await?;
+
+        // Apply data to the target program
+        tgt_node_api
+            .0
+            .set_gcode_len(src_program.code_hash.0, src_code_len)
+            .await?;
+
+        tgt_node_api
+            .0
+            .set_gcode(src_program.code_hash.0, &src_code)
+            .await?;
+
+        tgt_node_api
+            .0
+            .set_gpages(tgt_program_id, &src_program_pages)
+            .await?;
+
+        tgt_node_api
+            .0
+            .set_gprog(
+                tgt_program_id,
+                src_program,
+                tgt_node_api.last_block_number().await?,
+            )
+            .await?;
+
+        tgt_node_api
+            .set_balance(
+                tgt_program_id.into_account_id(),
+                src_free_balance,
+                src_reserved_balance,
+            )
+            .await?;
+
+        Ok(tgt_program_id)
     }
 
     /// Claim value from the mailbox message identified by `message_id`.

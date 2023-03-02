@@ -22,6 +22,7 @@ pub use self::{
     result::{Error, Result},
 };
 use blake2_rfc::blake2b;
+use gear_core::ids::{CodeId, ProgramId};
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 use std::process::{Command, Output};
 
@@ -63,15 +64,8 @@ pub fn login_as_alice() -> Result<()> {
 }
 
 /// Generate program id from code id and salt
-pub fn program_id(bin: &[u8], salt: &[u8]) -> [u8; 32] {
-    let code_id = hash(bin);
-    let len = code_id.len() + salt.len();
-
-    let mut argument = Vec::with_capacity(len);
-    argument.extend_from_slice(&code_id);
-    argument.extend_from_slice(salt);
-
-    hash(&argument)
+pub fn program_id(bin: &[u8], salt: &[u8]) -> ProgramId {
+    ProgramId::generate(CodeId::generate(bin), salt)
 }
 
 /// AccountId32 of `addr`

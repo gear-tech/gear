@@ -34,7 +34,7 @@ async fn test_command_upload_works() {
         .expect("get signer failed");
 
     let code_hash = common::hash(demo_meta::WASM_BINARY);
-    assert!(signer.api().code_storage(code_hash).await.is_err());
+    assert!(signer.api().gcode(code_hash).await.is_err());
 
     let _ = common::gear(&[
         "-e",
@@ -44,5 +44,5 @@ async fn test_command_upload_works() {
     ])
     .expect("run command upload failed");
 
-    assert!(signer.api().code_storage(code_hash).await.is_ok());
+    assert!(signer.api().gcode(code_hash).await.is_ok());
 }

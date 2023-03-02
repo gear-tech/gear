@@ -28,4 +28,4 @@ hex-literal = "0.3"
 log = "0.4"
 demo-meta-io = { path = "../examples/binaries/new-meta/io" }
 demo-backend-error = { path = "../examples/binaries/backend-error" }
-
+demo-mul-by-const = { path = "../examples/binaries/mul-by-const" }

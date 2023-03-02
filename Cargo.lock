@@ -3505,6 +3505,7 @@ dependencies = [
  "async-trait",
  "demo-backend-error",
  "demo-meta-io",
+ "demo-mul-by-const",
  "env_logger",
  "futures",
  "futures-timer",

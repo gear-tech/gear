@@ -19,16 +19,27 @@
 //! gear api calls
 use crate::{
     config::GearConfig,
-    metadata::runtime_types::{gear_runtime::RuntimeCall, sp_weights::weight_v2::Weight},
+    metadata::runtime_types::{
+        frame_system::pallet::Call,
+        gear_common::{ActiveProgram, Program},
+        gear_core::code::InstrumentedCode,
+        gear_runtime::RuntimeCall,
+        sp_weights::weight_v2::Weight,
+    },
     signer::Signer,
-    types::{InBlock, TxStatus},
+    types::{self, InBlock, TxStatus},
+    Error,
 };
 use anyhow::anyhow;
 use async_recursion::async_recursion;
 use gear_core::ids::{CodeId, MessageId, ProgramId};
+use hex::ToHex;
+use parity_scale_codec::Encode;
 use sp_runtime::AccountId32;
 use subxt::{
     dynamic::Value,
+    metadata::EncodeWithMetadata,
+    storage::StorageAddress,
     tx::{DynamicTxPayload, TxProgress},
     Error as SubxtError, OnlineClient,
 };
@@ -194,10 +205,102 @@ impl Signer {
 
         self.process(tx).await
     }
+
+    /// `pallet_sudo::sudo`
+    pub async fn sudo(&self, call: RuntimeCall) -> InBlock {
+        let tx = subxt::dynamic::tx("Sudo", "sudo", vec![Value::from(call)]);
+
+        self.process(tx).await
+    }
+}
+
+// pallet-system
+impl Signer {
+    /// Sets storage values via calling sudo pallet
+    pub async fn set_storage(&self, items: &[(impl StorageAddress, impl Encode)]) -> InBlock {
+        let metadata = self.api().metadata();
+        let mut items_to_set = Vec::with_capacity(items.len());
+        for item in items {
+            let item_key = subxt::storage::utils::storage_address_bytes(&item.0, &metadata)?;
+            let mut item_value = Vec::new();
+            let item_value_type_id = crate::storage::storage_type_id(&metadata, &item.0)?;
+            subxt::metadata::EncodeStaticType(&item.1).encode_with_metadata(
+                item_value_type_id,
+                &metadata,
+                &mut item_value,
+            )?;
+            items_to_set.push((item_key, item_value));
+        }
+
+        self.sudo(RuntimeCall::System(Call::set_storage {
+            items: items_to_set,
+        }))
+        .await
+    }
 }
 
 // Singer utils
 impl Signer {
+    /// Writes `InstrumentedCode` length into storage at `code_hash`
+    pub async fn set_gcode_len(&self, code_hash: [u8; 32], code_len: u32) -> InBlock {
+        let addr = subxt::dynamic::storage(
+            "GearProgram",
+            "CodeLenStorage",
+            vec![Value::from_bytes(code_hash)],
+        );
+        self.set_storage(&[(addr, code_len)]).await
+    }
+
+    /// Writes `InstrumentedCode` into storage at `code_hash`
+    pub async fn set_gcode(&self, code_hash: [u8; 32], code: &InstrumentedCode) -> InBlock {
+        let addr = subxt::dynamic::storage(
+            "GearProgram",
+            "CodeStorage",
+            vec![Value::from_bytes(code_hash)],
+        );
+        self.set_storage(&[(addr, code)]).await
+    }
+
+    /// Writes `GearPages` into storage at `program_id`
+    pub async fn set_gpages(
+        &self,
+        program_id: ProgramId,
+        program_pages: &types::GearPages,
+    ) -> InBlock {
+        let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
+        for program_page in program_pages {
+            let addr = subxt::dynamic::storage(
+                "GearProgram",
+                "MemoryPageStorage",
+                vec![
+                    subxt::dynamic::Value::from_bytes(program_id.as_ref()),
+                    subxt::dynamic::Value::u128(*program_page.0 as u128),
+                ],
+            );
+            let page_buf_inner = gear_core::memory::PageBufInner::try_from(program_page.1.clone())
+                .map_err(|_| Error::PageBroken(*program_page.0, program_id.encode_hex()))?;
+            let value = gear_core::memory::PageBuf::from_inner(page_buf_inner);
+            program_pages_to_set.push((addr, value));
+        }
+        self.set_storage(&program_pages_to_set).await
+    }
+
+    /// Writes `ActiveProgram` into storage at `program_id`
+    pub async fn set_gprog(
+        &self,
+        program_id: ProgramId,
+        program: ActiveProgram,
+        block_number: u32,
+    ) -> InBlock {
+        let addr = subxt::dynamic::storage(
+            "GearProgram",
+            "ProgramStorage",
+            vec![Value::from_bytes(program_id.as_ref())],
+        );
+        self.set_storage(&[(addr, &(Program::Active(program), block_number))])
+            .await
+    }
+
     /// Propagates log::info for given status.
     pub(crate) fn log_status(&self, status: &TxStatus) {
         match status {
@@ -260,7 +363,7 @@ impl Signer {
     }
 
     /// Listen transaction process and print logs.
-    pub async fn process<'a>(&self, tx: DynamicTxPayload<'a>) -> InBlock {
+    async fn process<'a>(&self, tx: DynamicTxPayload<'a>) -> InBlock {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;
