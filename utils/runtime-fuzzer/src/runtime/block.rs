@@ -20,7 +20,7 @@ use codec::Encode;
 use frame_support::traits::{OnFinalize, OnInitialize};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_common::QueueRunner;
-use gear_runtime::{Authorship, Gear, GearGas, GearMessenger, Runtime, System, BlockGasLimit};
+use gear_runtime::{Authorship, BlockGasLimit, Gear, GearGas, GearMessenger, Runtime, System};
 use pallet_gear::BlockGasLimitOf;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
@@ -29,7 +29,7 @@ use sp_consensus_babe::{
 use sp_consensus_slots::Slot;
 use sp_runtime::{Digest, DigestItem, Perbill};
 
-/// This is not set to `BlockGasLimitOf::<Runtime>::get`, because of the 
+/// This is not set to `BlockGasLimitOf::<Runtime>::get`, because of the
 /// known possible dead-lock for the message in the queue, when it's valid gas
 /// limit is more than maximum possible gas rest for the queue execution.
 // # TODO 2328
