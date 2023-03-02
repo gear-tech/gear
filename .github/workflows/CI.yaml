@@ -564,7 +564,7 @@ jobs:
       - name: "Install: Install LLVM"
         run: |
           sudo apt install -y clang-12 clang-tools-12 llvm-12
-          ./.github/update-alternatives-clang.sh 12 100
+          sudo ./.github/update-alternatives-clang.sh 12 100
 
       - name: "Install: binaryen"
         run: |  
