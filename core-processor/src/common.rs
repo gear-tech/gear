@@ -536,7 +536,7 @@ pub struct WasmExecutionContext {
 }
 
 /// Struct with dispatch and counters charged for program data.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct PrechargedDispatch {
     gas: GasCounter,
     allowance: GasAllowanceCounter,

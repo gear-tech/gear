@@ -13,13 +13,13 @@ use alloc::vec::Vec;
 use blake2_rfc::blake2b;
 use core::any::TypeId;
 
-#[derive(Encode, Debug, Decode)]
+#[derive(Encode, Debug, Decode, Eq, PartialEq)]
 pub struct TypesRepr {
     pub input: Option<u32>,
     pub output: Option<u32>,
 }
 
-#[derive(Encode, Debug, Decode)]
+#[derive(Encode, Debug, Decode, Eq, PartialEq)]
 pub struct MetadataRepr {
     pub init: TypesRepr,
     pub handle: TypesRepr,
@@ -83,6 +83,12 @@ impl MetadataRepr {
         self.encode()
     }
 
+    pub fn from_hex<T: AsRef<[u8]>>(data: T) -> Result<Self, MetadataParseError> {
+        let data = hex::decode(data)?;
+        let this = Self::decode(&mut data.as_ref())?;
+        Ok(this)
+    }
+
     pub fn hex(&self) -> String {
         hex::encode(self.bytes())
     }
@@ -99,6 +105,12 @@ impl MetadataRepr {
     pub fn hash_hex(&self) -> String {
         hex::encode(self.hash())
     }
+}
+
+#[derive(Debug, derive_more::From)]
+pub enum MetadataParseError {
+    Codec(codec::Error),
+    FromHex(hex::FromHexError),
 }
 
 pub trait Metadata {

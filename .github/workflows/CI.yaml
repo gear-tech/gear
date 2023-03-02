@@ -229,7 +229,7 @@ jobs:
           cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gprogram --features pallet-gear-debug/lazy-pages --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
@@ -238,9 +238,7 @@ jobs:
         run: ./scripts/gear.sh test gtest
 
       - name: "Test: Program CLI"
-        run: |
-          cargo nextest run --release -p gear-program --features bin
-          cargo nextest run --release -p gear-program --no-default-features --features bin,vara
+        run: RUST_BACKTRACE=1 cargo nextest run --release -p gcli
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --run-node
@@ -349,7 +347,7 @@ jobs:
 
       - name: Upload artifacts
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: artifact
 
@@ -372,7 +370,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: "Install: Setup MSYS2 environment"
         uses: msys2/setup-msys2@v2
@@ -509,7 +507,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: "ACTIONS: Setup caching"
         uses: actions/cache@v3

@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 gmeta = { path = "../../../../gmeta" }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
-codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive", "full"] }
+scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive", "full"] }

@@ -343,8 +343,8 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run::<Block>(&config))
         }
-        #[cfg(feature = "program")]
-        Some(Subcommand::GearProgram(gp)) => {
+        #[cfg(feature = "cli")]
+        Some(Subcommand::Cli(gp)) => {
             // # NOTE
             //
             // unwrap here directly to show the error messages.

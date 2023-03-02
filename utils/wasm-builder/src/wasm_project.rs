@@ -19,6 +19,7 @@
 use crate::{
     crate_info::CrateInfo,
     optimize::{OptType, Optimizer},
+    smart_fs,
 };
 use anyhow::{Context, Result};
 use gmeta::MetadataRepr;
@@ -201,9 +202,10 @@ impl WasmProject {
             let wasm_meta_path = self.original_dir.join("meta.txt");
             let wasm_meta_hash_path = self.original_dir.join(".metahash");
 
-            fs::write(wasm_meta_path, metadata.hex()).context("unable to write `meta.txt`")?;
+            smart_fs::write_metadata(wasm_meta_path, metadata)
+                .context("unable to write `meta.txt`")?;
 
-            fs::write(wasm_meta_hash_path, format!("{:?}", metadata.hash()))
+            smart_fs::write(wasm_meta_hash_path, format!("{:?}", metadata.hash()))
                 .context("unable to write `.metahash`")?;
         }
 
@@ -266,7 +268,7 @@ impl WasmProject {
         relative_path.set_extension("");
 
         if !self.project_type.is_metawasm() {
-            fs::write(wasm_binary_path, format!("{}", relative_path.display()))
+            smart_fs::write(wasm_binary_path, format!("{}", relative_path.display()))
                 .context("unable to write `.binpath`")?;
         }
 

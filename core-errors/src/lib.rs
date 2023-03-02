@@ -204,6 +204,9 @@ pub enum ReservationError {
     /// An error occurs in attempt to reserve zero gas.
     #[display(fmt = "Reservation amount cannot be zero")]
     ZeroReservationAmount = 4,
+    /// An error occurs in attempt to reserve gas less than mailbox threshold.
+    #[display(fmt = "Reservation amount cannot be below mailbox threshold")]
+    ReservationBelowMailboxThreshold = 5,
 }
 
 /// Execution error.

@@ -19,7 +19,7 @@
 use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
-use gp::api::generated::api::{runtime_types::gear_runtime::RuntimeEvent, Event};
+use gsdk::metadata::{runtime_types::gear_runtime::RuntimeEvent, Event};
 
 #[async_trait(?Send)]
 impl<I: IntoIterator<Item = RuntimeEvent> + Clone> EventProcessor for I {

@@ -6,7 +6,7 @@ use std::result::Result as StdResult;
 pub enum Error {
     /// Some errors happens in gprogram.
     #[error(transparent)]
-    GProgram(#[from] gp::result::Error),
+    GSdk(#[from] gsdk::Error),
     /// Some errors happens in subxt.
     #[error(transparent)]
     Subxt(#[from] subxt::Error),
@@ -15,7 +15,7 @@ pub enum Error {
     EnvLogger(#[from] log::SetLoggerError),
     /// Decoding ss58 address failed.
     #[error(transparent)]
-    PublicError(#[from] subxt::ext::sp_core::crypto::PublicError),
+    PublicError(#[from] gsdk::ext::sp_core::crypto::PublicError),
     /// Blocks production validation failed.
     #[error("Some validators didn't produce blocks.")]
     BlocksProduction,
