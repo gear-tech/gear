@@ -559,7 +559,12 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang-12 clang-tools-12 curl libssl-dev llvm-12 libudev-dev cmake wabt protobuf-compiler wget bzip2 wine64
+          sudo apt install -y git curl libssl-dev libudev-dev cmake wabt protobuf-compiler wget bzip2 wine64
+
+      - name: "Install: Install LLVM"
+        run: |
+          sudo apt install -y clang-12 clang-tools-12 llvm-12
+          ./.github/update-alternatives-clang.sh 12 100
 
       - name: "Install: binaryen"
         run: |  
