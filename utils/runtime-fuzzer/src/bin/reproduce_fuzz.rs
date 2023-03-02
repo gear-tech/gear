@@ -56,7 +56,7 @@ fn main() -> Result<()> {
 
         log::info!("Reproducing run with the seed - {seed}");
 
-        node_fuzzer::run(seed);
+        runtime_fuzzer::run(seed);
     }
 
     Ok(())
