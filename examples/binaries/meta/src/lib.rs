@@ -64,7 +64,7 @@ impl From<MessageInitIn> for MessageInitOut {
     }
 }
 
-#[derive(TypeInfo, Decode)]
+#[derive(TypeInfo, Encode, Decode)]
 pub struct MessageIn {
     pub id: Id,
 }
