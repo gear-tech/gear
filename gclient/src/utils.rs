@@ -30,13 +30,6 @@ pub fn wat2wasm(wat: impl AsRef<str>) -> Vec<u8> {
         .to_vec()
 }
 
-/// Return the time elapsed since the Unix epoch in microseconds converted to
-/// the 16-bytes array.
-#[deprecated = "Use `gear_utils::now_micros().to_le_bytes()` instead"]
-pub fn bytes_now() -> [u8; 16] {
-    gear_utils::now_micros().to_be_bytes()
-}
-
 /// Return the full path to the optimized Wasm binary file with the `demo_name`
 /// name located in the `root_path` directory.
 ///
