@@ -544,6 +544,11 @@ jobs:
 
       - name: "Install: MSVC target"
         run: rustup target add x86_64-pc-windows-msvc --toolchain nightly
+        
+      - name: "Install: VC runtime DLLs"
+        run: |
+          mkdir -p target/x86_64-pc-windows-msvc/release
+          cp ./.github/vcruntime140.dll target/x86_64-pc-windows-msvc/release/
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v3
