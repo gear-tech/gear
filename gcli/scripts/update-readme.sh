@@ -5,8 +5,8 @@ readonly ROOT_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
 readonly README="${ROOT_DIR}/README.md"
 readonly LIB_RS="${ROOT_DIR}/src/lib.rs"
 
-#########################################
-# Conact `README.md` and `src/lib.rs`
+############################################
+# Concat `README.md` and `src/lib.rs`
 ############################################
 function main() {
     readme=$(cat ${README} | sed 's/^/\/\/\!/' | sed 's/\!\(\S\)/\! \1/')

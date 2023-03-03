@@ -7,7 +7,7 @@ const GEAR_PATH: &str = "../target/release/gear";
 /// Running this test requires gear node to be built in advance.
 #[tokio::test]
 async fn two_nodes_run_independently() {
-    let node_1 = Node::try_from_path(GEAR_PATH).expect("Unable to intsantiate dev node 1");
+    let node_1 = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate dev node 1");
     let node_2 = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate dev node 2");
     let salt = gclient::now_in_micros().to_le_bytes();
 
