@@ -1144,10 +1144,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    lazy_pages_read {
+    lazy_pages_signal_read {
         let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_read((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_signal_read((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1155,10 +1155,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    lazy_pages_write {
+    lazy_pages_signal_write {
         let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_write((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_signal_write((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1166,10 +1166,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    lazy_pages_write_after_read {
+    lazy_pages_signal_write_after_read {
         let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_write_after_read((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_signal_write_after_read((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1177,10 +1177,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    lazy_pages_read_storage_data {
+    lazy_pages_load_page_storage_data {
         let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_read_storage_data((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_load_page_storage_data((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1188,10 +1188,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    host_func_read {
+    lazy_pages_host_func_read {
         let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
         let mut res = None;
-        let exec = Benches::<T>::host_func_read((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_host_func_read((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1199,10 +1199,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    host_func_write {
+    lazy_pages_host_func_write {
         let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
         let mut res = None;
-        let exec = Benches::<T>::host_func_write((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_host_func_write((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1210,10 +1210,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    host_func_read_write {
+    lazy_pages_host_func_write_after_read {
         let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
         let mut res = None;
-        let exec = Benches::<T>::host_func_write_after_read((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_host_func_write_after_read((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }

@@ -261,12 +261,16 @@ where
 
             exec.block_config.page_costs.signal_read = rng.gen_range(0..MAX_COST).into();
             exec.block_config.page_costs.signal_write = rng.gen_range(0..MAX_COST).into();
-            exec.block_config.page_costs.signal_write_after_read =
+            exec.block_config
+                .page_costs
+                .lazy_pages_signal_write_after_read = rng.gen_range(0..MAX_COST).into();
+            exec.block_config.page_costs.lazy_pages_host_func_read =
                 rng.gen_range(0..MAX_COST).into();
-            exec.block_config.page_costs.host_func_read = rng.gen_range(0..MAX_COST).into();
-            exec.block_config.page_costs.host_func_write = rng.gen_range(0..MAX_COST).into();
-            exec.block_config.page_costs.host_func_write_after_read =
+            exec.block_config.page_costs.lazy_pages_host_func_write =
                 rng.gen_range(0..MAX_COST).into();
+            exec.block_config
+                .page_costs
+                .lazy_pages_host_func_write_after_read = rng.gen_range(0..MAX_COST).into();
             exec.block_config.page_costs.load_page_data = rng.gen_range(0..MAX_COST).into();
             exec.block_config.page_costs.upload_page_data = rng.gen_range(0..MAX_COST).into();
 
@@ -345,8 +349,9 @@ where
 
             exec.block_config.page_costs.signal_read = (read_cost * i).into();
             exec.block_config.page_costs.signal_write = (write_cost * i).into();
-            exec.block_config.page_costs.signal_write_after_read =
-                (write_after_read_cost * i).into();
+            exec.block_config
+                .page_costs
+                .lazy_pages_signal_write_after_read = (write_after_read_cost * i).into();
 
             let notes = core_processor::process::<ExecutionEnvironment>(
                 &exec.block_config,

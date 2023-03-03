@@ -99,13 +99,13 @@ pub trait WeightInfo {
     fn gr_wake(r: u32, ) -> Weight;
     fn gr_create_program_wgas(r: u32, ) -> Weight;
     fn gr_create_program_wgas_per_kb(p: u32, s: u32, ) -> Weight;
-    fn lazy_pages_read(p: u32, ) -> Weight;
-    fn lazy_pages_write(p: u32, ) -> Weight;
-    fn lazy_pages_write_after_read(p: u32, ) -> Weight;
-    fn lazy_pages_read_storage_data(p: u32, ) -> Weight;
-    fn host_func_read(p: u32, ) -> Weight;
-    fn host_func_write(p: u32, ) -> Weight;
-    fn host_func_read_write(p: u32, ) -> Weight;
+    fn lazy_pages_signal_read(p: u32, ) -> Weight;
+    fn lazy_pages_signal_write(p: u32, ) -> Weight;
+    fn lazy_pages_signal_write_after_read(p: u32, ) -> Weight;
+    fn lazy_pages_load_page_storage_data(p: u32, ) -> Weight;
+    fn lazy_pages_host_func_read(p: u32, ) -> Weight;
+    fn lazy_pages_host_func_write(p: u32, ) -> Weight;
+    fn lazy_pages_host_func_write_after_read(p: u32, ) -> Weight;
     fn instr_i64load(r: u32, ) -> Weight;
     fn instr_i64store(r: u32, ) -> Weight;
     fn instr_select(r: u32, ) -> Weight;
@@ -364,12 +364,12 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_ref_time(453_813_566 as u64).saturating_mul(r as u64))
             .saturating_add(T::DbWeight::get().reads(3 as u64))
     }
-    /// The range of component `n` is `[0, 1024]`.
+    /// The range of component `n` is `[0, 2048]`.
     fn gr_read_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(573_178_000 as u64)
-            // Standard Error: 69_092
-            .saturating_add(Weight::from_ref_time(16_111_396 as u64).saturating_mul(n as u64))
-            .saturating_add(T::DbWeight::get().reads(3 as u64))
+        Weight::from_ref_time(2_243_131_660 as u64)
+            // Standard Error: 96_106
+            .saturating_add(Weight::from_ref_time(19_897_392 as u64).saturating_mul(n as u64))
+            .saturating_add(T::DbWeight::get().reads(256 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_block_height(r: u32, ) -> Weight {
@@ -519,12 +519,12 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_ref_time(302_871_969 as u64).saturating_mul(r as u64))
             .saturating_add(T::DbWeight::get().reads(1 as u64))
     }
-    /// The range of component `n` is `[0, 1024]`.
+    /// The range of component `n` is `[0, 2048]`.
     fn gr_debug_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(391_787_000 as u64)
-            // Standard Error: 57_071
-            .saturating_add(Weight::from_ref_time(36_620_507 as u64).saturating_mul(n as u64))
-            .saturating_add(T::DbWeight::get().reads(1 as u64))
+        Weight::from_ref_time(276_817_831 as u64)
+            // Standard Error: 95_255
+            .saturating_add(Weight::from_ref_time(40_391_248 as u64).saturating_mul(n as u64))
+            .saturating_add(T::DbWeight::get().reads(256 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_error(r: u32, ) -> Weight {
@@ -597,53 +597,53 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(2 as u64))
     }
     /// The range of component `p` is `[0, 512]`.
-    fn lazy_pages_read(p: u32, ) -> Weight {
+    fn lazy_pages_signal_read(p: u32, ) -> Weight {
         Weight::from_ref_time(19_669_515 as u64)
             // Standard Error: 21_375
             .saturating_add(Weight::from_ref_time(43_134_949 as u64).saturating_mul(p as u64))
             .saturating_add(T::DbWeight::get().reads((4 as u64).saturating_mul(p as u64)))
     }
     /// The range of component `p` is `[0, 512]`.
-    fn lazy_pages_write(p: u32, ) -> Weight {
+    fn lazy_pages_signal_write(p: u32, ) -> Weight {
         Weight::from_ref_time(92_040_000 as u64)
             // Standard Error: 137_157
             .saturating_add(Weight::from_ref_time(60_944_652 as u64).saturating_mul(p as u64))
             .saturating_add(T::DbWeight::get().reads((4 as u64).saturating_mul(p as u64)))
     }
     /// The range of component `p` is `[0, 512]`.
-    fn lazy_pages_write_after_read(p: u32, ) -> Weight {
+    fn lazy_pages_signal_write_after_read(p: u32, ) -> Weight {
         Weight::from_ref_time(21_667_683_124 as u64)
             // Standard Error: 173_652
             .saturating_add(Weight::from_ref_time(68_270_124 as u64).saturating_mul(p as u64))
             .saturating_add(T::DbWeight::get().reads(2048 as u64))
     }
     /// The range of component `p` is `[0, 512]`.
-    fn lazy_pages_read_storage_data(p: u32, ) -> Weight {
+    fn lazy_pages_load_page_storage_data(p: u32, ) -> Weight {
         Weight::from_ref_time(93_025_000 as u64)
             // Standard Error: 52_274
             .saturating_add(Weight::from_ref_time(87_855_506 as u64).saturating_mul(p as u64))
             .saturating_add(T::DbWeight::get().reads((16 as u64).saturating_mul(p as u64)))
     }
-    /// The range of component `p` is `[0, 512]`.
-    fn host_func_read(p: u32, ) -> Weight {
-        Weight::from_ref_time(36_669_661 as u64)
-            // Standard Error: 26_985
-            .saturating_add(Weight::from_ref_time(69_950_120 as u64).saturating_mul(p as u64))
+    /// The range of component `p` is `[0, 32]`.
+    fn lazy_pages_host_func_read(p: u32, ) -> Weight {
+        Weight::from_ref_time(99_511_008 as u64)
+            // Standard Error: 48_536
+            .saturating_add(Weight::from_ref_time(43_931_688 as u64).saturating_mul(p as u64))
             .saturating_add(T::DbWeight::get().reads((4 as u64).saturating_mul(p as u64)))
     }
-    /// The range of component `p` is `[0, 512]`.
-    fn host_func_write(p: u32, ) -> Weight {
-        Weight::from_ref_time(97_796_000 as u64)
-            // Standard Error: 151_594
-            .saturating_add(Weight::from_ref_time(130_363_464 as u64).saturating_mul(p as u64))
+    /// The range of component `p` is `[0, 32]`.
+    fn lazy_pages_host_func_write(p: u32, ) -> Weight {
+        Weight::from_ref_time(623_778_448 as u64)
+            // Standard Error: 418_568
+            .saturating_add(Weight::from_ref_time(67_317_632 as u64).saturating_mul(p as u64))
             .saturating_add(T::DbWeight::get().reads((4 as u64).saturating_mul(p as u64)))
     }
-    /// The range of component `p` is `[0, 512]`.
-    fn host_func_read_write(p: u32, ) -> Weight {
-        Weight::from_ref_time(96_512_000 as u64)
-            // Standard Error: 147_438
-            .saturating_add(Weight::from_ref_time(139_125_962 as u64).saturating_mul(p as u64))
-            .saturating_add(T::DbWeight::get().reads((4 as u64).saturating_mul(p as u64)))
+    /// The range of component `p` is `[0, 32]`.
+    fn lazy_pages_host_func_write_after_read(p: u32, ) -> Weight {
+        Weight::from_ref_time(3_496_114_720 as u64)
+            // Standard Error: 464_666
+            .saturating_add(Weight::from_ref_time(71_052_311 as u64).saturating_mul(p as u64))
+            .saturating_add(T::DbWeight::get().reads(256 as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64load(r: u32, ) -> Weight {
@@ -1152,12 +1152,12 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_ref_time(453_813_566 as u64).saturating_mul(r as u64))
             .saturating_add(RocksDbWeight::get().reads(3 as u64))
     }
-    /// The range of component `n` is `[0, 1024]`.
+    /// The range of component `n` is `[0, 2048]`.
     fn gr_read_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(573_178_000 as u64)
-            // Standard Error: 69_092
-            .saturating_add(Weight::from_ref_time(16_111_396 as u64).saturating_mul(n as u64))
-            .saturating_add(RocksDbWeight::get().reads(3 as u64))
+        Weight::from_ref_time(2_243_131_660 as u64)
+            // Standard Error: 96_106
+            .saturating_add(Weight::from_ref_time(19_897_392 as u64).saturating_mul(n as u64))
+            .saturating_add(RocksDbWeight::get().reads(256 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_block_height(r: u32, ) -> Weight {
@@ -1307,12 +1307,12 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_ref_time(302_871_969 as u64).saturating_mul(r as u64))
             .saturating_add(RocksDbWeight::get().reads(1 as u64))
     }
-    /// The range of component `n` is `[0, 1024]`.
+    /// The range of component `n` is `[0, 2048]`.
     fn gr_debug_per_kb(n: u32, ) -> Weight {
-        Weight::from_ref_time(391_787_000 as u64)
-            // Standard Error: 57_071
-            .saturating_add(Weight::from_ref_time(36_620_507 as u64).saturating_mul(n as u64))
-            .saturating_add(RocksDbWeight::get().reads(1 as u64))
+        Weight::from_ref_time(276_817_831 as u64)
+            // Standard Error: 95_255
+            .saturating_add(Weight::from_ref_time(40_391_248 as u64).saturating_mul(n as u64))
+            .saturating_add(RocksDbWeight::get().reads(256 as u64))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_error(r: u32, ) -> Weight {
@@ -1385,53 +1385,53 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().reads(2 as u64))
     }
     /// The range of component `p` is `[0, 512]`.
-    fn lazy_pages_read(p: u32, ) -> Weight {
+    fn lazy_pages_signal_read(p: u32, ) -> Weight {
         Weight::from_ref_time(19_669_515 as u64)
             // Standard Error: 21_375
             .saturating_add(Weight::from_ref_time(43_134_949 as u64).saturating_mul(p as u64))
             .saturating_add(RocksDbWeight::get().reads((4 as u64).saturating_mul(p as u64)))
     }
     /// The range of component `p` is `[0, 512]`.
-    fn lazy_pages_write(p: u32, ) -> Weight {
+    fn lazy_pages_signal_write(p: u32, ) -> Weight {
         Weight::from_ref_time(92_040_000 as u64)
             // Standard Error: 137_157
             .saturating_add(Weight::from_ref_time(60_944_652 as u64).saturating_mul(p as u64))
             .saturating_add(RocksDbWeight::get().reads((4 as u64).saturating_mul(p as u64)))
     }
     /// The range of component `p` is `[0, 512]`.
-    fn lazy_pages_write_after_read(p: u32, ) -> Weight {
+    fn lazy_pages_signal_write_after_read(p: u32, ) -> Weight {
         Weight::from_ref_time(21_667_683_124 as u64)
             // Standard Error: 173_652
             .saturating_add(Weight::from_ref_time(68_270_124 as u64).saturating_mul(p as u64))
             .saturating_add(RocksDbWeight::get().reads(2048 as u64))
     }
     /// The range of component `p` is `[0, 512]`.
-    fn lazy_pages_read_storage_data(p: u32, ) -> Weight {
+    fn lazy_pages_load_page_storage_data(p: u32, ) -> Weight {
         Weight::from_ref_time(93_025_000 as u64)
             // Standard Error: 52_274
             .saturating_add(Weight::from_ref_time(87_855_506 as u64).saturating_mul(p as u64))
             .saturating_add(RocksDbWeight::get().reads((16 as u64).saturating_mul(p as u64)))
     }
-    /// The range of component `p` is `[0, 512]`.
-    fn host_func_read(p: u32, ) -> Weight {
-        Weight::from_ref_time(36_669_661 as u64)
-            // Standard Error: 26_985
-            .saturating_add(Weight::from_ref_time(69_950_120 as u64).saturating_mul(p as u64))
+    /// The range of component `p` is `[0, 32]`.
+    fn lazy_pages_host_func_read(p: u32, ) -> Weight {
+        Weight::from_ref_time(99_511_008 as u64)
+            // Standard Error: 48_536
+            .saturating_add(Weight::from_ref_time(43_931_688 as u64).saturating_mul(p as u64))
             .saturating_add(RocksDbWeight::get().reads((4 as u64).saturating_mul(p as u64)))
     }
-    /// The range of component `p` is `[0, 512]`.
-    fn host_func_write(p: u32, ) -> Weight {
-        Weight::from_ref_time(97_796_000 as u64)
-            // Standard Error: 151_594
-            .saturating_add(Weight::from_ref_time(130_363_464 as u64).saturating_mul(p as u64))
+    /// The range of component `p` is `[0, 32]`.
+    fn lazy_pages_host_func_write(p: u32, ) -> Weight {
+        Weight::from_ref_time(623_778_448 as u64)
+            // Standard Error: 418_568
+            .saturating_add(Weight::from_ref_time(67_317_632 as u64).saturating_mul(p as u64))
             .saturating_add(RocksDbWeight::get().reads((4 as u64).saturating_mul(p as u64)))
     }
-    /// The range of component `p` is `[0, 512]`.
-    fn host_func_read_write(p: u32, ) -> Weight {
-        Weight::from_ref_time(96_512_000 as u64)
-            // Standard Error: 147_438
-            .saturating_add(Weight::from_ref_time(139_125_962 as u64).saturating_mul(p as u64))
-            .saturating_add(RocksDbWeight::get().reads((4 as u64).saturating_mul(p as u64)))
+    /// The range of component `p` is `[0, 32]`.
+    fn lazy_pages_host_func_write_after_read(p: u32, ) -> Weight {
+        Weight::from_ref_time(3_496_114_720 as u64)
+            // Standard Error: 464_666
+            .saturating_add(Weight::from_ref_time(71_052_311 as u64).saturating_mul(p as u64))
+            .saturating_add(RocksDbWeight::get().reads(256 as u64))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64load(r: u32, ) -> Weight {

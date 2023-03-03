@@ -1375,7 +1375,7 @@ where
         Self::prepare_handle(code, 0, err_len_ptrs)
     }
 
-    pub fn lazy_pages_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_signal_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let instrs = body::read_access_all_pages_instrs(wasm_pages, vec![]);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1385,7 +1385,7 @@ where
         Self::prepare_handle(code, 0, 0..0)
     }
 
-    pub fn lazy_pages_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_signal_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let instrs = body::write_access_all_pages_instrs(wasm_pages, vec![]);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1395,7 +1395,9 @@ where
         Self::prepare_handle(code, 0, 0..0)
     }
 
-    pub fn lazy_pages_write_after_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_signal_write_after_read(
+        wasm_pages: WasmPage,
+    ) -> Result<Exec<T>, &'static str> {
         let mut instrs = body::read_access_all_pages_instrs(max_pages::<T>().into(), vec![]);
         instrs = body::write_access_all_pages_instrs(wasm_pages, instrs);
         let code = WasmModule::<T>::from(ModuleDefinition {
@@ -1406,8 +1408,10 @@ where
         Self::prepare_handle(code, 0, 0..0)
     }
 
-    pub fn lazy_pages_read_storage_data(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
-        let exec = Self::lazy_pages_read(wasm_pages)?;
+    pub fn lazy_pages_load_page_storage_data(
+        wasm_pages: WasmPage,
+    ) -> Result<Exec<T>, &'static str> {
+        let exec = Self::lazy_pages_signal_read(wasm_pages)?;
         let program_id = exec.context.program().id();
         for page in wasm_pages
             .iter_from_zero()
@@ -1422,7 +1426,7 @@ where
         Ok(exec)
     }
 
-    pub fn host_func_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_host_func_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Debug],
@@ -1439,7 +1443,7 @@ where
         Self::prepare_handle(code, 0, 0..0)
     }
 
-    pub fn host_func_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_host_func_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Read],
@@ -1469,7 +1473,9 @@ where
         )
     }
 
-    pub fn host_func_write_after_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_host_func_write_after_read(
+        wasm_pages: WasmPage,
+    ) -> Result<Exec<T>, &'static str> {
         assert!(wasm_pages <= Self::MAX_PAGES.into());
 
         // Access const amount of pages before `gr_read` calls in order to make all pages read accessed.
