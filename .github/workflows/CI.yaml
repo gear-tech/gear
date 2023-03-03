@@ -562,7 +562,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git curl libssl-dev libudev-dev cmake wabt protobuf-compiler wget bzip2 wine64
+          sudo apt install -y git curl libssl-dev libudev-dev cmake wabt protobuf-compiler wget bzip2 wine64 ninja-build
 
       - name: "Install: Install LLVM"
         run: |
