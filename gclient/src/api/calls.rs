@@ -224,35 +224,31 @@ impl GearApi {
         let src_free_balance = self.free_balance(src_program_id).await?;
         let src_reserved_balance = self.reserved_balance(src_program_id).await?;
 
-        let src_program = self.0.api().gprog(src_program_id.into()).await?;
+        let src_program = self.0.api().gprog(src_program_id).await?;
 
-        let src_program_pages = self
-            .0
-            .api()
-            .gpages(src_program_id.into(), &src_program)
-            .await?;
+        let src_program_pages = self.0.api().gpages(src_program_id, &src_program).await?;
 
         let src_code_len = self
             .0
             .api()
-            .code_len_storage(src_program.code_hash.into())
+            .code_len_storage(src_program.code_hash.0.into())
             .await?;
 
         let src_code = self
             .0
             .api()
-            .code_storage(src_program.code_hash.into())
+            .code_storage(src_program.code_hash.0.into())
             .await?;
 
         // Apply data to the target program
         tgt_node_api
             .0
-            .set_code_len_storage(src_program.code_hash.0, src_code_len)
+            .set_code_len_storage(src_program.code_hash.0.into(), src_code_len)
             .await?;
 
         tgt_node_api
             .0
-            .set_code_storage(src_program.code_hash.0, &src_code)
+            .set_code_storage(src_program.code_hash.0.into(), &src_code)
             .await?;
 
         tgt_node_api

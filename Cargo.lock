@@ -3466,7 +3466,6 @@ version = "0.1.5"
 dependencies = [
  "anyhow",
  "base64 0.21.0",
- "blake2-rfc",
  "cfg-if",
  "clap 4.1.8",
  "color-eyre",

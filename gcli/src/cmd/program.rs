@@ -19,7 +19,7 @@
 //! Command `program`.
 use crate::{metadata::Metadata, result::Result, utils};
 use clap::Parser;
-use gsdk::{ext::sp_core::H256, metadata::runtime_types::gear_core::ids::ProgramId, Api};
+use gsdk::{ext::sp_core::H256, Api};
 use std::{fs, path::PathBuf};
 
 /// Read program state, etc.
@@ -74,10 +74,10 @@ impl Program {
         } = self.action.clone();
 
         // Get program
-        let program = api.gprog(ProgramId(pid.0)).await?;
+        let program = api.gprog(pid.0.into()).await?;
         let code_id = program.code_hash;
-        let code = api.code_storage(code_id.0).await?;
-        let pages = api.gpages(ProgramId(pid.0), &program).await?;
+        let code = api.code_storage(code_id.0.into()).await?;
+        let pages = api.gpages(pid.0.into(), &program).await?;
 
         // Query state
         let state = Metadata::read(

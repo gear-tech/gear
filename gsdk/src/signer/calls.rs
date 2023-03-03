@@ -241,22 +241,22 @@ impl Signer {
 
 // pallet-gear-program
 impl Signer {
-    /// Writes `InstrumentedCode` length into storage at `code_hash`
-    pub async fn set_code_len_storage(&self, code_hash: [u8; 32], code_len: u32) -> InBlock {
+    /// Writes `InstrumentedCode` length into storage at `CodeId`
+    pub async fn set_code_len_storage(&self, code_id: CodeId, code_len: u32) -> InBlock {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeLenStorage",
-            vec![Value::from_bytes(code_hash)],
+            vec![Value::from_bytes(code_id)],
         );
         self.set_storage(&[(addr, code_len)]).await
     }
 
-    /// Writes `InstrumentedCode` into storage at `code_hash`
-    pub async fn set_code_storage(&self, code_hash: [u8; 32], code: &InstrumentedCode) -> InBlock {
+    /// Writes `InstrumentedCode` into storage at `CodeId`
+    pub async fn set_code_storage(&self, code_id: CodeId, code: &InstrumentedCode) -> InBlock {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeStorage",
-            vec![Value::from_bytes(code_hash)],
+            vec![Value::from_bytes(code_id)],
         );
         self.set_storage(&[(addr, code)]).await
     }
@@ -273,7 +273,7 @@ impl Signer {
                 "GearProgram",
                 "MemoryPageStorage",
                 vec![
-                    subxt::dynamic::Value::from_bytes(program_id.as_ref()),
+                    subxt::dynamic::Value::from_bytes(program_id),
                     subxt::dynamic::Value::u128(*program_page.0 as u128),
                 ],
             );
@@ -295,7 +295,7 @@ impl Signer {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "ProgramStorage",
-            vec![Value::from_bytes(program_id.as_ref())],
+            vec![Value::from_bytes(program_id)],
         );
         self.set_storage(&[(addr, &(Program::Active(program), block_number))])
             .await

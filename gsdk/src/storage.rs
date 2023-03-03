@@ -21,14 +21,14 @@ use crate::{
     metadata::runtime_types::{
         frame_system::{AccountInfo, EventRecord},
         gear_common::{storage::primitives::Interval, ActiveProgram, Program},
-        gear_core::{code::InstrumentedCode, ids::ProgramId, message::stored::StoredMessage},
+        gear_core::{code::InstrumentedCode, message::stored::StoredMessage},
         gear_runtime::RuntimeEvent,
         pallet_balances::AccountData,
     },
     result::{Error, Result},
     types, Api,
 };
-use gear_core::memory::GEAR_PAGE_SIZE;
+use gear_core::{ids::*, memory::GEAR_PAGE_SIZE};
 use hex::ToHex;
 use parity_scale_codec::Decode;
 use sp_core::{crypto::Ss58Codec, H256};
@@ -171,32 +171,32 @@ impl Api {
 
 // pallet-gear-program
 impl Api {
-    /// Get `InstrumentedCode` by `code_hash`
-    pub async fn code_storage(&self, code_hash: [u8; 32]) -> Result<InstrumentedCode> {
+    /// Get `InstrumentedCode` by its `CodeId`
+    pub async fn code_storage(&self, code_id: CodeId) -> Result<InstrumentedCode> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeStorage",
-            vec![Value::from_bytes(code_hash)],
+            vec![Value::from_bytes(code_id)],
         );
         self.fetch_storage(&addr).await
     }
 
-    /// Get `InstrumentedCode` length by its `code_hash`
-    pub async fn code_len_storage(&self, code_hash: [u8; 32]) -> Result<u32> {
+    /// Get `InstrumentedCode` length by its `CodeId`
+    pub async fn code_len_storage(&self, code_id: CodeId) -> Result<u32> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeLenStorage",
-            vec![Value::from_bytes(code_hash)],
+            vec![Value::from_bytes(code_id)],
         );
         self.fetch_storage(&addr).await
     }
 
     /// Get active program from program id.
-    pub async fn gprog(&self, pid: ProgramId) -> Result<ActiveProgram> {
+    pub async fn gprog(&self, program_id: ProgramId) -> Result<ActiveProgram> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "ProgramStorage",
-            vec![Value::from_bytes(pid.0)],
+            vec![Value::from_bytes(program_id)],
         );
 
         let program = self.fetch_storage::<_, (Program, u32)>(&addr).await?.0;
@@ -210,7 +210,7 @@ impl Api {
     /// Get pages of active program.
     pub async fn gpages(
         &self,
-        pid: ProgramId,
+        program_id: ProgramId,
         program: &ActiveProgram,
     ) -> Result<types::GearPages> {
         let mut pages = HashMap::new();
@@ -218,7 +218,7 @@ impl Api {
             let addr = subxt::dynamic::storage(
                 "GearProgram",
                 "MemoryPageStorage",
-                vec![Value::from_bytes(pid.0), Value::u128(page.0 as u128)],
+                vec![Value::from_bytes(program_id), Value::u128(page.0 as u128)],
             );
 
             let metadata = self.metadata();
@@ -230,7 +230,7 @@ impl Api {
                 .await?
                 .fetch_raw(&lookup_bytes)
                 .await?
-                .ok_or_else(|| Error::PageNotFound(page.0, pid.0.encode_hex()))?;
+                .ok_or_else(|| Error::PageNotFound(page.0, program_id.as_ref().encode_hex()))?;
             let decoded = <[u8; GEAR_PAGE_SIZE]>::decode(&mut &encoded_page[..])?;
             pages.insert(page.0, decoded.to_vec());
         }
