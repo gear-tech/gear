@@ -239,10 +239,10 @@ impl Signer {
     }
 }
 
-// Singer utils
+// pallet-gear-program
 impl Signer {
     /// Writes `InstrumentedCode` length into storage at `code_hash`
-    pub async fn set_gcode_len(&self, code_hash: [u8; 32], code_len: u32) -> InBlock {
+    pub async fn set_code_len_storage(&self, code_hash: [u8; 32], code_len: u32) -> InBlock {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeLenStorage",
@@ -252,7 +252,7 @@ impl Signer {
     }
 
     /// Writes `InstrumentedCode` into storage at `code_hash`
-    pub async fn set_gcode(&self, code_hash: [u8; 32], code: &InstrumentedCode) -> InBlock {
+    pub async fn set_code_storage(&self, code_hash: [u8; 32], code: &InstrumentedCode) -> InBlock {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeStorage",
@@ -300,7 +300,10 @@ impl Signer {
         self.set_storage(&[(addr, &(Program::Active(program), block_number))])
             .await
     }
+}
 
+// Singer utils
+impl Signer {
     /// Propagates log::info for given status.
     pub(crate) fn log_status(&self, status: &TxStatus) {
         match status {

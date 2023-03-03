@@ -172,7 +172,7 @@ impl Api {
 // pallet-gear-program
 impl Api {
     /// Get `InstrumentedCode` by `code_hash`
-    pub async fn gcode(&self, code_hash: [u8; 32]) -> Result<InstrumentedCode> {
+    pub async fn code_storage(&self, code_hash: [u8; 32]) -> Result<InstrumentedCode> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeStorage",
@@ -182,7 +182,7 @@ impl Api {
     }
 
     /// Get `InstrumentedCode` length by its `code_hash`
-    pub async fn gcode_len(&self, code_hash: [u8; 32]) -> Result<u32> {
+    pub async fn code_len_storage(&self, code_hash: [u8; 32]) -> Result<u32> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeLenStorage",

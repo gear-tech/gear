@@ -232,19 +232,27 @@ impl GearApi {
             .gpages(src_program_id.into(), &src_program)
             .await?;
 
-        let src_code_len = self.0.api().gcode_len(src_program.code_hash.into()).await?;
+        let src_code_len = self
+            .0
+            .api()
+            .code_len_storage(src_program.code_hash.into())
+            .await?;
 
-        let src_code = self.0.api().gcode(src_program.code_hash.into()).await?;
+        let src_code = self
+            .0
+            .api()
+            .code_storage(src_program.code_hash.into())
+            .await?;
 
         // Apply data to the target program
         tgt_node_api
             .0
-            .set_gcode_len(src_program.code_hash.0, src_code_len)
+            .set_code_len_storage(src_program.code_hash.0, src_code_len)
             .await?;
 
         tgt_node_api
             .0
-            .set_gcode(src_program.code_hash.0, &src_code)
+            .set_code_storage(src_program.code_hash.0, &src_code)
             .await?;
 
         tgt_node_api

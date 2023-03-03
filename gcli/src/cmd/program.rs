@@ -76,7 +76,7 @@ impl Program {
         // Get program
         let program = api.gprog(ProgramId(pid.0)).await?;
         let code_id = program.code_hash;
-        let code = api.gcode(code_id.0).await?;
+        let code = api.code_storage(code_id.0).await?;
         let pages = api.gpages(ProgramId(pid.0), &program).await?;
 
         // Query state
