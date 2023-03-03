@@ -72,8 +72,6 @@ members = [
     "runtime/vara",
     "utils/bags-thresholds",
     "utils/call-gen",
-    "utils/economic-checks",
-    "utils/economic-checks/fuzz",
     "utils/gear-runtime-test-cli",
     # TODO: Remove gov deps
     # "utils/integral-tests",

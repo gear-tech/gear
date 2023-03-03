@@ -2499,59 +2499,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "economic-checks"
-version = "0.1.0"
-dependencies = [
- "arbitrary",
- "demo-compose",
- "demo-contract-template",
- "demo-mul-by-const",
- "demo-ncompose",
- "env_logger",
- "frame-support",
- "frame-system",
- "gear-common",
- "gear-core",
- "gear-runtime",
- "gear-runtime-primitives",
- "gstd",
- "hex",
- "log",
- "pallet-authorship",
- "pallet-balances",
- "pallet-gear",
- "pallet-gear-gas",
- "pallet-im-online",
- "parity-scale-codec",
- "parity-wasm 0.45.0",
- "parking_lot 0.12.1",
- "primitive-types",
- "rand 0.8.5",
- "serde",
- "sp-authority-discovery",
- "sp-consensus-babe",
- "sp-consensus-slots",
- "sp-core",
- "sp-finality-grandpa",
- "sp-io",
- "sp-runtime",
- "sp-std 5.0.0",
- "vara-runtime",
- "wasm-mutate",
- "wasmparser 0.101.1",
- "wasmprinter",
- "wat",
-]
-
-[[package]]
-name = "economic-checks-fuzz"
-version = "0.1.0"
-dependencies = [
- "economic-checks",
- "libfuzzer-sys",
-]
-
-[[package]]
 name = "ed25519"
 version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2586,20 +2533,6 @@ dependencies = [
  "rand_core 0.6.4",
  "sha2 0.9.9",
  "zeroize",
-]
-
-[[package]]
-name = "egg"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05a6c0bbc92278f84e742f08c0ab9cb16a987376cd2bc39d228ef9c74d98d6f7"
-dependencies = [
- "indexmap",
- "instant",
- "log",
- "once_cell",
- "smallvec",
- "symbolic_expressions",
 ]
 
 [[package]]
@@ -5268,17 +5201,6 @@ version = "0.1.16"
 source = "git+https://github.com/grishasobol/rust-libc-print.git#b300804809e7a5f1c8fab4d2d11bcea29217bc70"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "libfuzzer-sys"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "beb09950ae85a0a94b27676cccf37da5ff13f27076aa1adbc6545dd0d0e1bd4e"
-dependencies = [
- "arbitrary",
- "cc",
- "once_cell",
 ]
 
 [[package]]
@@ -11647,12 +11569,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "symbolic_expressions"
-version = "5.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c68d531d83ec6c531150584c42a4290911964d5f0d79132b193b67252a23b71"
-
-[[package]]
 name = "syn"
 version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12793,20 +12709,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa1dafb3e60065305741e83db35c6c2584bb3725b692b5b66148a38d72ace6cd"
 dependencies = [
  "parity-wasm 0.45.0",
-]
-
-[[package]]
-name = "wasm-mutate"
-version = "0.2.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47e9f975cfccc7e5f8ee8a4628e5d154688cd92a63c916708effc7b6053877c1"
-dependencies = [
- "egg",
- "log",
- "rand 0.8.5",
- "thiserror",
- "wasm-encoder 0.24.1",
- "wasmparser 0.101.1",
 ]
 
 [[package]]

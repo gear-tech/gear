@@ -1,4 +1,3 @@
-utils/economic-checks/*.wat
 node_modules/
 target/
 target-no-lazy/

@@ -28,7 +28,7 @@ EOF
 }
 
 gear_build() {
-  cargo build --workspace --exclude economic-checks --exclude economic-checks-fuzz "$@"
+  cargo build --workspace "$@"
 }
 
 gear_test_build() {
