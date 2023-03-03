@@ -77,6 +77,8 @@ members = [
     "utils/gear-runtime-test-cli",
     # TODO: Remove gov deps
     # "utils/integral-tests",
+    "utils/runtime-fuzzer",
+    "utils/runtime-fuzzer/fuzz",
     "utils/junit-common",
     "utils/node-loader/",
     "utils/regression-analysis",

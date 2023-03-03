@@ -32,6 +32,8 @@ pub use send_message::SendMessageArgs;
 pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
 
+pub type GearProgGenConfig = gear_wasm_gen::GearConfig;
+
 /// Set of `pallet_gear` calls supported by the crate.
 pub enum GearCall {
     /// Upload program call args.
@@ -44,7 +46,7 @@ pub enum GearCall {
     UploadCode(UploadCodeArgs),
 }
 
-pub fn generate_gear_program<Rng: CallGenRng>(seed: u64) -> Vec<u8> {
+pub fn generate_gear_program<Rng: CallGenRng>(seed: u64, mut config: GearProgGenConfig) -> Vec<u8> {
     use arbitrary::Unstructured;
 
     let mut rng = Rng::seed_from_u64(seed);
@@ -54,7 +56,6 @@ pub fn generate_gear_program<Rng: CallGenRng>(seed: u64) -> Vec<u8> {
 
     let mut u = Unstructured::new(&buf);
 
-    let mut config = gear_wasm_gen::GearConfig::new_normal();
     config.print_test_info = Some(format!("Gear program seed = '{seed}'"));
 
     gear_wasm_gen::gen_gear_program_code(&mut u, config)
