@@ -25,7 +25,7 @@ use core::fmt;
 
 pub use gcore::error::*;
 
-pub type Result<T> = core::result::Result<T, ContractError>;
+pub type Result<T, E = ContractError> = core::result::Result<T, E>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ContractError {
