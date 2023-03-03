@@ -32,7 +32,10 @@ use crate::{
 };
 use anyhow::anyhow;
 use async_recursion::async_recursion;
-use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core::{
+    ids::*,
+    memory::{PageBuf, PageBufInner},
+};
 use hex::ToHex;
 use parity_scale_codec::Encode;
 use sp_runtime::AccountId32;
@@ -222,14 +225,14 @@ impl Signer {
         let mut items_to_set = Vec::with_capacity(items.len());
         for item in items {
             let item_key = subxt::storage::utils::storage_address_bytes(&item.0, &metadata)?;
-            let mut item_value = Vec::new();
+            let mut item_value_bytes = Vec::new();
             let item_value_type_id = crate::storage::storage_type_id(&metadata, &item.0)?;
             subxt::metadata::EncodeStaticType(&item.1).encode_with_metadata(
                 item_value_type_id,
                 &metadata,
-                &mut item_value,
+                &mut item_value_bytes,
             )?;
-            items_to_set.push((item_key, item_value));
+            items_to_set.push((item_key, item_value_bytes));
         }
 
         self.sudo(RuntimeCall::System(Call::set_storage {
@@ -277,9 +280,9 @@ impl Signer {
                     subxt::dynamic::Value::u128(*program_page.0 as u128),
                 ],
             );
-            let page_buf_inner = gear_core::memory::PageBufInner::try_from(program_page.1.clone())
+            let page_buf_inner = PageBufInner::try_from(program_page.1.clone())
                 .map_err(|_| Error::PageInvalid(*program_page.0, program_id.encode_hex()))?;
-            let value = gear_core::memory::PageBuf::from_inner(page_buf_inner);
+            let value = PageBuf::from_inner(page_buf_inner);
             program_pages_to_set.push((addr, value));
         }
         self.set_storage(&program_pages_to_set).await
