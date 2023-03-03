@@ -278,7 +278,7 @@ impl Signer {
                 ],
             );
             let page_buf_inner = gear_core::memory::PageBufInner::try_from(program_page.1.clone())
-                .map_err(|_| Error::PageBroken(*program_page.0, program_id.encode_hex()))?;
+                .map_err(|_| Error::PageInvalid(*program_page.0, program_id.encode_hex()))?;
             let value = gear_core::memory::PageBuf::from_inner(page_buf_inner);
             program_pages_to_set.push((addr, value));
         }

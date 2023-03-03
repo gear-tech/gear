@@ -99,8 +99,8 @@ pub enum Error {
     ProgramTerminated,
     #[error("Invalid rpc URL.")]
     InvalidUrl,
-    #[error("Page {0} of Program {1} is broken.")]
-    PageBroken(u32, String),
+    #[error("Page {0} of Program {1} is invalid.")]
+    PageInvalid(u32, String),
 }
 
 /// Custom Result

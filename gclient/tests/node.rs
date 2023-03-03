@@ -20,27 +20,31 @@ async fn two_nodes_run_independently() {
 /// Running this test requires gear node to be built in advance.
 #[tokio::test]
 async fn program_migrated_to_another_node() {
-    const INIT_VALUE: u64 = 42;
-    const MULTIPLICATOR_VALUE: u64 = 4;
+    const INIT_VALUE_PAYLOAD: u64 = 42;
+    const MULTIPLICATOR_VALUE_PAYLOAD: u64 = 4;
     const PROGRAM_FUNDS: u128 = 25_000;
 
     let src_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate source node");
     let tgt_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate target node");
 
     // Arrange
+
+    // Upload source program to source node
     let (src_node_api, src_program_id) = upload_program_to_node(
         &src_node,
         demo_mul_by_const::WASM_BINARY,
         &gclient::now_in_micros().to_le_bytes(),
-        Some(INIT_VALUE),
+        Some(INIT_VALUE_PAYLOAD),
     )
     .await;
 
+    // Transfer some funds to the source program
     src_node_api
         .transfer(src_program_id, PROGRAM_FUNDS)
         .await
         .expect("Unable to transfer funds to source program");
 
+    // Initialize target node
     let tgt_node_api = GearApi::node(&tgt_node)
         .await
         .expect("Unable to connect to target node api");
@@ -55,17 +59,28 @@ async fn program_migrated_to_another_node() {
         .expect("Unable to subscribe to target node events");
 
     // Act
+
+    // Migrate the source program onto the target node
     let tgt_program_id = src_node_api
         .migrate_program(src_program_id, &tgt_node_api)
         .await
         .expect("Unable to migrate source program");
 
+    // Send some message to the target program for checking that it
+    // functions properly
     let (message_id, _) = tgt_node_api
-        .send_message(tgt_program_id, MULTIPLICATOR_VALUE, tgt_node_gas_limit, 0)
+        .send_message(
+            tgt_program_id,
+            MULTIPLICATOR_VALUE_PAYLOAD,
+            tgt_node_gas_limit,
+            0,
+        )
         .await
         .expect("Unable to send message to target program");
 
     // Assert
+    assert_eq!(src_program_id, tgt_program_id);
+
     let tgt_program_funds = tgt_node_api
         .free_balance(tgt_program_id)
         .await
@@ -79,7 +94,7 @@ async fn program_migrated_to_another_node() {
         .1
         .expect("Unable to read reply payload");
     assert_eq!(
-        INIT_VALUE * MULTIPLICATOR_VALUE,
+        INIT_VALUE_PAYLOAD * MULTIPLICATOR_VALUE_PAYLOAD,
         u64::decode(&mut tgt_program_reply.as_ref()).expect("Unable to decode reply payload")
     );
 }
