@@ -325,7 +325,7 @@ case "$COMMAND" in
 
       syscalls)
         header "Running syscalls integrity test of pallet-gear 'benchmarking' module on WASMI executor"
-        syscalls_integrity_test ;;
+        syscalls_integrity_test "$@"; ;;
 
       doc)
         header "Testing examples in docs"

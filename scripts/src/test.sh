@@ -124,7 +124,7 @@ run_fuzzer() {
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
 syscalls_integrity_test() {
-  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks
+  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks "$@"
 }
 
 doc_test() {

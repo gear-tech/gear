@@ -262,9 +262,8 @@ jobs:
           # check also lazy-pages benchmarks tests for native runtime
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
 
-      # TODO: reveal once #2266 merged
-      # - name: "Test: Sys-calls Wasmi integrity"
-      #   run: ./scripts/gear.sh test syscalls
+      - name: "Test: Sys-calls Wasmi integrity"
+        run: ./scripts/gear.sh test syscalls --release
 
       - name: "Coverage: Aggregate"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
