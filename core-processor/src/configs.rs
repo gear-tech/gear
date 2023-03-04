@@ -89,16 +89,20 @@ impl PageCosts {
     pub fn lazy_pages_weights(&self) -> LazyPagesWeights {
         LazyPagesWeights {
             signal_read: self.signal_read,
-            signal_write: self.signal_write.add(self.upload_page_data),
+            signal_write: self.signal_write.saturating_add(self.upload_page_data),
             signal_write_after_read: self
                 .lazy_pages_signal_write_after_read
-                .add(self.upload_page_data),
+                .saturating_add(self.upload_page_data),
             host_func_read: self.lazy_pages_host_func_read,
-            host_func_write: self.lazy_pages_host_func_write.add(self.upload_page_data),
+            host_func_write: self
+                .lazy_pages_host_func_write
+                .saturating_add(self.upload_page_data),
             host_func_write_after_read: self
                 .lazy_pages_host_func_write_after_read
-                .add(self.upload_page_data),
-            load_page_storage_data: self.load_page_data.add(self.parachain_load_heuristic),
+                .saturating_add(self.upload_page_data),
+            load_page_storage_data: self
+                .load_page_data
+                .saturating_add(self.parachain_load_heuristic),
         }
     }
     /// New one for tests usage.

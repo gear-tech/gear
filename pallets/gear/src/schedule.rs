@@ -25,10 +25,11 @@ use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
 use core_processor::configs::PageCosts;
+use frame_support::traits::Get;
 use gear_core::{
     code,
     costs::HostFnWeights as CoreHostFnWeights,
-    memory::{GranularityPage, PageU32Size, WasmPage},
+    memory::{GearPage, GranularityPage, PageU32Size, WasmPage},
     message,
 };
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
@@ -829,9 +830,13 @@ impl<T: Config> Default for MemoryWeights<T> {
             .saturating_sub(lazy_pages_host_func_read),
             load_page_data: cost_per_granularity_page!(lazy_pages_load_page_storage_data)
                 .saturating_sub(lazy_pages_signal_read),
-            // TODO: add for upload cost here (cost for one db write) (issue #2226).
             upload_page_data: cost!(db_write_per_kb)
-                .saturating_mul(kb_number_in_one_granularity_page),
+                .saturating_mul(kb_number_in_one_granularity_page)
+                .saturating_sub(
+                    T::DbWeight::get()
+                        .writes((GranularityPage::size() / GearPage::size()) as u64)
+                        .ref_time(),
+                ),
             // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
             static_page: 100,
             mem_grow: 100,

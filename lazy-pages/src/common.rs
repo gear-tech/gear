@@ -115,51 +115,54 @@ impl LazyPagesExecutionContext {
     pub fn is_read_charged(&self, page: GranularityPage) -> bool {
         self.read_charged.contains(&page)
     }
+
     pub fn is_write_charged(&self, page: GranularityPage) -> bool {
         self.write_charged.contains(&page)
     }
+
     pub fn set_read_charged(&mut self, page: GranularityPage) -> bool {
-        if self.is_write_charged(page) {
-            false
-        } else {
-            self.read_charged.insert(page)
+        match self.is_write_charged(page) {
+            true => self.read_charged.insert(page),
+            false => false,
         }
     }
+
     pub fn set_write_charged(&mut self, page: GranularityPage) -> bool {
         self.write_charged.insert(page)
     }
+
     pub fn set_load_data_charged(&mut self, page: GranularityPage) -> bool {
         self.load_data_charged.insert(page)
     }
+
     pub fn add_to_released(&mut self, page: LazyPage) -> Result<(), Error> {
-        log::trace!("add {page:?} to released");
-        if !self.released_pages.insert(page) {
-            Err(Error::DoubleRelease(page))
-        } else {
-            Ok(())
+        match self.released_pages.insert(page) {
+            true => Ok(()),
+            false => Err(Error::DoubleRelease(page)),
         }
     }
+
     pub fn set_program_prefix(&mut self, prefix: Vec<u8>) {
         self.program_storage_prefix = Some(PagePrefix::new_from_program_prefix(prefix));
     }
+
     pub fn get_key_for_page(&mut self, page: GearPage) -> Result<&[u8], Error> {
         self.program_storage_prefix
             .as_mut()
             .map(|prefix| prefix.calc_key_for_page(page))
             .ok_or(Error::ProgramPrefixIsNotSet)
     }
+
     pub fn page_has_data_in_storage(&mut self, page: GearPage) -> Result<bool, Error> {
         if let Some(&res) = self.page_has_data_in_storage.get(&page.to_page()) {
             return Ok(res);
         }
-        if sp_io::storage::exists(self.get_key_for_page(page)?) {
-            self.page_has_data_in_storage.insert(page.to_page(), true);
-            Ok(true)
-        } else {
-            self.page_has_data_in_storage.insert(page.to_page(), false);
-            Ok(false)
-        }
+        let page_key_exists = sp_io::storage::exists(self.get_key_for_page(page)?);
+        self.page_has_data_in_storage
+            .insert(page.to_page(), page_key_exists);
+        Ok(page_key_exists)
     }
+
     pub fn load_page_data_from_storage(
         &mut self,
         page: GearPage,

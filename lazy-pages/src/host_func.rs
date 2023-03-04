@@ -40,7 +40,6 @@ pub(crate) struct HostFuncAccessHandler<'a> {
 
 impl<'a> HostFuncAccessHandler<'a> {
     fn sub_gas(&mut self, amount: u64) -> Status {
-        log::trace!("charge amount = {amount}");
         self.gas_left.gas = if let Some(gas) = self.gas_left.gas.checked_sub(amount) {
             gas
         } else {
@@ -105,7 +104,7 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
             }
         };
 
-        for page in pages.to_iter() {
+        for page in pages.convert() {
             let amount_for_page = if self.is_write() {
                 for_write(ctx, page)
             } else {
@@ -137,7 +136,6 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
         pages: Self::Pages,
         f: impl FnMut(PagesIterInclusive<LazyPage>) -> Result<(), Error>,
     ) -> Result<(), Error> {
-        log::trace!("process for pages {pages:?}");
         utils::with_inclusive_ranges(&pages, f)
     }
 

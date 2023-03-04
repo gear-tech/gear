@@ -112,7 +112,6 @@ struct SignalAccessHandler {
 
 impl SignalAccessHandler {
     fn sub_gas(gas_left: &mut GasLeft, amount: u64) -> Status {
-        log::trace!("charge amount = {amount}");
         gas_left.gas = if let Some(gas) = gas_left.gas.checked_sub(amount) {
             gas
         } else {
@@ -193,7 +192,7 @@ impl AccessHandler for SignalAccessHandler {
         };
 
         let mut amount = 0u64;
-        for page in pages.to_iter() {
+        for page in pages.convert() {
             let amount_for_page = if self.is_write {
                 for_write(ctx, page)
             } else {
@@ -230,7 +229,6 @@ impl AccessHandler for SignalAccessHandler {
         pages: Self::Pages,
         mut f: impl FnMut(PagesIterInclusive<LazyPage>) -> Result<(), Error>,
     ) -> Result<(), Error> {
-        log::trace!("process for pages {pages:?}");
         f(pages)
     }
 

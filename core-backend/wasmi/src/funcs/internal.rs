@@ -156,14 +156,14 @@ impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
         f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
     }
 
-    fn with_memory<R>(
-        &mut self,
-        f: impl FnOnce(
+    fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>
+    where
+        F: FnOnce(
             &mut MemoryAccessManager<E>,
             &mut MemoryWrapRef<E>,
             &mut GasLeft,
         ) -> Result<R, MemoryAccessError>,
-    ) -> Result<R, MemoryAccessError> {
+    {
         let mut gas_left = self.host_state_mut().ext.gas_left();
 
         let mut memory = Self::memory(&mut self.caller, self.memory);

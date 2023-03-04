@@ -146,11 +146,6 @@ pub(crate) unsafe fn process_lazy_pages<H: AccessHandler>(
 
     let stack_end = ctx.stack_end_wasm_page;
     let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
-    // let mut prefix = PagePrefix::new_from_program_prefix(
-    //     ctx.program_storage_prefix
-    //         .as_ref()
-    //         .ok_or(Error::ProgramPrefixIsNotSet)?,
-    // );
 
     // Returns `true` if new status is not `Normal`.
     let update_status = |ctx: &mut RefMut<LazyPagesExecutionContext>, status| {

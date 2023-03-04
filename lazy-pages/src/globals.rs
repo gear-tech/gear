@@ -36,12 +36,9 @@ impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
         self.instance
             .get_global_val(name)
-            .and_then(|value| {
-                if let Value::I64(value) = value {
-                    Some(value)
-                } else {
-                    None
-                }
+            .and_then(|value| match value {
+                Value::I64(value) => Some(value),
+                _ => None,
             })
             .ok_or(GlobalsAccessError)
     }
@@ -85,7 +82,6 @@ fn apply_for_global_internal(
 ) -> Result<u64, Error> {
     let current_value = globals_access_provider.get_i64(name)? as u64;
     if let Some(new_value) = f(current_value)? {
-        // log::trace!("Change global '{name}': {current_value} -> {new_value}");
         globals_access_provider.set_i64(name, new_value as i64)?;
         Ok(new_value)
     } else {

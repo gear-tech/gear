@@ -141,14 +141,14 @@ impl<E: BackendExt> Runtime<E> {
         self.run_any(cost, f).map(|_| ReturnValue::Unit)
     }
 
-    fn with_memory<R>(
-        &mut self,
-        f: impl FnOnce(
+    fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>
+    where
+        F: FnOnce(
             &mut MemoryAccessManager<E>,
             &mut MemoryWrap,
             &mut GasLeft,
         ) -> Result<R, MemoryAccessError>,
-    ) -> Result<R, MemoryAccessError> {
+    {
         let mut gas_left = self.ext.gas_left();
         let res = f(&mut self.memory_manager, &mut self.memory, &mut gas_left);
         self.ext.set_gas_left(gas_left);

@@ -243,7 +243,7 @@ impl<P: PageU32Size> PagesIterInclusive<P> {
         self.end
     }
     /// Returns another page type iter, which pages intersect with `self` pages.
-    pub fn to_iter<P1: PageU32Size>(&self) -> PagesIterInclusive<P1> {
+    pub fn convert<P1: PageU32Size>(&self) -> PagesIterInclusive<P1> {
         PagesIterInclusive::<P1> {
             page: self.page.map(|p| p.to_page()),
             end: self.end.to_last_page(),
