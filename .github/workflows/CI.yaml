@@ -569,7 +569,7 @@ jobs:
           sudo apt update
           sudo apt install -y git curl libssl-dev libudev-dev cmake wabt protobuf-compiler wget bzip2 wine64 ninja-build
 
-      - name: "Install: Install LLVM"
+      - name: "Install: LLVM"
         run: |
           sudo apt install -y clang-12 clang-tools-12 llvm-12
           sudo ./.github/update-alternatives-clang.sh 12 100
