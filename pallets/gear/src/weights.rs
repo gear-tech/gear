@@ -114,6 +114,7 @@ pub trait WeightInfo {
     fn instr_call(r: u32, ) -> Weight;
     fn instr_call_indirect(r: u32, ) -> Weight;
     fn instr_call_indirect_per_param(p: u32, ) -> Weight;
+	fn instr_call_per_local(l: u32, ) -> Weight;
     fn instr_local_get(r: u32, ) -> Weight;
     fn instr_local_set(r: u32, ) -> Weight;
     fn instr_local_tee(r: u32, ) -> Weight;
@@ -993,6 +994,16 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			// Standard Error: 20_746
 			.saturating_add(Weight::from_ref_time(731_049).saturating_mul(p.into()))
     }
+	/// The range of component `l` is `[0, 1024]`.
+	fn instr_call_per_local(l: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 3_062 nanoseconds.
+		Weight::from_ref_time(4_432_879)
+			// Standard Error: 64
+			.saturating_add(Weight::from_ref_time(46_196).saturating_mul(l.into()))
+	}
     /// The range of component `r` is `[0, 50]`.
     fn instr_local_get(r: u32, ) -> Weight {
 		// Proof Size summary in bytes:
@@ -2212,6 +2223,16 @@ impl WeightInfo for () {
 			// Standard Error: 20_746
 			.saturating_add(Weight::from_ref_time(731_049).saturating_mul(p.into()))
     }
+	/// The range of component `l` is `[0, 1024]`.
+	fn instr_call_per_local(l: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 3_062 nanoseconds.
+		Weight::from_ref_time(4_432_879)
+			// Standard Error: 64
+			.saturating_add(Weight::from_ref_time(46_196).saturating_mul(l.into()))
+	}
     /// The range of component `r` is `[0, 50]`.
     fn instr_local_get(r: u32, ) -> Weight {
 		// Proof Size summary in bytes:

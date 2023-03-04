@@ -1403,6 +1403,24 @@ benchmarks! {
         sbox.invoke();
     }
 
+    // w_per_local = w_bench
+    instr_call_per_local {
+        let l in 0 .. T::Schedule::get().limits.locals;
+        let mut aux_body = body::plain(vec![
+            Instruction::End,
+        ]);
+        body::inject_locals(&mut aux_body, l);
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            aux_body: Some(aux_body),
+            handle_body: Some(body::repeated(INSTR_BENCHMARK_BATCH_SIZE, &[
+                Instruction::Call(2), // call aux
+            ])),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
     // w_local_get = w_bench
     instr_local_get {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
