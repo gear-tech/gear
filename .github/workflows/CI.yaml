@@ -566,7 +566,7 @@ jobs:
 
       - name: "Install: Wine"
         run: |
-          sudo apt install wine64
+          sudo apt install -y wine64
           wineboot
           cp ./.github/*.dll ~/.wine/drive_c/windows/system32/
       
