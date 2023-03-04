@@ -231,14 +231,14 @@ jobs:
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
 
+      - name: "Test: `gcli`"
+        run: ./scripts/gear.sh test gcli --release --locked
+
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
 
       - name: "Test: Process gear-test"
         run: ./scripts/gear.sh test gtest
-
-      - name: "Test: Program CLI"
-        run: RUST_BACKTRACE=1 cargo nextest run --release -p gcli
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --run-node

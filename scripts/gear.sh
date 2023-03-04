@@ -291,6 +291,10 @@ case "$COMMAND" in
         header "Running gear tests"
         workspace_test "$@"; ;;
 
+      gcli)
+        header "Running gcli tests"
+        gcli_test "$@"; ;;
+
       js)
         header "Running js tests"
         js_test "$ROOT_DIR"; ;;
