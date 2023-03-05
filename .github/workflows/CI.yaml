@@ -546,7 +546,7 @@ jobs:
         run: rustup target add x86_64-pc-windows-msvc --toolchain nightly
 
       - name: "Install: cargo config"
-        run: cp ./.github/cargo-config-win.toml ${CARGO_HOME:-~/.cargo}/config.toml
+        run: cp ./.github/build-win-cross/config.toml ${CARGO_HOME:-~/.cargo}/config.toml
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v3
@@ -566,14 +566,18 @@ jobs:
 
       - name: "Install: Wine"
         run: |
-          sudo apt install -y wine64
+          sudo dpkg --add-architecture i386
+          sudo mkdir -pm755 /etc/apt/keyrings
+          sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+          sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/focal/winehq-focal.sources
+          sudo apt update
+          sudo apt install --install-recommends winehq-stable
           wineboot
-          cp ./.github/*.dll ~/.wine/drive_c/windows/system32/
       
       - name: "Install: LLVM"
         run: |
           sudo apt install -y clang-12 clang-tools-12 llvm-12
-          sudo ./.github/update-alternatives-clang.sh 12 100
+          sudo ./.github/build-win-cross/update-alternatives-clang.sh 12 100
 
       - name: "Install: binaryen"
         run: |  
