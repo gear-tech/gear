@@ -291,6 +291,10 @@ case "$COMMAND" in
         header "Running gear tests"
         workspace_test "$@"; ;;
 
+      gcli)
+        header "Running gcli tests"
+        gcli_test "$@"; ;;
+
       js)
         header "Running js tests"
         js_test "$ROOT_DIR"; ;;
@@ -321,7 +325,7 @@ case "$COMMAND" in
 
       syscalls)
         header "Running syscalls integrity test of pallet-gear 'benchmarking' module on WASMI executor"
-        syscalls_integrity_test ;;
+        syscalls_integrity_test "$@"; ;;
 
       doc)
         header "Testing examples in docs"

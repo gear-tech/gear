@@ -9778,7 +9778,6 @@ fn check_random_works() {
     });
 }
 
-#[ignore] // TODO: fix weights of syscalls.
 #[test]
 fn relay_messages() {
     use demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY};

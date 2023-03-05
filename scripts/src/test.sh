@@ -16,6 +16,7 @@ test_usage() {
     help           show help message and exit
 
     gear           run workspace tests
+    gcli           run gcli package tests
     js             run metadata js tests
     gtest          run gear-test testing tool,
                    you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
@@ -30,6 +31,10 @@ EOF
 
 workspace_test() {
   cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
+}
+
+gcli_test() {
+  cargo +nightly nextest run -p gcli "$@" --profile ci --no-fail-fast
 }
 
 # $1 - ROOT DIR
@@ -119,7 +124,7 @@ run_fuzzer() {
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
 syscalls_integrity_test() {
-  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks
+  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks "$@"
 }
 
 doc_test() {

@@ -20,7 +20,7 @@ EOF
 }
 
 gear_check() {
-  SKIP_WASM_BUILD=1 cargo check --workspace --exclude economic-checks --exclude economic-checks-fuzz "$@"
+  SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo check --workspace --exclude economic-checks --exclude economic-checks-fuzz "$@"
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR
