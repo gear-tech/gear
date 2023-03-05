@@ -10,6 +10,7 @@ CARGO_HACK="hack"
 CARGO_NEXTEST="nextest"
 CARGO="cargo"
 EXE_RUNNER=""
+EXE_EXTENSION=""
 
 . "$SCRIPTS"/common.sh
 
@@ -17,6 +18,7 @@ if [ "$CARGO_BUILD_TARGET" = "x86_64-pc-windows-msvc" ]; then
   TARGET_DIR="$TARGET_DIR/x86_64-pc-windows-msvc"
   CARGO="cargo xwin"
   EXE_RUNNER="wine"
+  EXE_EXTENSION=".exe"
   header "Using cargo-xwin"
 fi
 

@@ -2,3 +2,4 @@
 rustflags = [
     "-Ctarget-feature=+crt-static",
 ]
+runner = "wine"

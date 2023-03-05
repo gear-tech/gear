@@ -29,7 +29,7 @@ EOF
 }
 
 test_run_node() {
-  $EXE_RUNNER $TARGET_DIR/release/gear "$@"
+  $EXE_RUNNER "$TARGET_DIR/release/gear$EXE_EXTENSION" "$@"
 }
 
 cargo_test_gclient() {
