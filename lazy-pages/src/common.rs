@@ -128,6 +128,10 @@ impl LazyPagesExecutionContext {
     }
 
     pub fn set_read_charged(&mut self, page: GranularityPage) -> bool {
+        if self.stack_end_wasm_page > page.to_page() {
+            // is stack page
+            return false;
+        }
         match self.is_write_charged(page) {
             true => false,
             false => self.read_charged.insert(page),
@@ -135,6 +139,10 @@ impl LazyPagesExecutionContext {
     }
 
     pub fn set_write_charged(&mut self, page: GranularityPage) -> bool {
+        if self.stack_end_wasm_page > page.to_page() {
+            // is stack page
+            return false;
+        }
         self.write_charged.insert(page)
     }
 
