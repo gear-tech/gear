@@ -573,6 +573,16 @@ jobs:
           sudo apt update
           sudo apt install --install-recommends -y winehq-stable
           wineboot
+          
+      - name: "Install: Node.js in Wine"
+        run: |
+          wget http://barnyard.syr.edu/~vefatica/ftpfiles/setenv.exe
+          wget https://nodejs.org/download/release/v16.19.1/node-v16.19.1-win-x64.zip
+          unzip node-v16.19.1-win-x64.zip
+          node_js=$(winepath -w $(pwd)/node-v16.19.1-win-x64)
+          wine cmd /c ./setenv.exe -m PATH "%PATH%;${node_js}"
+        env:
+          WINEDEBUG: "-all"
       
       - name: "Install: LLVM"
         run: |
