@@ -695,7 +695,7 @@ impl EnvExt for Ext {
             .into());
         }
 
-        Ok((&msg[at as usize..end as usize], self.gas_left().into()))
+        Ok((&msg[at as usize..end as usize], self.gas_left()))
     }
 
     fn size(&mut self) -> Result<usize, Self::Error> {
