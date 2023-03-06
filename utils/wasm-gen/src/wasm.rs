@@ -20,7 +20,7 @@
 pub const PAGE_SIZE: u32 = 0x10000;
 
 /// Struct for indexing WASM memory page.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Page(u16);
 
 impl From<u16> for Page {
@@ -30,7 +30,7 @@ impl From<u16> for Page {
 }
 
 /// Newtype to represent WASM memory pages count.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PageCount(u32);
 
 impl From<u32> for PageCount {

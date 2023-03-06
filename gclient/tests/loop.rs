@@ -40,13 +40,7 @@ async fn inf_loop() -> Result<()> {
 
     // Program initialization.
     let (mid, pid, _) = api
-        .upload_program_bytes_by_path(
-            PATH,
-            gclient::now_in_micros().to_le_bytes(),
-            "",
-            gas_limit,
-            0,
-        )
+        .upload_program_bytes_by_path(PATH, gclient::now_micros().to_le_bytes(), "", gas_limit, 0)
         .await?;
 
     // Asserting successful initialization.

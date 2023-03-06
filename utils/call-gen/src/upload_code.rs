@@ -18,7 +18,8 @@
 
 //! Upload code args generator.
 
-use crate::{CallGenRng, GearCall, Seed};
+use crate::{CallGenRng, GearCall, GearProgGenConfig, Seed};
+use gear_core::ids::ProgramId;
 
 /// Upload code args
 ///
@@ -51,8 +52,12 @@ impl TryFrom<GearCall> for UploadCodeArgs {
 
 impl UploadCodeArgs {
     /// Generates `pallet_gear::Pallet::<T>::upload_code` call arguments.
-    pub fn generate<Rng: CallGenRng>(code_seed: Seed) -> Self {
-        let code = crate::generate_gear_program::<Rng>(code_seed);
+    pub fn generate<Rng: CallGenRng>(
+        code_seed: Seed,
+        config: GearProgGenConfig,
+        programs: Vec<ProgramId>,
+    ) -> Self {
+        let code = crate::generate_gear_program::<Rng>(code_seed, config, programs);
         log::debug!("Generated `upload_code` with code from seed = {code_seed}");
 
         Self(code)

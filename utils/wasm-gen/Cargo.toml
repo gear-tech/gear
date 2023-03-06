@@ -10,6 +10,7 @@ wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tool
 arbitrary = { version = "1.2.3", features = ["derive"] }
 gear-wasm-instrument = { path = "../wasm-instrument", default-features = false }
 wasmprinter = "0.2"
+gsys = { path = "../../gsys" }
 
 [dev-dependencies]
 rand = { version = "0.8.5", features = ["small_rng"] }

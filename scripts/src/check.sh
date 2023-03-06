@@ -20,7 +20,7 @@ EOF
 }
 
 gear_check() {
-  SKIP_WASM_BUILD=1 cargo check --workspace "$@"
+  SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo check --workspace "$@"
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR

@@ -20,8 +20,7 @@ EOF
 }
 
 gear_clippy() {
-  # `gprogram` requires the wasm build of `gear-runtime` in `build.rs`.
-  SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo +nightly clippy --workspace "$@" -- --no-deps -D warnings
+  SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo +nightly clippy --workspace "$@" -- --no-deps -D warnings
 }
 
 # $1 - ROOT DIR

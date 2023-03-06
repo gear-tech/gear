@@ -79,7 +79,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
     ) -> Result<()> {
         let mut batches = FuturesUnordered::new();
 
-        let seed = loader_seed.unwrap_or_else(utils::now);
+        let seed = loader_seed.unwrap_or_else(gear_utils::now_millis);
         tracing::info!(
             message = "Running task pool with params",
             seed,
@@ -199,7 +199,7 @@ async fn process_events(
     block_hash: H256,
     collect_programs: bool,
 ) -> Result<Report> {
-    let now = utils::now();
+    let now = gear_utils::now_millis();
     // States what amount of blocks we should wait for taking all the events about successful `messages` execution
     let wait_for_events_blocks = 10;
     // Multiply on five to be 100% sure if no events occurred, than node is crashed
@@ -211,7 +211,7 @@ async fn process_events(
             Err(e) => Err(e),
         };
 
-        if (utils::now() - now) as usize > wait_for_events_millisec {
+        if (gear_utils::now_millis() - now) as usize > wait_for_events_millisec {
             tracing::debug!("Timeout is reached while waiting for events");
             return Err(anyhow!(utils::EVENTS_TIMEOUT_ERR_STR));
         }

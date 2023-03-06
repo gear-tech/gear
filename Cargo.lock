@@ -3442,6 +3442,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "gear-core",
+ "gear-utils",
  "gsdk",
  "hex",
  "hex-literal",
@@ -4035,6 +4036,7 @@ dependencies = [
 name = "gear-utils"
 version = "0.1.0"
 dependencies = [
+ "env_logger",
  "nonempty",
 ]
 
@@ -4077,6 +4079,7 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "gear-wasm-instrument",
+ "gsys",
  "indicatif",
  "proptest",
  "rand 0.8.5",
@@ -5201,6 +5204,17 @@ version = "0.1.16"
 source = "git+https://github.com/grishasobol/rust-libc-print.git#b300804809e7a5f1c8fab4d2d11bcea29217bc70"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "libfuzzer-sys"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "beb09950ae85a0a94b27676cccf37da5ff13f27076aa1adbc6545dd0d0e1bd4e"
+dependencies = [
+ "arbitrary",
+ "cc",
+ "once_cell",
 ]
 
 [[package]]
@@ -8764,6 +8778,50 @@ dependencies = [
  "serde",
  "thiserror",
  "webrtc-util",
+]
+
+[[package]]
+name = "runtime-fuzzer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "frame-support",
+ "frame-system",
+ "gear-call-gen",
+ "gear-common",
+ "gear-core",
+ "gear-runtime",
+ "gear-runtime-primitives",
+ "gear-utils",
+ "hex",
+ "log",
+ "once_cell",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear",
+ "parity-scale-codec",
+ "parking_lot 0.12.1",
+ "rand 0.8.5",
+ "sp-consensus-babe",
+ "sp-consensus-slots",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-io",
+ "sp-keyring",
+ "sp-runtime",
+ "structopt",
+]
+
+[[package]]
+name = "runtime-fuzzer-fuzz"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "gear-utils",
+ "libfuzzer-sys",
+ "log",
+ "runtime-fuzzer",
 ]
 
 [[package]]

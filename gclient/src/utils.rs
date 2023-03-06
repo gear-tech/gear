@@ -17,11 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Error, Result};
-use std::{
-    fs,
-    path::Path,
-    time::{SystemTime, UNIX_EPOCH},
-};
+pub use gear_utils::now_micros;
+use std::{fs, path::Path};
 use wabt::Wat2Wasm;
 
 /// Compile a source WebAssembly Text (WAT) to Wasm binary code.
@@ -31,21 +28,6 @@ pub fn wat2wasm(wat: impl AsRef<str>) -> Vec<u8> {
         .expect("Failed to parse WAT")
         .as_ref()
         .to_vec()
-}
-
-/// Return the time elapsed since the Unix epoch in microseconds.
-pub fn now_in_micros() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Infallible")
-        .as_micros()
-}
-
-/// Return the time elapsed since the Unix epoch in microseconds converted to
-/// the 16-bytes array.
-#[deprecated = "Use `now_in_micros().to_le_bytes()` instead"]
-pub fn bytes_now() -> [u8; 16] {
-    now_in_micros().to_be_bytes()
 }
 
 /// Return the full path to the optimized Wasm binary file with the `demo_name`
