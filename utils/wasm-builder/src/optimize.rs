@@ -108,7 +108,7 @@ pub struct OptimizationResult {
     pub optimized_size: f64,
 }
 
-/// Attempts to perform optional Wasm optimization using `binaryen`.
+/// Attempts to perform optional Wasm optimization using `wasm-opt`.
 ///
 /// The intention is to reduce the size of bloated Wasm binaries as a result of missing
 /// optimizations (or bugs?) between Rust and Wasm.
