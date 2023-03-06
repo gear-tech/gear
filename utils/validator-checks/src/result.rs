@@ -21,4 +21,4 @@ pub enum Error {
     BlocksProduction,
 }
 
-pub type Result<T> = StdResult<T, Error>;
+pub type Result<T, E = Error> = StdResult<T, E>;

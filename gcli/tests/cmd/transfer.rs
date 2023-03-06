@@ -40,14 +40,14 @@ async fn test_command_transfer_works() -> Result<()> {
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
     // Get balance of the testing address
-    let api = Api::new(Some(&node.ws())).await?.signer(SURI, None)?;
-    let before = api.get_balance(ADDRESS).await.unwrap_or(0);
+    let signer = Api::new(Some(&node.ws())).await?.signer(SURI, None)?;
+    let before = signer.api().get_balance(ADDRESS).await.unwrap_or(0);
 
     // Run command transfer
     let value = 1_000_000_000u128;
     let _ = common::gear(&["-e", &node.ws(), "transfer", ADDRESS, &value.to_string()])?;
 
-    let after = api.get_balance(ADDRESS).await?;
+    let after = signer.api().get_balance(ADDRESS).await?;
     assert_eq!(after.saturating_sub(before), value);
 
     Ok(())

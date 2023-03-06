@@ -1219,19 +1219,19 @@ pub mod runtime_types {
         pub mod ids {
             use super::runtime_types;
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug, Copy,
             )]
             pub struct CodeId(pub [::core::primitive::u8; 32usize]);
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug, Copy,
             )]
             pub struct MessageId(pub [::core::primitive::u8; 32usize]);
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug, Copy,
             )]
             pub struct ProgramId(pub [::core::primitive::u8; 32usize]);
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug, Copy,
             )]
             pub struct ReservationId(pub [::core::primitive::u8; 32usize]);
         }

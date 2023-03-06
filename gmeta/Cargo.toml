@@ -9,6 +9,7 @@ scale-info = { version = "2.3.1", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 gmeta-codegen = { path = "codegen", optional = true}
+derive_more = "0.99.17"
 
 [features]
 codegen = ["gmeta-codegen"]

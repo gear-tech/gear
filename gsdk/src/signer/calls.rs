@@ -26,7 +26,6 @@ use crate::{
 use anyhow::anyhow;
 use async_recursion::async_recursion;
 use gear_core::ids::{CodeId, MessageId, ProgramId};
-use parity_scale_codec::Encode;
 use sp_runtime::AccountId32;
 use subxt::{
     dynamic::Value,
@@ -178,14 +177,18 @@ impl Signer {
 
 // pallet-sudo
 impl Signer {
-    /// `pallet_utility::force_batch`
+    /// `pallet_sudo::sudo_unchecked_weight`
     pub async fn sudo_unchecked_weight(&self, call: RuntimeCall, weight: Weight) -> InBlock {
         let tx = subxt::dynamic::tx(
             "Sudo",
             "sudo_unchecked_weight",
+            // As `call` implements conversion to `Value`.
             vec![
-                Value::from_bytes(call.encode()),
-                Value::from_bytes(weight.encode()),
+                call.into(),
+                Value::named_composite([
+                    ("ref_time", Value::u128(weight.ref_time as u128)),
+                    ("proof_size", Value::u128(weight.proof_size as u128)),
+                ]),
             ],
         );
 
@@ -239,7 +242,7 @@ impl Signer {
                 .await
         };
 
-        if counter >= self.retry {
+        if counter >= self.api().retry {
             return process;
         }
 

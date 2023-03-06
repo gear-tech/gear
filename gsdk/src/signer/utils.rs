@@ -23,7 +23,7 @@ use crate::{result::Result, signer::Signer};
 impl Signer {
     /// Get self balance
     pub async fn balance(&self) -> Result<u128> {
-        self.get_balance(&self.address()).await
+        self.api().get_balance(&self.address()).await
     }
 
     /// Logging balance spent

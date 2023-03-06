@@ -40,8 +40,8 @@ const EXPECTED_MAILBOX: &str = r#"
     value: 1000000,
     details: None,
     interval: Interval {
-        start: 2,
-        finish: 31,
+        start: 3,
+        finish: 32,
     },
 }
 "#;
@@ -63,5 +63,6 @@ async fn test_action_mailbox_works() -> Result<()> {
     let output = common::gear(&["-e", &node.ws(), "info", ALICE_SS58_ADDRESS, "mailbox"])?;
 
     assert!(output.stdout.convert().contains(EXPECTED_MAILBOX.trim()));
+
     Ok(())
 }

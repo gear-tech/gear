@@ -1081,54 +1081,47 @@ mod tests {
         }
     }
 
-    // Test ignored within the PR because any charging for syscall logic was
-    // moved to the backend side.
-    // Ext never charges gas.
-    //
-    // TODO: rewrite free logic on guards similarly to `alloc` function.
-    // OR
-    // TODO: provide similarly updated test around the backend-wrapper.
-    #[ignore]
+    // Invariant: Refund never occurs in `free` call.
     #[test]
-    fn test_free_no_refund() {
+    fn free_no_refund() {
         // Set initial Ext state
-        let free_weight = 10;
-        let host_fn_weights = HostFnWeights {
-            free: free_weight,
-            ..Default::default()
-        };
-
         let initial_gas = 100;
         let initial_allowance = 10000;
+
+        let gas_left = GasLeft {
+            gas: initial_gas,
+            allowance: initial_allowance,
+        };
+
+        let existing_page = 99.into();
+        let non_existing_page = 100.into();
+
+        let allocations_context =
+            AllocationsContext::new(BTreeSet::from([existing_page]), 1.into(), 512.into());
 
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
                 .with_gas(GasCounter::new(initial_gas))
                 .with_allowance(GasAllowanceCounter::new(initial_allowance))
-                .with_weighs(host_fn_weights)
+                .with_allocation_context(allocations_context)
                 .build(),
         );
 
-        // Check if refund happens, than refunding amount >= 0
-        let refunding_amount = ext.context.pages_config.alloc_cost;
-        assert!(refunding_amount > 0);
+        // Freeing existing page.
+        // Counters still shouldn't be changed.
+        assert!(ext.free(existing_page).is_ok());
+        assert_eq!(ext.gas_left(), gas_left);
 
-        let non_existing_page = 100.into();
+        // Freeing non existing page.
+        // Counters shouldn't be changed.
         assert_eq!(
             ext.free(non_existing_page),
             Err(ProcessorAllocError::Alloc(AllocError::InvalidFree(
                 non_existing_page.raw()
             )))
         );
-
-        // Counters should change only by amount of call to `free`.
-        let charged = free_weight;
-        let GasLeft { gas, allowance } = ext.gas_left();
-        assert_eq!(initial_gas - charged, gas);
-        assert_eq!(initial_allowance - charged, allowance);
+        assert_eq!(ext.gas_left(), gas_left);
     }
-
-    // # TODO https://github.com/gear-tech/gear/issues/1998
 
     #[test]
     fn test_counter_zeroes() {

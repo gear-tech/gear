@@ -58,7 +58,7 @@ impl Create {
         };
 
         // estimate gas
-        let gas_limit = signer.cmp_gas_limit(gas)?;
+        let gas_limit = signer.api().cmp_gas_limit(gas)?;
 
         // create program
         signer

@@ -65,7 +65,7 @@ impl Api {
 
     /// Get program pages from program id.
     pub async fn program_pages(&self, pid: H256) -> Result<types::GearPages> {
-        self.gpages(pid, self.gprog(pid).await?).await
+        self.gpages(pid, &self.gprog(pid).await?).await
     }
 }
 
@@ -198,9 +198,9 @@ impl Api {
     }
 
     /// Get pages of active program.
-    pub async fn gpages(&self, pid: H256, program: ActiveProgram) -> Result<types::GearPages> {
+    pub async fn gpages(&self, pid: H256, program: &ActiveProgram) -> Result<types::GearPages> {
         let mut pages = HashMap::new();
-        for page in program.pages_with_data {
+        for page in &program.pages_with_data {
             let addr = subxt::dynamic::storage(
                 "GearProgram",
                 "MemoryPageStorage",

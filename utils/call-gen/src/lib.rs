@@ -33,6 +33,8 @@ pub use send_message::SendMessageArgs;
 pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
 
+pub type GearProgGenConfig = gear_wasm_gen::GearConfig;
+
 /// Set of `pallet_gear` calls supported by the crate.
 pub enum GearCall {
     /// Upload program call args.
@@ -48,7 +50,11 @@ pub enum GearCall {
 /// Function generates WASM-binary of a Gear program with the
 /// specified `seed`. `programs` may specify addresses which
 /// can be used for send-calls.
-pub fn generate_gear_program<Rng: CallGenRng>(programs: Vec<ProgramId>, seed: u64) -> Vec<u8> {
+pub fn generate_gear_program<Rng: CallGenRng>(
+    seed: u64,
+    mut config: GearProgGenConfig,
+    programs: Vec<ProgramId>,
+) -> Vec<u8> {
     use arbitrary::Unstructured;
     use gear_wasm_gen::gsys;
 
@@ -59,7 +65,6 @@ pub fn generate_gear_program<Rng: CallGenRng>(programs: Vec<ProgramId>, seed: u6
 
     let mut u = Unstructured::new(&buf);
 
-    let mut config = gear_wasm_gen::GearConfig::new_normal();
     config.print_test_info = Some(format!("Gear program seed = '{seed}'"));
 
     let addresses = programs
