@@ -45,7 +45,7 @@ pub fn gear(args: &[&str]) -> Result<Output> {
             return Error::NotFound(bin);
         }
 
-        return e.into();
+        e.into()
     })
 }
 
