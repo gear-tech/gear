@@ -19,6 +19,7 @@
 //! Lazy-pages structures for common usage.
 
 use std::{
+    cell::RefMut,
     collections::{BTreeMap, BTreeSet},
     num::NonZeroU32,
 };
@@ -26,7 +27,13 @@ use std::{
 use gear_backend_common::lazy_pages::{
     GlobalsAccessError, GlobalsConfig, LazyPagesWeights, Status,
 };
-use gear_core::memory::{GearPage, GranularityPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE};
+use gear_core::{
+    costs::CostPerPage,
+    gas::GasLeft,
+    memory::{
+        GearPage, GranularityPage, PageU32Size, PagesIterInclusive, WasmPage, GEAR_PAGE_SIZE,
+    },
+};
 
 use crate::mprotect::MprotectError;
 
@@ -122,8 +129,8 @@ impl LazyPagesExecutionContext {
 
     pub fn set_read_charged(&mut self, page: GranularityPage) -> bool {
         match self.is_write_charged(page) {
-            true => self.read_charged.insert(page),
-            false => false,
+            true => false,
+            false => self.read_charged.insert(page),
         }
     }
 
@@ -227,5 +234,85 @@ impl PagePrefix {
         self.buffer[len - std::mem::size_of::<u32>()..len]
             .copy_from_slice(page.raw().to_le_bytes().as_slice());
         &self.buffer
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct GasLeftCharger {
+    pub read_cost: CostPerPage<GranularityPage>,
+    pub write_cost: CostPerPage<GranularityPage>,
+    pub write_after_read_cost: CostPerPage<GranularityPage>,
+    pub load_data_cost: CostPerPage<GranularityPage>,
+}
+
+impl GasLeftCharger {
+    fn sub_gas(gas_left: &mut GasLeft, amount: u64) -> Status {
+        log::trace!("charge {amount} from {gas_left:?}");
+        let new_gas = gas_left.gas.checked_sub(amount);
+        let new_allowance = gas_left.allowance.checked_sub(amount);
+        *gas_left = (new_gas.unwrap_or_default(), new_allowance.unwrap_or_default()).into();
+        match (new_gas, new_allowance) {
+            (None, _) => Status::GasLimitExceeded,
+            (Some(_), None) => Status::GasAllowanceExceeded,
+            (Some(_), Some(_)) => Status::Normal,
+        }
+    }
+
+    pub fn charge_for_pages(
+        &self,
+        gas_left: &mut GasLeft,
+        ctx: &mut RefMut<LazyPagesExecutionContext>,
+        pages: PagesIterInclusive<LazyPage>,
+        is_write: bool,
+    ) -> Result<Status, Error> {
+        let for_write = |ctx: &mut RefMut<LazyPagesExecutionContext>, page| {
+            log::trace!("kek write {ctx:?}");
+            if ctx.set_write_charged(page) {
+                log::trace!("pop");
+                if ctx.is_read_charged(page) {
+                    self.write_after_read_cost.one()
+                } else {
+                    self.write_cost.one()
+                }
+            } else {
+                0
+            }
+        };
+
+        let for_read = |ctx: &mut RefMut<LazyPagesExecutionContext>, page| {
+            log::trace!("kek read {ctx:?}");
+            if ctx.set_read_charged(page) {
+                log::trace!("jop");
+                self.read_cost.one()
+            } else {
+                0
+            }
+        };
+
+        let mut amount = 0u64;
+        for page in pages.convert() {
+            let amount_for_page = if is_write {
+                for_write(ctx, page)
+            } else {
+                for_read(ctx, page)
+            };
+            log::trace!("Wanna charge {amount_for_page} for page {page:?}");
+            amount = amount.saturating_add(amount_for_page);
+        }
+
+        Ok(Self::sub_gas(gas_left, amount))
+    }
+
+    pub fn charge_for_page_data_load(
+        &mut self,
+        gas_left: &mut GasLeft,
+        ctx: &mut RefMut<LazyPagesExecutionContext>,
+        page: GranularityPage,
+    ) -> Result<Status, Error> {
+        if ctx.set_load_data_charged(page) {
+            Ok(Self::sub_gas(gas_left, self.load_data_cost.one()))
+        } else {
+            Ok(Status::Normal)
+        }
     }
 }

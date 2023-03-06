@@ -27,7 +27,7 @@ use gear_core::{
 };
 
 use crate::{
-    common::{Error, LazyPage, LazyPagesExecutionContext},
+    common::{Error, GasLeftCharger, LazyPage, LazyPagesExecutionContext},
     process::{self, AccessHandler},
     utils::{self, handle_psg_case_one_page},
     LAZY_PAGES_PROGRAM_CONTEXT,
@@ -36,22 +36,7 @@ use crate::{
 pub(crate) struct HostFuncAccessHandler<'a> {
     pub is_write: bool,
     pub gas_left: &'a mut GasLeft,
-}
-
-impl<'a> HostFuncAccessHandler<'a> {
-    fn sub_gas(&mut self, amount: u64) -> Status {
-        self.gas_left.gas = if let Some(gas) = self.gas_left.gas.checked_sub(amount) {
-            gas
-        } else {
-            return Status::GasLimitExceeded;
-        };
-        self.gas_left.allowance = if let Some(gas) = self.gas_left.allowance.checked_sub(amount) {
-            gas
-        } else {
-            return Status::GasAllowanceExceeded;
-        };
-        Status::Normal
-    }
+    pub gas_left_charger: GasLeftCharger,
 }
 
 impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
@@ -86,34 +71,8 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
         ctx: &mut RefMut<LazyPagesExecutionContext>,
         pages: PagesIterInclusive<LazyPage>,
     ) -> Result<Status, Error> {
-        let mut amount = 0u64;
-
-        let for_write = |ctx: &mut RefMut<LazyPagesExecutionContext>, page| {
-            if ctx.set_write_charged(page) {
-                ctx.lazy_pages_weights.host_func_write.one()
-            } else {
-                0
-            }
-        };
-
-        let for_read = |ctx: &mut RefMut<LazyPagesExecutionContext>, page| {
-            if ctx.set_read_charged(page) {
-                ctx.lazy_pages_weights.host_func_read.one()
-            } else {
-                0
-            }
-        };
-
-        for page in pages.convert() {
-            let amount_for_page = if self.is_write() {
-                for_write(ctx, page)
-            } else {
-                for_read(ctx, page)
-            };
-            amount = amount.saturating_add(amount_for_page);
-        }
-
-        Ok(self.sub_gas(amount))
+        self.gas_left_charger
+            .charge_for_pages(self.gas_left, ctx, pages, self.is_write)
     }
 
     fn charge_for_data_loading(
@@ -121,11 +80,7 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
         ctx: &mut RefMut<LazyPagesExecutionContext>,
         page: GranularityPage,
     ) -> Result<Status, Error> {
-        if ctx.set_load_data_charged(page) {
-            Ok(self.sub_gas(ctx.lazy_pages_weights.load_page_storage_data.one()))
-        } else {
-            Ok(Status::Normal)
-        }
+        self.gas_left_charger.charge_for_page_data_load(self.gas_left, ctx, page)
     }
 
     fn last_page(pages: &Self::Pages) -> Option<LazyPage> {
@@ -199,11 +154,22 @@ pub fn pre_process_memory_accesses(
             let read_pages = get_access_pages(reads)?;
             let write_pages = handle_psg_case(&mut ctx.borrow_mut(), get_access_pages(writes)?)?;
 
+            let gas_left_charger = {
+                let ctx = ctx.borrow();
+                GasLeftCharger {
+                    read_cost: ctx.lazy_pages_weights.host_func_read,
+                    write_cost: ctx.lazy_pages_weights.host_func_write,
+                    write_after_read_cost: ctx.lazy_pages_weights.host_func_write_after_read,
+                    load_data_cost: ctx.lazy_pages_weights.load_page_storage_data,
+                }
+            };
+
             let status = process::process_lazy_pages(
                 ctx.borrow_mut(),
                 HostFuncAccessHandler {
                     is_write: false,
                     gas_left,
+                    gas_left_charger: gas_left_charger.clone(),
                 },
                 read_pages,
             )?;
@@ -218,6 +184,7 @@ pub fn pre_process_memory_accesses(
                 HostFuncAccessHandler {
                     is_write: true,
                     gas_left,
+                    gas_left_charger,
                 },
                 write_pages,
             )

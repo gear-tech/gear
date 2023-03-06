@@ -42,6 +42,7 @@ struct PageSets<P: PageU32Size> {
     signal_write_after_read: BTreeSet<P>,
     syscall_read: BTreeSet<P>,
     syscall_write: BTreeSet<P>,
+    syscall_write_after_read: BTreeSet<P>,
     with_data_pages: BTreeSet<P>,
 }
 
@@ -62,6 +63,7 @@ impl<P: PageU32Size> PageSets<P> {
         self.signal_write.contains(&page)
             || self.signal_write_after_read.contains(&page)
             || self.syscall_write.contains(&page)
+            || self.syscall_write_after_read.contains(&page)
     }
 
     fn add_signal_read(&mut self, i: MemoryInterval) {
@@ -95,7 +97,11 @@ impl<P: PageU32Size> PageSets<P> {
     fn add_syscall_write(&mut self, i: MemoryInterval) {
         Self::with_accessed(i, |page| {
             if !self.is_any_write(page) {
-                self.syscall_write.insert(page);
+                if self.is_any_read(page) {
+                    self.syscall_write_after_read.insert(page);
+                } else {
+                    self.syscall_write.insert(page);
+                }
             }
         });
     }
@@ -125,6 +131,7 @@ impl<P: PageU32Size> PageSets<P> {
         let signal_write_after_read_amount = (self.signal_write_after_read.len() as u16).into();
         let syscall_read_amount = (self.syscall_read.len() as u16).into();
         let syscall_write_amount = (self.syscall_write.len() as u16).into();
+        let syscall_write_after_read_amount = (self.syscall_write_after_read.len() as u16).into();
 
         let read_signal_charged = costs.signal_read.calc(signal_read_amount);
         let write_signal_charged = costs.signal_write.calc(signal_write_amount);
@@ -133,6 +140,7 @@ impl<P: PageU32Size> PageSets<P> {
             .calc(signal_write_after_read_amount);
         let syscall_read_charged = costs.host_func_read.calc(syscall_read_amount);
         let syscall_write_charged = costs.host_func_write.calc(syscall_write_amount);
+        let syscall_write_after_read_charged = costs.host_func_write_after_read.calc(syscall_write_after_read_amount);
 
         let charged_for_data_load = costs.load_page_storage_data.calc(self.loaded_pages_count());
 
@@ -144,6 +152,8 @@ impl<P: PageU32Size> PageSets<P> {
             .checked_add(syscall_read_charged)
             .unwrap()
             .checked_add(syscall_write_charged)
+            .unwrap()
+            .checked_add(syscall_write_after_read_charged)
             .unwrap()
             .checked_add(charged_for_data_load)
             .unwrap()

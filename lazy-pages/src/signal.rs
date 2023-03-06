@@ -27,7 +27,7 @@ use gear_core::{
 };
 
 use crate::{
-    common::{Error, LazyPage, LazyPagesExecutionContext},
+    common::{Error, LazyPage, LazyPagesExecutionContext, GasLeftCharger},
     globals::{self, GearGlobal},
     process::{self, AccessHandler},
     utils, LAZY_PAGES_PROGRAM_CONTEXT,
@@ -85,16 +85,23 @@ unsafe fn user_signal_handler_internal(
         lazy_page.iter_once()
     };
 
-    let gas_left = if let Some(globals_config) = ctx.globals_config.as_ref() {
+    let gas_ctx = if let Some(globals_config) = ctx.globals_config.as_ref() {
         let gas = globals::apply_for_global(globals_config, GearGlobal::GasLimit, |_| Ok(None))?;
         let allowance =
             globals::apply_for_global(globals_config, GearGlobal::AllowanceLimit, |_| Ok(None))?;
-        Some(GasLeft { gas, allowance })
+        let gas_left_charger = GasLeftCharger {
+            read_cost: ctx.lazy_pages_weights.signal_read,
+            write_cost: ctx.lazy_pages_weights.signal_write,
+            write_after_read_cost: ctx.lazy_pages_weights.signal_write_after_read,
+            load_data_cost: ctx.lazy_pages_weights.load_page_storage_data,
+        };
+        log::trace!("{gas_left_charger:?}");
+        Some((GasLeft { gas, allowance }, gas_left_charger))
     } else {
         None
     };
 
-    let handler = SignalAccessHandler { is_write, gas_left };
+    let handler = SignalAccessHandler { is_write, gas_ctx };
     process::process_lazy_pages(ctx, handler, pages)
 }
 
@@ -107,23 +114,7 @@ pub(crate) unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Erro
 
 struct SignalAccessHandler {
     is_write: bool,
-    gas_left: Option<GasLeft>,
-}
-
-impl SignalAccessHandler {
-    fn sub_gas(gas_left: &mut GasLeft, amount: u64) -> Status {
-        gas_left.gas = if let Some(gas) = gas_left.gas.checked_sub(amount) {
-            gas
-        } else {
-            return Status::GasLimitExceeded;
-        };
-        gas_left.allowance = if let Some(gas) = gas_left.allowance.checked_sub(amount) {
-            gas
-        } else {
-            return Status::GasAllowanceExceeded;
-        };
-        Status::Normal
-    }
+    gas_ctx: Option<(GasLeft, GasLeftCharger)>,
 }
 
 impl AccessHandler for SignalAccessHandler {
@@ -165,43 +156,11 @@ impl AccessHandler for SignalAccessHandler {
         ctx: &mut RefMut<LazyPagesExecutionContext>,
         pages: PagesIterInclusive<LazyPage>,
     ) -> Result<Status, Error> {
-        let gas_left = if let Some(gas_left) = self.gas_left.as_mut() {
-            gas_left
-        } else {
-            return Ok(Status::Normal);
+        let (gas_left, gas_left_charger) = match self.gas_ctx.as_mut() {
+            Some(ctx) => ctx,
+            None => return Ok(Status::Normal),
         };
-
-        let for_write = |ctx: &mut RefMut<LazyPagesExecutionContext>, page| {
-            if ctx.set_write_charged(page) {
-                if ctx.is_read_charged(page) {
-                    ctx.lazy_pages_weights.signal_write_after_read.one()
-                } else {
-                    ctx.lazy_pages_weights.signal_write.one()
-                }
-            } else {
-                0
-            }
-        };
-
-        let for_read = |ctx: &mut RefMut<LazyPagesExecutionContext>, page| {
-            if ctx.set_read_charged(page) {
-                ctx.lazy_pages_weights.signal_read.one()
-            } else {
-                0
-            }
-        };
-
-        let mut amount = 0u64;
-        for page in pages.convert() {
-            let amount_for_page = if self.is_write {
-                for_write(ctx, page)
-            } else {
-                for_read(ctx, page)
-            };
-            amount = amount.saturating_add(amount_for_page);
-        }
-
-        Ok(Self::sub_gas(gas_left, amount))
+        gas_left_charger.charge_for_pages(gas_left, ctx, pages, self.is_write)
     }
 
     fn charge_for_data_loading(
@@ -209,20 +168,11 @@ impl AccessHandler for SignalAccessHandler {
         ctx: &mut RefMut<LazyPagesExecutionContext>,
         page: GranularityPage,
     ) -> Result<Status, Error> {
-        let gas_left = if let Some(gas_left) = self.gas_left.as_mut() {
-            gas_left
-        } else {
-            return Ok(Status::Normal);
+        let (gas_left, gas_left_charger) = match self.gas_ctx.as_mut() {
+            Some(ctx) => ctx,
+            None => return Ok(Status::Normal),
         };
-
-        if ctx.set_load_data_charged(page) {
-            Ok(Self::sub_gas(
-                gas_left,
-                ctx.lazy_pages_weights.load_page_storage_data.one(),
-            ))
-        } else {
-            Ok(Status::Normal)
-        }
+        gas_left_charger.charge_for_page_data_load(gas_left, ctx, page)
     }
 
     fn apply_for_pages(
@@ -236,7 +186,7 @@ impl AccessHandler for SignalAccessHandler {
         self,
         ctx: &mut RefMut<LazyPagesExecutionContext>,
     ) -> Result<Self::Output, Error> {
-        if let Some(gas_left) = self.gas_left {
+        if let Some((gas_left, _)) = self.gas_ctx {
             if let Some(globals_config) = ctx.globals_config.as_ref() {
                 unsafe {
                     globals::apply_for_global(globals_config, GearGlobal::GasLimit, |_| {
