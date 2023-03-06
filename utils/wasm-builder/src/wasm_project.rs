@@ -252,15 +252,11 @@ impl WasmProject {
             })
             .unwrap_or_default();
 
-        let generate_meta_wasm =
-            // second condition to be deleted once removed `gstd::metadata!()`
-            self.project_type.is_metawasm() || Self::get_exports(&to_path)?.contains(&String::from("meta_registry"));
-
         // Generate wasm binaries
         Self::generate_wasm(
             from_path,
             (!self.project_type.is_metawasm()).then_some(&to_opt_path),
-            generate_meta_wasm.then_some(&to_meta_path),
+            self.project_type.is_metawasm().then_some(&to_meta_path),
         )?;
 
         let wasm_binary_path = self.original_dir.join(".binpath");
@@ -279,42 +275,21 @@ impl WasmProject {
         let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
 
         if !self.project_type.is_metawasm() {
-            if generate_meta_wasm {
-                fs::write(
-                    wasm_binary_rs,
-                    format!(
-                        r#"#[allow(unused)]
-pub const WASM_BINARY: &[u8] = include_bytes!("{}");
-#[allow(unused)]
-pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
-#[allow(unused)]
-pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
-{}
-"#,
-                        display_path(to_path),
-                        display_path(to_opt_path),
-                        display_path(to_meta_path),
-                        metadata,
-                    ),
-                )
-                .context("unable to write `wasm_binary.rs`")?;
-            } else {
-                fs::write(
-                    wasm_binary_rs,
-                    format!(
-                        r#"#[allow(unused)]
+            fs::write(
+                wasm_binary_rs,
+                format!(
+                    r#"#[allow(unused)]
 pub const WASM_BINARY: &[u8] = include_bytes!("{}");
 #[allow(unused)]
 pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
 {}
 "#,
-                        display_path(to_path),
-                        display_path(to_opt_path),
-                        metadata,
-                    ),
-                )
-                .context("unable to write `wasm_binary.rs`")?;
-            }
+                    display_path(to_path),
+                    display_path(to_opt_path),
+                    metadata,
+                ),
+            )
+            .context("unable to write `wasm_binary.rs`")?;
         } else {
             fs::write(
                 wasm_binary_rs,
