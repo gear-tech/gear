@@ -252,11 +252,15 @@ impl WasmProject {
             })
             .unwrap_or_default();
 
+        let generate_meta_wasm =
+            // second condition to be deleted once removed `gstd::metadata!()`
+            self.project_type.is_metawasm() || Self::get_exports(&to_path)?.contains(&String::from("meta_registry"));
+
         // Generate wasm binaries
         Self::generate_wasm(
             from_path,
             (!self.project_type.is_metawasm()).then_some(&to_opt_path),
-            Some(&to_meta_path),
+            generate_meta_wasm.then_some(&to_meta_path),
         )?;
 
         let wasm_binary_path = self.original_dir.join(".binpath");
@@ -275,10 +279,11 @@ impl WasmProject {
         let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
 
         if !self.project_type.is_metawasm() {
-            fs::write(
-                wasm_binary_rs,
-                format!(
-                    r#"#[allow(unused)]
+            if generate_meta_wasm {
+                fs::write(
+                    wasm_binary_rs,
+                    format!(
+                        r#"#[allow(unused)]
 pub const WASM_BINARY: &[u8] = include_bytes!("{}");
 #[allow(unused)]
 pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
@@ -286,13 +291,30 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
 pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
 {}
 "#,
-                    display_path(to_path),
-                    display_path(to_opt_path),
-                    display_path(to_meta_path),
-                    metadata,
-                ),
-            )
-            .context("unable to write `wasm_binary.rs`")?;
+                        display_path(to_path),
+                        display_path(to_opt_path),
+                        display_path(to_meta_path),
+                        metadata,
+                    ),
+                )
+                .context("unable to write `wasm_binary.rs`")?;
+            } else {
+                fs::write(
+                    wasm_binary_rs,
+                    format!(
+                        r#"#[allow(unused)]
+pub const WASM_BINARY: &[u8] = include_bytes!("{}");
+#[allow(unused)]
+pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
+{}
+"#,
+                        display_path(to_path),
+                        display_path(to_opt_path),
+                        metadata,
+                    ),
+                )
+                .context("unable to write `wasm_binary.rs`")?;
+            }
         } else {
             fs::write(
                 wasm_binary_rs,
@@ -304,7 +326,7 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
 
 "#,
                     display_path(to_meta_path.clone()),
-                    Self::get_exports(to_meta_path)?,
+                    Self::get_exports(&to_meta_path)?,
                 ),
             )
             .context("unable to write `wasm_binary.rs`")?;
@@ -333,7 +355,7 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
         Ok(())
     }
 
-    fn get_exports(file: PathBuf) -> Result<Vec<String>> {
+    fn get_exports(file: &PathBuf) -> Result<Vec<String>> {
         let module = parity_wasm::deserialize_file(file)?;
 
         let exports = module
