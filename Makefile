@@ -308,3 +308,6 @@ kill:
 .PHONY: kill-rust
 kill-rust:
 	@ pgrep -f "rust" | sudo xargs kill -9
+
+install:
+	@ cargo install --path ./node/cli --force --locked
