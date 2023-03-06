@@ -871,9 +871,8 @@ impl<'a> WasmGen<'a> {
     }
 
     pub fn make_print_test_info(&mut self, result: ModuleWithDebug) -> Module {
-        let text = match &self.config.print_test_info {
-            Some(text) => text,
-            None => return result.module,
+        let Some(text) = &self.config.print_test_info else {
+            return result.module;
         };
 
         let ModuleWithDebug {
