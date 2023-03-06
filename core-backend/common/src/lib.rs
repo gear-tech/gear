@@ -129,6 +129,12 @@ impl<E: BackendExtError> From<E> for TerminationReason {
     }
 }
 
+impl From<TrapExplanation> for TerminationReason {
+    fn from(trap: TrapExplanation) -> Self {
+        ActorTerminationReason::Trap(trap).into()
+    }
+}
+
 #[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
 pub enum ActorTerminationReason {
     Exit(ProgramId),
@@ -392,3 +398,42 @@ pub trait BackendTermination<E: BackendExt, M: Sized>: Sized {
         (ext, memory, termination_reason)
     }
 }
+
+pub use log;
+
+#[macro_export]
+macro_rules! syscall_args_trace {
+    ($val:expr) => {
+        {
+            let s = stringify!($val);
+            if s.ends_with("_ptr") {
+                format!(", {} = {:#x?}", s, $val)
+            } else {
+                format!(", {} = {:?}", s, $val)
+            }
+        }
+    };
+    ($val:expr, $($rest:expr),+) => {
+        {
+            let mut s = $crate::syscall_args_trace!($val);
+            s.push_str(&$crate::syscall_args_trace!($($rest),+));
+            s
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! syscall_trace {
+    ($name:expr, $($args:expr),+) => {
+        {
+            $crate::log::trace!(target: "syscalls", "{}{}", $name, $crate::syscall_args_trace!($($args),+));
+        }
+    };
+    ($name:expr) => {
+        {
+            $crate::log::trace!(target: "syscalls", "{}", $name);
+        }
+    }
+}
+
+pub const PTR_SPECIAL: u32 = u32::MAX;

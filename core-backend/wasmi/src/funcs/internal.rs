@@ -22,7 +22,7 @@ use gear_backend_common::{
         MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
         WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    ActorTerminationReason, BackendExt, BackendState, TrapExplanation,
+    ActorTerminationReason, BackendExt, BackendState, TrapExplanation, PTR_SPECIAL,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft};
 

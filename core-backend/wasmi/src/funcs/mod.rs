@@ -24,8 +24,8 @@ use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendState,
-    TerminationReason, TrapExplanation,
+    syscall_trace, ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError,
+    BackendState, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     buffer::RuntimeBuffer,
@@ -44,41 +44,6 @@ use wasmi::{
     core::{Trap, TrapCode, Value},
     AsContextMut, Caller, Func, Memory as WasmiMemory, Store,
 };
-
-macro_rules! syscall_args_trace {
-    ($val:expr) => {
-        {
-            let s = stringify!($val);
-            if s.ends_with("_ptr") {
-                format!(", {} = {:#x?}", s, $val)
-            } else {
-                format!(", {} = {:?}", s, $val)
-            }
-        }
-    };
-    ($val:expr, $($rest:expr),+) => {
-        {
-            let mut s = syscall_args_trace!($val);
-            s.push_str(&syscall_args_trace!($($rest),+));
-            s
-        }
-    };
-}
-
-macro_rules! syscall_trace {
-    ($name:expr, $($args:expr),+) => {
-        {
-            log::trace!(target: "syscalls", "gr_{}{}", $name, syscall_args_trace!($($args),+));
-        }
-    };
-    ($name:expr) => {
-        {
-            log::trace!(target: "syscalls", "gr_{}", $name);
-        }
-    }
-}
-
-pub(crate) const PTR_SPECIAL: u32 = u32::MAX;
 
 pub(crate) struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
@@ -515,9 +480,8 @@ where
             ctx.run_state_taken(RuntimeCosts::Alloc, |ctx, state| {
                 let mut mem = CallerWrap::memory(&mut ctx.caller, ctx.memory);
 
-                // TODO: we must return u32::MAX here
-                let pages = WasmPage::new(pages)
-                    .map_err(|_| ActorTerminationReason::Trap(TrapExplanation::Unknown))?;
+                // TODO: we must return u32::MAX here #+_+_+
+                let pages = WasmPage::new(pages).map_err(|_| TrapExplanation::Unknown)?;
 
                 let res = state.ext.alloc(pages, &mut mem);
                 let res = state.process_alloc_func_result(res)?;

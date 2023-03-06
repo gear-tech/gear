@@ -33,7 +33,7 @@ use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use sp_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
 
-pub fn as_i64(v: Value) -> Option<i64> {
+pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
         Value::I64(i) => Some(i),
         _ => None,
