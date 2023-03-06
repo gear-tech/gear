@@ -8,7 +8,7 @@ use anyhow::Result;
 use futures::FutureExt;
 use gear_call_gen::{
     CallGenRng, CallGenRngCore, CreateProgramArgs, GearProgGenConfig, SendMessageArgs,
-    UploadCodeArgs, UploadProgramArgs,
+    SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
 };
 use gear_core::ids::{CodeId, ProgramId};
 use gear_utils::NonEmpty;
