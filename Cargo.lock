@@ -4146,6 +4146,7 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "gear-wasm-instrument",
+ "gsys",
  "indicatif",
  "proptest",
  "rand 0.8.5",

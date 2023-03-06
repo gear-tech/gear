@@ -20,8 +20,11 @@ pub const WAITING_TX_FINALIZED_TIMEOUT_ERR_STR: &str =
     "Transaction finalization wait timeout is reached";
 
 pub fn dump_with_seed(seed: u64) -> Result<()> {
-    let code =
-        gear_call_gen::generate_gear_program::<SmallRng>(seed, GearProgGenConfig::new_normal());
+    let code = gear_call_gen::generate_gear_program::<SmallRng>(
+        seed,
+        GearProgGenConfig::new_normal(),
+        Default::default(),
+    );
 
     let mut file = File::create("out.wasm")?;
     file.write_all(&code)?;

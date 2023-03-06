@@ -109,26 +109,30 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         let rt_settings = self.rt_settings;
 
         let batch = match spec {
-            0 => self.gen_upload_program_batch(seed, rt_settings),
+            0 => {
+                let existing_programs = context.programs.iter().copied().collect::<Vec<_>>();
+                self.gen_upload_program_batch(existing_programs, seed, rt_settings)
+            }
             1 => {
+                let existing_programs = context.programs.iter().copied().collect::<Vec<_>>();
                 let span = tracing::debug_span!(
                     "gen_upload_code_batch",
                     seed = seed,
                     batch_type = "upload_code"
                 );
-                span.in_scope(|| self.gen_upload_code_batch())
+                span.in_scope(|| self.gen_upload_code_batch(existing_programs))
             }
             2 => match NonEmpty::from_vec(context.programs.iter().copied().collect()) {
                 Some(existing_programs) => {
                     self.gen_send_message_batch(existing_programs, seed, rt_settings)
                 }
-                None => self.gen_upload_program_batch(seed, rt_settings),
+                None => self.gen_upload_program_batch(vec![], seed, rt_settings),
             },
             3 => match NonEmpty::from_vec(context.codes.iter().copied().collect()) {
                 Some(existing_codes) => {
                     self.gen_create_program_batch(existing_codes, seed, rt_settings)
                 }
-                None => self.gen_upload_program_batch(seed, rt_settings),
+                None => self.gen_upload_program_batch(vec![], seed, rt_settings),
             },
             _ => unreachable!(),
         };
@@ -137,19 +141,29 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
     }
 
     #[instrument(skip_all, fields(seed = seed, batch_type = "upload_program"))]
-    fn gen_upload_program_batch(&mut self, seed: Seed, rt_settings: RuntimeSettings) -> Batch {
+    fn gen_upload_program_batch(
+        &mut self,
+        existing_programs: Vec<ProgramId>,
+        seed: Seed,
+        rt_settings: RuntimeSettings,
+    ) -> Batch {
         let mut rng = Rng::seed_from_u64(seed);
         let inner = utils::iterator_with_args(self.batch_size, || {
-            (self.code_seed_gen.next_u64(), rng.next_u64())
+            (
+                existing_programs.clone(),
+                self.code_seed_gen.next_u64(),
+                rng.next_u64(),
+            )
         })
         .enumerate()
-        .map(|(i, (code_seed, rng_seed))| {
+        .map(|(i, (existing_programs, code_seed, rng_seed))| {
             tracing::debug_span!("`upload_program` generator", call_id = i + 1).in_scope(|| {
                 UploadProgramArgs::generate::<Rng>(
                     code_seed,
                     rng_seed,
                     rt_settings.gas_limit,
                     self.prog_gen_config.clone(),
+                    existing_programs,
                 )
             })
         })
@@ -158,15 +172,21 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         Batch::UploadProgram(inner)
     }
 
-    fn gen_upload_code_batch(&mut self) -> Batch {
-        let inner = utils::iterator_with_args(self.batch_size, || self.code_seed_gen.next_u64())
-            .enumerate()
-            .map(|(i, code_seed)| {
-                tracing::debug_span!("`upload_code` generator", call_id = i + 1).in_scope(|| {
-                    UploadCodeArgs::generate::<Rng>(code_seed, self.prog_gen_config.clone())
-                })
+    fn gen_upload_code_batch(&mut self, existing_programs: Vec<ProgramId>) -> Batch {
+        let inner = utils::iterator_with_args(self.batch_size, || {
+            (existing_programs.clone(), self.code_seed_gen.next_u64())
+        })
+        .enumerate()
+        .map(|(i, (existing_programs, code_seed))| {
+            tracing::debug_span!("`upload_code` generator", call_id = i + 1).in_scope(|| {
+                UploadCodeArgs::generate::<Rng>(
+                    code_seed,
+                    self.prog_gen_config.clone(),
+                    existing_programs,
+                )
             })
-            .collect();
+        })
+        .collect();
 
         Batch::UploadCode(inner)
     }

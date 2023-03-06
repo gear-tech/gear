@@ -86,6 +86,7 @@ pub fn run(seed: u64) {
 fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> GearCall {
     let config = fuzzer_config();
     let mut rand = Rng::seed_from_u64(seed);
+    let programs = context.lock().programs.clone();
 
     match rand.gen_range(0..=1) {
         0 => UploadProgramArgs::generate::<Rng>(
@@ -93,6 +94,7 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
             rand.next_u64(),
             default_gas_limit(),
             config,
+            programs,
         )
         .into(),
         1 => match NonEmpty::from_vec(context.lock().programs.clone()) {
@@ -107,6 +109,7 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
                 rand.next_u64(),
                 default_gas_limit(),
                 config,
+                programs,
             )
             .into(),
         },

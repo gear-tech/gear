@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{collections::BTreeMap, ops::RangeInclusive};
+use std::{collections::BTreeMap, iter::Cycle, ops::RangeInclusive};
 
 use arbitrary::Unstructured;
 use gear_wasm_instrument::{
@@ -30,6 +30,8 @@ use gear_wasm_instrument::{
     syscalls::SysCallName,
     STACK_END_EXPORT_NAME,
 };
+pub use gsys;
+use gsys::HashWithValue;
 use wasm_smith::{InstructionKind::*, InstructionKinds, Module as ModuleSmith, SwarmConfig};
 
 mod syscalls;
@@ -42,7 +44,11 @@ pub mod utils;
 pub mod wasm;
 use wasm::{PageCount as WasmPageCount, PAGE_SIZE as WASM_PAGE_SIZE};
 
+pub mod memory;
+use memory::ModuleBuilderWithData;
+
 const MEMORY_VALUE_SIZE: u32 = 100;
+const MEMORY_FIELD_NAME: &str = "memory";
 
 #[derive(Clone, Copy, Debug)]
 pub struct Ratio {
@@ -200,6 +206,34 @@ impl GearConfig {
             max_percentage_seed: 100,
             unchecked_memory_access: zero_prob,
             use_message_source: zero_prob,
+        }
+    }
+}
+
+// Module and an optional index of gr_debug syscall.
+struct ModuleWithDebug {
+    module: Module,
+    debug_syscall_index: Option<u32>,
+    last_offset: u32,
+}
+
+impl From<ModuleBuilderWithData> for ModuleWithDebug {
+    fn from(data: ModuleBuilderWithData) -> Self {
+        let module = data.module_builder.build();
+        Self {
+            module,
+            debug_syscall_index: None,
+            last_offset: data.last_offset,
+        }
+    }
+}
+
+impl From<(Module, Option<u32>, u32)> for ModuleWithDebug {
+    fn from((module, debug_syscall_index, last_offset): (Module, Option<u32>, u32)) -> Self {
+        Self {
+            module,
+            debug_syscall_index,
+            last_offset,
         }
     }
 }
@@ -505,7 +539,7 @@ impl<'a> WasmGen<'a> {
         let module = builder::from_module(module)
             .import()
             .module("env")
-            .field("memory")
+            .field(MEMORY_FIELD_NAME)
             .external()
             .memory(mem_size, mem_size_upper_bound)
             .build()
@@ -662,20 +696,25 @@ impl<'a> WasmGen<'a> {
         )
     }
 
-    pub fn insert_sys_calls(&mut self, module: Module, memory_pages: WasmPageCount) -> Module {
-        let code_size = if let Some(code) = module.code_section() {
-            code.bodies()
-                .iter()
-                .fold(0, |sum, body| sum + body.code().elements().len())
-        } else {
-            return module;
-        };
+    pub fn insert_sys_calls(
+        &mut self,
+        builder: ModuleBuilderWithData,
+        memory_pages: WasmPageCount,
+    ) -> ModuleWithDebug {
+        if builder.code_size == 0 {
+            return builder.into();
+        }
+
+        let ModuleBuilderWithData {
+            module_builder: mut builder,
+            offsets,
+            last_offset,
+            import_count,
+            code_size,
+        } = builder;
 
         let mut source_call_index = None;
-
-        let import_count = module.import_count(ImportCountType::Function);
-
-        let mut builder = builder::from_module(module);
+        let mut debug_call_index = None;
 
         // generate corresponding import entries for syscalls
         let mut syscall_data = BTreeMap::default();
@@ -724,6 +763,10 @@ impl<'a> WasmGen<'a> {
                 source_call_index = Some(call_index);
             }
 
+            if name == SysCallName::Debug {
+                debug_call_index = Some(call_index);
+            }
+
             self.calls_indexes
                 .push(FuncIdx::Import((import_count + i) as u32));
             syscall_data.insert(
@@ -737,53 +780,52 @@ impl<'a> WasmGen<'a> {
         }
 
         let mut module = builder.build();
+        let mut offsets = offsets.into_iter().cycle();
 
         // generate call instructions for syscalls and insert them somewhere into the code
         for (name, data) in syscall_data {
-            let instructions =
-                self.build_call_instructions(name, &data, memory_pages, source_call_index);
+            let instructions = self.build_call_instructions(
+                name,
+                &data,
+                memory_pages,
+                source_call_index,
+                &mut offsets,
+            );
             for _ in 0..data.sys_call_amount {
                 module = self.insert_instructions_in_random_place(module, &instructions);
             }
         }
 
-        module
+        (module, debug_call_index, last_offset).into()
     }
 
-    fn build_call_instructions(
+    fn build_call_instructions<I: Clone + Iterator<Item = u32>>(
         &mut self,
         name: SysCallName,
         data: &SyscallData,
         memory_pages: WasmPageCount,
         source_call_index: Option<u32>,
+        offsets: &mut Cycle<I>,
     ) -> Vec<Instruction> {
         let info = &data.info;
-        let use_message_source = self.config.use_message_source.get(self.u);
-        let source_call_index = match source_call_index {
-            // TODO #2206: send also using reserved gas
-            Some(i)
-                if use_message_source
-                    && [
-                        SysCallName::Send,
-                        SysCallName::SendWGas,
-                        SysCallName::SendInput,
-                        SysCallName::SendInputWGas,
-                    ]
-                    .contains(&name) =>
-            {
-                i
-            }
-            _ => {
-                return build_checked_call(
-                    self.u,
-                    &info.results,
-                    &info.parameter_rules,
-                    data.call_index,
-                    memory_pages,
-                    self.config.unchecked_memory_access,
-                )
-            }
-        };
+        // TODO #2206: send also using reserved gas
+        if ![
+            SysCallName::Send,
+            SysCallName::SendWGas,
+            SysCallName::SendInput,
+            SysCallName::SendInputWGas,
+        ]
+        .contains(&name)
+        {
+            return build_checked_call(
+                self.u,
+                &info.results,
+                &info.parameter_rules,
+                data.call_index,
+                memory_pages,
+                self.config.unchecked_memory_access,
+            );
+        }
 
         let mut remaining_instructions = build_checked_call(
             self.u,
@@ -794,38 +836,57 @@ impl<'a> WasmGen<'a> {
             self.config.unchecked_memory_access,
         );
 
-        let mut instructions = Vec::with_capacity(3 + remaining_instructions.len());
+        if let Some(source_call_index) = source_call_index {
+            if self.config.use_message_source.get(self.u) {
+                let mut instructions = Vec::with_capacity(3 + remaining_instructions.len());
 
-        let memory_size = memory_pages.memory_size();
-        let upper_limit = memory_size.saturating_sub(MEMORY_VALUE_SIZE);
-        let offset = self
-            .u
-            .int_in_range(0..=upper_limit)
-            .expect("build_call_instructions: Unstructured::int_in_range failed");
+                let memory_size = memory_pages.memory_size();
+                let upper_limit = memory_size.saturating_sub(MEMORY_VALUE_SIZE);
+                let offset = self
+                    .u
+                    .int_in_range(0..=upper_limit)
+                    .expect("build_call_instructions: Unstructured::int_in_range failed");
 
-        // call msg::source (gr_source) with a memory offset
-        instructions.push(Instruction::I32Const(offset as i32));
-        instructions.push(Instruction::Call(source_call_index));
-        // pass the offset as the first argument to the send-call
-        instructions.push(Instruction::I32Const(offset as i32));
+                // call msg::source (gr_source) with a memory offset
+                instructions.push(Instruction::I32Const(offset as i32));
+                instructions.push(Instruction::Call(source_call_index));
+                // pass the offset as the first argument to the send-call
+                instructions.push(Instruction::I32Const(offset as i32));
+                instructions.append(&mut remaining_instructions);
+
+                return instructions;
+            }
+        }
+
+        let address_offset = offsets.next().unwrap_or_else(|| {
+            self.u
+                .arbitrary()
+                .expect("build_call_instructions: Unstructured::arbitrary failed")
+        }) as i32;
+        let mut instructions = Vec::with_capacity(1 + remaining_instructions.len());
+        instructions.push(Instruction::I32Const(address_offset));
         instructions.append(&mut remaining_instructions);
 
         instructions
     }
 
-    pub fn make_print_test_info(&mut self, mut module: Module) -> Module {
-        let text = if let Some(text) = &self.config.print_test_info {
-            text
-        } else {
-            return module;
+    pub fn make_print_test_info(&mut self, result: ModuleWithDebug) -> Module {
+        let Some(text) = &self.config.print_test_info else {
+            return result.module;
         };
+
+        let ModuleWithDebug {
+            mut module,
+            debug_syscall_index,
+            last_offset,
+        } = result;
 
         if let External::Memory(mem_type) = module
             .import_section()
             .unwrap()
             .entries()
             .iter()
-            .find(|section| section.field() == "memory")
+            .find(|section| section.field() == MEMORY_FIELD_NAME)
             .unwrap()
             .external()
         {
@@ -853,39 +914,19 @@ impl<'a> WasmGen<'a> {
         let bytes = text.as_bytes();
         module = builder::from_module(module)
             .data()
-            .offset(Instruction::I32Const(0))
+            .offset(Instruction::I32Const(last_offset as i32))
             .value(bytes.to_vec())
             .build()
             .build();
-
-        let gr_debug_import_no = module
-            .import_section()
-            .unwrap()
-            .entries()
-            .iter()
-            .position(|import| import.field() == "gr_debug")
-            .unwrap() as u32;
-        let gr_debug_call_no = self
-            .calls_indexes
-            .iter()
-            .position(|func_idx| {
-                if let FuncIdx::Import(import_no) = func_idx {
-                    *import_no == gr_debug_import_no - 1 // TODO: first is memory import, so need to do `- 1`.
-                                                         // Make more common solution.
-                } else {
-                    false
-                }
-            })
-            .unwrap() as u32;
 
         let init_code = module.code_section_mut().unwrap().bodies_mut()
             [init_func_no.unwrap() as usize]
             .code_mut()
             .elements_mut();
         let print_code = [
-            Instruction::I32Const(0),
+            Instruction::I32Const(last_offset as i32),
             Instruction::I32Const(bytes.len() as i32),
-            Instruction::Call(gr_debug_call_no),
+            Instruction::Call(debug_syscall_index.expect("debug data specified so do the call")),
         ];
 
         init_code.splice(0..0, print_code);
@@ -955,7 +996,11 @@ impl<'a> WasmGen<'a> {
     }
 }
 
-pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConfig) -> Module {
+pub fn gen_gear_program_module<'a>(
+    u: &'a mut Unstructured<'a>,
+    config: GearConfig,
+    addresses: &[HashWithValue],
+) -> Module {
     let swarm_config = default_swarm_config(u, &config);
 
     let module = loop {
@@ -970,19 +1015,25 @@ pub fn gen_gear_program_module<'a>(u: &'a mut Unstructured<'a>, config: GearConf
     let mut gen = WasmGen::new(&module, u, config);
 
     let (module, memory_pages) = gen.gen_mem_export(module);
-    let (mut module, has_init) = gen.gen_init(module);
+    let (module, has_init) = gen.gen_init(module);
     if !has_init {
         return gen.resolves_calls_indexes(module);
     }
 
-    module = gen.gen_handle(module).0;
-    module = gen.insert_sys_calls(module, memory_pages);
-    module = gen.make_print_test_info(module);
+    let (module, _has_handle) = gen.gen_handle(module);
+
+    let builder = ModuleBuilderWithData::new(addresses, module, memory_pages);
+    let module = gen.insert_sys_calls(builder, memory_pages);
+    let module = gen.make_print_test_info(module);
 
     gen.resolves_calls_indexes(module)
 }
 
-pub fn gen_gear_program_code<'a>(u: &'a mut Unstructured<'a>, config: GearConfig) -> Vec<u8> {
-    let module = gen_gear_program_module(u, config);
+pub fn gen_gear_program_code<'a>(
+    u: &'a mut Unstructured<'a>,
+    config: GearConfig,
+    addresses: &[HashWithValue],
+) -> Vec<u8> {
+    let module = gen_gear_program_module(u, config, addresses);
     parity_wasm::serialize(module).unwrap()
 }
