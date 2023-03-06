@@ -500,6 +500,7 @@ jobs:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
       RUSTC_WRAPPER: ""
+      WINEDEBUG: fixme-all
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
