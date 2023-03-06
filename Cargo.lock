@@ -2499,59 +2499,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "economic-checks"
-version = "0.1.0"
-dependencies = [
- "arbitrary",
- "demo-compose",
- "demo-contract-template",
- "demo-mul-by-const",
- "demo-ncompose",
- "env_logger",
- "frame-support",
- "frame-system",
- "gear-common",
- "gear-core",
- "gear-runtime",
- "gear-runtime-primitives",
- "gstd",
- "hex",
- "log",
- "pallet-authorship",
- "pallet-balances",
- "pallet-gear",
- "pallet-gear-gas",
- "pallet-im-online",
- "parity-scale-codec",
- "parity-wasm 0.45.0",
- "parking_lot 0.12.1",
- "primitive-types",
- "rand 0.8.5",
- "serde",
- "sp-authority-discovery",
- "sp-consensus-babe",
- "sp-consensus-slots",
- "sp-core",
- "sp-finality-grandpa",
- "sp-io",
- "sp-runtime",
- "sp-std 5.0.0",
- "vara-runtime",
- "wasm-mutate",
- "wasmparser 0.101.1",
- "wasmprinter",
- "wat",
-]
-
-[[package]]
-name = "economic-checks-fuzz"
-version = "0.1.0"
-dependencies = [
- "economic-checks",
- "libfuzzer-sys",
-]
-
-[[package]]
 name = "ed25519"
 version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2586,20 +2533,6 @@ dependencies = [
  "rand_core 0.6.4",
  "sha2 0.9.9",
  "zeroize",
-]
-
-[[package]]
-name = "egg"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05a6c0bbc92278f84e742f08c0ab9cb16a987376cd2bc39d228ef9c74d98d6f7"
-dependencies = [
- "indexmap",
- "instant",
- "log",
- "once_cell",
- "smallvec",
- "symbolic_expressions",
 ]
 
 [[package]]
@@ -3509,6 +3442,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "gear-core",
+ "gear-utils",
  "gsdk",
  "hex",
  "hex-literal",
@@ -4102,6 +4036,7 @@ dependencies = [
 name = "gear-utils"
 version = "0.1.0"
 dependencies = [
+ "env_logger",
  "nonempty",
 ]
 
@@ -4144,6 +4079,7 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "gear-wasm-instrument",
+ "gsys",
  "indicatif",
  "proptest",
  "rand 0.8.5",
@@ -8845,6 +8781,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "runtime-fuzzer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "frame-support",
+ "frame-system",
+ "gear-call-gen",
+ "gear-common",
+ "gear-core",
+ "gear-runtime",
+ "gear-runtime-primitives",
+ "gear-utils",
+ "hex",
+ "log",
+ "once_cell",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear",
+ "parity-scale-codec",
+ "parking_lot 0.12.1",
+ "rand 0.8.5",
+ "sp-consensus-babe",
+ "sp-consensus-slots",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-io",
+ "sp-keyring",
+ "sp-runtime",
+ "structopt",
+]
+
+[[package]]
+name = "runtime-fuzzer-fuzz"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "gear-utils",
+ "libfuzzer-sys",
+ "log",
+ "runtime-fuzzer",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11647,12 +11627,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "symbolic_expressions"
-version = "5.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c68d531d83ec6c531150584c42a4290911964d5f0d79132b193b67252a23b71"
-
-[[package]]
 name = "syn"
 version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11923,9 +11897,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.25.0"
+version = "1.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8e00990ebabbe4c14c08aca901caed183ecd5c09562a12c824bb53d3c3fd3af"
+checksum = "03201d01c3c27a29c8a5cee5b55a93ddae1ccf6f08f65365c2c918f8c1b76f64"
 dependencies = [
  "autocfg",
  "bytes",
@@ -11938,7 +11912,7 @@ dependencies = [
  "signal-hook-registry",
  "socket2",
  "tokio-macros",
- "windows-sys 0.42.0",
+ "windows-sys 0.45.0",
 ]
 
 [[package]]
@@ -12793,20 +12767,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa1dafb3e60065305741e83db35c6c2584bb3725b692b5b66148a38d72ace6cd"
 dependencies = [
  "parity-wasm 0.45.0",
-]
-
-[[package]]
-name = "wasm-mutate"
-version = "0.2.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47e9f975cfccc7e5f8ee8a4628e5d154688cd92a63c916708effc7b6053877c1"
-dependencies = [
- "egg",
- "log",
- "rand 0.8.5",
- "thiserror",
- "wasm-encoder 0.24.1",
- "wasmparser 0.101.1",
 ]
 
 [[package]]

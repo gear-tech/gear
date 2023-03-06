@@ -231,14 +231,14 @@ jobs:
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
 
+      - name: "Test: `gcli`"
+        run: ./scripts/gear.sh test gcli --release --locked
+
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
 
       - name: "Test: Process gear-test"
         run: ./scripts/gear.sh test gtest
-
-      - name: "Test: Program CLI"
-        run: RUST_BACKTRACE=1 cargo nextest run --release -p gcli
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --run-node
@@ -257,14 +257,12 @@ jobs:
         run: |
           cargo build -p gear-cli --release --features runtime-benchmarks
           ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
-          # TODO: reveal once #2266 merged
-          # ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
           # check also lazy-pages benchmarks tests for native runtime
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
 
-      # TODO: reveal once #2266 merged
-      # - name: "Test: Sys-calls Wasmi integrity"
-      #   run: ./scripts/gear.sh test syscalls
+      - name: "Test: Sys-calls Wasmi integrity"
+        run: ./scripts/gear.sh test syscalls --release
 
       - name: "Coverage: Aggregate"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')

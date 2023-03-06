@@ -87,7 +87,7 @@ jobs:
         run: |
           mkdir -p ./target/analysis/tests/
           mkdir -p ./target/analysis/output/
-          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test gear --exclude gclient --features pallet-gear-debug/lazy-pages --release -j1 > ./target/analysis/output/$i 2>&1 ; mv ./target/nextest/ci/junit.xml ./target/analysis/tests/$i; done
+          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release -j1 > ./target/analysis/output/$i 2>&1 ; mv ./target/nextest/ci/junit.xml ./target/analysis/tests/$i; done
           ./target/release/regression-analysis collect-data --data-folder-path ./target/analysis/tests/ --output-path ./target/pallet-tests.json
 
       - name: "Generate report: Gear workspace tests"

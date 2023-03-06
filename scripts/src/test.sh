@@ -16,6 +16,7 @@ test_usage() {
     help           show help message and exit
 
     gear           run workspace tests
+    gcli           run gcli package tests
     js             run metadata js tests
     gtest          run gear-test testing tool,
                    you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
@@ -30,6 +31,10 @@ EOF
 
 workspace_test() {
   cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
+}
+
+gcli_test() {
+  cargo +nightly nextest run -p gcli "$@" --profile ci --no-fail-fast
 }
 
 # $1 - ROOT DIR
@@ -109,33 +114,17 @@ validators() {
 run_fuzzer() {
   ROOT_DIR="$1"
 
-  for i in "${@:2}"; do
-    case $i in
-      *_fuzz_target)
-        TARGET="${i}"
-        ;;
-      *)
-        FEATURES="$FEATURES ${i}"
-        ;;
-    esac
-  done
-
-  if [[ -z $TARGET ]]
-  then
-    TARGET="simple_fuzz_target"
-  fi
-
   # Navigate to fuzzer dir
-  cd $ROOT_DIR/utils/economic-checks
+  cd $ROOT_DIR/utils/runtime-fuzzer
 
   # Run fuzzer
-  RUST_LOG="essential,pallet_gear=debug,gear_core_processor::executor=debug,economic_checks=debug,gwasm=debug" \
-  cargo fuzz run --release "$FEATURES" --sanitizer=none "$TARGET"
+  RUST_LOG="debug,runtime_fuzzer_fuzz=debug,wasmi,libfuzzer_sys,node_fuzzer=debug,gear,pallet_gear,gear-core-processor,gear-backend-wasmi,gwasm'" \
+  cargo fuzz run --release --sanitizer=none main
 }
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
 syscalls_integrity_test() {
-  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks
+  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks "$@"
 }
 
 doc_test() {
