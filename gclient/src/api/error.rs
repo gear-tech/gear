@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Error as AError;
-use gp::result::Error as GPError;
 use std::{io::Error as IOError, result::Result as StdResult};
 use subxt::error::Error as SubxtError;
 
@@ -30,9 +29,9 @@ pub enum Error {
     /// A wrapper around [`anyhow::Error`].
     #[error(transparent)]
     Anyhow(#[from] AError),
-    /// A wrapper around [`gear_program::Error`](GPError).
+    /// A wrapper around [`gsdk::Error`].
     #[error(transparent)]
-    GearProgram(#[from] GPError),
+    GearSDK(#[from] gsdk::result::Error),
     /// Occurs when attempting to iterate events without a subscription.
     #[error("An attempt to iter events without subscription")]
     EventsSubscriptionNotFound,
@@ -80,4 +79,7 @@ pub enum Error {
     /// A wrapper around [`parity_scale_codec::Error`].
     #[error(transparent)]
     Codec(#[from] parity_scale_codec::Error),
+    /// Occurs when decoding hex string failed.
+    #[error(transparent)]
+    Hex(#[from] hex::FromHexError),
 }

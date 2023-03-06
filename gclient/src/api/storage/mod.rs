@@ -25,12 +25,12 @@ use super::{GearApi, Result};
 use crate::Error;
 use account_id::IntoAccountId32;
 use gear_core::{ids::*, message::StoredMessage};
-use gp::api::generated::api::{
-    runtime_types::{
-        gear_common::storage::primitives::Interval, gear_core::ids as generated_ids,
+use gsdk::{
+    ext::sp_core::crypto::Ss58Codec,
+    metadata::runtime_types::{
+        gear_common::storage::primitives::Interval, gear_core::message::stored,
         pallet_balances::AccountData,
     },
-    storage,
 };
 
 impl GearApi {
@@ -50,32 +50,21 @@ impl GearApi {
         account_id: impl IntoAccountId32,
         message_id: MessageId,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
-        let at = storage().gear_messenger().mailbox(
-            account_id.into_account_id(),
-            generated_ids::MessageId::from(message_id),
-        );
-        let data = self.0.storage().fetch(&at, None).await?;
-
+        let data: Option<(stored::StoredMessage, Interval<u32>)> = self
+            .0
+            .api()
+            .get_from_account_mailbox(account_id.into_account_id(), message_id)
+            .await?;
         Ok(data.map(|(m, i)| (m.into(), i)))
     }
 
     async fn account_data(&self, account_id: impl IntoAccountId32) -> Result<AccountData<u128>> {
-        let at = storage().system().account(account_id.into_account_id());
-
-        let data = self
+        Ok(self
             .0
-            .storage()
-            .fetch(&at, None)
+            .api()
+            .info(&account_id.into_account_id().to_ss58check())
             .await?
-            .map(|v| v.data)
-            .unwrap_or(AccountData {
-                free: 0,
-                reserved: 0,
-                misc_frozen: 0,
-                fee_frozen: 0,
-            });
-
-        Ok(data)
+            .data)
     }
 
     /// Get the total balance of the account identified by `account_id`.

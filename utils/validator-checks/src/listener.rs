@@ -5,12 +5,15 @@ use crate::{
     result::{Error, Result},
 };
 use futures_util::StreamExt;
-use gp::api::{types::Blocks, Api};
-use std::{result::Result as StdResult, time::Instant};
-use subxt::ext::{
-    sp_core::crypto::{PublicError, Ss58Codec},
-    sp_runtime::AccountId32,
+use gsdk::{
+    ext::{
+        sp_core::crypto::{PublicError, Ss58Codec},
+        sp_runtime::AccountId32,
+    },
+    types::Blocks,
+    Api,
 };
+use std::{result::Result as StdResult, time::Instant};
 
 /// Entry of this program, block listener.
 pub struct Listener {

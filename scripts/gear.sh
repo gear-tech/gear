@@ -303,6 +303,10 @@ case "$COMMAND" in
         header "Running gear tests"
         workspace_test "$@"; ;;
 
+      gcli)
+        header "Running gcli tests"
+        gcli_test "$@"; ;;
+
       js)
         header "Running js tests"
         js_test "$ROOT_DIR"; ;;
@@ -328,12 +332,12 @@ case "$COMMAND" in
         client_tests "$ROOT_DIR" "$@"; ;;
 
       fuzz)
-        header "Running fuzzer for system consistency check"
-        run_fuzzer "$ROOT_DIR" "$@"; ;;
+        header "Running fuzzer for runtime panic checks"
+        run_fuzzer "$ROOT_DIR" ;;
 
       syscalls)
         header "Running syscalls integrity test of pallet-gear 'benchmarking' module on WASMI executor"
-        syscalls_integrity_test ;;
+        syscalls_integrity_test "$@"; ;;
 
       doc)
         header "Testing examples in docs"

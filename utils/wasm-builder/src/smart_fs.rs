@@ -21,6 +21,7 @@
 //! because cargo looks for `mtime` metadata file parameter
 
 use anyhow::Result;
+use gmeta::MetadataRepr;
 use std::{fs, path::Path};
 
 const LINEAR_COMPARISON_FILE_SIZE: u64 = 4096;
@@ -48,6 +49,29 @@ pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> Result<()>
 
     if check_changed(path, contents)? {
         fs::write(path, contents)?;
+    }
+
+    Ok(())
+}
+
+fn check_metadata_changed(path: &Path, metadata: &MetadataRepr) -> Result<bool> {
+    if !path.exists() {
+        return Ok(true);
+    }
+
+    let old_metadata = fs::read(path)?;
+    let Ok(old_metadata) = MetadataRepr::from_hex(old_metadata) else {
+        return Ok(true);
+    };
+
+    Ok(old_metadata != *metadata)
+}
+
+pub fn write_metadata<P: AsRef<Path>>(path: P, metadata: &MetadataRepr) -> Result<()> {
+    let path = path.as_ref();
+
+    if check_metadata_changed(path, metadata)? {
+        fs::write(path, metadata.hex())?;
     }
 
     Ok(())

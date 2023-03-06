@@ -14,7 +14,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.4.0", features = ["derive"] }
 futures = "0.3.26"
-futures-timer = "3.0.1"
+futures-timer = "3.0.2"
 log = "0.4.17"
 
 # Gear
@@ -43,18 +43,16 @@ frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/subs
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 
 [dev-dependencies]
-parking_lot = "0.12.1"
-scale-info = { version = "2.3.1", features = ["derive"] }
 sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-std = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-gear = { path = "../../pallets/gear" }
-pallet-gear-gas = { path = "../../pallets/gas" }
-pallet-gear-messenger = { path = "../../pallets/gear-messenger" }
-pallet-gear-scheduler = { path = "../../pallets/gear-scheduler" }
-pallet-gear-program = { path = "../../pallets/gear-program" }
-pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+pallet-sudo = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-test-client = { package = "gear-test-client", path = "../../utils/test-runtime/client" }
+pallet-gear = { path = "../../pallets/gear" }
+pallet-gear-messenger = { path = "../../pallets/gear-messenger" }
+testing = { package = "gear-node-testing", path = "../testing" }
+vara-runtime = { path = "../../runtime/vara" }
+demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }

@@ -215,8 +215,9 @@ purge-dev-chain-release:
 	@ ./scripts/gear.sh run purge-dev-chain --release
 
 # Test section
-.PHONY: test
-test: test-gear test-js gtest test-syscalls-integrity# There should be no release builds (e.g. `rtest`) for fast checking.
+.PHONY: test # \
+	There should be no release builds (e.g. `rtest`) for fast checking.
+test: test-gear test-js gtest
 
 .PHONY: test-doc
 test-doc:
@@ -229,13 +230,21 @@ test-release: test-gear-release test-js gtest rtest
 test-gear: init-js examples # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
-	@ ./scripts/gear.sh test gear --exclude gclient --features pallet-gear-debug/lazy-pages
+	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
 test-gear-release: init-js examples # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
-	@ ./scripts/gear.sh test gear --release --exclude gclient --features pallet-gear-debug/lazy-pages
+	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages
+
+.PHONY: test-gcli
+test-gcli: node
+	@ ./scripts/gear.sh test gcli
+
+.PHONY: test-gcli-release
+test-gcli-release: node-release
+	@ ./scripts/gear.sh test gcli --release
 
 .PHONY: test-js
 test-js: init-js
@@ -269,6 +278,10 @@ test-client: node-release examples wat-examples
 test-syscalls-integrity:
 	@ ./scripts/gear.sh test syscalls
 
+.PHONY: test-syscalls-integrity-release
+test-syscalls-integrity-release:
+	@ ./scripts/gear.sh test syscalls --release
+
 # Misc section
 .PHONY: doc
 doc:
@@ -277,7 +290,7 @@ doc:
 		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
 		-p gstd -p gtest -p gear-wasm-builder -p gear-common \
 		-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \
-		-p pallet-gear-program -p pallet-gear-rpc -p pallet-gear-scheduler
+		-p pallet-gear-program -p pallet-gear-rpc -p pallet-gear-scheduler -p gsdk
 	@ cp -f images/logo.svg target/doc/rust-logo.svg
 
 .PHONY: fuzz
