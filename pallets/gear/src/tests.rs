@@ -3384,11 +3384,15 @@ fn claim_value_works() {
 
         // In `calculate_gas_info` program start to work with page data in storage,
         // so need to take in account gas, which spent for data loading.
-        let charged_for_page_load = GasPrice::gas_price(
-            <Test as Config>::Schedule::get()
-                .memory_weights
-                .load_page_data,
-        );
+        let charged_for_page_load = if cfg!(feature = "lazy-pages") {
+            GasPrice::gas_price(
+                <Test as Config>::Schedule::get()
+                    .memory_weights
+                    .load_page_data,
+            )
+        } else {
+            0
+        };
 
         // Gas left returns to sender from consuming of value tree while claiming.
         let expected_sender_balance =
