@@ -10,7 +10,7 @@ use std::{
     fs::metadata,
     path::{Path, PathBuf},
 };
-use wasm_opt::{OptimizationOptions, Pass};
+use wasm_opt::{Feature, OptimizationOptions, Pass};
 
 const OPTIMIZED_EXPORTS: [&str; 7] = [
     "handle",
@@ -155,7 +155,7 @@ pub fn optimize_wasm(
 }
 
 /// Optimizes the Wasm supplied as `crate_metadata.dest_wasm` using
-/// the `wasm-opt` binary.
+/// `wasm-opt`.
 ///
 /// The supplied `optimization_level` denotes the number of optimization passes,
 /// resulting in potentially a lot of time spent optimizing.
@@ -182,6 +182,7 @@ pub fn do_optimization(
         "z" => OptimizationOptions::new_optimize_for_size_aggressively(),
         _ => panic!("Invalid optimization level {}", optimization_level),
     }
+    .disable_feature(Feature::SignExt)
     .add_pass(Pass::Dae)
     .add_pass(Pass::Vacuum)
     // the memory in our module is imported, `wasm-opt` needs to be told that
