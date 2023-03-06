@@ -637,6 +637,7 @@ jobs:
           ./scripts/gear.sh test rtest gear
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+          RUST_LOG: gear=debug,gwasm=debug,pallet=debug
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
