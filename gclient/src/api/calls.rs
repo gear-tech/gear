@@ -205,12 +205,12 @@ impl GearApi {
     }
 
     /// Migrates an active program identified by `src_program_id` onto another
-    /// node identified by `tgt_node_api` and returns the migrated program
+    /// node identified by `dest_node_api` and returns the migrated program
     /// identifier.
     pub async fn migrate_program(
         &self,
         src_program_id: ProgramId,
-        tgt_node_api: &GearApi,
+        dest_node_api: &GearApi,
     ) -> Result<ProgramId> {
         // TODO: Ideally we have to check program is not already there (via gprog, for
         // example). Do we want to override it? If yes, then we have to check
@@ -218,7 +218,7 @@ impl GearApi {
         // Another solution might be that we crate a brand new ProgramId which would
         // allow us to migrate program even withing the same node/network
 
-        let tgt_program_id = src_program_id;
+        let dest_program_id = src_program_id;
 
         // Collect data from the source program
         let src_free_balance = self.free_balance(src_program_id).await?;
@@ -228,52 +228,46 @@ impl GearApi {
 
         let src_program_pages = self.0.api().gpages(src_program_id, &src_program).await?;
 
-        let src_code_len = self
-            .0
-            .api()
-            .code_len_storage(src_program.code_hash.0.into())
-            .await?;
+        let src_code_id = src_program.code_hash.0.into();
 
-        let src_code = self
-            .0
-            .api()
-            .code_storage(src_program.code_hash.0.into())
-            .await?;
+        let src_code_len = self.0.api().code_len_storage(src_code_id).await?;
+
+        let src_code = self.0.api().code_storage(src_code_id).await?;
 
         // Apply data to the target program
-        tgt_node_api
+        dest_node_api
             .0
-            .set_code_len_storage(src_program.code_hash.0.into(), src_code_len)
+            .set_code_len_storage(src_code_id, src_code_len)
             .await?;
 
-        tgt_node_api
+        dest_node_api
             .0
-            .set_code_storage(src_program.code_hash.0.into(), &src_code)
+            .set_code_storage(src_code_id, &src_code)
             .await?;
 
-        tgt_node_api
+        dest_node_api
             .0
-            .set_gpages(tgt_program_id, &src_program_pages)
+            .set_gpages(dest_program_id, &src_program_pages)
             .await?;
 
-        tgt_node_api
+        dest_node_api
             .0
             .set_gprog(
-                tgt_program_id,
+                dest_program_id,
                 src_program,
-                tgt_node_api.last_block_number().await?,
+                dest_node_api.last_block_number().await?,
             )
             .await?;
 
-        tgt_node_api
+        dest_node_api
             .set_balance(
-                tgt_program_id.into_account_id(),
+                dest_program_id.into_account_id(),
                 src_free_balance,
                 src_reserved_balance,
             )
             .await?;
 
-        Ok(tgt_program_id)
+        Ok(dest_program_id)
     }
 
     /// Claim value from the mailbox message identified by `message_id`.

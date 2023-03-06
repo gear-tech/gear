@@ -25,7 +25,7 @@ async fn program_migrated_to_another_node() {
     const PROGRAM_FUNDS: u128 = 25_000;
 
     let src_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate source node");
-    let tgt_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate target node");
+    let dest_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate destination node");
 
     // Arrange
 
@@ -44,58 +44,58 @@ async fn program_migrated_to_another_node() {
         .await
         .expect("Unable to transfer funds to source program");
 
-    // Initialize target node
-    let tgt_node_api = GearApi::node(&tgt_node)
+    // Initialize destination node
+    let dest_node_api = GearApi::node(&dest_node)
         .await
-        .expect("Unable to connect to target node api");
+        .expect("Unable to connect to destination node api");
 
-    let tgt_node_gas_limit = tgt_node_api
+    let dest_node_gas_limit = dest_node_api
         .block_gas_limit()
-        .expect("Unable to get target node gas limit");
+        .expect("Unable to get destination node gas limit");
 
-    let mut tgt_node_listener = tgt_node_api
+    let mut dest_node_listener = dest_node_api
         .subscribe()
         .await
-        .expect("Unable to subscribe to target node events");
+        .expect("Unable to subscribe to destination node events");
 
     // Act
 
-    // Migrate the source program onto the target node
-    let tgt_program_id = src_node_api
-        .migrate_program(src_program_id, &tgt_node_api)
+    // Migrate the source program onto the destination node
+    let dest_program_id = src_node_api
+        .migrate_program(src_program_id, &dest_node_api)
         .await
         .expect("Unable to migrate source program");
 
-    // Send some message to the target program for checking that it
+    // Send some message to the destination program for checking that it
     // functions properly
-    let (message_id, _) = tgt_node_api
+    let (message_id, _) = dest_node_api
         .send_message(
-            tgt_program_id,
+            dest_program_id,
             MULTIPLICATOR_VALUE_PAYLOAD,
-            tgt_node_gas_limit,
+            dest_node_gas_limit,
             0,
         )
         .await
-        .expect("Unable to send message to target program");
+        .expect("Unable to send message to destination program");
 
     // Assert
-    assert_eq!(src_program_id, tgt_program_id);
+    assert_eq!(src_program_id, dest_program_id);
 
-    let tgt_program_funds = tgt_node_api
-        .free_balance(tgt_program_id)
+    let dest_program_funds = dest_node_api
+        .free_balance(dest_program_id)
         .await
-        .expect("Unable to get target program funds");
-    assert_eq!(tgt_program_funds, PROGRAM_FUNDS);
+        .expect("Unable to get destination program funds");
+    assert_eq!(dest_program_funds, PROGRAM_FUNDS);
 
-    let tgt_program_reply = tgt_node_listener
+    let dest_program_reply = dest_node_listener
         .reply_bytes_on(message_id)
         .await
-        .expect("Unable to get reply from target program")
+        .expect("Unable to get reply from destination program")
         .1
         .expect("Unable to read reply payload");
     assert_eq!(
         INIT_VALUE_PAYLOAD * MULTIPLICATOR_VALUE_PAYLOAD,
-        u64::decode(&mut tgt_program_reply.as_ref()).expect("Unable to decode reply payload")
+        u64::decode(&mut dest_program_reply.as_ref()).expect("Unable to decode reply payload")
     );
 }
 
