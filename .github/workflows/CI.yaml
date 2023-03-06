@@ -501,6 +501,7 @@ jobs:
       RUSTUP_HOME: /tmp/rustup_home
       RUSTC_WRAPPER: ""
       WINEDEBUG: fixme-all
+      NODE_SKIP_PLATFORM_CHECK: 1
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
