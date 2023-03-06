@@ -61,10 +61,10 @@ impl Ratio {
 }
 
 impl From<(u32, u32)> for Ratio {
-    fn from(p: (u32, u32)) -> Self {
+    fn from((numerator, denominator): (u32, u32)) -> Self {
         Self {
-            numerator: p.0,
-            denominator: p.1,
+            numerator,
+            denominator,
         }
     }
 }

@@ -7,8 +7,8 @@ use crate::{
 use anyhow::Result;
 use futures::FutureExt;
 use gear_call_gen::{
-    CallGenRng, CallGenRngCore, CreateProgramArgs, SendMessageArgs, UploadCodeArgs,
-    UploadProgramArgs,
+    CallGenRng, CallGenRngCore, CreateProgramArgs, GearProgGenConfig, SendMessageArgs,
+    UploadCodeArgs, UploadProgramArgs,
 };
 use gear_core::ids::{CodeId, ProgramId};
 use gear_utils::NonEmpty;
@@ -32,6 +32,7 @@ impl RuntimeSettings {
 pub struct BatchGenerator<Rng> {
     pub batch_gen_rng: Rng,
     pub batch_size: usize,
+    prog_gen_config: GearProgGenConfig,
     code_seed_gen: Box<dyn CallGenRngCore>,
     rt_settings: RuntimeSettings,
 }
@@ -91,9 +92,12 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
 
         tracing::info!("Code generator starts with seed: {code_seed_type:?}");
 
+        let prog_gen_config = GearProgGenConfig::new_normal();
+
         Self {
             batch_gen_rng,
             batch_size,
+            prog_gen_config,
             code_seed_gen: seed::some_generator::<Rng>(code_seed_type),
             rt_settings,
         }
@@ -141,7 +145,12 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         .enumerate()
         .map(|(i, (code_seed, rng_seed))| {
             tracing::debug_span!("`upload_program` generator", call_id = i + 1).in_scope(|| {
-                UploadProgramArgs::generate::<Rng>(code_seed, rng_seed, rt_settings.gas_limit)
+                UploadProgramArgs::generate::<Rng>(
+                    code_seed,
+                    rng_seed,
+                    rt_settings.gas_limit,
+                    self.prog_gen_config.clone(),
+                )
             })
         })
         .collect();
@@ -153,8 +162,9 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         let inner = utils::iterator_with_args(self.batch_size, || self.code_seed_gen.next_u64())
             .enumerate()
             .map(|(i, code_seed)| {
-                tracing::debug_span!("`upload_code` generator", call_id = i + 1)
-                    .in_scope(|| UploadCodeArgs::generate::<Rng>(code_seed))
+                tracing::debug_span!("`upload_code` generator", call_id = i + 1).in_scope(|| {
+                    UploadCodeArgs::generate::<Rng>(code_seed, self.prog_gen_config.clone())
+                })
             })
             .collect();
 

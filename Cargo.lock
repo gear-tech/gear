@@ -3509,6 +3509,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "gear-core",
+ "gear-utils",
  "gsdk",
  "hex",
  "hex-literal",
@@ -4102,6 +4103,7 @@ dependencies = [
 name = "gear-utils"
 version = "0.1.0"
 dependencies = [
+ "env_logger",
  "nonempty",
 ]
 
@@ -8842,6 +8844,50 @@ dependencies = [
  "serde",
  "thiserror",
  "webrtc-util",
+]
+
+[[package]]
+name = "runtime-fuzzer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "frame-support",
+ "frame-system",
+ "gear-call-gen",
+ "gear-common",
+ "gear-core",
+ "gear-runtime",
+ "gear-runtime-primitives",
+ "gear-utils",
+ "hex",
+ "log",
+ "once_cell",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear",
+ "parity-scale-codec",
+ "parking_lot 0.12.1",
+ "rand 0.8.5",
+ "sp-consensus-babe",
+ "sp-consensus-slots",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-io",
+ "sp-keyring",
+ "sp-runtime",
+ "structopt",
+]
+
+[[package]]
+name = "runtime-fuzzer-fuzz"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "gear-utils",
+ "libfuzzer-sys",
+ "log",
+ "runtime-fuzzer",
 ]
 
 [[package]]

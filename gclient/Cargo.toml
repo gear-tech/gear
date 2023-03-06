@@ -6,6 +6,7 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
+gear-utils = { path = "../utils/utils" }
 gsdk = { path = "../gsdk" }
 gear-core = { path = "../core" }
 futures = "0.3"
