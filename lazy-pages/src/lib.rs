@@ -33,7 +33,6 @@ use gear_core::memory::{
     GearPage, GranularityPage, MemoryInterval, PageU32Size, WasmPage, GEAR_PAGE_SIZE,
     PAGE_STORAGE_GRANULARITY,
 };
-use once_cell::sync::OnceCell;
 use sp_std::vec::Vec;
 use std::{cell::RefCell, collections::BTreeSet, num::NonZeroU32};
 
@@ -43,13 +42,16 @@ use sys::{AccessedPagesInfo, DefaultUserSignalHandler, UserSignalHandler};
 mod mprotect;
 use mprotect::MprotectError;
 
+mod init_flag;
+use crate::init_flag::InitializationFlag;
+
 mod utils;
 
 #[cfg(test)]
 mod tests;
 
 /// Initialize lazy-pages once for process.
-static LAZY_PAGES_INITIALIZED: OnceCell<Result<(), InitError>> = OnceCell::new();
+static LAZY_PAGES_INITIALIZED: InitializationFlag = InitializationFlag::new();
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub(crate) enum Error {
@@ -457,27 +459,30 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
         );
     }
 
-    LAZY_PAGES_INITIALIZED
-        .get_or_init(|| {
-            let ps = region::page::size();
-            let gear_ps = GearPage::size() as usize;
-            if ps > PAGE_STORAGE_GRANULARITY
-                || PAGE_STORAGE_GRANULARITY % ps != 0
-                || (ps > gear_ps && ps % gear_ps != 0)
-                || (ps < gear_ps && gear_ps % ps != 0)
-            {
-                return Err(NativePageSizeIsNotSuitable(ps));
-            }
+    LAZY_PAGES_INITIALIZED.get_or_init(|| {
+        let ps = region::page::size();
+        let gear_ps = GearPage::size() as usize;
+        if ps > PAGE_STORAGE_GRANULARITY
+            || PAGE_STORAGE_GRANULARITY % ps != 0
+            || (ps > gear_ps && ps % gear_ps != 0)
+            || (ps < gear_ps && gear_ps % ps != 0)
+        {
+            return Err(NativePageSizeIsNotSuitable(ps));
+        }
 
-            if let Err(err) = sys::setup_signal_handler::<H>() {
-                return Err(CanNotSetUpSignalHandler(err.to_string()));
-            }
+        if let Err(err) = sys::setup_signal_handler::<H>() {
+            return Err(CanNotSetUpSignalHandler(err.to_string()));
+        }
 
-            log::trace!("Successfully initialize lazy-pages for process");
+        log::trace!("Successfully initialize lazy-pages for process");
 
-            Ok(())
-        })
-        .clone()
+        Ok(())
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn reset_init_flag() {
+    LAZY_PAGES_INITIALIZED.reset();
 }
 
 /// Initialize lazy-pages for current thread.

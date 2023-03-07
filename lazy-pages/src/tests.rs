@@ -21,7 +21,17 @@ use crate::{
 };
 use region::Protection;
 
+fn handler_tester<F: FnOnce()>(f: F) {
+    crate::reset_init_flag();
+    f();
+}
+
 #[test]
+fn test_with_different_handlers() {
+    handler_tester(read_write_flag_works);
+    handler_tester(test_mprotect_pages);
+}
+
 fn read_write_flag_works() {
     unsafe fn protect(access: bool) {
         let protection = if access {
@@ -80,7 +90,6 @@ fn read_write_flag_works() {
     }
 }
 
-#[test]
 fn test_mprotect_pages() {
     use gear_core::memory::{GearPage, PageU32Size, WasmPage};
 
