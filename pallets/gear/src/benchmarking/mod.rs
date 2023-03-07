@@ -1223,6 +1223,7 @@ benchmarks! {
 
     // w_load = w_bench
     instr_i64load {
+        // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let mem_pages = code::max_pages::<T>() as u32;
         let instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
@@ -1240,6 +1241,7 @@ benchmarks! {
 
     // w_store = w_bench - w_i64const
     instr_i64store {
+        // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let mem_pages = code::max_pages::<T>() as u32;
         let instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![

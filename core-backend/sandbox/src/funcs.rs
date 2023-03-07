@@ -68,9 +68,9 @@ fn args_to_str(args: &[Value]) -> String {
 /// To see sys-calls tracing enable this feature and rebuild node.
 macro_rules! sys_trace {
     (target: $target:expr, $($arg:tt)+) => (
-        if cfg!(feature = "sys-trace") {
+        // if cfg!(feature = "sys-trace") {
             log::trace!(target: $target, $($arg)+)
-        }
+        // }
     );
 }
 
@@ -341,7 +341,7 @@ where
         let pages = args.iter().read()?;
 
         ctx.run_any(RuntimeCosts::Alloc, |ctx| {
-            // TODO: return u32::MAX in case this is error #+_+_+
+            // TODO: return u32::MAX in case this is error #2353
             let pages = WasmPage::new(pages).map_err(|_| TrapExplanation::Unknown)?;
 
             let res = ctx.ext.alloc(pages, &mut ctx.memory);
