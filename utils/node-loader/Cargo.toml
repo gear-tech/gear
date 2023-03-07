@@ -29,7 +29,7 @@ primitive-types = { version = "0.12.1", default-features = false, features = ["s
 rand = { version = "0.8.5", features = ["small_rng"] }
 reqwest = { version = "0.11.14", default-features = false }
 structopt = "0.3.26"
-thiserror = "1.0.38"
+thiserror = "1.0.39"
 tokio = { version = "1.26.0", features = [ "macros", "rt-multi-thread" ] }
 tracing = "0.1.37"
 tracing-appender = "0.2"
