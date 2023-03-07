@@ -13192,6 +13192,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmparser"
+version = "0.102.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48134de3d7598219ab9eaf6b91b15d8e50d31da76b8519fe4ecfcec2cf35104b"
+dependencies = [
+ "indexmap",
+ "url",
+]
+
+[[package]]
 name = "wasmparser-nostd"
 version = "0.83.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13208,12 +13218,12 @@ dependencies = [
 
 [[package]]
 name = "wasmprinter"
-version = "0.2.52"
+version = "0.2.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "003f2e37b9b7caac949d388e185ecd9139f51441249a23880b0cf38e10cdf647"
+checksum = "5aa44d546e4e4479f2e91035fa497c0a05cffbf22413ad05bf0b06a789b9118f"
 dependencies = [
  "anyhow",
- "wasmparser 0.101.1",
+ "wasmparser 0.102.0",
 ]
 
 [[package]]
