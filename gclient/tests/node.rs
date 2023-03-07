@@ -104,7 +104,6 @@ async fn program_migrated_to_another_node() {
 #[tokio::test]
 async fn program_migration_fails_if_program_exists() {
     const INIT_VALUE_PAYLOAD: u64 = 42;
-    const PROGRAM_FUNDS: u128 = 25_000;
 
     let src_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate source node");
     let dest_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate destination node");
