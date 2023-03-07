@@ -255,7 +255,6 @@ pub(crate) struct GasLeftCharger {
 
 impl GasLeftCharger {
     fn sub_gas(gas_left: &mut GasLeft, amount: u64) -> Status {
-        log::trace!("charge {amount} from {gas_left:?}");
         let new_gas = gas_left.gas.checked_sub(amount);
         let new_allowance = gas_left.allowance.checked_sub(amount);
         *gas_left = (
@@ -278,9 +277,7 @@ impl GasLeftCharger {
         is_write: bool,
     ) -> Result<Status, Error> {
         let for_write = |ctx: &mut RefMut<LazyPagesExecutionContext>, page| {
-            log::trace!("kek write {ctx:?}");
             if ctx.set_write_charged(page) {
-                log::trace!("pop");
                 if ctx.is_read_charged(page) {
                     self.write_after_read_cost.one()
                 } else {
@@ -292,9 +289,7 @@ impl GasLeftCharger {
         };
 
         let for_read = |ctx: &mut RefMut<LazyPagesExecutionContext>, page| {
-            log::trace!("kek read {ctx:?}");
             if ctx.set_read_charged(page) {
-                log::trace!("jop");
                 self.read_cost.one()
             } else {
                 0
@@ -308,7 +303,6 @@ impl GasLeftCharger {
             } else {
                 for_read(ctx, page)
             };
-            log::trace!("Wanna charge {amount_for_page} for page {page:?}");
             amount = amount.saturating_add(amount_for_page);
         }
 

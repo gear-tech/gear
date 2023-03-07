@@ -95,7 +95,6 @@ unsafe fn user_signal_handler_internal(
             write_after_read_cost: ctx.lazy_pages_weights.signal_write_after_read,
             load_data_cost: ctx.lazy_pages_weights.load_page_storage_data,
         };
-        log::trace!("kukarec {gas} {allowance} {gas_left_charger:?}");
         Some((GasLeft { gas, allowance }, gas_left_charger))
     } else {
         None

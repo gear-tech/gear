@@ -62,7 +62,7 @@ fn args_to_str(args: &[Value]) -> String {
     res
 }
 
-// TODO: use gear_core_backend::syscall_trace instead #+_+_+
+// TODO: use gear_core_backend::syscall_trace instead #2352
 /// We use this macros to avoid perf decrease because of log level comparing.
 /// By default `sys-trace` feature is disabled, so this macros does nothing.
 /// To see sys-calls tracing enable this feature and rebuild node.
