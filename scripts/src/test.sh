@@ -33,10 +33,6 @@ test_run_node() {
   $EXE_RUNNER "$TARGET_DIR/release/gear$EXE_EXTENSION" "$@"
 }
 
-cargo_test_gclient() {
-  RUST_TEST_THREADS=1 $CARGO test -p gclient
-}
-
 workspace_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test --workspace "$@" --no-fail-fast
@@ -104,17 +100,7 @@ pallet_test() {
 }
 
 client_tests() {
-  ROOT_DIR="$1"
-
-  if [ "$2" = "--run-node" ]; then
-    # Run node
-    RUST_LOG="pallet_gear=debug,gear::runtime=debug" test_run_node \
-      --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
-
-    cargo_test_gclient || pkill -f 'gear |gear$' -9 | pkill -f 'gear |gear$' -9
-  else
-    cargo_test_gclient test -p gclient -- --test-threads 1
-  fi
+  RUST_TEST_THREADS=1 $CARGO test -p gclient
 }
 
 validators() {

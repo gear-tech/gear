@@ -329,7 +329,7 @@ case "$COMMAND" in
 
       client)
         header "Running gclient tests"
-        client_tests "$ROOT_DIR" "$@"; ;;
+        client_tests "$@"; ;;
 
       fuzz)
         header "Running fuzzer for runtime panic checks"
