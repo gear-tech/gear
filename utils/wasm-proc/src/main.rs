@@ -41,6 +41,7 @@ const RT_ALLOWED_IMPORTS: [&str; 63] = [
     "ext_gear_ri_get_released_pages_version_1",
     "ext_gear_ri_init_lazy_pages_version_1",
     "ext_gear_ri_init_lazy_pages_for_program_version_1",
+    "ext_gear_ri_init_lazy_pages_for_program_version_2",
     "ext_gear_ri_is_lazy_pages_enabled_version_1",
     "ext_gear_ri_mprotect_lazy_pages_version_1",
     "ext_gear_ri_set_wasm_mem_begin_addr_version_1",
