@@ -32,8 +32,8 @@ pub(crate) enum WaitType {
 
 /// The set of broadly used internal parameters.
 ///
-/// These parameters have various predefined values that the program developer can
-/// override.
+/// These parameters have various predefined values that the program developer
+/// can override.
 pub struct Config {
     /// Default wait duration for `wait_up_to` messages expressed in block
     /// count.

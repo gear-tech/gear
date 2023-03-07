@@ -230,7 +230,7 @@ impl_futures!(
 );
 
 /// Async functions that relate to creating programs wait for a reply from the
-/// program's init function. These functions have the suffix` _for_reply`, such 
+/// program's init function. These functions have the suffix` _for_reply`, such
 /// as [`create_program_for_reply`] in (crate::prog::create_program_for_reply)).
 ///
 /// To get the reply payload (in bytes), one should use `.await` syntax. After

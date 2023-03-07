@@ -47,7 +47,7 @@ const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 
 /// Program (actor) identifier.
 ///
-/// Gear allows user and program interactions via messages. 
+/// Gear allows user and program interactions via messages.
 /// Source and target program as well as user are represented by
 /// 256-bit identifier `ActorId` struct. The source `ActorId` for a message
 /// being processed can be obtained using [`msg::source`](crate::msg::source)

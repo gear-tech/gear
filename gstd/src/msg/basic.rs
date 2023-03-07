@@ -319,8 +319,8 @@ pub fn load_bytes() -> Result<Vec<u8>> {
 /// Send a new message as a reply to the message that is currently being
 /// processed.
 ///
-/// Various programs can communicate with each other, e.g., check another program's
-/// state and use it as a parameter for its business logic.
+/// Various programs can communicate with each other, e.g., check another
+/// program's state and use it as a parameter for its business logic.
 ///
 /// This function allows sending such replies, which are similar to standard
 /// messages in terms of payload and different only in how the message

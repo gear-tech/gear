@@ -24,8 +24,8 @@
 /// - a string literal;
 /// - two string literals: the first is provided with panic when the program has
 ///   been compiled in release mode, and the second is provided when the program
-///   is compiled in debug mode (either with `--debug` or
-///   `--features=debug` parameters);
+///   is compiled in debug mode (either with `--debug` or `--features=debug`
+///   parameters);
 /// - a format string followed by arguments.
 ///
 /// # Examples
