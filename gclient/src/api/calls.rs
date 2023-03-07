@@ -38,7 +38,9 @@ use gsdk::{
         utility::Event as UtilityEvent,
         Event,
     },
+    Error as GsdkError,
 };
+use hex::ToHex;
 use parity_scale_codec::Encode;
 use std::{collections::BTreeMap, path::Path};
 
@@ -212,17 +214,35 @@ impl GearApi {
         src_program_id: ProgramId,
         dest_node_api: &GearApi,
     ) -> Result<ProgramId> {
-        // TODO: Ideally we have to check program is not already there (via gprog, for
-        // example). Do we want to override it? If yes, then we have to check
-        // migration is done to another node (network). How?
-        // Another solution might be that we crate a brand new ProgramId which would
-        // allow us to migrate program even withing the same node/network
+        if dest_node_api.0.api().gprog(src_program_id).await.is_ok() {
+            return Err(Error::ProgramAlreadyExists(
+                src_program_id.as_ref().encode_hex(),
+            ));
+        }
 
         let dest_program_id = src_program_id;
 
         // Collect data from the source program
-        let src_free_balance = self.free_balance(src_program_id).await?;
-        let src_reserved_balance = self.reserved_balance(src_program_id).await?;
+        let src_free_balance = self.free_balance(src_program_id).await.map_or_else(
+            |e| {
+                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    Ok(0)
+                } else {
+                    Err(e)
+                }
+            },
+            |v| Ok(v),
+        )?;
+        let src_reserved_balance = self.reserved_balance(src_program_id).await.map_or_else(
+            |e| {
+                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    Ok(0)
+                } else {
+                    Err(e)
+                }
+            },
+            |v| Ok(v),
+        )?;
 
         let src_program = self.0.api().gprog(src_program_id).await?;
 

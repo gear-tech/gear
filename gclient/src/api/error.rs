@@ -82,4 +82,7 @@ pub enum Error {
     /// Occurs when decoding hex string failed.
     #[error(transparent)]
     Hex(#[from] hex::FromHexError),
+    /// Occurs when being migrated program already exists in destination node.
+    #[error("Program {0} already exists")]
+    ProgramAlreadyExists(String),
 }

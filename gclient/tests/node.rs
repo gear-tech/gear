@@ -1,5 +1,6 @@
-use gclient::{EventProcessor, GearApi, GearApiWithNode, Node};
+use gclient::{Error, EventProcessor, GearApi, GearApiWithNode, Node};
 use gear_core::ids::ProgramId;
+use hex::ToHex;
 use parity_scale_codec::{Decode, Encode};
 
 const GEAR_PATH: &str = "../target/release/gear";
@@ -97,6 +98,74 @@ async fn program_migrated_to_another_node() {
         INIT_VALUE_PAYLOAD * MULTIPLICATOR_VALUE_PAYLOAD,
         u64::decode(&mut dest_program_reply.as_ref()).expect("Unable to decode reply payload")
     );
+}
+
+/// Running this test requires gear node to be built in advance.
+#[tokio::test]
+async fn program_migration_fails_if_program_exists() {
+    const INIT_VALUE_PAYLOAD: u64 = 42;
+    const PROGRAM_FUNDS: u128 = 25_000;
+
+    let src_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate source node");
+    let dest_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate destination node");
+
+    // Arrange
+
+    // Upload source program to source node
+    let (src_node_api, src_program_id) = upload_program_to_node(
+        &src_node,
+        demo_mul_by_const::WASM_BINARY,
+        &gclient::now_micros().to_le_bytes(),
+        Some(INIT_VALUE_PAYLOAD),
+    )
+    .await;
+
+    // Initialize destination node
+    let dest_node_api = GearApi::node(&dest_node)
+        .await
+        .expect("Unable to connect to destination node api");
+
+    // Migrate the source program onto the destination node
+    src_node_api
+        .migrate_program(src_program_id, &dest_node_api)
+        .await
+        .expect("Unable to migrate source program");
+
+    // Act: migrate the source program onto the source node
+
+    let migration_error = src_node_api
+        .migrate_program(src_program_id, &src_node_api)
+        .await
+        .expect_err("Unexpected migration result");
+
+    // Assert
+
+    if let Error::ProgramAlreadyExists(existing_program_id) = migration_error {
+        assert_eq!(
+            src_program_id.as_ref().encode_hex::<String>(),
+            existing_program_id
+        );
+    } else {
+        unreachable!("Unexpected migration error: {:?}", migration_error)
+    }
+
+    // Act: migrate the source program onto the destination node second time
+
+    let migration_error = src_node_api
+        .migrate_program(src_program_id, &dest_node_api)
+        .await
+        .expect_err("Unexpected migration result");
+
+    // Assert
+
+    if let Error::ProgramAlreadyExists(existing_program_id) = migration_error {
+        assert_eq!(
+            src_program_id.as_ref().encode_hex::<String>(),
+            existing_program_id
+        );
+    } else {
+        unreachable!("Unexpected migration error: {:?}", migration_error)
+    }
 }
 
 async fn upload_program_to_node<'a, E>(
