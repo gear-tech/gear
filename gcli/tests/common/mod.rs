@@ -21,7 +21,7 @@ pub use self::{
     node::Node,
     result::{Error, Result},
 };
-use blake2_rfc::blake2b;
+use gear_core::ids::{CodeId, ProgramId};
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 use std::process::{Command, Output};
 
@@ -39,16 +39,6 @@ pub fn gear(args: &[&str]) -> Result<Output> {
     Ok(Command::new(env::bin("gcli")).args(args).output()?)
 }
 
-/// Creates a unique identifier by passing given argument to blake2b hash-function.
-pub fn hash(argument: &[u8]) -> [u8; 32] {
-    let mut arr: [u8; 32] = Default::default();
-
-    let blake2b_hash = blake2b::blake2b(32, &[], argument);
-    arr[..].copy_from_slice(blake2b_hash.as_bytes());
-
-    arr
-}
-
 /// Init env logger
 #[allow(dead_code)]
 pub fn init_logger() {
@@ -63,15 +53,8 @@ pub fn login_as_alice() -> Result<()> {
 }
 
 /// Generate program id from code id and salt
-pub fn program_id(bin: &[u8], salt: &[u8]) -> [u8; 32] {
-    let code_id = hash(bin);
-    let len = code_id.len() + salt.len();
-
-    let mut argument = Vec::with_capacity(len);
-    argument.extend_from_slice(&code_id);
-    argument.extend_from_slice(salt);
-
-    hash(&argument)
+pub fn program_id(bin: &[u8], salt: &[u8]) -> ProgramId {
+    ProgramId::generate(CodeId::generate(bin), salt)
 }
 
 /// AccountId32 of `addr`

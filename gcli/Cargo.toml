@@ -18,7 +18,6 @@ name = "gcli"
 [dependencies]
 gsdk = { path = "../gsdk" }
 anyhow = "1.0.69"
-blake2-rfc = "0.2.18"
 base64 = "0.21.0"
 color-eyre = "0.6.2"
 dirs = "4.0.0"
