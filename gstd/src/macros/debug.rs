@@ -18,7 +18,7 @@
 
 /// Add a debug message to the log.
 ///
-/// Note that debug messages are available only if the program has been compiled
+/// Note that debug messages are available only if the program is compiled
 /// in debug mode.
 ///
 /// ```shell

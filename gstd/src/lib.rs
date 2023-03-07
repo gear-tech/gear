@@ -21,8 +21,8 @@
 //! This library should be used as a standard library when writing Gear
 //! programs. Compared to [`gcore`](https://docs.gear.rs/gcore/) crate,
 //! this library provides higher-level primitives that allow you to develop more
-//! complex dApps. Choose it if you are ready to spend a little bit more gas but
-//! get a nicer and tidier code.
+//! complex dApps. Choose this library if you are ready to spend more gas but
+//! receive refined code.
 //!
 //! `gstd` crate provides many advanced tools for a developer, such as
 //! asynchronous programming primitives, arbitrary types encoding/decoding,

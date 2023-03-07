@@ -252,9 +252,9 @@ impl<'a, T> AsMut<T> for RwLockWriteGuard<'a, T> {
 /// using `await` syntax.
 ///
 /// # Examples
-///
-/// In the following example, variable types are annotated explicitly for
-/// demonstration purposes only. Usually, annotating them is unnecessary because
+/// 
+/// The following example explicitly annotates variable types for demonstration
+/// purposes only. Usually, annotating types is unnecessary since
 /// they can be inferred automatically.
 ///
 /// ```

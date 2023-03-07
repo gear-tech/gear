@@ -19,8 +19,8 @@
 //! Functions and helpers for creating programs from programs.
 //!
 //! Any program being an actor, can not only process incoming messages and send
-//! outcoming messages to other actors but even create new actors. This feature
-//! can be useful if there is a need to implement the factory pattern when one
+//! outcoming messages to other actors but also create new actors. This feature
+//! can be useful when implementing the factory pattern, as a single
 //! actor can produce multiple derived actors with different input data.
 //!
 //! Firstly you need to upload a Wasm code of the future program(s) by calling

@@ -20,8 +20,8 @@
 //!
 //! Unlike `gstd`, `gcore::general` provides some minimal implementation for
 //! `ActorId` and `MessageId` structs with public access to their internals. It
-//! can be used provided that you understand how it works and take security
-//! considerations into account.
+//! is usable provided that you understand how it works and
+//! consider security factors.
 //!
 //! `gstd::primitives` declares its own `ActorId` and `MessageId` structures
 //! with more extensive methods for access to their internals (no public
@@ -47,8 +47,8 @@ const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 
 /// Program (actor) identifier.
 ///
-/// Gear allows users and programs to interact with other users and programs via
-/// messages. Source and target program as well as user are represented by
+/// Gear allows user and program interactions via messages. 
+/// Source and target program as well as user are represented by
 /// 256-bit identifier `ActorId` struct. The source `ActorId` for a message
 /// being processed can be obtained using [`msg::source`](crate::msg::source)
 /// function. Also, each send function has a target `ActorId` as one of the
@@ -162,8 +162,8 @@ impl TryFrom<&[u8]> for ActorId {
 
 /// Message identifier.
 ///
-/// Gear allows users and programs to interact with other users and programs via
-/// messages. Each message has its own unique 256-bit id. This id is represented
+/// Gear allows users and program interactions via messages.
+/// Each message has its own unique 256-bit id. This id is represented
 /// via the `MessageId` struct. The message identifier can be obtained for the
 /// currently processed message using the [`msg::id`](crate::msg::id) function.
 /// Also, each send and reply functions return a message identifier.
@@ -304,7 +304,7 @@ impl TryFrom<&[u8]> for CodeId {
 
 /// Reservation identifier.
 ///
-/// The identifier is used to reserve and unreserve some gas amount to be used
+/// The identifier is used to reserve and unreserve gas amount
 /// for program execution later.
 ///
 /// # Examples

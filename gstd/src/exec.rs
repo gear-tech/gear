@@ -20,7 +20,7 @@
 //! execution flow.
 //!
 //! Wraps methods from [`gcore::exec`](https://docs.gear.rs/gcore/exec/)
-//! for getting some details about the current execution and controlling it.
+//! for receiving details about the current execution and controlling it.
 
 use crate::{common::errors::Result, ActorId, MessageId};
 pub use gcore::exec::{
@@ -57,7 +57,7 @@ pub fn exit(inheritor_id: ActorId) -> ! {
 
 /// Resume previously paused message handling.
 ///
-/// Suppose a message has been paused using the [`wait`] function. In that case,
+/// Suppose a message has been paused using the [`wait`] function,
 /// it is possible to continue its execution by calling this function.
 ///
 /// `message_id` specifies a particular message to be taken out of the *waiting
@@ -107,7 +107,7 @@ pub fn program_id() -> ActorId {
 }
 
 /// Return the identifier of the original user who initiated communication with
-/// the blockchain, during which the currently processing message was created.
+/// the blockchain, during which the present processing message was created.
 ///
 /// # Examples
 ///

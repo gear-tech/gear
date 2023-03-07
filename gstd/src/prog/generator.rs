@@ -28,7 +28,7 @@ use crate::{
 use codec::{alloc::vec::Vec, Decode};
 use gstd_codegen::wait_create_program_for_reply;
 
-/// Helper to create programs without the need to set the salt manually.
+/// Helper to create programs without setting the salt manually.
 pub struct ProgramGenerator(u64);
 
 // The only existing instance since there is no public ways to construct it.
@@ -73,7 +73,7 @@ impl ProgramGenerator {
     ///
     /// The first argument is the code identifier (see [`CodeId`] for details).
     /// The second and third arguments are the initialization message's payload
-    /// and value to be transferred to the newly created program.
+    /// and the value to be transferred to the new program.
     ///
     /// # Examples
     ///

@@ -28,12 +28,12 @@ use gstd_codegen::wait_for_reply;
 
 /// Message handle.
 ///
-/// Gear allows users and programs to interact with other users and programs via
+/// Gear allows users and program interaction via
 /// messages. Message creation consists of the following parts: message
 /// initialization, filling the message with payload (can be gradual), and
 /// message sending.
 ///
-/// Here are the functions that make up the parts of forming and sending
+/// /// Here are the functions that constitute the parts of forming and sending
 /// messages:
 ///
 /// - [`MessageHandle::init`] initializes the message
@@ -85,8 +85,8 @@ impl MessageHandle {
     /// Same as [`push`](Self::push) but uses the input buffer as a payload
     /// source.
     ///
-    /// The argument of this method is the index range that defines the input
-    /// buffer's piece that is to be pushed back to the output.
+    /// The argument of this method is the index range defining the input
+    /// buffer's piece to be pushed back to the output.
     ///
     /// # Examples
     ///
@@ -173,8 +173,8 @@ impl MessageHandle {
             .into_contract_result()
     }
 
-    /// Same as [`commit`](Self::commit), but it spends gas from
-    /// reservation instead of borrowing it from the gas limit provided with the
+    /// Same as [`commit`](Self::commit), but it spends gas from the
+    /// reservation instead of borrowing from the gas limit provided with the
     /// incoming message.
     ///
     /// # Examples
@@ -319,7 +319,7 @@ pub fn load_bytes() -> Result<Vec<u8>> {
 /// Send a new message as a reply to the message that is currently being
 /// processed.
 ///
-/// Some programs can reply to other programs, e.g., check another program's
+/// Various programs can communicate with each other, e.g., check another program's
 /// state and use it as a parameter for its business logic.
 ///
 /// This function allows sending such replies, which are similar to standard
@@ -330,7 +330,7 @@ pub fn load_bytes() -> Result<Vec<u8>> {
 /// to be transferred from the current program account to the reply message
 /// target account.
 ///
-/// Reply message transactions will be posted after processing is finished,
+/// Reply message transactions will be posted after processing is complete,
 /// similar to the standard message-sending function (e.g. [`send_bytes`]).
 ///
 /// # Examples
@@ -623,8 +623,8 @@ pub fn signal_from() -> Result<MessageId> {
 
 /// Same as [`reply_push`] but uses the input buffer as a payload source.
 ///
-/// The argument of this method is the index range that defines the input
-/// buffer's piece that is to be pushed back to the output.
+/// The argument of this method is the index range defining the input
+/// buffer's piece to be pushed back to the output.
 ///
 /// # Examples
 ///
@@ -853,8 +853,8 @@ pub fn source() -> ActorId {
 
 /// Get the value associated with the message that is being processed.
 ///
-/// This function returns the value that has been sent along with a current
-/// message that is being processed.
+/// This function returns the value sent along with a current
+/// message being processed.
 ///
 /// # Examples
 ///

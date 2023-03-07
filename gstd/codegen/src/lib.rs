@@ -197,7 +197,7 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 ///
 /// Can be used together with [`macro@async_init`].
 ///
-/// The `handle` function cannot be specified if this macro is used.
+/// When this macro is used, it’s not possible to specify the `handle` function.
 /// If you need to specify the `handle` function explicitly, don't use this macro.
 ///
 /// # Examples
@@ -432,8 +432,8 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     .into()
 }
 
-/// Same as `wait_for_reply`, but works with functions, that create programs:
-/// returns message id with newly created program id.
+/// Similar to `wait_for_reply`, but works with functions that create programs:
+/// It returns a message id with a newly created program id.
 #[proc_macro_attribute]
 pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);

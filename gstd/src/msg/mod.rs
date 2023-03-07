@@ -18,7 +18,7 @@
 
 //! Messaging API for Gear programs.
 //!
-//! This module contains an API to process incoming messages and send outcoming
+//! This module contains an API to process incoming messages and send outgoing
 //! ones. Messages are the primary communication interface between actors (users
 //! and programs).
 //!

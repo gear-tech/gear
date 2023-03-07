@@ -62,7 +62,7 @@ pub fn load<D: Decode>() -> Result<D> {
     D::decode(&mut super::load_bytes()?.as_ref()).map_err(ContractError::Decode)
 }
 
-/// Send a new message as a reply to the message that is currently being
+/// Send a new message as a reply to the message being
 /// processed.
 ///
 /// Some programs can reply to other programs, e.g., check another program's
@@ -121,7 +121,7 @@ pub fn reply_delayed<E: Encode>(payload: E, value: u128, delay: u32) -> Result<M
 }
 
 /// Same as [`reply`], but it spends gas from a reservation instead of
-/// borrowing it from the gas limit provided with the incoming message.
+/// borrowing gas from the gas limit provided with the incoming message.
 ///
 /// The first argument is the reservation identifier [`ReservationId`] obtained
 /// by calling the corresponding API. The second argument is the encodable

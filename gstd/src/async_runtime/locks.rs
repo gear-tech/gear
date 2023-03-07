@@ -87,7 +87,7 @@ impl Lock {
         }
     }
 
-    /// Get deadline of the current lock.
+    /// Gets the deadline of the current lock.
     pub fn deadline(&self) -> u32 {
         match &self.ty {
             LockType::WaitFor(d) | LockType::WaitUpTo(d) => self.at.saturating_add(*d),
@@ -154,8 +154,8 @@ impl LocksMap {
 
         // For `deadline <= now`, we are checking them in `crate::msg::async::poll`.
         //
-        // Locks with `deadline < now`, they should already been removed since
-        // the node will trigger timeout when locks reaching their deadline.
+        // Locks with `deadline < now` should’ve been removed since
+        // the node will trigger timeout when the locks reach their deadline.
         //
         // Locks with `deadline == now`, they will be removed in the following
         // pollings.
@@ -174,7 +174,7 @@ impl LocksMap {
         locks.insert(waiting_reply_to, lock);
     }
 
-    /// Remove lock of message.
+    /// Remove message lock.
     pub fn remove(&mut self, message_id: MessageId, waiting_reply_to: MessageId) {
         let locks = self.0.entry(message_id).or_insert_with(Default::default);
         locks.remove(&waiting_reply_to);

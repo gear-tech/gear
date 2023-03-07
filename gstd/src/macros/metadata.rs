@@ -18,7 +18,7 @@
 
 /// Provide information about input and output types as the metadata.
 ///
-/// Metadata can be used as a message payload description for external tools and applications that interact with Gear programs in the network. For example, it is used in <https://idea.gear-tech.io> to correctly form a message payload from JSON on the JS application side.
+/// Metadata can be used as a message payload description for external tools and applications that interact with Gear programs in the network. For example, in <https://idea.gear-tech.io>, it correctly forms a message payload from JSON on the JS application side.
 ///
 /// This macro contains `input` and `output` message types for `init`, `handle`,
 /// and `async` functions. It also contains the `state` output type used when

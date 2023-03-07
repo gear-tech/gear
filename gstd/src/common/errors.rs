@@ -18,7 +18,7 @@
 
 //! Type definitions and helpers for error handling.
 //!
-//! Enumerates errors that can occur in smart-contracts `ContractError`.
+//! Enumerates possible errors in smart contracts `ContractError`.
 //! Errors related to conversion, decoding, message status code, other internal
 //! errors.
 

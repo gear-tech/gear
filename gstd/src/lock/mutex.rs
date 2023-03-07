@@ -34,7 +34,7 @@ use super::access::AccessQueue;
 /// Each mutex has a type parameter which represents the data that it is
 /// protecting. The data can only be accessed through the RAII guard
 /// [`MutexGuard`] returned from [`lock`](Mutex::lock),
-/// which guarantees that the data is only ever accessed when the mutex is
+/// which guarantees that data access only occurs when the mutex is
 /// locked.
 ///
 /// # Examples
@@ -94,10 +94,10 @@ impl<T> Mutex<T> {
         }
     }
 
-    /// Acquire a mutex, protecting the subsequent code from executing by other
+    /// Acquire a mutex, protecting the subsequent code from execution by other
     /// actors until the mutex hasn't been unlocked.
     ///
-    /// This function will block the section of code from being accessed by
+    /// This function will block access to the section of code by
     /// other programs or users that invoke the same program. If another
     /// actor reaches the code blocked by the mutex, it goes to the wait
     /// state until the mutex unlocks. RAII guard wrapped in the future is
@@ -111,7 +111,7 @@ impl<T> Mutex<T> {
 /// An RAII implementation of a "scoped lock" of a mutex. When this structure is
 /// dropped (falls out of scope), the lock will be unlocked.
 ///
-/// The data protected by the mutex can be accessed through this guard via its
+/// The data protected by the mutex is accessible through this guard via its
 /// [`Deref`] and [`DerefMut`] implementations.
 ///
 /// This structure wrapped in the future is returned by the

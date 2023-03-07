@@ -22,8 +22,8 @@
 //!
 //! The following is an overview of the available synchronization objects:
 //!
-//! - [`Mutex`](self::Mutex): Mutual Exclusion mechanism, which ensures that at
-//!   most one actor at the execution can access some data.
+//! - [`Mutex`](self::Mutex): The Mutual Exclusion mechanism guarantees that 
+//!   during execution, only a single actor can access data at any given time.
 //! - [`RwLock`](self::RwLock): Provides a mutual exclusion mechanism that
 //!   allows multiple readings by different actors while allowing only one
 //!   writer at the execution. In some cases, this can be more efficient than a
