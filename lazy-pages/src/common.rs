@@ -258,7 +258,11 @@ impl GasLeftCharger {
         log::trace!("charge {amount} from {gas_left:?}");
         let new_gas = gas_left.gas.checked_sub(amount);
         let new_allowance = gas_left.allowance.checked_sub(amount);
-        *gas_left = (new_gas.unwrap_or_default(), new_allowance.unwrap_or_default()).into();
+        *gas_left = (
+            new_gas.unwrap_or_default(),
+            new_allowance.unwrap_or_default(),
+        )
+            .into();
         match (new_gas, new_allowance) {
             (None, _) => Status::GasLimitExceeded,
             (Some(_), None) => Status::GasAllowanceExceeded,

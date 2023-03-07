@@ -80,7 +80,8 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
         ctx: &mut RefMut<LazyPagesExecutionContext>,
         page: GranularityPage,
     ) -> Result<Status, Error> {
-        self.gas_left_charger.charge_for_page_data_load(self.gas_left, ctx, page)
+        self.gas_left_charger
+            .charge_for_page_data_load(self.gas_left, ctx, page)
     }
 
     fn last_page(pages: &Self::Pages) -> Option<LazyPage> {

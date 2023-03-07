@@ -130,6 +130,7 @@ pub trait GearRI {
 
     /// Init lazy pages context for current program.
     /// Panic if some goes wrong during initialization.
+    #[version(2)]
     fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
         let wasm_mem_addr = ctx.wasm_mem_addr.map(|addr| {
             usize::try_from(addr)
@@ -179,4 +180,45 @@ pub trait GearRI {
     }
 
     // Bellow goes deprecated runtime interface functions.
+
+    fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
+        let mut ctx = ctx;
+
+        // Deprecated runtimes suppose to give for lazy-pages per GearPage costs,
+        // so it's necessary to multiply it by 4 to make per GranularityPage.
+        let ws = [
+            ctx.lazy_pages_weights.signal_read,
+            ctx.lazy_pages_weights.signal_write,
+            ctx.lazy_pages_weights.signal_write_after_read,
+        ]
+        .map(<u64>::from)
+        .map(|w| w * 4)
+        .map(Into::into);
+        ctx.lazy_pages_weights = LazyPagesWeights {
+            signal_read: ws[0],
+            signal_write: ws[1],
+            signal_write_after_read: ws[2],
+            // We do not charge for host_func and data loading in old runtimes.
+            host_func_read: 0.into(),
+            host_func_write: 0.into(),
+            host_func_write_after_read: 0.into(),
+            load_page_storage_data: 0.into(),
+        };
+
+        let wasm_mem_addr = ctx.wasm_mem_addr.map(|addr| {
+            usize::try_from(addr)
+                .unwrap_or_else(|err| unreachable!("Cannot cast wasm mem addr to `usize`: {}", err))
+        });
+
+        lazy_pages::initialize_for_program(
+            wasm_mem_addr,
+            ctx.wasm_mem_size,
+            ctx.stack_end,
+            ctx.program_id,
+            Some(ctx.globals_config),
+            ctx.lazy_pages_weights,
+        )
+        .map_err(|e| e.to_string())
+        .expect("Cannot initialize lazy pages for current program");
+    }
 }

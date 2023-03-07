@@ -27,7 +27,7 @@ use gear_core::{
 };
 
 use crate::{
-    common::{Error, LazyPage, LazyPagesExecutionContext, GasLeftCharger},
+    common::{Error, GasLeftCharger, LazyPage, LazyPagesExecutionContext},
     globals::{self, GearGlobal},
     process::{self, AccessHandler},
     utils, LAZY_PAGES_PROGRAM_CONTEXT,

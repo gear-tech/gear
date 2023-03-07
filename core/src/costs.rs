@@ -39,14 +39,17 @@ impl<P: PageU32Size> CostPerPage<P> {
             _phantom: PhantomData,
         }
     }
+
     /// Calculate cost for `pages`.
     pub fn calc(&self, pages: P) -> u64 {
         self.cost.saturating_mul(pages.raw() as u64)
     }
+
     /// Cost for one page.
     pub fn one(&self) -> u64 {
         self.cost
     }
+
     /// Returns another [CostPerPage] with increased `cost` to `other.cost`.
     pub fn saturating_add(&self, other: Self) -> Self {
         self.cost.saturating_add(other.cost).into()

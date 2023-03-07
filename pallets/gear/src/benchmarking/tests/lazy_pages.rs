@@ -140,7 +140,9 @@ impl<P: PageU32Size> PageSets<P> {
             .calc(signal_write_after_read_amount);
         let syscall_read_charged = costs.host_func_read.calc(syscall_read_amount);
         let syscall_write_charged = costs.host_func_write.calc(syscall_write_amount);
-        let syscall_write_after_read_charged = costs.host_func_write_after_read.calc(syscall_write_after_read_amount);
+        let syscall_write_after_read_charged = costs
+            .host_func_write_after_read
+            .calc(syscall_write_after_read_amount);
 
         let charged_for_data_load = costs.load_page_storage_data.calc(self.loaded_pages_count());
 
