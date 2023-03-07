@@ -223,26 +223,20 @@ impl GearApi {
         let dest_program_id = src_program_id;
 
         // Collect data from the source program
-        let src_free_balance = self.free_balance(src_program_id).await.map_or_else(
-            |e| {
-                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
-                    Ok(0)
-                } else {
-                    Err(e)
-                }
-            },
-            |v| Ok(v),
-        )?;
-        let src_reserved_balance = self.reserved_balance(src_program_id).await.map_or_else(
-            |e| {
-                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
-                    Ok(0)
-                } else {
-                    Err(e)
-                }
-            },
-            |v| Ok(v),
-        )?;
+        let src_free_balance = self.free_balance(src_program_id).await.or_else(|e| {
+            if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                Ok(0)
+            } else {
+                Err(e)
+            }
+        })?;
+        let src_reserved_balance = self.reserved_balance(src_program_id).await.or_else(|e| {
+            if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                Ok(0)
+            } else {
+                Err(e)
+            }
+        })?;
 
         let src_program = self.0.api().gprog(src_program_id).await?;
 
