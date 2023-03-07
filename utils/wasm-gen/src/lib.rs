@@ -141,6 +141,7 @@ pub struct GearConfig {
     pub max_percentage_seed: u32,
     pub unchecked_memory_access: Ratio,
     pub use_message_source: Ratio,
+    pub call_indirect_enabled: bool,
 }
 
 impl GearConfig {
@@ -163,6 +164,7 @@ impl GearConfig {
             max_percentage_seed: 100,
             unchecked_memory_access: prob,
             use_message_source: (50, 100).into(),
+            call_indirect_enabled: true,
         }
     }
     pub fn new_for_rare_cases() -> Self {
@@ -184,6 +186,7 @@ impl GearConfig {
             max_percentage_seed: 5,
             unchecked_memory_access: prob,
             use_message_source: prob,
+            call_indirect_enabled: true,
         }
     }
     pub fn new_valid() -> Self {
@@ -206,6 +209,7 @@ impl GearConfig {
             max_percentage_seed: 100,
             unchecked_memory_access: zero_prob,
             use_message_source: zero_prob,
+            call_indirect_enabled: true,
         }
     }
 }
@@ -257,6 +261,7 @@ pub fn default_swarm_config(u: &mut Unstructured, gear_config: &GearConfig) -> S
     cfg.allow_start_export = false;
     cfg.multi_value_enabled = false;
     cfg.memory_grow_enabled = false;
+    cfg.call_indirect_enabled = gear_config.call_indirect_enabled;
 
     cfg.max_memories = 1;
     cfg.max_tables = 1;
