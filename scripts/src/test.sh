@@ -34,11 +34,7 @@ test_run_node() {
 }
 
 cargo_test_gclient() {
-  if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test -p gclient -- -- --test-threads 1 
-  else
-    cargo test -p gclient -- --test-threads 1
-  fi
+  RUST_TEST_THREADS=1 $CARGO test -p gclient
 }
 
 workspace_test() {
