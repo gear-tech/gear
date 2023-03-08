@@ -86,7 +86,6 @@ impl WasmBuilder {
         self.wasm_project.generate()?;
         self.cargo
             .set_manifest_path(self.wasm_project.manifest_path());
-        self.cargo.set_target_dir(self.wasm_project.target_dir());
 
         let profile = self.wasm_project.profile();
         let profile = if profile == "debug" { "dev" } else { profile };

@@ -56,7 +56,6 @@ pub struct WasmProject {
     original_dir: PathBuf,
     out_dir: PathBuf,
     target_dir: PathBuf,
-    wasm_target_dir: PathBuf,
     file_base_name: Option<String>,
     profile: String,
     project_type: ProjectType,
@@ -94,18 +93,13 @@ impl WasmProject {
             }
         }
 
-        let mut wasm_target_dir = target_dir.clone();
-        wasm_target_dir.push("wasm32-unknown-unknown");
-        wasm_target_dir.push(&profile);
-
-        target_dir.push("wasm-projects");
+        target_dir.push("wasm32-unknown-unknown");
         target_dir.push(&profile);
 
         WasmProject {
             original_dir,
             out_dir,
             target_dir,
-            wasm_target_dir,
             file_base_name: None,
             profile,
             project_type,
@@ -115,11 +109,6 @@ impl WasmProject {
     /// Return the path to the temporary generated `Cargo.toml`.
     pub fn manifest_path(&self) -> PathBuf {
         self.out_dir.join("Cargo.toml")
-    }
-
-    /// Return the path to the target directory.
-    pub fn target_dir(&self) -> PathBuf {
-        self.target_dir.clone()
     }
 
     /// Return the profile name based on the `OUT_DIR` path.
@@ -224,15 +213,14 @@ impl WasmProject {
             .expect("Run `WasmProject::create_project()` first");
 
         let from_path = self
-            .target_dir
-            .join(format!("wasm32-unknown-unknown/{}", self.profile))
+            .out_dir
+            .join(format!("target/wasm32-unknown-unknown/{}", self.profile))
             .join(format!("{}.wasm", &file_base_name));
 
         fs::create_dir_all(&self.target_dir)?;
-        fs::create_dir_all(&self.wasm_target_dir)?;
 
         let [to_path, to_opt_path, to_meta_path] = [".wasm", ".opt.wasm", ".meta.wasm"]
-            .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
+            .map(|ext| self.target_dir.join([file_base_name, ext].concat()));
 
         // Optimize source.
         if !self.project_type.is_metawasm() {
