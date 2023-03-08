@@ -4076,6 +4076,7 @@ version = "0.1.2"
 dependencies = [
  "anyhow",
  "cargo_metadata 0.15.3",
+ "colored",
  "gear-wasm-instrument",
  "gmeta",
  "log",
@@ -4083,7 +4084,6 @@ dependencies = [
  "pwasm-utils",
  "thiserror",
  "toml 0.7.2",
- "wasm-opt",
  "which",
 ]
 
