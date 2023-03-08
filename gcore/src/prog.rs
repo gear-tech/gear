@@ -27,7 +27,7 @@
 //! message that consists at least from a payload and value.
 
 use crate::{
-    error::{Result, SyscallError},
+    errors::{Result, SyscallError},
     ActorId, CodeId, MessageId,
 };
 use gear_core_errors::ExtError;

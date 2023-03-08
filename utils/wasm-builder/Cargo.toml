@@ -13,13 +13,13 @@ anyhow = "1.0.69"
 cargo_metadata = "0.15.3"
 pwasm-utils = "0.19.0"
 toml = "0.7.2"
-thiserror = "1.0.38"
+thiserror = "1.0.39"
 log = "0.4.17"
 pathdiff = { version = "0.2.1", default-features = false }
 which = "4.4.0"
-colored = "2.0.0"
 gmeta = { path = "../../gmeta", default-features = false }
 gear-wasm-instrument = { path = "../wasm-instrument", default-features = false }
+wasm-opt = "0.111.0"
 
 [features]
 metawasm = ["gmeta/codegen"]

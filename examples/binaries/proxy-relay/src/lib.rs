@@ -51,7 +51,10 @@ pub enum RelayCall {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::*;
-    use gstd::{msg, ToString};
+    use gstd::{
+        msg::{self, MessageHandle},
+        ToString,
+    };
 
     static mut RELAY_CALL: Option<RelayCall> = None;
 
@@ -63,7 +66,7 @@ mod wasm {
 
     fn resend_push(resend_pushes: &[ResendPushData]) {
         for data in resend_pushes {
-            let msg_handle = msg::send_init().expect("Failed to obtain new message handle");
+            let msg_handle = MessageHandle::init().expect("Failed to obtain new message handle");
 
             let ResendPushData {
                 destination,
@@ -75,29 +78,31 @@ mod wasm {
             match start.map(|s| s as usize) {
                 Some(s) => match end {
                     None => {
-                        msg::send_push_input(msg_handle, s..).expect("Push failed");
+                        msg_handle.push_input(s..).expect("Push failed");
                     }
                     Some((e, included @ true)) => {
-                        msg::send_push_input(msg_handle, s..=e).expect("Push failed");
+                        msg_handle.push_input(s..=e).expect("Push failed");
                     }
                     Some((e, _)) => {
-                        msg::send_push_input(msg_handle, s..e).expect("Push failed");
+                        msg_handle.push_input(s..e).expect("Push failed");
                     }
                 },
                 None => match end {
                     None => {
-                        msg::send_push_input(msg_handle, ..).expect("Push failed");
+                        msg_handle.push_input(..).expect("Push failed");
                     }
                     Some((e, included @ true)) => {
-                        msg::send_push_input(msg_handle, ..=e).expect("Push failed");
+                        msg_handle.push_input(..=e).expect("Push failed");
                     }
                     Some((e, _)) => {
-                        msg::send_push_input(msg_handle, ..e).expect("Push failed");
+                        msg_handle.push_input(..e).expect("Push failed");
                     }
                 },
             }
 
-            msg::send_commit(msg_handle, *destination, msg::value()).expect("Commit failed");
+            msg_handle
+                .commit(*destination, msg::value())
+                .expect("Commit failed");
         }
     }
 

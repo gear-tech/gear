@@ -24,7 +24,7 @@
 /// Message handle.
 ///
 /// Gear allows users and programs to interact with other users and programs via
-/// messages. Message creation consists of the following parts - message
+/// messages. Message creation consists of the following parts: message
 /// initialization, filling the message with payload (can be gradual), and
 /// message sending.
 ///

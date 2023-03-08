@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::common::{self, logs, Result};
+use gear_core::ids::CodeId;
 use gsdk::Api;
 use parity_scale_codec::Encode;
 
@@ -53,13 +54,13 @@ async fn test_calculate_create_gas() -> Result<()> {
     signer.upload_code(messager::WASM_BINARY.to_vec()).await?;
 
     // 2. calculate create gas and create program.
-    let code_id = common::hash(messager::WASM_BINARY);
+    let code_id = CodeId::generate(messager::WASM_BINARY);
     let gas_info = signer
-        .calculate_create_gas(None, code_id.into(), vec![], 0, true, None)
+        .calculate_create_gas(None, code_id, vec![], 0, true, None)
         .await?;
 
     signer
-        .create_program(code_id.into(), vec![], vec![], gas_info.min_limit, 0)
+        .create_program(code_id, vec![], vec![], gas_info.min_limit, 0)
         .await
         .unwrap();
 
@@ -87,15 +88,15 @@ async fn test_calculate_handle_gas() -> Result<()> {
         )
         .await?;
 
-    assert!(signer.api().gprog(pid.into()).await.is_ok());
+    assert!(signer.api().gprog(pid).await.is_ok());
 
     // 2. calculate handle gas and send message.
     let gas_info = signer
-        .calculate_handle_gas(None, pid.into(), vec![], 0, true, None)
+        .calculate_handle_gas(None, pid, vec![], 0, true, None)
         .await?;
 
     signer
-        .send_message(pid.into(), vec![], gas_info.min_limit, 0)
+        .send_message(pid, vec![], gas_info.min_limit, 0)
         .await?;
 
     Ok(())
@@ -124,11 +125,11 @@ async fn test_calculate_reply_gas() -> Result<()> {
         )
         .await?;
 
-    assert!(signer.api().gprog(pid.into()).await.is_ok());
+    assert!(signer.api().gprog(pid).await.is_ok());
 
     // 2. send wait message.
     signer
-        .send_message(pid.into(), payload.encode(), 100_000_000_000, 0)
+        .send_message(pid, payload.encode(), 100_000_000_000, 0)
         .await?;
 
     let mailbox = signer.api().mailbox(alice_account_id, 10).await?;

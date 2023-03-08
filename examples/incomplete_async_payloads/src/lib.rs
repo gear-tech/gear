@@ -1,7 +1,12 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{debug, msg, prelude::*, ActorId};
+use gstd::{
+    debug,
+    msg::{self, MessageHandle},
+    prelude::*,
+    ActorId,
+};
 
 static mut DEMO_PING: ActorId = ActorId::zero();
 
@@ -14,7 +19,7 @@ async fn main() {
         "handle store" => {
             debug!("stored common processing");
 
-            let handle = msg::send_init().unwrap();
+            let handle = MessageHandle::init().unwrap();
             handle.push(b"STORED ").unwrap();
 
             let _ = msg::send_bytes_for_reply(unsafe { DEMO_PING }, b"PING", 0)
@@ -46,7 +51,7 @@ async fn main() {
         }
         "handle" => {
             debug!("ok common processing");
-            let handle = msg::send_init().unwrap();
+            let handle = MessageHandle::init().unwrap();
             handle.push(b"OK PING").unwrap();
             handle.commit(msg::source(), 0).unwrap();
         }
