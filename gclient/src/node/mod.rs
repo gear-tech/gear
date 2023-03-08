@@ -69,7 +69,7 @@ impl Node {
     }
 
     fn wait_while_initialized(&mut self) -> Result<String> {
-        self.wait_for_log_record("Imported #1 ")
+        self.wait_for_log_record("Imported #2 ")
     }
 
     fn wait_for_log_record(&mut self, log: &str) -> Result<String> {
