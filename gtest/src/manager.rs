@@ -288,17 +288,17 @@ impl ExtManager {
     }
 
     /// Insert message into the delayed queue.
-    pub(crate) fn send_delayed_dispatch(&mut self, dispatch: Dispatch, delay: u32) {
+    pub(crate) fn send_delayed_dispatch(&mut self, dispatch: Dispatch, bn: u32) {
         self.delayed_dispatches
-            .entry(delay)
+            .entry(bn)
             .or_default()
             .push(dispatch)
     }
 
     /// Process all delayed dispatches.
-    pub(crate) fn process_delayed_dispatches(&mut self, delay: u32) -> Vec<RunResult> {
+    pub(crate) fn process_delayed_dispatches(&mut self, bn: u32) -> Vec<RunResult> {
         self.delayed_dispatches
-            .remove(&delay)
+            .remove(&bn)
             .map(|dispatches| {
                 dispatches
                     .into_iter()
@@ -833,11 +833,11 @@ impl JournalHandler for ExtManager {
         &mut self,
         _message_id: MessageId,
         dispatch: Dispatch,
-        delay: u32,
+        bn: u32,
         _reservation: Option<ReservationId>,
     ) {
-        if delay > 0 {
-            self.send_delayed_dispatch(dispatch, delay);
+        if bn > 0 {
+            self.send_delayed_dispatch(dispatch, self.block_info.height.saturating_add(bn));
             return;
         }
 
