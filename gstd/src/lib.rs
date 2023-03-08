@@ -31,6 +31,8 @@
 #[cfg(target_arch = "wasm32")]
 extern crate galloc;
 
+extern crate alloc;
+
 mod async_runtime;
 mod common;
 mod config;

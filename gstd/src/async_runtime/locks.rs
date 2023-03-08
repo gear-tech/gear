@@ -20,10 +20,9 @@
 use crate::{
     config::WaitType,
     errors::{ContractError, Result},
-    exec,
-    prelude::Vec,
-    Config, MessageId,
+    exec, Config, MessageId,
 };
+use alloc::collections::BTreeMap;
 use core::cmp::Ordering;
 use hashbrown::HashMap;
 
@@ -137,7 +136,7 @@ impl Default for LockType {
 
 /// DoubleMap for wait locks.
 #[derive(Default, Debug)]
-pub struct LocksMap(HashMap<MessageId, HashMap<MessageId, Lock>>);
+pub struct LocksMap(HashMap<MessageId, BTreeMap<MessageId, Lock>>);
 
 impl LocksMap {
     /// Trigger waiting for the message.
@@ -158,15 +157,13 @@ impl LocksMap {
         // Locks with `deadline < now`, they should already been removed since
         // the node will trigger timeout when locks reaching their deadline.
         //
-        // Locks with `deadline == now`, they will be removed in the following
-        // pollings.
+        // Locks with `deadline == now`, they will be removed in the following pollings.
         let now = exec::block_height();
-        let mut locks: Vec<&Lock> = map
-            .iter()
-            .filter_map(|(_, l)| (l.deadline() > now).then_some(l))
-            .collect();
-        locks.sort();
-        locks.first().expect("Checked before").wait();
+        map.iter()
+            .filter_map(|(_, lock)| (lock.deadline() > now).then_some(lock))
+            .min_by(|lock1, lock2| lock1.cmp(lock2))
+            .expect("Cannot find lock to be waited")
+            .wait();
     }
 
     /// Lock message.
@@ -179,6 +176,16 @@ impl LocksMap {
     pub fn remove(&mut self, message_id: MessageId, waiting_reply_to: MessageId) {
         let locks = self.0.entry(message_id).or_insert_with(Default::default);
         locks.remove(&waiting_reply_to);
+    }
+
+    pub fn remove_message_entry(&mut self, message_id: MessageId) {
+        self.0.remove(&message_id);
+        // Question for reviewers: how map for message can be not empty at this point ?!!!
+        // .map(|locks| {
+        //     if !locks.is_empty() {
+        //         // unreachable!("Wanna to remove locks map for message, but the map is not empty: {:?}", locks);
+        //     }
+        // });
     }
 
     /// Check if message is timed out.
