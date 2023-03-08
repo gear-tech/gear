@@ -61,10 +61,7 @@ mod tests {
             fs::read("target/wasm32-unknown-unknown/debug/test_program.opt.wasm").unwrap(),
             code::WASM_BINARY_OPT,
         );
-        assert_eq!(
-            fs::read("target/wasm32-unknown-unknown/debug/test_program.meta.wasm").unwrap(),
-            code::WASM_BINARY_META,
-        );
+        assert!(fs::read("target/wasm32-unknown-unknown/debug/test_program.meta.wasm").is_err());
     }
 
     #[test]
@@ -78,9 +75,6 @@ mod tests {
             fs::read("target/wasm32-unknown-unknown/release/test_program.opt.wasm").unwrap(),
             code::WASM_BINARY_OPT,
         );
-        assert_eq!(
-            fs::read("target/wasm32-unknown-unknown/release/test_program.meta.wasm").unwrap(),
-            code::WASM_BINARY_META,
-        );
+        assert!(fs::read("target/wasm32-unknown-unknown/release/test_program.meta.wasm").is_err());
     }
 }
