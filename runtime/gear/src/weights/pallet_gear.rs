@@ -82,6 +82,7 @@ pub trait WeightInfo {
     fn gr_reply_push(r: u32, ) -> Weight;
     fn gr_reply_push_per_kb(n: u32, ) -> Weight;
     fn gr_reservation_reply_commit(r: u32, ) -> Weight;
+    fn gr_reservation_reply_commit_per_kb(n: u32, ) -> Weight;
     fn gr_reply_to(r: u32, ) -> Weight;
     fn gr_signal_from(r: u32, ) -> Weight;
     fn gr_reply_push_input(r: u32, ) -> Weight;
@@ -639,6 +640,18 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
 			.saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(r.into())))
 			.saturating_add(Weight::from_proof_size(5021).saturating_mul(r.into()))
     }
+	/// The range of component `n` is `[0, 1024]`.
+	fn gr_reservation_reply_commit_per_kb(n: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `141`
+		//  Estimated: `6169 + n * (618 ±0)`
+		// Minimum execution time: 130_000 nanoseconds.
+		Weight::from_parts(132_111_439, 6169)
+			// Standard Error: 2_003
+			.saturating_add(Weight::from_ref_time(360_003).saturating_mul(n.into()))
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(Weight::from_proof_size(618).saturating_mul(n.into()))
+	}
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_to(r: u32, ) -> Weight {
 		// Proof Size summary in bytes:
@@ -1862,6 +1875,18 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads((4_u64).saturating_mul(r.into())))
 			.saturating_add(Weight::from_proof_size(5021).saturating_mul(r.into()))
     }
+	/// The range of component `n` is `[0, 1024]`.
+	fn gr_reservation_reply_commit_per_kb(n: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `141`
+		//  Estimated: `6169 + n * (618 ±0)`
+		// Minimum execution time: 130_000 nanoseconds.
+		Weight::from_parts(132_111_439, 6169)
+			// Standard Error: 2_003
+			.saturating_add(Weight::from_ref_time(360_003).saturating_mul(n.into()))
+			.saturating_add(RocksDbWeight::get().reads(2_u64))
+			.saturating_add(Weight::from_proof_size(618).saturating_mul(n.into()))
+	}
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_to(r: u32, ) -> Weight {
 		// Proof Size summary in bytes:

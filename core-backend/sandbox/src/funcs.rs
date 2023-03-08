@@ -520,7 +520,7 @@ where
 
         ctx.run_fallible::<_, _, LengthWithHash>(
             err_mid_ptr,
-            RuntimeCosts::ReservationReply,
+            RuntimeCosts::ReservationReply(len),
             |ctx| {
                 let read_rid_value = ctx.register_read_as(rid_value_ptr);
                 let read_payload = ctx.register_read(payload_ptr, len);
@@ -549,7 +549,7 @@ where
 
         ctx.run_fallible::<_, _, LengthWithHash>(
             err_mid_ptr,
-            RuntimeCosts::ReservationReplyCommit,
+            RuntimeCosts::ReservationReplyCommit(0),
             |ctx| {
                 let read_rid_value = ctx.register_read_as(rid_value_ptr);
                 let HashWithValue {
