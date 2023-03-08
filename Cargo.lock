@@ -4084,6 +4084,7 @@ dependencies = [
  "pwasm-utils",
  "thiserror",
  "toml 0.7.2",
+ "wasm-opt",
  "which",
 ]
 

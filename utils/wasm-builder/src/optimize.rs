@@ -1,16 +1,18 @@
 use crate::builder_error::BuilderError;
 use anyhow::{Context, Result};
+#[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pwasm_utils::{
     parity_wasm,
     parity_wasm::elements::{Internal, Module, Section, Serialize},
 };
+#[cfg(not(feature = "wasm-opt"))]
+use std::process::Command;
 use std::{
     ffi::OsStr,
     fs::metadata,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 #[cfg(feature = "wasm-opt")]
