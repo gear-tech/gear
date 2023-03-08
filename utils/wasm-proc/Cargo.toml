@@ -10,3 +10,6 @@ env_logger = "0.10.0"
 thiserror = "1.0.39"
 gear-wasm-builder = { path = "../wasm-builder" }
 parity-wasm = "0.45.0"
+
+[features]
+wasm-opt = [ "gear-wasm-builder/wasm-opt" ]

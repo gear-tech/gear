@@ -13,6 +13,9 @@ use std::{
     process::Command,
 };
 
+#[cfg(feature = "wasm-opt")]
+use wasm_opt::{Feature, OptimizationOptions, Pass};
+
 const OPTIMIZED_EXPORTS: [&str; 7] = [
     "handle",
     "handle_reply",
@@ -155,6 +158,7 @@ pub fn optimize_wasm(
     })
 }
 
+#[cfg(not(feature = "wasm-opt"))]
 /// Optimizes the Wasm supplied as `crate_metadata.dest_wasm` using
 /// the `wasm-opt` binary.
 ///
@@ -221,6 +225,48 @@ pub fn do_optimization(
             The error which wasm-opt returned was: \n{err}"
         );
     }
+    Ok(())
+}
+
+#[cfg(feature = "wasm-opt")]
+/// Optimizes the Wasm supplied as `crate_metadata.dest_wasm` using
+/// `wasm-opt`.
+///
+/// The supplied `optimization_level` denotes the number of optimization passes,
+/// resulting in potentially a lot of time spent optimizing.
+///
+/// If successful, the optimized Wasm is written to `dest_optimized`.
+pub fn do_optimization(
+    dest_wasm: &OsStr,
+    dest_optimized: &OsStr,
+    optimization_level: &str,
+    keep_debug_symbols: bool,
+) -> Result<()> {
+    log::info!(
+        "Optimization level passed to wasm-opt: {}",
+        optimization_level
+    );
+    match optimization_level {
+        "0" => OptimizationOptions::new_opt_level_0(),
+        "1" => OptimizationOptions::new_opt_level_1(),
+        "2" => OptimizationOptions::new_opt_level_2(),
+        "3" => OptimizationOptions::new_opt_level_3(),
+        "4" => OptimizationOptions::new_opt_level_4(),
+        "s" => OptimizationOptions::new_optimize_for_size(),
+        "z" => OptimizationOptions::new_optimize_for_size_aggressively(),
+        _ => panic!("Invalid optimization level {}", optimization_level),
+    }
+    .disable_feature(Feature::SignExt)
+    .add_pass(Pass::Dae)
+    .add_pass(Pass::Vacuum)
+    // the memory in our module is imported, `wasm-opt` needs to be told that
+    // the memory is initialized to zeroes, otherwise it won't run the
+    // memory-packing pre-pass.
+    .zero_filled_memory(true)
+    .debug_info(keep_debug_symbols)
+    .run(dest_wasm, dest_optimized)
+    .expect("The wasm-opt optimization failed");
+
     Ok(())
 }
 

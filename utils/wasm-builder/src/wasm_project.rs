@@ -237,8 +237,9 @@ impl WasmProject {
         // Optimize source.
         if !self.project_type.is_metawasm() {
             fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
-            // Issue (#1971)
-            // let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
+
+            #[cfg(feature = "wasm-opt")]
+            let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
         }
 
         let metadata = self

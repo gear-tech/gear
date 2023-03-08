@@ -188,15 +188,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let file = PathBuf::from(file);
-        // Issue (#1971)
-        // let res = gear_wasm_builder::optimize::optimize_wasm(file.clone(), "s", true)?;
 
-        // log::info!(
-        //     "wasm-opt: {} {} Kb -> {} Kb",
-        //     res.dest_wasm.display(),
-        //     res.original_size,
-        //     res.optimized_size
-        // );
+        #[cfg(feature = "wasm-opt")]
+        {
+            let res = gear_wasm_builder::optimize::optimize_wasm(file.clone(), "s", true)?;
+            log::info!(
+                "wasm-opt: {} {} Kb -> {} Kb",
+                res.dest_wasm.display(),
+                res.original_size,
+                res.optimized_size
+            );
+        }
 
         let mut optimizer = Optimizer::new(file.clone())?;
 
