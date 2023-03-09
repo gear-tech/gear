@@ -395,9 +395,6 @@ where
             ctx.run(RuntimeCosts::Exit, |ctx| -> Result<(), _> {
                 let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
                 let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
-
-                ctx.host_state_mut().ext.exit()?;
-
                 Err(ActorTerminationReason::Exit(inheritor_id).into())
             })
         };
@@ -1250,8 +1247,7 @@ where
         let func = move |caller: Caller<'_, HostState<E>>| -> EmptyOutput {
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(RuntimeCosts::Leave, |ctx| -> Result<(), _> {
-                ctx.host_state_mut().ext.leave()?;
+            ctx.run(RuntimeCosts::Leave, |_ctx| -> Result<(), _> {
                 Err(ActorTerminationReason::Leave.into())
             })
         };

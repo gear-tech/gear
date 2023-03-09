@@ -314,8 +314,6 @@ where
         let inheritor_id_ptr = args.iter().read()?;
 
         ctx.run(RuntimeCosts::Exit, |ctx| -> Result<(), _> {
-            ctx.ext.exit()?;
-
             let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
             let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
             Err(ActorTerminationReason::Exit(inheritor_id).into())
@@ -905,8 +903,7 @@ where
     pub fn leave(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "leave");
 
-        ctx.run(RuntimeCosts::Leave, |ctx| {
-            ctx.ext.leave()?;
+        ctx.run(RuntimeCosts::Leave, |_ctx| {
             Err(ActorTerminationReason::Leave.into())
         })
     }

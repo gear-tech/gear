@@ -155,9 +155,6 @@ pub trait Ext {
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> Result<ProgramId, Self::Error>;
 
-    /// Terminate the program and transfer all available value to the address.
-    fn exit(&mut self) -> Result<(), Self::Error>;
-
     /// Get the status code of the message being processed.
     fn status_code(&mut self) -> Result<StatusCode, Self::Error>;
 
@@ -171,9 +168,6 @@ pub trait Ext {
     ///
     /// This should be no-op in release builds.
     fn debug(&mut self, data: &str) -> Result<(), Self::Error>;
-
-    /// Interrupt the program, saving it's state.
-    fn leave(&mut self) -> Result<(), Self::Error>;
 
     /// Access currently handled message payload.
     fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error>;

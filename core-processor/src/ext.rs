@@ -688,10 +688,6 @@ impl EnvExt for Ext {
         Ok(self.context.message_context.current().source())
     }
 
-    fn exit(&mut self) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
     fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
         self.context
             .message_context
@@ -802,10 +798,6 @@ impl EnvExt for Ext {
 
     fn value_available(&mut self) -> Result<u128, Self::Error> {
         Ok(self.context.value_counter.left())
-    }
-
-    fn leave(&mut self) -> Result<(), Self::Error> {
-        Ok(())
     }
 
     fn wait(&mut self) -> Result<(), Self::Error> {

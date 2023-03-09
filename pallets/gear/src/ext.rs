@@ -247,10 +247,6 @@ impl EnvExt for LazyPagesExt {
         self.inner.source()
     }
 
-    fn exit(&mut self) -> Result<(), Self::Error> {
-        self.inner.exit()
-    }
-
     fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
         self.inner.status_code()
     }
@@ -297,10 +293,6 @@ impl EnvExt for LazyPagesExt {
 
     fn value(&mut self) -> Result<u128, Self::Error> {
         self.inner.value()
-    }
-
-    fn leave(&mut self) -> Result<(), Self::Error> {
-        self.inner.leave()
     }
 
     fn wait(&mut self) -> Result<(), Self::Error> {
