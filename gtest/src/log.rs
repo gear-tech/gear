@@ -256,27 +256,6 @@ pub struct RunResult {
     pub(crate) others_gas_burned: Gas,
 }
 
-// Default `RunResult` for delayed dispatches.
-//
-// The delayed calls will return this when we first call them to
-// simplify the usages of our call functions.
-//
-// For the real `RunResults` of delay dispatches, we can get them
-// from the results of `spend_blocks`.
-impl Default for RunResult {
-    fn default() -> Self {
-        RunResult {
-            log: vec![],
-            main_failed: false,
-            others_failed: false,
-            message_id: Default::default(),
-            total_processed: 0,
-            main_gas_burned: Gas(0),
-            others_gas_burned: Gas(0),
-        }
-    }
-}
-
 impl RunResult {
     pub fn contains<T: Into<Log> + Clone>(&self, log: &T) -> bool {
         let log = log.clone().into();

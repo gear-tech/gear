@@ -408,8 +408,7 @@ impl<'a> Program<'a> {
             DispatchKind::Handle
         };
 
-        let dispatch = Dispatch::new(kind, message);
-        system.run_dispatch(dispatch)
+        system.run_dispatch(Dispatch::new(kind, message))
     }
 
     pub fn send_signal<ID: Into<ProgramIdWrapper>>(
