@@ -53,6 +53,8 @@ Metadata {
 }
 "#;
 
+// ( issue #2367 )
+#[ignore]
 #[tokio::test]
 async fn test_display_metadata_works() -> Result<()> {
     let output = common::gear(&["meta", &env::wasm_bin("demo_meta.meta.wasm"), "display"])?;

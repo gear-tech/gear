@@ -36,16 +36,11 @@ impl Node {
         format!("ws://{}:{}", port::LOCALHOST, self.port)
     }
 
-    /// Run gear with docker in development mode.
+    /// Run gear node in development mode.
     pub fn dev() -> Result<Self> {
         let port = port::pick();
         let port_string = port.to_string();
-
         let args = vec!["--ws-port", &port_string, "--tmp", "--dev"];
-
-        #[cfg(all(feature = "vara", not(feature = "gear")))]
-        let args = [args, vec!["--force-vara"]].concat();
-
         let ps = Command::new(env::bin("gear"))
             .args(args)
             .stderr(Stdio::piped())
@@ -55,7 +50,7 @@ impl Node {
         Ok(Self { ps, port })
     }
 
-    /// Wait for the block importing
+    /// Wait for the specified log.
     pub fn wait(&mut self, log: &str) -> Result<String> {
         let stderr = self.ps.stderr.as_mut();
         let reader = BufReader::new(stderr.ok_or(Error::EmptyStderr)?);

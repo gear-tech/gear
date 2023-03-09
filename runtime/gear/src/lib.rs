@@ -415,25 +415,27 @@ construct_runtime!(
         NodeBlock = runtime_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
-        System: frame_system,
-        Timestamp: pallet_timestamp,
-        Authorship: pallet_authorship,
-        Babe: pallet_babe,
-        Grandpa: pallet_grandpa,
-        Balances: pallet_balances,
-        TransactionPayment: pallet_transaction_payment,
-        Session: pallet_session,
-        Sudo: pallet_sudo,
-        Utility: pallet_utility,
-        GearProgram: pallet_gear_program,
-        GearMessenger: pallet_gear_messenger,
-        GearScheduler: pallet_gear_scheduler,
-        GearGas: pallet_gear_gas,
-        Gear: pallet_gear,
-        GearPayment: pallet_gear_payment,
+        System: frame_system = 0,
+        Timestamp: pallet_timestamp = 1,
+        Authorship: pallet_authorship = 2,
+        Babe: pallet_babe = 3,
+        Grandpa: pallet_grandpa = 4,
+        Balances: pallet_balances = 5,
+        TransactionPayment: pallet_transaction_payment = 6,
+        Session: pallet_session = 7,
+        Sudo: pallet_sudo = 8,
+        Utility: pallet_utility = 9,
+
+        // Gear pallets
+        GearProgram: pallet_gear_program = 42,
+        GearMessenger: pallet_gear_messenger = 43,
+        GearScheduler: pallet_gear_scheduler = 44,
+        GearGas: pallet_gear_gas = 45,
+        Gear: pallet_gear = 46,
+        GearPayment: pallet_gear_payment = 47,
 
         // Only available with "debug-mode" feature on
-        GearDebug: pallet_gear_debug,
+        GearDebug: pallet_gear_debug = 50,
     }
 );
 
@@ -444,22 +446,24 @@ construct_runtime!(
         NodeBlock = runtime_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
-        System: frame_system,
-        Timestamp: pallet_timestamp,
-        Authorship: pallet_authorship,
-        Babe: pallet_babe,
-        Grandpa: pallet_grandpa,
-        Balances: pallet_balances,
-        TransactionPayment: pallet_transaction_payment,
-        Session: pallet_session,
-        Sudo: pallet_sudo,
-        Utility: pallet_utility,
-        GearProgram: pallet_gear_program,
-        GearMessenger: pallet_gear_messenger,
-        GearScheduler: pallet_gear_scheduler,
-        GearGas: pallet_gear_gas,
-        Gear: pallet_gear,
-        GearPayment: pallet_gear_payment,
+        System: frame_system = 0,
+        Timestamp: pallet_timestamp = 1,
+        Authorship: pallet_authorship = 2,
+        Babe: pallet_babe = 3,
+        Grandpa: pallet_grandpa = 4,
+        Balances: pallet_balances = 5,
+        TransactionPayment: pallet_transaction_payment = 6,
+        Session: pallet_session = 7,
+        Sudo: pallet_sudo = 8,
+        Utility: pallet_utility = 9,
+
+        // Gear pallets
+        GearProgram: pallet_gear_program = 42,
+        GearMessenger: pallet_gear_messenger = 43,
+        GearScheduler: pallet_gear_scheduler = 44,
+        GearGas: pallet_gear_gas = 45,
+        Gear: pallet_gear = 46,
+        GearPayment: pallet_gear_payment = 47,
     }
 );
 
