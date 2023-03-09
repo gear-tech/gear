@@ -487,7 +487,6 @@ jobs:
       RUSTUP_HOME: /tmp/rustup_home
       RUSTC_WRAPPER: ""
       WINEDEBUG: fixme-all
-      NODE_SKIP_PLATFORM_CHECK: 1
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
@@ -555,8 +554,9 @@ jobs:
           sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
           sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/focal/winehq-focal.sources
           sudo apt update
-          sudo apt install --install-recommends -y winehq-stable
+          sudo apt install --install-recommends -y winehq-stable winetricks
           wineboot
+          winetricks win10
           
       - name: "Install: Node.js in Wine"
         run: |
