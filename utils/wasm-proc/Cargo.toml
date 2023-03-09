@@ -12,4 +12,5 @@ gear-wasm-builder = { path = "../wasm-builder" }
 parity-wasm = "0.45.0"
 
 [features]
+default = ["wasm-opt"]
 wasm-opt = [ "gear-wasm-builder/wasm-opt" ]

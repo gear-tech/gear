@@ -24,4 +24,3 @@ wasm-opt = { version = "0.111.0", optional = true }
 
 [features]
 metawasm = ["gmeta/codegen"]
-wasm-opt = ["dep:wasm-opt"]

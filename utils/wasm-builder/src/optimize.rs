@@ -206,6 +206,7 @@ pub fn do_optimization(
         .arg(format!("-O{optimization_level}"))
         .arg("-o")
         .arg(dest_optimized)
+        .arg("--disable-sign-ext")
         // the memory in our module is imported, `wasm-opt` needs to be told that
         // the memory is initialized to zeroes, otherwise it won't run the
         // memory-packing pre-pass.
