@@ -180,11 +180,11 @@ impl LocksMap {
 
     pub fn remove_message_entry(&mut self, message_id: MessageId) {
         self.0.remove(&message_id);
-        // Question for reviewers: how map for message can be not empty at this point ?!!!
-        // .map(|locks| {
+        // Question for reviewers: how map for message can be not empty at this
+        // point ?!!! .map(|locks| {
         //     if !locks.is_empty() {
-        //         // unreachable!("Wanna to remove locks map for message, but the map is not empty: {:?}", locks);
-        //     }
+        //         // unreachable!("Wanna to remove locks map for message, but
+        // the map is not empty: {:?}", locks);     }
         // });
     }
 
