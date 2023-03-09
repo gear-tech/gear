@@ -19,8 +19,8 @@
 use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
-    Result, TestError, DISPATCH_HOLD_COST, EXISTENTIAL_DEPOSIT, INITIAL_RANDOM_SEED,
-    MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
+    Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
+    INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
     RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
 };
@@ -215,6 +215,7 @@ pub(crate) struct ExtManager {
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
     pub(crate) gas_limits: BTreeMap<MessageId, Option<u64>>,
+    pub(crate) delayed_dispatches: HashMap<u32, Vec<Dispatch>>,
 
     // Last run info
     pub(crate) origin: ProgramId,
@@ -284,6 +285,41 @@ impl ExtManager {
             self.id_nonce += 1;
         }
         self.id_nonce
+    }
+
+    /// Insert message into the delayed queue.
+    pub(crate) fn send_delayed_dispatch(&mut self, dispatch: Dispatch, bn: u32) {
+        self.delayed_dispatches
+            .entry(bn)
+            .or_default()
+            .push(dispatch)
+    }
+
+    /// Process all delayed dispatches.
+    pub(crate) fn process_delayed_dispatches(&mut self, bn: u32) -> Vec<RunResult> {
+        self.delayed_dispatches
+            .remove(&bn)
+            .map(|dispatches| {
+                dispatches
+                    .into_iter()
+                    .map(|dispatch| self.run_dispatch(dispatch))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Check if the current block number should trigger new epoch and reset
+    /// the provided random data.
+    pub(crate) fn check_epoch(&mut self) {
+        if self.block_info.height % EPOCH_DURATION_IN_BLOCKS == 0 {
+            let mut rng = StdRng::seed_from_u64(
+                INITIAL_RANDOM_SEED + (self.block_info.height / EPOCH_DURATION_IN_BLOCKS) as u64,
+            );
+            let mut random = [0u8; 32];
+            rng.fill_bytes(&mut random);
+
+            self.random_data = (random.to_vec(), self.block_info.height + 1);
+        }
     }
 
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
@@ -797,9 +833,14 @@ impl JournalHandler for ExtManager {
         &mut self,
         _message_id: MessageId,
         dispatch: Dispatch,
-        _delay: u32,
+        bn: u32,
         _reservation: Option<ReservationId>,
     ) {
+        if bn > 0 {
+            self.send_delayed_dispatch(dispatch, self.block_info.height.saturating_add(bn));
+            return;
+        }
+
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
         if !self.is_user(&dispatch.destination()) {
