@@ -603,13 +603,13 @@ jobs:
           [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_cargo_registry.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_target.tar; }
           [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_win_cross_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_win_cross_target_${{ github.base_ref }}.tar; }
 
-      - name: "Build: wasm-proc"
-        run: ./scripts/gear.sh build wasm-proc --locked
-
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+
+      - name: "Build: wasm-proc"
+        run: ./scripts/gear.sh build wasm-proc --locked
 
       - name: "Build: WAT examples"
         run: ./scripts/gear.sh build wat-examples
