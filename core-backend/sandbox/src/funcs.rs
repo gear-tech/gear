@@ -1066,8 +1066,9 @@ where
     pub fn out_of_gas(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "out_of_gas");
 
-        let reason = ctx.ext.out_of_gas().into_termination_reason();
-        ctx.set_termination_reason(reason);
+        ctx.set_termination_reason(
+            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into(),
+        );
 
         Err(HostError)
     }
@@ -1076,8 +1077,7 @@ where
     pub fn out_of_allowance(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscall::gear", "out_of_allowance");
 
-        let reason = ctx.ext.out_of_allowance().into_termination_reason();
-        ctx.set_termination_reason(reason);
+        ctx.set_termination_reason(ActorTerminationReason::GasAllowanceExceeded.into());
 
         Err(HostError)
     }

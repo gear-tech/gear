@@ -1456,8 +1456,9 @@ where
     pub fn out_of_gas(store: &mut Store<HostState<E>>) -> Func {
         let func = move |mut caller: Caller<'_, HostState<E>>| -> EmptyOutput {
             let host_state = internal::caller_host_state_mut(&mut caller);
-            let termination_reason = host_state.ext.out_of_gas().into_termination_reason();
-            host_state.set_termination_reason(termination_reason);
+            host_state.set_termination_reason(
+                ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into(),
+            );
             Err(TrapCode::Unreachable.into())
         };
 
@@ -1467,8 +1468,7 @@ where
     pub fn out_of_allowance(store: &mut Store<HostState<E>>) -> Func {
         let func = move |mut caller: Caller<'_, HostState<E>>| -> EmptyOutput {
             let host_state = internal::caller_host_state_mut(&mut caller);
-            let termination_reason = host_state.ext.out_of_allowance().into_termination_reason();
-            host_state.set_termination_reason(termination_reason);
+            host_state.set_termination_reason(ActorTerminationReason::GasAllowanceExceeded.into());
             Err(TrapCode::Unreachable.into())
         };
 

@@ -906,14 +906,6 @@ impl EnvExt for Ext {
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.context.forbidden_funcs
     }
-
-    fn out_of_gas(&mut self) -> Self::Error {
-        ChargeError::GasLimitExceeded.into()
-    }
-
-    fn out_of_allowance(&mut self) -> Self::Error {
-        ChargeError::GasAllowanceExceeded.into()
-    }
 }
 
 impl Ext {

@@ -215,14 +215,6 @@ impl Ext for MockExt {
         Ok(0)
     }
 
-    fn out_of_allowance(&mut self) -> Self::Error {
-        Error
-    }
-
-    fn out_of_gas(&mut self) -> Self::Error {
-        Error
-    }
-
     fn system_reserve_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
         Ok(())
     }

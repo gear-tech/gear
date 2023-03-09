@@ -334,12 +334,4 @@ impl EnvExt for LazyPagesExt {
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.inner.context.forbidden_funcs
     }
-
-    fn out_of_gas(&mut self) -> Self::Error {
-        self.inner.out_of_gas()
-    }
-
-    fn out_of_allowance(&mut self) -> Self::Error {
-        self.inner.out_of_allowance()
-    }
 }
