@@ -53,13 +53,7 @@ impl Node {
     pub fn try_vara_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
         Self::try_node_from_path(
             path,
-            vec![
-                "--chain=vara-dev",
-                "--force-authoring",
-                "--rpc-cors=all",
-                "--alice",
-                "--tmp",
-            ],
+            vec!["--chain=vara-dev", "--validator", "--alice", "--tmp"],
         )
     }
 
