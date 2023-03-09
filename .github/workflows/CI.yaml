@@ -485,7 +485,7 @@ jobs:
     env:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
-      RUSTC_WRAPPER: ""
+      RUSTC_WRAPPER: "sccache"
       WINEDEBUG: fixme-all
     steps:
       - name: Cancel Previous Runs
@@ -596,6 +596,13 @@ jobs:
           curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.14.0/cargo-xwin-v0.14.0.x86_64-unknown-linux-musl.tar.gz | tar zxf -
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
+      - name: "Cache: Unpack"
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        run: |
+          [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_cargo_registry.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_target.tar; }
+          [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_win_cross_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_win_cross_target_${{ github.base_ref }}.tar; }
+
       - name: "Build: wasm-proc"
         run: ./scripts/gear.sh build wasm-proc --locked
 
@@ -642,6 +649,16 @@ jobs:
             --release
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+          
+      - name: "Cache: Pack to temp"
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        run: |
+          tar -cf /tmp/build_win_cross_target.tar ./target
+          tar -cf /tmp/build_win_cross_cache.tar /tmp/cachepot
+          tar -cf /tmp/build_win_cross_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
+
 
   build-macos-x86:
     if: always() &&
