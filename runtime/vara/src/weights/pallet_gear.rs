@@ -1884,7 +1884,7 @@ impl WeightInfo for () {
 		Weight::from_parts(132_111_439, 6169)
 			// Standard Error: 2_003
 			.saturating_add(Weight::from_ref_time(360_003).saturating_mul(n.into()))
-			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(RocksDbWeight::get().reads(2_u64))
 			.saturating_add(Weight::from_proof_size(618).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.

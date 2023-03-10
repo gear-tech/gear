@@ -864,9 +864,9 @@ where
                 // rid_value ptr
                 Instruction::I32Const(rid_value_offset as i32),
                 // payload ptr
-                Instruction::I32Const(payload_offset as i32),
+                Instruction::I32Const(payload_offset),
                 // payload len
-                Instruction::I32Const(payload_len as i32),
+                Instruction::I32Const(payload_len),
                 // delay
                 Instruction::I32Const(10),
                 // err_mid ptr
