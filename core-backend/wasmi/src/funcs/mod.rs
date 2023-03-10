@@ -439,8 +439,6 @@ where
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run(RuntimeCosts::Exit, |ctx| -> Result<(), _> {
-                ctx.host_state_mut().ext.exit()?;
-
                 let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
                 let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
                 Err(ActorTerminationReason::Exit(inheritor_id).into())
@@ -1375,8 +1373,7 @@ where
             syscall_trace!("leave");
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run(RuntimeCosts::Leave, |ctx| -> Result<(), _> {
-                ctx.host_state_mut().ext.leave()?;
+            ctx.run(RuntimeCosts::Leave, |_ctx| -> Result<(), _> {
                 Err(ActorTerminationReason::Leave.into())
             })
         };
@@ -1608,8 +1605,9 @@ where
         let func = move |mut caller: Caller<'_, HostState<E>>| -> EmptyOutput {
             syscall_trace!("out_of_gas");
             let host_state = internal::caller_host_state_mut(&mut caller);
-            let termination_reason = host_state.ext.out_of_gas().into_termination_reason();
-            host_state.set_termination_reason(termination_reason);
+            host_state.set_termination_reason(
+                ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into(),
+            );
             Err(TrapCode::Unreachable.into())
         };
 
@@ -1620,8 +1618,7 @@ where
         let func = move |mut caller: Caller<'_, HostState<E>>| -> EmptyOutput {
             syscall_trace!("out_of_allowance");
             let host_state = internal::caller_host_state_mut(&mut caller);
-            let termination_reason = host_state.ext.out_of_allowance().into_termination_reason();
-            host_state.set_termination_reason(termination_reason);
+            host_state.set_termination_reason(ActorTerminationReason::GasAllowanceExceeded.into());
             Err(TrapCode::Unreachable.into())
         };
 

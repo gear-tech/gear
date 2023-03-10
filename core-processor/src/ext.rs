@@ -653,10 +653,6 @@ impl EnvExt for Ext {
         Ok(self.context.message_context.current().source())
     }
 
-    fn exit(&mut self) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
     fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
         self.context
             .message_context
@@ -769,10 +765,6 @@ impl EnvExt for Ext {
         Ok(self.context.value_counter.left())
     }
 
-    fn leave(&mut self) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
     fn wait(&mut self) -> Result<(), Self::Error> {
         self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
 
@@ -870,14 +862,6 @@ impl EnvExt for Ext {
 
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.context.forbidden_funcs
-    }
-
-    fn out_of_gas(&mut self) -> Self::Error {
-        ChargeError::GasLimitExceeded.into()
-    }
-
-    fn out_of_allowance(&mut self) -> Self::Error {
-        ChargeError::GasAllowanceExceeded.into()
     }
 }
 

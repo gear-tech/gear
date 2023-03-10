@@ -315,8 +315,6 @@ where
         let inheritor_id_ptr = args.iter().read()?;
 
         ctx.run(RuntimeCosts::Exit, |ctx| -> Result<(), _> {
-            ctx.ext.exit()?;
-
             let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
             let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
             Err(ActorTerminationReason::Exit(inheritor_id).into())
@@ -909,8 +907,7 @@ where
     pub fn leave(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscalls", "leave");
 
-        ctx.run(RuntimeCosts::Leave, |ctx| {
-            ctx.ext.leave()?;
+        ctx.run(RuntimeCosts::Leave, |_ctx| {
             Err(ActorTerminationReason::Leave.into())
         })
     }
@@ -1070,8 +1067,9 @@ where
     pub fn out_of_gas(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscalls", "out_of_gas");
 
-        let reason = ctx.ext.out_of_gas().into_termination_reason();
-        ctx.set_termination_reason(reason);
+        ctx.set_termination_reason(
+            ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into(),
+        );
 
         Err(HostError)
     }
@@ -1080,8 +1078,7 @@ where
     pub fn out_of_allowance(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         sys_trace!(target: "syscalls", "out_of_allowance");
 
-        let reason = ctx.ext.out_of_allowance().into_termination_reason();
-        ctx.set_termination_reason(reason);
+        ctx.set_termination_reason(ActorTerminationReason::GasAllowanceExceeded.into());
 
         Err(HostError)
     }
