@@ -89,7 +89,7 @@ pub(crate) const DOLLARS: u128 = UNITS; // 1 to 1
 pub(crate) const CENTS: u128 = DOLLARS / 100; // 1_000
 pub(crate) const MILLICENTS: u128 = CENTS / 1_000; // 1
 pub(crate) const MILLISECONDS_PER_YEAR: u64 = 1_000 * 3_600 * 24 * 36_525 / 100;
-pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_000;
+pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
 pub(crate) const SESSION_DURATION: u64 = 1000;
 
 // Configure a mock runtime to test the pallet.
@@ -280,7 +280,7 @@ parameter_types! {
     pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
     pub const MaxActiveValidators: u32 = 100;
     pub const OffchainRepeat: u64 = 5;
-    pub const HistoryDepth: u32 = 24;
+    pub const HistoryDepth: u32 = 84;
     pub const MaxNominations: u32 = 16;
     pub const MaxElectingVoters: u32 = 40_000;
     pub const MaxElectableTargets: u16 = 10_000;
@@ -603,7 +603,7 @@ pub(crate) fn run_for_n_blocks(n: u64) {
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
     System::on_initialize(new_block_number);
-    Timestamp::set_timestamp(new_block_number.saturating_mul(2000));
+    Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
     Balances::on_initialize(new_block_number);
     Authorship::on_initialize(new_block_number);
     Session::on_initialize(new_block_number);

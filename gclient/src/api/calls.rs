@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{GearApi, Result};
-use crate::{utils, Error};
+use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
 use gear_core::ids::*;
 use gsdk::{
     ext::{
@@ -38,7 +38,9 @@ use gsdk::{
         utility::Event as UtilityEvent,
         Event,
     },
+    Error as GsdkError,
 };
+use hex::ToHex;
 use parity_scale_codec::Encode;
 use std::{collections::BTreeMap, path::Path};
 
@@ -202,6 +204,84 @@ impl GearApi {
     ) -> Result<(MessageId, ProgramId, H256)> {
         self.create_program_bytes(code_id, salt, payload.encode(), gas_limit, value)
             .await
+    }
+
+    /// Migrates an active program identified by `src_program_id` onto another
+    /// node identified by `dest_node_api` and returns the migrated program
+    /// identifier.
+    pub async fn migrate_program(
+        &self,
+        src_program_id: ProgramId,
+        dest_node_api: &GearApi,
+    ) -> Result<ProgramId> {
+        if dest_node_api.0.api().gprog(src_program_id).await.is_ok() {
+            return Err(Error::ProgramAlreadyExists(
+                src_program_id.as_ref().encode_hex(),
+            ));
+        }
+
+        let dest_program_id = src_program_id;
+
+        // Collect data from the source program
+        let src_free_balance = self.free_balance(src_program_id).await.or_else(|e| {
+            if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                Ok(0)
+            } else {
+                Err(e)
+            }
+        })?;
+        let src_reserved_balance = self.reserved_balance(src_program_id).await.or_else(|e| {
+            if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                Ok(0)
+            } else {
+                Err(e)
+            }
+        })?;
+
+        let src_program = self.0.api().gprog(src_program_id).await?;
+
+        let src_program_pages = self.0.api().gpages(src_program_id, &src_program).await?;
+
+        let src_code_id = src_program.code_hash.0.into();
+
+        let src_code_len = self.0.api().code_len_storage(src_code_id).await?;
+
+        let src_code = self.0.api().code_storage(src_code_id).await?;
+
+        // Apply data to the target program
+        dest_node_api
+            .0
+            .set_code_len_storage(src_code_id, src_code_len)
+            .await?;
+
+        dest_node_api
+            .0
+            .set_code_storage(src_code_id, &src_code)
+            .await?;
+
+        dest_node_api
+            .0
+            .set_gpages(dest_program_id, &src_program_pages)
+            .await?;
+
+        dest_node_api
+            .0
+            .set_gprog(
+                dest_program_id,
+                src_program,
+                dest_node_api.last_block_number().await?,
+            )
+            .await?;
+
+        dest_node_api
+            .set_balance(
+                dest_program_id.into_account_id(),
+                src_free_balance,
+                src_reserved_balance,
+            )
+            .await?;
+
+        Ok(dest_program_id)
     }
 
     /// Claim value from the mailbox message identified by `message_id`.

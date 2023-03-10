@@ -19,5 +19,5 @@
 //! Common modules for each Gear smart contract.
 
 pub mod errors;
-pub mod handlers;
+mod handlers;
 pub mod primitives;

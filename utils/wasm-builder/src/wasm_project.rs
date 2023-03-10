@@ -199,11 +199,18 @@ impl WasmProject {
 
         // Write metadata
         if let Some(metadata) = &self.project_type.metadata() {
-            let wasm_meta_path = self.original_dir.join("meta.txt");
+            let file_base_name = self
+                .file_base_name
+                .as_ref()
+                .expect("Run `WasmProject::create_project()` first");
+
+            let wasm_meta_path = self
+                .original_dir
+                .join([file_base_name, ".meta.txt"].concat());
             let wasm_meta_hash_path = self.original_dir.join(".metahash");
 
             smart_fs::write_metadata(wasm_meta_path, metadata)
-                .context("unable to write `meta.txt`")?;
+                .context("unable to write `*.meta.txt`")?;
 
             smart_fs::write(wasm_meta_hash_path, format!("{:?}", metadata.hash()))
                 .context("unable to write `.metahash`")?;
@@ -237,8 +244,7 @@ impl WasmProject {
         // Optimize source.
         if !self.project_type.is_metawasm() {
             fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
-            // Issue (#1971)
-            // let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
+            let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
         }
 
         let metadata = self
@@ -256,7 +262,7 @@ impl WasmProject {
         Self::generate_wasm(
             from_path,
             (!self.project_type.is_metawasm()).then_some(&to_opt_path),
-            Some(&to_meta_path),
+            self.project_type.is_metawasm().then_some(&to_meta_path),
         )?;
 
         let wasm_binary_path = self.original_dir.join(".binpath");
@@ -282,13 +288,10 @@ impl WasmProject {
 pub const WASM_BINARY: &[u8] = include_bytes!("{}");
 #[allow(unused)]
 pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
-#[allow(unused)]
-pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
 {}
 "#,
                     display_path(to_path),
                     display_path(to_opt_path),
-                    display_path(to_meta_path),
                     metadata,
                 ),
             )
@@ -304,7 +307,7 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
 
 "#,
                     display_path(to_meta_path.clone()),
-                    Self::get_exports(to_meta_path)?,
+                    Self::get_exports(&to_meta_path)?,
                 ),
             )
             .context("unable to write `wasm_binary.rs`")?;
@@ -333,7 +336,7 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
         Ok(())
     }
 
-    fn get_exports(file: PathBuf) -> Result<Vec<String>> {
+    fn get_exports(file: &PathBuf) -> Result<Vec<String>> {
         let module = parity_wasm::deserialize_file(file)?;
 
         let exports = module

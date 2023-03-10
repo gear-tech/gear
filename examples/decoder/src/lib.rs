@@ -1,6 +1,9 @@
 #![no_std]
 
-use gstd::{msg, prelude::*};
+use gstd::{
+    msg::{self, MessageHandle},
+    prelude::*,
+};
 
 #[no_mangle]
 extern "C" fn handle() {
@@ -30,7 +33,7 @@ extern "C" fn handle() {
         }
     }
 
-    let handle = msg::send_init().unwrap();
+    let handle = MessageHandle::init().unwrap();
 
     for vertex in &code {
         leaves.sort();

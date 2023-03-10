@@ -18,6 +18,7 @@
 
 //! Integration tests for command `upload`
 use crate::common::{self, env, logs};
+use gear_core::ids::CodeId;
 use gsdk::Api;
 
 #[tokio::test]
@@ -33,8 +34,8 @@ async fn test_command_upload_works() {
         .signer("//Alice", None)
         .expect("get signer failed");
 
-    let code_hash = common::hash(demo_meta::WASM_BINARY);
-    assert!(signer.api().code_storage(code_hash).await.is_err());
+    let code_id = CodeId::generate(demo_meta::WASM_BINARY);
+    assert!(signer.api().code_storage(code_id).await.is_err());
 
     let _ = common::gear(&[
         "-e",
@@ -44,5 +45,5 @@ async fn test_command_upload_works() {
     ])
     .expect("run command upload failed");
 
-    assert!(signer.api().code_storage(code_hash).await.is_ok());
+    assert!(signer.api().code_storage(code_id).await.is_ok());
 }

@@ -20,8 +20,8 @@
 //!
 //! Unlike `gstd`, `gcore::general` provides some minimal implementation for
 //! `ActorId` and `MessageId` structs with public access to their internals. It
-//! can be used provided that you understand how it works and take security
-//! considerations into account.
+//! is usable provided that you understand how it works and
+//! consider security factors.
 //!
 //! `gstd::primitives` declares its own `ActorId` and `MessageId` structures
 //! with more extensive methods for access to their internals (no public
@@ -47,8 +47,8 @@ const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 
 /// Program (actor) identifier.
 ///
-/// Gear allows users and programs to interact with other users and programs via
-/// messages. Source and target program as well as user are represented by
+/// Gear allows user and program interactions via messages.
+/// Source and target program as well as user are represented by
 /// 256-bit identifier `ActorId` struct. The source `ActorId` for a message
 /// being processed can be obtained using [`msg::source`](crate::msg::source)
 /// function. Also, each send function has a target `ActorId` as one of the
@@ -59,18 +59,22 @@ const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 pub struct ActorId([u8; 32]);
 
 impl ActorId {
+    /// Create a new `ActorId` from a 32-byte array.
     pub const fn new(arr: [u8; 32]) -> Self {
         Self(arr)
     }
 
+    /// Create a new zero `ActorId`.
     pub const fn zero() -> Self {
         Self::new([0; 32])
     }
 
+    /// Check whether `ActorId` is zero.
     pub fn is_zero(&self) -> bool {
         self == &Self::zero()
     }
 
+    /// Create a new `ActorId` from the Base58 string.
     pub fn from_bs58(address: String) -> Result<Self> {
         let decoded = bs58::decode(address)
             .into_vec()
@@ -84,6 +88,7 @@ impl ActorId {
         }
     }
 
+    /// Create a new `ActorId` from a byte slice.
     pub fn from_slice(slice: &[u8]) -> Result<Self> {
         if slice.len() != 32 {
             return Err(ContractError::Convert("Slice should be 32 length"));
@@ -157,8 +162,8 @@ impl TryFrom<&[u8]> for ActorId {
 
 /// Message identifier.
 ///
-/// Gear allows users and programs to interact with other users and programs via
-/// messages. Each message has its own unique 256-bit id. This id is represented
+/// Gear allows users and program interactions via messages.
+/// Each message has its own unique 256-bit id. This id is represented
 /// via the `MessageId` struct. The message identifier can be obtained for the
 /// currently processed message using the [`msg::id`](crate::msg::id) function.
 /// Also, each send and reply functions return a message identifier.
@@ -168,8 +173,14 @@ impl TryFrom<&[u8]> for ActorId {
 pub struct MessageId([u8; 32]);
 
 impl MessageId {
+    /// Create a new `MessageId` from a 32-byte array.
     pub const fn new(arr: [u8; 32]) -> Self {
         Self(arr)
+    }
+
+    /// Create a new zero `MessageId`.
+    pub const fn zero() -> Self {
+        Self([0; 32])
     }
 }
 
@@ -209,16 +220,26 @@ impl From<H256> for MessageId {
     }
 }
 
+/// Code identifier.
+///
+/// This identifier can be obtained as a result of executing the
+/// `gear.uploadCode` extrinsic. Actually, the code identifier is the Blake2
+/// hash of the Wasm binary code blob.
+///
+/// Code identifier is required when creating programs from programs (see
+/// [`prog`](crate::prog) module for details).
 #[derive(
     Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
 )]
 pub struct CodeId([u8; 32]);
 
 impl CodeId {
+    /// Create a new `CodeId` from a 32-byte array.
     pub const fn new(arr: [u8; 32]) -> Self {
         Self(arr)
     }
 
+    /// Create a new `CodeId` from a byte slice.
     pub fn from_slice(slice: &[u8]) -> Result<Self> {
         if slice.len() != 32 {
             return Err(ContractError::Convert("Slice should be 32 length"));
@@ -283,7 +304,8 @@ impl TryFrom<&[u8]> for CodeId {
 
 /// Reservation identifier.
 ///
-/// The ID is used to get reserve and unreserve gas.
+/// The identifier is used to reserve and unreserve gas amount
+/// for program execution later.
 ///
 /// # Examples
 ///
@@ -298,18 +320,44 @@ impl TryFrom<&[u8]> for CodeId {
 /// }
 ///
 /// extern "C" fn handle() {
-///     let reservation_id = unsafe { RESERVED.take().expect("create in init()") };
+///     let reservation_id = unsafe { RESERVED.take().expect("Empty `RESERVED`") };
 ///     reservation_id.unreserve();
 /// }
 /// ```
-#[derive(Debug, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
+#[derive(Clone, Copy, Debug, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
 pub struct ReservationId([u8; 32]);
 
 impl ReservationId {
+    /// Reserve the `amount` of gas for further usage.
+    ///
+    /// `duration` is the block count within which the reserve must be used.
+    ///
+    /// This function returns [`ReservationId`], which one can use for gas
+    /// unreserving.
+    ///
+    /// # Examples
+    ///
+    /// Reserve 50 million of gas for one block, send a reply, then unreserve
+    /// gas back:
+    ///
+    /// ```
+    /// use gstd::{msg, ReservationId};
+    ///
+    /// #[no_mangle]
+    /// extern "C" fn handle() {
+    ///     let reservation_id = ReservationId::reserve(50_000_000, 1).expect("Unable to reserve");
+    ///     msg::reply_bytes_from_reservation(reservation_id.clone(), b"PONG", 0)
+    ///         .expect("Unable to reply");
+    ///     let reservation_left = reservation_id.unreserve().expect("Unable to unreserve");
+    /// }
+    /// ```
     pub fn reserve(amount: u64, duration: u32) -> Result<Self> {
         gcore::exec::reserve_gas(amount, duration).into_contract_result()
     }
 
+    /// Unreserve unused gas from the reservation.
+    ///
+    /// If successful, it returns the reserved amount of gas.
     pub fn unreserve(self) -> Result<u64> {
         gcore::exec::unreserve_gas(self.into()).into_contract_result()
     }

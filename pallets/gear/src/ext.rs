@@ -247,10 +247,6 @@ impl EnvExt for LazyPagesExt {
         self.inner.source()
     }
 
-    fn exit(&mut self) -> Result<(), Self::Error> {
-        self.inner.exit()
-    }
-
     fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
         self.inner.status_code()
     }
@@ -299,10 +295,6 @@ impl EnvExt for LazyPagesExt {
         self.inner.value()
     }
 
-    fn leave(&mut self) -> Result<(), Self::Error> {
-        self.inner.leave()
-    }
-
     fn wait(&mut self) -> Result<(), Self::Error> {
         self.inner.wait()
     }
@@ -333,13 +325,5 @@ impl EnvExt for LazyPagesExt {
 
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.inner.context.forbidden_funcs
-    }
-
-    fn out_of_gas(&mut self) -> Self::Error {
-        self.inner.out_of_gas()
-    }
-
-    fn out_of_allowance(&mut self) -> Self::Error {
-        self.inner.out_of_allowance()
     }
 }

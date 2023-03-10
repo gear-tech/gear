@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module for Gear contracts asynchronous logic.
-
 mod futures;
 mod locks;
 mod signals;
@@ -46,15 +44,16 @@ pub(crate) fn signals() -> &'static mut WakeSignals {
 
 static mut LOCKS: Option<LocksMap> = None;
 
-/// Get all wait locks.
 pub(crate) fn locks() -> &'static mut LocksMap {
     unsafe { LOCKS.get_or_insert_with(LocksMap::default) }
 }
 
+/// Default reply handler.
 pub fn record_reply() {
     signals().record_reply();
 }
 
+/// Default signal handler.
 pub fn handle_signal() {
     futures().remove(&crate::msg::id());
 }

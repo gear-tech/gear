@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{debug, exec, msg, prelude::*, ActorId};
+use gstd::{debug, msg, prelude::*, ActorId};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -33,7 +33,6 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 extern "C" fn handle() {
     let new_msg: i32 = msg::load().expect("Should be i32");
     unsafe { MESSAGE_LOG.push(format!("(sum) New msg: {new_msg:?}")) };
-    debug!("sum gas_available: {}", exec::gas_available());
 
     msg::send(unsafe { STATE.send_to() }, new_msg + new_msg, 0).unwrap();
 
