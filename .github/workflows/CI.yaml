@@ -352,8 +352,7 @@ jobs:
 
 
   build-win-native:
-    if: always() &&
-      (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E1-forcewindows'))
+    if: github.ref == 'refs/heads/master'
     needs: build
     runs-on: ci-win
     defaults:
