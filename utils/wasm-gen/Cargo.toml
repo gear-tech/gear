@@ -6,7 +6,7 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gshep/call_indirect" }
+wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 arbitrary = { version = "1.2.3", features = ["derive"] }
 gear-wasm-instrument = { path = "../wasm-instrument", default-features = false }
 wasmprinter = "0.2"
