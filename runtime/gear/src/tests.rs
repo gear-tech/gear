@@ -40,7 +40,7 @@ macro_rules! check_weight_inbounds_interval {
 fn heuristics_test() {
     let instruction_weights = InstructionWeights::<crate::Runtime>::default();
 
-    check_weight_inbounds_interval!(instruction_weights, i64const, 200);
+    check_weight_inbounds_interval!(instruction_weights, i64const, 150);
     check_weight_inbounds_interval!(instruction_weights, i64load, 30_700);
     check_weight_inbounds_interval!(instruction_weights, i64store, 42_600);
     check_weight_inbounds_interval!(instruction_weights, select, 7_100);

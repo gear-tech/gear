@@ -85,11 +85,6 @@ pub struct ModuleDefinition {
     /// The amount of I64 arguments the aux function should have.
     pub aux_arg_num: u32,
     pub aux_res: Option<ValueType>,
-    /// If set to true the stack height limiter is injected into the the module. This is
-    /// needed for instruction debugging because the cost of executing the stack height
-    /// instrumentation should be included in the costs for the individual instructions
-    /// that cause more metering code (only call).
-    pub inject_stack_metering: bool,
     /// Create a table containing function pointers.
     pub table: Option<TableSegment>,
     /// Create a section named "dummy" of the specified size. This is useful in order to
@@ -288,12 +283,7 @@ where
             )));
         }
 
-        let mut code = program.build();
-
-        if def.inject_stack_metering {
-            code = inject_stack_metering::<T>(code);
-        }
-
+        let code = program.build();
         let code = code.into_bytes().unwrap();
         let hash = CodeId::generate(&code);
         Self {
@@ -314,6 +304,21 @@ where
     pub fn dummy() -> Self {
         ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
+            ..Default::default()
+        }
+        .into()
+    }
+
+    /// Same as `dummy` but with maximum sized linear memory and a dummy section of specified size.
+    pub fn dummy_with_bytes(dummy_bytes: u32) -> Self {
+        // We want the module to have the size `dummy_bytes`.
+        // This is not completely correct as the overhead grows when the contract grows
+        // because of variable length integer encoding. However, it is good enough to be that
+        // close for benchmarking purposes.
+        let module_overhead = 65;
+        ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            dummy_section: dummy_bytes.saturating_sub(module_overhead),
             ..Default::default()
         }
         .into()
