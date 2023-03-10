@@ -150,9 +150,6 @@ impl Ext for MockExt {
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
         Ok(ProgramId::from(0))
     }
-    fn exit(&mut self) -> Result<(), Self::Error> {
-        Ok(())
-    }
     fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
         Ok(Default::default())
     }
@@ -183,9 +180,6 @@ impl Ext for MockExt {
     fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
         Ok(([0u8; 32].as_ref(), 0))
     }
-    fn leave(&mut self) -> Result<(), Self::Error> {
-        Ok(())
-    }
     fn wait(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
@@ -213,14 +207,6 @@ impl Ext for MockExt {
     }
     fn unreserve_gas(&mut self, _id: ReservationId) -> Result<u64, Self::Error> {
         Ok(0)
-    }
-
-    fn out_of_allowance(&mut self) -> Self::Error {
-        Error
-    }
-
-    fn out_of_gas(&mut self) -> Self::Error {
-        Error
     }
 
     fn system_reserve_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
