@@ -63,7 +63,7 @@ pub fn iterator_with_args<T, F: FnMut() -> T>(
     })
 }
 
-pub fn convert_iter<V, T: Into<V>>(args: Vec<T>) -> impl IntoIterator<Item = V> {
+pub fn convert_iter<V, T: Into<V> + Clone>(args: Vec<T>) -> impl IntoIterator<Item = V> + Clone {
     args.into_iter().map(Into::into)
 }
 

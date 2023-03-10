@@ -6,13 +6,16 @@ use anyhow::{anyhow, Result};
 use api::GearApiFacade;
 use context::Context;
 use futures::{stream::FuturesUnordered, Future, StreamExt};
-use gclient::{Error as GClientError, EventProcessor, GearApi, Result as GClientResult};
-use gear_call_gen::CallGenRng;
+use gclient::{
+    Error as GClientError, Event, EventProcessor, GearApi, GearEvent,
+    Result as GClientResult,
+};
+use gear_call_gen::{CallGenRng, SendReplyArgs};
 use gear_core::ids::{MessageId, ProgramId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
 use primitive_types::H256;
 pub use report::CrashAlert;
-use report::{BatchRunReport, Report};
+use report::{BatchRunReport, ExtrinsicReport, StateReport};
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
@@ -27,6 +30,10 @@ mod report;
 
 type Seed = u64;
 type CallId = usize;
+
+// TODO
+// 1. Describe how to refactor this (refactoring requirements) for the future.
+// For inst, current architecture have problems with updating mailbox by deleting read mailbox messages.
 
 pub struct BatchPool<Rng: CallGenRng> {
     api: GearApiFacade,
@@ -118,8 +125,11 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 #[instrument(skip_all, fields(seed = batch.seed, batch_type = batch.batch_str()))]
 async fn run_batch(api: GearApiFacade, batch: BatchWithSeed) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
-    match run_batch_impl(api, batch).await {
-        Ok(report) => Ok(BatchRunReport::new(seed, report)),
+    match run_batch_impl(api.clone(), batch).await {
+        Ok(ex_report) => {
+            let state_report = StateReport { current_mailbox: api.mailbox_messages().await? };
+            Ok(BatchRunReport::new(seed, (ex_report, state_report)))
+        },
         Err(err) => {
             // Propagate crash error or return report
             CrashAlert::try_from(err)
@@ -136,7 +146,7 @@ async fn run_batch(api: GearApiFacade, batch: BatchWithSeed) -> Result<BatchRunR
 }
 
 #[instrument(skip_all)]
-async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> {
+async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<ExtrinsicReport> {
     // Order of the results of each extrinsic execution in the batch
     // is the same as in the input set of calls in the batch.
     // See: https://paritytech.github.io/substrate/master/src/pallet_utility/lib.rs.html#452-468
@@ -144,7 +154,7 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> 
         Batch::UploadProgram(args) => {
             let (ex_results, block_hash) = api.upload_program_batch(args).await?;
             let messages = process_ex_results(ex_results);
-            process_events(api.into_gear_api(), messages, block_hash, true).await
+            process_events(api.into_gear_api(), messages, block_hash).await
         }
         Batch::UploadCode(args) => {
             let (ex_results, _) = api.upload_code_batch(args).await?;
@@ -156,7 +166,7 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> 
                 );
             }
 
-            Ok(Report {
+            Ok(ExtrinsicReport {
                 codes: codes.keys().copied().collect(),
                 ..Default::default()
             })
@@ -164,14 +174,18 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> 
         Batch::SendMessage(args) => {
             let (ex_results, block_hash) = api.send_message_batch(args).await?;
             let messages = process_ex_results(ex_results);
-            process_events(api.into_gear_api(), messages, block_hash, false).await
+            process_events(api.into_gear_api(), messages, block_hash).await
         }
         Batch::CreateProgram(args) => {
             let (ex_results, block_hash) = api.create_program_batch(args).await?;
             let messages = process_ex_results(ex_results);
-            process_events(api.into_gear_api(), messages, block_hash, true).await
+            process_events(api.into_gear_api(), messages, block_hash).await
         }
-        Batch::SendReply(_args) => todo!(),
+        Batch::SendReply(args) => {
+            let (ex_results, block_hash) = api.send_reply_batch(args).await?;
+            let messages = process_ex_results(ex_results);
+            process_events(api.into_gear_api(), messages, block_hash).await
+        }
     }
 }
 
@@ -198,12 +212,11 @@ async fn process_events(
     api: GearApi,
     mut messages: BTreeMap<MessageId, (ProgramId, usize)>,
     block_hash: H256,
-    collect_programs: bool,
-) -> Result<Report> {
+) -> Result<ExtrinsicReport> {
     let now = gear_utils::now_millis();
     // States what amount of blocks we should wait for taking all the events about successful `messages` execution
     let wait_for_events_blocks = 10;
-    // Multiply on five to be 100% sure if no events occurred, than node is crashed
+    // Multiply on five to be 100% sure if no events occurred, then node is crashed
     let wait_for_events_millisec = api.expected_block_time()? as usize * wait_for_events_blocks * 5;
 
     let results = loop {
@@ -224,7 +237,7 @@ async fn process_events(
         }
     };
 
-    let mut program_ids = collect_programs.then(BTreeSet::new);
+    let mut program_ids = BTreeSet::new();
 
     for (mid, maybe_err) in results? {
         let (pid, call_id) = messages.remove(&mid).expect("Infallible");
@@ -233,22 +246,27 @@ async fn process_events(
             tracing::debug!("[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended with a trap: '{expl}'");
         } else {
             tracing::debug!("[Call with id: {call_id}]: {mid:#.2} successfully executed within program '{pid:#.2}'");
-            program_ids.as_mut().map(|ids| ids.insert(pid));
+            program_ids.insert(pid);
         }
     }
 
-    Ok(Report {
-        program_ids: program_ids.unwrap_or_default(),
+    Ok(ExtrinsicReport {
+        program_ids,
         ..Default::default()
     })
 }
 
 async fn inspect_crash_events(api: GearApi) -> Result<()> {
     let mut event_listener = api.subscribe().await?;
-    // Error means either event is not found an can't be found
+    // Error means either event is not found and can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    let crash_block_hash = event_listener.queue_processing_reverted().await?;
+    let crash_block_hash = event_listener.queue_processing_reverted()
+        .await
+        .map_err(|e| {
+            tracing::info!("I THINK THIS {e:?}");
+            e
+        })?;
 
     let crash_err = CrashAlert::MsgProcessingStopped;
     tracing::info!("{crash_err} at block hash {crash_block_hash:?}");

@@ -28,6 +28,7 @@ type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);
 /// Send message args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::send_message` call.
+#[derive(Debug, Clone)]
 pub struct SendMessageArgs(pub SendMessageArgsInner);
 
 impl From<SendMessageArgs> for SendMessageArgsInner {

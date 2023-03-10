@@ -1535,6 +1535,9 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+
+            log::debug!("RECEIVED SEND_REPLY WITH ARGS: reply_to_id {reply_to_id}");
+
             let payload = payload
                 .try_into()
                 .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;

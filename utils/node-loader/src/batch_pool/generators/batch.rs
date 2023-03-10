@@ -10,7 +10,7 @@ use gear_call_gen::{
     CallGenRng, CallGenRngCore, CreateProgramArgs, GearProgGenConfig, SendMessageArgs,
     SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
 };
-use gear_core::ids::{CodeId, ProgramId};
+use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use tracing::instrument;
 
@@ -94,7 +94,8 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
 
         tracing::info!("Code generator starts with seed: {code_seed_type:?}");
 
-        let prog_gen_config = GearProgGenConfig::new_normal();
+        let mut prog_gen_config = GearProgGenConfig::new_normal();
+        prog_gen_config.use_message_source = (100, 100).into();
 
         Self {
             batch_gen_rng,
@@ -107,10 +108,22 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
 
     pub fn generate(&mut self, context: Context) -> BatchWithSeed {
         let seed = self.batch_gen_rng.next_u64();
-        let spec = self.batch_gen_rng.gen_range(0..=4u8);
+        let batch_id = self.batch_gen_rng.gen_range(0..=4u8);
         let rt_settings = self.rt_settings;
 
-        let batch = match spec {
+        let batch = self.generate_batch(batch_id, context, seed, rt_settings);
+
+        (seed, batch).into()
+    }
+
+    fn generate_batch(
+        &mut self,
+        batch_id: u8,
+        context: Context,
+        seed: Seed,
+        rt_settings: RuntimeSettings,
+    ) -> Batch {
+        match batch_id {
             0 => {
                 let existing_programs = context.programs.iter().copied().collect::<Vec<_>>();
                 self.gen_upload_program_batch(existing_programs, seed, rt_settings)
@@ -125,22 +138,22 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
                 span.in_scope(|| self.gen_upload_code_batch(existing_programs))
             }
             2 => match NonEmpty::from_vec(context.programs.iter().copied().collect()) {
-                Some(existing_programs) => {
-                    self.gen_send_message_batch(existing_programs, seed, rt_settings)
-                }
-                None => self.gen_upload_program_batch(vec![], seed, rt_settings),
-            },
+                Some(existing_programs) => self.gen_send_message_batch(existing_programs, seed, rt_settings),
+                None => self.generate_batch(0, context, seed, rt_settings)
+            }
             3 => match NonEmpty::from_vec(context.codes.iter().copied().collect()) {
-                Some(existing_codes) => {
-                    self.gen_create_program_batch(existing_codes, seed, rt_settings)
+                Some(existing_codes) => self.gen_create_program_batch(existing_codes, seed, rt_settings),
+                None => self.generate_batch(0, context, seed, rt_settings)
+            }
+            4 => {
+                tracing::error!("GOT IT!");
+                match NonEmpty::from_vec(context.mailbox_state.iter().copied().map(|(mid, _)| mid).collect()) {
+                    Some(mailbox_messages) => self.gen_send_reply_batch(mailbox_messages, seed, rt_settings),
+                    None => self.generate_batch(0, context, seed, rt_settings),
                 }
-                None => self.gen_upload_program_batch(vec![], seed, rt_settings),
             },
-            4 => todo!(),
             _ => unreachable!(),
-        };
-
-        (seed, batch).into()
+        }
     }
 
     #[instrument(skip_all, fields(seed = seed, batch_type = "upload_program"))]
@@ -241,5 +254,27 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
                 .collect();
 
         Batch::CreateProgram(inner)
+    }
+
+    #[instrument(skip_all, fields(seed = seed, batch_type = "send_reply"))]
+    fn gen_send_reply_batch(
+        &mut self,
+        mailbox_messages: NonEmpty<MessageId>,
+        seed: Seed,
+        rt_settings: RuntimeSettings,
+    ) -> Batch {
+        let mut rng = Rng::seed_from_u64(seed);
+        let inner = utils::iterator_with_args(self.batch_size, || {
+            (mailbox_messages.clone(), rng.next_u64())
+        })
+        .enumerate()
+        .map(|(i, (mailbox_messages, rng_seed))| {
+            tracing::debug_span!("`send_reply` generator", call_id = i + 1).in_scope(|| {
+                SendReplyArgs::generate::<Rng>(mailbox_messages, rng_seed, rt_settings.gas_limit)
+            })
+        })
+        .collect();
+
+        Batch::SendReply(inner)
     }
 }

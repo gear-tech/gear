@@ -28,6 +28,7 @@ type CreateProgramArgsInner = (CodeId, Vec<u8>, Vec<u8>, u64, u128);
 /// Create program args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::create_program` call.
+#[derive(Debug, Clone)]
 pub struct CreateProgramArgs(pub CreateProgramArgsInner);
 
 impl From<CreateProgramArgs> for CreateProgramArgsInner {

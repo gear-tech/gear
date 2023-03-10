@@ -40,7 +40,7 @@ use gsdk::{
     },
 };
 use parity_scale_codec::Encode;
-use std::{collections::BTreeMap, path::Path};
+use std::{collections::BTreeMap, path::Path, borrow::Borrow};
 
 impl GearApi {
     /// Transfer `value` to `destination`'s account.
@@ -413,8 +413,9 @@ impl GearApi {
     /// [`pallet_gear::send_reply`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.send_reply)
     /// extrinsic.
     ///
-    /// This function returns a tuple with a new message identifier, transferred
-    /// value, and a hash of the block with the message enqueuing transaction.
+    /// This function returns a tuple with a new message identifier, destination
+    /// of the new message, transferred value, and a hash of the block with the
+    /// message enqueuing transaction.
     ///
     /// # See also
     ///
@@ -428,7 +429,7 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, u128, H256)> {
+    ) -> Result<(MessageId, ProgramId, u128, H256)> {
         let payload = payload.as_ref().to_vec();
 
         let data = self.get_from_mailbox(reply_to_id).await?;
@@ -446,10 +447,16 @@ impl GearApi {
             if let Event::Gear(GearEvent::MessageQueued {
                 id,
                 entry: MessageEntry::Reply(_),
+                destination,
                 ..
             }) = event?.as_root_event::<Event>()?
             {
-                return Ok((id.into(), message.value(), tx.block_hash()));
+                return Ok((
+                    id.into(),
+                    destination.into(),
+                    message.value(),
+                    tx.block_hash(),
+                ));
             }
         }
 
@@ -464,12 +471,10 @@ impl GearApi {
     /// replying to several programs at once.
     pub async fn send_reply_bytes_batch(
         &self,
-        args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)>,
-    ) -> Result<(Vec<Result<(MessageId, u128)>>, H256)> {
-        let mut args = args.into_iter();
+        args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)> + Clone,
+    ) -> Result<(Vec<Result<(MessageId, ProgramId, u128)>>, H256)> {
         let mut values = BTreeMap::new();
-
-        for (message_id, _, _, _) in args.by_ref() {
+        for (message_id, _, _, _) in args.clone().into_iter() {
             values.insert(
                 message_id,
                 self.get_from_mailbox(message_id)
@@ -478,7 +483,10 @@ impl GearApi {
             );
         }
 
+        log::info!("GOT MESSAGES FROM MAILBOX");
+
         let calls: Vec<_> = args
+            .into_iter()
             .map(|(reply_to_id, payload, gas_limit, value)| {
                 RuntimeCall::Gear(GearCall::send_reply {
                     reply_to_id: reply_to_id.into(),
@@ -491,17 +499,24 @@ impl GearApi {
 
         let amount = calls.len();
 
+        log::info!("AMOUNT OF CALLS {amount:?}");
+
         let tx = self.0.force_batch(calls).await?;
+        log::info!("REPLY BATCH SENT");
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<Event>()? {
+            let event = event?;
+            log::info!("ALSO RECEIVED EVENT {:?}", event.as_root_event::<Event>()?);
+            match event.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
                     entry: MessageEntry::Reply(reply_to_id),
+                    destination,
                     ..
                 }) => res.push(Ok((
                     id.into(),
+                    destination.into(),
                     values
                         .remove(&reply_to_id.into())
                         .flatten()
@@ -529,7 +544,7 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, u128, H256)> {
+    ) -> Result<(MessageId, ProgramId, u128, H256)> {
         self.send_reply_bytes(reply_to_id, payload.encode(), gas_limit, value)
             .await
     }
@@ -722,7 +737,9 @@ impl GearApi {
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<Event>()? {
+            let event = event?;
+            log::info!("EVENTS FOR upload_program {:?}", event.as_root_event::<Event>()?);
+            match event.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
                     destination,

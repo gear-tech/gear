@@ -24,6 +24,7 @@ use gear_core::ids::ProgramId;
 /// Upload code args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::upload_code` call.
+#[derive(Debug, Clone)]
 pub struct UploadCodeArgs(pub Vec<u8>);
 
 impl From<UploadCodeArgs> for Vec<u8> {

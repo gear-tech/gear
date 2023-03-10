@@ -28,6 +28,7 @@ type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128);
 /// Send reply args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::send_reply` call.
+#[derive(Debug, Clone)]
 pub struct SendReplyArgs(pub SendReplyArgsInner);
 
 impl From<SendReplyArgs> for SendReplyArgsInner {
@@ -56,8 +57,8 @@ impl TryFrom<GearCall> for SendReplyArgs {
 
 impl SendReplyArgs {
     /// Generates `pallet_gear::Pallet::<T>::send_reply` call arguments.
-    fn generate<Rng: CallGenRng>(
-        mailbox: &mut NonEmpty<MessageId>,
+    pub fn generate<Rng: CallGenRng>(
+        mailbox: NonEmpty<MessageId>,
         rng_seed: Seed,
         gas_limit: u64,
     ) -> Self {

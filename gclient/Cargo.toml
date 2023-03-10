@@ -20,6 +20,8 @@ futures-timer = "3.0.2"
 async-trait = "0.1.64"
 wabt = "0.10.0"
 
+log = "0.4.17"
+
 [dev-dependencies]
 tokio = { version = "1.26.0", features = ["full"] }
 wat = "1.0.60"

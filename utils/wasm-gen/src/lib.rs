@@ -723,7 +723,7 @@ impl<'a> WasmGen<'a> {
             .into_iter()
             .filter_map(|(name, info)| {
                 let sys_call_max_amount = info.frequency.mult(code_size);
-                let sys_call_amount = self.u.int_in_range(0..=sys_call_max_amount).unwrap();
+                let sys_call_amount = self.u.int_in_range(0..=1).unwrap();
                 if sys_call_amount == 0
                     && !(name == SysCallName::Debug && self.config.print_test_info.is_some())
                 {

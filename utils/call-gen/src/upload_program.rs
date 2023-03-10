@@ -27,6 +27,7 @@ type UploadProgramArgsInner = (Vec<u8>, Vec<u8>, Vec<u8>, u64, u128);
 /// Upload program args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::upload_program` call.
+#[derive(Debug, Clone)]
 pub struct UploadProgramArgs(pub UploadProgramArgsInner);
 
 impl From<UploadProgramArgs> for UploadProgramArgsInner {

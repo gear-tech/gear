@@ -1,7 +1,7 @@
 use super::context::ContextUpdate;
 use crate::utils;
 use anyhow::Error;
-use gear_core::ids::{CodeId, ProgramId};
+use gear_core::ids::{CodeId, MessageId, ProgramId};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, thiserror::Error)]
@@ -34,9 +34,13 @@ impl TryFrom<Error> for CrashAlert {
 }
 
 #[derive(Default)]
-pub struct Report {
+pub struct ExtrinsicReport {
     pub codes: BTreeSet<CodeId>,
     pub program_ids: BTreeSet<ProgramId>,
+}
+
+pub struct StateReport {
+    pub current_mailbox: BTreeSet<(MessageId, u128)>,
 }
 
 #[derive(Default)]
@@ -47,10 +51,10 @@ pub struct BatchRunReport {
 }
 
 impl BatchRunReport {
-    pub fn new(id: u64, report: Report) -> Self {
+    pub fn new(id: u64, reports: (ExtrinsicReport, StateReport)) -> Self {
         Self {
             id,
-            context_update: report.into(),
+            context_update: reports.into(),
         }
     }
 

@@ -19,11 +19,11 @@
 mod account_id;
 mod block;
 
+pub use account_id::IntoAccountId32;
 pub use block::*;
 
 use super::{GearApi, Result};
 use crate::Error;
-use account_id::IntoAccountId32;
 use gear_core::{ids::*, message::StoredMessage};
 use gsdk::{
     ext::sp_core::crypto::Ss58Codec,
@@ -34,6 +34,27 @@ use gsdk::{
 };
 
 impl GearApi {
+    /// Get up to `mails_count` messages from the mailbox.
+    pub async fn mailbox(&self, mails_count: u32) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
+        self.mailbox_account(self.0.account_id(), mails_count).await
+    }
+
+    /// Get up to `mails_count` messages from the mailbox of the `account_id`.
+    pub async fn mailbox_account(
+        &self,
+        account_id: impl IntoAccountId32,
+        mails_count: u32,
+    ) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
+        Ok(self
+            .0
+            .api()
+            .mailbox(account_id.into_account_id(), mails_count)
+            .await?
+            .into_iter()
+            .map(|(msg, i)| (msg.into(), i))
+            .collect())
+    }
+
     /// Get a message identified by `message_id` from the mailbox.
     pub async fn get_from_mailbox(
         &self,
