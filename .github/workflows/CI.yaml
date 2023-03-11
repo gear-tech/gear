@@ -10,14 +10,17 @@ on:
   workflow_dispatch:
 
 env:
+  CARGO_INCREMENTAL: 0
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
   TERM: xterm-256color
   NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
 
 jobs:
   # TODO: add to specific branches.
   # spec_version:
-  #   runs-on: [self-hosted, cachepot, epyc]
+  #   runs-on: [self-hosted, sccache, epyc]
   #   steps:
   #     - name: Cancel Previous Runs
   #       if: ${{ github.event_name == 'pull_request' }}
@@ -37,7 +40,7 @@ jobs:
 
   check:
     # needs: spec_version
-    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
+    runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
@@ -84,9 +87,10 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
-          sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
-          sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
-          sudo chmod +x /usr/bin/cachepot
+          sudo wget -c https://github.com/mozilla/sccache/releases/download/v0.3.3/sccache-v0.3.3-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+          sudo cp sccache-v0.3.3-x86_64-unknown-linux-musl/sccache /usr/bin/
+          sudo chmod +x /usr/bin/sccache
+          mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
 
       - name: "Cache: Unpack"
         if: ${{ github.event_name == 'pull_request' }}
@@ -94,7 +98,6 @@ jobs:
         run: |
           tar -xf /root/cache/check_cache_${{ github.base_ref }}.tar -C /
           tar -xf /root/cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
-          tar -xf /root/cache/check_target_${{ github.base_ref }}.tar
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
@@ -118,15 +121,14 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target
-          tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot
+          tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/sccache
           tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
 
 
   build:
     # needs: spec_version
-    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
+    runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
@@ -185,9 +187,10 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
-          sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
-          sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
-          sudo chmod +x /usr/bin/cachepot
+          sudo wget -c https://github.com/mozilla/sccache/releases/download/v0.3.3/sccache-v0.3.3-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+          sudo cp sccache-v0.3.3-x86_64-unknown-linux-musl/sccache /usr/bin/
+          sudo chmod +x /usr/bin/sccache
+          mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
 
       - name: "Install: grcov"
         run: curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
@@ -201,8 +204,8 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
-          [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_target.tar; }
-          [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_target_${{ github.base_ref }}.tar; }
+          [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; }
+          [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; }
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
@@ -310,8 +313,7 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/build_target_${{ github.ref_name }}.tar ./target
-          tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/cachepot
+          tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/sccache
           tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
 
@@ -319,8 +321,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/build_target.tar ./target
-          tar -cf /tmp/build_cache.tar /tmp/cachepot
+          tar -cf /tmp/build_cache.tar /tmp/sccache
           tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
 
