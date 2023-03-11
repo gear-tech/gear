@@ -286,6 +286,26 @@ impl Api {
 
         Ok(mailbox)
     }
+
+    /// Get up to `count` messages from the mailbox
+    pub async fn all_mailbox(&self, count: u32) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
+        let storage = self.storage().at(None).await?;
+        let query_key =
+            storage_address_root_bytes(&subxt::dynamic::storage_root("GearMessenger", "Mailbox"));
+
+        let keys = storage.fetch_keys(&query_key, count, None).await?;
+
+        let mut mailbox: Vec<(StoredMessage, Interval<u32>)> = vec![];
+        for key in keys.into_iter() {
+            if let Some(storage_data) = storage.fetch_raw(&key.0).await? {
+                if let Ok(value) = <(StoredMessage, Interval<u32>)>::decode(&mut &storage_data[..])
+                {
+                    mailbox.push(value);
+                }
+            }
+        }
+        Ok(mailbox)
+    }
 }
 
 /// Get storage entry type id using `metadata` and storage entry `address`

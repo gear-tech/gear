@@ -27,6 +27,8 @@ const PATHS: [&str; 2] = [
     "../target/wat-examples/inf_recursion.wasm",
 ];
 
+const PING_PATH: &str = "../target/wasm32-unknown-unknown/release/demo_ping.opt.wasm";
+
 async fn upload_programs_and_check(
     api: &GearApi,
     codes: Vec<Vec<u8>>,
@@ -114,4 +116,56 @@ async fn alloc_zero_pages() -> anyhow::Result<()> {
     let api = GearApi::node(&node).await?.clone().with("//Bob")?;
     let codes = vec![wat::parse_str(wat_code).unwrap()];
     upload_programs_and_check(&api, codes, Some(Duration::from_secs(5))).await
+}
+
+#[tokio::test]
+async fn get_mailbox() -> Result<()> {
+    // Create API instance
+    let api = GearApi::dev().await?;
+
+    // Subscribe to events
+    let mut listener = api.subscribe().await?;
+
+    // Check that blocks are still running
+    assert!(listener.blocks_running().await?);
+
+    // Calculate gas amount needed for initialization
+    let gas_info = api
+        .calculate_upload_gas(None, gclient::code_from_os(PING_PATH)?, vec![], 0, true)
+        .await?;
+
+    // Upload and init the program
+    let (message_id, program_id, _hash) = api
+        .upload_program_bytes_by_path(
+            PING_PATH,
+            gclient::now_micros().to_le_bytes(),
+            vec![],
+            gas_info.min_limit,
+            0,
+        )
+        .await?;
+
+    assert!(listener.message_processed(message_id).await?.succeed());
+
+    let payload = b"PING".to_vec();
+
+    // Calculate gas amount needed for handling the message
+    let gas_info = api
+        .calculate_handle_gas(None, program_id, payload.clone(), 0, true)
+        .await?;
+
+    // Send messages
+    let messages = vec![(program_id, payload.clone(), gas_info.min_limit * 2, 0); 5];
+    let (messages, _hash) = api.send_message_bytes_batch(messages).await?;
+
+    let (message_id, _hash) = messages.last().unwrap().as_ref().unwrap();
+
+    assert!(listener.message_processed(*message_id).await?.succeed());
+
+    let mailbox = api.get_all_mailbox(15).await?;
+
+    // Check that all messages is in mailbox
+    assert_eq!(mailbox.len(), 5);
+
+    Ok(())
 }

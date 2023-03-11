@@ -58,6 +58,13 @@ impl GearApi {
         Ok(data.map(|(m, i)| (m.into(), i)))
     }
 
+    /// Get up to `count` messages from the mailbox.
+    pub async fn get_all_mailbox(&self, count: u32) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
+        let data: Vec<(stored::StoredMessage, Interval<u32>)> =
+            self.0.api().all_mailbox(count).await?;
+        Ok(data.into_iter().map(|(m, i)| (m.into(), i)).collect())
+    }
+
     async fn account_data(&self, account_id: impl IntoAccountId32) -> Result<AccountData<u128>> {
         Ok(self
             .0
