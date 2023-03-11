@@ -135,17 +135,17 @@ impl WeightInfo for () {
     {{#if (eq pallet "pallet_gear")}}
     fn allocation_cost() -> Weight {
         // To be changed with the proper value.
-        T::DbWeight::get().writes(1)
+        RocksDbWeight::get().writes(1)
     }
     fn grow_cost() -> Weight {
         // To be changed with the proper value.
-        T::DbWeight::get().writes(1)
+        RocksDbWeight::get().writes(1)
     }
     fn initial_cost() -> Weight {
-        T::DbWeight::get().writes(1)
+        RocksDbWeight::get().writes(1)
     }
     fn load_cost() -> Weight {
-        T::DbWeight::get().reads(1)
+        RocksDbWeight::get().reads(1)
     }
     {{/if}}
     {{#each benchmarks as |benchmark|}}
