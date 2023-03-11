@@ -496,12 +496,14 @@ jobs:
 
   
   build-win-cross:
-    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
+    runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
     env:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
       RUSTC_WRAPPER: "sccache"
       WINEDEBUG: fixme-all
+      CARGO_INCREMENTAL: 0
+      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
@@ -615,8 +617,8 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
-          [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_cargo_registry.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_target.tar; }
-          [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_win_cross_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_win_cross_target_${{ github.base_ref }}.tar; }
+          [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_cargo_registry.tar -C /; }
+          [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_win_cross_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /; }
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
@@ -665,12 +667,19 @@ jobs:
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
           
+      - name: "Cache: Pack"
+        if: ${{ github.event_name == 'push' }}
+        continue-on-error: true
+        run: |
+          tar -cf /tmp/build_win_cross_cache_${{ github.ref_name }}.tar /tmp/sccache
+          tar -cf /tmp/build_win_cross_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mv /tmp/*.tar /root/cache/
+
       - name: "Cache: Pack to temp"
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/build_win_cross_target.tar ./target
-          tar -cf /tmp/build_win_cross_cache.tar /tmp/cachepot
+          tar -cf /tmp/build_win_cross_cache.tar /tmp/sccache
           tar -cf /tmp/build_win_cross_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
 
