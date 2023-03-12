@@ -41,7 +41,7 @@ pub const API_BENCHMARK_BATCH_SIZE: u32 = 80;
 
 /// How many instructions are executed in a single batch. The reasoning is the same
 /// as for `API_BENCHMARK_BATCH_SIZE`.
-pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
+pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 500;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
@@ -594,22 +594,22 @@ impl<T: Config> Default for InstructionWeights<T> {
         Self {
             version: 6,
             i64const: cost_instr!(instr_i64const, 1),
-            i64load: cost_instr!(instr_i64load, 2),
-            i64store: cost_instr!(instr_i64store, 2),
-            select: cost_instr!(instr_select, 4),
-            r#if: cost_instr!(instr_if, 3),
-            br: cost_instr!(instr_br, 2),
-            br_if: cost_instr!(instr_br_if, 3),
-            br_table: cost_instr!(instr_br_table, 3),
+            i64load: cost_instr!(instr_i64load, 0),
+            i64store: cost_instr!(instr_i64store, 1),
+            select: cost_instr!(instr_select, 2),
+            r#if: cost_instr!(instr_if, 0),
+            br: cost_instr!(instr_br, 0),
+            br_if: cost_instr!(instr_br_if, 1),
+            br_table: cost_instr!(instr_br_table, 0),
             br_table_per_entry: cost_instr!(instr_br_table_per_entry, 0),
             call: cost_instr!(instr_call, 2),
-            call_indirect: cost_instr!(instr_call_indirect, 3),
+            call_indirect: cost_instr!(instr_call_indirect, 1),
             call_indirect_per_param: cost_instr!(instr_call_indirect_per_param, 1),
             call_per_local: cost_instr!(instr_call_per_local, 1),
-            local_get: cost_instr!(instr_local_get, 1),
+            local_get: cost_instr!(instr_local_get, 0),
             local_set: cost_instr!(instr_local_set, 1),
-            local_tee: cost_instr!(instr_local_tee, 2),
-            global_get: cost_instr!(instr_global_get, 1),
+            local_tee: cost_instr!(instr_local_tee, 1),
+            global_get: cost_instr!(instr_global_get, 0),
             global_set: cost_instr!(instr_global_set, 1),
             memory_current: cost_instr!(instr_memory_current, 1),
             i64clz: cost_instr!(instr_i64clz, 2),
