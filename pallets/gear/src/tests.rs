@@ -6831,7 +6831,7 @@ fn execution_over_blocks() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             in_one_block,
-            Package::new(8_192, src).encode(),
+            Package::new(16_384, src).encode(),
             block_gas_limit,
             0,
         ));
