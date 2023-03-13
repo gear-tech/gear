@@ -19,7 +19,7 @@ gear-utils = { path = "../utils" }
 anyhow = "1.0.69"
 arbitrary = "1.2.3"
 dyn-clonable = "0.9.0"
-futures = "0.3.26"
+futures = "0.3.27"
 futures-timer = "3.0.2"
 hex = "0.4.3"
 names = "0.14.0"
