@@ -71,6 +71,7 @@ where
 
     if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
         super::futures().remove(&msg_id);
+        super::locks().remove_message_entry(msg_id);
     } else {
         super::locks().wait(msg_id);
     }
