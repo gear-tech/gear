@@ -191,9 +191,7 @@ pub trait GearRI {
             ctx.lazy_pages_weights.signal_write,
             ctx.lazy_pages_weights.signal_write_after_read,
         ]
-        .map(<u64>::from)
-        .map(|w| w * 4)
-        .map(Into::into);
+        .map(|w| u64::from(w).saturating_mul(4).into());
         ctx.lazy_pages_weights = LazyPagesWeights {
             signal_read: ws[0],
             signal_write: ws[1],

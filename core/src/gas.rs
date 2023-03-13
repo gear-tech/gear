@@ -309,8 +309,11 @@ pub struct GasRefunder {
 
 /// [GasRefunder] error, in case somebody tries to refund more than was charged.
 #[derive(Debug, derive_more::Display)]
-#[display(fmt = "Trying to refund {_1}, but {_0} was charged")]
-pub struct RefundError(u64, u64);
+#[display(fmt = "Trying to refund {charged}, but {refunded} was charged")]
+pub struct RefundError {
+    charged: u64,
+    refunded: u64,
+}
 
 impl GasRefunder {
     /// Charge gas.
@@ -326,7 +329,10 @@ impl GasRefunder {
         amount: u64,
     ) -> Result<Result<(), ChargeError>, RefundError> {
         if self.amount < amount {
-            return Err(RefundError(self.amount, amount));
+            return Err(RefundError {
+                charged: self.amount,
+                refunded: amount,
+            });
         }
 
         Ok(counters.refund_gas(amount))

@@ -164,7 +164,9 @@ impl<'a> GasPrecharger<'a> {
             // It means we somehow violated some constraints:
             // 1. one of allocated pages > MAX_WASM_PAGE_COUNT
             // 2. static pages > MAX_WASM_PAGE_COUNT
-            Ok(page.inc().expect("WASM memory size is too big"))
+            Ok(page
+                .inc()
+                .unwrap_or_else(|_| unreachable!("WASM memory size is too big")))
         } else {
             Ok(static_pages)
         }

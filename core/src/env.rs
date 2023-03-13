@@ -170,6 +170,7 @@ pub trait Ext {
     /// This should be no-op in release builds.
     fn debug(&mut self, data: &str) -> Result<(), Self::Error>;
 
+    // TODO: remove GasLeft from result #2380
     /// Access currently handled message payload.
     fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error>;
 
