@@ -178,13 +178,8 @@ impl LocksMap {
     }
 
     pub fn remove_message_entry(&mut self, message_id: MessageId) {
+        // TODO: check this place #2385
         self.0.remove(&message_id);
-        // Question for reviewers: how map for message can be not empty at this
-        // point ?!!! .map(|locks| {
-        //     if !locks.is_empty() {
-        //         // unreachable!("Wanna to remove locks map for message, but
-        // the map is not empty: {:?}", locks);     }
-        // });
     }
 
     /// Check if message is timed out.
