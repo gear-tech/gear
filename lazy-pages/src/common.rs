@@ -196,6 +196,21 @@ impl LazyPagesExecutionContext {
         }
         Ok(())
     }
+
+    pub fn handle_psg_case_one_page(
+        &mut self,
+        page: LazyPage,
+    ) -> Result<PagesIterInclusive<LazyPage>, Error> {
+        if self.page_has_data_in_storage(page.to_page())? {
+            // if at least one gear page has data in storage, then all pages from corresponding
+            // `GranularityPage` have data in storage, therefor all gear pages from `page`
+            // have data in storage. So, this is not psg case and we can handle only one `LazyPage`.
+            Ok(page.iter_once())
+        } else {
+            // no pages in storage - this is psg case.
+            Ok(page.to_page::<GranularityPage>().to_pages_iter())
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]

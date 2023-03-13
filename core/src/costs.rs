@@ -18,11 +18,9 @@
 
 //! Costs module.
 
-use core::{fmt::Debug, marker::PhantomData};
-
 use crate::{gas::Token, memory::PageU32Size};
-
 use codec::{Decode, Encode};
+use core::{fmt::Debug, marker::PhantomData};
 
 /// Cost per one memory page.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]

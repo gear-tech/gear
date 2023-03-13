@@ -874,7 +874,8 @@ impl Ext {
     ) -> Result<WasmPage, ProcessorAllocError> {
         // Charge gas for memory grow.
         // TODO: move charging for grow inside alloc function, so that we can skip refunding #2337
-        let gas_refunder = GasRefunder::charge(self, self.context.page_costs.mem_grow.calc(pages))?;
+        let gas_refunder =
+            GasRefunder::charge_if_enough(self, self.context.page_costs.mem_grow.calc(pages))?;
         let AllocInfo { page, not_grown } =
             self.context.allocations_context.alloc::<G>(pages, mem)?;
 

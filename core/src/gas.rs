@@ -317,7 +317,10 @@ pub struct RefundError {
 
 impl GasRefunder {
     /// Charge gas.
-    pub fn charge<C: CountersOwner>(counters: &mut C, amount: u64) -> Result<Self, ChargeError> {
+    pub fn charge_if_enough<C: CountersOwner>(
+        counters: &mut C,
+        amount: u64,
+    ) -> Result<Self, ChargeError> {
         counters.charge_gas_if_enough(amount)?;
         Ok(Self { amount })
     }

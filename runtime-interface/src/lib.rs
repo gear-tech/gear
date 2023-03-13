@@ -186,16 +186,16 @@ pub trait GearRI {
 
         // Deprecated runtimes suppose to give for lazy-pages per GearPage costs,
         // so it's necessary to multiply it by 4 to make per GranularityPage.
-        let ws = [
+        let [signal_read, signal_write, signal_write_after_read] = [
             ctx.lazy_pages_weights.signal_read,
             ctx.lazy_pages_weights.signal_write,
             ctx.lazy_pages_weights.signal_write_after_read,
         ]
         .map(|w| u64::from(w).saturating_mul(4).into());
         ctx.lazy_pages_weights = LazyPagesWeights {
-            signal_read: ws[0],
-            signal_write: ws[1],
-            signal_write_after_read: ws[2],
+            signal_read,
+            signal_write,
+            signal_write_after_read,
             // We do not charge for host_func and data loading in old runtimes.
             host_func_read: 0.into(),
             host_func_write: 0.into(),

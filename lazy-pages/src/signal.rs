@@ -30,7 +30,7 @@ use crate::{
     common::{Error, GasLeftCharger, LazyPage, LazyPagesExecutionContext},
     globals::{self, GearGlobal},
     process::{self, AccessHandler},
-    utils, LAZY_PAGES_PROGRAM_CONTEXT,
+    LAZY_PAGES_PROGRAM_CONTEXT,
 };
 
 pub(crate) trait UserSignalHandler {
@@ -80,7 +80,7 @@ unsafe fn user_signal_handler_internal(
     let lazy_page = LazyPage::from_offset(offset);
 
     let pages = if is_write {
-        utils::handle_psg_case_one_page(&mut ctx, lazy_page)?
+        ctx.handle_psg_case_one_page(lazy_page)?
     } else {
         lazy_page.iter_once()
     };
@@ -185,16 +185,16 @@ impl AccessHandler for SignalAccessHandler {
         self,
         ctx: &mut RefMut<LazyPagesExecutionContext>,
     ) -> Result<Self::Output, Error> {
-        if let Some((gas_left, _)) = self.gas_ctx {
-            if let Some(globals_config) = ctx.globals_config.as_ref() {
-                unsafe {
-                    globals::apply_for_global(globals_config, GearGlobal::GasLimit, |_| {
-                        Ok(Some(gas_left.gas))
-                    })?;
-                    globals::apply_for_global(globals_config, GearGlobal::AllowanceLimit, |_| {
-                        Ok(Some(gas_left.allowance))
-                    })?;
-                }
+        if let (Some((gas_left, _)), Some(globals_config)) =
+            (self.gas_ctx, ctx.globals_config.as_ref())
+        {
+            unsafe {
+                globals::apply_for_global(globals_config, GearGlobal::GasLimit, |_| {
+                    Ok(Some(gas_left.gas))
+                })?;
+                globals::apply_for_global(globals_config, GearGlobal::AllowanceLimit, |_| {
+                    Ok(Some(gas_left.allowance))
+                })?;
             }
         }
         Ok(())

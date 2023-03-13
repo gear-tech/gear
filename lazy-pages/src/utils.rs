@@ -18,11 +18,9 @@
 
 //! Utils.
 
-use std::{cell::RefMut, collections::BTreeSet};
+use std::collections::BTreeSet;
 
-use gear_core::memory::{GranularityPage, PageU32Size, PagesIterInclusive};
-
-use crate::common::{Error, LazyPage, LazyPagesExecutionContext};
+use gear_core::memory::{PageU32Size, PagesIterInclusive};
 
 /// Call `f` for all inclusive ranges from `indexes`.
 /// For example: `indexes` = {1,2,3,5,6,7,9}, then `f` will be called
@@ -66,21 +64,6 @@ pub(crate) fn with_inclusive_ranges<P: PageU32Size + Ord, E>(
         )
     });
     f(iter)
-}
-
-pub(crate) fn handle_psg_case_one_page(
-    ctx: &mut RefMut<LazyPagesExecutionContext>,
-    page: LazyPage,
-) -> Result<PagesIterInclusive<LazyPage>, Error> {
-    if ctx.page_has_data_in_storage(page.to_page())? {
-        // if at least one gear page has data in storage, then all pages from corresponding
-        // `GranularityPage` have data in storage, therefor all gear pages from `page`
-        // have data in storage. So, this is not psg case and we can handle only one `LazyPage`.
-        Ok(page.iter_once())
-    } else {
-        //
-        Ok(page.to_page::<GranularityPage>().to_pages_iter())
-    }
 }
 
 #[cfg(test)]

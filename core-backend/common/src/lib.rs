@@ -60,6 +60,9 @@ use memory::ProcessAccessError;
 use scale_info::TypeInfo;
 
 pub use crate::utils::TrimmedString;
+pub use log;
+
+pub const PTR_SPECIAL: u32 = u32::MAX;
 
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum TerminationReason {
@@ -399,7 +402,6 @@ pub trait BackendTermination<E: BackendExt, M: Sized>: Sized {
     }
 }
 
-pub use log;
 
 #[macro_export]
 macro_rules! syscall_args_trace {
@@ -435,5 +437,3 @@ macro_rules! syscall_trace {
         }
     }
 }
-
-pub const PTR_SPECIAL: u32 = u32::MAX;

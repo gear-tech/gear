@@ -29,8 +29,7 @@ use gear_core::{
 use crate::{
     common::{Error, GasLeftCharger, LazyPage, LazyPagesExecutionContext},
     process::{self, AccessHandler},
-    utils::{self, handle_psg_case_one_page},
-    LAZY_PAGES_PROGRAM_CONTEXT,
+    utils, LAZY_PAGES_PROGRAM_CONTEXT,
 };
 
 pub(crate) struct HostFuncAccessHandler<'a> {
@@ -136,7 +135,7 @@ fn handle_psg_case(
                 continue;
             }
         }
-        let psg_pages = handle_psg_case_one_page(ctx, page)?;
+        let psg_pages = ctx.handle_psg_case_one_page(page)?;
         res.extend(psg_pages);
         granularity_page = Some(page.to_page());
     }
