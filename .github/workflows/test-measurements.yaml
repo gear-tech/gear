@@ -60,19 +60,18 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
-          sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
-          sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
-          sudo chmod +x /usr/bin/cachepot
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/mozilla/sccache/releases/download/v0.3.3/sccache-v0.3.3-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+          sudo cp sccache-v0.3.3-x86_64-unknown-linux-musl/sccache /usr/bin/
+          sudo chmod +x /usr/bin/sccache
+          mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
 
       - name: "Cache: Unpack"
         continue-on-error: true
         run: |
-          cp /root/cache/build* /tmp/
-          tar -xf /tmp/build_cache.tar -C /
-          tar -xf /tmp/build_cargo_registry.tar -C /
-          tar -xf /tmp/build_target.tar
+          tar -xf /root/cache/check_cache_${{ github.ref_name }}.tar -C /
+          tar -xf /root/cache/check_cargo_registry_${{ github.ref_name }}.tar -C /
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked --features=runtime-test,runtime-benchmarks,lazy-pages

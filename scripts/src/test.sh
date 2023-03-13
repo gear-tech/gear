@@ -29,8 +29,16 @@ test_usage() {
 EOF
 }
 
+test_run_node() {
+  $EXE_RUNNER "$TARGET_DIR/release/gear$EXE_EXTENSION" "$@"
+}
+
 workspace_test() {
-  cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
+  if [ "$CARGO" = "cargo xwin" ]; then
+    $CARGO test --workspace "$@" --no-fail-fast
+  else
+    cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
+  fi
 }
 
 gcli_test() {
@@ -80,7 +88,7 @@ rtest() {
     YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
   fi
 
-  $ROOT_DIR/target/release/gear runtime-spec-tests $YAMLS -l0 --runtime "$RUNTIME_STR" --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
+  test_run_node runtime-spec-tests $YAMLS -l0 --runtime "$RUNTIME_STR" --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
 }
 
 pallet_test() {
@@ -92,17 +100,7 @@ pallet_test() {
 }
 
 client_tests() {
-  ROOT_DIR="$1"
-
-  if [ "$2" = "--run-node" ]; then
-    # Run node
-    RUST_LOG="pallet_gear=debug,gear::runtime=debug" $ROOT_DIR/target/release/gear \
-      --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
-
-    cargo test -p gclient -- --test-threads 1 || pkill -f 'gear |gear$' -9 | pkill -f 'gear |gear$' -9
-  else
-    cargo test -p gclient -- --test-threads 1
-  fi
+  RUST_TEST_THREADS=1 $CARGO test -p gclient
 }
 
 validators() {
