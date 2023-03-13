@@ -1,4 +1,4 @@
-name: Vara CD
+name: Upgrade Vara Production
 
 on:
   workflow_dispatch:
