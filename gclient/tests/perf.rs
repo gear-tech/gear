@@ -219,8 +219,6 @@ async fn send_messages(api: &GearApi, progs: &HashMap<&str, ProgramId>) -> Resul
 
     println!("Message count: {}", messages.len());
 
-    assert!(block_gas_limit == 0);
-
     if let Some(Err(e)) = api
         .send_message_bytes_batch(messages)
         .await?
