@@ -122,3 +122,6 @@ wasmtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f9
 
 # TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
 blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "fix-clang-cl-cross" }
+
+# TODO: remove after https://github.com/pepyakin/wabt-rs/pull/84
+wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }

@@ -2723,14 +2723,14 @@ fn block_gas_limit_works() {
         (func $doWork (param $size i32)
             (local $counter i32)
             i32.const 0
-            set_local $counter
+            local.set $counter
             loop $while
-                get_local $counter
+                local.get $counter
                 i32.const 1
                 i32.add
-                set_local $counter
-                get_local $counter
-                get_local $size
+                local.set $counter
+                local.get $counter
+                local.get $size
                 i32.lt_s
                 if
                     br $while
@@ -5841,10 +5841,10 @@ fn gas_spent_precalculated() {
         (export "handle" (func $handle))
         (func $add (; 0 ;) (param $0 i32) (param $1 i32)
             (local $2 i32)
-            get_local $0
-            get_local $1
+            local.get $0
+            local.get $1
             i32.add
-            set_local $2
+            local.set $2
         )
         (func $handle
             (call $add
@@ -5868,7 +5868,7 @@ fn gas_spent_precalculated() {
         (func $init
             (local $1 i32)
             i32.const 1
-            set_local $1
+            local.set $1
         )
     )"#;
 
@@ -9432,14 +9432,14 @@ mod utils {
                         (func $doWork (param $size i32)
                             (local $counter i32)
                             i32.const 0
-                            set_local $counter
+                            local.set $counter
                             loop $while
-                                get_local $counter
+                                local.get $counter
                                 i32.const 1
                                 i32.add
-                                set_local $counter
-                                get_local $counter
-                                get_local $size
+                                local.set $counter
+                                local.get $counter
+                                local.get $size
                                 i32.lt_s
                                 if
                                     br $while

@@ -20,7 +20,7 @@
 
 use std::time::Duration;
 
-use gclient::{EventProcessor, GearApi, Result};
+use gclient::{EventProcessor, GearApi, Node};
 
 const PATHS: [&str; 2] = [
     "../target/wat-examples/wrong_load.wasm",
@@ -31,7 +31,7 @@ async fn upload_programs_and_check(
     api: &GearApi,
     codes: Vec<Vec<u8>>,
     timeout: Option<Duration>,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit()?;
 
@@ -75,7 +75,7 @@ async fn upload_programs_and_check(
 }
 
 #[tokio::test]
-async fn harmless_upload() -> Result<()> {
+async fn harmless_upload() -> anyhow::Result<()> {
     let mut codes = vec![];
     for path in &PATHS {
         codes.push(gclient::code_from_os(path)?);
@@ -84,7 +84,8 @@ async fn harmless_upload() -> Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice, than re-login as Bob.
-    let api = GearApi::dev().await?.with("//Bob")?;
+    let node = Node::try_from_path("../target/release/gear")?;
+    let api = GearApi::node(&node).await?.clone().with("//Bob")?;
 
     upload_programs_and_check(&api, codes, None).await?;
 
@@ -92,7 +93,7 @@ async fn harmless_upload() -> Result<()> {
 }
 
 #[tokio::test]
-async fn alloc_zero_pages() -> Result<()> {
+async fn alloc_zero_pages() -> anyhow::Result<()> {
     let _ = env_logger::Builder::from_default_env()
         .format_module_path(false)
         .format_level(true)
@@ -109,7 +110,8 @@ async fn alloc_zero_pages() -> Result<()> {
                 drop
             )
         )"#;
-    let api = GearApi::dev().await?.with("//Bob")?;
+    let node = Node::try_from_path("../target/release/gear")?;
+    let api = GearApi::node(&node).await?.clone().with("//Bob")?;
     let codes = vec![wat::parse_str(wat_code).unwrap()];
     upload_programs_and_check(&api, codes, Some(Duration::from_secs(5))).await
 }
