@@ -30,7 +30,7 @@ async fn program_migrated_to_another_node() {
 
     // Arrange
 
-    // Upload source program to source node
+    // Upload source program to the source node
     let (src_node_api, src_program_id) = upload_program_to_node(
         &src_node,
         demo_mul_by_const::WASM_BINARY,
@@ -63,7 +63,7 @@ async fn program_migrated_to_another_node() {
 
     // Migrate the source program onto the destination node
     let dest_program_id = src_node_api
-        .migrate_program(src_program_id, &dest_node_api)
+        .migrate_program(src_program_id, None, &dest_node_api)
         .await
         .expect("Unable to migrate source program");
 
@@ -110,7 +110,7 @@ async fn program_migration_fails_if_program_exists() {
 
     // Arrange
 
-    // Upload source program to source node
+    // Upload source program to the source node
     let (src_node_api, src_program_id) = upload_program_to_node(
         &src_node,
         demo_mul_by_const::WASM_BINARY,
@@ -126,14 +126,14 @@ async fn program_migration_fails_if_program_exists() {
 
     // Migrate the source program onto the destination node
     src_node_api
-        .migrate_program(src_program_id, &dest_node_api)
+        .migrate_program(src_program_id, None, &dest_node_api)
         .await
         .expect("Unable to migrate source program");
 
     // Act: migrate the source program onto the source node
 
     let migration_error = src_node_api
-        .migrate_program(src_program_id, &src_node_api)
+        .migrate_program(src_program_id, None, &src_node_api)
         .await
         .expect_err("Unexpected migration result");
 
@@ -151,7 +151,7 @@ async fn program_migration_fails_if_program_exists() {
     // Act: migrate the source program onto the destination node second time
 
     let migration_error = src_node_api
-        .migrate_program(src_program_id, &dest_node_api)
+        .migrate_program(src_program_id, None, &dest_node_api)
         .await
         .expect_err("Unexpected migration result");
 
@@ -165,6 +165,74 @@ async fn program_migration_fails_if_program_exists() {
     } else {
         unreachable!("Unexpected migration error: {:?}", migration_error)
     }
+}
+
+/// Running this test requires gear node to be built in advance.
+#[tokio::test]
+async fn program_with_gas_reservation_migrated_to_another_node() {
+    let src_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate source node");
+    let dest_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate destination node");
+
+    // Arrange
+
+    // Upload source program to the source node
+    let (src_node_api, src_program_id) = upload_program_to_node(
+        &src_node,
+        demo_reserve_gas::WASM_BINARY,
+        &gclient::now_micros().to_le_bytes(),
+        Some(demo_reserve_gas::InitAction::Normal),
+    )
+    .await;
+
+    let src_node_block_hash = src_node_api
+        .last_block_hash()
+        .await
+        .expect("Unable to get source node last block hash");
+
+    // Initialize the destination node api
+    let dest_node_api = GearApi::node(&dest_node)
+        .await
+        .expect("Unable to connect to destination node api");
+
+    let dest_node_gas_limit = dest_node_api
+        .block_gas_limit()
+        .expect("Unable to get destination node gas limit");
+
+    let mut dest_node_listener = dest_node_api
+        .subscribe()
+        .await
+        .expect("Unable to subscribe to destination node events");
+
+    // Act
+
+    // Migrate the source program onto the destination node
+    let dest_program_id = src_node_api
+        .migrate_program(src_program_id, Some(src_node_block_hash), &dest_node_api)
+        .await
+        .expect("Unable to migrate source program");
+
+    let (message_id, _) = dest_node_api
+        .send_message(
+            dest_program_id,
+            demo_reserve_gas::HandleAction::ReplyFromReservation,
+            dest_node_gas_limit,
+            0,
+        )
+        .await
+        .expect("Unable to send message to destination program");
+
+    // Assert
+
+    let dest_program_reply = dest_node_listener
+        .reply_bytes_on(message_id)
+        .await
+        .expect("Unable to get reply from destination program")
+        .1
+        .expect("Unable to read reply payload");
+    assert_eq!(
+        demo_reserve_gas::REPLY_FROM_RESERVATION_PAYLOAD.as_ref(),
+        dest_program_reply
+    );
 }
 
 async fn upload_program_to_node<'a, E>(

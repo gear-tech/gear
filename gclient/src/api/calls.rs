@@ -31,18 +31,21 @@ use gsdk::{
             frame_system::pallet::Call as SystemCall,
             gear_common::event::{CodeChangeKind, MessageEntry},
             gear_runtime::RuntimeCall,
-            pallet_balances::pallet::Call as BalancesCall,
+            pallet_balances::{pallet::Call as BalancesCall, AccountData},
             pallet_gear::pallet::Call as GearCall,
             sp_weights::weight_v2::Weight,
         },
         utility::Event as UtilityEvent,
         Event,
     },
-    Error as GsdkError,
+    types, Error as GsdkError,
 };
 use hex::ToHex;
 use parity_scale_codec::Encode;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::Path,
+};
 
 impl GearApi {
     /// Transfer `value` to `destination`'s account.
@@ -208,10 +211,12 @@ impl GearApi {
 
     /// Migrates an active program identified by `src_program_id` onto another
     /// node identified by `dest_node_api` and returns the migrated program
-    /// identifier.
+    /// identifier. All source program data is taken at the time of
+    /// `src_block_hash` if it is specified or the most recent one.
     pub async fn migrate_program(
         &self,
         src_program_id: ProgramId,
+        src_block_hash: Option<H256>,
         dest_node_api: &GearApi,
     ) -> Result<ProgramId> {
         if dest_node_api.0.api().gprog(src_program_id).await.is_ok() {
@@ -220,35 +225,88 @@ impl GearApi {
             ));
         }
 
+        let src_block_hash = src_block_hash.or(Some(self.last_block_hash().await?));
+
         let dest_program_id = src_program_id;
 
         // Collect data from the source program
-        let src_free_balance = self.free_balance(src_program_id).await.or_else(|e| {
+        let src_program_account_data = self
+            .account_data_at(src_program_id, src_block_hash)
+            .await
+            .or_else(|e| {
             if let Error::GearSDK(GsdkError::StorageNotFound) = e {
-                Ok(0)
-            } else {
-                Err(e)
-            }
-        })?;
-        let src_reserved_balance = self.reserved_balance(src_program_id).await.or_else(|e| {
-            if let Error::GearSDK(GsdkError::StorageNotFound) = e {
-                Ok(0)
+                Ok(AccountData {
+                    free: 0u128,
+                    reserved: 0,
+                    misc_frozen: 0,
+                    fee_frozen: 0,
+                })
             } else {
                 Err(e)
             }
         })?;
 
-        let src_program = self.0.api().gprog(src_program_id).await?;
+        let src_program = self
+            .0
+            .api()
+            .gprog_at(src_program_id, src_block_hash)
+            .await?;
 
-        let src_program_pages = self.0.api().gpages(src_program_id, &src_program).await?;
+        let src_program_pages = self
+            .0
+            .api()
+            .gpages_at(src_program_id, &src_program, src_block_hash)
+            .await?;
+
+        let src_program_reserved_gas_node_ids: Vec<types::GearGasNodeId> = src_program
+            .gas_reservation_map
+            .iter()
+            .map(|gr| gr.0.into())
+            .collect();
+
+        let src_program_reserved_gas_nodes = self
+            .0
+            .api()
+            .gas_nodes_at(&src_program_reserved_gas_node_ids, src_block_hash)
+            .await?;
+
+        let mut accounts_with_reserved_funds = HashSet::new();
+        for gas_node in &src_program_reserved_gas_nodes {
+            if let types::GearGasNode::Reserved { id, .. } = &gas_node.1 {
+                accounts_with_reserved_funds.insert(id);
+            } else {
+                return Err(Error::GasNodeTypeInvalid);
+            }
+        }
 
         let src_code_id = src_program.code_hash.0.into();
 
-        let src_code_len = self.0.api().code_len_storage(src_code_id).await?;
+        let src_code_len = self
+            .0
+            .api()
+            .code_len_storage_at(src_code_id, src_block_hash)
+            .await?;
 
-        let src_code = self.0.api().code_storage(src_code_id).await?;
+        let src_code = self
+            .0
+            .api()
+            .code_storage_at(src_code_id, src_block_hash)
+            .await?;
 
         // Apply data to the target program
+        dest_node_api
+            .set_balance(
+                dest_program_id.into_account_id(),
+                src_program_account_data.free,
+                src_program_account_data.reserved,
+            )
+            .await?;
+
+        dest_node_api
+            .0
+            .set_code_storage(src_code_id, &src_code)
+            .await?;
+
         dest_node_api
             .0
             .set_code_len_storage(src_code_id, src_code_len)
@@ -256,8 +314,36 @@ impl GearApi {
 
         dest_node_api
             .0
-            .set_code_storage(src_code_id, &src_code)
+            .set_gas_nodes(&src_program_reserved_gas_nodes)
             .await?;
+
+        for account_with_reserved_funds in accounts_with_reserved_funds {
+            let src_account_data = self
+                .account_data_at(account_with_reserved_funds, src_block_hash)
+                .await?;
+            let dest_account_data = dest_node_api
+                .account_data(account_with_reserved_funds)
+                .await
+                .or_else(|e| {
+                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                        Ok(AccountData {
+                            free: 0u128,
+                            reserved: 0,
+                            misc_frozen: 0,
+                            fee_frozen: 0,
+                        })
+                    } else {
+                        Err(e)
+                    }
+                })?;
+            dest_node_api
+                .set_balance(
+                    account_with_reserved_funds.into_account_id(),
+                    dest_account_data.free,
+                    dest_account_data.reserved + src_account_data.reserved,
+                )
+                .await?;
+        }
 
         dest_node_api
             .0
@@ -270,14 +356,6 @@ impl GearApi {
                 dest_program_id,
                 src_program,
                 dest_node_api.last_block_number().await?,
-            )
-            .await?;
-
-        dest_node_api
-            .set_balance(
-                dest_program_id.into_account_id(),
-                src_free_balance,
-                src_reserved_balance,
             )
             .await?;
 

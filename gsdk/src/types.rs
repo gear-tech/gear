@@ -18,11 +18,18 @@
 
 //! Shared types
 use crate::{
-    config::GearConfig, metadata::runtime_types::gear_common::ActiveProgram, result::Result,
+    config::GearConfig,
+    metadata::runtime_types::gear_common::{
+        gas_provider::node::{GasNode, GasNodeId},
+        ActiveProgram,
+    },
+    result::Result,
 };
 use futures::{Stream, StreamExt};
+use gear_core::ids::*;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
+use sp_runtime::AccountId32;
 use std::{collections::HashMap, marker::Unpin, pin::Pin, result::Result as StdResult, task::Poll};
 use subxt::{
     blocks::Block,
@@ -73,6 +80,12 @@ pub struct GasInfo {
     /// Contains number of gas burned during message processing.
     pub burned: u64,
 }
+
+/// Gear gas node id.
+pub type GearGasNodeId = GasNodeId<MessageId, ReservationId>;
+
+/// Gear gas node.
+pub type GearGasNode = GasNode<AccountId32, GearGasNodeId, u64>;
 
 /// Gear pages.
 pub type GearPages = HashMap<u32, Vec<u8>>;

@@ -21,14 +21,20 @@ use crate::{result::Result, Api};
 use parity_scale_codec::Decode;
 
 impl Api {
+    /// pallet gear constants
+    ///
+    /// Get gas to balance multiplier
+    pub fn gas_to_balance_multiplier(&self) -> Result<u128> {
+        let addr = subxt::dynamic::constant("Gear", "GasToBalanceMultiplier");
+        Ok(u128::decode(&mut self.constants().at(&addr)?.encoded())?)
+    }
+
     /// pallet gas constants
     ///
     /// Get gas limit.
     pub fn gas_limit(&self) -> Result<u64> {
         let addr = subxt::dynamic::constant("GearGas", "BlockGasLimit");
-        Ok(u64::decode(
-            &mut self.constants().at(&addr)?.into_encoded().as_ref(),
-        )?)
+        Ok(u64::decode(&mut self.constants().at(&addr)?.encoded())?)
     }
 
     /// pallet babe constant
@@ -36,8 +42,6 @@ impl Api {
     /// Get expected block time.
     pub fn expected_block_time(&self) -> Result<u64> {
         let addr = subxt::dynamic::constant("Babe", "ExpectedBlockTime");
-        Ok(u64::decode(
-            &mut self.constants().at(&addr)?.into_encoded().as_ref(),
-        )?)
+        Ok(u64::decode(&mut self.constants().at(&addr)?.encoded())?)
     }
 }

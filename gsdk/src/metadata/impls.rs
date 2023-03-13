@@ -34,7 +34,7 @@
 
 use super::runtime_types::{
     frame_system::pallet::Call as SystemCall,
-    gear_common::event::*,
+    gear_common::{event::*, gas_provider::node::GasNodeId},
     gear_core::{ids as generated_ids, message as generated_message},
     gear_runtime::{RuntimeCall, RuntimeEvent},
     pallet_balances::pallet::Call as BalancesCall,
@@ -80,6 +80,12 @@ impl From<ids::CodeId> for generated_ids::CodeId {
 
 impl From<generated_ids::CodeId> for ids::CodeId {
     fn from(other: generated_ids::CodeId) -> Self {
+        other.0.into()
+    }
+}
+
+impl From<generated_ids::ReservationId> for ids::ReservationId {
+    fn from(other: generated_ids::ReservationId) -> Self {
         other.0.into()
     }
 }
@@ -131,6 +137,34 @@ impl From<RuntimeEvent> for ApiEvent {
     fn from(ev: RuntimeEvent) -> Self {
         ApiEvent::decode(&mut ev.encode().as_ref()).expect("Infallible")
     }
+}
+
+impl<M> From<generated_ids::ReservationId> for GasNodeId<M, ids::ReservationId> {
+    fn from(other: generated_ids::ReservationId) -> Self {
+        GasNodeId::Reservation(other.into())
+    }
+}
+
+impl<M, R> Clone for GasNodeId<M, R>
+where
+    M: Clone,
+    R: Clone,
+{
+    fn clone(&self) -> Self {
+        match self {
+            GasNodeId::Node(message_id) => GasNodeId::Node(message_id.clone()),
+            GasNodeId::Reservation(reservation_id) => {
+                GasNodeId::Reservation(reservation_id.clone())
+            }
+        }
+    }
+}
+
+impl<M, R> Copy for GasNodeId<M, R>
+where
+    M: Copy,
+    R: Copy,
+{
 }
 
 macro_rules! impl_basic {
