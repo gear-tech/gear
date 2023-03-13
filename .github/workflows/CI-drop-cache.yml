@@ -1,3 +1,5 @@
+name: Drop Cache on CI server
+
 on:
   pull_request:
     types:
