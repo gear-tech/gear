@@ -20,9 +20,8 @@
 use crate::{
     config::WaitType,
     errors::{ContractError, Result},
-    exec, Config, MessageId,
+    exec, BTreeMap, Config, MessageId,
 };
-use alloc::collections::BTreeMap;
 use core::cmp::Ordering;
 use hashbrown::HashMap;
 
@@ -157,7 +156,7 @@ impl LocksMap {
         // Locks with `deadline < now`, they should already been removed since
         // the node will trigger timeout when locks reaching their deadline.
         //
-        // Locks with `deadline == now`, they will be removed in the following pollings.
+        // Locks with `deadline <= now`, they will be removed in the following polling.
         let now = exec::block_height();
         map.iter()
             .filter_map(|(_, lock)| (lock.deadline() > now).then_some(lock))
