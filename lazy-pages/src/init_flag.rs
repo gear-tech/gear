@@ -45,10 +45,8 @@ mod tests {
     use crate::InitError;
     use std::sync::Mutex;
 
-    #[cfg(test)]
     pub struct InitializationFlag(Mutex<Option<Result<(), InitError>>>);
 
-    #[cfg(test)]
     impl InitializationFlag {
         pub const fn new() -> Self {
             Self(Mutex::new(None))
