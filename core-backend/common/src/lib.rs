@@ -402,7 +402,6 @@ pub trait BackendTermination<E: BackendExt, M: Sized>: Sized {
     }
 }
 
-
 #[macro_export]
 macro_rules! syscall_args_trace {
     ($val:expr) => {
