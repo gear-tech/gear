@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# from https://gist.github.com/junkdog/70231d6953592cd6f27def59fe19e50d
+
 #     --slave /usr/bin/$1 $1 /usr/bin/$1-\${version} \\
 
 function register_clang_version {
