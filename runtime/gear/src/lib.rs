@@ -408,6 +408,11 @@ where
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
+//
+// # NOTE
+//
+// While updating the indexes, please update the indexes in `gsdk/src/metadata/mod.rs`
+// as well, example: https://github.com/gear-tech/gear/pull/2370/commits/a82cb5ba365cf47aef2c42a285a1793a86e711c1
 #[cfg(feature = "debug-mode")]
 construct_runtime!(
     pub enum Runtime where
