@@ -1,5 +1,3 @@
-#![allow(clippy::redundant_async_block)]
-
 use crate::utils;
 use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, Future};
