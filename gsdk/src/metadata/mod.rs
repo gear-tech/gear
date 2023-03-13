@@ -12,47 +12,47 @@ pub enum Event {
     Grandpa(grandpa::Event),
     #[codec(index = 5)]
     Balances(balances::Event),
-    #[codec(index = 11)]
+    #[codec(index = 10)]
     Vesting(vesting::Event),
     #[codec(index = 6)]
     TransactionPayment(transaction_payment::Event),
-    #[codec(index = 12)]
+    #[codec(index = 11)]
     BagsList(bags_list::Event),
-    #[codec(index = 13)]
+    #[codec(index = 12)]
     ImOnline(im_online::Event),
-    #[codec(index = 14)]
+    #[codec(index = 13)]
     Staking(staking::Event),
     #[codec(index = 7)]
     Session(session::Event),
-    #[codec(index = 15)]
+    #[codec(index = 14)]
     Treasury(treasury::Event),
-    #[codec(index = 20)]
+    #[codec(index = 16)]
     ConvictionVoting(conviction_voting::Event),
-    #[codec(index = 21)]
+    #[codec(index = 17)]
     Referenda(referenda::Event),
-    #[codec(index = 22)]
+    #[codec(index = 18)]
     FellowshipCollective(fellowship_collective::Event),
-    #[codec(index = 23)]
+    #[codec(index = 19)]
     FellowshipReferenda(fellowship_referenda::Event),
-    #[codec(index = 25)]
+    #[codec(index = 21)]
     Whitelist(whitelist::Event),
-    #[codec(index = 8)]
+    #[codec(index = 99)]
     Sudo(sudo::Event),
-    #[codec(index = 26)]
+    #[codec(index = 22)]
     Scheduler(scheduler::Event),
-    #[codec(index = 27)]
+    #[codec(index = 23)]
     Preimage(preimage::Event),
-    #[codec(index = 28)]
+    #[codec(index = 24)]
     Identity(identity::Event),
-    #[codec(index = 9)]
+    #[codec(index = 8)]
     Utility(utility::Event),
-    #[codec(index = 46)]
+    #[codec(index = 104)]
     Gear(gear::Event),
-    #[codec(index = 48)]
+    #[codec(index = 106)]
     StakingRewards(staking_rewards::Event),
-    #[codec(index = 49)]
+    #[codec(index = 198)]
     Airdrop(airdrop::Event),
-    #[codec(index = 50)]
+    #[codec(index = 199)]
     GearDebug(gear_debug::Event),
 }
 
@@ -5056,45 +5056,45 @@ pub mod runtime_types {
             Grandpa(runtime_types::pallet_grandpa::pallet::Call),
             #[codec(index = 5)]
             Balances(runtime_types::pallet_balances::pallet::Call),
-            #[codec(index = 11)]
+            #[codec(index = 10)]
             Vesting(runtime_types::pallet_vesting::pallet::Call),
-            #[codec(index = 12)]
+            #[codec(index = 11)]
             BagsList(runtime_types::pallet_bags_list::pallet::Call),
-            #[codec(index = 13)]
+            #[codec(index = 12)]
             ImOnline(runtime_types::pallet_im_online::pallet::Call),
-            #[codec(index = 14)]
+            #[codec(index = 13)]
             Staking(runtime_types::pallet_staking::pallet::pallet::Call),
             #[codec(index = 7)]
             Session(runtime_types::pallet_session::pallet::Call),
-            #[codec(index = 15)]
+            #[codec(index = 14)]
             Treasury(runtime_types::pallet_treasury::pallet::Call),
-            #[codec(index = 20)]
+            #[codec(index = 16)]
             ConvictionVoting(runtime_types::pallet_conviction_voting::pallet::Call),
-            #[codec(index = 21)]
+            #[codec(index = 17)]
             Referenda(runtime_types::pallet_referenda::pallet::Call),
-            #[codec(index = 22)]
+            #[codec(index = 18)]
             FellowshipCollective(runtime_types::pallet_ranked_collective::pallet::Call),
-            #[codec(index = 23)]
+            #[codec(index = 19)]
             FellowshipReferenda(runtime_types::pallet_referenda::pallet::Call),
-            #[codec(index = 25)]
+            #[codec(index = 21)]
             Whitelist(runtime_types::pallet_whitelist::pallet::Call),
-            #[codec(index = 8)]
+            #[codec(index = 99)]
             Sudo(runtime_types::pallet_sudo::pallet::Call),
-            #[codec(index = 26)]
+            #[codec(index = 22)]
             Scheduler(runtime_types::pallet_scheduler::pallet::Call),
-            #[codec(index = 27)]
+            #[codec(index = 23)]
             Preimage(runtime_types::pallet_preimage::pallet::Call),
-            #[codec(index = 28)]
+            #[codec(index = 24)]
             Identity(runtime_types::pallet_identity::pallet::Call),
-            #[codec(index = 9)]
+            #[codec(index = 8)]
             Utility(runtime_types::pallet_utility::pallet::Call),
-            #[codec(index = 46)]
+            #[codec(index = 104)]
             Gear(runtime_types::pallet_gear::pallet::Call),
-            #[codec(index = 48)]
+            #[codec(index = 106)]
             StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Call),
-            #[codec(index = 49)]
+            #[codec(index = 198)]
             Airdrop(runtime_types::pallet_airdrop::pallet::Call),
-            #[codec(index = 50)]
+            #[codec(index = 199)]
             GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
@@ -5105,47 +5105,47 @@ pub mod runtime_types {
             Grandpa(runtime_types::pallet_grandpa::pallet::Event),
             #[codec(index = 5)]
             Balances(runtime_types::pallet_balances::pallet::Event),
-            #[codec(index = 11)]
+            #[codec(index = 10)]
             Vesting(runtime_types::pallet_vesting::pallet::Event),
             #[codec(index = 6)]
             TransactionPayment(runtime_types::pallet_transaction_payment::pallet::Event),
-            #[codec(index = 12)]
+            #[codec(index = 11)]
             BagsList(runtime_types::pallet_bags_list::pallet::Event),
-            #[codec(index = 13)]
+            #[codec(index = 12)]
             ImOnline(runtime_types::pallet_im_online::pallet::Event),
-            #[codec(index = 14)]
+            #[codec(index = 13)]
             Staking(runtime_types::pallet_staking::pallet::pallet::Event),
             #[codec(index = 7)]
             Session(runtime_types::pallet_session::pallet::Event),
-            #[codec(index = 15)]
+            #[codec(index = 14)]
             Treasury(runtime_types::pallet_treasury::pallet::Event),
-            #[codec(index = 20)]
+            #[codec(index = 16)]
             ConvictionVoting(runtime_types::pallet_conviction_voting::pallet::Event),
-            #[codec(index = 21)]
+            #[codec(index = 17)]
             Referenda(runtime_types::pallet_referenda::pallet::Event),
-            #[codec(index = 22)]
+            #[codec(index = 18)]
             FellowshipCollective(runtime_types::pallet_ranked_collective::pallet::Event),
-            #[codec(index = 23)]
+            #[codec(index = 19)]
             FellowshipReferenda(runtime_types::pallet_referenda::pallet::Event),
-            #[codec(index = 25)]
+            #[codec(index = 21)]
             Whitelist(runtime_types::pallet_whitelist::pallet::Event),
-            #[codec(index = 8)]
+            #[codec(index = 99)]
             Sudo(runtime_types::pallet_sudo::pallet::Event),
-            #[codec(index = 26)]
+            #[codec(index = 22)]
             Scheduler(runtime_types::pallet_scheduler::pallet::Event),
-            #[codec(index = 27)]
+            #[codec(index = 23)]
             Preimage(runtime_types::pallet_preimage::pallet::Event),
-            #[codec(index = 28)]
+            #[codec(index = 24)]
             Identity(runtime_types::pallet_identity::pallet::Event),
-            #[codec(index = 9)]
+            #[codec(index = 8)]
             Utility(runtime_types::pallet_utility::pallet::Event),
-            #[codec(index = 46)]
+            #[codec(index = 104)]
             Gear(runtime_types::pallet_gear::pallet::Event),
-            #[codec(index = 48)]
+            #[codec(index = 106)]
             StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Event),
-            #[codec(index = 49)]
+            #[codec(index = 198)]
             Airdrop(runtime_types::pallet_airdrop::pallet::Event),
-            #[codec(index = 50)]
+            #[codec(index = 199)]
             GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]

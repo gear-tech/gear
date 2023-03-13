@@ -423,19 +423,19 @@ construct_runtime!(
         Balances: pallet_balances = 5,
         TransactionPayment: pallet_transaction_payment = 6,
         Session: pallet_session = 7,
-        Sudo: pallet_sudo = 8,
-        Utility: pallet_utility = 9,
+        Utility: pallet_utility = 8,
+        Sudo: pallet_sudo = 99,
 
         // Gear pallets
-        GearProgram: pallet_gear_program = 42,
-        GearMessenger: pallet_gear_messenger = 43,
-        GearScheduler: pallet_gear_scheduler = 44,
-        GearGas: pallet_gear_gas = 45,
-        Gear: pallet_gear = 46,
-        GearPayment: pallet_gear_payment = 47,
+        GearProgram: pallet_gear_program = 100,
+        GearMessenger: pallet_gear_messenger = 101,
+        GearScheduler: pallet_gear_scheduler = 102,
+        GearGas: pallet_gear_gas = 103,
+        Gear: pallet_gear = 104,
+        GearPayment: pallet_gear_payment = 105,
 
         // Only available with "debug-mode" feature on
-        GearDebug: pallet_gear_debug = 50,
+        GearDebug: pallet_gear_debug = 199,
     }
 );
 
@@ -454,16 +454,16 @@ construct_runtime!(
         Balances: pallet_balances = 5,
         TransactionPayment: pallet_transaction_payment = 6,
         Session: pallet_session = 7,
-        Sudo: pallet_sudo = 8,
-        Utility: pallet_utility = 9,
+        Utility: pallet_utility = 8,
+        Sudo: pallet_sudo = 99,
 
         // Gear pallets
-        GearProgram: pallet_gear_program = 42,
-        GearMessenger: pallet_gear_messenger = 43,
-        GearScheduler: pallet_gear_scheduler = 44,
-        GearGas: pallet_gear_gas = 45,
-        Gear: pallet_gear = 46,
-        GearPayment: pallet_gear_payment = 47,
+        GearProgram: pallet_gear_program = 100,
+        GearMessenger: pallet_gear_messenger = 101,
+        GearScheduler: pallet_gear_scheduler = 102,
+        GearGas: pallet_gear_gas = 103,
+        Gear: pallet_gear = 104,
+        GearPayment: pallet_gear_payment = 105,
     }
 );
 
