@@ -471,10 +471,6 @@ jobs:
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client
 
-      - name: Stop Gear Node Force
-        shell: powershell
-        run: Get-Process gear* | Stop-Process -Force
-
       - name: "Test: Process node runtime spec tests"
         run: |
           cargo build -p gear-cli --release --features=runtime-test
