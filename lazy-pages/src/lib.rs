@@ -37,11 +37,11 @@ use std::cell::RefCell;
 mod common;
 mod globals;
 mod host_func;
+mod init_flag;
 mod mprotect;
 mod process;
 mod signal;
 mod sys;
-mod init_flag;
 mod utils;
 
 use crate::init_flag::InitializationFlag;
