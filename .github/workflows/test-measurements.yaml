@@ -67,6 +67,11 @@ jobs:
           sudo chmod +x /usr/bin/sccache
           mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
 
+      - name: "Cache: Unpack"
+        continue-on-error: true
+        run: |
+          tar -xf /root/cache/check_cache_${{ github.ref_name }}.tar -C /
+
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked --features=runtime-test,runtime-benchmarks,lazy-pages
 
