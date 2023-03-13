@@ -26,8 +26,9 @@ mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
+// TODO: delete once moved gcli on new reading state approach.
 #[cfg(feature = "std")]
-pub use code::WASM_BINARY_META;
+pub use code::WASM_BINARY as WASM_BINARY_META;
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
@@ -64,7 +65,7 @@ impl From<MessageInitIn> for MessageInitOut {
     }
 }
 
-#[derive(TypeInfo, Decode)]
+#[derive(TypeInfo, Encode, Decode)]
 pub struct MessageIn {
     pub id: Id,
 }

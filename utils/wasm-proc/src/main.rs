@@ -189,7 +189,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let file = PathBuf::from(file);
         let res = gear_wasm_builder::optimize::optimize_wasm(file.clone(), "s", true)?;
-
         log::info!(
             "wasm-opt: {} {} Kb -> {} Kb",
             res.dest_wasm.display(),

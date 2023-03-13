@@ -22,12 +22,26 @@ wabt = "0.10.0"
 
 [dev-dependencies]
 tokio = { version = "1.26.0", features = ["full"] }
-wat = "1.0.60"
+wat = "1.0.61"
 async-std = "1.12"
 env_logger = "0.10"
 hex-literal = "0.3"
 log = "0.4"
-demo-meta-io = { path = "../examples/binaries/new-meta/io" }
+gstd = { path = "../gstd" }
+demo-async-tester = { path = "../examples/binaries/async-tester" }
 demo-backend-error = { path = "../examples/binaries/backend-error" }
+demo-btree = { path = "../examples/binaries/btree" }
+demo-calc-hash = { path = "../examples/binaries/calc-hash" }
+demo-calc-hash-in-one-block = { path = "../examples/binaries/calc-hash/in-one-block" }
+demo-distributor = { path = "../examples/binaries/distributor" }
+demo-exit-handle-sender = { path = "../examples/binaries/exit-handle-sender" }
+demo-gasless-wasting = { path = "../examples/binaries/gasless-wasting" }
+demo-meta = { path = "../examples/binaries/meta" }
+demo-meta-io = { path = "../examples/binaries/new-meta/io" }
 demo-mul-by-const = { path = "../examples/binaries/mul-by-const" }
+demo-node = { path = "../examples/binaries/node" }
+demo-program-factory = { path = "../examples/binaries/program-factory" }
+demo-proxy = { path = "../examples/binaries/proxy" }
+demo-proxy-relay = { path = "../examples/binaries/proxy-relay" }
+demo-proxy-with-gas = { path = "../examples/binaries/proxy-with-gas" }
 demo-reserve-gas = { path = "../examples/binaries/reserve-gas" }

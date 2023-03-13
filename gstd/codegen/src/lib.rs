@@ -193,32 +193,40 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
     generate_handle_signal_if_required(code, attrs.handle_signal)
 }
 
-/// This is the procedural macro for your convenience.
-/// It marks the main async function to be the program entry point.
-/// Functions `handle` cannot be specified if this macro is used.
-/// If you need to specify `handle` explicitly don't use this macro.
+/// Mark the main async function to be the program entry point.
 ///
-/// ## Usage
+/// Can be used together with [`macro@async_init`].
 ///
-/// ```ignore
+/// When this macro is used, it’s not possible to specify the `handle` function.
+/// If you need to specify the `handle` function explicitly, don't use this macro.
+///
+/// # Examples
+///
+/// Simple async handle function:
+///
+/// ```
 /// #[gstd::async_main]
 /// async fn main() {
 ///     gstd::debug!("Hello world!");
 /// }
+///
+/// # fn main() {}
 /// ```
 ///
-/// You can specify `handle_reply` and `handle_signal` using parameters of same names.
-/// Note that default behavior of entrypoints is kept.
+/// Use `handle_reply` and `handle_signal` parameters to specify corresponding handlers.
+/// Note that custom reply and signal handlers derive their default behavior.
 ///
-/// ```ignore
+/// ```
 /// #[gstd::async_main(handle_reply = my_handle_reply)]
-/// async fn init() {
+/// async fn main() {
 ///     // ...
 /// }
 ///
 /// fn my_handle_reply() {
 ///     // ...
 /// }
+///
+/// # fn main() {}
 /// ```
 #[proc_macro_attribute]
 pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -250,24 +258,28 @@ pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// Mark async function to be the program initialization method.
+///
 /// Can be used together with [`macro@async_main`].
-/// Function `init` cannot be specified if this macro is used.
-/// If you need to specify `init` explicitly don't use this macro.
+///
+/// The `init` function cannot be specified if this macro is used.
+/// If you need to specify the `init` function explicitly, don't use this macro.
 ///
 ///
-/// ## Usage
+/// # Examples
 ///
-/// ```ignore
+/// Simple async init function:
+///
+/// ```
 /// #[gstd::async_init]
 /// async fn init() {
 ///     gstd::debug!("Hello world!");
 /// }
 /// ```
 ///
-/// You can specify `handle_reply` and `handle_signal` using parameters of same names.
-/// Note that default behavior of entrypoints is kept.
+/// Use `handle_reply` and `handle_signal` parameters to specify corresponding handlers.
+/// Note that custom reply and signal handlers derive their default behavior.
 ///
-/// ```ignore
+/// ```
 /// #[gstd::async_init(handle_signal = my_handle_signal)]
 /// async fn init() {
 ///     // ...
@@ -357,7 +369,7 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
+pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
     let ident = function.sig.ident.clone();
 
@@ -386,6 +398,18 @@ pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
         ),
     );
 
+    let ident = if !attr.is_empty() {
+        assert_eq!(
+            attr.to_string(),
+            "self",
+            "Proc macro attribute should be used only to specify self source of the function"
+        );
+
+        quote! { self.#ident }
+    } else {
+        quote! { #ident }
+    };
+
     quote! {
         #function
 
@@ -408,8 +432,8 @@ pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
     .into()
 }
 
-/// Same as `wait_for_reply`, but works with functions, that create programs:
-/// returns message id with newly created program id.
+/// Similar to `wait_for_reply`, but works with functions that create programs:
+/// It returns a message id with a newly created program id.
 #[proc_macro_attribute]
 pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);

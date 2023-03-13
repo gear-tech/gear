@@ -70,7 +70,7 @@
 
 extern crate alloc;
 
-pub mod error;
+pub mod errors;
 pub mod exec;
 pub mod msg;
 pub mod prog;

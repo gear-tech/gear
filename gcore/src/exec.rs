@@ -22,7 +22,7 @@
 //! This module also provides API for low-level async implementation.
 
 use crate::{
-    error::{Result, SyscallError},
+    errors::{Result, SyscallError},
     ActorId, MessageId, ReservationId,
 };
 use gsys::{BlockNumberWithHash, LengthWithGas, LengthWithHash};
@@ -268,13 +268,13 @@ pub fn value_available() -> u128 {
 ///
 /// If the message handling needs to be paused, e.g., to wait for another
 /// execution to finish, one should use this function. [`wait`] completes the
-/// current message handle execution with a special result and puts this message
-/// into the *waiting queue* to be awakened using the correspondent [`wake`]
-/// function later. All gas that hasn't yet been spent is attributed to the
-/// message in the *waiting queue*.
+/// current message handles execution with a special result and puts this
+/// message into the *waiting queue* to be awakened using the correspondent
+/// [`wake`] function later. All gas that hasn't yet been spent is attributed to
+/// the message in the *waiting queue*.
 ///
-/// This call delays message execution for a maximal amount of blocks that could
-/// be payed.
+/// This call delays message execution for a maximum amount of blocks that could
+/// be paid.
 ///
 /// # Examples
 ///
@@ -311,7 +311,7 @@ pub fn wait_up_to(duration: u32) -> ! {
 /// Suppose a message has been paused using the [`wait`] function. In that case,
 /// it is possible to continue its execution by calling this function.
 ///
-/// `waker_id` specifies a particular message to be taken out of the *waiting
+/// `message_id` specifies a particular message to be taken out of the *waiting
 /// queue* and put into the *processing queue*.
 ///
 /// # Examples
@@ -336,7 +336,7 @@ pub fn wake(message_id: MessageId) -> Result<()> {
     wake_delayed(message_id, 0)
 }
 
-/// Same as [`wake`], but wakes delayed.
+/// Same as [`wake`], but executes after the `delay` expressed in block count.
 pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
     let mut len = 0u32;
     unsafe { gsys::gr_wake(message_id.as_ptr(), delay, &mut len as *mut u32) };
@@ -383,8 +383,8 @@ pub fn origin() -> ActorId {
 /// Get the random seed, along with the block number from which it is
 /// determinable by chain observers.
 ///
-/// `subject` is a context identifier that allows you to get a different results
-/// within the execution. use it like `random(b"my context")`.
+/// `subject` is a context identifier that allows you to get different results
+/// within the execution.
 ///
 /// # Security
 ///

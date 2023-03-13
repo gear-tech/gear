@@ -66,6 +66,7 @@ pub fn generate_gear_program<Rng: CallGenRng>(
     let mut u = Unstructured::new(&buf);
 
     config.print_test_info = Some(format!("Gear program seed = '{seed}'"));
+    config.call_indirect_enabled = false;
 
     let addresses = programs
         .iter()

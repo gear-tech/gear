@@ -10,8 +10,6 @@ extern "C" fn init() {
     msg::reply_bytes_delayed("Delayed hello!", 0, delay).unwrap();
 }
 
-
-
 #[no_mangle]
 extern "C" fn handle() {
     if let Some(message_id) = unsafe { MID.take() } {
