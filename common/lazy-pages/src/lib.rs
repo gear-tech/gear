@@ -27,6 +27,7 @@ use gear_backend_common::{
 };
 use gear_common::Origin;
 use gear_core::{
+    gas::GasLeft,
     ids::ProgramId,
     memory::{GearPage, HostPointer, Memory, MemoryInterval, WasmPage},
 };
@@ -131,9 +132,12 @@ pub fn get_status() -> Option<Status> {
 pub fn pre_process_memory_accesses(
     reads: &[MemoryInterval],
     writes: &[MemoryInterval],
+    gas_left: &mut GasLeft,
 ) -> Result<(), ProcessAccessError> {
     // TODO: make wrapper to pass `&[MemoryInterval]` in runtime-interface (issue #2099).
     let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
     let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
-    gear_ri::pre_process_memory_accesses(&reads, &writes, (Default::default(),)).1
+    let (gas_left_new, res) = gear_ri::pre_process_memory_accesses(&reads, &writes, (*gas_left,));
+    *gas_left = gas_left_new;
+    res
 }

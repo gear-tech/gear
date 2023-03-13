@@ -19,8 +19,8 @@
  */
 
 use crate::{
-    sys::{ExceptionInfo, UserSignalHandler},
-    Error,
+    common::Error,
+    signal::{ExceptionInfo, UserSignalHandler},
 };
 use std::io;
 use winapi::{

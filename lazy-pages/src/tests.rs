@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    init_with_handler, mprotect, sys::ExceptionInfo, Error, LazyPagesVersion, UserSignalHandler,
+    common::Error, init_with_handler, mprotect, signal::ExceptionInfo, LazyPagesVersion,
+    UserSignalHandler,
 };
 use region::Protection;
 

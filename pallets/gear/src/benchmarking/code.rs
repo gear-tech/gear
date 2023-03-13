@@ -565,6 +565,32 @@ pub mod body {
         head
     }
 
+    pub fn repeated_instr(
+        repetitions: u32,
+        instructions: Vec<Instruction>,
+        head: Vec<Instruction>,
+    ) -> Vec<Instruction> {
+        repeated_dyn_instr(
+            repetitions,
+            instructions.into_iter().map(DynInstr::Regular).collect(),
+            head,
+        )
+    }
+
+    pub fn with_result_check(res_offset: u32, instrs: &[Instruction]) -> Vec<Instruction> {
+        let mut res = vec![Instruction::Block(BlockType::NoResult)];
+        res.extend_from_slice(instrs);
+        res.extend_from_slice(&[
+            Instruction::I32Const(res_offset as i32),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Eqz,
+            Instruction::BrIf(0),
+            Instruction::Unreachable,
+            Instruction::End,
+        ]);
+        res
+    }
+
     pub fn repeated_dyn(repetitions: u32, instructions: Vec<DynInstr>) -> FuncBody {
         let mut body = repeated_dyn_instr(repetitions, instructions, vec![]);
         body.push(Instruction::End);

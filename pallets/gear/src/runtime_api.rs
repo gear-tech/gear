@@ -19,7 +19,6 @@
 use super::*;
 use common::ActiveProgram;
 use core::convert::TryFrom;
-use core_processor::calculate_gas_for_non_subsequent_execution;
 use gear_core::memory::WasmPage;
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -99,7 +98,6 @@ where
         let mut min_limit = 0;
         let mut reserved = 0;
         let mut burned = 0;
-        let mut may_be_returned = 0;
 
         let mut ext_manager = ExtManager::<T>::default();
 
@@ -198,29 +196,12 @@ where
                     }
                 };
 
-                let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
-                let context = match core_processor::precharge_for_memory(
-                    &block_config,
-                    context,
-                    subsequent_execution,
-                ) {
+                let context = match core_processor::precharge_for_memory(&block_config, context) {
                     Ok(c) => c,
                     Err(journal) => {
                         return journal;
                     }
                 };
-
-                let actor_data = context.actor_data();
-                // if it is subsequent execution => we burned 0 gas
-                // if it is NOT subsequent execution => we burned SOME gas
-                if !subsequent_execution {
-                    let amount = calculate_gas_for_non_subsequent_execution(
-                        &block_config.pages_config,
-                        &actor_data.allocations,
-                        actor_data.static_pages,
-                    );
-                    may_be_returned = may_be_returned.saturating_add(amount);
-                }
 
                 let memory_pages = match Self::get_and_track_memory_pages(
                     &mut ext_manager,
@@ -305,7 +286,7 @@ where
             min_limit,
             reserved,
             burned,
-            may_be_returned,
+            may_be_returned: 0,
             waited,
         })
     }

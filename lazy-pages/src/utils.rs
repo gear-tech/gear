@@ -27,7 +27,7 @@ use gear_core::memory::{PageU32Size, PagesIterInclusive};
 /// for 1..=3, 5..=7, 9..=9 consequently.
 /// `indexes` must be sorted and uniq.
 /// If `f` returns an Err then end execution without remain indexes handling.
-pub fn with_inclusive_ranges<P: PageU32Size + Ord, E>(
+pub(crate) fn with_inclusive_ranges<P: PageU32Size + Ord, E>(
     pages: &BTreeSet<P>,
     mut f: impl FnMut(PagesIterInclusive<P>) -> Result<(), E>,
 ) -> Result<(), E> {
@@ -66,35 +66,40 @@ pub fn with_inclusive_ranges<P: PageU32Size + Ord, E>(
     f(iter)
 }
 
-#[test]
-fn test_with_inclusive_range() {
-    use gear_core::memory::GearPage;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let test = |pages: &[u16]| {
-        let mut inclusive_ranges: Vec<Vec<u32>> = Vec::new();
-        let slice_to_ranges = |iter: PagesIterInclusive<GearPage>| -> Result<(), ()> {
-            inclusive_ranges.push(iter.map(|p| p.raw()).collect());
-            Ok(())
+    #[test]
+    fn test_with_inclusive_range() {
+        use gear_core::memory::GearPage;
+
+        let test = |pages: &[u16]| {
+            let mut inclusive_ranges: Vec<Vec<u32>> = Vec::new();
+            let slice_to_ranges = |iter: PagesIterInclusive<GearPage>| -> Result<(), ()> {
+                inclusive_ranges.push(iter.map(|p| p.raw()).collect());
+                Ok(())
+            };
+
+            with_inclusive_ranges(
+                &pages.iter().copied().map(GearPage::from).collect(),
+                slice_to_ranges,
+            )
+            .unwrap();
+            inclusive_ranges
         };
 
-        with_inclusive_ranges(
-            &pages.iter().copied().map(GearPage::from).collect(),
-            slice_to_ranges,
-        )
-        .unwrap();
-        inclusive_ranges
-    };
+        let mut res = test([1, 2, 5, 6, 7, 11, 19].as_slice());
+        assert_eq!(res.pop().unwrap(), vec![19]);
+        assert_eq!(res.pop().unwrap(), vec![11]);
+        assert_eq!(res.pop().unwrap(), vec![5, 6, 7]);
+        assert_eq!(res.pop().unwrap(), vec![1, 2]);
 
-    let mut res = test([1, 2, 5, 6, 7, 11, 19].as_slice());
-    assert_eq!(res.pop().unwrap(), vec![19]);
-    assert_eq!(res.pop().unwrap(), vec![11]);
-    assert_eq!(res.pop().unwrap(), vec![5, 6, 7]);
-    assert_eq!(res.pop().unwrap(), vec![1, 2]);
+        let mut res = test([5, 6, 7, 8, 9, 10, 11].as_slice());
+        assert_eq!(res.pop().unwrap(), vec![5, 6, 7, 8, 9, 10, 11]);
 
-    let mut res = test([5, 6, 7, 8, 9, 10, 11].as_slice());
-    assert_eq!(res.pop().unwrap(), vec![5, 6, 7, 8, 9, 10, 11]);
-
-    let mut res = test([5, 6, 7, 8, 9, 10, 11, 90].as_slice());
-    assert_eq!(res.pop().unwrap(), vec![90]);
-    assert_eq!(res.pop().unwrap(), vec![5, 6, 7, 8, 9, 10, 11]);
+        let mut res = test([5, 6, 7, 8, 9, 10, 11, 90].as_slice());
+        assert_eq!(res.pop().unwrap(), vec![90]);
+        assert_eq!(res.pop().unwrap(), vec![5, 6, 7, 8, 9, 10, 11]);
+    }
 }

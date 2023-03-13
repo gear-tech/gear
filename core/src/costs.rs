@@ -30,7 +30,7 @@ pub struct CostPerPage<P: PageU32Size> {
 }
 
 impl<P: PageU32Size> CostPerPage<P> {
-    /// Constant constructor if `From<u64>` bound can't be used.
+    /// Const constructor
     pub const fn new(cost: u64) -> Self {
         Self {
             cost,
@@ -42,19 +42,21 @@ impl<P: PageU32Size> CostPerPage<P> {
     pub fn calc(&self, pages: P) -> u64 {
         self.cost.saturating_mul(pages.raw() as u64)
     }
+
     /// Cost for one page.
     pub fn one(&self) -> u64 {
         self.cost
     }
+
     /// Returns another [CostPerPage] with increased `cost` to `other.cost`.
-    pub fn add(&self, other: Self) -> Self {
+    pub fn saturating_add(&self, other: Self) -> Self {
         self.cost.saturating_add(other.cost).into()
     }
 }
 
 impl<P: PageU32Size> From<u64> for CostPerPage<P> {
     fn from(cost: u64) -> Self {
-        Self {
+        CostPerPage {
             cost,
             _phantom: PhantomData,
         }

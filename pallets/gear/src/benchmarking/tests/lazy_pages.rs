@@ -20,20 +20,147 @@
 
 use core::mem::size_of;
 
+use ::alloc::collections::BTreeSet;
+use codec::MaxEncodedLen;
+use common::ProgramStorage;
+use gear_backend_common::lazy_pages::Status;
+use gear_core::memory::{GranularityPage, MemoryInterval, PageU32Size, PAGE_STORAGE_GRANULARITY};
+use rand::{Rng, SeedableRng};
+
+use gear_lazy_pages_common as lazy_pages;
+
 use super::*;
 use crate::{
     benchmarking::{utils as common_utils, utils::PrepareConfig},
     HandleKind,
 };
-use ::alloc::collections::BTreeSet;
-use common::ProgramStorage;
-use gear_backend_common::lazy_pages::{LazyPagesWeights, Status};
-use gear_core::{
-    costs::CostPerPage,
-    memory::{GranularityPage, PageU32Size, PAGE_STORAGE_GRANULARITY},
-};
-use gear_lazy_pages_common as lazy_pages;
-use rand::{Rng, SeedableRng};
+
+#[derive(Debug, Default)]
+struct PageSets<P: PageU32Size> {
+    signal_read: BTreeSet<P>,
+    signal_write: BTreeSet<P>,
+    signal_write_after_read: BTreeSet<P>,
+    syscall_read: BTreeSet<P>,
+    syscall_write: BTreeSet<P>,
+    syscall_write_after_read: BTreeSet<P>,
+    with_data_pages: BTreeSet<P>,
+}
+
+impl<P: PageU32Size> PageSets<P> {
+    fn with_accessed(i: MemoryInterval, mut f: impl FnMut(P)) {
+        let start = P::from_offset(i.offset);
+        let end = P::from_offset(i.offset.checked_add(i.size.saturating_sub(1)).unwrap());
+        for page in start.iter_end_inclusive(end).unwrap() {
+            f(page);
+        }
+    }
+
+    fn is_any_read(&self, page: P) -> bool {
+        self.signal_read.contains(&page) || self.syscall_read.contains(&page)
+    }
+
+    fn is_any_write(&self, page: P) -> bool {
+        self.signal_write.contains(&page)
+            || self.signal_write_after_read.contains(&page)
+            || self.syscall_write.contains(&page)
+            || self.syscall_write_after_read.contains(&page)
+    }
+
+    fn add_signal_read(&mut self, i: MemoryInterval) {
+        Self::with_accessed(i, |page| {
+            if !self.is_any_read(page) && !self.is_any_write(page) {
+                self.signal_read.insert(page);
+            }
+        });
+    }
+
+    fn add_signal_write(&mut self, i: MemoryInterval) {
+        Self::with_accessed(i, |page| {
+            if !self.is_any_write(page) {
+                if self.is_any_read(page) {
+                    self.signal_write_after_read.insert(page);
+                } else {
+                    self.signal_write.insert(page);
+                }
+            }
+        });
+    }
+
+    fn add_syscall_read(&mut self, i: MemoryInterval) {
+        Self::with_accessed(i, |page| {
+            if !self.is_any_read(page) && !self.is_any_write(page) {
+                self.syscall_read.insert(page);
+            }
+        });
+    }
+
+    fn add_syscall_write(&mut self, i: MemoryInterval) {
+        Self::with_accessed(i, |page| {
+            if !self.is_any_write(page) {
+                if self.is_any_read(page) {
+                    self.syscall_write_after_read.insert(page);
+                } else {
+                    self.syscall_write.insert(page);
+                }
+            }
+        });
+    }
+
+    fn accessed_pages(&self) -> BTreeSet<P> {
+        let mut accessed_pages = self.signal_read.clone();
+        accessed_pages.extend(self.signal_write.iter().copied());
+        accessed_pages.extend(self.signal_write_after_read.iter().copied());
+        accessed_pages.extend(self.syscall_read.iter().copied());
+        accessed_pages.extend(self.syscall_write.iter().copied());
+        accessed_pages
+    }
+
+    fn loaded_pages_count(&self) -> GranularityPage {
+        (self
+            .accessed_pages()
+            .intersection(&self.with_data_pages)
+            .count() as u16)
+            .into()
+    }
+
+    fn charged_for_pages(&self, costs: &PageCosts) -> u64 {
+        let costs = costs.lazy_pages_weights();
+
+        let signal_read_amount = (self.signal_read.len() as u16).into();
+        let signal_write_amount = (self.signal_write.len() as u16).into();
+        let signal_write_after_read_amount = (self.signal_write_after_read.len() as u16).into();
+        let syscall_read_amount = (self.syscall_read.len() as u16).into();
+        let syscall_write_amount = (self.syscall_write.len() as u16).into();
+        let syscall_write_after_read_amount = (self.syscall_write_after_read.len() as u16).into();
+
+        let read_signal_charged = costs.signal_read.calc(signal_read_amount);
+        let write_signal_charged = costs.signal_write.calc(signal_write_amount);
+        let write_after_read_signal_charged = costs
+            .signal_write_after_read
+            .calc(signal_write_after_read_amount);
+        let syscall_read_charged = costs.host_func_read.calc(syscall_read_amount);
+        let syscall_write_charged = costs.host_func_write.calc(syscall_write_amount);
+        let syscall_write_after_read_charged = costs
+            .host_func_write_after_read
+            .calc(syscall_write_after_read_amount);
+
+        let charged_for_data_load = costs.load_page_storage_data.calc(self.loaded_pages_count());
+
+        read_signal_charged
+            .checked_add(write_signal_charged)
+            .unwrap()
+            .checked_add(write_after_read_signal_charged)
+            .unwrap()
+            .checked_add(syscall_read_charged)
+            .unwrap()
+            .checked_add(syscall_write_charged)
+            .unwrap()
+            .checked_add(syscall_write_after_read_charged)
+            .unwrap()
+            .checked_add(charged_for_data_load)
+            .unwrap()
+    }
+}
 
 pub fn lazy_pages_charging<T>()
 where
@@ -41,63 +168,77 @@ where
     T::AccountId: Origin,
 {
     const MAX_ACCESSES_NUMBER: u32 = 1000;
-    const LOAD_PROB: f64 = 1.0 / 2.0;
     const MAX_COST: u64 = 1000;
     const MAX_PAGES_WITH_DATA: u32 = 128;
+
+    let (load_prob, store_prob, syscall_prob) = (4, 4, 2);
+    let prob_max = load_prob + store_prob + syscall_prob;
 
     let memory = ImportedMemory::max::<T>();
     let size_wasm_pages = WasmPage::new(memory.min_pages).unwrap();
     let size_psg = size_wasm_pages.to_page::<GranularityPage>();
-    let gear_in_psg = GranularityPage::size() / GearPage::size();
     let access_size = size_of::<u32>() as u32;
-    let max_addr = size_wasm_pages.offset() - access_size;
+    let max_addr = size_wasm_pages.offset();
 
     let test = |seed: u64| {
-        let mut instrs = vec![];
-        let mut read_pages = BTreeSet::new();
-        let mut write_pages = BTreeSet::new();
-        let mut write_after_read_pages = BTreeSet::new();
-
         let mut rng = rand_pcg::Pcg32::seed_from_u64(seed);
+        let mut instrs = vec![];
+        let mut page_sets = PageSets::default();
 
-        let accesses_number = rng.gen_range(1..MAX_ACCESSES_NUMBER);
-        for _ in 0..accesses_number {
-            let addr = rng.gen_range(0..max_addr) as i32;
-            let accessed_pages: BTreeSet<_> = vec![
-                GranularityPage::from_offset(addr as u32),
-                GranularityPage::from_offset(addr as u32 + access_size - 1),
-            ]
-            .into_iter()
-            .collect();
-            if rng.gen_bool(LOAD_PROB) {
+        // Generate different read and write accesses.
+        for _ in 0..rng.gen_range(1..MAX_ACCESSES_NUMBER) {
+            let prob_number = rng.gen_range(0..prob_max);
+            if prob_number < load_prob {
+                // Generate load
+                let addr = rng.gen_range(0..max_addr - access_size) as i32;
                 instrs.push(Instruction::I32Const(addr));
                 instrs.push(Instruction::I32Load(2, 0));
                 instrs.push(Instruction::Drop);
 
-                for page in accessed_pages {
-                    if !write_pages.contains(&page) && !write_after_read_pages.contains(&page) {
-                        read_pages.insert(page);
-                    }
-                }
+                page_sets.add_signal_read(MemoryInterval {
+                    offset: addr as u32,
+                    size: access_size,
+                })
+            } else if prob_number >= load_prob + store_prob {
+                // Generate syscall
+                // We use syscall random here, because it has read and write access,
+                // and cannot cause errors because of input params
+                let subject_size = gsys::Hash::max_encoded_len() as u32;
+                let bn_random_size = core::mem::size_of::<gsys::BlockNumberWithHash>() as u32;
+
+                let subject_ptr = rng.gen_range(0..max_addr - subject_size) as i32;
+                let bn_random_ptr = rng.gen_range(0..max_addr - bn_random_size) as i32;
+
+                instrs.push(Instruction::I32Const(subject_ptr));
+                instrs.push(Instruction::I32Const(bn_random_ptr));
+                instrs.push(Instruction::Call(0));
+
+                page_sets.add_syscall_read(MemoryInterval {
+                    offset: subject_ptr as u32,
+                    size: subject_size,
+                });
+                page_sets.add_syscall_write(MemoryInterval {
+                    offset: bn_random_ptr as u32,
+                    size: bn_random_size,
+                });
             } else {
+                // Generate store
+                let addr = rng.gen_range(0..max_addr - access_size) as i32;
                 instrs.push(Instruction::I32Const(addr));
                 instrs.push(Instruction::I32Const(u32::MAX as i32));
                 instrs.push(Instruction::I32Store(2, 0));
 
-                for page in accessed_pages {
-                    if !write_pages.contains(&page) {
-                        if read_pages.contains(&page) {
-                            write_after_read_pages.insert(page);
-                        } else if !write_after_read_pages.contains(&page) {
-                            write_pages.insert(page);
-                        }
-                    }
-                }
+                page_sets.add_signal_write(MemoryInterval {
+                    offset: addr as u32,
+                    size: access_size,
+                })
             }
         }
 
+        // Upload program with code
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Random],
             handle_body: Some(body::from_instructions(instrs)),
             ..Default::default()
         });
@@ -109,6 +250,7 @@ where
         for page in (0..rng.gen_range(0..MAX_PAGES_WITH_DATA))
             .map(|_| GranularityPage::new(rng.gen_range(0..size_psg.raw())).unwrap())
         {
+            page_sets.with_data_pages.insert(page);
             for page in page.to_pages_iter::<GearPage>() {
                 ProgramStorageOf::<T>::set_program_page_data(
                     program_id,
@@ -118,80 +260,68 @@ where
             }
         }
 
-        let charged: Vec<(u64, u64)> = (0..2)
-            .map(|_i| {
-                let mut exec = common_utils::prepare_exec::<T>(
-                    source,
-                    HandleKind::Handle(program_id),
-                    vec![],
-                    0..0,
-                    Default::default(),
-                )
-                .unwrap();
+        // execute program with random page costs
+        let mut run = |_| {
+            let mut exec = common_utils::prepare_exec::<T>(
+                source,
+                HandleKind::Handle(program_id),
+                vec![],
+                0..0,
+                Default::default(),
+            )
+            .unwrap();
 
-                let weights = LazyPagesWeights {
-                    signal_read: CostPerPage::new(rng.gen_range(0..MAX_COST)),
-                    signal_write: CostPerPage::new(rng.gen_range(0..MAX_COST)),
-                    signal_write_after_read: CostPerPage::new(rng.gen_range(0..MAX_COST)),
-                    host_func_read_access: CostPerPage::new(rng.gen_range(0..MAX_COST)),
-                    host_func_write_access: CostPerPage::new(rng.gen_range(0..MAX_COST)),
-                    host_func_write_after_read_access: CostPerPage::new(rng.gen_range(0..MAX_COST)),
-                    load_page_storage_data: CostPerPage::new(rng.gen_range(0..MAX_COST)),
-                };
-                exec.block_config.pages_config.lazy_pages_weights = weights.clone();
+            exec.block_config.page_costs.signal_read = rng.gen_range(0..MAX_COST).into();
+            exec.block_config.page_costs.signal_write = rng.gen_range(0..MAX_COST).into();
+            exec.block_config
+                .page_costs
+                .lazy_pages_signal_write_after_read = rng.gen_range(0..MAX_COST).into();
+            exec.block_config.page_costs.lazy_pages_host_func_read =
+                rng.gen_range(0..MAX_COST).into();
+            exec.block_config.page_costs.lazy_pages_host_func_write =
+                rng.gen_range(0..MAX_COST).into();
+            exec.block_config
+                .page_costs
+                .lazy_pages_host_func_write_after_read = rng.gen_range(0..MAX_COST).into();
+            exec.block_config.page_costs.load_page_data = rng.gen_range(0..MAX_COST).into();
+            exec.block_config.page_costs.upload_page_data = rng.gen_range(0..MAX_COST).into();
 
-                let calc_amount = |weight: u64, pages: &BTreeSet<GranularityPage>| {
-                    weight
-                        .checked_mul(gear_in_psg as u64)
-                        .unwrap()
-                        .checked_mul(pages.len() as u64)
-                        .unwrap()
-                };
-                let charged_for_read =
-                    calc_amount(weights.host_func_read_access.one(), &read_pages);
-                let charged_for_write =
-                    calc_amount(weights.host_func_write_access.one(), &write_pages);
-                let charged_for_write_after_read = calc_amount(
-                    weights.host_func_write_after_read_access.one(),
-                    &write_after_read_pages,
-                );
-                let charged_for_pages = charged_for_read
-                    .checked_add(charged_for_write)
-                    .unwrap()
-                    .checked_add(charged_for_write_after_read)
-                    .unwrap();
+            let charged_for_pages = page_sets.charged_for_pages(&exec.block_config.page_costs);
 
-                let notes = core_processor::process::<ExecutionEnvironment>(
-                    &exec.block_config,
-                    exec.context,
-                    exec.random_data,
-                    exec.memory_pages,
-                )
-                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+            let notes = core_processor::process::<ExecutionEnvironment>(
+                &exec.block_config,
+                exec.context,
+                exec.random_data,
+                exec.memory_pages,
+            )
+            .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
-                let mut gas_burned = 0;
-                for note in notes.into_iter() {
-                    match note {
-                        JournalNote::GasBurned { amount, .. } => gas_burned = amount,
-                        JournalNote::MessageDispatched {
-                            outcome:
-                                DispatchOutcome::InitFailure { .. }
-                                | DispatchOutcome::MessageTrap { .. },
-                            ..
-                        } => {
-                            panic!("Process was not successful")
-                        }
-                        _ => {}
+            let mut gas_burned = 0;
+            for note in notes.into_iter() {
+                match note {
+                    JournalNote::GasBurned { amount, .. } => gas_burned = amount,
+                    JournalNote::MessageDispatched {
+                        outcome:
+                            DispatchOutcome::InitFailure { .. } | DispatchOutcome::MessageTrap { .. },
+                        ..
+                    } => {
+                        panic!("Process was not successful")
                     }
+                    _ => {}
                 }
+            }
 
-                (charged_for_pages, gas_burned)
-            })
-            .collect();
+            (charged_for_pages, gas_burned)
+        };
 
+        // Difference between gas burned in two runs must be equal to difference,
+        // between gas burned for pages accesses and data loading, because in `run`
+        // only `page_costs` is different.
+        let (charged_for_pages1, gas_burned1) = run(0);
+        let (charged_for_pages2, gas_burned2) = run(1);
         assert_eq!(
-            charged[0].0.abs_diff(charged[1].0),
-            charged[0].1.abs_diff(charged[1].1)
+            charged_for_pages1.abs_diff(charged_for_pages2),
+            gas_burned1.abs_diff(gas_burned2)
         );
     };
 
@@ -206,9 +336,9 @@ where
     T::AccountId: Origin,
 {
     let psg = PAGE_STORAGE_GRANULARITY as i32;
-    let read_cost = 1;
-    let write_cost = 10;
-    let write_after_read_cost = 100;
+    let read_cost = 1u64;
+    let write_cost = 10u64;
+    let write_after_read_cost = 100u64;
 
     let test = |instrs, expected| {
         let code = WasmModule::<T>::from(ModuleDefinition {
@@ -218,62 +348,50 @@ where
         });
         let instance = Program::<T>::new(code, vec![]).unwrap();
 
-        let charged: Vec<u64> = (0..2)
-            .map(|i| {
-                let instance = instance.clone();
-                let mut exec = common_utils::prepare_exec::<T>(
-                    instance.caller.into_origin(),
-                    HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-                    vec![],
-                    0..0,
-                    Default::default(),
-                )
-                .unwrap();
+        let charged = |i: u64| {
+            let instance = instance.clone();
+            let mut exec = common_utils::prepare_exec::<T>(
+                instance.caller.into_origin(),
+                HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+                vec![],
+                0..0,
+                Default::default(),
+            )
+            .unwrap();
 
-                let weights = LazyPagesWeights {
-                    signal_read: CostPerPage::new(i),
-                    signal_write: CostPerPage::new(10 * i),
-                    signal_write_after_read: CostPerPage::new(100 * i),
-                    host_func_read_access: CostPerPage::new(i),
-                    host_func_write_access: CostPerPage::new(10 * i),
-                    host_func_write_after_read_access: CostPerPage::new(100 * i),
-                    load_page_storage_data: CostPerPage::new(i),
-                };
-                exec.block_config.pages_config.lazy_pages_weights = weights;
+            exec.block_config.page_costs.signal_read = (read_cost * i).into();
+            exec.block_config.page_costs.signal_write = (write_cost * i).into();
+            exec.block_config
+                .page_costs
+                .lazy_pages_signal_write_after_read = (write_after_read_cost * i).into();
 
-                let notes = core_processor::process::<ExecutionEnvironment>(
-                    &exec.block_config,
-                    exec.context,
-                    exec.random_data,
-                    exec.memory_pages,
-                )
-                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+            let notes = core_processor::process::<ExecutionEnvironment>(
+                &exec.block_config,
+                exec.context,
+                exec.random_data,
+                exec.memory_pages,
+            )
+            .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
-                let mut gas_burned = 0;
-                for note in notes.into_iter() {
-                    match note {
-                        JournalNote::GasBurned { amount, .. } => gas_burned = amount,
-                        JournalNote::MessageDispatched {
-                            outcome:
-                                DispatchOutcome::InitFailure { .. }
-                                | DispatchOutcome::MessageTrap { .. },
-                            ..
-                        } => {
-                            panic!("Process was not successful")
-                        }
-                        _ => {}
+            let mut gas_burned = 0;
+            for note in notes.into_iter() {
+                match note {
+                    JournalNote::GasBurned { amount, .. } => gas_burned = amount,
+                    JournalNote::MessageDispatched {
+                        outcome:
+                            DispatchOutcome::InitFailure { .. } | DispatchOutcome::MessageTrap { .. },
+                        ..
+                    } => {
+                        panic!("Process was not successful")
                     }
+                    _ => {}
                 }
+            }
 
-                gas_burned
-            })
-            .collect();
+            gas_burned
+        };
 
-        let k = GranularityPage::size() / GearPage::size();
-        assert_eq!(
-            charged[1].checked_sub(charged[0]).unwrap(),
-            expected * k as u64
-        );
+        assert_eq!(charged(1).checked_sub(charged(0)).unwrap(), expected);
     };
 
     test(
@@ -404,7 +522,8 @@ where
             Default::default(),
         )
         .unwrap();
-        exec.block_config.pages_config.lazy_pages_weights = Default::default();
+
+        exec.block_config.page_costs = Default::default();
 
         let notes = core_processor::process::<ExecutionEnvironment>(
             &exec.block_config,
@@ -445,14 +564,10 @@ where
             },
         )
         .unwrap();
-        exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
-            signal_read: CostPerPage::new(0),
-            signal_write: CostPerPage::new(1),
-            signal_write_after_read: CostPerPage::new(0),
-            host_func_read_access: CostPerPage::new(0),
-            host_func_write_access: CostPerPage::new(1),
-            host_func_write_after_read_access: CostPerPage::new(0),
-            load_page_storage_data: CostPerPage::new(0),
+
+        exec.block_config.page_costs = PageCosts {
+            signal_write: 1.into(),
+            ..Default::default()
         };
 
         let notes = core_processor::process::<ExecutionEnvironment>(
@@ -492,14 +607,10 @@ where
             },
         )
         .unwrap();
-        exec.block_config.pages_config.lazy_pages_weights = LazyPagesWeights {
-            signal_read: CostPerPage::new(0),
-            signal_write: CostPerPage::new(1),
-            signal_write_after_read: CostPerPage::new(0),
-            host_func_read_access: CostPerPage::new(0),
-            host_func_write_access: CostPerPage::new(1),
-            host_func_write_after_read_access: CostPerPage::new(0),
-            load_page_storage_data: CostPerPage::new(0),
+
+        exec.block_config.page_costs = PageCosts {
+            signal_write: 1.into(),
+            ..Default::default()
         };
 
         let notes = core_processor::process::<ExecutionEnvironment>(
@@ -525,5 +636,3 @@ where
         );
     };
 }
-
-// TODO: add test which check lazy-pages charging and sys-calls interaction (issue #2093).

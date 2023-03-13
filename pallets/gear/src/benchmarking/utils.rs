@@ -26,14 +26,12 @@ use crate::{
 use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin};
 use core::ops::Range;
 use core_processor::{
-    configs::{BlockConfig, BlockInfo, PagesConfig},
+    configs::{BlockConfig, BlockInfo},
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
 use frame_support::traits::{Currency, Get};
-use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId},
-    costs::CostPerPage,
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
 };
@@ -66,30 +64,10 @@ where
 
     let schedule = T::Schedule::get();
 
-    let lazy_pages_weights = LazyPagesWeights {
-        signal_read: CostPerPage::new(schedule.memory_weights.lazy_pages_read),
-        signal_write: CostPerPage::new(schedule.memory_weights.lazy_pages_write),
-        signal_write_after_read: CostPerPage::new(
-            schedule.memory_weights.lazy_pages_write_after_read,
-        ),
-        host_func_read_access: CostPerPage::new(schedule.memory_weights.lazy_pages_read),
-        host_func_write_access: CostPerPage::new(schedule.memory_weights.lazy_pages_write),
-        host_func_write_after_read_access: CostPerPage::new(
-            schedule.memory_weights.lazy_pages_write_after_read,
-        ),
-        load_page_storage_data: CostPerPage::new(schedule.memory_weights.lazy_pages_read),
-    };
-
     BlockConfig {
         block_info,
-        pages_config: PagesConfig {
-            max_pages: T::Schedule::get().limits.memory_pages.into(),
-            lazy_pages_weights,
-            init_cost: T::Schedule::get().memory_weights.initial_cost,
-            alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-            mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-            load_page_cost: T::Schedule::get().memory_weights.load_cost,
-        },
+        max_pages: T::Schedule::get().limits.memory_pages.into(),
+        page_costs: T::Schedule::get().memory_weights.into(),
         existential_deposit,
         outgoing_limit: 2048,
         host_fn_weights: Default::default(),
@@ -304,7 +282,6 @@ where
     let context = core_processor::precharge_for_memory(
         &block_config,
         ContextChargedForInstrumentation::from(context),
-        false,
     )
     .map_err(|_| "core_processor::precharge_for_memory failed")?;
 
