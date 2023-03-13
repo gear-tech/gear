@@ -592,8 +592,8 @@ jobs:
 
       - name: "Install: binaryen"
         run: |  
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-version_105/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
 
       - name: "Install: sccache"
         run: |
