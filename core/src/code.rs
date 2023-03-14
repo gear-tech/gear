@@ -110,7 +110,7 @@ fn get_offset_i32(init_code: &[Instruction]) -> Option<u32> {
 }
 
 fn check_gear_stack_end(module: &Module) -> Result<(), CodeError> {
-    let Some(init_expr) = get_stack_end_init_code(&module) else {
+    let Some(init_expr) = get_stack_end_init_code(module) else {
         return Ok(());
     };
 
