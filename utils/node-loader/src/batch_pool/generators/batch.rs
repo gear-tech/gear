@@ -138,20 +138,33 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
                 span.in_scope(|| self.gen_upload_code_batch(existing_programs))
             }
             2 => match NonEmpty::from_vec(context.programs.iter().copied().collect()) {
-                Some(existing_programs) => self.gen_send_message_batch(existing_programs, seed, rt_settings),
-                None => self.generate_batch(0, context, seed, rt_settings)
-            }
+                Some(existing_programs) => {
+                    self.gen_send_message_batch(existing_programs, seed, rt_settings)
+                }
+                None => self.generate_batch(0, context, seed, rt_settings),
+            },
             3 => match NonEmpty::from_vec(context.codes.iter().copied().collect()) {
-                Some(existing_codes) => self.gen_create_program_batch(existing_codes, seed, rt_settings),
-                None => self.generate_batch(0, context, seed, rt_settings)
-            }
+                Some(existing_codes) => {
+                    self.gen_create_program_batch(existing_codes, seed, rt_settings)
+                }
+                None => self.generate_batch(0, context, seed, rt_settings),
+            },
             4 => {
                 tracing::error!("GOT IT!");
-                match NonEmpty::from_vec(context.mailbox_state.iter().copied().map(|(mid, _)| mid).collect()) {
-                    Some(mailbox_messages) => self.gen_send_reply_batch(mailbox_messages, seed, rt_settings),
+                match NonEmpty::from_vec(
+                    context
+                        .mailbox_state
+                        .iter()
+                        .copied()
+                        .map(|(mid, _)| mid)
+                        .collect(),
+                ) {
+                    Some(mailbox_messages) => {
+                        self.gen_send_reply_batch(mailbox_messages, seed, rt_settings)
+                    }
                     None => self.generate_batch(0, context, seed, rt_settings),
                 }
-            },
+            }
             _ => unreachable!(),
         }
     }

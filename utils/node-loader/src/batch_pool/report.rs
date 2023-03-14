@@ -34,16 +34,34 @@ impl TryFrom<Error> for CrashAlert {
 }
 
 #[derive(Default)]
-pub struct ExtrinsicReport {
+pub struct Report {
     pub codes: BTreeSet<CodeId>,
     pub program_ids: BTreeSet<ProgramId>,
-}
-
-pub struct StateReport {
-    pub current_mailbox: BTreeSet<(MessageId, u128)>,
+    pub mailbox_data: MailboxReport,
 }
 
 #[derive(Default)]
+pub struct MailboxReport {
+    pub added: BTreeSet<(MessageId, u128)>,
+    pub removed: BTreeSet<MessageId>,
+}
+
+impl MailboxReport {
+    pub fn append_removed(&mut self, removed: impl IntoIterator<Item = MessageId>) {
+        self.removed.append(&mut BTreeSet::from_iter(removed));
+    }
+}
+
+impl From<BTreeSet<(MessageId, u128)>> for MailboxReport {
+    fn from(v: BTreeSet<(MessageId, u128)>) -> Self {
+        MailboxReport {
+            added: v,
+            removed: Default::default(),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct BatchRunReport {
     /// Seed of the batch is the id.
     pub id: u64,
@@ -51,10 +69,10 @@ pub struct BatchRunReport {
 }
 
 impl BatchRunReport {
-    pub fn new(id: u64, reports: (ExtrinsicReport, StateReport)) -> Self {
+    pub fn new(id: u64, report: Report) -> Self {
         Self {
             id,
-            context_update: reports.into(),
+            context_update: report.into(),
         }
     }
 

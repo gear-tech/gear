@@ -7,15 +7,14 @@ use api::GearApiFacade;
 use context::Context;
 use futures::{stream::FuturesUnordered, Future, StreamExt};
 use gclient::{
-    Error as GClientError, Event, EventProcessor, GearApi, GearEvent,
-    Result as GClientResult,
+    Error as GClientError, EventProcessor, GearApi, Result as GClientResult,
 };
 use gear_call_gen::{CallGenRng, SendReplyArgs};
 use gear_core::ids::{MessageId, ProgramId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
 use primitive_types::H256;
 pub use report::CrashAlert;
-use report::{BatchRunReport, ExtrinsicReport, StateReport};
+use report::{BatchRunReport, Report};
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
@@ -109,6 +108,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             self.process_run_report(report_res?).await;
 
             let api = self.api.clone();
+            tracing::debug!("Context for the batch {:?}", self.tasks_context);
             let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
 
             batches.push(run_batch(api, batch_with_seed));
@@ -127,8 +127,10 @@ async fn run_batch(api: GearApiFacade, batch: BatchWithSeed) -> Result<BatchRunR
     let (seed, batch) = batch.into();
     match run_batch_impl(api.clone(), batch).await {
         Ok(ex_report) => {
-            let state_report = StateReport { current_mailbox: api.mailbox_messages().await? };
-            Ok(BatchRunReport::new(seed, (ex_report, state_report)))
+            let ret = Ok(BatchRunReport::new(seed, ex_report));
+            tracing::debug!("REPORT ON BATCH {ret:?}");
+
+            ret
         },
         Err(err) => {
             // Propagate crash error or return report
@@ -146,7 +148,7 @@ async fn run_batch(api: GearApiFacade, batch: BatchWithSeed) -> Result<BatchRunR
 }
 
 #[instrument(skip_all)]
-async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<ExtrinsicReport> {
+async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> {
     // Order of the results of each extrinsic execution in the batch
     // is the same as in the input set of calls in the batch.
     // See: https://paritytech.github.io/substrate/master/src/pallet_utility/lib.rs.html#452-468
@@ -166,7 +168,7 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Extrinsi
                 );
             }
 
-            Ok(ExtrinsicReport {
+            Ok(Report {
                 codes: codes.keys().copied().collect(),
                 ..Default::default()
             })
@@ -182,9 +184,16 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Extrinsi
             process_events(api.into_gear_api(), messages, block_hash).await
         }
         Batch::SendReply(args) => {
+            let removed_from_mailbox = args.clone().into_iter().map(|SendReplyArgs((mid, ..))| mid);
+
             let (ex_results, block_hash) = api.send_reply_batch(args).await?;
             let messages = process_ex_results(ex_results);
-            process_events(api.into_gear_api(), messages, block_hash).await
+            process_events(api.into_gear_api(), messages, block_hash)
+                .await
+                .map(|mut report| {
+                    report.mailbox_data.append_removed(removed_from_mailbox);
+                    report
+                })
         }
     }
 }
@@ -212,16 +221,27 @@ async fn process_events(
     api: GearApi,
     mut messages: BTreeMap<MessageId, (ProgramId, usize)>,
     block_hash: H256,
-) -> Result<ExtrinsicReport> {
+) -> Result<Report> {
     let now = gear_utils::now_millis();
     // States what amount of blocks we should wait for taking all the events about successful `messages` execution
     let wait_for_events_blocks = 10;
     // Multiply on five to be 100% sure if no events occurred, then node is crashed
     let wait_for_events_millisec = api.expected_block_time()? as usize * wait_for_events_blocks * 5;
 
+    let mut mailbox_added = BTreeSet::new();
+
     let results = loop {
         let r = match api.events_since(block_hash, wait_for_events_blocks).await {
-            Ok(mut v) => v.err_or_succeed_batch(messages.keys().copied()).await,
+            Ok(mut v) => {
+                // `gclient::EventProcessor` implementation on `IntoIterator` implementor clones `self` without mutating
+                // it, although `proc` and `proc_many` take mutable reference on `self`.
+                let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &mut v)
+                    .await
+                    .expect("has not validation");
+                mailbox_added.append(&mut mailbox_from_events);
+
+                v.err_or_succeed_batch(messages.keys().copied()).await
+            }
             Err(e) => Err(e),
         };
 
@@ -250,8 +270,9 @@ async fn process_events(
         }
     }
 
-    Ok(ExtrinsicReport {
+    Ok(Report {
         program_ids,
+        mailbox_data: mailbox_added.into(),
         ..Default::default()
     })
 }
@@ -261,7 +282,8 @@ async fn inspect_crash_events(api: GearApi) -> Result<()> {
     // Error means either event is not found and can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    let crash_block_hash = event_listener.queue_processing_reverted()
+    let crash_block_hash = event_listener
+        .queue_processing_reverted()
         .await
         .map_err(|e| {
             tracing::info!("I THINK THIS {e:?}");

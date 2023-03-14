@@ -1,33 +1,35 @@
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use std::collections::BTreeSet;
 
-use super::report::{ExtrinsicReport, StateReport};
+use super::report::{Report, MailboxReport};
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ContextUpdate {
     program_ids: BTreeSet<ProgramId>,
     codes: BTreeSet<CodeId>,
-    mailbox_state: BTreeSet<(MessageId, u128)>,
+    added_mailbox: BTreeSet<(MessageId, u128)>,
+    removed_mailbox: BTreeSet<MessageId>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Context {
     pub programs: BTreeSet<ProgramId>,
     pub codes: BTreeSet<CodeId>,
     pub mailbox_state: BTreeSet<(MessageId, u128)>,
 }
 
-impl From<(ExtrinsicReport, StateReport)> for ContextUpdate {
-    fn from(reports: (ExtrinsicReport, StateReport)) -> Self {
-        let ExtrinsicReport {
+impl From<Report> for ContextUpdate {
+    fn from(report: Report) -> Self {
+        let Report {
             codes,
             program_ids,
-        } = reports.0;
-        let StateReport { current_mailbox } = reports.1;
+            mailbox_data: MailboxReport { added, removed },
+        } = report;
         ContextUpdate {
             program_ids,
             codes,
-            mailbox_state: current_mailbox,
+            added_mailbox: added,
+            removed_mailbox: removed,
         }
     }
 }
@@ -40,6 +42,8 @@ impl Context {
     pub fn update(&mut self, mut update: ContextUpdate) {
         self.programs.append(&mut update.program_ids);
         self.codes.append(&mut update.codes);
-        self.mailbox_state.append(&mut update.mailbox_state);
+        self.mailbox_state.append(&mut update.added_mailbox);
+        self.mailbox_state
+            .retain(|(mid, _)| !update.removed_mailbox.contains(mid));
     }
 }

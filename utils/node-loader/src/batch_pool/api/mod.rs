@@ -1,7 +1,6 @@
 use crate::utils;
 use anyhow::{anyhow, Result};
-use std::collections::BTreeSet;
-use futures::{future::BoxFuture, Future, TryFutureExt};
+use futures::{future::BoxFuture, Future};
 use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{
     CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
@@ -37,19 +36,6 @@ impl GearApiFacade {
 
     pub fn into_gear_api(self) -> GearApi {
         self.api
-    }
-
-    pub async fn mailbox_messages(&self) -> Result<BTreeSet<(MessageId, u128)>> {
-        Ok(self.api
-            .mailbox(50)
-            .map_err(|err| {
-                tracing::info!("HERE! {err:?}");
-                err
-            })
-            .await?
-            .into_iter()
-            .map(|(msg, _)| (msg.id(), msg.value()))
-            .collect::<BTreeSet<_>>())
     }
 
     pub async fn raw_call<C, T>(&self, f: C) -> T

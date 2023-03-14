@@ -37,14 +37,6 @@ use gsdk::metadata::runtime_types::{
     },
 };
 
-// #[derive(Debug, Clone, PartialEq, Eq)]
-// pub enum MessageExecutionResult {
-//     MessageDispatched(MessageId),
-//     MailboxMessage(MessageId),
-//     ActiveProgram(ProgramId),
-//     Error(MessageId, String),
-// }
-
 /// Dispatch status returned after processing a message.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DispatchStatus {
@@ -335,87 +327,3 @@ pub trait EventProcessor {
             .collect())
     }
 }
-
-// async fn err_or_succeed_batch(
-//     &mut self,
-//     message_ids: impl IntoIterator<Item = MessageId>,
-// ) -> Result<Vec<MessageExecutionResult>> {
-//     let message_ids: Vec<GenMId> = message_ids.into_iter().map(Into::into).collect();
-
-//     Ok(self
-//         .proc_many(
-//             |e| match e {
-//                 Event::Gear(GearEvent::ProgramChanged {
-//                     id,
-//                     change: ProgramChangeKind::Active { .. },
-//                 }) => Some(vec![MessageExecutionResult::ActiveProgram(
-//                     ProgramId::from(id),
-//                 )]),
-//                 Event::Gear(GearEvent::UserMessageSent {
-//                     message:
-//                         GenStoredMessage {
-//                             id,
-//                             destination,
-//                             payload,
-//                             details:
-//                                 Some(MessageDetails::Reply(ReplyDetails {
-//                                     reply_to,
-//                                     status_code,
-//                                 })),
-//                             ..
-//                         },
-//                     expiration,
-//                 }) => {
-//                     if message_ids.contains(&reply_to) {
-//                         if status_code != 0 {
-//                             Some(vec![MessageExecutionResult::Error(
-//                                 reply_to.into(),
-//                                 String::from_utf8(payload.0).expect("Infallible"),
-//                             )])
-//                         } else if expiration.is_some() {
-//                             log::error!("HERE!");
-//                             Some(vec![
-//                                 MessageExecutionResult::MailboxMessage(id.into()),
-//                             ])
-//                         } else {
-//                             None
-//                         }
-//                     } else {
-//                         None
-//                     }
-//                 }
-//                 Event::Gear(GearEvent::MessagesDispatched { statuses, .. }) => {
-//                     let requested: Vec<_> = statuses
-//                         .into_iter()
-//                         .filter_map(|(mid, status)| {
-//                             if message_ids.contains(&mid)
-//                                 && !matches!(status, GenDispatchStatus::Failed)
-//                             {
-//                                 Some(MessageExecutionResult::MessageDispatched(
-//                                     MessageId::from(mid),
-//                                 ))
-//                             } else {
-//                                 None
-//                             }
-//                         })
-//                         .collect();
-
-//                     (!requested.is_empty()).then_some(requested)
-//                 }
-//                 _ => None,
-//             },
-//             |v| {
-//                 let count = v
-//                     .iter()
-//                     .flatten()
-//                     .filter(|r| !matches!(r, MessageExecutionResult::ActiveProgram(_)))
-//                     .count()
-//                     == message_ids.len();
-//                 (v, count)
-//             },
-//         )
-//         .await?
-//         .into_iter()
-//         .flatten()
-//         .collect())
-// }

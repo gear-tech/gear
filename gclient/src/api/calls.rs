@@ -40,7 +40,7 @@ use gsdk::{
     },
 };
 use parity_scale_codec::Encode;
-use std::{collections::BTreeMap, path::Path, borrow::Borrow};
+use std::{collections::BTreeMap, path::Path};
 
 impl GearApi {
     /// Transfer `value` to `destination`'s account.
@@ -738,7 +738,6 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             let event = event?;
-            log::info!("EVENTS FOR upload_program {:?}", event.as_root_event::<Event>()?);
             match event.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::MessageQueued {
                     id,

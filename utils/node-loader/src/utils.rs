@@ -2,11 +2,17 @@ use crate::SmallRng;
 use anyhow::{anyhow, Result};
 use futures::Future;
 use futures_timer::Delay;
-use gclient::WSAddress;
+use gclient::{Event, EventProcessor, GearApi, GearEvent, WSAddress};
 use gear_call_gen::GearProgGenConfig;
+use gear_core::ids::{MessageId, ProgramId};
 use reqwest::Client;
 use std::{
-    collections::HashMap, fs::File, io::Write, iter, result::Result as StdResult, time::Duration,
+    collections::{BTreeSet, HashMap},
+    fs::File,
+    io::Write,
+    iter,
+    result::Result as StdResult,
+    time::Duration,
 };
 
 /// subxt's GenericError::Rpc::RequestError::RestartNeeded
@@ -111,4 +117,29 @@ pub async fn stop_node(monitor_url: String) -> Result<()> {
         .map(|resp| tracing::debug!("{resp:?}"))?;
 
     Ok(())
+}
+
+pub async fn capture_mailbox_messages<T: EventProcessor>(
+    api: &GearApi,
+    event_source: &mut T,
+) -> Result<BTreeSet<(MessageId, u128)>> {
+    let to = ProgramId::from(api.account_id().as_ref());
+    // Mailbox message expiration threshold block number: current(last) block number + 20.
+    let bn_threshold = api.last_block_number().await? + 20;
+    event_source
+        .proc_many(
+            |event| match event {
+                Event::Gear(GearEvent::UserMessageSent {
+                    message,
+                    expiration: Some(exp_bn),
+                }) if exp_bn >= bn_threshold && message.destination == to.into() => {
+                    Some((message.id.into(), message.value))
+                }
+                _ => None,
+            },
+            |mailbox_data| (mailbox_data, true),
+        )
+        .await
+        .map(BTreeSet::from_iter)
+        .map_err(Into::into)
 }
