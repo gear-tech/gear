@@ -40,7 +40,17 @@ impl Node {
     pub fn dev() -> Result<Self> {
         let port = port::pick();
         let port_string = port.to_string();
+        #[cfg(not(feature = "vara-testing"))]
         let args = vec!["--ws-port", &port_string, "--tmp", "--dev"];
+        #[cfg(feature = "vara-testing")]
+        let args = vec![
+            "--ws-port",
+            &port_string,
+            "--tmp",
+            "--chain=vara-dev",
+            "--validator",
+            "--alice",
+        ];
         let ps = Command::new(env::bin("gear"))
             .args(args)
             .stderr(Stdio::piped())

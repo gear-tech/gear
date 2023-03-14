@@ -28,12 +28,22 @@ async fn test_command_send_works() -> Result<()> {
     // Get balance of the testing address
     let signer = Api::new(Some(&node.ws())).await?.signer("//Alice", None)?;
     let mailbox = signer.api().mailbox(common::alice_account_id(), 10).await?;
+
     assert_eq!(mailbox.len(), 1);
     let dest = hex::encode(mailbox[0].0.source.0);
 
     // Send message to messager
-    let _ = common::gear(&["-e", &node.ws(), "send", &dest, "0x", "20000000000"])?;
+    // let _ = common::gear(&["-e", &node.ws(), "send", &dest, "0x", "20000000000"])?;
+    let _ = common::gear(&[
+        "-e",
+        "ws://127.0.0.1:9944",
+        "send",
+        &dest,
+        "0x",
+        "20000000000",
+    ])?;
     let mailbox = signer.api().mailbox(common::alice_account_id(), 10).await?;
+
     assert_eq!(mailbox.len(), 2);
     assert!(mailbox
         .iter()
