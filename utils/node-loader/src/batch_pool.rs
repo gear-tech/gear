@@ -126,12 +126,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 async fn run_batch(api: GearApiFacade, batch: BatchWithSeed) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
     match run_batch_impl(api.clone(), batch).await {
-        Ok(ex_report) => {
-            let ret = Ok(BatchRunReport::new(seed, ex_report));
-            tracing::debug!("REPORT ON BATCH {ret:?}");
-
-            ret
-        }
+        Ok(ex_report) => Ok(BatchRunReport::new(seed, ex_report)),
         Err(err) => {
             // Propagate crash error or return report
             CrashAlert::try_from(err)
@@ -259,7 +254,7 @@ async fn process_events(
                 // it, although `proc` and `proc_many` take mutable reference on `self`.
                 let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &mut v)
                     .await
-                    .expect("has not validation");
+                    .expect("always valid by definition");
                 mailbox_added.append(&mut mailbox_from_events);
 
                 v.err_or_succeed_batch(messages.keys().copied()).await
@@ -338,8 +333,6 @@ async fn create_renew_balance_task(
     Ok(async move {
         loop {
             tokio::time::sleep(Duration::from_millis(duration_millis)).await;
-
-            tracing::debug!("WOKE UP!");
 
             let user_balance_demand = {
                 let current = root_api.free_balance(&user_address).await?;

@@ -19,11 +19,11 @@
 mod account_id;
 mod block;
 
-pub use account_id::IntoAccountId32;
 pub use block::*;
 
 use super::{GearApi, Result};
 use crate::Error;
+use account_id::IntoAccountId32;
 use gear_core::{ids::*, message::StoredMessage};
 use gsdk::{
     ext::sp_core::crypto::Ss58Codec,

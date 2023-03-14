@@ -96,8 +96,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
 
         tracing::info!("Code generator starts with seed: {code_seed_type:?}");
 
-        let mut prog_gen_config = GearProgGenConfig::new_normal();
-        prog_gen_config.use_message_source = (100, 100).into();
+        let prog_gen_config = GearProgGenConfig::new_normal();
 
         Self {
             batch_gen_rng,

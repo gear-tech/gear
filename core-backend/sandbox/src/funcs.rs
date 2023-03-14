@@ -101,8 +101,6 @@ where
 
         let (pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        let _delay: u32 = delay;
-
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Send(len), |ctx| {
             let read_hash_val = ctx.register_read_as(pid_value_ptr);
             let read_payload = ctx.register_read(payload_ptr, len);
@@ -113,7 +111,7 @@ where
             let payload = ctx.read(read_payload)?.try_into()?;
 
             ctx.ext
-                .send(HandlePacket::new(destination.into(), payload, value), 0)
+                .send(HandlePacket::new(destination.into(), payload, value), delay)
                 .map_err(Into::into)
         })
     }
@@ -124,8 +122,6 @@ where
 
         let (pid_value_ptr, payload_ptr, len, gas_limit, delay, err_mid_ptr) =
             args.iter().read_6()?;
-
-        let _delay: u32 = delay;
 
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Send(len), |ctx| {
             let read_hash_val = ctx.register_read_as(pid_value_ptr);
@@ -139,7 +135,7 @@ where
             ctx.ext
                 .send(
                     HandlePacket::new_with_gas(destination.into(), payload, gas_limit, value),
-                    0,
+                    delay,
                 )
                 .map_err(Into::into)
         })
@@ -457,15 +453,13 @@ where
 
         let (payload_ptr, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        let _delay: u32 = delay;
-
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply, |ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
             let value = Self::register_and_read_value(ctx, value_ptr)?;
             let payload = ctx.read(read_payload)?.try_into()?;
 
             ctx.ext
-                .reply(ReplyPacket::new(payload, value), 0)
+                .reply(ReplyPacket::new(payload, value), delay)
                 .map_err(Into::into)
         })
     }
@@ -476,15 +470,13 @@ where
 
         let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
-        let _delay: u32 = delay;
-
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply, |ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
             let value = Self::register_and_read_value(ctx, value_ptr)?;
             let payload = ctx.read(read_payload)?.try_into()?;
 
             ctx.ext
-                .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), 0)
+                .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
                 .map_err(Into::into)
         })
     }

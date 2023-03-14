@@ -274,9 +274,7 @@ impl GearApi {
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            let event = event?;
-            log::debug!("Claimed value event {:#?}", event.as_root_event::<Event>());
-            match event.as_root_event::<Event>()? {
+            match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::UserMessageRead { id, .. }) => res.push(Ok(values
                     .remove(&id.into())
                     .flatten()
@@ -414,9 +412,8 @@ impl GearApi {
     /// [`pallet_gear::send_reply`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.send_reply)
     /// extrinsic.
     ///
-    /// This function returns a tuple with a new message identifier, destination
-    /// of the new message, transferred value, and a hash of the block with the
-    /// message enqueuing transaction.
+    /// This function returns a tuple with a new message identifier, transferred
+    /// value, and a hash of the block with the message enqueuing transaction.
     ///
     /// # See also
     ///
@@ -430,7 +427,7 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ProgramId, u128, H256)> {
+    ) -> Result<(MessageId, u128, H256)> {
         let payload = payload.as_ref().to_vec();
 
         let data = self.get_from_mailbox(reply_to_id).await?;
@@ -448,16 +445,10 @@ impl GearApi {
             if let Event::Gear(GearEvent::MessageQueued {
                 id,
                 entry: MessageEntry::Reply(_),
-                destination,
                 ..
             }) = event?.as_root_event::<Event>()?
             {
-                return Ok((
-                    id.into(),
-                    destination.into(),
-                    message.value(),
-                    tx.block_hash(),
-                ));
+                return Ok((id.into(), message.value(), tx.block_hash()));
             }
         }
 
@@ -470,6 +461,10 @@ impl GearApi {
     /// entry of the `args` iterator is a tuple of parameters used in the
     /// [`send_reply_bytes`](Self::send_reply_bytes) function. It is useful when
     /// replying to several programs at once.
+    ///
+    /// The output for each call slightly differs from
+    /// [`send_reply_bytes`](Self::send_reply_bytes) as the destination
+    /// program id is also returned in the resulting tuple.
     pub async fn send_reply_bytes_batch(
         &self,
         args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)> + Clone,
@@ -538,7 +533,7 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ProgramId, u128, H256)> {
+    ) -> Result<(MessageId, u128, H256)> {
         self.send_reply_bytes(reply_to_id, payload.encode(), gas_limit, value)
             .await
     }
@@ -731,8 +726,7 @@ impl GearApi {
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            let event = event?;
-            match event.as_root_event::<Event>()? {
+            match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
                     destination,
