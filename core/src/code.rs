@@ -99,12 +99,14 @@ fn get_stack_end_init_code(module: &Module) -> Option<&[Instruction]> {
 }
 
 fn get_offset_i32(init_code: &[Instruction]) -> Option<u32> {
-    if init_code.len() != 1 {
+    use Instruction::{End, I32Const};
+
+    if init_code.len() != 2 {
         return None;
     }
 
-    match init_code[0] {
-        Instruction::I32Const(stack_end) => Some(stack_end as u32),
+    match (&init_code[0], &init_code[1]) {
+        (I32Const(stack_end), End) => Some(*stack_end as u32),
         _ => None,
     }
 }
