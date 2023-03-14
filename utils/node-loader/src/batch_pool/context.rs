@@ -1,13 +1,13 @@
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use std::collections::BTreeSet;
 
-use super::report::{Report, MailboxReport};
+use super::report::{MailboxReport, Report};
 
 #[derive(Debug, Default)]
 pub struct ContextUpdate {
     program_ids: BTreeSet<ProgramId>,
     codes: BTreeSet<CodeId>,
-    added_mailbox: BTreeSet<(MessageId, u128)>,
+    added_mailbox: BTreeSet<MessageId>,
     removed_mailbox: BTreeSet<MessageId>,
 }
 
@@ -15,7 +15,7 @@ pub struct ContextUpdate {
 pub struct Context {
     pub programs: BTreeSet<ProgramId>,
     pub codes: BTreeSet<CodeId>,
-    pub mailbox_state: BTreeSet<(MessageId, u128)>,
+    pub mailbox_state: BTreeSet<MessageId>,
 }
 
 impl From<Report> for ContextUpdate {
@@ -44,6 +44,6 @@ impl Context {
         self.codes.append(&mut update.codes);
         self.mailbox_state.append(&mut update.added_mailbox);
         self.mailbox_state
-            .retain(|(mid, _)| !update.removed_mailbox.contains(mid));
+            .retain(|mid| !update.removed_mailbox.contains(mid));
     }
 }

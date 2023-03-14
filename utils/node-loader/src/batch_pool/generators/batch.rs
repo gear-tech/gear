@@ -7,8 +7,8 @@ use crate::{
 use anyhow::Result;
 use futures::FutureExt;
 use gear_call_gen::{
-    CallGenRng, CallGenRngCore, CreateProgramArgs, GearProgGenConfig, SendMessageArgs,
-    SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
+    CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, GearProgGenConfig,
+    SendMessageArgs, SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
 };
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
@@ -44,6 +44,7 @@ pub enum Batch {
     SendMessage(Vec<SendMessageArgs>),
     CreateProgram(Vec<CreateProgramArgs>),
     SendReply(Vec<SendReplyArgs>),
+    ClaimValue(Vec<ClaimValueArgs>),
 }
 
 pub struct BatchWithSeed {
@@ -59,6 +60,7 @@ impl BatchWithSeed {
             Batch::SendMessage(_) => "send_message",
             Batch::CreateProgram(_) => "create_program",
             Batch::SendReply(_) => "send_reply",
+            Batch::ClaimValue(_) => "claim_value",
         }
     }
 }
@@ -108,7 +110,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
 
     pub fn generate(&mut self, context: Context) -> BatchWithSeed {
         let seed = self.batch_gen_rng.next_u64();
-        let batch_id = self.batch_gen_rng.gen_range(0..=4u8);
+        let batch_id = self.batch_gen_rng.gen_range(0..=5u8);
         let rt_settings = self.rt_settings;
 
         let batch = self.generate_batch(batch_id, context, seed, rt_settings);
@@ -149,22 +151,16 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
                 }
                 None => self.generate_batch(0, context, seed, rt_settings),
             },
-            4 => {
-                tracing::error!("GOT IT!");
-                match NonEmpty::from_vec(
-                    context
-                        .mailbox_state
-                        .iter()
-                        .copied()
-                        .map(|(mid, _)| mid)
-                        .collect(),
-                ) {
-                    Some(mailbox_messages) => {
-                        self.gen_send_reply_batch(mailbox_messages, seed, rt_settings)
-                    }
-                    None => self.generate_batch(0, context, seed, rt_settings),
+            4 => match NonEmpty::from_vec(context.mailbox_state.iter().copied().collect()) {
+                Some(mailbox_messages) => {
+                    self.gen_send_reply_batch(mailbox_messages, seed, rt_settings)
                 }
-            }
+                None => self.generate_batch(0, context, seed, rt_settings),
+            },
+            5 => match NonEmpty::from_vec(context.mailbox_state.iter().copied().collect()) {
+                Some(mailbox_messages) => self.gen_claim_value_batch(mailbox_messages, seed),
+                None => self.generate_batch(0, context, seed, rt_settings),
+            },
             _ => unreachable!(),
         }
     }
@@ -289,5 +285,25 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         .collect();
 
         Batch::SendReply(inner)
+    }
+
+    #[instrument(skip_all, fields(seed = seed, batch_type = "claim_value"))]
+    fn gen_claim_value_batch(
+        &mut self,
+        mailbox_messages: NonEmpty<MessageId>,
+        seed: Seed,
+    ) -> Batch {
+        let mut rng = Rng::seed_from_u64(seed);
+        let inner = utils::iterator_with_args(self.batch_size, || {
+            (mailbox_messages.clone(), rng.next_u64())
+        })
+        .enumerate()
+        .map(|(i, (mailbox_messages, rng_seed))| {
+            tracing::debug_span!("`claim_value` generator", call_id = i + 1)
+                .in_scope(|| ClaimValueArgs::generate::<Rng>(mailbox_messages, rng_seed))
+        })
+        .collect();
+
+        Batch::ClaimValue(inner)
     }
 }

@@ -247,12 +247,10 @@ impl GearApi {
     /// processing multiple replies in the mailbox at once.
     pub async fn claim_value_batch(
         &self,
-        args: impl IntoIterator<Item = MessageId>,
+        args: impl IntoIterator<Item = MessageId> + Clone,
     ) -> Result<(Vec<Result<u128>>, H256)> {
-        let mut message_ids = args.into_iter();
         let mut values = BTreeMap::new();
-
-        for message_id in message_ids.by_ref() {
+        for message_id in args.clone().into_iter() {
             values.insert(
                 message_id,
                 self.get_from_mailbox(message_id)
@@ -261,7 +259,8 @@ impl GearApi {
             );
         }
 
-        let calls: Vec<_> = message_ids
+        let calls: Vec<_> = args
+            .into_iter()
             .map(|message_id| {
                 RuntimeCall::Gear(GearCall::claim_value {
                     message_id: message_id.into(),
@@ -275,7 +274,9 @@ impl GearApi {
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            match event?.as_root_event::<Event>()? {
+            let event = event?;
+            log::debug!("Claimed value event {:#?}", event.as_root_event::<Event>());
+            match event.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::UserMessageRead { id, .. }) => res.push(Ok(values
                     .remove(&id.into())
                     .flatten()
@@ -483,8 +484,6 @@ impl GearApi {
             );
         }
 
-        log::info!("GOT MESSAGES FROM MAILBOX");
-
         let calls: Vec<_> = args
             .into_iter()
             .map(|(reply_to_id, payload, gas_limit, value)| {
@@ -499,16 +498,11 @@ impl GearApi {
 
         let amount = calls.len();
 
-        log::info!("AMOUNT OF CALLS {amount:?}");
-
         let tx = self.0.force_batch(calls).await?;
-        log::info!("REPLY BATCH SENT");
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
-            let event = event?;
-            log::info!("ALSO RECEIVED EVENT {:?}", event.as_root_event::<Event>()?);
-            match event.as_root_event::<Event>()? {
+            match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
                     entry: MessageEntry::Reply(reply_to_id),

@@ -6,10 +6,8 @@ use anyhow::{anyhow, Result};
 use api::GearApiFacade;
 use context::Context;
 use futures::{stream::FuturesUnordered, Future, StreamExt};
-use gclient::{
-    Error as GClientError, EventProcessor, GearApi, Result as GClientResult,
-};
-use gear_call_gen::{CallGenRng, SendReplyArgs};
+use gclient::{Error as GClientError, EventProcessor, GearApi, Result as GClientResult};
+use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{MessageId, ProgramId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
 use primitive_types::H256;
@@ -21,6 +19,8 @@ use std::{
     time::Duration,
 };
 use tracing::instrument;
+
+use self::report::MailboxReport;
 
 mod api;
 mod context;
@@ -131,7 +131,7 @@ async fn run_batch(api: GearApiFacade, batch: BatchWithSeed) -> Result<BatchRunR
             tracing::debug!("REPORT ON BATCH {ret:?}");
 
             ret
-        },
+        }
         Err(err) => {
             // Propagate crash error or return report
             CrashAlert::try_from(err)
@@ -194,6 +194,28 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> 
                     report.mailbox_data.append_removed(removed_from_mailbox);
                     report
                 })
+        }
+        Batch::ClaimValue(args) => {
+            let removed_from_mailbox = args.clone().into_iter().map(|ClaimValueArgs(mid)| mid);
+
+            let (ex_results, _) = api.claim_value_batch(args).await?;
+            let ex_results = ex_results
+                .into_iter()
+                .zip(removed_from_mailbox.clone())
+                .map(|(r, mid)| r.map(|value| (mid, value)));
+            for (mid, (value, call_id)) in process_ex_results(ex_results) {
+                tracing::debug!(
+                    "[Call with id: {call_id}]: Successfully claimed {value} amount from message {mid}."
+                );
+            }
+
+            Ok(Report {
+                mailbox_data: MailboxReport {
+                    removed: BTreeSet::from_iter(removed_from_mailbox),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
         }
     }
 }
@@ -282,13 +304,7 @@ async fn inspect_crash_events(api: GearApi) -> Result<()> {
     // Error means either event is not found and can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    let crash_block_hash = event_listener
-        .queue_processing_reverted()
-        .await
-        .map_err(|e| {
-            tracing::info!("I THINK THIS {e:?}");
-            e
-        })?;
+    let crash_block_hash = event_listener.queue_processing_reverted().await?;
 
     let crash_err = CrashAlert::MsgProcessingStopped;
     tracing::info!("{crash_err} at block hash {crash_block_hash:?}");
@@ -322,6 +338,8 @@ async fn create_renew_balance_task(
     Ok(async move {
         loop {
             tokio::time::sleep(Duration::from_millis(duration_millis)).await;
+
+            tracing::debug!("WOKE UP!");
 
             let user_balance_demand = {
                 let current = root_api.free_balance(&user_address).await?;

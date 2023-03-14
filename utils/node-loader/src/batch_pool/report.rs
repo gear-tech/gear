@@ -42,7 +42,7 @@ pub struct Report {
 
 #[derive(Default)]
 pub struct MailboxReport {
-    pub added: BTreeSet<(MessageId, u128)>,
+    pub added: BTreeSet<MessageId>,
     pub removed: BTreeSet<MessageId>,
 }
 
@@ -52,8 +52,8 @@ impl MailboxReport {
     }
 }
 
-impl From<BTreeSet<(MessageId, u128)>> for MailboxReport {
-    fn from(v: BTreeSet<(MessageId, u128)>) -> Self {
+impl From<BTreeSet<MessageId>> for MailboxReport {
+    fn from(v: BTreeSet<MessageId>) -> Self {
         MailboxReport {
             added: v,
             removed: Default::default(),

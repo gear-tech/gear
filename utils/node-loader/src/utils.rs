@@ -122,24 +122,36 @@ pub async fn stop_node(monitor_url: String) -> Result<()> {
 pub async fn capture_mailbox_messages<T: EventProcessor>(
     api: &GearApi,
     event_source: &mut T,
-) -> Result<BTreeSet<(MessageId, u128)>> {
+) -> Result<BTreeSet<MessageId>> {
     let to = ProgramId::from(api.account_id().as_ref());
     // Mailbox message expiration threshold block number: current(last) block number + 20.
     let bn_threshold = api.last_block_number().await? + 20;
-    event_source
+    let mailbox_messages = event_source
         .proc_many(
             |event| match event {
                 Event::Gear(GearEvent::UserMessageSent {
                     message,
                     expiration: Some(exp_bn),
                 }) if exp_bn >= bn_threshold && message.destination == to.into() => {
-                    Some((message.id.into(), message.value))
+                    Some(message.id.into())
                 }
                 _ => None,
             },
             |mailbox_data| (mailbox_data, true),
         )
-        .await
-        .map(BTreeSet::from_iter)
-        .map_err(Into::into)
+        .await?;
+
+    let mut ret = BTreeSet::new();
+    // TODO
+    // The loop is needed, because when you call the function multiple times in
+    // a short time interval, you can receive same events. That's quite annoying,
+    // because you can reply to or claim value from the message, that was removed
+    // from mailbox, although you consider it existing, because of the event.
+    for mid in mailbox_messages {
+        if api.get_from_mailbox(mid).await?.is_some() {
+            ret.insert(mid);
+        }
+    }
+
+    Ok(ret)
 }

@@ -18,6 +18,7 @@
 
 //! Generator of the `pallet-gear` calls.
 
+mod claim_value;
 mod create_program;
 mod rand_utils;
 mod send_message;
@@ -27,6 +28,7 @@ mod upload_program;
 
 pub type Seed = u64;
 
+pub use claim_value::ClaimValueArgs;
 pub use create_program::CreateProgramArgs;
 use gear_core::ids::ProgramId;
 pub use rand_utils::{CallGenRng, CallGenRngCore};
@@ -49,6 +51,8 @@ pub enum GearCall {
     UploadCode(UploadCodeArgs),
     /// Send reply call args.
     SendReply(SendReplyArgs),
+    /// Claim value call args.
+    ClaimValue(ClaimValueArgs),
 }
 
 /// Function generates WASM-binary of a Gear program with the

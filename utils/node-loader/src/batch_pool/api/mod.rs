@@ -3,7 +3,8 @@ use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, Future};
 use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{
-    CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
+    ClaimValueArgs, CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadCodeArgs,
+    UploadProgramArgs,
 };
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use primitive_types::H256;
@@ -13,6 +14,7 @@ pub type CreateProgramBatchOutput = StandardBatchOutput;
 pub type SendMessageBatchOutput = StandardBatchOutput;
 pub type SendReplyBatchOutput = StandardBatchOutput;
 pub type UploadCodeBatchOutput = (Vec<GClientResult<CodeId>>, H256);
+pub type ClaimValueBatchOutput = (Vec<GClientResult<u128>>, H256);
 type StandardBatchOutput = (Vec<GClientResult<(MessageId, ProgramId)>>, H256);
 
 mod nonce;
@@ -104,6 +106,16 @@ impl GearApiFacade {
                 .collect();
             (batch_results, block_hash)
         })
+    }
+
+    pub async fn claim_value_batch(
+        &mut self,
+        args: Vec<ClaimValueArgs>,
+    ) -> Result<ClaimValueBatchOutput> {
+        self.batch_call_impl(
+            |api| async move { api.claim_value_batch(utils::convert_iter(args)).await },
+        )
+        .await
     }
 
     async fn batch_call_impl<T, F: Future<Output = GClientResult<T>>>(
