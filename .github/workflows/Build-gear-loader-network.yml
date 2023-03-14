@@ -62,10 +62,13 @@ jobs:
       - name: "Build gear-loader"
         run: |
           cargo build --locked --package gear-node-loader
-          
-      - name: Archive production artifacts
-        uses: actions/upload-artifact@v3
+            
+      - name: Run playbook
+        uses: dawidd6/action-ansible-playbook@v2
         with:
-          name: gear-loader
-          path: |
-            target/debug/gear-node-loader
+          directory: ./ansible/
+          playbook: gear-loader-update.yaml
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          inventory: |
+            [all]
+            ${{secrets.GEAR_LOADER_NODE}} 
