@@ -30,10 +30,6 @@ mod report;
 type Seed = u64;
 type CallId = usize;
 
-// TODO
-// 1. Describe how to refactor this (refactoring requirements) for the future.
-// For inst, current architecture have problems with updating mailbox by deleting read mailbox messages.
-
 pub struct BatchPool<Rng: CallGenRng> {
     api: GearApiFacade,
     pool_size: usize,
@@ -62,9 +58,9 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         let renew_balance_task =
             create_renew_balance_task(api.into_gear_api(), params.root).await?;
 
+        // TODO 1876 separately spawned tasks
         let run_result = tokio::select! {
             r = run_pool_task => r,
-            // TODO 1876 spawn a task
             r = inspect_crash_task => r,
             r = renew_balance_task => r,
         };
@@ -108,7 +104,6 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             self.process_run_report(report_res?).await;
 
             let api = self.api.clone();
-            tracing::debug!("Context for the batch {:?}", self.tasks_context);
             let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
 
             batches.push(run_batch(api, batch_with_seed));
@@ -125,8 +120,8 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 #[instrument(skip_all, fields(seed = batch.seed, batch_type = batch.batch_str()))]
 async fn run_batch(api: GearApiFacade, batch: BatchWithSeed) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
-    match run_batch_impl(api.clone(), batch).await {
-        Ok(ex_report) => Ok(BatchRunReport::new(seed, ex_report)),
+    match run_batch_impl(api, batch).await {
+        Ok(report) => Ok(BatchRunReport::new(seed, report)),
         Err(err) => {
             // Propagate crash error or return report
             CrashAlert::try_from(err)

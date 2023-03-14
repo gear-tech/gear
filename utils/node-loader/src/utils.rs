@@ -142,11 +142,13 @@ pub async fn capture_mailbox_messages<T: EventProcessor>(
         .await?;
 
     let mut ret = BTreeSet::new();
-    // TODO
+
     // The loop is needed, because when you call the function multiple times in
     // a short time interval, you can receive same events. That's quite annoying,
     // because you can reply to or claim value from the message, that was removed
     // from mailbox, although you consider it existing, because of the event.
+    //
+    // Better solution after #1876
     for mid in mailbox_messages {
         if api.get_from_mailbox(mid).await?.is_some() {
             ret.insert(mid);
