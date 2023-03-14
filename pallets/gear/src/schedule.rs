@@ -830,8 +830,8 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
         let max_params = self.schedule.limits.parameters;
 
         let weight = match *instruction {
-            End | Unreachable | Return | Else => 0,
-            I32Const(_) | I64Const(_) | Block(_) | Loop(_) | Nop | Drop => w.i64const,
+            End | Unreachable | Return | Else | Block(_) | Loop(_) | Nop | Drop => 0,
+            I32Const(_) | I64Const(_) => w.i64const,
             I32Load(_, _)
             | I32Load8S(_, _)
             | I32Load8U(_, _)

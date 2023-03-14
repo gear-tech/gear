@@ -80,7 +80,7 @@ fn derive_debug(input: TokenStream, fmt: impl Fn(&Ident) -> TokenStream2) -> Tok
     tokens.into()
 }
 
-/// This is only used then the `full` feature is activated.
+/// This is only used when the `full` feature is activated.
 #[cfg(feature = "full")]
 fn iterate_fields(data: &syn::DataStruct, fmt: impl Fn(&Ident) -> TokenStream2) -> TokenStream2 {
     use syn::Fields;

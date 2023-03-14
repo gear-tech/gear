@@ -309,21 +309,6 @@ where
         .into()
     }
 
-    /// Same as `dummy` but with maximum sized linear memory and a dummy section of specified size.
-    pub fn dummy_with_bytes(dummy_bytes: u32) -> Self {
-        // We want the module to have the size `dummy_bytes`.
-        // This is not completely correct as the overhead grows when the contract grows
-        // because of variable length integer encoding. However, it is good enough to be that
-        // close for benchmarking purposes.
-        let module_overhead = 65;
-        ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            dummy_section: dummy_bytes.saturating_sub(module_overhead),
-            ..Default::default()
-        }
-        .into()
-    }
-
     /// Creates a wasm module of `target_bytes` size. The generated module maximizes
     /// instrumentation runtime by nesting blocks as deeply as possible given the byte budget.
     /// `code_location`: Whether to place the code into `init` or `handle`.

@@ -1214,7 +1214,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_select = w_bench - 4 * w_param
+    // w_select = w_bench - 2 * w_i64const
     instr_select {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1231,7 +1231,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_if = w_bench - 3 * w_param
+    // w_if = w_bench
     instr_if {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut instructions = body::repeated_dyn_instr(
@@ -1257,7 +1257,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_br = w_bench - 2 * w_param
+    // w_br = w_bench
     // Block instructions are not counted.
     instr_br {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
@@ -1283,7 +1283,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_br_if = w_bench - 3 * w_param
+    // w_br_if = w_bench - w_i64const
     // Block instructions are not counted.
     instr_br_if {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
@@ -1310,7 +1310,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_br_table = w_bench - 3 * w_param
+    // w_br_table = w_bench
     // Block instructions are not counted.
     instr_br_table {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
@@ -1391,7 +1391,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_call = w_bench - 2 * w_param
+    // w_call = w_bench
     instr_call {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1411,7 +1411,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_call_indrect = w_bench - 3 * w_param
+    // w_call_indirect = w_bench
     instr_call_indirect {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let num_elements = T::Schedule::get().limits.table_size;
@@ -1437,7 +1437,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_instr_call_indirect_per_param = w_bench - 1 * w_param
+    // w_instr_call_indirect_per_param = w_bench - w_i64const
     // Calling a function indirectly causes it to go through a thunk function whose runtime
     // linearly depend on the amount of parameters to this function.
     // Please note that this is not necessary with a direct call.
@@ -1487,7 +1487,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_local_get = w_bench - 1 * w_param
+    // w_local_get = w_bench
     instr_local_get {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_locals = T::Schedule::get().limits.stack_height.unwrap_or(512);
@@ -1504,7 +1504,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_local_set = w_bench - 1 * w_param
+    // w_local_set = w_bench - w_i64const
     instr_local_set {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_locals = T::Schedule::get().limits.locals;
@@ -1521,7 +1521,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_local_tee = w_bench - 2 * w_param
+    // w_local_tee = w_bench - w_i64const
     instr_local_tee {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_locals = T::Schedule::get().limits.locals;
@@ -1539,7 +1539,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_global_get = w_bench - 1 * w_param
+    // w_global_get = w_bench
     instr_global_get {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_globals = T::Schedule::get().limits.globals;
@@ -1555,7 +1555,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_global_set = w_bench - 1 * w_param
+    // w_global_set = w_bench - w_i64const
     instr_global_set {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_globals = T::Schedule::get().limits.globals;
@@ -1571,7 +1571,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_memory_get = w_bench - 1 * w_param
+    // w_memory_get = w_bench
     instr_memory_current {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
@@ -1587,7 +1587,7 @@ benchmarks! {
     }
 
     // Unary numeric instructions.
-    // All use w = w_bench - 2 * w_param.
+    // All use w = w_bench - w_i64const
 
     instr_i64clz {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
@@ -1668,7 +1668,7 @@ benchmarks! {
     }
 
     // Binary numeric instructions.
-    // All use w = w_bench - 3 * w_param.
+    // All use w = w_bench - 2 * w_i64const
 
     instr_i64eq {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
