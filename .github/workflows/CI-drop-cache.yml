@@ -7,7 +7,7 @@ on:
 
 jobs:
   if_merged:
-    runs-on: [self-hosted, cachepot, epyc]
+    runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
     steps:
       - run: |
           rm -rf /root/cache/${{ github.event.pull_request.number }}
