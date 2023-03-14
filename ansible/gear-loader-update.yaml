@@ -37,27 +37,28 @@
       path: /home/ubuntu/gear-node-loader
       state: absent
     become: yes
- 
-  - name: check file
-    shell:
-      ls -ltr
-    become: yes
-    delegate_to: localhost
-    register: results
-  - debug:
-      var: results.stdout_lines
-    
+     
   - name: copy new gear-loader binary
     copy:
       src: /home/runner/work/gear/gear/gear-node-loader
       dest: /home/ubuntu/gear-node-loader
     become: yes
+    
+  - name: Permission to exec
+    shell: >
+       chmod +x /home/ubuntu/gear-node-loader
+    become: yes
         
-#  - name: Run docker-compose
-#    shell: >
-#       /usr/local/bin/docker-compose -f "/home/ubuntu/docker-compose.yaml" up -d
-#    become: yes
+  - name: Run docker-compose
+    shell: >
+       /usr/local/bin/docker-compose -f "/home/ubuntu/docker-compose.yaml" up -d
+    become: yes
  
-#  - name: Pause for 10 seconds before run loader
-#    ansible.builtin.pause:
-#      seconds: 10
+  - name: Pause for 10 seconds before run loader
+    ansible.builtin.pause:
+      seconds: 10
+
+  - name: Run loader
+    shell: >
+       /home/ubuntu/loader.sh
+    become: yes
