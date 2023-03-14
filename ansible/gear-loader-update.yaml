@@ -43,6 +43,6 @@
        /usr/local/bin/docker-compose -f "/home/ubuntu/docker-compose.yaml" up -d
     become: yes
  
-  - name: Pause for 10 seconds before run laoder
+  - name: Pause for 10 seconds before run loader
     ansible.builtin.pause:
       seconds: 10
