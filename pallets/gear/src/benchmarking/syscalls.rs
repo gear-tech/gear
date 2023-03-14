@@ -723,6 +723,36 @@ where
         Self::prepare_handle(code, 10000000, err_len_ptrs)
     }
 
+    pub fn gr_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let payload_offset = 1;
+        let payload_len = n * 1024;
+
+        let err_mid_offset = payload_offset + payload_len;
+        let err_len_ptrs = Self::err_len_ptrs(1, err_mid_offset);
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Reply],
+            handle_body: Some(body::plain(vec![
+                // payload ptr
+                Instruction::I32Const(payload_offset as i32),
+                // payload len
+                Instruction::I32Const(payload_len as i32),
+                // value ptr
+                Instruction::I32Const(payload_offset as i32),
+                // delay
+                Instruction::I32Const(10),
+                // err_mid ptr
+                Instruction::I32Const(err_mid_offset as i32),
+                // CALL Reply
+                Instruction::Call(0),
+                Instruction::End,
+            ])),
+            ..Default::default()
+        });
+        Self::prepare_handle(code, 10000000, err_len_ptrs)
+    }
+
     pub fn gr_reply_push(r: u32) -> Result<Exec<T>, &'static str> {
         let payload_offset = 1;
         let payload_len = 100;

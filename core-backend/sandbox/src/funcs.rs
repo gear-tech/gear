@@ -455,7 +455,7 @@ where
 
         let (payload_ptr, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply, |ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply(len), |ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
             let value = Self::register_and_read_value(ctx, value_ptr)?;
             let payload = ctx.read(read_payload)?.try_into()?;
@@ -472,7 +472,7 @@ where
 
         let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply, |ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply(len), |ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
             let value = Self::register_and_read_value(ctx, value_ptr)?;
             let payload = ctx.read(read_payload)?.try_into()?;
@@ -489,7 +489,7 @@ where
 
         let (value_ptr, delay, err_mid_ptr) = args.iter().read_3()?;
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyCommit, |ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyCommit(0), |ctx| {
             let value = Self::register_and_read_value(ctx, value_ptr)?;
 
             ctx.ext
@@ -504,7 +504,7 @@ where
 
         let (gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyCommit, |ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyCommit(0), |ctx| {
             let value = Self::register_and_read_value(ctx, value_ptr)?;
 
             ctx.ext

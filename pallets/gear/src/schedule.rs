@@ -368,6 +368,9 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: Weight,
 
+    /// Weight per payload byte by `gr_reply_commit`.
+    pub gr_reply_commit_per_byte: Weight,
+
     /// Weight of calling `gr_reservation_reply_commit`.
     pub gr_reservation_reply_commit: Weight,
 
@@ -733,6 +736,7 @@ impl<T: Config> HostFnWeights<T> {
                 .gr_reservation_send_commit_per_byte
                 .ref_time(),
             gr_reply_commit: self.gr_reply_commit.ref_time(),
+            gr_reply_commit_per_byte: self.gr_reply_commit_per_byte.ref_time(),
             gr_reservation_reply_commit: self.gr_reservation_reply_commit.ref_time(),
             gr_reservation_reply_commit_per_byte: self
                 .gr_reservation_reply_commit_per_byte
@@ -797,6 +801,7 @@ impl<T: Config> Default for HostFnWeights<T> {
                 gr_reservation_send_commit_per_kb
             )),
             gr_reply_commit: to_weight!(cost_batched!(gr_reply_commit)),
+            gr_reply_commit_per_byte: to_weight!(cost_byte!(gr_reply_commit_per_kb)),
             gr_reservation_reply_commit: to_weight!(cost_batched!(gr_reservation_reply_commit)),
             gr_reservation_reply_commit_per_byte: to_weight!(cost_byte!(
                 gr_reservation_reply_commit_per_kb
