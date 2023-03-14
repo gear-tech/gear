@@ -25,15 +25,17 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
+use core::ops::ControlFlow;
 use gear_wasm_instrument::{
     parity_wasm::{
         self,
-        elements::{Internal, Module},
+        elements::{Instruction, Internal, Module},
     },
     wasm_instrument::{
         self,
         gas_metering::{ConstantCostRules, Rules},
     },
+    STACK_END_EXPORT_NAME,
 };
 use scale_info::TypeInfo;
 
@@ -66,6 +68,70 @@ fn get_exports(
     }
 
     Ok(exports)
+}
+
+fn get_stack_end_init_code(module: &Module) -> Option<&[Instruction]> {
+    let Some(section) = module.export_section() else {
+        return None;
+    };
+
+    let global_index = section
+        .entries()
+        .iter()
+        .try_for_each(|entry| match entry.internal() {
+            Internal::Global(index) if entry.field() == STACK_END_EXPORT_NAME => {
+                ControlFlow::Break(*index)
+            }
+            _ => ControlFlow::Continue(()),
+        });
+
+    let ControlFlow::Break(global_index) = global_index else {
+        return None;
+    };
+
+    let Some(section) = module.global_section() else {
+        return None;
+    };
+
+    let entry = &section.entries()[global_index as usize];
+
+    Some(entry.init_expr().code())
+}
+
+fn get_offset_i32(init_code: &[Instruction]) -> Option<u32> {
+    if init_code.len() != 1 {
+        return None;
+    }
+
+    match init_code[0] {
+        Instruction::I32Const(stack_end) => Some(stack_end as u32),
+        _ => None,
+    }
+}
+
+fn check_gear_stack_end(module: &Module) -> Result<(), CodeError> {
+    let Some(init_expr) = get_stack_end_init_code(&module) else {
+        return Ok(());
+    };
+
+    let stack_end = get_offset_i32(init_expr).ok_or(CodeError::StackEndInitialization)?;
+    let Some(section) = module.data_section() else {
+        return Ok(());
+    };
+
+    for data_segment in section.entries() {
+        let offset = data_segment
+            .offset()
+            .as_ref()
+            .and_then(|init_expr| get_offset_i32(init_expr.code()))
+            .ok_or(CodeError::DataSegmentInitialization)?;
+
+        if offset < stack_end {
+            return Err(CodeError::StackEndOverlaps);
+        }
+    }
+
+    Ok(())
 }
 
 /// Instrumentation error.
@@ -101,6 +167,12 @@ pub enum CodeError {
     StartSectionExists,
     /// The provided code has invalid count of static pages.
     InvalidStaticPageCount,
+    /// Unsupported initialization of gear stack end global variable.
+    StackEndInitialization,
+    /// Unsupported initialization of data segment.
+    DataSegmentInitialization,
+    /// Pointer to the stack end overlaps data segment.
+    StackEndOverlaps,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
@@ -156,6 +228,8 @@ impl Code {
         if static_pages.raw() > MAX_WASM_PAGE_COUNT as u32 {
             return Err(CodeError::InvalidStaticPageCount);
         }
+
+        check_gear_stack_end(&module)?;
 
         let exports = get_exports(&module, true)?;
 
