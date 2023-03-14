@@ -33,8 +33,7 @@ use gear_wasm_instrument::{
     parity_wasm::{
         builder,
         elements::{
-            self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Module, Section,
-            ValueType,
+            self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Section, ValueType,
         },
     },
     syscalls::SysCallName,
@@ -600,12 +599,4 @@ where
     T: Config,
 {
     T::Schedule::get().limits.memory_pages
-}
-
-fn inject_stack_metering<T: Config>(module: Module) -> Module {
-    if let Some(height) = T::Schedule::get().limits.stack_height {
-        gear_wasm_instrument::wasm_instrument::inject_stack_limiter(module, height).unwrap()
-    } else {
-        module
-    }
 }
