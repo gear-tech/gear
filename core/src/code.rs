@@ -71,11 +71,8 @@ fn get_exports(
 }
 
 fn get_stack_end_init_code(module: &Module) -> Option<&[Instruction]> {
-    let Some(section) = module.export_section() else {
-        return None;
-    };
-
-    let global_index = section
+    let global_index = module
+        .export_section()?
         .entries()
         .iter()
         .try_for_each(|entry| match entry.internal() {
@@ -89,10 +86,7 @@ fn get_stack_end_init_code(module: &Module) -> Option<&[Instruction]> {
         return None;
     };
 
-    let Some(section) = module.global_section() else {
-        return None;
-    };
-
+    let section = module.global_section()?;
     let entry = &section.entries()[global_index as usize];
 
     Some(entry.init_expr().code())
