@@ -28,27 +28,37 @@
  
   - name: remove gear-loader.log
     ansible.builtin.file:
-      path: /home/ubuntu/gear-data/gear-loader.log
+      path: /home/ubuntu/gear-loader.log
       state: absent
     become: yes
     
   - name: remove gear-loader binary
     ansible.builtin.file:
-      path: /home/ubuntu/gear-data/gear-node-loader
+      path: /home/ubuntu/gear-node-loader
       state: absent
     become: yes
- 
+     
   - name: copy new gear-loader binary
     copy:
-      src: /target/debug/gear-node-loader
-      dest: /home/ubuntu/gear-data/gear-node-loader
+      src: /home/runner/work/gear/gear/gear-node-loader
+      dest: /home/ubuntu/gear-node-loader
+    become: yes
+    
+  - name: Permission to exec
+    shell: >
+       chmod +x /home/ubuntu/gear-node-loader
     become: yes
         
-#  - name: Run docker-compose
-#    shell: >
-#       /usr/local/bin/docker-compose -f "/home/ubuntu/docker-compose.yaml" up -d
-#    become: yes
+  - name: Run docker-compose
+    shell: >
+       /usr/local/bin/docker-compose -f "/home/ubuntu/docker-compose.yaml" up -d
+    become: yes
  
-#  - name: Pause for 10 seconds before run loader
-#    ansible.builtin.pause:
-#      seconds: 10
+  - name: Pause for 10 seconds before run loader
+    ansible.builtin.pause:
+      seconds: 10
+
+  - name: Run loader
+    shell: >
+       /home/ubuntu/loader.sh
+    become: yes
