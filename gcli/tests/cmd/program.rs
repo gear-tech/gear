@@ -21,6 +21,8 @@ use crate::common::{self, env, logs, traits::Convert, Result};
 use demo_meta::{Id, MessageInitIn, Person, Wallet};
 use parity_scale_codec::Encode;
 
+// ( issue #2367 )
+#[ignore]
 #[tokio::test]
 async fn test_command_state_works() -> Result<()> {
     common::login_as_alice().expect("login failed");

@@ -10120,3 +10120,35 @@ fn free_usage_error() {
         );
     });
 }
+
+#[test]
+fn reject_incorrect_stack_pointer() {
+    let wat = format!(
+        r#"
+(module
+    (import "env" "memory" (memory 1))
+    (func $init)
+    (global (;0;) i32 (i32.const 65536))
+    (export "init" (func $init))
+    (export "{STACK_END_EXPORT_NAME}" (global 0))
+    (data $.rodata (i32.const 60000) "GEAR")
+)
+    "#
+    );
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Gear::upload_code(
+                RuntimeOrigin::signed(USER_1),
+                ProgramCodeKind::CustomInvalid(&wat).to_bytes()
+            ),
+            Error::<Test>::ProgramConstructionFailed
+        );
+
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(&wat)),
+            Error::<Test>::ProgramConstructionFailed
+        );
+    });
+}
