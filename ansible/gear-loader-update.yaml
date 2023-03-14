@@ -28,20 +28,29 @@
  
   - name: remove gear-loader.log
     ansible.builtin.file:
-      path: /home/ubuntu/gear-data/gear-loader.log
+      path: /home/ubuntu/gear-loader.log
       state: absent
     become: yes
     
   - name: remove gear-loader binary
     ansible.builtin.file:
-      path: /home/ubuntu/gear-data/gear-node-loader
+      path: /home/ubuntu/gear-node-loader
       state: absent
     become: yes
  
+  - name: check file
+    shell:
+      ls -ltr
+    become: yes
+    delegate_to: localhost
+    register: results
+  - debug:
+      var: results.stdout_lines
+    
   - name: copy new gear-loader binary
     copy:
-      src: /target/debug/gear-node-loader
-      dest: /home/ubuntu/gear-data/gear-node-loader
+      src: /home/runner/work/gear/gear/gear-node-loader
+      dest: /home/ubuntu/gear-node-loader
     become: yes
         
 #  - name: Run docker-compose
