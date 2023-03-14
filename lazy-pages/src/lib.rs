@@ -60,7 +60,7 @@ use signal::{DefaultUserSignalHandler, UserSignalHandler};
 // in runtime, then he also should pay attention to support new values here:
 // 1) must rebuild node after that.
 // 2) must support old runtimes: need to make lazy-pages version with old constants values.
-static_assertions::const_assert_eq!(GEAR_PAGE_SIZE, 0x1000);
+static_assertions::const_assert_eq!(GEAR_PAGE_SIZE, 0x4000);
 static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY, 0x4000);
 
 /// Initialize lazy-pages once for process.

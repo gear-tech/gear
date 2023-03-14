@@ -40,7 +40,7 @@ pub const WASM_PAGE_SIZE: usize = 0x10000;
 /// we can download just some number of gear pages instead of whole wasm page.
 /// The number of small pages, which must be downloaded, is depends on host
 /// native page size, so can vary.
-pub const GEAR_PAGE_SIZE: usize = 0x1000;
+pub const GEAR_PAGE_SIZE: usize = 0x4000;
 
 /// Pages data storage granularity (PSG) is a size and wasm addr alignment
 /// of a memory interval, for which the following conditions must be met:
@@ -743,10 +743,7 @@ mod tests {
             .map(|p| p.0)
             .collect();
 
-        let expectation = [
-            0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 160, 161, 162, 163, 164, 165,
-            166, 167, 168, 169, 170, 171, 172, 173, 174, 175,
-        ];
+        let expectation = [0, 1, 2, 3, 40, 41, 42, 43];
 
         assert!(gear_pages.eq(&expectation));
     }
