@@ -24,8 +24,14 @@
 use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
-use frame_support::weights::Weight;
-use gear_core::{code, costs::HostFnWeights as CoreHostFnWeights, message};
+use core_processor::configs::PageCosts;
+use frame_support::{traits::Get, weights::Weight};
+use gear_core::{
+    code,
+    costs::HostFnWeights as CoreHostFnWeights,
+    memory::{GearPage, GranularityPage, PageU32Size, WasmPage},
+    message,
+};
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
@@ -441,30 +447,77 @@ pub struct HostFnWeights<T: Config> {
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct MemoryWeights<T: Config> {
-    /// Lazy-pages read access cost per one gear page.
-    pub lazy_pages_read: Weight,
+    /// Cost per one [GranularityPage] signal `read` processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub signal_read: Weight,
 
-    /// Lazy-pages write access cost per one gear page.
-    pub lazy_pages_write: Weight,
+    /// Cost per one [GranularityPage] signal `write` processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub signal_write: Weight,
 
-    /// Lazy-pages write after read access cost per one gear page.
-    pub lazy_pages_write_after_read: Weight,
+    /// Cost per one [GranularityPage] signal `write after read` processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub lazy_pages_signal_write_after_read: Weight,
 
-    /// Weight of initial page.
-    pub initial_cost: Weight,
+    /// Cost per one [GranularityPage] host func `read` access processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub lazy_pages_host_func_read: Weight,
 
-    /// Weight of allocated page.
-    pub allocation_cost: Weight,
+    /// Cost per one [GranularityPage] host func `write` access processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub lazy_pages_host_func_write: Weight,
 
-    /// Weight of growing page.
-    pub grow_cost: Weight,
+    /// Cost per one [GranularityPage] host func `write after read` access processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub lazy_pages_host_func_write_after_read: Weight,
 
-    /// Weight of loading page.
-    pub load_cost: Weight,
+    /// Cost per one [GranularityPage] data loading from storage
+    /// and moving it in program memory.
+    pub load_page_data: Weight,
+
+    /// Cost per one [GranularityPage] uploading data to storage.
+    pub upload_page_data: Weight,
+
+    /// Cost per one [WasmPage] static page. Static pages can have static data,
+    /// and executor must to move this data to static pages before execution.
+    pub static_page: Weight,
+
+    /// Cost per one [WasmPage] for memory growing.
+    pub mem_grow: Weight,
+
+    /// Cost per one [GranularityPage].
+    /// When we read page data from storage in para-chain, then it should be sent to relay-chain,
+    /// in order to use it for process queue execution. So, reading from storage cause
+    /// additional resources consumption after block(s) production on para-chain.
+    pub parachain_read_heuristic: Weight,
 
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
     pub _phantom: PhantomData<T>,
+}
+
+impl<T: Config> From<MemoryWeights<T>> for PageCosts {
+    fn from(val: MemoryWeights<T>) -> Self {
+        Self {
+            signal_read: val.signal_read.ref_time().into(),
+            signal_write: val.signal_write.ref_time().into(),
+            lazy_pages_signal_write_after_read: val
+                .lazy_pages_signal_write_after_read
+                .ref_time()
+                .into(),
+            lazy_pages_host_func_read: val.lazy_pages_host_func_read.ref_time().into(),
+            lazy_pages_host_func_write: val.lazy_pages_host_func_write.ref_time().into(),
+            lazy_pages_host_func_write_after_read: val
+                .lazy_pages_host_func_write_after_read
+                .ref_time()
+                .into(),
+            load_page_data: val.load_page_data.ref_time().into(),
+            upload_page_data: val.upload_page_data.ref_time().into(),
+            static_page: val.static_page.ref_time().into(),
+            mem_grow: val.mem_grow.ref_time().into(),
+            parachain_load_heuristic: val.parachain_read_heuristic.ref_time().into(),
+        }
+    }
 }
 
 macro_rules! replace_token {
@@ -787,15 +840,56 @@ impl<T: Config> Default for HostFnWeights<T> {
 
 impl<T: Config> Default for MemoryWeights<T> {
     fn default() -> Self {
+        macro_rules! cost_per_granularity_page {
+            ($name:ident) => {
+                cost!($name) / (WasmPage::size() / GranularityPage::size()) as u64
+            };
+        }
+
+        // Memory access thru host function benchmark uses a syscall,
+        // which accesses memory. So, we have to subtract corresponding syscall weight.
+        macro_rules! host_func_access {
+            ($name:ident, $syscall:ident) => {
+                cost_per_granularity_page!($name).saturating_sub(cost_batched!($syscall))
+            };
+        }
+
+        let lazy_pages_signal_read = cost_per_granularity_page!(lazy_pages_signal_read);
+        let lazy_pages_host_func_read = host_func_access!(lazy_pages_host_func_read, gr_debug);
+        let kb_number_in_one_granularity_page = GranularityPage::size() as u64 / 1024;
+
         Self {
-            // TODO: set values for lazy-pages from WeightInfo (issue #1893)
-            lazy_pages_read: Weight::from_ref_time(100),
-            lazy_pages_write: Weight::from_ref_time(100),
-            lazy_pages_write_after_read: Weight::from_ref_time(100),
-            initial_cost: <T as Config>::WeightInfo::initial_cost(),
-            allocation_cost: <T as Config>::WeightInfo::allocation_cost(),
-            grow_cost: <T as Config>::WeightInfo::grow_cost(),
-            load_cost: <T as Config>::WeightInfo::load_cost(),
+            signal_read: to_weight!(lazy_pages_signal_read),
+            signal_write: to_weight!(cost_per_granularity_page!(lazy_pages_signal_write)),
+            lazy_pages_signal_write_after_read: to_weight!(cost_per_granularity_page!(
+                lazy_pages_signal_write_after_read
+            )),
+            lazy_pages_host_func_read: to_weight!(lazy_pages_host_func_read),
+            lazy_pages_host_func_write: to_weight!(host_func_access!(
+                lazy_pages_host_func_write,
+                gr_read
+            )),
+            lazy_pages_host_func_write_after_read: to_weight!(host_func_access!(
+                lazy_pages_host_func_write_after_read,
+                gr_random
+            )
+            .saturating_sub(lazy_pages_host_func_read)),
+            load_page_data: to_weight!(cost_per_granularity_page!(
+                lazy_pages_load_page_storage_data
+            )
+            .saturating_sub(lazy_pages_signal_read)),
+            upload_page_data: to_weight!(cost!(db_write_per_kb)
+                .saturating_mul(kb_number_in_one_granularity_page)
+                .saturating_sub(
+                    T::DbWeight::get()
+                        .writes((GranularityPage::size() / GearPage::size()) as u64)
+                        .ref_time(),
+                )),
+            // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
+            static_page: Weight::from_ref_time(100),
+            mem_grow: Weight::from_ref_time(100),
+            // TODO: make it non-zero for para-chains (issue #2225)
+            parachain_read_heuristic: Weight::zero(),
             _phantom: PhantomData,
         }
     }

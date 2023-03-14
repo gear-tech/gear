@@ -107,15 +107,13 @@ pub trait GearRI {
     fn pre_process_memory_accesses(
         reads: &[(u32, u32)],
         writes: &[(u32, u32)],
-        _gas_left: (GasLeft,), // to be used in #2216
+        gas_left: (GasLeft,),
     ) -> (GasLeft, Result<(), ProcessAccessError>) {
+        let mut gas_left = gas_left.0;
         let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
         let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
-        (
-            Default::default(),
-            lazy_pages::pre_process_memory_accesses(&reads, &writes)
-                .map_err(|_| ProcessAccessError::OutOfBounds),
-        )
+        let res = lazy_pages::pre_process_memory_accesses(&reads, &writes, &mut gas_left);
+        (gas_left, res)
     }
 
     fn get_lazy_pages_status() -> Option<Status> {
@@ -132,6 +130,7 @@ pub trait GearRI {
 
     /// Init lazy pages context for current program.
     /// Panic if some goes wrong during initialization.
+    #[version(2)]
     fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
         let wasm_mem_addr = ctx.wasm_mem_addr.map(|addr| {
             usize::try_from(addr)
@@ -181,4 +180,43 @@ pub trait GearRI {
     }
 
     // Bellow goes deprecated runtime interface functions.
+
+    fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
+        let mut ctx = ctx;
+
+        // Deprecated runtimes suppose to give for lazy-pages per GearPage costs,
+        // so it's necessary to multiply it by 4 to make per GranularityPage.
+        let [signal_read, signal_write, signal_write_after_read] = [
+            ctx.lazy_pages_weights.signal_read,
+            ctx.lazy_pages_weights.signal_write,
+            ctx.lazy_pages_weights.signal_write_after_read,
+        ]
+        .map(|w| u64::from(w).saturating_mul(4).into());
+        ctx.lazy_pages_weights = LazyPagesWeights {
+            signal_read,
+            signal_write,
+            signal_write_after_read,
+            // We do not charge for host_func and data loading in old runtimes.
+            host_func_read: 0.into(),
+            host_func_write: 0.into(),
+            host_func_write_after_read: 0.into(),
+            load_page_storage_data: 0.into(),
+        };
+
+        let wasm_mem_addr = ctx.wasm_mem_addr.map(|addr| {
+            usize::try_from(addr)
+                .unwrap_or_else(|err| unreachable!("Cannot cast wasm mem addr to `usize`: {}", err))
+        });
+
+        lazy_pages::initialize_for_program(
+            wasm_mem_addr,
+            ctx.wasm_mem_size,
+            ctx.stack_end,
+            ctx.program_id,
+            Some(ctx.globals_config),
+            ctx.lazy_pages_weights,
+        )
+        .map_err(|e| e.to_string())
+        .expect("Cannot initialize lazy pages for current program");
+    }
 }

@@ -55,5 +55,7 @@ pub fn record_reply() {
 
 /// Default signal handler.
 pub fn handle_signal() {
-    futures().remove(&crate::msg::id());
+    let msg_id = crate::msg::id();
+    futures().remove(&msg_id);
+    locks().remove_message_entry(msg_id);
 }

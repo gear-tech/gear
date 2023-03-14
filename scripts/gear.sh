@@ -8,11 +8,23 @@ SCRIPTS="$ROOT_DIR/scripts/src"
 TARGET_DIR="$ROOT_DIR/target"
 CARGO_HACK="hack"
 CARGO_NEXTEST="nextest"
+CARGO="cargo"
+EXE_RUNNER=""
+EXE_EXTENSION=""
+
+. "$SCRIPTS"/common.sh
+
+if [ "$CARGO_BUILD_TARGET" = "x86_64-pc-windows-msvc" ]; then
+  TARGET_DIR="$TARGET_DIR/x86_64-pc-windows-msvc"
+  CARGO="cargo xwin"
+  EXE_RUNNER="wine"
+  EXE_EXTENSION=".exe"
+  header "Using cargo-xwin"
+fi
 
 . "$SCRIPTS"/build.sh
 . "$SCRIPTS"/check.sh
 . "$SCRIPTS"/clippy.sh
-. "$SCRIPTS"/common.sh
 . "$SCRIPTS"/coverage.sh
 . "$SCRIPTS"/docker.sh
 . "$SCRIPTS"/format.sh
@@ -317,7 +329,7 @@ case "$COMMAND" in
 
       client)
         header "Running gclient tests"
-        client_tests "$ROOT_DIR" "$@"; ;;
+        client_tests "$@"; ;;
 
       fuzz)
         header "Running fuzzer for runtime panic checks"

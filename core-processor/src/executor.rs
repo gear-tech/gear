@@ -21,7 +21,7 @@ use crate::{
         ActorExecutionError, ActorExecutionErrorReason, DispatchResult, DispatchResultKind,
         ExecutionError, SystemExecutionError, WasmExecutionContext,
     },
-    configs::{BlockInfo, ExecutionSettings, PagesConfig},
+    configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExt},
 };
 use alloc::{
@@ -286,7 +286,7 @@ where
 
     // Creating allocations context.
     let allocations_context =
-        AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages());
+        AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages);
 
     // Creating message context.
     let message_context = MessageContext::new(
@@ -308,7 +308,8 @@ where
         allocations_context,
         message_context,
         block_info: settings.block_info,
-        pages_config: settings.pages_config,
+        max_pages: settings.max_pages,
+        page_costs: settings.page_costs,
         existential_deposit: settings.existential_deposit,
         origin,
         program_id,
@@ -323,7 +324,7 @@ where
         random_data: settings.random_data,
     };
 
-    let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();
+    let lazy_pages_weights = context.page_costs.lazy_pages_weights();
 
     // Creating externalities.
     let ext = E::Ext::new(context);
@@ -523,14 +524,8 @@ where
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info,
-        pages_config: PagesConfig {
-            max_pages: 512.into(),
-            lazy_pages_weights: Default::default(),
-            init_cost: Default::default(),
-            alloc_cost: Default::default(),
-            mem_grow_cost: Default::default(),
-            load_page_cost: Default::default(),
-        },
+        max_pages: 512.into(),
+        page_costs: Default::default(),
         existential_deposit: Default::default(),
         origin: Default::default(),
         program_id: program.id(),
@@ -546,7 +541,7 @@ where
         system_reservation: Default::default(),
     };
 
-    let lazy_pages_weights = context.pages_config.lazy_pages_weights.clone();
+    let lazy_pages_weights = context.page_costs.lazy_pages_weights();
 
     // Creating externalities.
     let ext = E::Ext::new(context);

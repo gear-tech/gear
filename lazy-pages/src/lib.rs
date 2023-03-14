@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -19,121 +19,52 @@
 //! Lazy-pages support.
 //! In runtime data for contract wasm memory pages can be loaded in lazy manner.
 //! All pages, which is supposed to be lazy, must be mprotected before contract execution.
-//! During execution data from storage is loaded for all pages, which has been accessed.
-//! See also `sys::user_signal_handler` in the source code.
+//! During execution data from storage is loaded for all pages, which has been accessed
+//! and which has data in storage.
+//! See also `process::process_lazy_pages`, `signal`, `host_func` for more information.
 //!
-//! Currently we restrict twice write signal from same page during one execution.
+//! Note: currently we restrict twice write signal from same page during one execution.
 //! It's not necessary behavior, but more simple and safe.
 
-use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    memory::ProcessAccessError,
-};
+use common::LazyPagesExecutionContext;
+use gear_backend_common::lazy_pages::{GlobalsConfig, LazyPagesWeights, Status};
 use gear_core::memory::{
-    GearPage, GranularityPage, MemoryInterval, PageU32Size, WasmPage, GEAR_PAGE_SIZE,
-    PAGE_STORAGE_GRANULARITY,
+    GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, PAGE_STORAGE_GRANULARITY,
 };
-use once_cell::sync::OnceCell;
 use sp_std::vec::Vec;
-use std::{cell::RefCell, collections::BTreeSet, num::NonZeroU32};
+use std::cell::RefCell;
 
-mod sys;
-use sys::{AccessedPagesInfo, DefaultUserSignalHandler, UserSignalHandler};
-
+mod common;
+mod globals;
+mod host_func;
+mod init_flag;
 mod mprotect;
-use mprotect::MprotectError;
-
+mod process;
+mod signal;
+mod sys;
 mod utils;
+
+use crate::init_flag::InitializationFlag;
 
 #[cfg(test)]
 mod tests;
 
+pub use common::LazyPagesVersion;
+pub use host_func::pre_process_memory_accesses;
+
+use mprotect::MprotectError;
+use signal::{DefaultUserSignalHandler, UserSignalHandler};
+
+// These constants are used both in runtime and in lazy-pages backend,
+// so we make here additional checks. If somebody would change these values
+// in runtime, then he also should pay attention to support new values here:
+// 1) must rebuild node after that.
+// 2) must support old runtimes: need to make lazy-pages version with old constants values.
+static_assertions::const_assert_eq!(GEAR_PAGE_SIZE, 0x1000);
+static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY, 0x4000);
+
 /// Initialize lazy-pages once for process.
-static LAZY_PAGES_INITIALIZED: OnceCell<Result<(), InitError>> = OnceCell::new();
-
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub(crate) enum Error {
-    #[display(fmt = "Accessed memory interval is out of wasm memory")]
-    OutOfWasmMemoryAccess,
-    #[display(fmt = "Signals cannot come from WASM program virtual stack memory")]
-    SignalFromStackMemory,
-    #[display(fmt = "Signals cannot come from released page")]
-    SignalFromReleasedPage,
-    #[display(fmt = "Read access signal cannot come from already accessed page")]
-    ReadAccessSignalFromAccessedPage,
-    #[display(fmt = "WASM memory begin address is not set")]
-    WasmMemAddrIsNotSet,
-    #[display(fmt = "WASM memory size is not set")]
-    WasmMemSizeIsNotSet,
-    #[display(fmt = "Program pages prefix in storage is not set")]
-    ProgramPrefixIsNotSet,
-    #[display(fmt = "Page data in storage must contain {expected} bytes, actually has {actual}")]
-    InvalidPageDataSize { expected: u32, actual: u32 },
-    #[display(fmt = "Any page cannot be released twice: {_0:?}")]
-    DoubleRelease(LazyPage),
-    #[display(fmt = "Memory protection error: {_0}")]
-    #[from]
-    MemoryProtection(MprotectError),
-    #[display(fmt = "Given instance host pointer is invalid")]
-    HostInstancePointerIsInvalid,
-    #[display(fmt = "Given pointer to globals access provider dyn object is invalid")]
-    DynGlobalsAccessPointerIsInvalid,
-    #[display(fmt = "Cannot charge gas from gas limit global")]
-    CannotChargeGas,
-    #[display(fmt = "Cannot charge gas from gas allowance global")]
-    CannotChargeGasAllowance,
-    #[display(fmt = "Status must be set before program execution")]
-    StatusIsNone,
-    #[display(fmt = "It's unknown wether memory access is read or write")]
-    ReadOrWriteIsUnknown,
-    #[display(fmt = "Cannot receive signal from wasm memory, when status is gas limit exceed")]
-    SignalWhenStatusGasExceeded,
-    #[display(fmt = "Amount which we should charge is bigger than u64::MAX")]
-    ChargedGasTooBig,
-    #[display(
-        fmt = "Accessed page is write after read charged, but not read charged, which is impossible"
-    )]
-    WriteAfterReadChargedWithoutReadCharged,
-}
-
-#[derive(Clone, Copy)]
-pub enum LazyPagesVersion {
-    Version1,
-}
-
-#[derive(Default, Debug)]
-pub(crate) struct LazyPagesExecutionContext {
-    /// Pointer to the begin of wasm memory buffer
-    pub wasm_mem_addr: Option<usize>,
-    /// Wasm memory buffer size, to identify whether signal is from wasm memory buffer.
-    pub wasm_mem_size: Option<WasmPage>,
-    /// Current program prefix in storage
-    pub program_storage_prefix: Option<Vec<u8>>,
-    /// Wasm addresses of lazy-pages, that have been read or write accessed at least once.
-    /// Lazy page here is page, which has `size = max(native_page_size, gear_page_size)`.
-    pub accessed_pages: BTreeSet<LazyPage>,
-    /// Granularity pages, for which we have already charge gas for read after write.
-    pub write_after_read_charged: BTreeSet<GranularityPage>,
-    /// Granularity pages, for which we have already charge gas for read.
-    pub read_charged: BTreeSet<GranularityPage>,
-    /// Granularity pages, for which we have already charge gas for write.
-    pub write_charged: BTreeSet<GranularityPage>,
-    /// End of stack wasm address. Default is `0`, which means,
-    /// that wasm data has no stack region. It's not necessary to specify
-    /// this value, `lazy-pages` uses it to identify memory, for which we
-    /// can skip processing and this memory won't be protected. So, pages
-    /// which lies before this value will never get into `released_pages`,
-    /// which means that they will never be updated in storage.
-    pub stack_end_wasm_page: WasmPage,
-    /// Gear pages, which has been write accessed.
-    pub released_pages: BTreeSet<LazyPage>,
-    /// Context to access globals and works with them: charge gas, set status global.
-    pub globals_config: Option<GlobalsConfig>,
-    /// Lazy-pages status: indicates in which mod lazy-pages works actually.
-    pub status: Option<Status>,
-    /// Lazy-pages accesses weights.
-    pub lazy_pages_weights: LazyPagesWeights,
-}
+static LAZY_PAGES_INITIALIZED: InitializationFlag = InitializationFlag::new();
 
 thread_local! {
     // NOTE: here we suppose, that each contract is executed in separate thread.
@@ -185,7 +116,7 @@ pub fn initialize_for_program(
         ctx.lazy_pages_weights = lazy_pages_weights;
 
         program_storage_prefix.extend_from_slice(&program_id);
-        ctx.program_storage_prefix = Some(program_storage_prefix);
+        ctx.set_program_prefix(program_storage_prefix);
         ctx.status.replace(Status::Normal);
 
         if let Some(addr) = wasm_mem_addr {
@@ -228,72 +159,6 @@ pub fn initialize_for_program(
 
         Ok(())
     })
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
-struct LazyPage(u32);
-
-impl PageU32Size for LazyPage {
-    fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(GEAR_PAGE_SIZE, 0);
-        unsafe { NonZeroU32::new_unchecked(region::page::size().max(GEAR_PAGE_SIZE) as u32) }
-    }
-
-    fn raw(&self) -> u32 {
-        self.0
-    }
-
-    unsafe fn new_unchecked(num: u32) -> Self {
-        Self(num)
-    }
-}
-
-fn get_access_pages(accesses: &[MemoryInterval]) -> Result<BTreeSet<LazyPage>, ProcessAccessError> {
-    let mut set = BTreeSet::new();
-    for access in accesses {
-        let first_page = LazyPage::from_offset(access.offset);
-        let byte_after_last = access
-            .offset
-            .checked_add(access.size)
-            .ok_or(ProcessAccessError::OutOfBounds)?;
-        // TODO: here we suppose zero byte access like one byte access, because
-        // backend memory impl can access memory even in case access has size 0.
-        // We can optimize this if will ignore zero bytes access in core-backend (issue #2095).
-        let last_byte = byte_after_last.checked_sub(1).unwrap_or(byte_after_last);
-        let last_page = LazyPage::from_offset(last_byte);
-        set.extend((first_page.0..=last_page.0).map(LazyPage));
-    }
-    Ok(set)
-}
-
-pub fn pre_process_memory_accesses(
-    reads: &[MemoryInterval],
-    writes: &[MemoryInterval],
-) -> Result<(), ProcessAccessError> {
-    let mut read_pages = get_access_pages(reads)?;
-    let write_pages = get_access_pages(writes)?;
-    for page in write_pages.iter() {
-        read_pages.remove(page);
-    }
-    LAZY_PAGES_PROGRAM_CONTEXT
-        .with(|ctx| unsafe {
-            sys::process_lazy_pages(
-                ctx.borrow_mut(),
-                AccessedPagesInfo::FromHostFunc(read_pages),
-                false,
-            )?;
-            sys::process_lazy_pages(
-                ctx.borrow_mut(),
-                AccessedPagesInfo::FromHostFunc(write_pages),
-                true,
-            )
-        })
-        .map_err(|err| match err {
-            Error::OutOfWasmMemoryAccess | Error::WasmMemSizeIsNotSet => {
-                ProcessAccessError::OutOfBounds
-            }
-            err => panic!("Lazy-pages unexpected error: {}", err),
-        })
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -457,31 +322,34 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
         );
     }
 
-    LAZY_PAGES_INITIALIZED
-        .get_or_init(|| {
-            let ps = region::page::size();
-            let gear_ps = GearPage::size() as usize;
-            if ps > PAGE_STORAGE_GRANULARITY
-                || PAGE_STORAGE_GRANULARITY % ps != 0
-                || (ps > gear_ps && ps % gear_ps != 0)
-                || (ps < gear_ps && gear_ps % ps != 0)
-            {
-                return Err(NativePageSizeIsNotSuitable(ps));
-            }
+    LAZY_PAGES_INITIALIZED.get_or_init(|| {
+        let ps = region::page::size();
+        let gear_ps = GearPage::size() as usize;
+        if ps > PAGE_STORAGE_GRANULARITY
+            || PAGE_STORAGE_GRANULARITY % ps != 0
+            || (ps > gear_ps && ps % gear_ps != 0)
+            || (ps < gear_ps && gear_ps % ps != 0)
+        {
+            return Err(NativePageSizeIsNotSuitable(ps));
+        }
 
-            if let Err(err) = sys::setup_signal_handler::<H>() {
-                return Err(CanNotSetUpSignalHandler(err.to_string()));
-            }
+        if let Err(err) = sys::setup_signal_handler::<H>() {
+            return Err(CanNotSetUpSignalHandler(err.to_string()));
+        }
 
-            log::trace!("Successfully initialize lazy-pages for process");
+        log::trace!("Successfully initialize lazy-pages for process");
 
-            Ok(())
-        })
-        .clone()
+        Ok(())
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn reset_init_flag() {
+    LAZY_PAGES_INITIALIZED.reset();
 }
 
 /// Initialize lazy-pages for current thread.
-pub(crate) fn init_with_handler<H: UserSignalHandler>(
+fn init_with_handler<H: UserSignalHandler>(
     version: LazyPagesVersion,
     pages_final_prefix: Vec<u8>,
 ) -> bool {

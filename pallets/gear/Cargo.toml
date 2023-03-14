@@ -32,6 +32,7 @@ gear-backend-common = { path = "../../core-backend/common", default-features = f
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 gear-backend-wasmi = { path = "../../core-backend/wasmi", default-features = false, optional = true }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
+gsys = { path = "../../gsys", optional = true }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
@@ -149,6 +150,7 @@ runtime-benchmarks = [
 	"rand_pcg",
 	"test-syscalls/wasm-wrapper",
 	"demo-proxy/wasm-wrapper",
+	"gsys",
 ]
 try-runtime = ["frame-support/try-runtime"]
 lazy-pages = ["gear-lazy-pages-common"]
