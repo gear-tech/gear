@@ -37,12 +37,18 @@
       path: /home/ubuntu/gear-data/gear-node-loader
       state: absent
     become: yes
-    
-  - name: Run docker-compose
-    shell: >
-       /usr/local/bin/docker-compose -f "/home/ubuntu/docker-compose.yaml" up -d
-    become: yes
  
-  - name: Pause for 10 seconds before run loader
-    ansible.builtin.pause:
-      seconds: 10
+  - name: copy new gear-loader binary
+    copy:
+      src: /target/debug/gear-node-loader
+      dest: /home/ubuntu/gear-data/gear-node-loader
+    become: yes
+        
+#  - name: Run docker-compose
+#    shell: >
+#       /usr/local/bin/docker-compose -f "/home/ubuntu/docker-compose.yaml" up -d
+#    become: yes
+ 
+#  - name: Pause for 10 seconds before run loader
+#    ansible.builtin.pause:
+#      seconds: 10
