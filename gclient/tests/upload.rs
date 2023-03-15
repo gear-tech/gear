@@ -27,8 +27,6 @@ const PATHS: [&str; 2] = [
     "../target/wat-examples/inf_recursion.wasm",
 ];
 
-const PING_PATH: &str = "../target/wasm32-unknown-unknown/release/demo_ping.opt.wasm";
-
 async fn upload_programs_and_check(
     api: &GearApi,
     codes: Vec<Vec<u8>>,
@@ -129,15 +127,49 @@ async fn get_mailbox() -> anyhow::Result<()> {
     // Check that blocks are still running
     assert!(listener.blocks_running().await?);
 
+    let wat_code = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (import "env" "gr_reply_push" (func $reply_push (param i32 i32 i32)))
+        (import "env" "gr_reply_commit" (func $reply_commit (param i32 i32 i32)))
+        (export "init" (func $init))
+        (export "handle" (func $handle))
+        (func $init)
+        (func $handle
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+
+            ;; sending commit
+            (call $reply_commit (i32.const 10) (i32.const 0) (i32.const 200))
+        )
+        (data (i32.const 0) "PONG")
+    )"#;
+
+    let code = wat::parse_str(wat_code).unwrap();
+
     // Calculate gas amount needed for initialization
     let gas_info = api
-        .calculate_upload_gas(None, gclient::code_from_os(PING_PATH)?, vec![], 0, true)
+        .calculate_upload_gas(None, code.clone(), vec![], 0, true)
         .await?;
 
     // Upload and init the program
     let (message_id, program_id, _hash) = api
-        .upload_program_bytes_by_path(
-            PING_PATH,
+        .upload_program_bytes(
+            code,
             gclient::now_micros().to_le_bytes(),
             vec![],
             gas_info.min_limit,
@@ -147,15 +179,13 @@ async fn get_mailbox() -> anyhow::Result<()> {
 
     assert!(listener.message_processed(message_id).await?.succeed());
 
-    let payload = b"PING".to_vec();
-
     // Calculate gas amount needed for handling the message
     let gas_info = api
-        .calculate_handle_gas(None, program_id, payload.clone(), 0, true)
+        .calculate_handle_gas(None, program_id, vec![], 0, true)
         .await?;
 
-    // Send messages
-    let messages = vec![(program_id, payload.clone(), gas_info.min_limit * 2, 0); 5];
+    let messages = vec![(program_id, vec![], gas_info.min_limit * 10, 0); 5];
+
     let (messages, _hash) = api.send_message_bytes_batch(messages).await?;
 
     let (message_id, _hash) = messages.last().unwrap().as_ref().unwrap();
@@ -168,7 +198,8 @@ async fn get_mailbox() -> anyhow::Result<()> {
     assert_eq!(mailbox.len(), 5);
 
     for msg in mailbox {
-        assert_eq!(msg.0.payload(), b"PONG");
+        assert_eq!(msg.0.payload().len(), 1000 * 1024); // 1MB payload
+        assert!(msg.0.payload().starts_with(b"PONG"));
     }
 
     Ok(())
