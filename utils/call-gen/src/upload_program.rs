@@ -43,7 +43,7 @@ impl From<UploadProgramArgs> for GearCall {
 }
 
 impl TryFrom<GearCall> for UploadProgramArgs {
-    type Error = ();
+    type Error = GearCallConversionError;
 
     fn try_from(call: GearCall) -> Result<Self, Self::Error> {
         if let GearCall::UploadProgram(call) = call {

@@ -44,7 +44,7 @@ impl From<CreateProgramArgs> for GearCall {
 }
 
 impl TryFrom<GearCall> for CreateProgramArgs {
-    type Error = ();
+    type Error = GearCallConversionError;
 
     fn try_from(call: GearCall) -> Result<Self, Self::Error> {
         if let GearCall::CreateProgram(call) = call {

@@ -41,7 +41,7 @@ impl From<ClaimValueArgs> for GearCall {
 }
 
 impl TryFrom<GearCall> for ClaimValueArgs {
-    type Error = ();
+    type Error = GearCallConversionError;
 
     fn try_from(call: GearCall) -> Result<Self, Self::Error> {
         if let GearCall::ClaimValue(call) = call {

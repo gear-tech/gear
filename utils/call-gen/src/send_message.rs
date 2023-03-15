@@ -45,7 +45,7 @@ impl From<SendMessageArgs> for GearCall {
 }
 
 impl TryFrom<GearCall> for SendMessageArgs {
-    type Error = ();
+    type Error = GearCallConversionError;
 
     fn try_from(call: GearCall) -> Result<Self, Self::Error> {
         if let GearCall::SendMessage(call) = call {
