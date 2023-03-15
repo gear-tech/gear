@@ -18,7 +18,7 @@
 
 //! Send reply args generator.
 
-use crate::{CallGenRng, GearCall, Seed};
+use crate::{CallGenRng, GearCall, GearCallConversionError, Seed};
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -50,7 +50,7 @@ impl TryFrom<GearCall> for SendReplyArgs {
         if let GearCall::SendReply(call) = call {
             Ok(call)
         } else {
-            Err(())
+            Err(GearCallConversionError("send_reply"))
         }
     }
 }

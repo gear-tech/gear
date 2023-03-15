@@ -18,7 +18,7 @@
 
 //! Send message args generator.
 
-use crate::{CallGenRng, GearCall, Seed};
+use crate::{CallGenRng, GearCall, GearCallConversionError, Seed};
 use gear_core::ids::ProgramId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -51,7 +51,7 @@ impl TryFrom<GearCall> for SendMessageArgs {
         if let GearCall::SendMessage(call) = call {
             Ok(call)
         } else {
-            Err(())
+            Err(GearCallConversionError("send_message"))
         }
     }
 }

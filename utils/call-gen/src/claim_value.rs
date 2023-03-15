@@ -18,7 +18,7 @@
 
 //! Claim value args generator.
 
-use crate::{CallGenRng, GearCall, Seed};
+use crate::{CallGenRng, GearCall, GearCallConversionError, Seed};
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -47,7 +47,7 @@ impl TryFrom<GearCall> for ClaimValueArgs {
         if let GearCall::ClaimValue(call) = call {
             Ok(call)
         } else {
-            Err(())
+            Err(GearCallConversionError("claim_value"))
         }
     }
 }

@@ -42,8 +42,8 @@ impl Context {
     pub fn update(&mut self, mut update: ContextUpdate) {
         self.programs.append(&mut update.program_ids);
         self.codes.append(&mut update.codes);
-        self.mailbox_state.append(&mut update.added_mailbox);
         self.mailbox_state
             .retain(|mid| !update.removed_mailbox.contains(mid));
+        self.mailbox_state.append(&mut update.added_mailbox);
     }
 }

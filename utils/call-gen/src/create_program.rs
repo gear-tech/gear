@@ -18,7 +18,7 @@
 
 //! Create program call generator.
 
-use crate::{CallGenRng, GearCall, Seed};
+use crate::{CallGenRng, GearCall, GearCallConversionError, Seed};
 use gear_core::ids::CodeId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -50,7 +50,7 @@ impl TryFrom<GearCall> for CreateProgramArgs {
         if let GearCall::CreateProgram(call) = call {
             Ok(call)
         } else {
-            Err(())
+            Err(GearCallConversionError("create_program"))
         }
     }
 }

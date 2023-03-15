@@ -18,7 +18,7 @@
 
 //! Upload code args generator.
 
-use crate::{CallGenRng, GearCall, GearProgGenConfig, Seed};
+use crate::{CallGenRng, GearCall, GearCallConversionError, GearProgGenConfig, Seed};
 use gear_core::ids::ProgramId;
 
 /// Upload code args
@@ -46,7 +46,7 @@ impl TryFrom<GearCall> for UploadCodeArgs {
         if let GearCall::UploadCode(call) = call {
             Ok(call)
         } else {
-            Err(())
+            Err(GearCallConversionError("upload_code"))
         }
     }
 }

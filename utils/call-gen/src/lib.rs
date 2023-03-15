@@ -26,8 +26,6 @@ mod send_reply;
 mod upload_code;
 mod upload_program;
 
-pub type Seed = u64;
-
 pub use claim_value::ClaimValueArgs;
 pub use create_program::CreateProgramArgs;
 use gear_core::ids::ProgramId;
@@ -37,6 +35,11 @@ pub use send_reply::SendReplyArgs;
 pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
 
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("Can't convert to gear call {0:?} call")]
+pub struct GearCallConversionError(pub &'static str);
+
+pub type Seed = u64;
 pub type GearProgGenConfig = gear_wasm_gen::GearConfig;
 
 /// Set of `pallet_gear` calls supported by the crate.
