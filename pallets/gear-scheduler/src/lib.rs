@@ -143,7 +143,7 @@ pub mod pallet {
     // Public wrap of the first missing block storage.
     common::wrap_storage_value!(
         storage: FirstMissingBlock,
-        name: FirstMissingBlocksWrap,
+        name: FirstMissingBlockWrap,
         value: BlockNumberFor<T>
     );
 
@@ -266,7 +266,7 @@ pub mod pallet {
 
         type CostsPerBlock = Self;
 
-        type FirstMissingBlock = FirstMissingBlocksWrap<T>;
+        type FirstMissingBlock = FirstMissingBlockWrap<T>;
 
         type TaskPool = TaskPoolImpl<
             TaskPoolWrap<T>,
