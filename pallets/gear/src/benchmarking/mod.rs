@@ -989,7 +989,7 @@ benchmarks! {
     }
 
     gr_reply_push_input_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB / 1024;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_input_per_kb(n)?;
     }: {
