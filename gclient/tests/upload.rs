@@ -140,10 +140,6 @@ async fn get_mailbox() -> anyhow::Result<()> {
             (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
             (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
             (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
 
             ;; sending commit
             (call $reply_commit (i32.const 10) (i32.const 0) (i32.const 200))
@@ -190,7 +186,7 @@ async fn get_mailbox() -> anyhow::Result<()> {
     assert_eq!(mailbox.len(), 5);
 
     for msg in mailbox {
-        assert_eq!(msg.0.payload().len(), 500 * 1024); // 500KB payload
+        assert_eq!(msg.0.payload().len(), 256000); // 250KB payload
         assert!(msg.0.payload().starts_with(b"PONG"));
     }
 
