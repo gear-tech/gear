@@ -137,7 +137,7 @@ fn gear_handles_tasks() {
         // We start from block 2 for confidence.
         let initial_block = 2;
         run_to_block(initial_block, Some(u64::MAX));
-        // Read of missed blocks.
+        // Read of the first missing block.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
             u64::MAX - db_r_w(1, 0).ref_time()
@@ -170,7 +170,7 @@ fn gear_handles_tasks() {
 
         // Check if task and message exist before start of block `bn`.
         run_to_block(bn - 1, Some(u64::MAX));
-        // Read of missed blocks.
+        // Read of the first missing block
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
             u64::MAX - db_r_w(1, 0).ref_time()
@@ -193,7 +193,7 @@ fn gear_handles_tasks() {
 
         // Check if task and message got processed in block `bn`.
         run_to_block(bn, Some(u64::MAX));
-        // Read of missed blocks and write for removal of task.
+        // Read of the first missing block and write for removal of task.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
             u64::MAX - db_r_w(1, 1).ref_time()
@@ -225,7 +225,7 @@ fn gear_handles_outdated_tasks() {
         // We start from block 2 for confidence.
         let initial_block = 2;
         run_to_block(initial_block, Some(u64::MAX));
-        // Read of missed blocks.
+        // Read of the first missing block.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
             u64::MAX - db_r_w(1, 0).ref_time()
@@ -306,7 +306,7 @@ fn gear_handles_outdated_tasks() {
         // Check if task and message got processed before start of block `bn`.
         // But due to the low gas allowance, we may process the only first task.
         run_to_block(bn, Some(db_r_w(1, 2).ref_time() + 1));
-        // Read of missed blocks, write to it afterwards + single task processing.
+        // Read of the first missing block, write to it afterwards + single task processing.
         assert_eq!(GasAllowanceOf::<Test>::get(), 1);
 
         let cost1 = wl_cost_for(bn - initial_block);
@@ -333,7 +333,7 @@ fn gear_handles_outdated_tasks() {
 
         // Check if missed task and message got processed in block `bn`.
         run_to_block(bn + 1, Some(u64::MAX));
-        // Delete of missed blocks + single task processing.
+        // Delete of the first missing block + single task processing.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
             u64::MAX - db_r_w(0, 2).ref_time()

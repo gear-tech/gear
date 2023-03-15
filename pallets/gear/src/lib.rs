@@ -81,7 +81,10 @@ use gear_core::{
 };
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
-use sp_runtime::traits::{One, Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::{
+    traits::{One, Saturating, UniqueSaturatedInto, Zero},
+    SaturatedConversion,
+};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
@@ -115,7 +118,7 @@ pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
-pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
+pub(crate) type FirstMissingBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::FirstMissingBlock;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
 pub(crate) type SchedulingCostOf<T> = <<T as Config>::Scheduler as Scheduler>::Cost;
 pub(crate) type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
@@ -254,7 +257,6 @@ pub mod pallet {
             BlockNumber = Self::BlockNumber,
             Cost = u64,
             Task = ScheduledTask<Self::AccountId>,
-            MissedBlocksCollection = BTreeSet<Self::BlockNumber>,
         >;
 
         /// Message Queue processing routing provider.
@@ -863,40 +865,41 @@ pub mod pallet {
         /// Delayed tasks processing.
         pub fn process_tasks(ext_manager: &mut ExtManager<T>) {
             // Current block number.
-            let bn = Self::block_number();
+            let current_bn = Self::block_number();
 
-            // Taking block numbers, where some incomplete tasks held.
-            // If there are no such values, we charge for single read, because
+            // Taking the first block number, where some incomplete tasks held.
+            // If there is no such value, we charge for single read, because
             // nothing changing in database, otherwise we delete previous
             // value and charge for single write.
             //
-            // We also append current bn to process it together, by iterating
-            // over sorted bns set (that's the reason why `BTreeSet` used).
-            let (missed_blocks, were_empty) = MissedBlocksOf::<T>::take()
-                .map(|mut set| {
+            // We also iterate up to current bn (including) to process it together
+            let (first_missing_block, were_empty) = FirstMissingBlockOf::<T>::take()
+                .map(|block| {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
-                    set.insert(bn);
-                    (set, false)
+                    (block, false)
                 })
                 .unwrap_or_else(|| {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().reads(1).ref_time());
-                    ([bn].into(), true)
+                    (current_bn, true)
                 });
 
             // When we had to stop processing due to insufficient gas allowance.
             let mut stopped_at = None;
 
             // Iterating over blocks.
-            for bn in &missed_blocks {
+            let missing_blocks = (first_missing_block.saturated_into::<u64>()
+                ..=current_bn.saturated_into())
+                .map(|block| block.saturated_into::<BlockNumberFor<T>>());
+            for bn in missing_blocks {
                 // Tasks drain iterator.
-                let tasks = TaskPoolOf::<T>::drain_prefix_keys(*bn);
+                let tasks = TaskPoolOf::<T>::drain_prefix_keys(bn);
 
                 // Checking gas allowance.
                 //
                 // Making sure we have gas to remove next task
-                // or update missed blocks.
+                // or update the first missing block.
                 if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
-                    stopped_at = Some(*bn);
+                    stopped_at = Some(bn);
                     log::debug!("Stopping processing tasks at: {stopped_at:?}");
                     break;
                 }
@@ -918,9 +921,9 @@ pub mod pallet {
                     // Checking gas allowance.
                     //
                     // Making sure we have gas to remove next task
-                    // or update missed blocks.
+                    // or update the first missing block.
                     if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
-                        stopped_at = Some(*bn);
+                        stopped_at = Some(bn);
                         log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
                     }
@@ -933,27 +936,15 @@ pub mod pallet {
             }
 
             // If we didn't process all tasks and stopped at some block number,
-            // then there is new missed blocks set we should store.
+            // then there are missed blocks set we should handle in next time.
             if let Some(stopped_at) = stopped_at {
-                // Avoiding `PartialEq` trait bound for `T::BlockNumber`.
-                let stopped_at: u32 = stopped_at.unique_saturated_into();
-
-                let actual_missed_blocks = missed_blocks
-                    .into_iter()
-                    .skip_while(|&x| {
-                        // Avoiding `PartialEq` trait bound for `T::BlockNumber`.
-                        let x: u32 = x.unique_saturated_into();
-                        x != stopped_at
-                    })
-                    .collect();
-
-                // Charging for inserting into missing blocks,
+                // Charging for inserting into the first missing block storage,
                 // if we were reading it only (they were empty).
                 if were_empty {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
                 }
 
-                MissedBlocksOf::<T>::put(actual_missed_blocks);
+                FirstMissingBlockOf::<T>::put(stopped_at);
             }
         }
 
