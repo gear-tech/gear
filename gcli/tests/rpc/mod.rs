@@ -132,7 +132,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .send_message(pid, payload.encode(), 100_000_000_000, 0)
         .await?;
 
-    let mailbox = signer.api().mailbox(alice_account_id, 10).await?;
+    let mailbox = signer.api().mailbox(Some(alice_account_id), 10).await?;
     assert_eq!(mailbox.len(), 1);
     let message_id = mailbox[0].0.id.into();
 

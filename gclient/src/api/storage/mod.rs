@@ -35,17 +35,17 @@ use gsdk::{
 
 impl GearApi {
     /// Get a message identified by `message_id` from the mailbox.
-    pub async fn get_from_mailbox(
+    pub async fn get_mailbox_message(
         &self,
         message_id: MessageId,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
-        self.get_from_account_mailbox(self.0.account_id(), message_id)
+        self.get_mailbox_account_message(self.0.account_id(), message_id)
             .await
     }
 
     /// Get a message identified by `message_id` from the `account_id`'s
     /// mailbox.
-    pub async fn get_from_account_mailbox(
+    pub async fn get_mailbox_account_message(
         &self,
         account_id: impl IntoAccountId32,
         message_id: MessageId,
@@ -53,15 +53,36 @@ impl GearApi {
         let data: Option<(stored::StoredMessage, Interval<u32>)> = self
             .0
             .api()
-            .get_from_account_mailbox(account_id.into_account_id(), message_id)
+            .get_mailbox_account_message(account_id.into_account_id(), message_id)
             .await?;
         Ok(data.map(|(m, i)| (m.into(), i)))
     }
 
+    /// Get up to `count` messages from the mailbox from
+    /// the provided `account_id`.
+    pub async fn get_mailbox_account_messages(
+        &self,
+        account_id: impl IntoAccountId32,
+        count: u32,
+    ) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
+        let data = self
+            .0
+            .api()
+            .mailbox(Some(account_id.into_account_id()), count)
+            .await?;
+        Ok(data.into_iter().map(|(m, i)| (m.into(), i)).collect())
+    }
+
     /// Get up to `count` messages from the mailbox.
-    pub async fn get_all_mailbox(&self, count: u32) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
-        let data: Vec<(stored::StoredMessage, Interval<u32>)> =
-            self.0.api().all_mailbox(count).await?;
+    pub async fn get_mailbox_messages(
+        &self,
+        count: u32,
+    ) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
+        let data = self
+            .0
+            .api()
+            .mailbox(Some(self.0.account_id().clone()), count)
+            .await?;
         Ok(data.into_iter().map(|(m, i)| (m.into(), i)).collect())
     }
 

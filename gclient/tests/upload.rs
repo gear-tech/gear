@@ -119,7 +119,7 @@ async fn alloc_zero_pages() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn get_mailbox() -> Result<()> {
+async fn get_mailbox() -> anyhow::Result<()> {
     // Create API instance
     let api = GearApi::dev().await?;
 
@@ -162,10 +162,14 @@ async fn get_mailbox() -> Result<()> {
 
     assert!(listener.message_processed(*message_id).await?.succeed());
 
-    let mailbox = api.get_all_mailbox(15).await?;
+    let mailbox = api.get_mailbox_messages(15).await?;
 
     // Check that all messages is in mailbox
     assert_eq!(mailbox.len(), 5);
+
+    for msg in mailbox {
+        assert_eq!(msg.0.payload(), b"PONG");
+    }
 
     Ok(())
 }
