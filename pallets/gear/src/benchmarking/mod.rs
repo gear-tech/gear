@@ -1239,6 +1239,25 @@ benchmarks! {
         sbox.invoke();
     }
 
+    // w_load = w_bench
+    instr_i32load {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mem_pages = code::max_pages::<T>() as u32;
+        // Warm up memory.
+        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
+        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
+                        Regular(Instruction::I32Load(2, 0)),
+                        Regular(Instruction::Drop)], instrs);
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory{min_pages: mem_pages}),
+            handle_body: Some(body::from_instructions(instrs)),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
     // w_store = w_bench - w_i64const
     instr_i64store {
         // Increased interval in order to increase accuracy
@@ -1248,6 +1267,25 @@ benchmarks! {
                         RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))], vec![]);
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory{min_pages: mem_pages}),
+            handle_body: Some(body::from_instructions(instrs)),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_store = w_bench - w_i64const
+    instr_i32store {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mem_pages = code::max_pages::<T>() as u32;
+        // Warm up memory.
+        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
+        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
+                        RandomI32Repeated(1),
+                        Regular(Instruction::I32Store(2, 0))], instrs);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory{min_pages: mem_pages}),
             handle_body: Some(body::from_instructions(instrs)),
@@ -1569,10 +1607,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32clz {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_32(
+            Instruction::I32Clz,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64ctz {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr(
             Instruction::I64Ctz,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32ctz {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_32(
+            Instruction::I32Ctz,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1589,10 +1647,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32popcnt {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_32(
+            Instruction::I32Popcnt,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64eqz {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr(
             Instruction::I64Eqz,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32eqz {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::unary_instr_32(
+            Instruction::I32Eqz,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1652,10 +1730,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32eq {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32Eq,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64ne {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64Ne,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32ne {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32Ne,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1672,10 +1770,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32lts {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32LtS,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64ltu {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64LtU,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32ltu {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32LtU,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1692,10 +1810,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32gts {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32GtS,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64gtu {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64GtU,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32gtu {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32GtU,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1712,10 +1850,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32les {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32LeS,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64leu {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64LeU,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32leu {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32LeU,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1732,10 +1890,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32ges {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32GeS,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64geu {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64GeU,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32geu {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32GeU,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1752,10 +1930,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32add {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32Add,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64sub {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64Sub,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32sub {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32Sub,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1772,10 +1970,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32mul {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32Mul,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64divs {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64DivS,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32divs {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32DivS,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1792,10 +2010,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32divu {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32DivU,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64rems {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64RemS,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32rems {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32RemS,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1812,10 +2050,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32remu {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32RemU,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64and {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64And,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32and {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32And,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1832,10 +2090,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32or {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32Or,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64xor {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64Xor,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32xor {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32Xor,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1852,10 +2130,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32shl {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32Shl,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64shrs {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64ShrS,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32shrs {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32ShrS,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {
@@ -1872,6 +2170,16 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32shru {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32ShrU,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64rotl {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
@@ -1882,10 +2190,30 @@ benchmarks! {
         sbox.invoke();
     }
 
+    instr_i32rotl {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32Rotl,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
     instr_i64rotr {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr(
             Instruction::I64Rotr,
+            r * INSTR_BENCHMARK_BATCH_SIZE,
+        ));
+    }: {
+        sbox.invoke();
+    }
+
+    instr_i32rotr {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::binary_instr_32(
+            Instruction::I32Rotr,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
     }: {

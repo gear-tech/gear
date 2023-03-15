@@ -371,12 +371,24 @@ where
     }
 
     pub fn unary_instr(instr: Instruction, repeat: u32) -> Self {
-        use body::DynInstr::{RandomI64Repeated, Regular};
+        Self::unary_instr_for_arch(instr, true, repeat)
+    }
+
+    pub fn unary_instr_32(instr: Instruction, repeat: u32) -> Self {
+        Self::unary_instr_for_arch(instr, false, repeat)
+    }
+
+    fn unary_instr_for_arch(instr: Instruction, x64: bool, repeat: u32) -> Self {
+        use body::DynInstr::{RandomI32Repeated, RandomI64Repeated, Regular};
         ModuleDefinition {
             handle_body: Some(body::repeated_dyn(
                 repeat,
                 vec![
-                    RandomI64Repeated(1),
+                    if x64 {
+                        RandomI64Repeated(1)
+                    } else {
+                        RandomI32Repeated(1)
+                    },
                     Regular(instr),
                     Regular(Instruction::Drop),
                 ],
@@ -387,12 +399,24 @@ where
     }
 
     pub fn binary_instr(instr: Instruction, repeat: u32) -> Self {
-        use body::DynInstr::{RandomI64Repeated, Regular};
+        Self::binary_instr_for_arch(instr, true, repeat)
+    }
+
+    pub fn binary_instr_32(instr: Instruction, repeat: u32) -> Self {
+        Self::binary_instr_for_arch(instr, false, repeat)
+    }
+
+    fn binary_instr_for_arch(instr: Instruction, x64: bool, repeat: u32) -> Self {
+        use body::DynInstr::{RandomI32Repeated, RandomI64Repeated, Regular};
         ModuleDefinition {
             handle_body: Some(body::repeated_dyn(
                 repeat,
                 vec![
-                    RandomI64Repeated(2),
+                    if x64 {
+                        RandomI64Repeated(2)
+                    } else {
+                        RandomI32Repeated(2)
+                    },
                     Regular(instr),
                     Regular(Instruction::Drop),
                 ],
