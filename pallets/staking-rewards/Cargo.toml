@@ -40,6 +40,7 @@ pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/
 pallet-session = { version = "4.0.0-dev", features = ["historical"], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 pallet-sudo = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+pallet-utility = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 frame-executive = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 env_logger = "0.10"
 

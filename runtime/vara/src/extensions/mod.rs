@@ -49,21 +49,44 @@ impl SignedExtension for DisableValueTransfers {
         _: &DispatchInfoOf<Self::Call>,
         _: usize,
     ) -> TransactionValidity {
-        match call {
-            RuntimeCall::Balances(_) => {
-                Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
-            }
+        let predicate = |call: &Self::Call| match call {
+            RuntimeCall::Balances(_) => true,
             RuntimeCall::Gear(pallet_gear::Call::create_program { value, .. })
             | RuntimeCall::Gear(pallet_gear::Call::upload_program { value, .. })
             | RuntimeCall::Gear(pallet_gear::Call::send_message { value, .. })
-            | RuntimeCall::Gear(pallet_gear::Call::send_reply { value, .. }) => {
-                if value.is_zero() {
-                    Ok(Default::default())
-                } else {
-                    Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
+            | RuntimeCall::Gear(pallet_gear::Call::send_reply { value, .. }) => !value.is_zero(),
+            _ => false,
+        };
+        if predicate(call) {
+            return Err(TransactionValidityError::Invalid(InvalidTransaction::Call));
+        }
+
+        let mut has_illegal_call = false;
+
+        if let RuntimeCall::Utility(pallet_utility::Call::batch { calls }) = call {
+            for c in calls {
+                if predicate(c) {
+                    has_illegal_call = true;
+                    break;
                 }
             }
-            _ => Ok(Default::default()),
+        }
+
+        if !has_illegal_call {
+            if let RuntimeCall::Utility(pallet_utility::Call::batch_all { calls }) = call {
+                for c in calls {
+                    if predicate(c) {
+                        has_illegal_call = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if has_illegal_call {
+            Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
+        } else {
+            Ok(Default::default())
         }
     }
     fn pre_dispatch(

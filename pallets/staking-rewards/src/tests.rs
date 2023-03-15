@@ -507,17 +507,36 @@ fn nominators_rewards_disbursement_works() {
 fn staking_blacklist_works() {
     use sp_runtime::{testing::TestXt, transaction_validity::InvalidTransaction};
 
-    let extra: SignedExtra = (
-        StakingBlackList::<Test>::new(),
-        frame_system::CheckNonce::<Test>::from(0),
-        frame_system::CheckWeight::<Test>::new(),
-    );
+    let extra: SignedExtra = StakingBlackList::<Test>::new();
 
-    let invalid = TestXt::<RuntimeCall, SignedExtra>::new(
+    let invalid_call = TestXt::<RuntimeCall, SignedExtra>::new(
         RuntimeCall::Staking(pallet_staking::Call::bond {
             controller: NOM_1_CONTROLLER,
             value: 10_000_u128,
             payee: pallet_staking::RewardDestination::Stash,
+        }),
+        Some((NOM_1_STASH, extra.clone())),
+    );
+
+    // Wrapping `bond` call in a batch is also illegal
+    let invalid_batch = TestXt::<RuntimeCall, SignedExtra>::new(
+        RuntimeCall::Utility(pallet_utility::Call::batch {
+            calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
+                controller: NOM_1_CONTROLLER,
+                value: 10_000_u128,
+                payee: pallet_staking::RewardDestination::Stash,
+            })],
+        }),
+        Some((NOM_1_STASH, extra.clone())),
+    );
+
+    let invalid_batch_all = TestXt::<RuntimeCall, SignedExtra>::new(
+        RuntimeCall::Utility(pallet_utility::Call::batch_all {
+            calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
+                controller: NOM_1_CONTROLLER,
+                value: 10_000_u128,
+                payee: pallet_staking::RewardDestination::Stash,
+            })],
         }),
         Some((NOM_1_STASH, extra.clone())),
     );
@@ -554,7 +573,27 @@ fn staking_blacklist_works() {
             assert_eq!(
                 Executive::validate_transaction(
                     sp_runtime::transaction_validity::TransactionSource::External,
-                    invalid,
+                    invalid_call,
+                    Default::default(),
+                )
+                .unwrap_err(),
+                InvalidTransaction::Call.into()
+            );
+
+            assert_eq!(
+                Executive::validate_transaction(
+                    sp_runtime::transaction_validity::TransactionSource::External,
+                    invalid_batch,
+                    Default::default(),
+                )
+                .unwrap_err(),
+                InvalidTransaction::Call.into()
+            );
+
+            assert_eq!(
+                Executive::validate_transaction(
+                    sp_runtime::transaction_validity::TransactionSource::External,
+                    invalid_batch_all,
                     Default::default(),
                 )
                 .unwrap_err(),

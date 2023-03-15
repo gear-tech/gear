@@ -28,7 +28,6 @@ use frame_support::{
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureRoot};
 use pallet_session::historical::{self as pallet_session_historical};
-// use sp_authority_discovery::AuthorityId;
 use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
     testing::{Block as TestBlock, Header, UintAuthorityId},
@@ -37,24 +36,10 @@ use sp_runtime::{
 };
 use sp_std::convert::{TryFrom, TryInto};
 
-// // Old way without testing singed extension
-// type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-// type Block = frame_system::mocking::MockBlock<Test>;
-// type AccountId = u64;
-
-pub(crate) type SignedExtra = (
-    pallet_gear_staking_rewards::StakingBlackList<Test>,
-    frame_system::CheckNonce<Test>,
-    frame_system::CheckWeight<Test>,
-);
+pub(crate) type SignedExtra = pallet_gear_staking_rewards::StakingBlackList<Test>;
 type TestXt = sp_runtime::testing::TestXt<RuntimeCall, SignedExtra>;
 type Block = TestBlock<TestXt>;
 type UncheckedExtrinsic = TestXt;
-
-// pub(crate) type UncheckedExtrinsic =
-//     frame_system::mocking::MockUncheckedExtrinsic<Test, TestSignature, SignedExtra>;
-// type Block = sp_runtime::generic::Block<Header, UncheckedExtrinsic>;
-// pub(crate) type Block = TestBlock<TestXt<RuntimeCall, SignedExtra>>;
 type AccountId = u64;
 
 pub(crate) type Executive = frame_executive::Executive<
@@ -110,6 +95,7 @@ construct_runtime!(
         Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
         BagsList: pallet_bags_list::<Instance1>::{Pallet, Event<T>},
         Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Utility: pallet_utility::{Pallet, Call, Event},
     }
 );
 
@@ -190,14 +176,48 @@ impl pallet_sudo::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
 }
+
+impl pallet_utility::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type WeightInfo = ();
+    type PalletsOrigin = OriginCaller;
+}
+
 // Filter that matches `pallet_staking::Pallet<T>::bond()` call
 pub struct BondCallFilter;
 impl Contains<RuntimeCall> for BondCallFilter {
     fn contains(call: &RuntimeCall) -> bool {
-        matches!(
+        if matches!(
             call,
             &RuntimeCall::Staking(pallet_staking::Call::bond { .. })
-        )
+        ) {
+            return true;
+        }
+
+        let mut res = false;
+
+        if let RuntimeCall::Utility(pallet_utility::Call::batch { calls }) = call {
+            for c in calls {
+                if matches!(c, &RuntimeCall::Staking(pallet_staking::Call::bond { .. })) {
+                    res = true;
+                    break;
+                }
+            }
+        }
+
+        if !res {
+            if let RuntimeCall::Utility(pallet_utility::Call::batch_all { calls }) = call {
+                for c in calls {
+                    if matches!(c, &RuntimeCall::Staking(pallet_staking::Call::bond { .. })) {
+                        res = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        res
     }
 }
 
@@ -497,12 +517,6 @@ impl ExtBuilder {
         pallet_balances::GenesisConfig::<Test> { balances }
             .assimilate_storage(&mut storage)
             .unwrap();
-
-        // GenesisBuild::<Test>::assimilate_storage(
-        //     &AuthorityDiscoveryConfig { keys: vec![] },
-        //     &mut storage,
-        // )
-        // .unwrap();
 
         GenesisBuild::<Test>::assimilate_storage(&TreasuryConfig {}, &mut storage).unwrap();
 
