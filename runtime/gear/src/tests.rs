@@ -66,11 +66,11 @@ fn heuristics_test() {
     check_weight_inbounds_interval!(instruction_weights, i64ctz, 6_700);
     check_weight_inbounds_interval!(instruction_weights, i64popcnt, 1_000);
     check_weight_inbounds_interval!(instruction_weights, i64eqz, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i64extendsi32, 600);
-    check_weight_inbounds_interval!(instruction_weights, i64extendui32, 100);
-    check_weight_inbounds_interval!(instruction_weights, i32wrapi64, 130);
-    check_weight_inbounds_interval!(instruction_weights, i64eq, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i64ne, 4_000);
+    check_weight_inbounds_interval!(instruction_weights, i64extendsi32, 800);
+    check_weight_inbounds_interval!(instruction_weights, i64extendui32, 500);
+    check_weight_inbounds_interval!(instruction_weights, i32wrapi64, 330);
+    check_weight_inbounds_interval!(instruction_weights, i64eq, 4_200);
+    check_weight_inbounds_interval!(instruction_weights, i64ne, 4_200);
 
     check_weight_inbounds_interval!(instruction_weights, i64lts, 4_000);
     check_weight_inbounds_interval!(instruction_weights, i64ltu, 4_000);

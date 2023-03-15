@@ -66,18 +66,18 @@ fn heuristics_test() {
     check_weight_inbounds_interval!(instruction_weights, i64ctz, 6_700);
     check_weight_inbounds_interval!(instruction_weights, i64popcnt, 1_000);
     check_weight_inbounds_interval!(instruction_weights, i64eqz, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i64extendsi32, 500);
-    check_weight_inbounds_interval!(instruction_weights, i64extendui32, 400);
-    check_weight_inbounds_interval!(instruction_weights, i32wrapi64, 50);
-    check_weight_inbounds_interval!(instruction_weights, i64eq, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i64ne, 4_000);
+    check_weight_inbounds_interval!(instruction_weights, i64extendsi32, 700);
+    check_weight_inbounds_interval!(instruction_weights, i64extendui32, 700);
+    check_weight_inbounds_interval!(instruction_weights, i32wrapi64, 250);
+    check_weight_inbounds_interval!(instruction_weights, i64eq, 4_200);
+    check_weight_inbounds_interval!(instruction_weights, i64ne, 4_200);
 
-    check_weight_inbounds_interval!(instruction_weights, i64lts, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i64ltu, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i64gts, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i64gtu, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i64les, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i64leu, 4_000);
+    check_weight_inbounds_interval!(instruction_weights, i64lts, 4_200);
+    check_weight_inbounds_interval!(instruction_weights, i64ltu, 4_200);
+    check_weight_inbounds_interval!(instruction_weights, i64gts, 4_200);
+    check_weight_inbounds_interval!(instruction_weights, i64gtu, 4_200);
+    check_weight_inbounds_interval!(instruction_weights, i64les, 4_200);
+    check_weight_inbounds_interval!(instruction_weights, i64leu, 4_200);
 
     check_weight_inbounds_interval!(instruction_weights, i64ges, 4_000);
     check_weight_inbounds_interval!(instruction_weights, i64geu, 4_000);
