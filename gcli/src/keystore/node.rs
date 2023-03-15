@@ -19,24 +19,20 @@
 //! Node key
 #![cfg(feature = "node-key")]
 use crate::result::{Error, Result};
-use libp2p::{
-    identity::{ed25519, PublicKey},
-    PeerId,
-};
+use libp2p::{identity::Keypair, PeerId};
 
 /// Generate node key
-pub fn generate() -> (ed25519::Keypair, PeerId) {
-    let pair = ed25519::Keypair::generate();
+pub fn generate() -> (Keypair, PeerId) {
+    let pair = Keypair::generate_ed25519();
     let public = pair.public();
 
-    (pair, PublicKey::Ed25519(public).to_peer_id())
+    (pair, PeerId::from_public_key(&public))
 }
 
 /// Get inspect of node key from secret
-pub fn inspect(mut data: Vec<u8>) -> Result<(ed25519::Keypair, PeerId)> {
-    let secret = ed25519::SecretKey::from_bytes(&mut data).map_err(|_| Error::BadNodeKey)?;
-    let pair = ed25519::Keypair::from(secret);
+pub fn inspect(mut data: Vec<u8>) -> Result<(Keypair, PeerId)> {
+    let pair = Keypair::ed25519_from_bytes(&mut data).map_err(|_| Error::BadNodeKey)?;
     let public = pair.public();
 
-    Ok((pair, PublicKey::Ed25519(public).to_peer_id()))
+    Ok((pair, PeerId::from_public_key(&public)))
 }
