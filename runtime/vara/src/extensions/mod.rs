@@ -20,6 +20,7 @@
 
 use crate::{AccountId, RuntimeCall};
 use codec::{Decode, Encode};
+use frame_support::traits::Contains;
 use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{DispatchInfoOf, SignedExtension, Zero},
@@ -30,6 +31,43 @@ use sp_runtime::{
 ///
 /// RELEASE: This is only relevant for the initial PoA run-in period and will be removed
 /// from the release runtime.
+
+struct ValueTransferCallFilter;
+impl Contains<RuntimeCall> for ValueTransferCallFilter {
+    fn contains(call: &RuntimeCall) -> bool {
+        match call {
+            RuntimeCall::Balances(_) => true,
+            RuntimeCall::Gear(pallet_gear::Call::create_program { value, .. })
+            | RuntimeCall::Gear(pallet_gear::Call::upload_program { value, .. })
+            | RuntimeCall::Gear(pallet_gear::Call::send_message { value, .. })
+            | RuntimeCall::Gear(pallet_gear::Call::send_reply { value, .. }) => !value.is_zero(),
+            RuntimeCall::Utility(utility_call) => {
+                let mut res = false;
+                match utility_call {
+                    pallet_utility::Call::batch { calls }
+                    | pallet_utility::Call::batch_all { calls }
+                    | pallet_utility::Call::force_batch { calls } => {
+                        for c in calls {
+                            if Self::contains(c) {
+                                res = true;
+                                break;
+                            }
+                        }
+                    }
+                    pallet_utility::Call::as_derivative { call, .. }
+                    | pallet_utility::Call::dispatch_as { call, .. }
+                    | pallet_utility::Call::with_weight { call, .. } => {
+                        res = Self::contains(call);
+                    }
+                    _ => (),
+                }
+                res
+            }
+            _ => false,
+        }
+    }
+}
+
 #[derive(Default, Encode, Debug, Decode, Clone, Eq, PartialEq, TypeInfo)]
 pub struct DisableValueTransfers;
 
@@ -49,41 +87,7 @@ impl SignedExtension for DisableValueTransfers {
         _: &DispatchInfoOf<Self::Call>,
         _: usize,
     ) -> TransactionValidity {
-        let predicate = |call: &Self::Call| match call {
-            RuntimeCall::Balances(_) => true,
-            RuntimeCall::Gear(pallet_gear::Call::create_program { value, .. })
-            | RuntimeCall::Gear(pallet_gear::Call::upload_program { value, .. })
-            | RuntimeCall::Gear(pallet_gear::Call::send_message { value, .. })
-            | RuntimeCall::Gear(pallet_gear::Call::send_reply { value, .. }) => !value.is_zero(),
-            _ => false,
-        };
-        if predicate(call) {
-            return Err(TransactionValidityError::Invalid(InvalidTransaction::Call));
-        }
-
-        let mut has_illegal_call = false;
-
-        if let RuntimeCall::Utility(pallet_utility::Call::batch { calls }) = call {
-            for c in calls {
-                if predicate(c) {
-                    has_illegal_call = true;
-                    break;
-                }
-            }
-        }
-
-        if !has_illegal_call {
-            if let RuntimeCall::Utility(pallet_utility::Call::batch_all { calls }) = call {
-                for c in calls {
-                    if predicate(c) {
-                        has_illegal_call = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if has_illegal_call {
+        if ValueTransferCallFilter::contains(call) {
             Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
         } else {
             Ok(Default::default())
