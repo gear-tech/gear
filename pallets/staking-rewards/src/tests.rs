@@ -541,6 +541,23 @@ fn staking_blacklist_works() {
         Some((NOM_1_STASH, extra.clone())),
     );
 
+    // Nested batches and/or other `Utility` calls shouldn't work, as well
+    let nested_batches = TestXt::<RuntimeCall, SignedExtra>::new(
+        RuntimeCall::Utility(pallet_utility::Call::batch {
+            calls: vec![RuntimeCall::Utility(pallet_utility::Call::batch_all {
+                calls: vec![RuntimeCall::Utility(pallet_utility::Call::as_derivative {
+                    index: 0,
+                    call: Box::new(RuntimeCall::Staking(pallet_staking::Call::bond {
+                        controller: NOM_1_CONTROLLER,
+                        value: 10_000_u128,
+                        payee: pallet_staking::RewardDestination::Stash,
+                    })),
+                })],
+            })],
+        }),
+        Some((NOM_1_STASH, extra.clone())),
+    );
+
     let valid_call = TestXt::<RuntimeCall, SignedExtra>::new(
         RuntimeCall::Balances(pallet_balances::Call::transfer {
             dest: NOM_1_CONTROLLER,
@@ -594,6 +611,16 @@ fn staking_blacklist_works() {
                 Executive::validate_transaction(
                     sp_runtime::transaction_validity::TransactionSource::External,
                     invalid_batch_all,
+                    Default::default(),
+                )
+                .unwrap_err(),
+                InvalidTransaction::Call.into()
+            );
+
+            assert_eq!(
+                Executive::validate_transaction(
+                    sp_runtime::transaction_validity::TransactionSource::External,
+                    nested_batches,
                     Default::default(),
                 )
                 .unwrap_err(),

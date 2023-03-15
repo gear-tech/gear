@@ -42,26 +42,24 @@ impl Contains<RuntimeCall> for ValueTransferCallFilter {
             | RuntimeCall::Gear(pallet_gear::Call::send_message { value, .. })
             | RuntimeCall::Gear(pallet_gear::Call::send_reply { value, .. }) => !value.is_zero(),
             RuntimeCall::Utility(utility_call) => {
-                let mut res = false;
                 match utility_call {
                     pallet_utility::Call::batch { calls }
                     | pallet_utility::Call::batch_all { calls }
                     | pallet_utility::Call::force_batch { calls } => {
                         for c in calls {
                             if Self::contains(c) {
-                                res = true;
-                                break;
+                                return true;
                             }
                         }
                     }
                     pallet_utility::Call::as_derivative { call, .. }
                     | pallet_utility::Call::dispatch_as { call, .. }
                     | pallet_utility::Call::with_weight { call, .. } => {
-                        res = Self::contains(call);
+                        return Self::contains(call);
                     }
                     _ => (),
                 }
-                res
+                false
             }
             _ => false,
         }

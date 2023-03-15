@@ -378,26 +378,24 @@ impl Contains<RuntimeCall> for BondCallFilter {
         match call {
             RuntimeCall::Staking(pallet_staking::Call::bond { .. }) => true,
             RuntimeCall::Utility(utility_call) => {
-                let mut res = false;
                 match utility_call {
                     pallet_utility::Call::batch { calls }
                     | pallet_utility::Call::batch_all { calls }
                     | pallet_utility::Call::force_batch { calls } => {
                         for c in calls {
                             if Self::contains(c) {
-                                res = true;
-                                break;
+                                return true;
                             }
                         }
                     }
                     pallet_utility::Call::as_derivative { call, .. }
                     | pallet_utility::Call::dispatch_as { call, .. }
                     | pallet_utility::Call::with_weight { call, .. } => {
-                        res = Self::contains(call);
+                        return Self::contains(call);
                     }
                     _ => (),
                 }
-                res
+                false
             }
             _ => false,
         }
