@@ -29,6 +29,7 @@ fn handler_tester<F: FnOnce()>(f: F) {
 
 #[test]
 fn test_with_different_handlers() {
+    println!("lol");
     handler_tester(read_write_flag_works);
     handler_tester(test_mprotect_pages);
 }
@@ -102,13 +103,15 @@ fn test_mprotect_pages() {
     impl UserSignalHandler for TestHandler {
         unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
             let mem = info.fault_addr as usize;
-            let ps = region::page::size();
             let addr = region::page::floor(info.fault_addr);
-            region::protect(addr, ps, region::Protection::READ_WRITE).unwrap();
-            for p in 0..ps / GearPage::size() as usize {
-                *((mem + p * GearPage::size() as usize) as *mut u8) = NEW_VALUE;
-            }
-            region::protect(addr, ps, region::Protection::READ).unwrap();
+            region::protect(
+                addr,
+                GearPage::size() as usize,
+                region::Protection::READ_WRITE,
+            )
+            .unwrap();
+            *(mem as *mut u8) = NEW_VALUE;
+            region::protect(addr, GearPage::size() as usize, region::Protection::READ).unwrap();
 
             Ok(())
         }
@@ -127,15 +130,9 @@ fn test_mprotect_pages() {
         * WasmPage::size() as usize;
     let mem_size = 2 * WasmPage::size();
 
-    // Gear pages in 2 wasm pages. Randomly choose pages, which will be protected,
-    // but because macos with M1 has page size == 16kB, we should include all gear pages from 16kB interval.
-    // This test can fail if page size is bigger than 16kB.
-    let pages_protected =
-        [0, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23].map(|p| GearPage::new(p).unwrap());
-    let pages_unprotected = [
-        4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31,
-    ]
-    .map(|p| GearPage::new(p).unwrap());
+    // Randomly choose pages, which will be protected.
+    let pages_protected = [0, 4, 5].map(|p| GearPage::new(p).unwrap());
+    let pages_unprotected = [1, 2, 3, 6, 7].map(|p| GearPage::new(p).unwrap());
 
     // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {
