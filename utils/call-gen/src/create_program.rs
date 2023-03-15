@@ -18,7 +18,7 @@
 
 //! Create program call generator.
 
-use crate::{CallGenRng, GearCall, Seed};
+use crate::{CallGenRng, GearCall, GearCallConversionError, Seed};
 use gear_core::ids::CodeId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -28,6 +28,7 @@ type CreateProgramArgsInner = (CodeId, Vec<u8>, Vec<u8>, u64, u128);
 /// Create program args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::create_program` call.
+#[derive(Debug, Clone)]
 pub struct CreateProgramArgs(pub CreateProgramArgsInner);
 
 impl From<CreateProgramArgs> for CreateProgramArgsInner {
@@ -43,13 +44,13 @@ impl From<CreateProgramArgs> for GearCall {
 }
 
 impl TryFrom<GearCall> for CreateProgramArgs {
-    type Error = ();
+    type Error = GearCallConversionError;
 
     fn try_from(call: GearCall) -> Result<Self, Self::Error> {
         if let GearCall::CreateProgram(call) = call {
             Ok(call)
         } else {
-            Err(())
+            Err(GearCallConversionError("create_program"))
         }
     }
 }
@@ -73,7 +74,7 @@ impl CreateProgramArgs {
         rng.fill_bytes(&mut payload);
 
         log::debug!(
-            "Generated `create_program` batch with code id = {code}, salt = {} payload = {}",
+            "Generated `create_program` call with code id = {code}, salt = {} payload = {}",
             hex::encode(&salt),
             hex::encode(&payload)
         );

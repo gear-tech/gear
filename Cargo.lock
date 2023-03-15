@@ -3587,6 +3587,7 @@ dependencies = [
  "hex",
  "log",
  "rand 0.8.5",
+ "thiserror",
 ]
 
 [[package]]

@@ -16,72 +16,68 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Upload program args generator.
+//! Send reply args generator.
 
-use crate::{CallGenRng, GearCall, GearCallConversionError, GearProgGenConfig, Seed};
-use gear_core::ids::ProgramId;
+use crate::{CallGenRng, GearCall, GearCallConversionError, Seed};
+use gear_core::ids::MessageId;
+use gear_utils::{NonEmpty, RingGet};
 
-// code, salt, payload, gas, value
-type UploadProgramArgsInner = (Vec<u8>, Vec<u8>, Vec<u8>, u64, u128);
+// reply to message id, payload, gas limit, value
+type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128);
 
-/// Upload program args
+/// Send reply args
 ///
-/// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::upload_program` call.
+/// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::send_reply` call.
 #[derive(Debug, Clone)]
-pub struct UploadProgramArgs(pub UploadProgramArgsInner);
+pub struct SendReplyArgs(pub SendReplyArgsInner);
 
-impl From<UploadProgramArgs> for UploadProgramArgsInner {
-    fn from(args: UploadProgramArgs) -> Self {
+impl From<SendReplyArgs> for SendReplyArgsInner {
+    fn from(args: SendReplyArgs) -> Self {
         args.0
     }
 }
 
-impl From<UploadProgramArgs> for GearCall {
-    fn from(args: UploadProgramArgs) -> Self {
-        GearCall::UploadProgram(args)
+impl From<SendReplyArgs> for GearCall {
+    fn from(args: SendReplyArgs) -> Self {
+        GearCall::SendReply(args)
     }
 }
 
-impl TryFrom<GearCall> for UploadProgramArgs {
+impl TryFrom<GearCall> for SendReplyArgs {
     type Error = GearCallConversionError;
 
     fn try_from(call: GearCall) -> Result<Self, Self::Error> {
-        if let GearCall::UploadProgram(call) = call {
+        if let GearCall::SendReply(call) = call {
             Ok(call)
         } else {
-            Err(GearCallConversionError("upload_program"))
+            Err(GearCallConversionError("send_reply"))
         }
     }
 }
 
-impl UploadProgramArgs {
-    /// Generates `pallet_gear::Pallet::<T>::upload_program` call arguments.
+impl SendReplyArgs {
+    /// Generates `pallet_gear::Pallet::<T>::send_reply` call arguments.
     pub fn generate<Rng: CallGenRng>(
-        code_seed: Seed,
+        mailbox: NonEmpty<MessageId>,
         rng_seed: Seed,
         gas_limit: u64,
-        config: GearProgGenConfig,
-        programs: Vec<ProgramId>,
     ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
-        let code = crate::generate_gear_program::<Rng>(code_seed, config, programs);
-
-        let mut salt = vec![0; rng.gen_range(1..=100)];
-        rng.fill_bytes(&mut salt);
+        let message_idx = rng.next_u64() as usize;
+        let &message_id = mailbox.ring_get(message_idx);
 
         let mut payload = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut payload);
 
         log::debug!(
-            "Generated `upload_program` call with code seed = {code_seed}, salt = {}, payload = {}",
-            hex::encode(&salt),
+            "Generated `send_reply` call with message id = {message_id}, payload = {}",
             hex::encode(&payload)
         );
 
         // TODO #2203
         let value = 0;
 
-        Self((code, salt, payload, gas_limit, value))
+        Self((message_id, payload, gas_limit, value))
     }
 }
