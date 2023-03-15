@@ -144,14 +144,16 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> 
     // See: https://paritytech.github.io/substrate/master/src/pallet_utility/lib.rs.html#452-468
     match batch {
         Batch::UploadProgram(args) => {
-            let (ext_results, block_hash) = api.upload_program_batch(args).await?;
-            let messages = process_ex_results(ext_results);
+            let (extrinsic_results, block_hash) = api.upload_program_batch(args).await?;
+            let messages = process_ex_results(extrinsic_results);
             process_events(api.into_gear_api(), messages, block_hash).await
         }
         Batch::UploadCode(args) => {
-            let (ext_results, _) = api.upload_code_batch(args).await?;
-            let ext_results = ext_results.into_iter().map(|r| r.map(|code| (code, ())));
-            let codes = process_ex_results(ext_results);
+            let (extrinsic_results, _) = api.upload_code_batch(args).await?;
+            let extrinsic_results = extrinsic_results
+                .into_iter()
+                .map(|r| r.map(|code| (code, ())));
+            let codes = process_ex_results(extrinsic_results);
             for (code_id, (_, call_id)) in codes.iter() {
                 tracing::debug!(
                     "[Call with id: {call_id}]: Successfully deployed code with id '{code_id}'"
@@ -164,20 +166,20 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> 
             })
         }
         Batch::SendMessage(args) => {
-            let (ext_results, block_hash) = api.send_message_batch(args).await?;
-            let messages = process_ex_results(ext_results);
+            let (extrinsic_results, block_hash) = api.send_message_batch(args).await?;
+            let messages = process_ex_results(extrinsic_results);
             process_events(api.into_gear_api(), messages, block_hash).await
         }
         Batch::CreateProgram(args) => {
-            let (ext_results, block_hash) = api.create_program_batch(args).await?;
-            let messages = process_ex_results(ext_results);
+            let (extrinsic_results, block_hash) = api.create_program_batch(args).await?;
+            let messages = process_ex_results(extrinsic_results);
             process_events(api.into_gear_api(), messages, block_hash).await
         }
         Batch::SendReply(args) => {
             let removed_from_mailbox = args.clone().into_iter().map(|SendReplyArgs((mid, ..))| mid);
 
-            let (ext_results, block_hash) = api.send_reply_batch(args).await?;
-            let messages = process_ex_results(ext_results);
+            let (extrinsic_results, block_hash) = api.send_reply_batch(args).await?;
+            let messages = process_ex_results(extrinsic_results);
             process_events(api.into_gear_api(), messages, block_hash)
                 .await
                 .map(|mut report| {
@@ -188,12 +190,12 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> 
         Batch::ClaimValue(args) => {
             let removed_from_mailbox = args.clone().into_iter().map(|ClaimValueArgs(mid)| mid);
 
-            let (ext_results, _) = api.claim_value_batch(args).await?;
-            let ext_results = ext_results
+            let (extrinsic_results, _) = api.claim_value_batch(args).await?;
+            let extrinsic_results = extrinsic_results
                 .into_iter()
                 .zip(removed_from_mailbox.clone())
                 .map(|(r, mid)| r.map(|value| (mid, value)));
-            for (mid, (value, call_id)) in process_ex_results(ext_results) {
+            for (mid, (value, call_id)) in process_ex_results(extrinsic_results) {
                 tracing::debug!(
                     "[Call with id: {call_id}]: Successfully claimed {value} amount from message {mid}."
                 );
