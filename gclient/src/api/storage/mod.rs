@@ -78,12 +78,8 @@ impl GearApi {
         &self,
         count: u32,
     ) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
-        let data = self
-            .0
-            .api()
-            .mailbox(Some(self.0.account_id().clone()), count)
-            .await?;
-        Ok(data.into_iter().map(|(m, i)| (m.into(), i)).collect())
+        self.get_mailbox_account_messages(self.0.account_id(), count)
+            .await
     }
 
     async fn account_data(&self, account_id: impl IntoAccountId32) -> Result<AccountData<u128>> {
