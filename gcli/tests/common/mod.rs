@@ -75,10 +75,8 @@ pub async fn create_messager() -> Result<Node> {
         &node.ws(),
         "upload-program",
         &messager,
-        "0x",
-        "0x",
+        "--gas-limit",
         "20000000000",
-        "0",
     ])?;
 
     Ok(node)

@@ -32,7 +32,7 @@ async fn test_command_reply_works() -> Result<()> {
     let id = hex::encode(mailbox[0].0.id.0);
 
     // Send message to messager
-    let _ = common::gear(&["-e", &node.ws(), "reply", &id, "0x", "20000000000"])?;
+    let _ = common::gear(&["-e", &node.ws(), "reply", &id, "--gas-limit", "20000000000"])?;
     let mailbox = signer.api().mailbox(common::alice_account_id(), 10).await?;
     assert_eq!(mailbox.len(), 1);
     assert_eq!(mailbox[0].0.payload.0, messager::REPLY_REPLY.encode());

@@ -50,7 +50,6 @@ demo-waiter = { path = "../examples/binaries/waiter" }
 
 [features]
 node-key = [ "libp2p" ]
-vara-testing = [ "messager/vara-testing" ]
 
 [package.metadata.docs.rs]
 all-features = true
