@@ -343,14 +343,6 @@ pub fn run() -> sc_cli::Result<()> {
             let runner = cli.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run::<Block>(&config))
         }
-        #[cfg(feature = "cli")]
-        Some(Subcommand::Cli(gp)) => {
-            // # NOTE
-            //
-            // unwrap here directly to show the error messages.
-            gp.exec_sync().unwrap();
-            Ok(())
-        }
         None => {
             let runner = if cli.run.base.validator {
                 cli.create_runner_with_logger_hook(&cli.run.base, |logger, _| {

@@ -99,14 +99,4 @@ pub enum Subcommand {
         about = "Run gear runtime tests with yaml."
     )]
     GearRuntimeTest(gear_runtime_test_cli::RuntimeTestCmd),
-
-    /// Program CLI
-    ///
-    /// # NOTE
-    ///
-    /// Only support gear runtime when features include both `gear-program/gear`
-    /// and `gear-program/vara`.
-    #[cfg(feature = "cli")]
-    #[command(name = "gcli", about = "Run gear program cli.")]
-    Cli(gcli::cmd::Opt),
 }
