@@ -3388,7 +3388,8 @@ fn claim_value_works() {
             GasPrice::gas_price(
                 <Test as Config>::Schedule::get()
                     .memory_weights
-                    .load_page_data,
+                    .load_page_data
+                    .ref_time(),
             )
         } else {
             0
@@ -4771,7 +4772,8 @@ fn terminated_locking_funds() {
             .expect("code should be in the storage");
         let code_length = code.code().len();
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-        let module_instantiation = schedule.module_instantiation_per_byte * code_length as u64;
+        let module_instantiation =
+            schedule.module_instantiation_per_byte.ref_time() * code_length as u64;
         let system_reservation = demo_init_fail_sender::system_reserve();
         let reply_duration = demo_init_fail_sender::reply_duration();
         let gas_for_code_len = read_cost;
@@ -4798,11 +4800,16 @@ fn terminated_locking_funds() {
             + gas_for_code_len
             + core_processor::calculate_gas_for_code(
                 read_cost,
-                <Test as Config>::Schedule::get().db_read_per_byte,
+                <Test as Config>::Schedule::get()
+                    .db_read_per_byte
+                    .ref_time(),
                 code_length as u64,
             )
             + module_instantiation
-            + <Test as Config>::Schedule::get().memory_weights.static_page
+            + <Test as Config>::Schedule::get()
+                .memory_weights
+                .static_page
+                .ref_time()
                 * code.static_pages().raw() as u64;
 
         // Because we set gas for init message second execution only for resources loading, then
@@ -5980,10 +5987,10 @@ fn gas_spent_precalculated() {
         .unwrap();
 
         let schedule = <Test as Config>::Schedule::get();
-        let per_byte_cost = schedule.db_read_per_byte;
+        let per_byte_cost = schedule.db_read_per_byte.ref_time();
         let const_i64_cost = schedule.instruction_weights.i64const;
         let set_local_cost = schedule.instruction_weights.local_set;
-        let module_instantiation_per_byte = schedule.module_instantiation_per_byte;
+        let module_instantiation_per_byte = schedule.module_instantiation_per_byte.ref_time();
 
         // gas_charge call in handle and "add" func
         let gas_cost = gas_spent_init
@@ -6029,7 +6036,7 @@ fn gas_spent_precalculated() {
                 + core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code.len() as u64)
                 + module_instantiation
                 // cost for one static page in program
-                + <Test as Config>::Schedule::get().memory_weights.static_page
+                + <Test as Config>::Schedule::get().memory_weights.static_page.ref_time()
         };
 
         assert_eq!(gas_spent_1, total_cost);
@@ -6810,7 +6817,7 @@ fn execution_over_blocks() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             in_one_block,
-            Package::new(8_192, src).encode(),
+            Package::new(16_384, src).encode(),
             block_gas_limit,
             0,
         ));
@@ -7034,7 +7041,9 @@ fn missing_functions_are_not_executed() {
 
         let program_cost = core_processor::calculate_gas_for_program(
             DbWeightOf::<Test>::get().reads(1).ref_time(),
-            <Test as Config>::Schedule::get().db_read_per_byte,
+            <Test as Config>::Schedule::get()
+                .db_read_per_byte
+                .ref_time(),
         );
         // there is no execution so the values should be equal
         assert_eq!(min_limit, program_cost);
@@ -7675,8 +7684,10 @@ fn signal_during_prepare() {
 
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         let schedule = <Test as Config>::Schedule::get();
-        let program_gas =
-            core_processor::calculate_gas_for_program(read_cost, schedule.db_read_per_byte);
+        let program_gas = core_processor::calculate_gas_for_program(
+            read_cost,
+            schedule.db_read_per_byte.ref_time(),
+        );
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),

@@ -33,8 +33,7 @@ use gear_wasm_instrument::{
     parity_wasm::{
         builder,
         elements::{
-            self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Module, Section,
-            ValueType,
+            self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Section, ValueType,
         },
     },
     syscalls::SysCallName,
@@ -85,11 +84,6 @@ pub struct ModuleDefinition {
     /// The amount of I64 arguments the aux function should have.
     pub aux_arg_num: u32,
     pub aux_res: Option<ValueType>,
-    /// If set to true the stack height limiter is injected into the the module. This is
-    /// needed for instruction debugging because the cost of executing the stack height
-    /// instrumentation should be included in the costs for the individual instructions
-    /// that cause more metering code (only call).
-    pub inject_stack_metering: bool,
     /// Create a table containing function pointers.
     pub table: Option<TableSegment>,
     /// Create a section named "dummy" of the specified size. This is useful in order to
@@ -288,12 +282,7 @@ where
             )));
         }
 
-        let mut code = program.build();
-
-        if def.inject_stack_metering {
-            code = inject_stack_metering::<T>(code);
-        }
-
+        let code = program.build();
         let code = code.into_bytes().unwrap();
         let hash = CodeId::generate(&code);
         Self {
@@ -370,7 +359,7 @@ where
         Some(memory)
     }
 
-    pub fn unary_instr(instr: Instruction, repeat: u32) -> Self {
+    pub fn unary_instr_64(instr: Instruction, repeat: u32) -> Self {
         Self::unary_instr_for_arch(instr, true, repeat)
     }
 
@@ -398,7 +387,7 @@ where
         .into()
     }
 
-    pub fn binary_instr(instr: Instruction, repeat: u32) -> Self {
+    pub fn binary_instr_64(instr: Instruction, repeat: u32) -> Self {
         Self::binary_instr_for_arch(instr, true, repeat)
     }
 
@@ -634,12 +623,4 @@ where
     T: Config,
 {
     T::Schedule::get().limits.memory_pages
-}
-
-fn inject_stack_metering<T: Config>(module: Module) -> Module {
-    if let Some(height) = T::Schedule::get().limits.stack_height {
-        gear_wasm_instrument::wasm_instrument::inject_stack_limiter(module, height).unwrap()
-    } else {
-        module
-    }
 }

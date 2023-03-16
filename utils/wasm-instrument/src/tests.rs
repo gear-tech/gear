@@ -79,7 +79,7 @@ fn simple_grow() {
         )"#,
     );
 
-    let injected_module = inject(module, &ConstantCostRules::new(1, 10_000), "env").unwrap();
+    let injected_module = inject(module, &ConstantCostRules::new(1, 10_000, 0), "env").unwrap();
 
     // two new imports (indexes 0 & 1), the original func (i = 2), so
     // gas charge will occupy the next index.
@@ -224,7 +224,7 @@ fn cost_overflow() {
     let instruction_cost = u32::MAX / 2;
     let injected_module = inject(
         prebuilt_simple_module(),
-        &ConstantCostRules::new(instruction_cost, 0),
+        &ConstantCostRules::new(instruction_cost, 0, 0),
         "env",
     )
     .unwrap();
