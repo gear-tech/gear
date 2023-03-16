@@ -360,24 +360,20 @@ where
     }
 
     pub fn unary_instr_64(instr: Instruction, repeat: u32) -> Self {
-        Self::unary_instr_for_arch(instr, true, repeat)
+        Self::unary_instr_for_arch(instr, Arch::Amd64, repeat)
     }
 
     pub fn unary_instr_32(instr: Instruction, repeat: u32) -> Self {
-        Self::unary_instr_for_arch(instr, false, repeat)
+        Self::unary_instr_for_arch(instr, Arch::X86, repeat)
     }
 
-    fn unary_instr_for_arch(instr: Instruction, x64: bool, repeat: u32) -> Self {
-        use body::DynInstr::{RandomI32Repeated, RandomI64Repeated, Regular};
+    fn unary_instr_for_arch(instr: Instruction, arch: Arch, repeat: u32) -> Self {
+        use body::DynInstr::Regular;
         ModuleDefinition {
             handle_body: Some(body::repeated_dyn(
                 repeat,
                 vec![
-                    if x64 {
-                        RandomI64Repeated(1)
-                    } else {
-                        RandomI32Repeated(1)
-                    },
+                    arch.random_repeated(1),
                     Regular(instr),
                     Regular(Instruction::Drop),
                 ],
@@ -388,24 +384,20 @@ where
     }
 
     pub fn binary_instr_64(instr: Instruction, repeat: u32) -> Self {
-        Self::binary_instr_for_arch(instr, true, repeat)
+        Self::binary_instr_for_arch(instr, Arch::Amd64, repeat)
     }
 
     pub fn binary_instr_32(instr: Instruction, repeat: u32) -> Self {
-        Self::binary_instr_for_arch(instr, false, repeat)
+        Self::binary_instr_for_arch(instr, Arch::X86, repeat)
     }
 
-    fn binary_instr_for_arch(instr: Instruction, x64: bool, repeat: u32) -> Self {
-        use body::DynInstr::{RandomI32Repeated, RandomI64Repeated, Regular};
+    fn binary_instr_for_arch(instr: Instruction, arch: Arch, repeat: u32) -> Self {
+        use body::DynInstr::Regular;
         ModuleDefinition {
             handle_body: Some(body::repeated_dyn(
                 repeat,
                 vec![
-                    if x64 {
-                        RandomI64Repeated(2)
-                    } else {
-                        RandomI32Repeated(2)
-                    },
+                    arch.random_repeated(2),
                     Regular(instr),
                     Regular(Instruction::Drop),
                 ],
@@ -623,4 +615,18 @@ where
     T: Config,
 {
     T::Schedule::get().limits.memory_pages
+}
+
+enum Arch {
+    Amd64,
+    X86,
+}
+
+impl Arch {
+    pub fn random_repeated(&self, count: usize) -> body::DynInstr {
+        match self {
+            Arch::Amd64 => body::DynInstr::RandomI64Repeated(count),
+            Arch::X86 => body::DynInstr::RandomI32Repeated(count),
+        }
+    }
 }
