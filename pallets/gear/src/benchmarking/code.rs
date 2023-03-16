@@ -360,20 +360,20 @@ where
     }
 
     pub fn unary_instr_64(instr: Instruction, repeat: u32) -> Self {
-        Self::unary_instr_for_arch(instr, Arch::Amd64, repeat)
+        Self::unary_instr_for_bit_width(instr, BitWidth::X64, repeat)
     }
 
     pub fn unary_instr_32(instr: Instruction, repeat: u32) -> Self {
-        Self::unary_instr_for_arch(instr, Arch::X86, repeat)
+        Self::unary_instr_for_bit_width(instr, BitWidth::X86, repeat)
     }
 
-    fn unary_instr_for_arch(instr: Instruction, arch: Arch, repeat: u32) -> Self {
+    fn unary_instr_for_bit_width(instr: Instruction, bit_width: BitWidth, repeat: u32) -> Self {
         use body::DynInstr::Regular;
         ModuleDefinition {
             handle_body: Some(body::repeated_dyn(
                 repeat,
                 vec![
-                    arch.random_repeated(1),
+                    bit_width.random_repeated(1),
                     Regular(instr),
                     Regular(Instruction::Drop),
                 ],
@@ -384,20 +384,20 @@ where
     }
 
     pub fn binary_instr_64(instr: Instruction, repeat: u32) -> Self {
-        Self::binary_instr_for_arch(instr, Arch::Amd64, repeat)
+        Self::binary_instr_for_bit_width(instr, BitWidth::X64, repeat)
     }
 
     pub fn binary_instr_32(instr: Instruction, repeat: u32) -> Self {
-        Self::binary_instr_for_arch(instr, Arch::X86, repeat)
+        Self::binary_instr_for_bit_width(instr, BitWidth::X86, repeat)
     }
 
-    fn binary_instr_for_arch(instr: Instruction, arch: Arch, repeat: u32) -> Self {
+    fn binary_instr_for_bit_width(instr: Instruction, bit_width: BitWidth, repeat: u32) -> Self {
         use body::DynInstr::Regular;
         ModuleDefinition {
             handle_body: Some(body::repeated_dyn(
                 repeat,
                 vec![
-                    arch.random_repeated(2),
+                    bit_width.random_repeated(2),
                     Regular(instr),
                     Regular(Instruction::Drop),
                 ],
@@ -617,16 +617,16 @@ where
     T::Schedule::get().limits.memory_pages
 }
 
-enum Arch {
-    Amd64,
+enum BitWidth {
+    X64,
     X86,
 }
 
-impl Arch {
+impl BitWidth {
     pub fn random_repeated(&self, count: usize) -> body::DynInstr {
         match self {
-            Arch::Amd64 => body::DynInstr::RandomI64Repeated(count),
-            Arch::X86 => body::DynInstr::RandomI32Repeated(count),
+            BitWidth::X64 => body::DynInstr::RandomI64Repeated(count),
+            BitWidth::X86 => body::DynInstr::RandomI32Repeated(count),
         }
     }
 }
