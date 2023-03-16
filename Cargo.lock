@@ -3599,7 +3599,6 @@ dependencies = [
  "frame-benchmarking-cli",
  "frame-system",
  "futures",
- "gcli",
  "gear-runtime",
  "gear-runtime-primitives",
  "gear-runtime-test-cli",
