@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `send`
+#![cfg(not(feature = "vara-testing"))]
 use crate::common::{self, Result, ALICE_SS58_ADDRESS as ADDRESS};
 use gsdk::Api;
 
@@ -42,10 +43,7 @@ async fn test_command_claim_works() -> Result<()> {
     //
     // not using `//Alice` or estimating the reward
     // before this checking.
-    assert_eq!(
-        after.saturating_sub(before),
-        messager::SENT_VALUE + REWARD_PER_BLOCK
-    );
+    assert_eq!(after.saturating_sub(before), REWARD_PER_BLOCK);
 
     Ok(())
 }

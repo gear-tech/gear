@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `deploy`
+#![cfg(not(feature = "vara-testing"))]
 use crate::common::{self, logs, Result};
 use gsdk::Api;
 

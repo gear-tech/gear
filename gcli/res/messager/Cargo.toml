@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-gstd = { path = "../../../gstd" }
+gstd = { path = "../../../gstd", features = [ "debug" ] }
 
 [build-dependencies]
 gear-wasm-builder = { path = "../../../utils/wasm-builder" }
@@ -12,3 +12,4 @@ gear-wasm-builder = { path = "../../../utils/wasm-builder" }
 [features]
 std = []
 default = ["std"]
+vara-testing = [ ]

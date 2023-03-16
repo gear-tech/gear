@@ -35,4 +35,3 @@ mod wasm {
 
 pub const SEND_REPLY: &[u8] = b"send";
 pub const REPLY_REPLY: &[u8] = b"reply";
-pub const SENT_VALUE: u128 = 1_000_000;

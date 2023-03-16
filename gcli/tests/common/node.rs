@@ -48,8 +48,8 @@ impl Node {
             &port_string,
             "--tmp",
             "--chain=vara-dev",
-            "--validator",
             "--alice",
+            "--reserved-only",
         ];
         let ps = Command::new(env::bin("gear"))
             .args(args)

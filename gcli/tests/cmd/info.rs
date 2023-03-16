@@ -19,6 +19,7 @@
 //! Integration tests for command `deploy`
 use crate::common::{self, logs, traits::Convert, Result, ALICE_SS58_ADDRESS};
 
+#[cfg(not(feature = "vara-testing"))]
 const EXPECTED_BALANCE: &str = r#"
 AccountInfo {
     nonce: 0,
@@ -34,10 +35,26 @@ AccountInfo {
 }
 "#;
 
+#[cfg(feature = "vara-testing")]
+const EXPECTED_BALANCE: &str = r#"
+AccountInfo {
+    nonce: 0,
+    consumers: 0,
+    providers: 1,
+    sufficients: 0,
+    data: AccountData {
+        free: 1000000000000000000,
+        reserved: 0,
+        misc_frozen: 0,
+        fee_frozen: 0,
+    },
+}
+"#;
+
 const EXPECTED_MAILBOX: &str = r#"
     destination: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
     payload: "0x",
-    value: 1000000,
+    value: 0,
     details: None,
     interval: Interval {
         start: 3,

@@ -77,8 +77,8 @@ pub async fn create_messager() -> Result<Node> {
         &messager,
         "0x",
         "0x",
+        "20000000000",
         "0",
-        "10000000000",
     ])?;
 
     Ok(node)
