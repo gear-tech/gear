@@ -898,6 +898,17 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_reply_commit_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reply_commit_per_kb(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_reply_push {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -926,6 +937,17 @@ benchmarks! {
         let r in 0 .. 1;
         let mut res = None;
         let exec = Benches::<T>::gr_reservation_reply_commit(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_reply_commit_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_reply_commit_per_kb(n)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1383,6 +1405,22 @@ benchmarks! {
         sbox.invoke();
     }
 
+     // w_i64const = w_bench - w_call
+     instr_call_const {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            aux_body: Some(body::plain(vec![Instruction::I64Const(0x7ffffffff3ffffff), Instruction::End])),
+            aux_res: Some(ValueType::I64),
+            handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
+                Instruction::Call(OFFSET_AUX),
+                Instruction::Drop,
+            ])),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
     // w_call = w_bench
     instr_call {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
@@ -1396,22 +1434,6 @@ benchmarks! {
     }: {
         sbox.invoke();
     }
-
-     // w_i64const = w_bench - w_call
-     instr_call_const {
-         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-             aux_body: Some(body::plain(vec![Instruction::I64Const(0x7ffffffff3ffffff), Instruction::End])),
-             aux_res: Some(ValueType::I64),
-             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
-                 Instruction::Call(OFFSET_AUX),
-                 Instruction::Drop,
-             ])),
-             .. Default::default()
-         }));
-     }: {
-         sbox.invoke();
-     }
 
     // w_call_indirect = w_bench
     instr_call_indirect {
@@ -1451,6 +1473,24 @@ benchmarks! {
                 num_elements,
                 function_index: OFFSET_AUX,
             }),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_per_local = w_bench
+    instr_call_per_local {
+        let l in 0 .. T::Schedule::get().limits.locals;
+        let mut aux_body = body::plain(vec![
+            Instruction::End,
+        ]);
+        body::inject_locals(&mut aux_body, l);
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            aux_body: Some(aux_body),
+            handle_body: Some(body::repeated(INSTR_BENCHMARK_BATCH_SIZE, &[
+                Instruction::Call(2), // call aux
+            ])),
             .. Default::default()
         }));
     }: {
