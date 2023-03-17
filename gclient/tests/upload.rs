@@ -115,3 +115,95 @@ async fn alloc_zero_pages() -> anyhow::Result<()> {
     let codes = vec![wat::parse_str(wat_code).unwrap()];
     upload_programs_and_check(&api, codes, Some(Duration::from_secs(5))).await
 }
+
+#[tokio::test]
+async fn get_mailbox() -> anyhow::Result<()> {
+    // Creating gear api.
+    //
+    // By default, login as Alice, than re-login as Bob.
+    let node = Node::try_from_path("../target/release/gear")?;
+    let api = GearApi::node(&node).await?.clone().with("//Bob")?;
+
+    // Subscribe to events
+    let mut listener = api.subscribe().await?;
+
+    // Check that blocks are still running
+    assert!(listener.blocks_running().await?);
+
+    let wat_code = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (import "env" "gr_reply_push" (func $reply_push (param i32 i32 i32)))
+        (import "env" "gr_reply_commit" (func $reply_commit (param i32 i32 i32)))
+        (export "init" (func $init))
+        (export "handle" (func $handle))
+        (func $init)
+        (func $handle
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+
+            ;; sending commit
+            (call $reply_commit (i32.const 10) (i32.const 0) (i32.const 200))
+        )
+        (data (i32.const 0) "PONG")
+    )"#;
+
+    let code = wat::parse_str(wat_code).unwrap();
+
+    // Calculate gas amount needed for initialization
+    let gas_info = api
+        .calculate_upload_gas(None, code.clone(), vec![], 0, true)
+        .await?;
+
+    // Upload and init the program
+    let (message_id, program_id, _hash) = api
+        .upload_program_bytes(
+            code,
+            gclient::now_micros().to_le_bytes(),
+            vec![],
+            gas_info.min_limit,
+            0,
+        )
+        .await?;
+
+    assert!(listener.message_processed(message_id).await?.succeed());
+
+    // Calculate gas amount needed for handling the message
+    let gas_info = api
+        .calculate_handle_gas(None, program_id, vec![], 0, true)
+        .await?;
+
+    let messages = vec![(program_id, vec![], gas_info.min_limit * 10, 0); 5];
+
+    let (messages, _hash) = api.send_message_bytes_batch(messages).await?;
+
+    let (message_id, _hash) = messages.last().unwrap().as_ref().unwrap();
+
+    assert!(listener.message_processed(*message_id).await?.succeed());
+
+    let mailbox = api.get_mailbox_messages(15).await?;
+
+    // Check that all messages is in mailbox
+    assert_eq!(mailbox.len(), 5);
+
+    for msg in mailbox {
+        assert_eq!(msg.0.payload().len(), 1000 * 1024); // 1MB payload
+        assert!(msg.0.payload().starts_with(b"PONG"));
+    }
+
+    Ok(())
+}

@@ -89,7 +89,7 @@ impl Info {
         let mails = signer
             .api()
             .mailbox(
-                AccountId32::from_ss58check(address).map_err(|_| Error::InvalidPublic)?,
+                Some(AccountId32::from_ss58check(address).map_err(|_| Error::InvalidPublic)?),
                 count,
             )
             .await?;

@@ -723,6 +723,36 @@ where
         Self::prepare_handle(code, 10000000, err_len_ptrs)
     }
 
+    pub fn gr_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let payload_offset = 1;
+        let payload_len = n * 1024;
+
+        let err_mid_offset = payload_offset + payload_len;
+        let err_len_ptrs = Self::err_len_ptrs(1, err_mid_offset);
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Reply],
+            handle_body: Some(body::plain(vec![
+                // payload ptr
+                Instruction::I32Const(payload_offset as i32),
+                // payload len
+                Instruction::I32Const(payload_len as i32),
+                // value ptr
+                Instruction::I32Const(payload_offset as i32),
+                // delay
+                Instruction::I32Const(10),
+                // err_mid ptr
+                Instruction::I32Const(err_mid_offset as i32),
+                // CALL Reply
+                Instruction::Call(0),
+                Instruction::End,
+            ])),
+            ..Default::default()
+        });
+        Self::prepare_handle(code, 10000000, err_len_ptrs)
+    }
+
     pub fn gr_reply_push(r: u32) -> Result<Exec<T>, &'static str> {
         let payload_offset = 1;
         let payload_len = 100;
@@ -820,6 +850,76 @@ where
         let program_id = ProgramId::from_origin(instance.addr);
         ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
             for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
+        .unwrap();
+
+        utils::prepare_exec::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(program_id),
+            vec![],
+            err_len_ptrs,
+            Default::default(),
+        )
+    }
+
+    pub fn gr_reservation_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let payload_offset = 1;
+        let payload_len = n as i32 * 1024;
+        let r = 1;
+
+        let rid_value_offset = 1;
+
+        let rid_values = (0..r)
+            .flat_map(|i| {
+                let mut bytes = [0; 32 + 16];
+                bytes[..32].copy_from_slice(ReservationId::from(i as u64).as_ref());
+                bytes.to_vec()
+            })
+            .collect::<Vec<_>>();
+
+        let err_mid_offset = rid_value_offset + rid_values.len() as u32;
+        let err_len_ptrs = Self::err_len_ptrs(1, err_mid_offset);
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::ReservationReply],
+            data_segments: vec![DataSegment {
+                offset: rid_value_offset,
+                value: rid_values,
+            }],
+            handle_body: Some(body::plain(vec![
+                // rid_value ptr
+                Instruction::I32Const(rid_value_offset as i32),
+                // payload ptr
+                Instruction::I32Const(payload_offset),
+                // payload len
+                Instruction::I32Const(payload_len),
+                // delay
+                Instruction::I32Const(10),
+                // err_mid ptr
+                Instruction::I32Const(err_mid_offset as i32),
+                // CALL ReservationReply
+                Instruction::Call(0),
+                Instruction::End,
+            ])),
+            ..Default::default()
+        });
+
+        let instance = Program::<T>::new(code, vec![])?;
+
+        // insert gas reservation slots
+        let program_id = ProgramId::from_origin(instance.addr);
+        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
+            for x in 0..API_BENCHMARK_BATCH_SIZE {
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),
                     GasReservationSlot {

@@ -1014,12 +1014,12 @@ pub mod pallet {
                 reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
                 write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-                write_per_byte_cost: schedule.db_write_per_byte,
-                read_per_byte_cost: schedule.db_read_per_byte,
-                module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
+                write_per_byte_cost: schedule.db_write_per_byte.ref_time(),
+                read_per_byte_cost: schedule.db_read_per_byte.ref_time(),
+                module_instantiation_byte_cost: schedule.module_instantiation_per_byte.ref_time(),
                 max_reservations: T::ReservationsLimit::get(),
-                code_instrumentation_cost: schedule.code_instrumentation_cost,
-                code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost,
+                code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
+                code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
             }
         }
 

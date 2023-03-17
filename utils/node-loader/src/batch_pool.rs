@@ -7,7 +7,7 @@ use api::GearApiFacade;
 use context::Context;
 use futures::{stream::FuturesUnordered, Future, StreamExt};
 use gclient::{Error as GClientError, EventProcessor, GearApi, Result as GClientResult};
-use gear_call_gen::CallGenRng;
+use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{MessageId, ProgramId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
 use primitive_types::H256;
@@ -19,6 +19,8 @@ use std::{
     time::Duration,
 };
 use tracing::instrument;
+
+use self::report::MailboxReport;
 
 mod api;
 mod context;
@@ -56,9 +58,9 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         let renew_balance_task =
             create_renew_balance_task(api.into_gear_api(), params.root).await?;
 
+        // TODO 1876 separately spawned tasks
         let run_result = tokio::select! {
             r = run_pool_task => r,
-            // TODO 1876 spawn a task
             r = inspect_crash_task => r,
             r = renew_balance_task => r,
         };
@@ -142,14 +144,16 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> 
     // See: https://paritytech.github.io/substrate/master/src/pallet_utility/lib.rs.html#452-468
     match batch {
         Batch::UploadProgram(args) => {
-            let (ex_results, block_hash) = api.upload_program_batch(args).await?;
-            let messages = process_ex_results(ex_results);
-            process_events(api.into_gear_api(), messages, block_hash, true).await
+            let (extrinsic_results, block_hash) = api.upload_program_batch(args).await?;
+            let messages = process_ex_results(extrinsic_results);
+            process_events(api.into_gear_api(), messages, block_hash).await
         }
         Batch::UploadCode(args) => {
-            let (ex_results, _) = api.upload_code_batch(args).await?;
-            let ex_results = ex_results.into_iter().map(|r| r.map(|code| (code, ())));
-            let codes = process_ex_results(ex_results);
+            let (extrinsic_results, _) = api.upload_code_batch(args).await?;
+            let extrinsic_results = extrinsic_results
+                .into_iter()
+                .map(|r| r.map(|code| (code, ())));
+            let codes = process_ex_results(extrinsic_results);
             for (code_id, (_, call_id)) in codes.iter() {
                 tracing::debug!(
                     "[Call with id: {call_id}]: Successfully deployed code with id '{code_id}'"
@@ -162,14 +166,48 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> 
             })
         }
         Batch::SendMessage(args) => {
-            let (ex_results, block_hash) = api.send_message_batch(args).await?;
-            let messages = process_ex_results(ex_results);
-            process_events(api.into_gear_api(), messages, block_hash, false).await
+            let (extrinsic_results, block_hash) = api.send_message_batch(args).await?;
+            let messages = process_ex_results(extrinsic_results);
+            process_events(api.into_gear_api(), messages, block_hash).await
         }
         Batch::CreateProgram(args) => {
-            let (ex_results, block_hash) = api.create_program_batch(args).await?;
-            let messages = process_ex_results(ex_results);
-            process_events(api.into_gear_api(), messages, block_hash, true).await
+            let (extrinsic_results, block_hash) = api.create_program_batch(args).await?;
+            let messages = process_ex_results(extrinsic_results);
+            process_events(api.into_gear_api(), messages, block_hash).await
+        }
+        Batch::SendReply(args) => {
+            let removed_from_mailbox = args.clone().into_iter().map(|SendReplyArgs((mid, ..))| mid);
+
+            let (extrinsic_results, block_hash) = api.send_reply_batch(args).await?;
+            let messages = process_ex_results(extrinsic_results);
+            process_events(api.into_gear_api(), messages, block_hash)
+                .await
+                .map(|mut report| {
+                    report.mailbox_data.append_removed(removed_from_mailbox);
+                    report
+                })
+        }
+        Batch::ClaimValue(args) => {
+            let removed_from_mailbox = args.clone().into_iter().map(|ClaimValueArgs(mid)| mid);
+
+            let (extrinsic_results, _) = api.claim_value_batch(args).await?;
+            let extrinsic_results = extrinsic_results
+                .into_iter()
+                .zip(removed_from_mailbox.clone())
+                .map(|(r, mid)| r.map(|value| (mid, value)));
+            for (mid, (value, call_id)) in process_ex_results(extrinsic_results) {
+                tracing::debug!(
+                    "[Call with id: {call_id}]: Successfully claimed {value} amount from message {mid}."
+                );
+            }
+
+            Ok(Report {
+                mailbox_data: MailboxReport {
+                    removed: BTreeSet::from_iter(removed_from_mailbox),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
         }
     }
 }
@@ -197,17 +235,27 @@ async fn process_events(
     api: GearApi,
     mut messages: BTreeMap<MessageId, (ProgramId, usize)>,
     block_hash: H256,
-    collect_programs: bool,
 ) -> Result<Report> {
     let now = gear_utils::now_millis();
     // States what amount of blocks we should wait for taking all the events about successful `messages` execution
     let wait_for_events_blocks = 10;
-    // Multiply on five to be 100% sure if no events occurred, than node is crashed
+    // Multiply on five to be 100% sure if no events occurred, then node is crashed
     let wait_for_events_millisec = api.expected_block_time()? as usize * wait_for_events_blocks * 5;
+
+    let mut mailbox_added = BTreeSet::new();
 
     let results = loop {
         let r = match api.events_since(block_hash, wait_for_events_blocks).await {
-            Ok(mut v) => v.err_or_succeed_batch(messages.keys().copied()).await,
+            Ok(mut v) => {
+                // `gclient::EventProcessor` implementation on `IntoIterator` implementor clones `self` without mutating
+                // it, although `proc` and `proc_many` take mutable reference on `self`.
+                let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &mut v)
+                    .await
+                    .expect("always valid by definition");
+                mailbox_added.append(&mut mailbox_from_events);
+
+                v.err_or_succeed_batch(messages.keys().copied()).await
+            }
             Err(e) => Err(e),
         };
 
@@ -223,7 +271,7 @@ async fn process_events(
         }
     };
 
-    let mut program_ids = collect_programs.then(BTreeSet::new);
+    let mut program_ids = BTreeSet::new();
 
     for (mid, maybe_err) in results? {
         let (pid, call_id) = messages.remove(&mid).expect("Infallible");
@@ -232,19 +280,20 @@ async fn process_events(
             tracing::debug!("[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended with a trap: '{expl}'");
         } else {
             tracing::debug!("[Call with id: {call_id}]: {mid:#.2} successfully executed within program '{pid:#.2}'");
-            program_ids.as_mut().map(|ids| ids.insert(pid));
+            program_ids.insert(pid);
         }
     }
 
     Ok(Report {
-        program_ids: program_ids.unwrap_or_default(),
+        program_ids,
+        mailbox_data: mailbox_added.into(),
         ..Default::default()
     })
 }
 
 async fn inspect_crash_events(api: GearApi) -> Result<()> {
     let mut event_listener = api.subscribe().await?;
-    // Error means either event is not found an can't be found
+    // Error means either event is not found and can't be found
     // in the listener, or some other error during event
     // parsing occurred.
     let crash_block_hash = event_listener.queue_processing_reverted().await?;
