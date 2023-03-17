@@ -1077,12 +1077,12 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.1.8"
+version = "4.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3d7ae14b20b94cb02149ed21a86c423859cbe18dc7ed69845cace50e52b40a5"
+checksum = "9a9d6ada83c1edcce028902ea27dd929069c70df4c7600b131b4d9a1ad2879cc"
 dependencies = [
  "bitflags",
- "clap_derive 4.1.8",
+ "clap_derive 4.1.9",
  "clap_lex 0.3.2",
  "is-terminal",
  "once_cell",
@@ -1105,9 +1105,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.1.8"
+version = "4.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44bec8e5c9d09e439c4335b1af0abaab56dcf3b94999a936e1bb47b9134288f0"
+checksum = "fddf67631444a3a3e3e5ac51c36a5e01335302de677bd78759eaa90ab1f46644"
 dependencies = [
  "heck 0.4.1",
  "proc-macro-error",
@@ -2957,7 +2957,7 @@ dependencies = [
  "Inflector",
  "array-bytes",
  "chrono",
- "clap 4.1.8",
+ "clap 4.1.9",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -3399,7 +3399,7 @@ dependencies = [
  "anyhow",
  "base64 0.21.0",
  "cfg-if",
- "clap 4.1.8",
+ "clap 4.1.9",
  "color-eyre",
  "demo-meta",
  "demo-waiter",
@@ -3570,7 +3570,7 @@ dependencies = [
 name = "gear-bags-thresholds"
 version = "1.0.0"
 dependencies = [
- "clap 4.1.8",
+ "clap 4.1.9",
  "generate-bags",
  "vara-runtime",
 ]
@@ -3594,7 +3594,7 @@ dependencies = [
 name = "gear-cli"
 version = "0.1.1"
 dependencies = [
- "clap 4.1.8",
+ "clap 4.1.9",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -3905,7 +3905,7 @@ name = "gear-runtime-test-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.1.8",
+ "clap 4.1.9",
  "colored",
  "frame-support",
  "frame-system",
@@ -4022,7 +4022,7 @@ name = "gear-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.1.8",
+ "clap 4.1.9",
  "colored",
  "derive_more",
  "env_logger",
@@ -4058,7 +4058,7 @@ dependencies = [
 name = "gear-validator-checks"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.8",
+ "clap 4.1.9",
  "env_logger",
  "futures-util",
  "gsdk",
@@ -8633,7 +8633,7 @@ dependencies = [
 name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.8",
+ "clap 4.1.9",
  "frame-support",
  "gear-runtime",
  "junit-common",
@@ -9105,7 +9105,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0
 dependencies = [
  "array-bytes",
  "chrono",
- "clap 4.1.8",
+ "clap 4.1.9",
  "fdlimit",
  "futures",
  "libp2p 0.50.1",
@@ -9882,7 +9882,7 @@ name = "sc-storage-monitor"
 version = "0.1.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#033982f0efa8509b9d65531e0e6e1cf35b3805fc"
 dependencies = [
- "clap 4.1.8",
+ "clap 4.1.9",
  "fs4",
  "futures",
  "log",
@@ -12303,7 +12303,7 @@ name = "try-runtime-cli"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#033982f0efa8509b9d65531e0e6e1cf35b3805fc"
 dependencies = [
- "clap 4.1.8",
+ "clap 4.1.9",
  "frame-remote-externalities",
  "frame-try-runtime",
  "hex",
@@ -12858,7 +12858,7 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.8",
+ "clap 4.1.9",
  "env_logger",
  "gear-wasm-builder",
  "log",
