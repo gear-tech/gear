@@ -7271,6 +7271,7 @@ dependencies = [
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-treasury",
+ "pallet-utility",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
