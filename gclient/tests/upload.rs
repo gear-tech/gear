@@ -118,9 +118,12 @@ async fn alloc_zero_pages() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn get_mailbox() -> anyhow::Result<()> {
-    // Create API instance
-    let api = GearApi::dev().await?;
-
+    // Creating gear api.
+    //
+    // By default, login as Alice, than re-login as Bob.
+    let node = Node::try_from_path("../target/release/gear")?;
+    let api = GearApi::node(&node).await?.clone().with("//Bob")?;
+    
     // Subscribe to events
     let mut listener = api.subscribe().await?;
 
