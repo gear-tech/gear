@@ -150,7 +150,7 @@ pub async fn capture_mailbox_messages<T: EventProcessor>(
     //
     // Better solution after #1876
     for mid in mailbox_messages {
-        if api.get_from_mailbox(mid).await?.is_some() {
+        if api.get_mailbox_message(mid).await?.is_some() {
             ret.insert(mid);
         }
     }

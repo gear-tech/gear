@@ -243,7 +243,7 @@ impl Api {
 impl Api {
     /// Get a message identified by `message_id` from the `account_id`'s
     /// mailbox.
-    pub async fn get_from_account_mailbox(
+    pub async fn get_mailbox_account_message(
         &self,
         account_id: AccountId32,
         message_id: impl AsRef<[u8]>,
@@ -261,21 +261,24 @@ impl Api {
         Ok(data.map(|(m, i)| (m, i)))
     }
 
-    /// Get mailbox from address
+    /// Get all mailbox messages or from the provided `address`.
     pub async fn mailbox(
         &self,
-        address: AccountId32,
+        account_id: Option<AccountId32>,
         count: u32,
     ) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
         let storage = self.storage().at(None).await?;
         let mut query_key =
             storage_address_root_bytes(&subxt::dynamic::storage_root("GearMessenger", "Mailbox"));
-        StorageMapKey::new(&address, StorageHasher::Identity).to_bytes(&mut query_key);
+
+        if let Some(account_id) = account_id {
+            StorageMapKey::new(&account_id, StorageHasher::Identity).to_bytes(&mut query_key);
+        }
 
         let keys = storage.fetch_keys(&query_key, count, None).await?;
 
         let mut mailbox: Vec<(StoredMessage, Interval<u32>)> = vec![];
-        for key in keys.into_iter() {
+        for key in keys {
             if let Some(storage_data) = storage.fetch_raw(&key.0).await? {
                 if let Ok(value) = <(StoredMessage, Interval<u32>)>::decode(&mut &storage_data[..])
                 {
