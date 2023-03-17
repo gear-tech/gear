@@ -52,6 +52,9 @@ frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tec
 frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", optional = true }
 try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", optional = true }
 
+# Program CLI
+gcli = { path = "../../gcli", optional = true }
+
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 
@@ -87,3 +90,4 @@ try-runtime = [
 	"try-runtime-cli/try-runtime",
 ]
 runtime-test = ["gear-runtime-test-cli"]
+cli = [ "gcli" ]
