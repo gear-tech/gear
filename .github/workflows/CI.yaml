@@ -125,230 +125,230 @@ jobs:
           mv /tmp/*.tar /root/cache/
 
 
-  # build:
-  #   # needs: spec_version
-  #   runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
-  #   env:
-  #     LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
-  #     RUSTUP_HOME: /tmp/rustup_home
-  #   steps:
-  #     - name: Cancel Previous Runs
-  #       if: ${{ github.event_name == 'pull_request' }}
-  #       uses: styfle/cancel-workflow-action@0.11.0
-  #       with:
-  #         access_token: ${{ github.token }}
+  build:
+    # needs: spec_version
+    runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
+    env:
+      LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+      - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
 
-  #     - name: "ACTIONS: Checkout"
-  #       uses: actions/checkout@v3
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v3
 
-  #     - name: "Install: Set cargo path"
-  #       run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-  #     - name: "Install: Nightly toolchain"
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: nightly
-  #         target: wasm32-unknown-unknown
-  #         components: llvm-tools-preview
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+          components: llvm-tools-preview
 
-  #     - name: "Install: Show specific nightly version"
-  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-  #       run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+      - name: "Install: Show specific nightly version"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
 
-  #     - name: "Install: Specific nightly toolchain"
-  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-  #         target: wasm32-unknown-unknown
-  #         components: llvm-tools-preview
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+          target: wasm32-unknown-unknown
+          components: llvm-tools-preview
 
-  #     - name: "Install: Pin to specific nightly toolchain"
-  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-  #       run: |
-  #         rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-  #         ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: |
+          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
 
-  #     - name: "Install: Node.js"
-  #       uses: actions/setup-node@v3
-  #       with:
-  #         node-version: "16"
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v3
+        with:
+          node-version: "16"
 
-  #     - name: "Show: Versioning"
-  #       run: ./scripts/gear.sh show
+      - name: "Show: Versioning"
+        run: ./scripts/gear.sh show
 
-  #     - name: "Install: Node.js packages"
-  #       run: ./scripts/gear.sh init js
+      - name: "Install: Node.js packages"
+        run: ./scripts/gear.sh init js
 
-  #     - name: "Install: Build deps"
-  #       run: |
-  #         sudo apt update
-  #         sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
-  #         sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-  #         sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
-  #         sudo wget -c https://github.com/mozilla/sccache/releases/download/v0.3.3/sccache-v0.3.3-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
-  #         sudo cp sccache-v0.3.3-x86_64-unknown-linux-musl/sccache /usr/bin/
-  #         sudo chmod +x /usr/bin/sccache
-  #         mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
+      - name: "Install: Build deps"
+        run: |
+          sudo apt update
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/mozilla/sccache/releases/download/v0.3.3/sccache-v0.3.3-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+          sudo cp sccache-v0.3.3-x86_64-unknown-linux-musl/sccache /usr/bin/
+          sudo chmod +x /usr/bin/sccache
+          mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
 
-  #     - name: "Install: grcov"
-  #       run: curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
+      - name: "Install: grcov"
+        run: curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
 
-  #     - name: "Install: rust-covfix"
-  #       run: |
-  #         curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
-  #         mv rust-covfix-linux-x86_64/rust-covfix ./
+      - name: "Install: rust-covfix"
+        run: |
+          curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
+          mv rust-covfix-linux-x86_64/rust-covfix ./
 
-  #     - name: "Cache: Unpack"
-  #       if: ${{ github.event_name == 'pull_request' }}
-  #       continue-on-error: true
-  #       run: |
-  #         [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; }
-  #         [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; }
+      - name: "Cache: Unpack"
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        run: |
+          [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; }
+          [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; }
 
-  #     - name: "Build: Examples (WASM)"
-  #       run: ./scripts/gear.sh build examples --locked
+      - name: "Build: Examples (WASM)"
+        run: ./scripts/gear.sh build examples --locked
 
-  #     - name: "ACTIONS: Setup environment variable"
-  #       if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-  #       run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
+      - name: "ACTIONS: Setup environment variable"
+        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+        run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
 
-  #     - name: "Build: Gear"
-  #       run: ./scripts/gear.sh build gear --locked --release
+      - name: "Build: Gear"
+        run: ./scripts/gear.sh build gear --locked --release
 
-  #     - name: "Build: WAT examples"
-  #       run: ./scripts/gear.sh build wat-examples
+      - name: "Build: WAT examples"
+        run: ./scripts/gear.sh build wat-examples
 
-  #     - name: Check runtime imports
-  #       run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.wasm
+      - name: Check runtime imports
+        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.wasm
 
-  #     - name: "Build: Split examples by .opt and .meta"
-  #       run: ./scripts/gear.sh build examples-proc
+      - name: "Build: Split examples by .opt and .meta"
+        run: ./scripts/gear.sh build examples-proc
 
-  #     - name: "Test: Gear pallet tests with lazy pages"
-  #       run: |
-  #         cargo test -p pallet-gear --features=lazy-pages --release --locked
-  #         cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
-  #         cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
+      - name: "Test: Gear pallet tests with lazy pages"
+        run: |
+          cargo test -p pallet-gear --features=lazy-pages --release --locked
+          cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
+          cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
-  #     - name: "Test: Gear workspace"
-  #       run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
+      - name: "Test: Gear workspace"
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
 
-  #     - name: "Test: `gcli`"
-  #       run: ./scripts/gear.sh test gcli --release --locked
+      - name: "Test: `gcli`"
+        run: ./scripts/gear.sh test gcli --release --locked
 
-  #     - name: "Test: JS metadata"
-  #       run: ./scripts/gear.sh test js
+      - name: "Test: JS metadata"
+        run: ./scripts/gear.sh test js
 
-  #     - name: "Test: Process gear-test"
-  #       run: ./scripts/gear.sh test gtest
+      - name: "Test: Process gear-test"
+        run: ./scripts/gear.sh test gtest
 
-  #     - name: "Test: Client tests"
-  #       run: ./scripts/gear.sh test client
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client
 
-  #     - name: "Test: Process node runtime spec tests"
-  #       run: |
-  #         cargo build -p gear-cli --release --features=runtime-test
-  #         ./scripts/gear.sh test rtest gear
+      - name: "Test: Process node runtime spec tests"
+        run: |
+          cargo build -p gear-cli --release --features=runtime-test
+          ./scripts/gear.sh test rtest gear
 
-  #     - name: "Test: runtime spec tests no lazy pages"
-  #       run: |
-  #         cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
-  #         ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
+      - name: "Test: runtime spec tests no lazy pages"
+        run: |
+          cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
+          ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
 
-  #     - name: "Test: Runtime benchmarks and benchmark tests work"
-  #       run: |
-  #         cargo build -p gear-cli --release --features runtime-benchmarks
-  #         ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
-  #         ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
-  #         # check also lazy-pages benchmarks tests for native runtime
-  #         ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
+      - name: "Test: Runtime benchmarks and benchmark tests work"
+        run: |
+          cargo build -p gear-cli --release --features runtime-benchmarks
+          ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
+          # check also lazy-pages benchmarks tests for native runtime
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
 
-  #     - name: "Test: Sys-calls Wasmi integrity"
-  #       run: ./scripts/gear.sh test syscalls --release
+      - name: "Test: Sys-calls Wasmi integrity"
+        run: ./scripts/gear.sh test syscalls --release
 
-  #     - name: "Coverage: Aggregate"
-  #       if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-  #       run: >-
-  #         ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
-  #         --ignore "/*"
-  #         --ignore "examples/*"
-  #         --ignore "utils/*"
-  #         --ignore "target/*"
-  #         --ignore "gear-test/*"
-  #         --ignore "node/*"
-  #         --ignore "program/*"
-  #         --ignore "pallets/gear/src/migration.rs"
-  #         --ignore "pallets/gear/src/weights.rs"
-  #         --ignore "pallets/gear-debug/src/weights.rs"
-  #         --ignore "pallets/gear-messenger/src/migration.rs"
-  #         --ignore "pallets/gear-program/src/migration.rs"
-  #         --ignore "pallets/gear-program/src/weights/*"
-  #         --ignore "pallets/usage/src/weights.rs"
-  #         --ignore "pallets/usage/src/migration.rs"
-  #         --ignore "runtime/*"
-  #         --ignore "gcore/*"
-  #         --ignore "gstd/*"
-  #         --ignore "galloc/*"
-  #         --ignore "gtest/*"
-  #         --ignore "gclient/*"
-  #         -o ./lcov.info
+      - name: "Coverage: Aggregate"
+        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+        run: >-
+          ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
+          --ignore "/*"
+          --ignore "examples/*"
+          --ignore "utils/*"
+          --ignore "target/*"
+          --ignore "gear-test/*"
+          --ignore "node/*"
+          --ignore "program/*"
+          --ignore "pallets/gear/src/migration.rs"
+          --ignore "pallets/gear/src/weights.rs"
+          --ignore "pallets/gear-debug/src/weights.rs"
+          --ignore "pallets/gear-messenger/src/migration.rs"
+          --ignore "pallets/gear-program/src/migration.rs"
+          --ignore "pallets/gear-program/src/weights/*"
+          --ignore "pallets/usage/src/weights.rs"
+          --ignore "pallets/usage/src/migration.rs"
+          --ignore "runtime/*"
+          --ignore "gcore/*"
+          --ignore "gstd/*"
+          --ignore "galloc/*"
+          --ignore "gtest/*"
+          --ignore "gclient/*"
+          -o ./lcov.info
 
-  #     - name: "Coverage: Fix report"
-  #       if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-  #       run: ./rust-covfix -o lcov.info lcov.info
+      - name: "Coverage: Fix report"
+        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+        run: ./rust-covfix -o lcov.info lcov.info
 
-  #     - name: "Coverage: Publish"
-  #       if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-  #       uses: codecov/codecov-action@v1
-  #       with:
-  #         file: ./lcov.info
+      - name: "Coverage: Publish"
+        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+        uses: codecov/codecov-action@v1
+        with:
+          file: ./lcov.info
 
-  #     - name: "Build: Production binaries"
-  #       if: github.event_name == 'push'
-  #       run: cargo build -p gear-cli --profile production
+      - name: "Build: Production binaries"
+        if: github.event_name == 'push'
+        run: cargo build -p gear-cli --profile production
 
-  #     - name: "Cache: Pack"
-  #       if: ${{ github.event_name == 'push' }}
-  #       continue-on-error: true
-  #       run: |
-  #         tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/sccache
-  #         tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-  #         mv /tmp/*.tar /root/cache/
+      - name: "Cache: Pack"
+        if: ${{ github.event_name == 'push' }}
+        continue-on-error: true
+        run: |
+          tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/sccache
+          tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mv /tmp/*.tar /root/cache/
 
-  #     - name: "Cache: Pack to temp"
-  #       if: ${{ github.event_name == 'pull_request' }}
-  #       continue-on-error: true
-  #       run: |
-  #         tar -cf /tmp/build_cache.tar /tmp/sccache
-  #         tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-  #         mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
+      - name: "Cache: Pack to temp"
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        run: |
+          tar -cf /tmp/build_cache.tar /tmp/sccache
+          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
 
-  #     - name: Prepare artifacts
-  #       if: github.event_name == 'push'
-  #       run: |
-  #         mkdir -p artifact
-  #         cd target/wasm32-unknown-unknown/release
-  #         tar czvf ../../../artifact/examples.tar.gz *.wasm
-  #         cd ../../..
-  #         cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
-  #         cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
-  #         cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
-  #         cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
-  #         cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
-  #         cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
-  #         cp target/production/gear artifact/
-  #         cp target/release/gear-test artifact/
-  #         cp target/release/wasm-proc artifact/
-  #         strip artifact/gear || true
-  #         strip artifact/gear-test || true
-  #         strip artifact/wasm-proc || true
+      - name: Prepare artifacts
+        if: github.event_name == 'push'
+        run: |
+          mkdir -p artifact
+          cd target/wasm32-unknown-unknown/release
+          tar czvf ../../../artifact/examples.tar.gz *.wasm
+          cd ../../..
+          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
+          cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
+          cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
+          cp target/production/gear artifact/
+          cp target/release/gear-test artifact/
+          cp target/release/wasm-proc artifact/
+          strip artifact/gear || true
+          strip artifact/gear-test || true
+          strip artifact/wasm-proc || true
 
-  #     - name: Upload artifacts
-  #       if: github.event_name == 'push'
-  #       uses: actions/upload-artifact@v3
-  #       with:
-  #         path: artifact
+      - name: Upload artifacts
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v3
+        with:
+          path: artifact
 
 
   build-win-native:
