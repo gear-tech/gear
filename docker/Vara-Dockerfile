@@ -7,7 +7,7 @@ WORKDIR /gear
 COPY . /gear
 
 # Install dependecies
-RUN yum update -y && yum install -y amazon-linux-extras clang gcc git gzip make tar wget unzip
+RUN yum update -y && yum install -y clang gcc git gzip make tar wget unzip
 
 ARG PROTOC_ZIP=protoc-3.14.0-linux-x86_64.zip
 RUN curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.14.0/$PROTOC_ZIP
