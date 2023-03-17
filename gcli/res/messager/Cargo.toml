@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-gstd = { path = "../../../gstd", features = [ "debug" ] }
+gstd = { path = "../../../gstd" }
 
 [build-dependencies]
 gear-wasm-builder = { path = "../../../utils/wasm-builder" }
