@@ -1,4 +1,4 @@
-FROM amazonlinux:latest as builder
+FROM amazonlinux:2023 as builder
 LABEL description="This is the build stage for Gear. Here we create the binary."
 
 ARG PROFILE=production
@@ -37,7 +37,7 @@ RUN cargo build -p gear-cli --profile $PROFILE
 
 # ===== SECOND STAGE ======
 
-FROM debian:stable-slim
+FROM ubuntu:22.10
 MAINTAINER GEAR
 LABEL description="This is the 2nd stage: a very small image where we copy the Gear binary."
 ARG PROFILE=production
