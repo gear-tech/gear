@@ -120,6 +120,7 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
 fn fuzzer_config() -> GearProgGenConfig {
     let mut config = GearProgGenConfig::new_normal();
     config.remove_recursion = (1, 1).into();
+    config.call_indirect_enabled = false;
 
     config
 }
