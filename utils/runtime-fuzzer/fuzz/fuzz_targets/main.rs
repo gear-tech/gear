@@ -52,7 +52,7 @@ fn dump_seed(seed: u64) -> Result<(), String> {
         );
         fs::create_dir_all(&fuzzing_seeds_dir)
             .map(|_| fuzzing_seeds_dir)
-            .expect("internal error: can't create file")
+            .expect("internal error: can't create dir")
     });
     let fuzzing_seeds_file = format!("{fuzzing_seeds_dir}/{SEEDS_STORE_FILE}");
 
