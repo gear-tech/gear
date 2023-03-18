@@ -31,7 +31,7 @@ pub struct Node {
 }
 
 impl Node {
-    /// node websocket addr
+    /// Node websocket addr.
     pub fn ws(&self) -> String {
         format!("ws://{}:{}", port::LOCALHOST, self.port)
     }
