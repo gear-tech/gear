@@ -18,13 +18,13 @@
 
 #![no_main]
 
+use chrono::NaiveDateTime;
 use libfuzzer_sys::fuzz_target;
+use once_cell::sync::OnceCell;
 use std::{
     fs::{self, OpenOptions},
     io::Write,
 };
-use chrono::NaiveDateTime;
-use once_cell::sync::OnceCell;
 
 const SEEDS_STORE_DIR: &str = "fuzzing-seeds-dir";
 const SEEDS_STORE_FILE: &str = "fuzzing-seeds";
@@ -46,7 +46,10 @@ fn dump_seed(seed: u64) -> Result<(), String> {
     let fuzzing_seeds_dir = RUN_DIR.get_or_init(|| {
         let date_time = NaiveDateTime::from_timestamp_millis(gear_utils::now_millis() as i64)
             .expect("timestamp is in i64 range");
-        let fuzzing_seeds_dir = format!("{SEEDS_STORE_DIR}-{}", date_time.format("%Y-%m-%dT%H:%M:%S"));
+        let fuzzing_seeds_dir = format!(
+            "{SEEDS_STORE_DIR}-{}",
+            date_time.format("%Y-%m-%dT%H:%M:%S")
+        );
         fs::create_dir_all(&fuzzing_seeds_dir)
             .map(|_| fuzzing_seeds_dir)
             .expect("internal error: can't create file")
@@ -57,8 +60,6 @@ fn dump_seed(seed: u64) -> Result<(), String> {
         .create(true)
         .append(true)
         .open(fuzzing_seeds_file)
-        .and_then(|mut file| {
-            writeln!(file, "{seed}")
-        })
+        .and_then(|mut file| writeln!(file, "{seed}"))
         .map_err(|e| e.to_string())
 }
