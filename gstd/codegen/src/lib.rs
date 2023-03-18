@@ -371,12 +371,12 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
-    let ident = function.sig.ident.clone();
+    let ident = &function.sig.ident;
 
     // Generate functions' idents.
     let (for_reply, for_reply_as) = (
-        utils::with_suffix(&function.sig.ident, "_for_reply"),
-        utils::with_suffix(&function.sig.ident, "_for_reply_as"),
+        utils::with_suffix(ident, "_for_reply"),
+        utils::with_suffix(ident, "_for_reply_as"),
     );
 
     // Generate docs.
@@ -438,7 +438,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
 
-    let ident = function.sig.ident.clone();
+    let ident = &function.sig.ident;
 
     let ident = if !attr.is_empty() {
         assert_eq!(
