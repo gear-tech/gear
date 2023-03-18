@@ -51,10 +51,24 @@ AccountInfo {
 }
 "#;
 
+#[cfg(feature = "vara-testing")]
 const EXPECTED_MAILBOX: &str = r#"
     destination: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
     payload: "0x",
     value: 0,
+    details: None,
+    interval: Interval {
+        start: 3,
+        finish: 32,
+    },
+}
+"#;
+
+#[cfg(not(feature = "vara-testing"))]
+const EXPECTED_MAILBOX: &str = r#"
+    destination: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
+    payload: "0x",
+    value: 5000,
     details: None,
     interval: Interval {
         start: 3,
@@ -79,7 +93,9 @@ async fn test_action_mailbox_works() -> Result<()> {
     let node = common::create_messager().await?;
     let output = common::gear(&["-e", &node.ws(), "info", ALICE_SS58_ADDRESS, "mailbox"])?;
 
-    assert!(output.stdout.convert().contains(EXPECTED_MAILBOX.trim()));
-
+    let stdout = output.stdout.convert();
+    if !stdout.contains(EXPECTED_MAILBOX.trim()) {
+        panic!("{stdout}")
+    }
     Ok(())
 }

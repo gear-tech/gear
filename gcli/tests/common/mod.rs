@@ -23,6 +23,8 @@ pub use self::{
 };
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
+#[cfg(not(feature = "vara-testing"))]
+use parity_scale_codec::Encode;
 use std::process::{Command, Output};
 
 pub mod env;
@@ -33,6 +35,8 @@ mod result;
 pub mod traits;
 
 pub const ALICE_SS58_ADDRESS: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
+#[cfg(not(feature = "vara-testing"))]
+pub const MESSAGER_SENT_VALUE: u128 = 5_000;
 
 /// Run binary `gear`
 pub fn gear(args: &[&str]) -> Result<Output> {
@@ -70,14 +74,31 @@ pub async fn create_messager() -> Result<Node> {
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let messager = env::wasm_bin("messager.opt.wasm");
-    let _ = gear(&[
+
+    let args = &[
         "-e",
         &node.ws(),
         "upload-program",
         &messager,
         "--gas-limit",
         "20000000000",
-    ])?;
+    ];
+
+    let _ = gear(
+        #[cfg(feature = "vara-testing")]
+        args,
+        #[cfg(not(feature = "vara-testing"))]
+        &[
+            args.to_vec(),
+            vec![
+                "--init-payload",
+                &("0x".to_owned() + &hex::encode(MESSAGER_SENT_VALUE.encode())),
+                "--value",
+                "10000000",
+            ],
+        ]
+        .concat(),
+    )?;
 
     Ok(node)
 }

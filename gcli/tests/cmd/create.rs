@@ -32,10 +32,10 @@ async fn test_command_upload_program_works() -> Result<()> {
         &env::wasm_bin("demo_meta.opt.wasm"),
     ])?;
 
-    assert!(output
-        .stderr
-        .convert()
-        .contains(logs::gear_program::EX_UPLOAD_PROGRAM));
+    let stderr = output.stderr.convert();
+    if !stderr.contains(logs::gear_program::EX_UPLOAD_PROGRAM) {
+        panic!("{stderr}")
+    }
 
     Ok(())
 }
