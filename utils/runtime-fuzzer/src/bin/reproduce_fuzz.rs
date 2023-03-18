@@ -44,12 +44,6 @@ fn main() -> Result<()> {
 
     let mut file_reader = create_file_reader(Params::from_args().path)?;
 
-    // Read and check seeds file header.
-    let header = read_seeds_file_header(&mut file_reader)?;
-    if !header.contains("Started fuzzing at") {
-        return Err(anyhow!("Invalid seeds file format"));
-    }
-
     // Read seeds and run test against all of them.
     for line in file_reader.lines() {
         let seed: u64 = line?.trim().parse()?;
@@ -66,11 +60,4 @@ fn create_file_reader(path: PathBuf) -> Result<BufReader<File>> {
     let file = File::open(path)?;
 
     Ok(BufReader::new(file))
-}
-
-fn read_seeds_file_header(file_reader: &mut BufReader<File>) -> Result<String> {
-    let mut header = String::new();
-    file_reader.read_line(&mut header)?;
-
-    Ok(header)
 }

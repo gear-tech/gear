@@ -8858,10 +8858,12 @@ dependencies = [
 name = "runtime-fuzzer-fuzz"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "env_logger",
  "gear-utils",
  "libfuzzer-sys",
  "log",
+ "once_cell",
  "runtime-fuzzer",
 ]
 
