@@ -682,8 +682,8 @@ jobs:
 
 
   build-macos-x86:
-    # if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')
-    # needs: build
+    if: ${{ always() && (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')) }}
+    needs: build
     runs-on: macos-latest
     steps:
       - name: Cancel Previous Runs
