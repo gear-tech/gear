@@ -18,6 +18,8 @@
 
 //! Base identifiers for messaging primitives.
 
+use core::convert::TryInto;
+
 use crate::message::StatusCode;
 use alloc::vec::Vec;
 use blake2_rfc::blake2b;
@@ -27,12 +29,12 @@ type Hash = [u8; HASH_LENGTH];
 
 /// Creates a unique identifier by passing given argument to blake2b hash-function.
 fn hash(argument: &[u8]) -> Hash {
-    let mut arr: Hash = Default::default();
-
     let blake2b_hash = blake2b::blake2b(HASH_LENGTH, &[], argument);
-    arr[..].copy_from_slice(blake2b_hash.as_bytes());
 
-    arr
+    blake2b_hash
+        .as_bytes()
+        .try_into()
+        .expect("we set hash len; qed")
 }
 
 /// Declares data type for storing any kind of id for gear-core,
@@ -92,14 +94,7 @@ macro_rules! declare_id {
 
         impl From<&[u8]> for $name {
             fn from(slice: &[u8]) -> Self {
-                if slice.len() != HASH_LENGTH {
-                    panic!("Identifier must be 32 length");
-                }
-
-                let mut arr: Hash = Default::default();
-                arr[..].copy_from_slice(slice);
-
-                Self(arr)
+                slice.try_into().expect("Identifier must be 32 length")
             }
         }
 
