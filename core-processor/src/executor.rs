@@ -32,7 +32,7 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     ActorTerminationReason, BackendExt, BackendExtError, BackendReport, Environment,
     EnvironmentExecutionError, TerminationReason, TrapExplanation,
 };
@@ -135,7 +135,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     pages_data: &mut BTreeMap<GearPage, PageBuf>,
     static_pages: WasmPage,
     stack_end: Option<u32>,
-    globals_config: GlobalsConfig,
+    globals_config: GlobalsAccessConfig,
     lazy_pages_weights: LazyPagesWeights,
 ) -> Result<(), PrepareMemoryError> {
     let stack_end = if let Some(stack_end) = stack_end {
@@ -370,11 +370,7 @@ where
             if E::Ext::LAZY_PAGES_ENABLED {
                 E::Ext::lazy_pages_post_execution_actions(&mut memory);
 
-                let Some(status) = E::Ext::lazy_pages_status() else {
-                    unreachable!("Lazy page status must be set before contract execution");
-                };
-
-                match status {
+                match E::Ext::lazy_pages_status() {
                     Status::Normal => (),
                     Status::GasLimitExceeded => {
                         termination =
@@ -637,14 +633,14 @@ mod tests {
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
             _stack_end: Option<WasmPage>,
-            _globals_config: GlobalsConfig,
+            _globals_config: GlobalsAccessConfig,
             _lazy_pages_weights: LazyPagesWeights,
         ) {
         }
 
         fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
-        fn lazy_pages_status() -> Option<Status> {
-            None
+        fn lazy_pages_status() -> Status {
+            Status::Normal
         }
     }
 
@@ -659,14 +655,14 @@ mod tests {
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
             _stack_end: Option<WasmPage>,
-            _globals_config: GlobalsConfig,
+            _globals_config: GlobalsAccessConfig,
             _lazy_pages_weights: LazyPagesWeights,
         ) {
         }
 
         fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
-        fn lazy_pages_status() -> Option<Status> {
-            None
+        fn lazy_pages_status() -> Status {
+            Status::Normal
         }
     }
 

@@ -591,7 +591,7 @@ where
             }
         }
 
-        assert_eq!(lazy_pages::get_status().unwrap(), Status::GasLimitExceeded);
+        assert_eq!(lazy_pages::get_status(), Status::GasLimitExceeded);
     };
 
     // Check gas allowance exceeded.
@@ -630,9 +630,6 @@ where
             }
         }
 
-        assert_eq!(
-            lazy_pages::get_status().unwrap(),
-            Status::GasAllowanceExceeded
-        );
+        assert_eq!(lazy_pages::get_status(), Status::GasAllowanceExceeded);
     };
 }

@@ -23,81 +23,56 @@
 
 use codec::{Decode, Encode};
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsAccessConfig, Status},
     memory::ProcessAccessError,
 };
-use gear_core::{
-    gas::GasLeft,
-    memory::{GearPage, HostPointer, PageU32Size, WasmPage},
-};
+use gear_core::{gas::GasLeft, memory::HostPointer};
 use sp_runtime_interface::{
-    pass_by::{Codec, Inner, PassBy, PassByInner},
+    pass_by::{Codec, PassBy},
     runtime_interface,
 };
 
-static_assertions::const_assert!(
-    core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
-);
+extern crate alloc;
+use alloc::string::String;
 
 #[cfg(feature = "std")]
 use gear_lazy_pages as lazy_pages;
 
 pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 
-/// Use it to safely transfer wasm page from wasm runtime to native.
-pub struct WasmPageFfiWrapper(u32);
-
-impl From<WasmPage> for WasmPageFfiWrapper {
-    fn from(value: WasmPage) -> Self {
-        Self(value.raw())
-    }
-}
-
-impl From<WasmPageFfiWrapper> for WasmPage {
-    fn from(val: WasmPageFfiWrapper) -> Self {
-        // Safe because we can make wrapper only from `WasmPage`.
-        unsafe { WasmPage::new_unchecked(val.0) }
-    }
-}
-
-impl PassBy for WasmPageFfiWrapper {
-    type PassBy = Inner<Self, u32>;
-}
-
-impl PassByInner for WasmPageFfiWrapper {
-    type Inner = u32;
-
-    fn into_inner(self) -> Self::Inner {
-        self.0
-    }
-
-    fn inner(&self) -> &Self::Inner {
-        &self.0
-    }
-
-    fn from_inner(inner: Self::Inner) -> Self {
-        Self(inner)
-    }
-}
+static_assertions::const_assert!(
+    core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
+);
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct LazyPagesProgramContext {
     /// Wasm program memory addr.
     pub wasm_mem_addr: Option<HostPointer>,
     /// Wasm program memory size.
-    pub wasm_mem_size: WasmPage,
+    pub wasm_mem_size: u32,
     /// Wasm program stack end page.
-    pub stack_end: Option<WasmPage>,
+    pub stack_end: Option<u32>,
     /// Wasm program id.
     pub program_id: Vec<u8>,
     /// Globals config to access globals inside lazy-pages.
-    pub globals_config: GlobalsConfig,
+    pub globals_config: GlobalsAccessConfig,
     /// Lazy-pages access weights.
-    pub lazy_pages_weights: LazyPagesWeights,
+    pub weights: Vec<u64>,
 }
 
 impl PassBy for LazyPagesProgramContext {
     type PassBy = Codec<LazyPagesProgramContext>;
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct LazyPagesRuntimeContext {
+    pub page_sizes: Vec<u32>,
+    pub global_names: Vec<String>,
+    pub pages_storage_prefix: Vec<u8>,
+}
+
+impl PassBy for LazyPagesRuntimeContext {
+    type PassBy = Codec<LazyPagesRuntimeContext>;
 }
 
 /// Runtime interface for gear node and runtime.
@@ -116,21 +91,28 @@ pub trait GearRI {
         (gas_left, res)
     }
 
-    fn get_lazy_pages_status() -> Option<Status> {
-        lazy_pages::get_status()
+    fn lazy_pages_status() -> (Status,) {
+        (lazy_pages::status()
+            .unwrap_or_else(|err| unreachable!("Cannot get lazy-pages status: {err}")),)
     }
 
     /// Init lazy-pages.
     /// Returns whether initialization was successful.
-    fn init_lazy_pages(pages_final_prefix: [u8; 32]) -> bool {
+    fn init_lazy_pages(ctx: LazyPagesRuntimeContext) -> bool {
         use lazy_pages::LazyPagesVersion;
 
-        lazy_pages::init(LazyPagesVersion::Version1, pages_final_prefix.into())
+        lazy_pages::init(
+            LazyPagesVersion::Version1,
+            ctx.page_sizes,
+            ctx.global_names,
+            ctx.pages_storage_prefix,
+        )
+        .map_err(|err| log::error!("Cannot initialize lazy-pages: {}", err))
+        .is_ok()
     }
 
     /// Init lazy pages context for current program.
     /// Panic if some goes wrong during initialization.
-    #[version(2)]
     fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
         let wasm_mem_addr = ctx.wasm_mem_addr.map(|addr| {
             usize::try_from(addr)
@@ -143,7 +125,7 @@ pub trait GearRI {
             ctx.stack_end,
             ctx.program_id,
             Some(ctx.globals_config),
-            ctx.lazy_pages_weights,
+            ctx.weights,
         )
         .map_err(|e| e.to_string())
         .expect("Cannot initialize lazy pages for current program");
@@ -162,61 +144,16 @@ pub trait GearRI {
         .expect("Cannot set/unset mprotection for lazy pages");
     }
 
-    fn set_wasm_mem_begin_addr(addr: HostPointer) {
+    fn change_wasm_memory_addr_and_size(addr: Option<HostPointer>, size: Option<u32>) {
         // `as usize` is safe, because of const assert above.
-        gear_lazy_pages::set_wasm_mem_begin_addr(addr as usize)
-            .map_err(|e| e.to_string())
-            .expect("Cannot set new wasm addr");
+        gear_lazy_pages::change_wasm_mem_addr_and_size(addr.map(|addr| addr as usize), size)
+            .unwrap_or_else(|err| unreachable!("Cannot set new wasm addr and size: {err}"));
     }
 
-    fn set_wasm_mem_size(wasm_mem_size: WasmPageFfiWrapper) {
-        lazy_pages::set_wasm_mem_size(wasm_mem_size.into())
-            .map_err(|e| e.to_string())
-            .expect("Cannot set new wasm memory size");
-    }
-
-    fn get_released_pages() -> Vec<GearPage> {
-        lazy_pages::get_released_pages()
+    fn write_accessed_pages() -> Vec<u32> {
+        lazy_pages::write_accessed_pages()
+            .unwrap_or_else(|err| unreachable!("Cannot get write accessed pages: {err}"))
     }
 
     // Bellow goes deprecated runtime interface functions.
-
-    fn init_lazy_pages_for_program(ctx: LazyPagesProgramContext) {
-        let mut ctx = ctx;
-
-        // Deprecated runtimes suppose to give for lazy-pages per GearPage costs,
-        // so it's necessary to multiply it by 4 to make per GranularityPage.
-        let [signal_read, signal_write, signal_write_after_read] = [
-            ctx.lazy_pages_weights.signal_read,
-            ctx.lazy_pages_weights.signal_write,
-            ctx.lazy_pages_weights.signal_write_after_read,
-        ]
-        .map(|w| u64::from(w).saturating_mul(4).into());
-        ctx.lazy_pages_weights = LazyPagesWeights {
-            signal_read,
-            signal_write,
-            signal_write_after_read,
-            // We do not charge for host_func and data loading in old runtimes.
-            host_func_read: 0.into(),
-            host_func_write: 0.into(),
-            host_func_write_after_read: 0.into(),
-            load_page_storage_data: 0.into(),
-        };
-
-        let wasm_mem_addr = ctx.wasm_mem_addr.map(|addr| {
-            usize::try_from(addr)
-                .unwrap_or_else(|err| unreachable!("Cannot cast wasm mem addr to `usize`: {}", err))
-        });
-
-        lazy_pages::initialize_for_program(
-            wasm_mem_addr,
-            ctx.wasm_mem_size,
-            ctx.stack_end,
-            ctx.program_id,
-            Some(ctx.globals_config),
-            ctx.lazy_pages_weights,
-        )
-        .map_err(|e| e.to_string())
-        .expect("Cannot initialize lazy pages for current program");
-    }
 }

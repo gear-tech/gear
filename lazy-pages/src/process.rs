@@ -18,15 +18,13 @@
 
 //! Lazy-pages memory accesses processing main logic.
 
-use std::cell::RefMut;
-
-use gear_backend_common::lazy_pages::Status;
-use gear_core::memory::{GearPage, GranularityPage, PageU32Size, PagesIterInclusive};
-
 use crate::{
-    common::{Error, LazyPage, LazyPagesExecutionContext},
+    common::{Error, LazyPagesExecutionContext},
     mprotect,
+    pages::{GearPageNumber, PageDynSize},
 };
+use gear_backend_common::lazy_pages::Status;
+use std::slice;
 
 /// `process_lazy_pages` use struct which implements this trait,
 /// to process in custom logic two cases: host function call and signal.
@@ -50,48 +48,26 @@ pub(crate) trait AccessHandler {
     fn check_read_from_accessed_memory() -> Result<(), Error>;
 
     /// Charge for accessed pages.
-    fn charge_for_pages(
+    fn charge_for_page_access(
         &mut self,
-        ctx: &mut RefMut<LazyPagesExecutionContext>,
-        pages: PagesIterInclusive<LazyPage>,
+        page: GearPageNumber,
+        is_already_accessed: bool,
     ) -> Result<Status, Error>;
 
     /// Charge for one granularity page data loading.
-    fn charge_for_data_loading(
-        &mut self,
-        ctx: &mut RefMut<LazyPagesExecutionContext>,
-        page: GranularityPage,
-    ) -> Result<Status, Error>;
+    fn charge_for_page_data_loading(&mut self) -> Result<Status, Error>;
 
     /// Get the biggest page from `pages`.
-    fn last_page(pages: &Self::Pages) -> Option<LazyPage>;
+    fn last_page(pages: &Self::Pages) -> Option<GearPageNumber>;
 
     /// Apply `f` for all `pages`.
-    fn apply_for_pages(
+    fn process_pages(
         pages: Self::Pages,
-        f: impl FnMut(PagesIterInclusive<LazyPage>) -> Result<(), Error>,
+        process_one: impl FnMut(GearPageNumber) -> Result<(), Error>,
     ) -> Result<(), Error>;
 
     /// Drops and returns output.
-    fn into_output(
-        self,
-        ctx: &mut RefMut<LazyPagesExecutionContext>,
-    ) -> Result<Self::Output, Error>;
-}
-
-/// Load data for `page` from storage.
-unsafe fn load_data_for_page(
-    ctx: &mut RefMut<LazyPagesExecutionContext>,
-    wasm_mem_addr: usize,
-    page: LazyPage,
-) -> Result<(), Error> {
-    for gear_page in page.to_pages_iter::<GearPage>() {
-        let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(gear_page.offset() as usize);
-        let buffer_as_slice =
-            std::slice::from_raw_parts_mut(page_buffer_ptr, GearPage::size() as usize);
-        ctx.load_page_data_from_storage(gear_page, buffer_as_slice)?;
-    }
-    Ok(())
+    fn into_output(self, ctx: &mut LazyPagesExecutionContext) -> Result<Self::Output, Error>;
 }
 
 /// Lazy-pages accesses processing main function.
@@ -119,37 +95,36 @@ unsafe fn load_data_for_page(
 /// So, to avoid this we upload all pages from PSG interval (which is 16kBit now),
 /// and restrict to run node on machines, that have native page number bigger than PSG.
 pub(crate) unsafe fn process_lazy_pages<H: AccessHandler>(
-    mut ctx: RefMut<LazyPagesExecutionContext>,
+    ctx: &mut LazyPagesExecutionContext,
     mut handler: H,
     pages: H::Pages,
 ) -> Result<H::Output, Error> {
-    let wasm_mem_size = ctx.wasm_mem_size.ok_or(Error::WasmMemSizeIsNotSet)?;
+    let wasm_mem_size = ctx.wasm_mem_size.offset(ctx);
 
     if let Some(last_page) = H::last_page(&pages) {
         // Check that all pages are inside wasm memory.
-        if last_page.end_offset() >= wasm_mem_size.offset() {
+        if last_page.end_offset(ctx) >= wasm_mem_size {
             return Err(Error::OutOfWasmMemoryAccess);
         }
     } else {
         // Accessed pages are empty - nothing to do.
-        return handler.into_output(&mut ctx);
+        return handler.into_output(ctx);
     }
 
-    let status = ctx.status.as_ref().ok_or(Error::StatusIsNone)?;
-    match status {
+    match ctx.status {
         Status::Normal => {}
         Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
             H::check_status_is_gas_exceeded()?;
-            return handler.into_output(&mut ctx);
+            return handler.into_output(ctx);
         }
     }
 
-    let stack_end = ctx.stack_end_wasm_page;
+    let stack_end = ctx.stack_end;
     let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
 
     // Returns `true` if new status is not `Normal`.
-    let update_status = |ctx: &mut RefMut<LazyPagesExecutionContext>, status| {
-        ctx.status.replace(status);
+    let update_status = |ctx: &mut LazyPagesExecutionContext, status| {
+        ctx.status = status;
 
         // If new status is not [Status::Normal], then unprotect lazy-pages
         // and continue work until the end of current wasm block. We don't care
@@ -161,93 +136,87 @@ pub(crate) unsafe fn process_lazy_pages<H: AccessHandler>(
                     "Gas limit or allowance exceed, so removes protection from all wasm memory \
                     and continues execution until the end of current wasm block"
                 );
-                mprotect::mprotect_interval(
-                    wasm_mem_addr,
-                    wasm_mem_size.offset() as usize,
-                    true,
-                    true,
-                )
-                .map(|_| true)
+                mprotect::mprotect_interval(wasm_mem_addr, wasm_mem_size as usize, true, true)
+                    .map(|_| true)
             }
         }
     };
 
-    let f = |pages: PagesIterInclusive<LazyPage>| {
-        let status = handler.charge_for_pages(&mut ctx, pages.clone())?;
-        if update_status(&mut ctx, status)? {
-            return Ok(());
-        }
+    // log::trace!("Process access from ")
 
-        for lazy_page in pages {
-            let granularity_page = lazy_page.to_page();
-            if lazy_page.offset() < stack_end.offset() {
-                // Nothing to do, page has r/w accesses and data is in correct state.
-                H::check_stack_memory_access()?;
-            } else if ctx.released_pages.contains(&lazy_page) {
-                // Nothing to do, page has r/w accesses and data is in correct state.
-                H::check_released_memory_access()?;
-            } else if ctx.accessed_pages.contains(&lazy_page) {
-                if handler.is_write() {
-                    // Set read/write access for page and add page to released.
-                    mprotect::mprotect_interval(
-                        wasm_mem_addr + lazy_page.offset() as usize,
-                        LazyPage::size() as usize,
-                        true,
-                        true,
-                    )?;
-                    ctx.add_to_released(lazy_page)?;
-                } else {
-                    // Nothing to do, page has read accesses and data is in correct state.
-                    H::check_read_from_accessed_memory()?;
+    let process_one = |page: GearPageNumber| {
+        let page_offset = page.offset(ctx);
+        let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(page.offset(ctx) as usize);
+        let page_size = GearPageNumber::size(ctx) as usize;
+
+        let protect_page = |prot_write| {
+            mprotect::mprotect_interval(page_buffer_ptr as usize, page_size, true, prot_write)
+        };
+
+        if page_offset < stack_end.offset(ctx) {
+            // Nothing to do, page has r/w accesses and data is in correct state.
+            H::check_stack_memory_access()?;
+        } else if ctx.is_write_accessed(page) {
+            // Nothing to do, page has r/w accesses and data is in correct state.
+            H::check_released_memory_access()?;
+        } else if ctx.is_accessed(page) {
+            if handler.is_write() {
+                // Charges for page write access
+                let status = handler.charge_for_page_access(page, true)?;
+                if update_status(ctx, status)? {
+                    return Ok(());
                 }
+
+                // Sets read/write protection access for page and add page to write accessed
+                protect_page(true)?;
+                ctx.set_write_accessed(page)?;
             } else {
-                let unprotected = if ctx.page_has_data_in_storage(lazy_page.to_page())? {
-                    // Set read/write access, in order to load data from storage to page memory
-                    mprotect::mprotect_interval(
-                        wasm_mem_addr + lazy_page.offset() as usize,
-                        LazyPage::size() as usize,
-                        true,
-                        true,
-                    )?;
-                    let status = handler.charge_for_data_loading(&mut ctx, granularity_page)?;
-                    if update_status(&mut ctx, status)? {
-                        return Ok(());
-                    }
-                    load_data_for_page(&mut ctx, wasm_mem_addr, lazy_page)?;
-                    true
-                } else {
-                    false
-                };
+                // Nothing to do, page has read accesses and data is in correct state.
+                H::check_read_from_accessed_memory()?;
+            }
+        } else {
+            // Charge for page access.
+            let status = handler.charge_for_page_access(page, false)?;
+            if update_status(ctx, status)? {
+                return Ok(());
+            }
 
-                // Add `lazy_page` to accessed pages.
-                ctx.accessed_pages.insert(lazy_page);
-
-                if handler.is_write() {
-                    if !unprotected {
-                        mprotect::mprotect_interval(
-                            wasm_mem_addr + lazy_page.offset() as usize,
-                            LazyPage::size() as usize,
-                            true,
-                            true,
-                        )?;
-                    }
-                    ctx.add_to_released(lazy_page)?;
-                } else {
-                    // Set only read access for page.
-                    mprotect::mprotect_interval(
-                        wasm_mem_addr + lazy_page.offset() as usize,
-                        LazyPage::size() as usize,
-                        true,
-                        false,
-                    )?;
+            let unprotected = if ctx.page_has_data_in_storage(page) {
+                // Charge for page data loading from storage.
+                let status = handler.charge_for_page_data_loading()?;
+                if update_status(ctx, status)? {
+                    return Ok(());
                 }
+
+                // Set read/write access, in order to write page data to program memory.
+                protect_page(true)?;
+
+                // Load and write data to memory.
+                let buffer_as_slice = slice::from_raw_parts_mut(page_buffer_ptr, page_size);
+                if !ctx.load_page_data_from_storage(page, buffer_as_slice)? {
+                    unreachable!("`read` returns, that page has no data, but `exist` returns that there is one");
+                }
+                true
+            } else {
+                false
+            };
+
+            ctx.set_accessed(page);
+            if handler.is_write() {
+                if !unprotected {
+                    protect_page(true)?;
+                }
+                ctx.set_write_accessed(page)?;
+            } else {
+                // Set only read access for page.
+                protect_page(false)?;
             }
         }
 
         Ok(())
     };
 
-    H::apply_for_pages(pages, f)?;
+    H::process_pages(pages, process_one)?;
 
-    handler.into_output(&mut ctx)
+    handler.into_output(ctx)
 }

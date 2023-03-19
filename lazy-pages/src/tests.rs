@@ -17,9 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::Error, init_with_handler, mprotect, signal::ExceptionInfo, LazyPagesVersion,
-    UserSignalHandler,
+    common::Error,
+    init_with_handler, mprotect,
+    pages::{GearPageNumber, PageDynSize},
+    signal::ExceptionInfo,
+    LazyPagesVersion, UserSignalHandler,
 };
+use gear_core::memory::{GearPage, PageU32Size, WasmPage};
 use region::Protection;
 
 fn handler_tester<F: FnOnce()>(f: F) {
@@ -74,10 +78,13 @@ fn read_write_flag_works() {
         }
     }
 
-    assert!(init_with_handler::<TestHandler>(
+    init_with_handler::<TestHandler>(
         LazyPagesVersion::Version1,
-        Default::default()
-    ));
+        vec![WasmPage::size(), GearPage::size()],
+        vec!["".to_string(); 2],
+        Default::default(),
+    )
+    .unwrap();
 
     let page_size = region::page::size();
     let addr = region::alloc(page_size, Protection::NONE).unwrap();
@@ -93,10 +100,12 @@ fn read_write_flag_works() {
 }
 
 fn test_mprotect_pages() {
-    use gear_core::memory::{GearPage, PageU32Size, WasmPage};
-
     const OLD_VALUE: u8 = 99;
     const NEW_VALUE: u8 = 100;
+
+    let page_size = 0x4000;
+    let new_page = |p: u32| GearPageNumber::new(p, &page_size).unwrap();
+    let offset = |p: GearPageNumber| p.offset(&page_size) as usize;
 
     struct TestHandler;
 
@@ -119,10 +128,13 @@ fn test_mprotect_pages() {
 
     env_logger::init();
 
-    assert!(init_with_handler::<TestHandler>(
+    init_with_handler::<TestHandler>(
         LazyPagesVersion::Version1,
-        Default::default()
-    ));
+        vec![WasmPage::size(), GearPage::size()],
+        vec!["".to_string(); 2],
+        Default::default(),
+    )
+    .unwrap();
 
     let mut v = vec![0u8; 3 * WasmPage::size() as usize];
     let buff = v.as_mut_ptr() as usize;
@@ -131,13 +143,13 @@ fn test_mprotect_pages() {
     let mem_size = 2 * WasmPage::size();
 
     // Randomly choose pages, which will be protected.
-    let pages_protected = [0, 4, 5].map(|p| GearPage::new(p).unwrap());
-    let pages_unprotected = [1, 2, 3, 6, 7].map(|p| GearPage::new(p).unwrap());
+    let pages_protected = [0, 4, 5].map(new_page);
+    let pages_unprotected = [1, 2, 3, 6, 7].map(new_page);
 
     // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {
         for &p in pages_unprotected.iter().chain(pages_protected.iter()) {
-            let addr = page_begin + p.offset() as usize + 1;
+            let addr = page_begin + p.offset(&page_size) as usize + 1;
             *(addr as *mut u8) = OLD_VALUE;
         }
     }
@@ -147,6 +159,7 @@ fn test_mprotect_pages() {
         0,
         mem_size as usize,
         pages_unprotected.iter().copied(),
+        &GearPage::size(),
         false,
         false,
     )
@@ -154,14 +167,14 @@ fn test_mprotect_pages() {
 
     unsafe {
         for &p in pages_protected.iter() {
-            let addr = page_begin + p.offset() as usize + 1;
+            let addr = page_begin + offset(p) + 1;
             let x = *(addr as *mut u8);
             // value must be changed to `NEW_VALUE` in sig handler
             assert_eq!(x, NEW_VALUE);
         }
 
         for &p in pages_unprotected.iter() {
-            let addr = page_begin + p.offset() as usize + 1;
+            let addr = page_begin + offset(p) + 1;
             let x = *(addr as *mut u8);
             // value must not be changed
             assert_eq!(x, OLD_VALUE);
@@ -173,6 +186,7 @@ fn test_mprotect_pages() {
         0,
         mem_size as usize,
         pages_unprotected.iter().copied(),
+        &page_size,
         true,
         true,
     )
@@ -183,30 +197,42 @@ fn test_mprotect_pages() {
     // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {
         for &p in pages_unprotected.iter().chain(pages_protected.iter()) {
-            let addr = page_begin + p.offset() as usize + 1;
+            let addr = page_begin + offset(p) + 1;
             *(addr as *mut u8) = OLD_VALUE;
         }
     }
 
-    mprotect::mprotect_pages(page_begin, pages_protected.iter().copied(), false, false)
-        .expect("Must be correct");
+    mprotect::mprotect_pages(
+        page_begin,
+        pages_protected.iter().copied(),
+        &page_size,
+        false,
+        false,
+    )
+    .expect("Must be correct");
 
     unsafe {
         for &p in pages_protected.iter() {
-            let addr = page_begin + p.offset() as usize + 1;
+            let addr = page_begin + offset(p) + 1;
             let x = *(addr as *mut u8);
             // value must be changed to `NEW_VALUE` in sig handler
             assert_eq!(x, NEW_VALUE);
         }
 
         for &p in pages_unprotected.iter() {
-            let addr = page_begin + p.offset() as usize + 1;
+            let addr = page_begin + offset(p) + 1;
             let x = *(addr as *mut u8);
             // value must not be changed
             assert_eq!(x, OLD_VALUE);
         }
     }
 
-    mprotect::mprotect_pages(page_begin, pages_protected.iter().copied(), true, true)
-        .expect("Must be correct");
+    mprotect::mprotect_pages(
+        page_begin,
+        pages_protected.iter().copied(),
+        &page_size,
+        true,
+        true,
+    )
+    .expect("Must be correct");
 }

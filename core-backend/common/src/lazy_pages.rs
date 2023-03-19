@@ -20,7 +20,6 @@
 
 use core::fmt::Debug;
 
-use alloc::string::String;
 use codec::{Decode, Encode};
 use core::any::Any;
 use gear_core::{
@@ -58,18 +57,11 @@ pub struct LazyPagesWeights {
 
 /// Globals ctx for lazy-pages initialization for program.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct GlobalsConfig {
-    // TODO: considering change global name types to `TrimmedString` (issue #2098)
-    /// Gas amount global name.
-    pub global_gas_name: String,
-    /// Gas allowance amount global name.
-    pub global_allowance_name: String,
-    /// Gear status global name.
-    pub global_flags_name: String,
+pub struct GlobalsAccessConfig {
     /// Raw pointer to the globals access provider.
-    pub globals_access_ptr: HostPointer,
+    pub access_ptr: HostPointer,
     /// Access mod, currently two: native or WASM runtime.
-    pub globals_access_mod: GlobalsAccessMod,
+    pub access_mod: GlobalsAccessMod,
 }
 
 /// Globals access error.
