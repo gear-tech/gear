@@ -15,7 +15,7 @@ hex = "0.4"
 subxt = { version = "^0.27.0", default-features = false }
 parity-scale-codec = "3"
 rand = "0.8.5"
-thiserror = "1.0.39"
+thiserror = "1.0.40"
 futures-timer = "3.0.2"
 async-trait = "0.1.66"
 wabt = "0.10.0"

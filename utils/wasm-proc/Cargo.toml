@@ -7,7 +7,7 @@ edition = "2018"
 clap = { version = "4.1.9", features = ["derive"] }
 log = "0.4.17"
 env_logger = "0.10.0"
-thiserror = "1.0.39"
+thiserror = "1.0.40"
 gear-wasm-builder = { path = "../wasm-builder" }
 parity-wasm = "0.45.0"
 

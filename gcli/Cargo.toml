@@ -36,7 +36,7 @@ schnorrkel = "0.9.1"
 serde = "^1"
 serde_json = "^1"
 clap = { version = "4.1.9", features = ["derive"] }
-thiserror = "1.0.39"
+thiserror = "1.0.40"
 tokio = { version = "1.26.0", features = [ "full" ] }
 wasmtime = "1"
 whoami = "1.4.0"
