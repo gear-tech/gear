@@ -6,15 +6,15 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-derive_more = "0.99.17"
-log = { version = "0.4.17", default-features = false }
+derive_more = { workspace = true }
+log = { workspace = true }
 
-gear-core = { path = "../../core" }
-gear-backend-common = { path = "../../core-backend/common", default-features = false }
-gear-common = { path = "..", default-features = false }
-gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
+gear-core = { workspace = true }
+gear-backend-common = { workspace = true }
+gear-common = { workspace = true }
+gear-runtime-interface = { workspace = true }
 
-sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+sp-std = { workspace = true }
 
 [features]
 default = ["std"]

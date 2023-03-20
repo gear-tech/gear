@@ -87,6 +87,51 @@ members = [
     "utils/wasm-proc",
 ]
 
+[workspace.dependencies]
+blake2-rfc = { version = "0.2.18", default-features = false }
+codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
+dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git", rev = "9135baa", default-features = false }
+derive_more = "0.99.17"
+enum-iterator = "1.3.0"
+env_logger = "0.10"
+hashbrown = "0.13.2"
+hex = { version = "0.4.3", default-features = false }
+hex-literal = "0.3.4"
+log = { version = "0.4.17", default-features = false }
+primitive-types = { version = "0.12.1", default-features = false }
+proptest = "1.1.0"
+quote = "1.0.23"
+rand = "0.8"
+scale-info = { version = "2.3.1", default-features = false }
+static_assertions = "1"
+syn = "2.0.0"
+wabt = "0.10.0"
+wasmi = { version = "0.14.0", default-features = false }
+wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
+
+# Internal deps
+galloc = { path = "galloc" }
+gsys = { path = "gsys" }
+gear-backend-common = { path = "core-backend/common", default-features = false }
+gear-common = { path = "common", default-features = false }
+gear-common-codegen = { path = "common/codegen" }
+gear-core = { path = "core" }
+gear-core-errors = { path = "core-errors" }
+gear-runtime-interface = { path = "runtime-interface", default-features = false }
+gear-utils = { path = "utils/utils" }
+gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
+
+# Substrate deps
+sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+sp-arithmetic = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+
 [profile.release]
 panic = "unwind"
 

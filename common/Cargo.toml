@@ -6,31 +6,31 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
-primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"] }
-log = "0.4.17"
-derive_more = "0.99.17"
+codec = { workspace = true, package = "parity-scale-codec", features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+primitive-types = { workspace = true, features = ["scale-info"] }
+log = { workspace = true }
+derive_more = { workspace = true }
 
 # Internal deps
-gear-core = { path = "../core" }
-gear-common-codegen = { path = "./codegen" }
+gear-core = { workspace = true }
+gear-common-codegen = { workspace = true }
+gear-wasm-instrument = { workspace = true, optional = true }
 
 # Substrate deps
-sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-sp-arithmetic = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false, optional = true }
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false, optional = true }
-gear-wasm-instrument = { path = "../utils/wasm-instrument", default-features = false, optional = true }
+sp-core = { workspace = true }
+sp-io = { workspace = true }
+sp-runtime = { workspace = true }
+sp-std = { workspace = true }
+sp-arithmetic = { workspace = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true, optional = true }
+frame-benchmarking = { workspace = true, optional = true }
 
 [dev-dependencies]
-hex-literal = "0.3.4"
-proptest = "1.1.0"
-gear-utils = { path = "../utils/utils" }
+hex-literal = { workspace = true }
+proptest = { workspace = true }
+gear-utils = { workspace = true }
 
 [features]
 default = ["std"]
