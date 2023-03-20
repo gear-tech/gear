@@ -57,7 +57,6 @@ impl<P: PageU32Size> CostPerPage<P> {
 impl<P: PageU32Size> Debug for CostPerPage<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!("{}", &self.cost))
-        // f.debug_struct("CostPerPage").field("", &self.cost).finish()
     }
 }
 

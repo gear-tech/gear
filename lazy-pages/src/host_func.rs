@@ -53,7 +53,7 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
         Ok(())
     }
 
-    fn check_released_memory_access() -> Result<(), Error> {
+    fn check_write_accessed_memory_access() -> Result<(), Error> {
         Ok(())
     }
 

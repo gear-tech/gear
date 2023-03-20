@@ -216,7 +216,7 @@ pub fn set_lazy_pages_protection() -> Result<(), Error> {
             false,
         )?;
 
-        // Set only write protection for already accessed, but not released pages.
+        // Set only write protection for already accessed, but not write accessed pages.
         let read_only_pages = ctx
             .accessed_pages
             .iter()
@@ -226,8 +226,8 @@ pub fn set_lazy_pages_protection() -> Result<(), Error> {
 
         // After that protections are:
         // 1) Only execution protection for stack pages.
-        // 2) Only execution protection for released pages.
-        // 3) Read and execution protection for accessed, but not released pages.
+        // 2) Only execution protection for write accessed pages.
+        // 3) Read and execution protection for accessed, but not write accessed pages.
         // 4) r/w/e protections for all other WASM memory.
 
         Ok(())

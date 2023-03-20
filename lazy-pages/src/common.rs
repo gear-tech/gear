@@ -35,16 +35,16 @@ pub(crate) enum Error {
     OutOfWasmMemoryAccess,
     #[display(fmt = "Signals cannot come from WASM program virtual stack memory")]
     SignalFromStackMemory,
-    #[display(fmt = "Signals cannot come from released page")]
-    SignalFromReleasedPage,
+    #[display(fmt = "Signals cannot come from write accessed page")]
+    SignalFromWriteAccessedPage,
     #[display(fmt = "Read access signal cannot come from already accessed page")]
     ReadAccessSignalFromAccessedPage,
     #[display(fmt = "WASM memory begin address is not set")]
     WasmMemAddrIsNotSet,
     #[display(fmt = "Page data in storage must contain {expected} bytes, actually has {actual}")]
     InvalidPageDataSize { expected: u32, actual: u32 },
-    #[display(fmt = "Any page cannot be released twice: {_0:?}")]
-    DoubleRelease(GearPageNumber),
+    #[display(fmt = "Any page cannot be write accessed twice: {_0:?}")]
+    DoubleWriteAccess(GearPageNumber),
     #[display(fmt = "Any page cannot be read charged twice: {_0:?}")]
     DoubleReadCharge(GearPageNumber),
     #[display(fmt = "Memory protection error: {_0}")]
@@ -135,11 +135,9 @@ pub(crate) struct LazyPagesExecutionContext {
     /// that wasm data has no stack region. It's not necessary to specify
     /// this value, `lazy-pages` uses it to identify memory, for which we
     /// can skip processing and this memory won't be protected. So, pages
-    /// which lies before this value will never get into `released_pages`,
+    /// which lies before this value will never get into `write_accessed_pages`,
     /// which means that they will never be updated in storage.
     pub stack_end: WasmPageNumber,
-    /// Gear pages, which has been write accessed.
-    // pub released_pages: BTreeSet<LazyPage>,
     /// Context to access globals and works with them: charge gas, set status global.
     pub globals_context: Option<GlobalsContext>,
     /// Lazy-pages status: indicates in which mod lazy-pages works actually.
@@ -180,7 +178,7 @@ impl LazyPagesExecutionContext {
         self.set_accessed(page);
         match self.write_accessed_pages.insert(page) {
             true => Ok(()),
-            false => Err(Error::DoubleRelease(page)),
+            false => Err(Error::DoubleWriteAccess(page)),
         }
     }
 

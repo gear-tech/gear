@@ -41,8 +41,8 @@ pub(crate) trait AccessHandler {
     /// Returns whether stack memory access can appear for the case.
     fn check_stack_memory_access() -> Result<(), Error>;
 
-    /// Returns whether released memory access is allowed for the case.
-    fn check_released_memory_access() -> Result<(), Error>;
+    /// Returns whether write accessed memory access is allowed for the case.
+    fn check_write_accessed_memory_access() -> Result<(), Error>;
 
     /// Returns wether already accessed memory read access is allowed for the case.
     fn check_read_from_accessed_memory() -> Result<(), Error>;
@@ -145,7 +145,7 @@ pub(crate) unsafe fn process_lazy_pages<H: AccessHandler>(
             H::check_stack_memory_access()?;
         } else if ctx.is_write_accessed(page) {
             // Nothing to do, page has r/w accesses and data is in correct state.
-            H::check_released_memory_access()?;
+            H::check_write_accessed_memory_access()?;
         } else if ctx.is_accessed(page) {
             if handler.is_write() {
                 // Charges for page write access

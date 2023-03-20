@@ -133,9 +133,9 @@ impl AccessHandler for SignalAccessHandler {
         Err(Error::SignalFromStackMemory)
     }
 
-    fn check_released_memory_access() -> Result<(), Error> {
-        // Released memory is unprotected, so signal cannot be received from it.
-        Err(Error::SignalFromReleasedPage)
+    fn check_write_accessed_memory_access() -> Result<(), Error> {
+        // Write accessed memory is unprotected, so signal cannot be received from it.
+        Err(Error::SignalFromWriteAccessedPage)
     }
 
     fn check_read_from_accessed_memory() -> Result<(), Error> {

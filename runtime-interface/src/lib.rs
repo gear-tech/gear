@@ -67,6 +67,7 @@ impl PassBy for LazyPagesProgramContext {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct LazyPagesRuntimeContext {
     pub page_sizes: Vec<u32>,
+    // TODO: considering change global name types to `TrimmedString` (issue #2098)
     pub global_names: Vec<String>,
     pub pages_storage_prefix: Vec<u8>,
 }
