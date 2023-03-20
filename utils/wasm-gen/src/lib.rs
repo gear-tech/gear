@@ -646,7 +646,7 @@ impl<'a> WasmGen<'a> {
             return (module, false);
         }
 
-        let func_no = self.u.int_in_range(0..=funcs_len - 1).unwrap();
+        let func_no = self.u.int_in_range(0..funcs_len).unwrap();
         (
             self.gen_export_func_which_call_func_no(module, "handle", func_no),
             true,
@@ -666,7 +666,7 @@ impl<'a> WasmGen<'a> {
             return (module, false);
         }
 
-        let func_no = self.u.int_in_range(0..=funcs_len - 1).unwrap();
+        let func_no = self.u.int_in_range(0..funcs_len).unwrap();
         (
             self.gen_export_func_which_call_func_no(module, "handle_reply", func_no),
             true,
