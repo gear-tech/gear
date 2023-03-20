@@ -1,4 +1,4 @@
-use gclient::{Error, EventProcessor, GearApi, GearApiWithNode, Node};
+use gclient::{Error, EventProcessor, GearApi};
 use gear_core::ids::ProgramId;
 use hex::ToHex;
 use parity_scale_codec::{Decode, Encode};
@@ -8,14 +8,12 @@ const GEAR_PATH: &str = "../target/release/gear";
 /// Running this test requires gear node to be built in advance.
 #[tokio::test]
 async fn two_nodes_run_independently() {
-    let node_1 = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate dev node 1");
-    let node_2 = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate dev node 2");
     let salt = gclient::now_micros().to_le_bytes();
 
     // The assumption is that it is not allowed to load the same code with the same
     // salt to the same node twice
-    upload_program_to_node(&node_1, demo_mul_by_const::WASM_BINARY, &salt, Some(42u64)).await;
-    upload_program_to_node(&node_2, demo_mul_by_const::WASM_BINARY, &salt, Some(43u64)).await;
+    upload_program_to_node(demo_mul_by_const::WASM_BINARY, &salt, Some(42u64)).await;
+    upload_program_to_node(demo_mul_by_const::WASM_BINARY, &salt, Some(43u64)).await;
 }
 
 /// Running this test requires gear node to be built in advance.
@@ -25,14 +23,10 @@ async fn program_migrated_to_another_node() {
     const MULTIPLICATOR_VALUE_PAYLOAD: u64 = 4;
     const PROGRAM_FUNDS: u128 = 25_000;
 
-    let src_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate source node");
-    let dest_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate destination node");
-
     // Arrange
 
     // Upload source program to source node
     let (src_node_api, src_program_id) = upload_program_to_node(
-        &src_node,
         demo_mul_by_const::WASM_BINARY,
         &gclient::now_micros().to_le_bytes(),
         Some(INIT_VALUE_PAYLOAD),
@@ -46,7 +40,7 @@ async fn program_migrated_to_another_node() {
         .expect("Unable to transfer funds to source program");
 
     // Initialize destination node
-    let dest_node_api = GearApi::node(&dest_node)
+    let dest_node_api = GearApi::dev_from_path(GEAR_PATH)
         .await
         .expect("Unable to connect to destination node api");
 
@@ -105,14 +99,10 @@ async fn program_migrated_to_another_node() {
 async fn program_migration_fails_if_program_exists() {
     const INIT_VALUE_PAYLOAD: u64 = 42;
 
-    let src_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate source node");
-    let dest_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate destination node");
-
     // Arrange
 
     // Upload source program to source node
     let (src_node_api, src_program_id) = upload_program_to_node(
-        &src_node,
         demo_mul_by_const::WASM_BINARY,
         &gclient::now_micros().to_le_bytes(),
         Some(INIT_VALUE_PAYLOAD),
@@ -120,7 +110,7 @@ async fn program_migration_fails_if_program_exists() {
     .await;
 
     // Initialize destination node
-    let dest_node_api = GearApi::node(&dest_node)
+    let dest_node_api = GearApi::dev_from_path(GEAR_PATH)
         .await
         .expect("Unable to connect to destination node api");
 
@@ -167,16 +157,15 @@ async fn program_migration_fails_if_program_exists() {
     }
 }
 
-async fn upload_program_to_node<'a, E>(
-    node: &'a Node,
+async fn upload_program_to_node<E>(
     code: &[u8],
     salt: &[u8],
     init_payload: Option<E>,
-) -> (GearApiWithNode<'a>, ProgramId)
+) -> (GearApi, ProgramId)
 where
     E: Encode,
 {
-    let api = GearApi::node(node)
+    let api = GearApi::dev_from_path(GEAR_PATH)
         .await
         .expect("Unable to connect to node api");
 
