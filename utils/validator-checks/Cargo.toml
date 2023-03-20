@@ -9,9 +9,9 @@ path = "bin/validator-checks.rs"
 
 [dependencies]
 gsdk = { path = "../../gsdk" }
-clap = { version = "4.1.8", features = ["derive"] }
+clap = { version = "4.1.9", features = ["derive"] }
 subxt = { version = "^0.27.0", default-features = false }
-thiserror = "1.0.39"
+thiserror = "1.0.40"
 futures-util = "0.3.26"
 log = "0.4.17"
 env_logger = "0.10.0"

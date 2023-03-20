@@ -16,7 +16,7 @@ name = "gear"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.1.8", features = ["derive"] }
+clap = { version = "4.1.9", features = ["derive"] }
 scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17" }
 futures = "0.3.27"
@@ -59,7 +59,7 @@ gcli = { path = "../../gcli", optional = true }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 
 [features]
-default = ["gear-native", "vara-native", "lazy-pages", "cli"]
+default = ["gear-native", "vara-native", "lazy-pages"]
 gear-native = [
 	"service/gear-native",
 	"gear-runtime-test-cli?/gear-native",

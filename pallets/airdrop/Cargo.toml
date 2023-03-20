@@ -30,7 +30,7 @@ sp-std = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 
 [dev-dependencies]
-serde = "1.0.155"
+serde = "1.0.156"
 env_logger = "0.10"
 sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }

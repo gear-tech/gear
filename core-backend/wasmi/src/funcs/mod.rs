@@ -598,7 +598,7 @@ where
             syscall_trace!("reply", payload_ptr, len, value_ptr, delay, err_mid_ptr);
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply, |ctx| {
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply(len), |ctx| {
                 let read_payload = ctx.register_read(payload_ptr, len);
                 let value = ctx.register_and_read_value(value_ptr)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
@@ -638,7 +638,7 @@ where
             );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply, |ctx| {
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply(len), |ctx| {
                 let read_payload = ctx.register_read(payload_ptr, len);
                 let value = ctx.register_and_read_value(value_ptr)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
@@ -669,7 +669,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(
                 err_mid_ptr,
-                RuntimeCosts::ReplyCommit,
+                RuntimeCosts::ReplyCommit(0),
                 |ctx| {
                     let value = ctx.register_and_read_value(value_ptr)?;
 
@@ -707,7 +707,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(
                 err_mid_ptr,
-                RuntimeCosts::ReplyCommit,
+                RuntimeCosts::ReplyCommit(0),
                 |ctx| {
                     let value = ctx.register_and_read_value(value_ptr)?;
 
@@ -750,7 +750,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(
                 err_mid_ptr,
-                RuntimeCosts::ReservationReply,
+                RuntimeCosts::ReservationReply(len),
                 |ctx| {
                     let read_rid_value = ctx.register_read_as(rid_value_ptr);
                     let read_payload = ctx.register_read(payload_ptr, len);
@@ -797,7 +797,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(
                 err_mid_ptr,
-                RuntimeCosts::ReservationReplyCommit,
+                RuntimeCosts::ReservationReplyCommit(0),
                 |ctx| {
                     let read_rid_value = ctx.register_read_as(rid_value_ptr);
 

@@ -375,10 +375,30 @@ impl pallet_session_historical::Config for Runtime {
 pub struct BondCallFilter;
 impl Contains<RuntimeCall> for BondCallFilter {
     fn contains(call: &RuntimeCall) -> bool {
-        matches!(
-            call,
-            &RuntimeCall::Staking(pallet_staking::Call::bond { .. })
-        )
+        match call {
+            RuntimeCall::Staking(pallet_staking::Call::bond { .. }) => true,
+            RuntimeCall::Utility(utility_call) => {
+                match utility_call {
+                    pallet_utility::Call::batch { calls }
+                    | pallet_utility::Call::batch_all { calls }
+                    | pallet_utility::Call::force_batch { calls } => {
+                        for c in calls {
+                            if Self::contains(c) {
+                                return true;
+                            }
+                        }
+                    }
+                    pallet_utility::Call::as_derivative { call, .. }
+                    | pallet_utility::Call::dispatch_as { call, .. }
+                    | pallet_utility::Call::with_weight { call, .. } => {
+                        return Self::contains(call);
+                    }
+                    _ => (),
+                }
+                false
+            }
+            _ => false,
+        }
     }
 }
 

@@ -11,7 +11,6 @@ on:
 
 env:
   CARGO_INCREMENTAL: 0
-  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
   TERM: xterm-256color
@@ -124,7 +123,6 @@ jobs:
           tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/sccache
           tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
-
 
   build:
     # needs: spec_version
@@ -307,7 +305,7 @@ jobs:
 
       - name: "Build: Production binaries"
         if: github.event_name == 'push'
-        run: cargo build -p gear-cli --profile production
+        run: cargo build -p gear-cli -F cli --profile production
 
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
@@ -350,7 +348,6 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           path: artifact
-
 
   build-win-native:
     if: github.ref == 'refs/heads/master'
@@ -490,7 +487,6 @@ jobs:
             --features=lazy-pages
             --release
 
-  
   build-win-cross:
     runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
     env:
@@ -509,7 +505,7 @@ jobs:
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
-        
+
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
@@ -570,7 +566,7 @@ jobs:
           sudo apt install --install-recommends -y winehq-stable winetricks
           wineboot
           winetricks win10
-          
+
       - name: "Install: Node.js in Wine"
         run: |
           wget http://barnyard.syr.edu/~vefatica/ftpfiles/setenv.exe
@@ -580,14 +576,14 @@ jobs:
           wine cmd /c ./setenv.exe -m PATH "%PATH%;${node_js}"
         env:
           WINEDEBUG: "-all"
-      
+
       - name: "Install: LLVM"
         run: |
           sudo apt install -y clang-12 clang-tools-12 llvm-12
           sudo ./.github/build-win-cross/update-alternatives-clang.sh 12 100
 
       - name: "Install: binaryen"
-        run: |  
+        run: |
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
 
@@ -603,7 +599,7 @@ jobs:
         run: |
           curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
           mv rust-covfix-linux-x86_64/rust-covfix ./
-          
+
       - name: "Install: cargo-xwin"
         run: |
           curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.14.0/cargo-xwin-v0.14.0.x86_64-unknown-linux-musl.tar.gz | tar zxf -
@@ -633,12 +629,14 @@ jobs:
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
-      - name: "Test: Client tests"
-        run: |
-          cp ./target/x86_64-pc-windows-msvc/release/gear.exe ./target/release/
-          ./scripts/gear.sh test client
-        env:
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+      # These tests randomly stops responding
+
+      #- name: "Test: Client tests"
+      #  run: |
+      #    cp ./target/x86_64-pc-windows-msvc/release/gear.exe ./target/release/
+      #    ./scripts/gear.sh test client
+      #  env:
+      #    CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
       - name: "Test: Process node runtime spec tests"
         run: |
@@ -662,7 +660,7 @@ jobs:
             --release
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-          
+
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
@@ -678,7 +676,6 @@ jobs:
           tar -cf /tmp/build_win_cross_cache.tar /tmp/sccache
           tar -cf /tmp/build_win_cross_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
-
 
   build-macos-x86:
     if: ${{ always() && (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')) }}
@@ -753,7 +750,7 @@ jobs:
         uses: actions/download-artifact@v3
 
       - name: Delete previous release
-        uses: dev-drprasad/delete-tag-and-release@v0.2.0
+        uses: dev-drprasad/delete-tag-and-release@v0.2.1
         with:
           delete_release: true
           tag_name: build

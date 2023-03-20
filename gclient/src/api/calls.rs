@@ -299,7 +299,7 @@ impl GearApi {
     ///   of values from the mailbox.
     pub async fn claim_value(&self, message_id: MessageId) -> Result<(u128, H256)> {
         let value = self
-            .get_from_mailbox(message_id)
+            .get_mailbox_message(message_id)
             .await?
             .map(|(message, _interval)| message.value());
 
@@ -333,7 +333,7 @@ impl GearApi {
         for message_id in args.clone().into_iter() {
             values.insert(
                 message_id,
-                self.get_from_mailbox(message_id)
+                self.get_mailbox_message(message_id)
                     .await?
                     .map(|(message, _interval)| message.value()),
             );
@@ -510,7 +510,7 @@ impl GearApi {
     ) -> Result<(MessageId, u128, H256)> {
         let payload = payload.as_ref().to_vec();
 
-        let data = self.get_from_mailbox(reply_to_id).await?;
+        let data = self.get_mailbox_message(reply_to_id).await?;
 
         let tx = self
             .0
@@ -553,7 +553,7 @@ impl GearApi {
         for (message_id, _, _, _) in args.clone().into_iter() {
             values.insert(
                 message_id,
-                self.get_from_mailbox(message_id)
+                self.get_mailbox_message(message_id)
                     .await?
                     .map(|(message, _interval)| message.value()),
             );
