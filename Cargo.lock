@@ -582,7 +582,7 @@ version = "0.64.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4243e6031260db77ede97ad86c27e501d646a27ab57b59a574f725d98ab1fb4"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "cexpr",
  "clang-sys",
  "lazy_static",
@@ -616,6 +616,12 @@ name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
+
+[[package]]
+name = "bitflags"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "487f1e0fcbe47deb8b0574e646def1c903389d95241dd1bbcc6ce4a715dfc0c1"
 
 [[package]]
 name = "bitvec"
@@ -1051,7 +1057,7 @@ checksum = "a0610544180c38b88101fecf2dd634b174a62eef6946f84dfc6a7127512b381c"
 dependencies = [
  "ansi_term",
  "atty",
- "bitflags",
+ "bitflags 1.3.2",
  "strsim 0.8.0",
  "textwrap 0.11.0",
  "unicode-width",
@@ -1065,7 +1071,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71655c45cb9845d3270c9d6df84ebe72b4dad3c2ba3f7023ad47c144e4e473a5"
 dependencies = [
  "atty",
- "bitflags",
+ "bitflags 1.3.2",
  "clap_derive 3.2.18",
  "clap_lex 0.2.4",
  "indexmap",
@@ -1077,11 +1083,11 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.1.9"
+version = "4.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a9d6ada83c1edcce028902ea27dd929069c70df4c7600b131b4d9a1ad2879cc"
+checksum = "42dfd32784433290c51d92c438bb72ea5063797fc3cc9a21a8c4346bebbb2098"
 dependencies = [
- "bitflags",
+ "bitflags 2.0.2",
  "clap_derive 4.1.9",
  "clap_lex 0.3.2",
  "is-terminal",
@@ -2465,7 +2471,7 @@ version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "add9a102807b524ec050363f09e06f1504214b0e1c7797f64261c891022dce8b"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "byteorder",
  "lazy_static",
  "proc-macro-error",
@@ -2957,7 +2963,7 @@ dependencies = [
  "Inflector",
  "array-bytes",
  "chrono",
- "clap 4.1.9",
+ "clap 4.1.11",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -3074,7 +3080,7 @@ name = "frame-support"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#033982f0efa8509b9d65531e0e6e1cf35b3805fc"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "frame-metadata",
  "frame-support-procedural",
  "impl-trait-for-tuples",
@@ -3399,7 +3405,7 @@ dependencies = [
  "anyhow",
  "base64 0.21.0",
  "cfg-if",
- "clap 4.1.9",
+ "clap 4.1.11",
  "color-eyre",
  "demo-meta",
  "demo-waiter",
@@ -3570,7 +3576,7 @@ dependencies = [
 name = "gear-bags-thresholds"
 version = "1.0.0"
 dependencies = [
- "clap 4.1.9",
+ "clap 4.1.11",
  "generate-bags",
  "vara-runtime",
 ]
@@ -3594,7 +3600,7 @@ dependencies = [
 name = "gear-cli"
 version = "0.1.1"
 dependencies = [
- "clap 4.1.9",
+ "clap 4.1.11",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -3905,7 +3911,7 @@ name = "gear-runtime-test-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.1.9",
+ "clap 4.1.11",
  "colored",
  "frame-support",
  "frame-system",
@@ -4022,7 +4028,7 @@ name = "gear-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.1.9",
+ "clap 4.1.11",
  "colored",
  "derive_more",
  "env_logger",
@@ -4058,7 +4064,7 @@ dependencies = [
 name = "gear-validator-checks"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.9",
+ "clap 4.1.11",
  "env_logger",
  "futures-util",
  "gsdk",
@@ -4227,7 +4233,7 @@ version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccf7f68c2995f392c49fffb4f95ae2c873297830eb25c6bc4c114ce8f4562acc"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "libc",
  "libgit2-sys",
  "log",
@@ -6407,7 +6413,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9ea4302b9759a7a88242299225ea3688e63c85ea136371bb6cf94fd674efaab"
 dependencies = [
  "anyhow",
- "bitflags",
+ "bitflags 1.3.2",
  "byteorder",
  "libc",
  "netlink-packet-core",
@@ -6460,7 +6466,7 @@ version = "0.22.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4916f159ed8e5de0082076562152a76b7a1f64a01fd9d1e0fea002c37624faf"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "cc",
  "cfg-if",
  "libc",
@@ -6473,7 +6479,7 @@ version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa52e972a9a719cecb6864fb88568781eb706bac2cd1d4f04a648542dbf78069"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "cfg-if",
  "libc",
  "memoffset 0.6.5",
@@ -6485,7 +6491,7 @@ version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfdda3d196821d6af13126e40375cdf7da646a96114af134d5f417a9a1dc8e1a"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "cfg-if",
  "libc",
  "memoffset 0.7.1",
@@ -7928,7 +7934,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e1f879b2998099c2d69ab9605d145d5b661195627eccc680002c4918a7fb6fa"
 dependencies = [
  "autocfg",
- "bitflags",
+ "bitflags 1.3.2",
  "cfg-if",
  "concurrent-queue",
  "libc",
@@ -8168,7 +8174,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29f1b898011ce9595050a68e60f90bad083ff2987a695a42357134c8381fba70"
 dependencies = [
  "bit-set",
- "bitflags",
+ "bitflags 1.3.2",
  "byteorder",
  "lazy_static",
  "num-traits",
@@ -8535,7 +8541,7 @@ version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb5a58c1855b4b6819d59012155603f0b22ad30cad752600aadfcb695265519a"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
 ]
 
 [[package]]
@@ -8624,7 +8630,7 @@ version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76e189c2369884dce920945e2ddf79b3dff49e071a167dd1817fa9c4c00d512e"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "libc",
  "mach",
  "winapi",
@@ -8634,7 +8640,7 @@ dependencies = [
 name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.9",
+ "clap 4.1.11",
  "frame-support",
  "gear-runtime",
  "junit-common",
@@ -8907,7 +8913,7 @@ version = "0.35.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "727a1a6d65f786ec22df8a81ca3121107f235970dc1705ed681d3e6e8b9cd5f9"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "errno 0.2.8",
  "io-lifetimes 0.7.5",
  "libc",
@@ -8921,7 +8927,7 @@ version = "0.36.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd5c6ff11fecd55b40746d1995a02f2eb375bf8c00d192d521ee09f42bef37bc"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "errno 0.2.8",
  "io-lifetimes 1.0.6",
  "libc",
@@ -9106,7 +9112,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0
 dependencies = [
  "array-bytes",
  "chrono",
- "clap 4.1.9",
+ "clap 4.1.11",
  "fdlimit",
  "futures",
  "libp2p 0.50.1",
@@ -9549,7 +9555,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#033982f0efa8509b9d65531e0e6e1cf35b3805fc"
 dependencies = [
  "async-trait",
- "bitflags",
+ "bitflags 1.3.2",
  "bytes",
  "futures",
  "futures-timer",
@@ -9883,7 +9889,7 @@ name = "sc-storage-monitor"
 version = "0.1.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#033982f0efa8509b9d65531e0e6e1cf35b3805fc"
 dependencies = [
- "clap 4.1.9",
+ "clap 4.1.11",
  "fs4",
  "futures",
  "log",
@@ -10275,7 +10281,7 @@ version = "2.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a332be01508d814fed64bf28f798a146d73792121129962fdf335bb3c49a4254"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "core-foundation",
  "core-foundation-sys",
  "libc",
@@ -10772,7 +10778,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0
 dependencies = [
  "array-bytes",
  "base58",
- "bitflags",
+ "bitflags 1.3.2",
  "blake2",
  "dyn-clonable",
  "ed25519-zebra",
@@ -11338,7 +11344,7 @@ version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a2a1c578e98c1c16fc3b8ec1328f7659a500737d7a0c6d625e73e830ff9c1f6"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "cfg_aliases",
  "libc",
  "parking_lot 0.11.2",
@@ -11713,7 +11719,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d75182f12f490e953596550b65ee31bda7c8e043d9386174b353bda50838c3fd"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "core-foundation",
  "system-configuration-sys",
 ]
@@ -12082,7 +12088,7 @@ version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f873044bf02dd1e8239e9c1293ea39dad76dc594ec16185d0a1bf31d8dc8d858"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "bytes",
  "futures-core",
  "futures-util",
@@ -12315,7 +12321,7 @@ name = "try-runtime-cli"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.38#033982f0efa8509b9d65531e0e6e1cf35b3805fc"
 dependencies = [
- "clap 4.1.9",
+ "clap 4.1.11",
  "frame-remote-externalities",
  "frame-try-runtime",
  "hex",
@@ -12870,7 +12876,7 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.9",
+ "clap 4.1.11",
  "env_logger",
  "gear-wasm-builder",
  "log",
@@ -13718,7 +13724,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93f1db1727772c05cf7a2cfece52c3aca8045ca1e176cd517d323489aa3c6d87"
 dependencies = [
  "async-trait",
- "bitflags",
+ "bitflags 1.3.2",
  "bytes",
  "cc",
  "ipnet",
