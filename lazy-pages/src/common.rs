@@ -78,9 +78,7 @@ pub(crate) struct LazyPagesContext {
 }
 
 impl LazyPagesContext {
-    pub fn runtime_context_mut(
-        &mut self,
-    ) -> Result<&mut LazyPagesRuntimeContext, ContextError> {
+    pub fn runtime_context_mut(&mut self) -> Result<&mut LazyPagesRuntimeContext, ContextError> {
         self.runtime_context
             .as_mut()
             .ok_or(ContextError::RuntimeContextIsNotSet)
@@ -252,7 +250,6 @@ pub(crate) struct GasLeftCharger {
 
 impl GasLeftCharger {
     fn sub_gas(gas_left: &mut GasLeft, amount: u64) -> Status {
-        log::trace!("wanna charge {amount}");
         let new_gas = gas_left.gas.checked_sub(amount);
         let new_allowance = gas_left.allowance.checked_sub(amount);
         *gas_left = (

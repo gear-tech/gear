@@ -19,7 +19,6 @@
 //! Memory pages, which can change their sizes during node execution,
 //! for example if runtime decided to change gear page size.
 
-
 use std::num::NonZeroU32;
 
 /// Page number trait - page, which can return it number as u32.
