@@ -45,7 +45,7 @@ mod utils;
 
 use crate::{
     common::{
-        GlobalContextError, GlobalNames, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights,
+        ContextError, GlobalNames, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights,
     },
     globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
@@ -69,11 +69,6 @@ thread_local! {
     // Or may be in one thread but consequentially.
 
     static LAZY_PAGES_CONTEXT: RefCell<LazyPagesContext> = RefCell::new(Default::default());
-    // /// Lazy-pages impl version. Different runtimes may require different impl of lazy-pages functionality.
-    // /// NOTE: be dangerous when use it and pay attention process and thread initialization.
-    // static LAZY_PAGES_RUNTIME_CONTEXT: RefCell<(LazyPagesVersion, Vec<u8>)> = RefCell::new((LazyPagesVersion::Version1, vec![]));
-    // /// Lazy-pages context for current execution.
-    // static LAZY_PAGES_PROGRAM_CONTEXT: RefCell<LazyPagesExecutionContext> = RefCell::new(Default::default());
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -87,16 +82,21 @@ pub enum Error {
     WasmMemoryEndAddrOverflow(usize, u32),
     #[display(fmt = "Prefix of storage with memory pages was not set")]
     MemoryPagesPrefixNotSet,
+    #[display(fmt = "Memory size must be null when memory host addr is not set")]
     MemorySizeIsNotNull,
+    #[display(fmt = "Wasm mem size is too big")]
     WasmMemSizeOverflow,
+    #[display(fmt = "Stack end offset cannot be bigger than memory size")]
     StackEndBiggerThanMemSize,
+    #[display(fmt = "Stack end offset is too big")]
     StackEndOverflow,
-    WasmMemAddrMustBeSome,
+    #[display(fmt = "Wasm addr and size are not changed, so host func call is needless")]
     NothingToChange,
+    #[display(fmt = "Wasm memory addr must be set, when trying to change something in lazy pages")]
     WasmMemAddrIsNotSet,
     #[display(fmt = "{_0}")]
     #[from]
-    GlobalContext(GlobalContextError),
+    GlobalContext(ContextError),
     #[display(fmt = "Wrong weights amount: get {_0}, must be {_1}")]
     WrongWeightsAmount(usize, usize),
 }
@@ -425,11 +425,6 @@ fn init_with_handler<H: UserSignalHandler>(
             ))
         }
     };
-
-    // let weights: Weights = match weights.try_into() {
-    //     Ok(weights) => weights,
-    //     Err(weights) => return Err(WrongWeightsAmount(weights.len(), WeightNo::Amount as usize)),
-    // };
 
     // Set version even if it has been already set, because it can be changed after runtime upgrade.
     LAZY_PAGES_CONTEXT.with(|ctx| {

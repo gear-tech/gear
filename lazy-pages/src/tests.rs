@@ -33,7 +33,6 @@ fn handler_tester<F: FnOnce()>(f: F) {
 
 #[test]
 fn test_with_different_handlers() {
-    println!("lol");
     handler_tester(read_write_flag_works);
     handler_tester(test_mprotect_pages);
 }
@@ -149,7 +148,7 @@ fn test_mprotect_pages() {
     // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {
         for &p in pages_unprotected.iter().chain(pages_protected.iter()) {
-            let addr = page_begin + p.offset(&page_size) as usize + 1;
+            let addr = page_begin + offset(p) + 1;
             *(addr as *mut u8) = OLD_VALUE;
         }
     }

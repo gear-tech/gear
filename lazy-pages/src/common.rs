@@ -62,11 +62,11 @@ pub(crate) enum Error {
     #[display(fmt = "Cannot receive signal from wasm memory, when status is gas limit exceed")]
     SignalWhenStatusGasExceeded,
     #[from]
-    GlobalContext(GlobalContextError),
+    GlobalContext(ContextError),
 }
 
 #[derive(Debug, derive_more::Display)]
-pub enum GlobalContextError {
+pub enum ContextError {
     RuntimeContextIsNotSet,
     ExecutionContextIsNotSet,
 }
@@ -80,22 +80,22 @@ pub(crate) struct LazyPagesContext {
 impl LazyPagesContext {
     pub fn runtime_context_mut(
         &mut self,
-    ) -> Result<&mut LazyPagesRuntimeContext, GlobalContextError> {
+    ) -> Result<&mut LazyPagesRuntimeContext, ContextError> {
         self.runtime_context
             .as_mut()
-            .ok_or(GlobalContextError::RuntimeContextIsNotSet)
+            .ok_or(ContextError::RuntimeContextIsNotSet)
     }
-    pub fn execution_context(&self) -> Result<&LazyPagesExecutionContext, GlobalContextError> {
+    pub fn execution_context(&self) -> Result<&LazyPagesExecutionContext, ContextError> {
         self.execution_context
             .as_ref()
-            .ok_or(GlobalContextError::ExecutionContextIsNotSet)
+            .ok_or(ContextError::ExecutionContextIsNotSet)
     }
     pub fn execution_context_mut(
         &mut self,
-    ) -> Result<&mut LazyPagesExecutionContext, GlobalContextError> {
+    ) -> Result<&mut LazyPagesExecutionContext, ContextError> {
         self.execution_context
             .as_mut()
-            .ok_or(GlobalContextError::ExecutionContextIsNotSet)
+            .ok_or(ContextError::ExecutionContextIsNotSet)
     }
     pub fn set_runtime_context(&mut self, ctx: LazyPagesRuntimeContext) {
         self.runtime_context = Some(ctx);

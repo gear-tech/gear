@@ -1,5 +1,28 @@
+// This file is part of Gear.
+
+// Copyright (C) 2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Memory pages, which can change their sizes during node execution,
+//! for example if runtime decided to change gear page size.
+
+
 use std::num::NonZeroU32;
 
+/// Page number trait - page, which can return it number as u32.
 pub trait PageNumber: Into<u32> + Sized + Copy + Clone {
     unsafe fn from_raw(raw: u32) -> Self;
 
@@ -67,6 +90,7 @@ pub(crate) enum PageSizeNo {
     Amount,
 }
 
+/// Context where dynamic size pages store their sizes
 pub(crate) trait SizeManager {
     fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32;
     fn size<P: PageDynSize>(&self) -> u32 {

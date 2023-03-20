@@ -38,7 +38,7 @@ const RT_ALLOWED_IMPORTS: [&str; 64] = [
     // From `GearRI` (runtime-interface/scr/lib.rs)
     "ext_gear_ri_pre_process_memory_accesses_version_1",
     "ext_gear_ri_lazy_pages_status_version_1",
-    "ext_gear_ri_get_released_pages_version_1",
+    "ext_gear_ri_write_accessed_pages_version_1",
     "ext_gear_ri_init_lazy_pages_version_1",
     "ext_gear_ri_init_lazy_pages_for_program_version_1",
     "ext_gear_ri_init_lazy_pages_for_program_version_2",
