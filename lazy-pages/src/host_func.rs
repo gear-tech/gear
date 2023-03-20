@@ -118,7 +118,7 @@ fn accesses_pages(
         while offset <= last_byte {
             set.insert(GearPageNumber::from_offset(ctx, offset));
             offset = match offset.checked_add(page_size) {
-                Some(offset) => offset,
+                Some(offset) => (offset / page_size) * page_size,
                 None => break,
             }
         }

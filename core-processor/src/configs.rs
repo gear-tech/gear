@@ -23,7 +23,7 @@ use codec::{Decode, Encode};
 use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     costs::{CostPerPage, HostFnWeights},
-    memory::{GranularityPage, WasmPage},
+    memory::{GearPage, WasmPage},
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -42,36 +42,36 @@ pub struct BlockInfo {
 /// Memory/allocation config.
 #[derive(Clone, Debug, Decode, Encode, Default)]
 pub struct PageCosts {
-    /// Cost per one [GranularityPage] signal `read` processing in lazy-pages,
+    /// Cost per one [GearPage] signal `read` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub signal_read: CostPerPage<GranularityPage>,
+    pub signal_read: CostPerPage<GearPage>,
 
-    /// Cost per one [GranularityPage] signal `write` processing in lazy-pages,
+    /// Cost per one [GearPage] signal `write` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub signal_write: CostPerPage<GranularityPage>,
+    pub signal_write: CostPerPage<GearPage>,
 
-    /// Cost per one [GranularityPage] signal `write after read` processing in lazy-pages,
+    /// Cost per one [GearPage] signal `write after read` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_signal_write_after_read: CostPerPage<GranularityPage>,
+    pub lazy_pages_signal_write_after_read: CostPerPage<GearPage>,
 
-    /// Cost per one [GranularityPage] host func `read` access processing in lazy-pages,
+    /// Cost per one [GearPage] host func `read` access processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_host_func_read: CostPerPage<GranularityPage>,
+    pub lazy_pages_host_func_read: CostPerPage<GearPage>,
 
-    /// Cost per one [GranularityPage] host func `write` access processing in lazy-pages,
+    /// Cost per one [GearPage] host func `write` access processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_host_func_write: CostPerPage<GranularityPage>,
+    pub lazy_pages_host_func_write: CostPerPage<GearPage>,
 
-    /// Cost per one [GranularityPage] host func `write after read` access processing in lazy-pages,
+    /// Cost per one [GearPage] host func `write after read` access processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
-    pub lazy_pages_host_func_write_after_read: CostPerPage<GranularityPage>,
+    pub lazy_pages_host_func_write_after_read: CostPerPage<GearPage>,
 
-    /// Cost per one [GranularityPage] data loading from storage
+    /// Cost per one [GearPage] data loading from storage
     /// and moving it in program memory.
-    pub load_page_data: CostPerPage<GranularityPage>,
+    pub load_page_data: CostPerPage<GearPage>,
 
-    /// Cost per one [GranularityPage] uploading data to storage.
-    pub upload_page_data: CostPerPage<GranularityPage>,
+    /// Cost per one [GearPage] uploading data to storage.
+    pub upload_page_data: CostPerPage<GearPage>,
 
     /// Cost per one [WasmPage] static page. Static pages can have static data,
     /// and executor must to move this data to static pages before execution.
@@ -81,7 +81,7 @@ pub struct PageCosts {
     pub mem_grow: CostPerPage<WasmPage>,
 
     /// Cost per one granularity page storage read, when para-chain execution.
-    pub parachain_load_heuristic: CostPerPage<GranularityPage>,
+    pub parachain_load_heuristic: CostPerPage<GearPage>,
 }
 
 impl PageCosts {

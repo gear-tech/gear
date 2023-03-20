@@ -23,7 +23,7 @@ use codec::{Decode, Encode};
 use core::{fmt::Debug, marker::PhantomData};
 
 /// Cost per one memory page.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct CostPerPage<P: PageU32Size> {
     cost: u64,
     _phantom: PhantomData<P>,
@@ -51,6 +51,13 @@ impl<P: PageU32Size> CostPerPage<P> {
     /// Returns another [CostPerPage] with increased `cost` to `other.cost`.
     pub fn saturating_add(&self, other: Self) -> Self {
         self.cost.saturating_add(other.cost).into()
+    }
+}
+
+impl<P: PageU32Size> Debug for CostPerPage<P> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_fmt(format_args!("{}", &self.cost))
+        // f.debug_struct("CostPerPage").field("", &self.cost).finish()
     }
 }
 

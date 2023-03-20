@@ -24,7 +24,7 @@ use codec::{Decode, Encode};
 use core::any::Any;
 use gear_core::{
     costs::CostPerPage,
-    memory::{GranularityPage, HostPointer},
+    memory::{GearPage, HostPointer},
 };
 
 /// Informs lazy-pages whether they work with native or WASM runtime.
@@ -40,19 +40,19 @@ pub enum GlobalsAccessMod {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct LazyPagesWeights {
     /// First read page access cost.
-    pub signal_read: CostPerPage<GranularityPage>,
+    pub signal_read: CostPerPage<GearPage>,
     /// First write page access cost.
-    pub signal_write: CostPerPage<GranularityPage>,
+    pub signal_write: CostPerPage<GearPage>,
     /// First write access cost for page, which has been already read accessed.
-    pub signal_write_after_read: CostPerPage<GranularityPage>,
+    pub signal_write_after_read: CostPerPage<GearPage>,
     /// First read page access cost from host function call.
-    pub host_func_read: CostPerPage<GranularityPage>,
+    pub host_func_read: CostPerPage<GearPage>,
     /// First write page access cost from host function call.
-    pub host_func_write: CostPerPage<GranularityPage>,
+    pub host_func_write: CostPerPage<GearPage>,
     /// First write page access cost from host function call.
-    pub host_func_write_after_read: CostPerPage<GranularityPage>,
+    pub host_func_write_after_read: CostPerPage<GearPage>,
     /// Loading page data from storage cost.
-    pub load_page_storage_data: CostPerPage<GranularityPage>,
+    pub load_page_storage_data: CostPerPage<GearPage>,
 }
 
 /// Globals ctx for lazy-pages initialization for program.

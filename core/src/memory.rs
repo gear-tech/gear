@@ -19,7 +19,7 @@
 //! Module for memory and allocations context.
 
 use crate::buffer::LimitedVec;
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, format};
 use codec::{Decode, Encode, EncodeLike, Input, Output};
 use core::{
     fmt,
@@ -66,7 +66,7 @@ static_assertions::const_assert_eq!(WASM_PAGE_SIZE % PAGE_STORAGE_GRANULARITY, 0
 static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY % GEAR_PAGE_SIZE, 0);
 
 /// Interval in wasm program memory.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct MemoryInterval {
     /// Interval offset in bytes.
     pub offset: u32,
@@ -86,6 +86,15 @@ impl From<(u32, u32)> for MemoryInterval {
 impl From<MemoryInterval> for (u32, u32) {
     fn from(val: MemoryInterval) -> Self {
         (val.offset, val.size)
+    }
+}
+
+impl Debug for MemoryInterval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&format!(
+            "[offset: {:#x}, size: {:#x}]",
+            self.offset, self.size
+        ))
     }
 }
 
