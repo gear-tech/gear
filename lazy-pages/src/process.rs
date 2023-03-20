@@ -47,14 +47,14 @@ pub(crate) trait AccessHandler {
     /// Returns wether already accessed memory read access is allowed for the case.
     fn check_read_from_accessed_memory() -> Result<(), Error>;
 
-    /// Charge for accessed pages.
+    /// Charge for accessed gear page.
     fn charge_for_page_access(
         &mut self,
         page: GearPageNumber,
         is_already_accessed: bool,
     ) -> Result<Status, Error>;
 
-    /// Charge for one granularity page data loading.
+    /// Charge for one gear page data loading.
     fn charge_for_page_data_loading(&mut self) -> Result<Status, Error>;
 
     /// Get the biggest page from `pages`.
@@ -81,19 +81,6 @@ pub(crate) trait AccessHandler {
 /// 2) If some page contains data in storage, then load this data and place it in
 /// program's wasm memory.
 /// 3) Charge gas for access and data loading.
-///
-/// [PAGE_STORAGE_GRANULARITY] (PSG) case - if page is write accessed
-/// first time in program live, then this page has no data in storage yet.
-/// This also means that all pages from the same PSG interval has no data in storage.
-/// So, in this case we have to insert in `released_pages` all pages from the same
-/// PSG interval, in order to upload their data to storage later in runtime.
-/// We have to make separate logic for this case in order to support consensus
-/// between nodes with different native page sizes. For example, if one node
-/// has native page size 4kBit and other 16kBit, then (without PSG logic)
-/// for first one gear page will be uploaded and for second 4 gear pages.
-/// This can cause conflicts in data about pages that have data in storage.
-/// So, to avoid this we upload all pages from PSG interval (which is 16kBit now),
-/// and restrict to run node on machines, that have native page number bigger than PSG.
 pub(crate) unsafe fn process_lazy_pages<H: AccessHandler>(
     ctx: &mut LazyPagesExecutionContext,
     mut handler: H,

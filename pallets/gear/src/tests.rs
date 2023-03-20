@@ -2417,7 +2417,7 @@ fn memory_access_cases() {
 #[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
-    use gear_core::memory::{GearPage, PageU32Size, PAGE_STORAGE_GRANULARITY};
+    use gear_core::memory::{GearPage, PageU32Size};
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 
@@ -2499,87 +2499,27 @@ fn lazy_pages() {
         // Dirty hack: lazy pages info is stored in thread local static variables,
         // so after contract execution lazy-pages information
         // remains correct and we can use it here.
-        let released_pages: BTreeSet<_> = gear_ri::gear_ri::write_accessed_pages()
+        let write_accessed_pages: BTreeSet<_> = gear_ri::gear_ri::write_accessed_pages()
             .into_iter()
             .collect();
 
         // checks accessed pages set
-        let native_size = page_size::get() as u32;
-        let mut expected_released = BTreeSet::new();
-
-        let page_to_released = |p: u32, is_first_access: bool| {
-            // is the minimum memory interval, which must be in storage for any page.
-            let granularity = if is_first_access {
-                PAGE_STORAGE_GRANULARITY as u32
-            } else {
-                native_size
-            };
-            if granularity > GearPage::size() {
-                // `x` is a number of gear pages in granularity
-                let x = granularity / GearPage::size();
-                // is first gear page in granularity interval
-                let first_gear_page = (p / x) * x;
-                // accessed gear pages range:
-                first_gear_page..=first_gear_page + x - 1
-            } else {
-                p..=p
-            }
-        };
+        let mut expected_write_accessed_pages = BTreeSet::new();
 
         // released from 0 wasm page:
-        expected_released.extend(page_to_released(0, false));
+        expected_write_accessed_pages.insert(0);
 
         // released from 2 wasm page:
-        let first_page = 0x23ffe / GearPage::size();
-        let second_page = 0x24001 / GearPage::size();
-        expected_released.extend(page_to_released(first_page, true));
-        expected_released.extend(page_to_released(second_page, true));
+        expected_write_accessed_pages.insert(0x23ffe / GearPage::size());
+        expected_write_accessed_pages.insert(0x24001 / GearPage::size());
 
         // nothing for 5 wasm page, because it's just read access
 
         // released from 8 and 9 wasm pages, must be several gear pages:
-        let first_page = 0x8fffc / GearPage::size();
-        let second_page = 0x90003 / GearPage::size();
-        expected_released.extend(page_to_released(first_page, true));
-        expected_released.extend(page_to_released(second_page, true));
+        expected_write_accessed_pages.insert(0x8fffc / GearPage::size());
+        expected_write_accessed_pages.insert(0x90003 / GearPage::size());
 
-        assert_eq!(released_pages, expected_released);
-
-        // For second message handle we will touch the same memory, but because
-        // some pages are already in storage, then we can skip page storage granularity
-        // when uploads pages to storage, so released pages can be different.
-        let res = Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            EMPTY_PAYLOAD.to_vec(),
-            10_000_000_000,
-            1000,
-        );
-        assert_ok!(res);
-
-        run_to_block(4, None);
-
-        let released_pages: BTreeSet<_> = gear_ri::gear_ri::write_accessed_pages()
-            .into_iter()
-            .collect();
-        let mut expected_released = BTreeSet::new();
-
-        // released from 0 wasm page:
-        expected_released.extend(page_to_released(0, false));
-
-        // released from 2 wasm page:
-        let first_page = 0x23ffe / GearPage::size();
-        let second_page = 0x24001 / GearPage::size();
-        expected_released.extend(page_to_released(first_page, false));
-        expected_released.extend(page_to_released(second_page, false));
-
-        // released from 8 and 9 wasm pages, must be several gear pages:
-        let first_page = 0x8fffc / GearPage::size();
-        let second_page = 0x90003 / GearPage::size();
-        expected_released.extend(page_to_released(first_page, false));
-        expected_released.extend(page_to_released(second_page, false));
-
-        assert_eq!(released_pages, expected_released);
+        assert_eq!(write_accessed_pages, expected_write_accessed_pages);
     });
 }
 

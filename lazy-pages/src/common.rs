@@ -106,7 +106,7 @@ impl LazyPagesContext {
 }
 
 pub(crate) type Weights = [u64; WeightNo::Amount as usize];
-pub(crate) type PageSizes = [u32; PageSizeNo::Amount as usize];
+pub(crate) type PageSizes = [NonZeroU32; PageSizeNo::Amount as usize];
 pub(crate) type GlobalNames = [String; GlobalNo::Amount as usize];
 
 #[derive(Debug)]
@@ -127,19 +127,10 @@ pub(crate) struct LazyPagesExecutionContext {
     pub wasm_mem_size: WasmPageNumber,
     /// Current program prefix in storage
     pub program_storage_prefix: PagePrefix,
-    /// Wasm addresses of lazy-pages, that have been read or write accessed at least once.
-    /// Lazy page here is page, which has `size = max(native_page_size, gear_page_size)`.
+    /// Pages which has been accessed by program during current execution
     pub accessed_pages: BTreeSet<GearPageNumber>,
-    /// +_+_+
+    /// Pages which has been write accessed by program during current execution
     pub write_accessed_pages: BTreeSet<GearPageNumber>,
-    /// Granularity pages, for which we have already charge gas for read.
-    // pub read_charged: BTreeSet<GranularityPage>,
-    /// Granularity pages, for which we have already charge gas for write.
-    // pub write_charged: BTreeSet<GranularityPage>,
-    /// Granularity pages, for which we have already charge gas for read after write.
-    // pub write_after_read_charged: BTreeSet<GranularityPage>,
-    /// Loading page data from storage cost.
-    // pub load_data_charged: BTreeSet<GranularityPage>,
     /// End of stack wasm address. Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify
     /// this value, `lazy-pages` uses it to identify memory, for which we
@@ -153,8 +144,6 @@ pub(crate) struct LazyPagesExecutionContext {
     pub globals_context: Option<GlobalsContext>,
     /// Lazy-pages status: indicates in which mod lazy-pages works actually.
     pub status: Status,
-    // Cache information about whether page has data in storage
-    // pub page_has_data_in_storage: BTreeMap<GranularityPage, bool>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -164,15 +153,13 @@ pub enum LazyPagesVersion {
 
 impl SizeManager for LazyPagesExecutionContext {
     fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
-        // +_+_+
-        unsafe { NonZeroU32::new_unchecked(self.page_sizes[P::SIZE_NO]) }
+        self.page_sizes[P::SIZE_NO]
     }
 }
 
 impl SizeManager for LazyPagesRuntimeContext {
     fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
-        // +_+_+
-        unsafe { NonZeroU32::new_unchecked(self.page_sizes[P::SIZE_NO]) }
+        self.page_sizes[P::SIZE_NO]
     }
 }
 
@@ -259,7 +246,6 @@ impl PagePrefix {
 
 #[derive(Debug, Clone)]
 pub(crate) struct GasLeftCharger {
-    // +_+_+ return cost per page
     pub read_cost: u64,
     pub write_cost: u64,
     pub write_after_read_cost: u64,

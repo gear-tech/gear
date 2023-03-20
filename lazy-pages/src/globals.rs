@@ -34,17 +34,13 @@ pub(crate) enum GlobalNo {
 
 #[derive(Debug)]
 pub(crate) struct GlobalsContext {
-    /// +_+_+
+    /// Global names
     pub names: GlobalNames,
-    /// Raw pointer to the globals access provider.
+    /// Raw pointer to the globals access provider
     pub access_ptr: HostPointer,
-    /// Access mod, currently two: native or WASM runtime.
+    /// Access mod, currently two: native or WASM runtime
     pub access_mod: GlobalsAccessMod,
 }
-// pub(crate) const GLOBAL_GAS_LIMIT_NO: usize = GearGlobal::GasLimit as usize;
-// pub(crate) const GLOBAL_ALLOWANCE_NO: usize = GearGlobal::AllowanceLimit as usize;
-// pub(crate) const GLOBAL_FLAGS_NO: usize = GearGlobal::Flags as usize;
-// pub(crate) const GLOBALS_AMOUNT: usize = GearGlobal::GlobalsAmount as usize;
 
 struct GlobalsAccessWasmRuntime<'a> {
     pub instance: &'a mut SandboxInstance,

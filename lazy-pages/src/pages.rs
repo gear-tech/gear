@@ -99,14 +99,6 @@ pub(crate) trait PageDynSize: PageNumber {
     fn from_offset<S: SizeManager>(ctx: &S, offset: u32) -> Self {
         unsafe { Self::from_raw(offset / Self::size(ctx)) }
     }
-    // fn checked_add<S: SizeManager>(&self, ctx: &S, other: Self) -> Option<Self> {
-    //     self.raw()
-    //         .checked_add(other.raw())
-    //         .map(|p| Self::checked_new(p, ctx))?
-    // }
-    // fn checked_inc<S: SizeManager>(&self, ctx: &S) -> Option<Self> {
-    //     self.checked_add(ctx, Self::from_raw(1))
-    // }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, derive_more::Into)]

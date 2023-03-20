@@ -42,28 +42,8 @@ pub const WASM_PAGE_SIZE: usize = 0x10000;
 /// native page size, so can vary.
 pub const GEAR_PAGE_SIZE: usize = 0x4000;
 
-/// Pages data storage granularity (PSG) is a size and wasm addr alignment
-/// of a memory interval, for which the following conditions must be met:
-/// if some gear page has data in storage, then all gear
-/// pages, that are in the same granularity interval, must contain
-/// data in storage. For example:
-/// ````ignored
-///   granularity interval no.0       interval no.1        interval no.2
-///                |                    |                    |
-///                {====|====|====|====}{====|====|====|====}{====|====|====|====}
-///               /     |     \
-///    gear-page 0    page 1   page 2 ...
-/// ````
-/// In this example each PSG page contains 4 gear-pages. So, if gear-page `2`
-/// has data in storage, then gear-page `0`,`1`,`3` also has data in storage.
-/// This constant is necessary for consensus between nodes with different
-/// native page sizes. You can see an example of using in crate `gear-lazy-pages`.
-pub const PAGE_STORAGE_GRANULARITY: usize = 0x4000;
-
 static_assertions::const_assert!(WASM_PAGE_SIZE < u32::MAX as usize);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
-static_assertions::const_assert_eq!(WASM_PAGE_SIZE % PAGE_STORAGE_GRANULARITY, 0);
-static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY % GEAR_PAGE_SIZE, 0);
 
 /// Interval in wasm program memory.
 #[derive(Clone, Copy)]
@@ -456,25 +436,6 @@ impl PageU32Size for WasmPage {
     }
 }
 
-/// Page with size [PAGE_STORAGE_GRANULARITY].
-#[derive(Debug, Default, Encode, Decode, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GranularityPage(u32);
-
-impl PageU32Size for GranularityPage {
-    fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(PAGE_STORAGE_GRANULARITY, 0);
-        unsafe { NonZeroU32::new_unchecked(PAGE_STORAGE_GRANULARITY as u32) }
-    }
-
-    fn raw(&self) -> u32 {
-        self.0
-    }
-
-    unsafe fn new_unchecked(num: u32) -> Self {
-        Self(num)
-    }
-}
-
 impl From<u16> for WasmPage {
     fn from(value: u16) -> Self {
         // u16::MAX * WasmPage::size() - 1 == u32::MAX
@@ -488,14 +449,6 @@ impl From<u16> for GearPage {
         // u16::MAX * GearPage::size() - 1 <= u32::MAX
         static_assertions::const_assert!(GEAR_PAGE_SIZE <= 0x10000);
         GearPage(value as u32)
-    }
-}
-
-impl From<u16> for GranularityPage {
-    fn from(value: u16) -> Self {
-        // u16::MAX * GranularityPage::size() - 1 <= u32::MAX
-        static_assertions::const_assert!(PAGE_STORAGE_GRANULARITY <= 0x10000);
-        GranularityPage(value as u32)
     }
 }
 

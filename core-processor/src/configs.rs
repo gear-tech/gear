@@ -80,7 +80,7 @@ pub struct PageCosts {
     /// Cost per one [WasmPage] for memory growing.
     pub mem_grow: CostPerPage<WasmPage>,
 
-    /// Cost per one granularity page storage read, when para-chain execution.
+    /// Cost per one [GearPage] storage read, when para-chain execution.
     pub parachain_load_heuristic: CostPerPage<GearPage>,
 }
 

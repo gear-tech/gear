@@ -24,7 +24,7 @@ use ::alloc::{collections::BTreeSet, format};
 use codec::MaxEncodedLen;
 use common::ProgramStorage;
 use gear_backend_common::lazy_pages::Status;
-use gear_core::memory::{GranularityPage, MemoryInterval, PageU32Size, PAGE_STORAGE_GRANULARITY};
+use gear_core::memory::{MemoryInterval, PageU32Size};
 use rand::{Rng, SeedableRng};
 
 use gear_lazy_pages_common as lazy_pages;
@@ -199,7 +199,7 @@ where
 
     let memory = ImportedMemory::max::<T>();
     let size_wasm_pages = WasmPage::new(memory.min_pages).unwrap();
-    let size_psg = size_wasm_pages.to_page::<GranularityPage>();
+    let size_gear = size_wasm_pages.to_page::<GearPage>();
     let access_size = size_of::<u32>() as u32;
     let max_addr = size_wasm_pages.offset();
 
@@ -271,7 +271,7 @@ where
 
         // Append data in storage for some pages.
         for page in (0..rng.gen_range(0..MAX_PAGES_WITH_DATA))
-            .map(|_| GearPage::new(rng.gen_range(0..size_psg.raw())).unwrap())
+            .map(|_| GearPage::new(rng.gen_range(0..size_gear.raw())).unwrap())
         {
             page_sets.add_page_with_data(page);
             ProgramStorageOf::<T>::set_program_page_data(program_id, page, PageBuf::new_zeroed());
@@ -348,7 +348,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let psg = PAGE_STORAGE_GRANULARITY as i32;
+    let size = GearPage::size() as i32;
     let read_cost = 1u64;
     let write_cost = 10u64;
     let write_after_read_cost = 100u64;
@@ -409,12 +409,12 @@ where
 
     test(
         vec![
-            // Read 0st and 1st psg pages
-            Instruction::I32Const(psg - 1),
+            // Read 0st and 1st gear pages
+            Instruction::I32Const(size - 1),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
-            // Write after read 1st psg page
-            Instruction::I32Const(psg),
+            // Write after read 1st gear page
+            Instruction::I32Const(size),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
         ],
@@ -423,12 +423,12 @@ where
 
     test(
         vec![
-            // Read 0st and 1st psg pages
-            Instruction::I32Const(psg - 1),
+            // Read 0st and 1st gear pages
+            Instruction::I32Const(size - 1),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
-            // Write after read 0st and 1st psg page
-            Instruction::I32Const(psg - 3),
+            // Write after read 0st and 1st gear page
+            Instruction::I32Const(size - 3),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
         ],
@@ -437,12 +437,12 @@ where
 
     test(
         vec![
-            // Read 0st and 1st psg pages
-            Instruction::I32Const(psg - 1),
+            // Read 0st and 1st gear pages
+            Instruction::I32Const(size - 1),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
-            // Write after read 1st psg page and write 2st psg page
-            Instruction::I32Const(2 * psg - 1),
+            // Write after read 1st gear page and write 2st gear page
+            Instruction::I32Const(2 * size - 1),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
         ],
@@ -451,12 +451,12 @@ where
 
     test(
         vec![
-            // Read 1st psg page
-            Instruction::I32Const(psg),
+            // Read 1st gear page
+            Instruction::I32Const(size),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
-            // Write after read 1st psg page and write 0st psg page
-            Instruction::I32Const(psg - 1),
+            // Write after read 1st gear page and write 0st gear page
+            Instruction::I32Const(size - 1),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
         ],
@@ -465,12 +465,12 @@ where
 
     test(
         vec![
-            // Read 1st psg page
-            Instruction::I32Const(psg),
+            // Read 1st gear page
+            Instruction::I32Const(size),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
-            // Read 0st and 1st psg pages, but pay only for 0st.
-            Instruction::I32Const(psg - 1),
+            // Read 0st and 1st gear pages, but pay only for 0st.
+            Instruction::I32Const(size - 1),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
         ],
@@ -479,12 +479,12 @@ where
 
     test(
         vec![
-            // Write 0st and 1st psg page
-            Instruction::I32Const(psg - 1),
+            // Write 0st and 1st gear page
+            Instruction::I32Const(size - 1),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
-            // Write 1st and 2st psg pages, but pay only for 2st page
-            Instruction::I32Const(2 * psg - 1),
+            // Write 1st and 2st gear pages, but pay only for 2st page
+            Instruction::I32Const(2 * size - 1),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
         ],
@@ -493,12 +493,12 @@ where
 
     test(
         vec![
-            // Write 0st and 1st psg page
-            Instruction::I32Const(psg - 1),
+            // Write 0st and 1st gear page
+            Instruction::I32Const(size - 1),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
-            // Read 1st and 2st psg pages, but pay only for 2st page
-            Instruction::I32Const(2 * psg - 1),
+            // Read 1st and 2st gear pages, but pay only for 2st page
+            Instruction::I32Const(2 * size - 1),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
         ],

@@ -30,7 +30,7 @@ use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
 use gear_backend_common::lazy_pages::{GlobalsAccessConfig, Status};
 use pages::{PageNumber, WasmPageNumber};
 use sp_std::vec::Vec;
-use std::{cell::RefCell, convert::TryInto};
+use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
 
 mod common;
 mod globals;
@@ -313,6 +313,8 @@ pub enum InitError {
     CanNotSetUpSignalHandler(String),
     #[display(fmt = "Failed to init for thread: {_0}")]
     InitForThread(String),
+    #[display(fmt = "Provided by runtime memory page size cannot be zero")]
+    ZeroPageSize,
 }
 
 /// Initialize lazy-pages once for process:
@@ -389,6 +391,13 @@ fn init_with_handler<H: UserSignalHandler>(
 ) -> Result<(), InitError> {
     use InitError::*;
 
+    // Check that sizes are not zero
+    let page_sizes = page_sizes
+        .into_iter()
+        .map(TryInto::<NonZeroU32>::try_into)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| ZeroPageSize)?;
+
     let page_sizes: PageSizes = match page_sizes.try_into() {
         Ok(sizes) => sizes,
         Err(sizes) => return Err(WrongSizesAmount(sizes.len(), PageSizeNo::Amount as usize)),
@@ -399,9 +408,9 @@ fn init_with_handler<H: UserSignalHandler>(
     let gear_page_size = page_sizes[PageSizeNo::GearSizeNo as usize];
     let native_page_size = region::page::size();
     if wasm_page_size < gear_page_size
-        || (gear_page_size as usize) < native_page_size
-        || !u32::is_power_of_two(wasm_page_size)
-        || !u32::is_power_of_two(gear_page_size)
+        || (gear_page_size.get() as usize) < native_page_size
+        || !u32::is_power_of_two(wasm_page_size.get())
+        || !u32::is_power_of_two(gear_page_size.get())
         || !usize::is_power_of_two(native_page_size)
     {
         return Err(NotSuitablePageSizes);
