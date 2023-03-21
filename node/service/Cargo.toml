@@ -37,7 +37,7 @@ vara-runtime = { workspace = true, optional = true, features = ["std"] }
 sc-block-builder.workspace = true
 sc-chain-spec.workspace = true
 sc-authority-discovery.workspace = true
-sc-executor = { workspace = true, features = [ "host-sandbox", "wasmer-cache" ] }
+sc-executor.workspace = true
 sc-service.workspace = true
 sc-telemetry.workspace = true
 sc-keystore.workspace = true

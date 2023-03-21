@@ -49,7 +49,7 @@ pallet-timestamp.workspace = true
 sp-consensus-babe = { workspace = true, optional = true}
 
 # Benchmark deps
-sp-sandbox = { workspace = true, optional = true }
+gear-sandbox = { workspace = true, optional = true }
 serde = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }
 rand_pcg = { workspace = true, optional = true }
@@ -147,7 +147,7 @@ runtime-benchmarks = [
 	"common/runtime-benchmarks",
 	"gear-backend-common/mock",
 	"gear-core-errors/codec",
-	"sp-sandbox",
+	"gear-sandbox",
 	"sp-consensus-slots",
 	"sp-consensus-babe",
 	"rand",

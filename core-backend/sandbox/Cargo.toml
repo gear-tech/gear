@@ -12,7 +12,7 @@ gear-backend-common.workspace = true
 gsys ={ workspace = true }
 
 gear-wasm-instrument.workspace = true
-sp-sandbox = { workspace = true, features = ["host-sandbox"] }
+gear-sandbox = { workspace = true, features = ["host-sandbox"] }
 # Use max_level_debug feature to remove tracing in sys-calls by default.
 log.workspace = true
 derive_more.workspace = true
@@ -21,4 +21,4 @@ blake2-rfc.workspace = true
 
 [features]
 default = ["std"]
-std = ["sp-sandbox/std", "gear-wasm-instrument/std", "log/std"]
+std = ["gear-sandbox/std", "gear-wasm-instrument/std", "log/std"]

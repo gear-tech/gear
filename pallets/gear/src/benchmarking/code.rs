@@ -42,7 +42,7 @@ use gear_wasm_instrument::{
     syscalls::SysCallName,
     STACK_END_EXPORT_NAME,
 };
-use sp_sandbox::{
+use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory},
     SandboxEnvironmentBuilder, SandboxMemory,
 };

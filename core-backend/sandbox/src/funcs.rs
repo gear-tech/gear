@@ -38,7 +38,7 @@ use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
     LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
 };
-use sp_sandbox::{HostError, ReturnValue, Value};
+use gear_sandbox::{HostError, ReturnValue, Value};
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
 

@@ -31,7 +31,7 @@ use gear_backend_common::{
 use gear_core::{costs::RuntimeCosts, gas::GasLeft};
 use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
-use sp_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
+use gear_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -45,7 +45,7 @@ pub(crate) struct Runtime<E> {
     pub memory: MemoryWrap,
     pub fallible_syscall_error: Option<ExtError>,
     pub termination_reason: TerminationReason,
-    pub globals: sp_sandbox::default_executor::InstanceGlobals,
+    pub globals: gear_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
     pub memory_manager: MemoryAccessManager<E>,
 }

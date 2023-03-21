@@ -1,0 +1,25 @@
+[package]
+name = "gear-sandbox-runtime-interface"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+description = "Gear Runtime Interface"
+edition = "2018"
+license = "GPL-3.0"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+
+[dependencies]
+log = { version = "0.4.17", optional = true }
+sp-runtime-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.38", default-features = false }
+sp-wasm-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.38", default-features = false }
+sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.38", default-features = false }
+codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+	"sp-runtime-interface/std",
+	"sp-wasm-interface/std",
+	"sp-std/std",
+	"log",
+]
