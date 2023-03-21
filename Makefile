@@ -297,7 +297,7 @@ doc:
 fuzz:
 	@ ./scripts/gear.sh test fuzz $(target)
 
-.PHONY: fuzz-vara
+.PHONY: fuzz-vara #TODO 2434 test it works
 fuzz-vara:
 	@ ./scripts/gear.sh test fuzz --features=vara-native,lazy-pages --no-default-features $(target)
 
