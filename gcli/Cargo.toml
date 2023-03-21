@@ -20,7 +20,7 @@ gsdk = { path = "../gsdk" }
 anyhow = "1.0.70"
 base64 = "0.21.0"
 color-eyre = "0.6.2"
-dirs = "4.0.0"
+dirs = "5.0.0"
 env_logger = "0.10.0"
 gear-core = { path = "../core" }
 hex = "0.4.3"
