@@ -135,4 +135,5 @@ mod node;
 mod utils;
 
 pub use api::{calls::*, error::*, listener::*, GearApi};
+pub use node::ws::WSAddress;
 pub use utils::*;

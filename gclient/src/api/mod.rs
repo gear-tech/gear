@@ -28,10 +28,11 @@ use crate::{
 };
 use error::*;
 use gsdk::{ext::sp_runtime::AccountId32, signer::Signer, Api};
-use std::ffi::OsStr;
+use std::{ffi::OsStr, sync::Arc};
 
 /// The API instance contains methods to access the node.
-pub struct GearApi(Signer, Option<Node>);
+#[derive(Clone)]
+pub struct GearApi(Signer, Option<Arc<Node>>);
 
 impl GearApi {
     /// Create and init a new `GearApi` specified by its `address` on behalf of
@@ -77,26 +78,26 @@ impl GearApi {
         Self::init(WSAddress::dev()).await
     }
 
-    /// Create and init a new `GearApi` instance via spawning a new node process in
-    /// development mode using the `--dev` flag and listening on an a random port number.
-    /// The node process uses a binary specified by the `path` param. Ideally, the binary
-    /// should be downloaded by means of CI pipeline from <https://get.gear.rs>.
+    /// Create and init a new `GearApi` instance via spawning a new node process
+    /// in development mode using the `--dev` flag and listening on an a
+    /// random port number. The node process uses a binary specified by the
+    /// `path` param. Ideally, the binary should be downloaded by means of CI pipeline from <https://get.gear.rs>.
     pub async fn dev_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
         let node = Node::try_node_from_path(path, vec!["--dev"])?;
         let api = Self::init(node.ws_address().clone()).await?;
-        Ok(Self(api.0, Some(node)))
+        Ok(Self(api.0, Some(Arc::new(node))))
     }
 
-    /// Create and init a new `GearApi` instance via spawning a new node process in
-    /// development mode using the `--chain=vara-dev`, `--validator`, `--tmp` flags and
-    /// listening on an a random port number. The node process uses a binary specified by
-    /// the `path` param. Ideally, the binary should be downloaded by means of CI pipeline
-    /// from <https://get.gear.rs>.
+    /// Create and init a new `GearApi` instance via spawning a new node process
+    /// in development mode using the `--chain=vara-dev`, `--validator`,
+    /// `--tmp` flags and listening on an a random port number. The node
+    /// process uses a binary specified by the `path` param. Ideally, the
+    /// binary should be downloaded by means of CI pipeline from <https://get.gear.rs>.
     pub async fn vara_dev_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
         let node =
             Node::try_node_from_path(path, vec!["--chain=vara-dev", "--validator", "--tmp"])?;
         let api = Self::init(node.ws_address().clone()).await?;
-        Ok(Self(api.0, Some(node)))
+        Ok(Self(api.0, Some(Arc::new(node))))
     }
 
     /// Create and init a new `GearApi` instance that will be used with the
