@@ -28,8 +28,8 @@ use sp_wasm_interface::Value;
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum GlobalNo {
     GasLimit = 0,
-    AllowanceLimit,
-    Amount,
+    AllowanceLimit = 1,
+    Amount = 2,
 }
 
 #[derive(Debug)]

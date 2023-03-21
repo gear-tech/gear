@@ -87,8 +87,8 @@ impl<P: PageNumber> PagesIterInclusive<P> {
 
 pub(crate) enum PageSizeNo {
     WasmSizeNo = 0,
-    GearSizeNo,
-    Amount,
+    GearSizeNo = 1,
+    Amount = 2,
 }
 
 /// Context where dynamic size pages store their sizes

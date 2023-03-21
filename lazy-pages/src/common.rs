@@ -288,11 +288,11 @@ impl GasLeftCharger {
 
 pub(crate) enum WeightNo {
     SignalRead = 0,
-    SignalWrite,
-    SignalWriteAfterRead,
-    HostFuncRead,
-    HostFuncWrite,
-    HostFuncWriteAfterRead,
-    LoadPageDataFromStorage,
-    Amount,
+    SignalWrite = 1,
+    SignalWriteAfterRead = 2,
+    HostFuncRead = 3,
+    HostFuncWrite = 4,
+    HostFuncWriteAfterRead = 5,
+    LoadPageDataFromStorage = 6,
+    Amount = 7,
 }
