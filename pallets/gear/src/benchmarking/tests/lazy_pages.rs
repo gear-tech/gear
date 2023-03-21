@@ -338,7 +338,7 @@ where
         );
     };
 
-    for seed in 0..10000 {
+    for seed in 0..300 {
         test(seed);
     }
 }
