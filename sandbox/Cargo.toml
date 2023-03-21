@@ -13,13 +13,13 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
-log = { version = "0.4", default-features = false }
+codec.workspace = true
+log.workspace = true
 wasmi = { version = "0.13", default-features = false }
-sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.38", default-features = false }
-sp-std = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.38", default-features = false }
-sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.38", default-features = false }
-sp-wasm-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.38", default-features = false }
+sp-core.workspace = true
+sp-std.workspace = true
+sp-wasm-interface.workspace = true
+gear-sandbox-runtime-interface.workspace = true
 
 [dev-dependencies]
 assert_matches = "1.3.0"
@@ -31,9 +31,9 @@ std = [
 	"codec/std",
 	"log/std",
 	"sp-core/std",
-	"sp-io/std",
 	"sp-std/std",
 	"sp-wasm-interface/std",
+	"gear-sandbox-runtime-interface/std",
 	"wasmi/std",
 	"wasmi/virtual_memory",
 ]

@@ -9,11 +9,11 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
-log = { version = "0.4.17", optional = true }
-sp-runtime-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.38", default-features = false }
-sp-wasm-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.38", default-features = false }
-sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.38", default-features = false }
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
+log = { workspace = true, optional = true }
+sp-runtime-interface.workspace = true
+sp-wasm-interface.workspace = true
+sp-std.workspace = true
+codec.workspace = true
 
 [features]
 default = ["std"]

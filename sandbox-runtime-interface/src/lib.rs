@@ -24,6 +24,7 @@
 use sp_runtime_interface::{
 	runtime_interface, Pointer,
 };
+use sp_wasm_interface::HostPointer;
 
 /// Wasm-only interface that provides functions for interacting with the sandbox.
 #[runtime_interface(wasm_only)]

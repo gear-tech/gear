@@ -33,7 +33,7 @@ impl MemoryWrap {
 
 /// Memory interface for the allocator.
 impl Memory for MemoryWrap {
-    type GrowError = sp_sandbox::Error;
+    type GrowError = gear_sandbox::Error;
 
     fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
         self.0.grow(pages.raw()).map(|_| ())

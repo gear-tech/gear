@@ -19,7 +19,7 @@
 
 use codec::{Decode, Encode};
 
-use sp_io::sandbox;
+use gear_sandbox_runtime_interface::sandbox;
 use sp_std::{marker, mem, prelude::*, rc::Rc, slice, vec};
 use sp_wasm_interface::HostPointer;
 
