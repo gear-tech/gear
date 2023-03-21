@@ -333,8 +333,9 @@ async fn create_renew_balance_task(
 
             let user_balance_demand = {
                 let current = root_api.free_balance(&user_address).await?;
-                user_target_balance - current
+                user_target_balance.saturating_sub(rhs)
             };
+            tracing::debug!("User balance demand {user_balance_demand}");
 
             // Calling `set_balance` for `user` is potentially dangerous, because getting actual
             // reserved balance is a complicated task, as reserved balance is changed by another
@@ -350,18 +351,18 @@ async fn create_renew_balance_task(
                 )
                 .await
                 .map_err(|e| {
-                    tracing::info!("Failed to set balance of the root address: {e}");
+                    tracing::debug!("Failed to set balance of the root address: {e}");
                     e
                 })?;
             root_api
                 .transfer(ProgramId::from(user_address.as_ref()), user_balance_demand)
                 .await
                 .map_err(|e| {
-                    tracing::info!("Failed to transfer to user address: {e}");
+                    tracing::debug!("Failed to transfer to user address: {e}");
                     e
                 })?;
 
-            tracing::info!("Successfully renewed balances!");
+            tracing::debug!("Successfully renewed balances!");
         }
     })
 }
