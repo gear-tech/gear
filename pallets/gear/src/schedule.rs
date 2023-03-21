@@ -29,7 +29,7 @@ use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
     code,
     costs::HostFnWeights as CoreHostFnWeights,
-    memory::{GearPage, GranularityPage, PageU32Size, WasmPage},
+    memory::{GearPage, PageU32Size, WasmPage},
     message,
 };
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
@@ -450,35 +450,35 @@ pub struct HostFnWeights<T: Config> {
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct MemoryWeights<T: Config> {
-    /// Cost per one [GranularityPage] signal `read` processing in lazy-pages,
+    /// Cost per one [GearPage] signal `read` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
     pub signal_read: Weight,
 
-    /// Cost per one [GranularityPage] signal `write` processing in lazy-pages,
+    /// Cost per one [GearPage] signal `write` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
     pub signal_write: Weight,
 
-    /// Cost per one [GranularityPage] signal `write after read` processing in lazy-pages,
+    /// Cost per one [GearPage] signal `write after read` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
     pub lazy_pages_signal_write_after_read: Weight,
 
-    /// Cost per one [GranularityPage] host func `read` access processing in lazy-pages,
+    /// Cost per one [GearPage] host func `read` access processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
     pub lazy_pages_host_func_read: Weight,
 
-    /// Cost per one [GranularityPage] host func `write` access processing in lazy-pages,
+    /// Cost per one [GearPage] host func `write` access processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
     pub lazy_pages_host_func_write: Weight,
 
-    /// Cost per one [GranularityPage] host func `write after read` access processing in lazy-pages,
+    /// Cost per one [GearPage] host func `write after read` access processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
     pub lazy_pages_host_func_write_after_read: Weight,
 
-    /// Cost per one [GranularityPage] data loading from storage
+    /// Cost per one [GearPage] data loading from storage
     /// and moving it in program memory.
     pub load_page_data: Weight,
 
-    /// Cost per one [GranularityPage] uploading data to storage.
+    /// Cost per one [GearPage] uploading data to storage.
     pub upload_page_data: Weight,
 
     /// Cost per one [WasmPage] static page. Static pages can have static data,
@@ -488,7 +488,7 @@ pub struct MemoryWeights<T: Config> {
     /// Cost per one [WasmPage] for memory growing.
     pub mem_grow: Weight,
 
-    /// Cost per one [GranularityPage].
+    /// Cost per one [GearPage].
     /// When we read page data from storage in para-chain, then it should be sent to relay-chain,
     /// in order to use it for process queue execution. So, reading from storage cause
     /// additional resources consumption after block(s) production on para-chain.
@@ -845,9 +845,9 @@ impl<T: Config> Default for HostFnWeights<T> {
 
 impl<T: Config> Default for MemoryWeights<T> {
     fn default() -> Self {
-        macro_rules! cost_per_granularity_page {
+        macro_rules! cost_per_gear_page {
             ($name:ident) => {
-                cost!($name) / (WasmPage::size() / GranularityPage::size()) as u64
+                cost!($name) / (WasmPage::size() / GearPage::size()) as u64
             };
         }
 
@@ -855,18 +855,18 @@ impl<T: Config> Default for MemoryWeights<T> {
         // which accesses memory. So, we have to subtract corresponding syscall weight.
         macro_rules! host_func_access {
             ($name:ident, $syscall:ident) => {
-                cost_per_granularity_page!($name).saturating_sub(cost_batched!($syscall))
+                cost_per_gear_page!($name).saturating_sub(cost_batched!($syscall))
             };
         }
 
-        let lazy_pages_signal_read = cost_per_granularity_page!(lazy_pages_signal_read);
+        let lazy_pages_signal_read = cost_per_gear_page!(lazy_pages_signal_read);
         let lazy_pages_host_func_read = host_func_access!(lazy_pages_host_func_read, gr_debug);
-        let kb_number_in_one_granularity_page = GranularityPage::size() as u64 / 1024;
+        let kb_number_in_one_gear_page = GearPage::size() as u64 / 1024;
 
         Self {
             signal_read: to_weight!(lazy_pages_signal_read),
-            signal_write: to_weight!(cost_per_granularity_page!(lazy_pages_signal_write)),
-            lazy_pages_signal_write_after_read: to_weight!(cost_per_granularity_page!(
+            signal_write: to_weight!(cost_per_gear_page!(lazy_pages_signal_write)),
+            lazy_pages_signal_write_after_read: to_weight!(cost_per_gear_page!(
                 lazy_pages_signal_write_after_read
             )),
             lazy_pages_host_func_read: to_weight!(lazy_pages_host_func_read),
@@ -879,17 +879,11 @@ impl<T: Config> Default for MemoryWeights<T> {
                 gr_random
             )
             .saturating_sub(lazy_pages_host_func_read)),
-            load_page_data: to_weight!(cost_per_granularity_page!(
-                lazy_pages_load_page_storage_data
-            )
-            .saturating_sub(lazy_pages_signal_read)),
+            load_page_data: to_weight!(cost_per_gear_page!(lazy_pages_load_page_storage_data)
+                .saturating_sub(lazy_pages_signal_read)),
             upload_page_data: to_weight!(cost!(db_write_per_kb)
-                .saturating_mul(kb_number_in_one_granularity_page)
-                .saturating_sub(
-                    T::DbWeight::get()
-                        .writes((GranularityPage::size() / GearPage::size()) as u64)
-                        .ref_time(),
-                )),
+                .saturating_mul(kb_number_in_one_gear_page)
+                .saturating_sub(T::DbWeight::get().writes(1).ref_time(),)),
             // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
             static_page: Weight::from_ref_time(100),
             mem_grow: Weight::from_ref_time(100),

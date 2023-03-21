@@ -13,6 +13,7 @@ gear-core = { workspace = true }
 gear-backend-common = { workspace = true }
 gear-common = { workspace = true }
 gear-runtime-interface = { workspace = true }
+gear-wasm-instrument = { workspace = true }
 
 sp-std = { workspace = true }
 

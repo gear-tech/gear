@@ -18,45 +18,36 @@
 
 //! Lazy-pages structures for common usage.
 
-use std::{
-    cell::RefMut,
-    collections::{BTreeMap, BTreeSet},
-    num::NonZeroU32,
+use std::{collections::BTreeSet, mem::size_of, num::NonZeroU32};
+
+use gear_backend_common::lazy_pages::{GlobalsAccessError, Status};
+use gear_core::gas::GasLeft;
+
+use crate::{
+    globals::{GlobalNo, GlobalsContext},
+    mprotect::MprotectError,
+    pages::{GearPageNumber, PageDynSize, PageSizeNo, SizeManager, WasmPageNumber},
 };
 
-use gear_backend_common::lazy_pages::{
-    GlobalsAccessError, GlobalsConfig, LazyPagesWeights, Status,
-};
-use gear_core::{
-    costs::CostPerPage,
-    gas::GasLeft,
-    memory::{
-        GearPage, GranularityPage, PageU32Size, PagesIterInclusive, WasmPage, GEAR_PAGE_SIZE,
-    },
-};
-
-use crate::mprotect::MprotectError;
-
+// TODO: investigate error allocations #2441
 #[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum Error {
+pub(crate) enum Error {
     #[display(fmt = "Accessed memory interval is out of wasm memory")]
     OutOfWasmMemoryAccess,
     #[display(fmt = "Signals cannot come from WASM program virtual stack memory")]
     SignalFromStackMemory,
-    #[display(fmt = "Signals cannot come from released page")]
-    SignalFromReleasedPage,
+    #[display(fmt = "Signals cannot come from write accessed page")]
+    SignalFromWriteAccessedPage,
     #[display(fmt = "Read access signal cannot come from already accessed page")]
     ReadAccessSignalFromAccessedPage,
     #[display(fmt = "WASM memory begin address is not set")]
     WasmMemAddrIsNotSet,
-    #[display(fmt = "WASM memory size is not set")]
-    WasmMemSizeIsNotSet,
-    #[display(fmt = "Program pages prefix in storage is not set")]
-    ProgramPrefixIsNotSet,
     #[display(fmt = "Page data in storage must contain {expected} bytes, actually has {actual}")]
     InvalidPageDataSize { expected: u32, actual: u32 },
-    #[display(fmt = "Any page cannot be released twice: {_0:?}")]
-    DoubleRelease(LazyPage),
+    #[display(fmt = "Any page cannot be write accessed twice: {_0:?}")]
+    DoubleWriteAccess(GearPageNumber),
+    #[display(fmt = "Any page cannot be read charged twice: {_0:?}")]
+    DoubleReadCharge(GearPageNumber),
     #[display(fmt = "Memory protection error: {_0}")]
     #[from]
     MemoryProtection(MprotectError),
@@ -67,167 +58,157 @@ pub enum Error {
     #[display(fmt = "Something goes wrong when trying to access globals: {_0:?}")]
     #[from]
     AccessGlobal(GlobalsAccessError),
-    #[display(fmt = "Status must be set before program execution")]
-    StatusIsNone,
     #[display(fmt = "It's unknown wether memory access is read or write")]
     ReadOrWriteIsUnknown,
     #[display(fmt = "Cannot receive signal from wasm memory, when status is gas limit exceed")]
     SignalWhenStatusGasExceeded,
+    #[from]
+    GlobalContext(ContextError),
 }
 
-#[derive(Clone, Copy)]
-pub enum LazyPagesVersion {
-    Version1,
+#[derive(Debug, derive_more::Display)]
+pub enum ContextError {
+    RuntimeContextIsNotSet,
+    ExecutionContextIsNotSet,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug, Default)]
+pub(crate) struct LazyPagesContext {
+    runtime_context: Option<LazyPagesRuntimeContext>,
+    execution_context: Option<LazyPagesExecutionContext>,
+}
+
+impl LazyPagesContext {
+    pub fn runtime_context_mut(&mut self) -> Result<&mut LazyPagesRuntimeContext, ContextError> {
+        self.runtime_context
+            .as_mut()
+            .ok_or(ContextError::RuntimeContextIsNotSet)
+    }
+    pub fn execution_context(&self) -> Result<&LazyPagesExecutionContext, ContextError> {
+        self.execution_context
+            .as_ref()
+            .ok_or(ContextError::ExecutionContextIsNotSet)
+    }
+    pub fn execution_context_mut(
+        &mut self,
+    ) -> Result<&mut LazyPagesExecutionContext, ContextError> {
+        self.execution_context
+            .as_mut()
+            .ok_or(ContextError::ExecutionContextIsNotSet)
+    }
+    pub fn set_runtime_context(&mut self, ctx: LazyPagesRuntimeContext) {
+        self.runtime_context = Some(ctx);
+    }
+    pub fn set_execution_context(&mut self, ctx: LazyPagesExecutionContext) {
+        self.execution_context = Some(ctx);
+    }
+}
+
+pub(crate) type Weights = [u64; WeightNo::Amount as usize];
+pub(crate) type PageSizes = [NonZeroU32; PageSizeNo::Amount as usize];
+pub(crate) type GlobalNames = [String; GlobalNo::Amount as usize];
+
+#[derive(Debug)]
+pub(crate) struct LazyPagesRuntimeContext {
+    pub page_sizes: PageSizes,
+    pub global_names: GlobalNames,
+    pub pages_storage_prefix: Vec<u8>,
+}
+
+#[derive(Debug)]
 pub(crate) struct LazyPagesExecutionContext {
+    pub page_sizes: PageSizes,
+    /// Lazy-pages accesses weights.
+    pub weights: Weights,
     /// Pointer to the begin of wasm memory buffer
     pub wasm_mem_addr: Option<usize>,
     /// Wasm memory buffer size, to identify whether signal is from wasm memory buffer.
-    pub wasm_mem_size: Option<WasmPage>,
+    pub wasm_mem_size: WasmPageNumber,
     /// Current program prefix in storage
-    program_storage_prefix: Option<PagePrefix>,
-    /// Wasm addresses of lazy-pages, that have been read or write accessed at least once.
-    /// Lazy page here is page, which has `size = max(native_page_size, gear_page_size)`.
-    pub accessed_pages: BTreeSet<LazyPage>,
-    /// Granularity pages, for which we have already charge gas for read.
-    pub read_charged: BTreeSet<GranularityPage>,
-    /// Granularity pages, for which we have already charge gas for write.
-    pub write_charged: BTreeSet<GranularityPage>,
-    /// Granularity pages, for which we have already charge gas for read after write.
-    // pub write_after_read_charged: BTreeSet<GranularityPage>,
-    /// Loading page data from storage cost.
-    pub load_data_charged: BTreeSet<GranularityPage>,
+    pub program_storage_prefix: PagePrefix,
+    /// Pages which has been accessed by program during current execution
+    pub accessed_pages: BTreeSet<GearPageNumber>,
+    /// Pages which has been write accessed by program during current execution
+    pub write_accessed_pages: BTreeSet<GearPageNumber>,
     /// End of stack wasm address. Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify
     /// this value, `lazy-pages` uses it to identify memory, for which we
     /// can skip processing and this memory won't be protected. So, pages
-    /// which lies before this value will never get into `released_pages`,
+    /// which lies before this value will never get into `write_accessed_pages`,
     /// which means that they will never be updated in storage.
-    pub stack_end_wasm_page: WasmPage,
-    /// Gear pages, which has been write accessed.
-    pub released_pages: BTreeSet<LazyPage>,
+    pub stack_end: WasmPageNumber,
     /// Context to access globals and works with them: charge gas, set status global.
-    pub globals_config: Option<GlobalsConfig>,
+    pub globals_context: Option<GlobalsContext>,
     /// Lazy-pages status: indicates in which mod lazy-pages works actually.
-    pub status: Option<Status>,
-    /// Lazy-pages accesses weights.
-    pub lazy_pages_weights: LazyPagesWeights,
-    /// Cache information about whether page has data in storage
-    pub page_has_data_in_storage: BTreeMap<GranularityPage, bool>,
+    pub status: Status,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum LazyPagesVersion {
+    Version1,
+}
+
+impl SizeManager for LazyPagesExecutionContext {
+    fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
+        self.page_sizes[P::SIZE_NO]
+    }
+}
+
+impl SizeManager for LazyPagesRuntimeContext {
+    fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
+        self.page_sizes[P::SIZE_NO]
+    }
 }
 
 impl LazyPagesExecutionContext {
-    pub fn is_read_charged(&self, page: GranularityPage) -> bool {
-        self.read_charged.contains(&page)
+    pub fn is_accessed(&self, page: GearPageNumber) -> bool {
+        self.accessed_pages.contains(&page)
     }
 
-    pub fn is_write_charged(&self, page: GranularityPage) -> bool {
-        self.write_charged.contains(&page)
+    pub fn is_write_accessed(&self, page: GearPageNumber) -> bool {
+        self.write_accessed_pages.contains(&page)
     }
 
-    pub fn set_read_charged(&mut self, page: GranularityPage) -> bool {
-        if self.stack_end_wasm_page > page.to_page() {
-            // is stack page
-            return false;
-        }
-        match self.is_write_charged(page) {
-            true => false,
-            false => self.read_charged.insert(page),
-        }
+    pub fn set_accessed(&mut self, page: GearPageNumber) {
+        self.accessed_pages.insert(page);
     }
 
-    pub fn set_write_charged(&mut self, page: GranularityPage) -> bool {
-        if self.stack_end_wasm_page > page.to_page() {
-            // is stack page
-            return false;
-        }
-        self.write_charged.insert(page)
-    }
-
-    pub fn set_load_data_charged(&mut self, page: GranularityPage) -> bool {
-        self.load_data_charged.insert(page)
-    }
-
-    pub fn add_to_released(&mut self, page: LazyPage) -> Result<(), Error> {
-        match self.released_pages.insert(page) {
+    pub fn set_write_accessed(&mut self, page: GearPageNumber) -> Result<(), Error> {
+        self.set_accessed(page);
+        match self.write_accessed_pages.insert(page) {
             true => Ok(()),
-            false => Err(Error::DoubleRelease(page)),
+            false => Err(Error::DoubleWriteAccess(page)),
         }
     }
 
-    pub fn set_program_prefix(&mut self, prefix: Vec<u8>) {
-        self.program_storage_prefix = Some(PagePrefix::new_from_program_prefix(prefix));
+    pub fn key_for_page(&mut self, page: GearPageNumber) -> &[u8] {
+        self.program_storage_prefix.calc_key_for_page(page)
     }
 
-    pub fn get_key_for_page(&mut self, page: GearPage) -> Result<&[u8], Error> {
-        self.program_storage_prefix
-            .as_mut()
-            .map(|prefix| prefix.calc_key_for_page(page))
-            .ok_or(Error::ProgramPrefixIsNotSet)
-    }
-
-    pub fn page_has_data_in_storage(&mut self, page: GearPage) -> Result<bool, Error> {
-        if let Some(&res) = self.page_has_data_in_storage.get(&page.to_page()) {
-            return Ok(res);
-        }
-        let page_key_exists = sp_io::storage::exists(self.get_key_for_page(page)?);
-        self.page_has_data_in_storage
-            .insert(page.to_page(), page_key_exists);
-        Ok(page_key_exists)
+    pub fn page_has_data_in_storage(&mut self, page: GearPageNumber) -> bool {
+        sp_io::storage::exists(self.key_for_page(page))
     }
 
     pub fn load_page_data_from_storage(
         &mut self,
-        page: GearPage,
+        page: GearPageNumber,
         buffer: &mut [u8],
-    ) -> Result<(), Error> {
-        if let Some(size) = sp_io::storage::read(self.get_key_for_page(page)?, buffer, 0) {
-            self.page_has_data_in_storage.insert(page.to_page(), true);
-            if size != GearPage::size() {
+    ) -> Result<bool, Error> {
+        if let Some(size) = sp_io::storage::read(self.key_for_page(page), buffer, 0) {
+            if size != GearPageNumber::size(self) {
                 return Err(Error::InvalidPageDataSize {
-                    expected: GearPage::size(),
+                    expected: GearPageNumber::size(self),
                     actual: size,
                 });
             }
+            Ok(true)
         } else {
-            self.page_has_data_in_storage.insert(page.to_page(), false);
-        }
-        Ok(())
-    }
-
-    pub fn handle_psg_case_one_page(
-        &mut self,
-        page: LazyPage,
-    ) -> Result<PagesIterInclusive<LazyPage>, Error> {
-        if self.page_has_data_in_storage(page.to_page())? {
-            // if at least one gear page has data in storage, then all pages from corresponding
-            // `GranularityPage` have data in storage, therefor all gear pages from `page`
-            // have data in storage. So, this is not psg case and we can handle only one `LazyPage`.
-            Ok(page.iter_once())
-        } else {
-            // no pages in storage - this is psg case.
-            Ok(page.to_page::<GranularityPage>().to_pages_iter())
+            Ok(false)
         }
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
-pub struct LazyPage(u32);
-
-impl PageU32Size for LazyPage {
-    fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(GEAR_PAGE_SIZE, 0);
-        unsafe { NonZeroU32::new_unchecked(region::page::size().max(GEAR_PAGE_SIZE) as u32) }
-    }
-
-    fn raw(&self) -> u32 {
-        self.0
-    }
-
-    unsafe fn new_unchecked(num: u32) -> Self {
-        Self(num)
+    pub fn weight(&self, no: WeightNo) -> u64 {
+        self.weights[no as usize]
     }
 }
 
@@ -238,13 +219,13 @@ impl PageU32Size for LazyPage {
 /// First part is always the same, so we can copy it to buffer
 /// once and then use it for all pages.
 #[derive(Debug)]
-struct PagePrefix {
+pub(crate) struct PagePrefix {
     buffer: Vec<u8>,
 }
 
 impl PagePrefix {
     /// New page prefix from program prefix
-    fn new_from_program_prefix(mut program_prefix: Vec<u8>) -> Self {
+    pub fn new_from_program_prefix(mut program_prefix: Vec<u8>) -> Self {
         program_prefix.extend_from_slice(&u32::MAX.to_le_bytes());
         Self {
             buffer: program_prefix,
@@ -252,20 +233,20 @@ impl PagePrefix {
     }
 
     /// Returns key in storage for `page`.
-    fn calc_key_for_page(&mut self, page: GearPage) -> &[u8] {
+    fn calc_key_for_page(&mut self, page: GearPageNumber) -> &[u8] {
         let len = self.buffer.len();
-        self.buffer[len - std::mem::size_of::<u32>()..len]
-            .copy_from_slice(page.raw().to_le_bytes().as_slice());
+        let page_no: u32 = page.into();
+        self.buffer[len - size_of::<u32>()..len].copy_from_slice(page_no.to_le_bytes().as_slice());
         &self.buffer
     }
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct GasLeftCharger {
-    pub read_cost: CostPerPage<GranularityPage>,
-    pub write_cost: CostPerPage<GranularityPage>,
-    pub write_after_read_cost: CostPerPage<GranularityPage>,
-    pub load_data_cost: CostPerPage<GranularityPage>,
+    pub read_cost: u64,
+    pub write_cost: u64,
+    pub write_after_read_cost: u64,
+    pub load_data_cost: u64,
 }
 
 impl GasLeftCharger {
@@ -284,56 +265,34 @@ impl GasLeftCharger {
         }
     }
 
-    pub fn charge_for_pages(
+    pub fn charge_for_page_access(
         &self,
         gas_left: &mut GasLeft,
-        ctx: &mut RefMut<LazyPagesExecutionContext>,
-        pages: PagesIterInclusive<LazyPage>,
+        page: GearPageNumber,
         is_write: bool,
+        is_accessed: bool,
     ) -> Result<Status, Error> {
-        let for_write = |ctx: &mut RefMut<LazyPagesExecutionContext>, page| {
-            if ctx.set_write_charged(page) {
-                if ctx.is_read_charged(page) {
-                    self.write_after_read_cost.one()
-                } else {
-                    self.write_cost.one()
-                }
-            } else {
-                0
-            }
+        let amount = match (is_write, is_accessed) {
+            (true, true) => self.write_after_read_cost,
+            (true, false) => self.write_cost,
+            (false, false) => self.read_cost,
+            (false, true) => return Err(Error::DoubleReadCharge(page)),
         };
-
-        let for_read = |ctx: &mut RefMut<LazyPagesExecutionContext>, page| {
-            if ctx.set_read_charged(page) {
-                self.read_cost.one()
-            } else {
-                0
-            }
-        };
-
-        let mut amount = 0u64;
-        for page in pages.convert() {
-            let amount_for_page = if is_write {
-                for_write(ctx, page)
-            } else {
-                for_read(ctx, page)
-            };
-            amount = amount.saturating_add(amount_for_page);
-        }
-
         Ok(Self::sub_gas(gas_left, amount))
     }
 
-    pub fn charge_for_page_data_load(
-        &mut self,
-        gas_left: &mut GasLeft,
-        ctx: &mut RefMut<LazyPagesExecutionContext>,
-        page: GranularityPage,
-    ) -> Result<Status, Error> {
-        if ctx.set_load_data_charged(page) {
-            Ok(Self::sub_gas(gas_left, self.load_data_cost.one()))
-        } else {
-            Ok(Status::Normal)
-        }
+    pub fn charge_for_page_data_load(&mut self, gas_left: &mut GasLeft) -> Status {
+        Self::sub_gas(gas_left, self.load_data_cost)
     }
+}
+
+pub(crate) enum WeightNo {
+    SignalRead = 0,
+    SignalWrite = 1,
+    SignalWriteAfterRead = 2,
+    HostFuncRead = 3,
+    HostFuncWrite = 4,
+    HostFuncWriteAfterRead = 5,
+    LoadPageDataFromStorage = 6,
+    Amount = 7,
 }

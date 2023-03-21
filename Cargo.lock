@@ -3741,6 +3741,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-runtime-interface",
+ "gear-wasm-instrument",
  "log",
  "sp-std 5.0.0",
 ]

@@ -19,7 +19,7 @@
 //! Module for memory and allocations context.
 
 use crate::buffer::LimitedVec;
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, format};
 use codec::{Decode, Encode, EncodeLike, Input, Output};
 use core::{
     fmt,
@@ -40,33 +40,13 @@ pub const WASM_PAGE_SIZE: usize = 0x10000;
 /// we can download just some number of gear pages instead of whole wasm page.
 /// The number of small pages, which must be downloaded, is depends on host
 /// native page size, so can vary.
-pub const GEAR_PAGE_SIZE: usize = 0x1000;
-
-/// Pages data storage granularity (PSG) is a size and wasm addr alignment
-/// of a memory interval, for which the following conditions must be met:
-/// if some gear page has data in storage, then all gear
-/// pages, that are in the same granularity interval, must contain
-/// data in storage. For example:
-/// ````ignored
-///   granularity interval no.0       interval no.1        interval no.2
-///                |                    |                    |
-///                {====|====|====|====}{====|====|====|====}{====|====|====|====}
-///               /     |     \
-///    gear-page 0    page 1   page 2 ...
-/// ````
-/// In this example each PSG page contains 4 gear-pages. So, if gear-page `2`
-/// has data in storage, then gear-page `0`,`1`,`3` also has data in storage.
-/// This constant is necessary for consensus between nodes with different
-/// native page sizes. You can see an example of using in crate `gear-lazy-pages`.
-pub const PAGE_STORAGE_GRANULARITY: usize = 0x4000;
+pub const GEAR_PAGE_SIZE: usize = 0x4000;
 
 static_assertions::const_assert!(WASM_PAGE_SIZE < u32::MAX as usize);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
-static_assertions::const_assert_eq!(WASM_PAGE_SIZE % PAGE_STORAGE_GRANULARITY, 0);
-static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY % GEAR_PAGE_SIZE, 0);
 
 /// Interval in wasm program memory.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Encode, Decode)]
 pub struct MemoryInterval {
     /// Interval offset in bytes.
     pub offset: u32,
@@ -86,6 +66,15 @@ impl From<(u32, u32)> for MemoryInterval {
 impl From<MemoryInterval> for (u32, u32) {
     fn from(val: MemoryInterval) -> Self {
         (val.offset, val.size)
+    }
+}
+
+impl Debug for MemoryInterval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&format!(
+            "[offset: {:#x}, size: {:#x}]",
+            self.offset, self.size
+        ))
     }
 }
 
@@ -447,25 +436,6 @@ impl PageU32Size for WasmPage {
     }
 }
 
-/// Page with size [PAGE_STORAGE_GRANULARITY].
-#[derive(Debug, Default, Encode, Decode, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GranularityPage(u32);
-
-impl PageU32Size for GranularityPage {
-    fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(PAGE_STORAGE_GRANULARITY, 0);
-        unsafe { NonZeroU32::new_unchecked(PAGE_STORAGE_GRANULARITY as u32) }
-    }
-
-    fn raw(&self) -> u32 {
-        self.0
-    }
-
-    unsafe fn new_unchecked(num: u32) -> Self {
-        Self(num)
-    }
-}
-
 impl From<u16> for WasmPage {
     fn from(value: u16) -> Self {
         // u16::MAX * WasmPage::size() - 1 == u32::MAX
@@ -479,14 +449,6 @@ impl From<u16> for GearPage {
         // u16::MAX * GearPage::size() - 1 <= u32::MAX
         static_assertions::const_assert!(GEAR_PAGE_SIZE <= 0x10000);
         GearPage(value as u32)
-    }
-}
-
-impl From<u16> for GranularityPage {
-    fn from(value: u16) -> Self {
-        // u16::MAX * GranularityPage::size() - 1 <= u32::MAX
-        static_assertions::const_assert!(PAGE_STORAGE_GRANULARITY <= 0x10000);
-        GranularityPage(value as u32)
     }
 }
 
@@ -743,10 +705,7 @@ mod tests {
             .map(|p| p.0)
             .collect();
 
-        let expectation = [
-            0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 160, 161, 162, 163, 164, 165,
-            166, 167, 168, 169, 170, 171, 172, 173, 174, 175,
-        ];
+        let expectation = [0, 1, 2, 3, 40, 41, 42, 43];
 
         assert!(gear_pages.eq(&expectation));
     }

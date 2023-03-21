@@ -961,32 +961,26 @@ pub mod pallet {
             manager: &mut ExtManager<T>,
             program_id: ProgramId,
             pages_with_data: &BTreeSet<GearPage>,
+            lazy_pages_enabled: bool,
         ) -> Option<BTreeMap<GearPage, PageBuf>> {
-            #[cfg(feature = "lazy-pages")]
-            let memory_pages = {
-                // To calm clippy on unused argument.
-                let _ = pages_with_data;
-                assert!(lazy_pages::try_to_enable_lazy_pages(
-                    ProgramStorageOf::<T>::pages_final_prefix()
-                ));
+            let pages = if lazy_pages_enabled {
                 Default::default()
-            };
-
-            #[cfg(not(feature = "lazy-pages"))]
-            let memory_pages = match ProgramStorageOf::<T>::get_program_data_for_pages(
-                program_id,
-                pages_with_data.iter(),
-            ) {
-                Ok(data) => data,
-                Err(err) => {
-                    log::error!("Cannot get data for program pages: {err:?}");
-                    return None;
+            } else {
+                match ProgramStorageOf::<T>::get_program_data_for_pages(
+                    program_id,
+                    pages_with_data.iter(),
+                ) {
+                    Ok(data) => data,
+                    Err(err) => {
+                        log::error!("Cannot get data for program pages: {err:?}");
+                        return None;
+                    }
                 }
             };
 
             manager.insert_program_id_loaded_pages(program_id);
 
-            Some(memory_pages)
+            Some(pages)
         }
 
         pub(crate) fn block_config() -> BlockConfig {

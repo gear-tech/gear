@@ -55,7 +55,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};
-use lazy_pages::GlobalsConfig;
+use lazy_pages::GlobalsAccessConfig;
 use memory::ProcessAccessError;
 use scale_info::TypeInfo;
 
@@ -313,7 +313,7 @@ where
     /// Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
-        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), T>,
         T: Display;
 }
 

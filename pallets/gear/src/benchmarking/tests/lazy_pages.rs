@@ -20,11 +20,11 @@
 
 use core::mem::size_of;
 
-use ::alloc::collections::BTreeSet;
+use ::alloc::{collections::BTreeSet, format};
 use codec::MaxEncodedLen;
 use common::ProgramStorage;
 use gear_backend_common::lazy_pages::Status;
-use gear_core::memory::{GranularityPage, MemoryInterval, PageU32Size, PAGE_STORAGE_GRANULARITY};
+use gear_core::memory::{MemoryInterval, PageU32Size};
 use rand::{Rng, SeedableRng};
 
 use gear_lazy_pages_common as lazy_pages;
@@ -35,18 +35,49 @@ use crate::{
     HandleKind,
 };
 
-#[derive(Debug, Default)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SetNo {
+    SignalRead,
+    SignalWrite,
+    SignalWriteAfterRead,
+    HostFuncRead,
+    HostFuncWrite,
+    HostFuncWriteAfterRead,
+    WithData,
+    Amount,
+}
+
+#[derive(Default)]
 struct PageSets<P: PageU32Size> {
-    signal_read: BTreeSet<P>,
-    signal_write: BTreeSet<P>,
-    signal_write_after_read: BTreeSet<P>,
-    syscall_read: BTreeSet<P>,
-    syscall_write: BTreeSet<P>,
-    syscall_write_after_read: BTreeSet<P>,
-    with_data_pages: BTreeSet<P>,
+    sets: [BTreeSet<P>; SetNo::Amount as usize],
+}
+
+impl<P: PageU32Size + core::fmt::Debug> core::fmt::Debug for PageSets<P> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        for set_no in SetNo::SignalRead as usize..=SetNo::WithData as usize {
+            let set = if set_no == SetNo::WithData as usize {
+                self.accessed_pages()
+                    .intersection(&self.sets[set_no])
+                    .copied()
+                    .collect()
+            } else {
+                self.sets[set_no].clone()
+            };
+            f.write_str(&format!("{set_no:?} {:?}", set))?;
+        }
+        Ok(())
+    }
 }
 
 impl<P: PageU32Size> PageSets<P> {
+    fn get(&self, no: SetNo) -> &BTreeSet<P> {
+        &self.sets[no as usize]
+    }
+
+    fn get_mut(&mut self, no: SetNo) -> &mut BTreeSet<P> {
+        &mut self.sets[no as usize]
+    }
+
     fn with_accessed(i: MemoryInterval, mut f: impl FnMut(P)) {
         let start = P::from_offset(i.offset);
         let end = P::from_offset(i.offset.checked_add(i.size.saturating_sub(1)).unwrap());
@@ -56,20 +87,20 @@ impl<P: PageU32Size> PageSets<P> {
     }
 
     fn is_any_read(&self, page: P) -> bool {
-        self.signal_read.contains(&page) || self.syscall_read.contains(&page)
+        self.get(SetNo::SignalRead).contains(&page) || self.get(SetNo::HostFuncRead).contains(&page)
     }
 
     fn is_any_write(&self, page: P) -> bool {
-        self.signal_write.contains(&page)
-            || self.signal_write_after_read.contains(&page)
-            || self.syscall_write.contains(&page)
-            || self.syscall_write_after_read.contains(&page)
+        self.get(SetNo::SignalWrite).contains(&page)
+            || self.get(SetNo::SignalWriteAfterRead).contains(&page)
+            || self.get(SetNo::HostFuncWrite).contains(&page)
+            || self.get(SetNo::HostFuncWriteAfterRead).contains(&page)
     }
 
     fn add_signal_read(&mut self, i: MemoryInterval) {
         Self::with_accessed(i, |page| {
             if !self.is_any_read(page) && !self.is_any_write(page) {
-                self.signal_read.insert(page);
+                self.get_mut(SetNo::SignalRead).insert(page);
             }
         });
     }
@@ -78,9 +109,9 @@ impl<P: PageU32Size> PageSets<P> {
         Self::with_accessed(i, |page| {
             if !self.is_any_write(page) {
                 if self.is_any_read(page) {
-                    self.signal_write_after_read.insert(page);
+                    self.get_mut(SetNo::SignalWriteAfterRead).insert(page);
                 } else {
-                    self.signal_write.insert(page);
+                    self.get_mut(SetNo::SignalWrite).insert(page);
                 }
             }
         });
@@ -89,7 +120,7 @@ impl<P: PageU32Size> PageSets<P> {
     fn add_syscall_read(&mut self, i: MemoryInterval) {
         Self::with_accessed(i, |page| {
             if !self.is_any_read(page) && !self.is_any_write(page) {
-                self.syscall_read.insert(page);
+                self.get_mut(SetNo::HostFuncRead).insert(page);
             }
         });
     }
@@ -98,67 +129,59 @@ impl<P: PageU32Size> PageSets<P> {
         Self::with_accessed(i, |page| {
             if !self.is_any_write(page) {
                 if self.is_any_read(page) {
-                    self.syscall_write_after_read.insert(page);
+                    self.get_mut(SetNo::HostFuncWriteAfterRead).insert(page);
                 } else {
-                    self.syscall_write.insert(page);
+                    self.get_mut(SetNo::HostFuncWrite).insert(page);
                 }
             }
         });
     }
 
+    fn add_page_with_data(&mut self, p: P) {
+        self.get_mut(SetNo::WithData).insert(p);
+    }
+
     fn accessed_pages(&self) -> BTreeSet<P> {
-        let mut accessed_pages = self.signal_read.clone();
-        accessed_pages.extend(self.signal_write.iter().copied());
-        accessed_pages.extend(self.signal_write_after_read.iter().copied());
-        accessed_pages.extend(self.syscall_read.iter().copied());
-        accessed_pages.extend(self.syscall_write.iter().copied());
+        let mut accessed_pages = BTreeSet::new();
+        for set in self.sets[..SetNo::WithData as usize].iter() {
+            accessed_pages.extend(set.iter().copied());
+        }
         accessed_pages
     }
 
-    fn loaded_pages_count(&self) -> GranularityPage {
+    fn loaded_pages_count(&self) -> GearPage {
         (self
             .accessed_pages()
-            .intersection(&self.with_data_pages)
+            .intersection(self.get(SetNo::WithData))
             .count() as u16)
             .into()
     }
 
     fn charged_for_pages(&self, costs: &PageCosts) -> u64 {
         let costs = costs.lazy_pages_weights();
+        let costs = [
+            costs.signal_read,
+            costs.signal_write,
+            costs.signal_write_after_read,
+            costs.host_func_read,
+            costs.host_func_write,
+            costs.host_func_write_after_read,
+            costs.load_page_storage_data,
+        ];
 
-        let signal_read_amount = (self.signal_read.len() as u16).into();
-        let signal_write_amount = (self.signal_write.len() as u16).into();
-        let signal_write_after_read_amount = (self.signal_write_after_read.len() as u16).into();
-        let syscall_read_amount = (self.syscall_read.len() as u16).into();
-        let syscall_write_amount = (self.syscall_write.len() as u16).into();
-        let syscall_write_after_read_amount = (self.syscall_write_after_read.len() as u16).into();
+        let mut amount = 0u64;
+        #[allow(clippy::needless_range_loop)]
+        for set_no in SetNo::SignalRead as usize..SetNo::WithData as usize {
+            amount = amount
+                .checked_add(costs[set_no].calc((self.sets[set_no].len() as u16).into()))
+                .unwrap();
+        }
 
-        let read_signal_charged = costs.signal_read.calc(signal_read_amount);
-        let write_signal_charged = costs.signal_write.calc(signal_write_amount);
-        let write_after_read_signal_charged = costs
-            .signal_write_after_read
-            .calc(signal_write_after_read_amount);
-        let syscall_read_charged = costs.host_func_read.calc(syscall_read_amount);
-        let syscall_write_charged = costs.host_func_write.calc(syscall_write_amount);
-        let syscall_write_after_read_charged = costs
-            .host_func_write_after_read
-            .calc(syscall_write_after_read_amount);
+        amount = amount
+            .checked_add(costs[SetNo::WithData as usize].calc(self.loaded_pages_count()))
+            .unwrap();
 
-        let charged_for_data_load = costs.load_page_storage_data.calc(self.loaded_pages_count());
-
-        read_signal_charged
-            .checked_add(write_signal_charged)
-            .unwrap()
-            .checked_add(write_after_read_signal_charged)
-            .unwrap()
-            .checked_add(syscall_read_charged)
-            .unwrap()
-            .checked_add(syscall_write_charged)
-            .unwrap()
-            .checked_add(syscall_write_after_read_charged)
-            .unwrap()
-            .checked_add(charged_for_data_load)
-            .unwrap()
+        amount
     }
 }
 
@@ -176,7 +199,7 @@ where
 
     let memory = ImportedMemory::max::<T>();
     let size_wasm_pages = WasmPage::new(memory.min_pages).unwrap();
-    let size_psg = size_wasm_pages.to_page::<GranularityPage>();
+    let size_gear = size_wasm_pages.to_page::<GearPage>();
     let access_size = size_of::<u32>() as u32;
     let max_addr = size_wasm_pages.offset();
 
@@ -248,20 +271,14 @@ where
 
         // Append data in storage for some pages.
         for page in (0..rng.gen_range(0..MAX_PAGES_WITH_DATA))
-            .map(|_| GranularityPage::new(rng.gen_range(0..size_psg.raw())).unwrap())
+            .map(|_| GearPage::new(rng.gen_range(0..size_gear.raw())).unwrap())
         {
-            page_sets.with_data_pages.insert(page);
-            for page in page.to_pages_iter::<GearPage>() {
-                ProgramStorageOf::<T>::set_program_page_data(
-                    program_id,
-                    page,
-                    PageBuf::new_zeroed(),
-                );
-            }
+            page_sets.add_page_with_data(page);
+            ProgramStorageOf::<T>::set_program_page_data(program_id, page, PageBuf::new_zeroed());
         }
 
         // execute program with random page costs
-        let mut run = |_| {
+        let mut run = |_: u64| {
             let mut exec = common_utils::prepare_exec::<T>(
                 source,
                 HandleKind::Handle(program_id),
@@ -271,20 +288,16 @@ where
             )
             .unwrap();
 
-            exec.block_config.page_costs.signal_read = rng.gen_range(0..MAX_COST).into();
-            exec.block_config.page_costs.signal_write = rng.gen_range(0..MAX_COST).into();
-            exec.block_config
-                .page_costs
-                .lazy_pages_signal_write_after_read = rng.gen_range(0..MAX_COST).into();
-            exec.block_config.page_costs.lazy_pages_host_func_read =
-                rng.gen_range(0..MAX_COST).into();
-            exec.block_config.page_costs.lazy_pages_host_func_write =
-                rng.gen_range(0..MAX_COST).into();
-            exec.block_config
-                .page_costs
-                .lazy_pages_host_func_write_after_read = rng.gen_range(0..MAX_COST).into();
-            exec.block_config.page_costs.load_page_data = rng.gen_range(0..MAX_COST).into();
-            exec.block_config.page_costs.upload_page_data = rng.gen_range(0..MAX_COST).into();
+            let mut rand_cost = || rng.gen_range(0..MAX_COST).into();
+            let costs = &mut exec.block_config.page_costs;
+            costs.signal_read = rand_cost();
+            costs.signal_write = rand_cost();
+            costs.lazy_pages_signal_write_after_read = rand_cost();
+            costs.lazy_pages_host_func_read = rand_cost();
+            costs.lazy_pages_host_func_write = rand_cost();
+            costs.lazy_pages_host_func_write_after_read = rand_cost();
+            costs.load_page_data = rand_cost();
+            costs.upload_page_data = rand_cost();
 
             let charged_for_pages = page_sets.charged_for_pages(&exec.block_config.page_costs);
 
@@ -335,7 +348,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let psg = PAGE_STORAGE_GRANULARITY as i32;
+    let size = GearPage::size() as i32;
     let read_cost = 1u64;
     let write_cost = 10u64;
     let write_after_read_cost = 100u64;
@@ -396,12 +409,12 @@ where
 
     test(
         vec![
-            // Read 0st and 1st psg pages
-            Instruction::I32Const(psg - 1),
+            // Read 0st and 1st gear pages
+            Instruction::I32Const(size - 1),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
-            // Write after read 1st psg page
-            Instruction::I32Const(psg),
+            // Write after read 1st gear page
+            Instruction::I32Const(size),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
         ],
@@ -410,12 +423,12 @@ where
 
     test(
         vec![
-            // Read 0st and 1st psg pages
-            Instruction::I32Const(psg - 1),
+            // Read 0st and 1st gear pages
+            Instruction::I32Const(size - 1),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
-            // Write after read 0st and 1st psg page
-            Instruction::I32Const(psg - 3),
+            // Write after read 0st and 1st gear page
+            Instruction::I32Const(size - 3),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
         ],
@@ -424,12 +437,12 @@ where
 
     test(
         vec![
-            // Read 0st and 1st psg pages
-            Instruction::I32Const(psg - 1),
+            // Read 0st and 1st gear pages
+            Instruction::I32Const(size - 1),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
-            // Write after read 1st psg page and write 2st psg page
-            Instruction::I32Const(2 * psg - 1),
+            // Write after read 1st gear page and write 2st gear page
+            Instruction::I32Const(2 * size - 1),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
         ],
@@ -438,12 +451,12 @@ where
 
     test(
         vec![
-            // Read 1st psg page
-            Instruction::I32Const(psg),
+            // Read 1st gear page
+            Instruction::I32Const(size),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
-            // Write after read 1st psg page and write 0st psg page
-            Instruction::I32Const(psg - 1),
+            // Write after read 1st gear page and write 0st gear page
+            Instruction::I32Const(size - 1),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
         ],
@@ -452,12 +465,12 @@ where
 
     test(
         vec![
-            // Read 1st psg page
-            Instruction::I32Const(psg),
+            // Read 1st gear page
+            Instruction::I32Const(size),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
-            // Read 0st and 1st psg pages, but pay only for 0st.
-            Instruction::I32Const(psg - 1),
+            // Read 0st and 1st gear pages, but pay only for 0st.
+            Instruction::I32Const(size - 1),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
         ],
@@ -466,12 +479,12 @@ where
 
     test(
         vec![
-            // Write 0st and 1st psg page
-            Instruction::I32Const(psg - 1),
+            // Write 0st and 1st gear page
+            Instruction::I32Const(size - 1),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
-            // Write 1st and 2st psg pages, but pay only for 2st page
-            Instruction::I32Const(2 * psg - 1),
+            // Write 1st and 2st gear pages, but pay only for 2st page
+            Instruction::I32Const(2 * size - 1),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
         ],
@@ -480,12 +493,12 @@ where
 
     test(
         vec![
-            // Write 0st and 1st psg page
-            Instruction::I32Const(psg - 1),
+            // Write 0st and 1st gear page
+            Instruction::I32Const(size - 1),
             Instruction::I32Const(42),
             Instruction::I32Store(2, 0),
-            // Read 1st and 2st psg pages, but pay only for 2st page
-            Instruction::I32Const(2 * psg - 1),
+            // Read 1st and 2st gear pages, but pay only for 2st page
+            Instruction::I32Const(2 * size - 1),
             Instruction::I32Load(2, 0),
             Instruction::Drop,
         ],
@@ -591,7 +604,7 @@ where
             }
         }
 
-        assert_eq!(lazy_pages::get_status().unwrap(), Status::GasLimitExceeded);
+        assert_eq!(lazy_pages::get_status(), Status::GasLimitExceeded);
     };
 
     // Check gas allowance exceeded.
@@ -630,9 +643,6 @@ where
             }
         }
 
-        assert_eq!(
-            lazy_pages::get_status().unwrap(),
-            Status::GasAllowanceExceeded
-        );
+        assert_eq!(lazy_pages::get_status(), Status::GasAllowanceExceeded);
     };
 }
