@@ -83,7 +83,7 @@ impl GearApi {
     /// random port number. The node process uses a binary specified by the
     /// `path` param. Ideally, the binary should be downloaded by means of CI pipeline from <https://get.gear.rs>.
     pub async fn dev_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
-        let node = Node::try_node_from_path(path, vec!["--dev"])?;
+        let node = Node::try_from_path(path, vec!["--dev"])?;
         let api = Self::init(node.ws_address().clone()).await?;
         Ok(Self(api.0, Some(Arc::new(node))))
     }
@@ -94,8 +94,7 @@ impl GearApi {
     /// process uses a binary specified by the `path` param. Ideally, the
     /// binary should be downloaded by means of CI pipeline from <https://get.gear.rs>.
     pub async fn vara_dev_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
-        let node =
-            Node::try_node_from_path(path, vec!["--chain=vara-dev", "--validator", "--tmp"])?;
+        let node = Node::try_from_path(path, vec!["--chain=vara-dev", "--validator", "--tmp"])?;
         let api = Self::init(node.ws_address().clone()).await?;
         Ok(Self(api.0, Some(Arc::new(node))))
     }

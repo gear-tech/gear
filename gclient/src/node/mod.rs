@@ -41,7 +41,7 @@ impl Node {
         &self.ws_address
     }
 
-    pub fn try_node_from_path(path: impl AsRef<OsStr>, args: Vec<&str>) -> Result<Self> {
+    pub fn try_from_path(path: impl AsRef<OsStr>, args: Vec<&str>) -> Result<Self> {
         let port = port::pick();
         let port_string = port.to_string();
 
