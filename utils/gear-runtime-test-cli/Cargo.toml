@@ -6,7 +6,7 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-anyhow = "1.0.69"
+anyhow = "1.0.70"
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
 colored = "2.0.0"
 clap = { version = "4.1.11", features = ["derive"] }

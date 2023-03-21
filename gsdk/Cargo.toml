@@ -9,7 +9,7 @@ homepage = "https://github.com/gear-tech/gear/tree/master/gsdk"
 readme = "./README.md"
 
 [dependencies]
-anyhow = "1.0.69"
+anyhow = "1.0.70"
 async-recursion = "1.0.4"
 base64 = "0.21.0"
 futures-util = "0.3.26"
