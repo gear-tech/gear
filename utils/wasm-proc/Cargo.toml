@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-clap = { version = "4.1.11", features = ["derive"] }
-log = "0.4.17"
-env_logger = "0.10.0"
-thiserror = "1.0.40"
-gear-wasm-builder = { path = "../wasm-builder" }
-parity-wasm = "0.45.0"
+clap = { workspace = true, features = ["derive"] }
+log = { workspace = true }
+env_logger = { workspace = true }
+thiserror = { workspace = true }
+gear-wasm-builder = { workspace = true }
+parity-wasm = { workspace = true }
 
 [features]
 default = ["wasm-opt"]

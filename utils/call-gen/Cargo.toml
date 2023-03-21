@@ -5,14 +5,14 @@ edition = "2021"
 
 [dependencies]
 # Internal deps
-gear-wasm-gen = { path = "../wasm-gen" }
-gear-core = { path = "../../core" }
-gear-utils = { path = "../utils" }
+gear-wasm-gen = { workspace = true }
+gear-core = { workspace = true }
+gear-utils = { workspace = true }
 
 # External deps
-arbitrary = "1.3.0"
-dyn-clonable = "0.9.0"
-hex = "0.4.3"
-log = "0.4.17"
-rand = "0.8.5"
-thiserror = "1.0.40"
+arbitrary = { workspace = true }
+dyn-clonable = { workspace = true }
+hex = { workspace = true }
+log = { workspace = true }
+rand = { workspace = true }
+thiserror = { workspace = true }

@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-hex = "0.4.3"
-parity-wasm = "0.45.0"
-structopt = "0.3.26"
+hex = { workspace = true }
+parity-wasm = { workspace = true }
+structopt = "0.3.26" # TODO: use clap instead

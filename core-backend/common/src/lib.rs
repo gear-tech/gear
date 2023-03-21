@@ -408,9 +408,9 @@ macro_rules! syscall_args_trace {
         {
             let s = stringify!($val);
             if s.ends_with("_ptr") {
-                format!(", {} = {:#x?}", s, $val)
+                alloc::format!(", {} = {:#x?}", s, $val)
             } else {
-                format!(", {} = {:?}", s, $val)
+                alloc::format!(", {} = {:?}", s, $val)
             }
         }
     };

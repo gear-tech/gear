@@ -19,6 +19,7 @@
 mod internal;
 
 use crate::{funcs::internal::CallerWrap, memory::MemoryWrapRef, state::HostState};
+use alloc::string::String;
 use blake2_rfc::blake2b::blake2b;
 use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};

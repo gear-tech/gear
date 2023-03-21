@@ -6,8 +6,8 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-vara-runtime = { version = "0.1.0", path = "../../runtime/vara" }
-generate-bags = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+vara-runtime = { workspace = true }
+generate-bags = { workspace = true }
 
 # third-party
-clap = { version = "4.1", features = ["derive"] }
+clap = { workspace = true, features = ["derive"] }

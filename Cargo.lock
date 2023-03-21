@@ -4104,7 +4104,7 @@ dependencies = [
  "proptest",
  "rand 0.8.5",
  "wasm-smith",
- "wasmparser 0.101.1",
+ "wasmparser-nostd 0.100.1",
  "wasmprinter",
  "wat",
 ]
@@ -4118,7 +4118,7 @@ dependencies = [
  "gear-backend-wasmi",
  "gear-core",
  "wasm-instrument 0.2.1",
- "wasmparser 0.101.1",
+ "wasmparser-nostd 0.100.1",
  "wat",
 ]
 
@@ -13241,16 +13241,6 @@ version = "0.90.0"
 source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#2db6004e21aa014f411f8b575a99969284cff702"
 dependencies = [
  "indexmap",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.101.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf2f22ef84ac5666544afa52f326f13e16f3d019d2e61e704fd8091c9358b130"
-dependencies = [
- "indexmap",
- "url",
 ]
 
 [[package]]
