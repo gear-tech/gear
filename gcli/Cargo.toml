@@ -30,7 +30,7 @@ lazy_static = { workspace = true }
 libp2p = { workspace = true, features = [ "identify" ], optional = true }
 log = { workspace = true }
 nacl = { workspace = true }
-codec = { package = "parity-scale-codec", workspace = true }
+parity-scale-codec = { workspace = true }
 scale-info = { workspace = true }
 schnorrkel = { workspace = true }
 serde = { workspace = true }
