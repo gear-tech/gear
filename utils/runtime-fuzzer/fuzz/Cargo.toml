@@ -14,7 +14,6 @@ gear-utils = { workspace = true }
 env_logger = { workspace = true }
 log = { workspace = true }
 once_cell = { workspace = true }
-chrono = { workspace = true }
 
 [[bin]]
 name = "main"

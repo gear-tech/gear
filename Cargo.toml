@@ -291,7 +291,6 @@ demo-waiter = { path = "examples/binaries/waiter" }
 # TODO: remove these dependencies (from this file?) or add more docs.
 cfg-if = "1.0.0"                                              # gear-lazy-pages
 cargo_metadata = "0.15.3"                                     # utils/wasm-builder
-chrono = "0.4.24"                                             # utils/runtime-fuzzer/fuzz
 errno = "0.3"                                                 # gear-lazy-pages
 indicatif = "*"                                               # utils/wasm-gen
 keyring = "1.2.1"                                             # gcli
