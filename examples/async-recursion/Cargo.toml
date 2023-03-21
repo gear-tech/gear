@@ -9,4 +9,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gstd = { path = "../../gstd", features = ["debug"] }
-async-recursion = "1.0.0"
+async-recursion = "1.0.4"

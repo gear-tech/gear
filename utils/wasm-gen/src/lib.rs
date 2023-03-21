@@ -128,6 +128,7 @@ pub struct GearConfig {
     pub process_when_no_funcs: Ratio,
     pub skip_init: Ratio,
     pub skip_handle: Ratio,
+    pub skip_handle_reply: Ratio,
     pub skip_init_when_no_funcs: Ratio,
     pub remove_recursion: Ratio,
     pub init_export_is_any_func: Ratio,
@@ -151,6 +152,7 @@ impl GearConfig {
             process_when_no_funcs: prob,
             skip_init: (1, 1000).into(),
             skip_handle: prob,
+            skip_handle_reply: prob,
             skip_init_when_no_funcs: prob,
             remove_recursion: (80, 100).into(),
             init_export_is_any_func: prob,
@@ -172,6 +174,7 @@ impl GearConfig {
         Self {
             skip_init: prob,
             skip_handle: prob,
+            skip_handle_reply: prob,
             skip_init_when_no_funcs: prob,
             remove_recursion: prob,
             process_when_no_funcs: prob,
@@ -196,6 +199,7 @@ impl GearConfig {
             process_when_no_funcs: prob,
             skip_init: zero_prob,
             skip_handle: zero_prob,
+            skip_handle_reply: zero_prob,
             skip_init_when_no_funcs: zero_prob,
             remove_recursion: zero_prob,
             init_export_is_any_func: zero_prob,
@@ -649,6 +653,26 @@ impl<'a> WasmGen<'a> {
         )
     }
 
+    pub fn gen_handle_reply(&mut self, module: Module) -> (Module, bool) {
+        if self.config.skip_handle_reply.get(self.u) {
+            return (module, false);
+        }
+
+        let funcs_len = module
+            .function_section()
+            .map_or(0, |funcs| funcs.entries().len() as u32);
+
+        if funcs_len == 0 {
+            return (module, false);
+        }
+
+        let func_no = self.u.int_in_range(0..=funcs_len - 1).unwrap();
+        (
+            self.gen_export_func_which_call_func_no(module, "handle_reply", func_no),
+            true,
+        )
+    }
+
     pub fn gen_init(&mut self, module: Module) -> (Module, bool) {
         if self.config.skip_init.get(self.u) {
             return (module, false);
@@ -1026,6 +1050,7 @@ pub fn gen_gear_program_module<'a>(
     }
 
     let (module, _has_handle) = gen.gen_handle(module);
+    let (module, _has_handle_reply) = gen.gen_handle_reply(module);
 
     let builder = ModuleBuilderWithData::new(addresses, module, memory_pages);
     let module = gen.insert_sys_calls(builder, memory_pages);

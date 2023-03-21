@@ -18,14 +18,18 @@
 
 #![no_main]
 
+use chrono::NaiveDateTime;
 use libfuzzer_sys::fuzz_target;
+use once_cell::sync::OnceCell;
 use std::{
-    fs::{File, OpenOptions},
+    fs::{self, OpenOptions},
     io::Write,
-    path::Path,
 };
 
-const SEEDS_STORE: &str = "fuzzing_seeds";
+const SEEDS_STORE_DIR: &str = "fuzzing-seeds-dir";
+const SEEDS_STORE_FILE: &str = "fuzzing-seeds";
+
+static RUN_DIR: OnceCell<String> = OnceCell::new();
 
 fuzz_target!(|seed: u64| {
     gear_utils::init_default_logger();
@@ -36,27 +40,26 @@ fuzz_target!(|seed: u64| {
     runtime_fuzzer::run(seed);
 });
 
-// Dumps seed to the file before running fuzz test.
-//
-// Puts in the beginning the timestamp string if file is new.
+// Dumps seed to the `SEEDS_STORE_FILE` file inside `SEEDS_STORE_DIR`
+// directory before running fuzz test.
 fn dump_seed(seed: u64) -> Result<(), String> {
-    let is_new_file = !Path::new(SEEDS_STORE).exists();
-    let dump_timestamp_if_new = |file: &mut File| {
-        if is_new_file {
-            writeln!(file, "Started fuzzing at {}", gear_utils::now_millis())
-        } else {
-            Ok(())
-        }
-    };
+    let fuzzing_seeds_dir = RUN_DIR.get_or_init(|| {
+        let date_time = NaiveDateTime::from_timestamp_millis(gear_utils::now_millis() as i64)
+            .expect("timestamp is in i64 range");
+        let fuzzing_seeds_dir = format!(
+            "{SEEDS_STORE_DIR}-{}",
+            date_time.format("%Y-%m-%dT%H:%M:%S")
+        );
+        fs::create_dir_all(&fuzzing_seeds_dir)
+            .map(|_| fuzzing_seeds_dir)
+            .expect("internal error: can't create dir")
+    });
+    let fuzzing_seeds_file = format!("{fuzzing_seeds_dir}/{SEEDS_STORE_FILE}");
 
     OpenOptions::new()
         .create(true)
         .append(true)
-        .open(SEEDS_STORE)
+        .open(fuzzing_seeds_file)
+        .and_then(|mut file| writeln!(file, "{seed}"))
         .map_err(|e| e.to_string())
-        .and_then(|mut file| {
-            dump_timestamp_if_new(&mut file)
-                .and_then(|_| writeln!(file, "{seed}"))
-                .map_err(|e| e.to_string())
-        })
 }
