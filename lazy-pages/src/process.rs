@@ -129,8 +129,6 @@ pub(crate) unsafe fn process_lazy_pages<H: AccessHandler>(
         }
     };
 
-    // log::trace!("Process access from ")
-
     let process_one = |page: GearPageNumber| {
         let page_offset = page.offset(ctx);
         let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(page.offset(ctx) as usize);

@@ -78,9 +78,8 @@ pub fn init_for_program(
         weights.host_func_write_after_read,
         weights.load_page_storage_data,
     ]
-    .iter()
     .map(|w| w.one())
-    .collect();
+    .to_vec();
 
     let ctx = LazyPagesProgramContext {
         wasm_mem_addr: mem.get_buffer_host_addr(),
@@ -133,10 +132,7 @@ pub fn update_lazy_pages_and_protect_again(
     };
 
     let new_mem_size = mem.size();
-    let changed_size = match new_mem_size > old_mem_size {
-        true => Some(new_mem_size.raw()),
-        false => None,
-    };
+    let changed_size = (new_mem_size > old_mem_size).then_some(new_mem_size.raw());
 
     if !matches!((changed_addr, changed_size), (None, None)) {
         gear_ri::change_wasm_memory_addr_and_size(changed_addr, changed_size)
@@ -148,9 +144,9 @@ pub fn update_lazy_pages_and_protect_again(
 /// Returns list of released pages numbers.
 pub fn get_write_accessed_pages() -> Vec<GearPage> {
     gear_ri::write_accessed_pages()
-        .iter()
+        .into_iter()
         .map(|p| {
-            GearPage::new(*p)
+            GearPage::new(p)
                 .unwrap_or_else(|_| unreachable!("Lazy pages backend returns wrong pages"))
         })
         .collect()
@@ -167,10 +163,7 @@ pub fn pre_process_memory_accesses(
     writes: &[MemoryInterval],
     gas_left: &mut GasLeft,
 ) -> Result<(), ProcessAccessError> {
-    // TODO: make wrapper to pass `&[MemoryInterval]` in runtime-interface (issue #2099).
-    let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
-    let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
-    let (gas_left_new, res) = gear_ri::pre_process_memory_accesses(&reads, &writes, (*gas_left,));
+    let (gas_left_new, res) = gear_ri::pre_process_memory_accesses(reads, writes, (*gas_left,));
     *gas_left = gas_left_new;
     res
 }

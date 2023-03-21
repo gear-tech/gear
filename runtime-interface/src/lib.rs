@@ -26,7 +26,10 @@ use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, Status},
     memory::ProcessAccessError,
 };
-use gear_core::{gas::GasLeft, memory::HostPointer};
+use gear_core::{
+    gas::GasLeft,
+    memory::{HostPointer, MemoryInterval},
+};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
     runtime_interface,
@@ -81,14 +84,12 @@ impl PassBy for LazyPagesRuntimeContext {
 #[runtime_interface]
 pub trait GearRI {
     fn pre_process_memory_accesses(
-        reads: &[(u32, u32)],
-        writes: &[(u32, u32)],
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
         gas_left: (GasLeft,),
     ) -> (GasLeft, Result<(), ProcessAccessError>) {
         let mut gas_left = gas_left.0;
-        let reads = reads.iter().copied().map(Into::into).collect::<Vec<_>>();
-        let writes = writes.iter().copied().map(Into::into).collect::<Vec<_>>();
-        let res = lazy_pages::pre_process_memory_accesses(&reads, &writes, &mut gas_left);
+        let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left);
         (gas_left, res)
     }
 

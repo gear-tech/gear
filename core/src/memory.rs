@@ -46,7 +46,7 @@ static_assertions::const_assert!(WASM_PAGE_SIZE < u32::MAX as usize);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
 
 /// Interval in wasm program memory.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Encode, Decode)]
 pub struct MemoryInterval {
     /// Interval offset in bytes.
     pub offset: u32,
