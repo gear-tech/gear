@@ -6,41 +6,41 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-gear-utils = { path = "../utils/utils" }
-gsdk = { path = "../gsdk" }
-gear-core = { path = "../core" }
-futures = "0.3"
-anyhow = "1.0"
-hex = "0.4"
-subxt = { version = "^0.27.0", default-features = false }
-parity-scale-codec = "3"
-rand = "0.8.5"
-thiserror = "1.0.39"
-futures-timer = "3.0.2"
-async-trait = "0.1.66"
-wabt = "0.10.0"
+gear-utils = { workspace = true }
+gsdk = { workspace = true }
+gear-core = { workspace = true }
+futures = { workspace = true }
+anyhow = { workspace = true }
+hex = { workspace = true }
+subxt = { workspace = true }
+parity-scale-codec = { workspace = true }
+rand = { workspace = true }
+thiserror = { workspace = true }
+futures-timer = { workspace = true }
+async-trait = { workspace = true }
+wabt = { workspace = true }
 
 [dev-dependencies]
-tokio = { version = "1.26.0", features = ["full"] }
-wat = "1.0.61"
-async-std = "1.12"
-env_logger = "0.10"
-hex-literal = "0.3"
-log = "0.4"
-gstd = { path = "../gstd" }
-demo-async-tester = { path = "../examples/binaries/async-tester" }
-demo-backend-error = { path = "../examples/binaries/backend-error" }
-demo-btree = { path = "../examples/binaries/btree" }
-demo-calc-hash = { path = "../examples/binaries/calc-hash" }
-demo-calc-hash-in-one-block = { path = "../examples/binaries/calc-hash/in-one-block" }
-demo-distributor = { path = "../examples/binaries/distributor" }
-demo-exit-handle-sender = { path = "../examples/binaries/exit-handle-sender" }
-demo-gasless-wasting = { path = "../examples/binaries/gasless-wasting" }
-demo-meta = { path = "../examples/binaries/meta" }
-demo-meta-io = { path = "../examples/binaries/new-meta/io" }
-demo-mul-by-const = { path = "../examples/binaries/mul-by-const" }
-demo-node = { path = "../examples/binaries/node" }
-demo-program-factory = { path = "../examples/binaries/program-factory" }
-demo-proxy = { path = "../examples/binaries/proxy" }
-demo-proxy-relay = { path = "../examples/binaries/proxy-relay" }
-demo-proxy-with-gas = { path = "../examples/binaries/proxy-with-gas" }
+tokio = { workspace = true, features = ["full"] }
+wat = { workspace = true }
+async-std = { workspace = true }
+env_logger = { workspace = true }
+hex-literal = { workspace = true }
+log = { workspace = true }
+gstd = { workspace = true }
+demo-async-tester = { workspace = true }
+demo-backend-error = { workspace = true }
+demo-btree = { workspace = true }
+demo-calc-hash = { workspace = true }
+demo-calc-hash-in-one-block = { workspace = true }
+demo-distributor = { workspace = true }
+demo-exit-handle-sender = { workspace = true }
+demo-gasless-wasting = { workspace = true }
+demo-meta = { workspace = true }
+demo-meta-io = { workspace = true }
+demo-mul-by-const = { workspace = true }
+demo-node = { workspace = true }
+demo-program-factory = { workspace = true }
+demo-proxy = { workspace = true }
+demo-proxy-relay = { workspace = true }
+demo-proxy-with-gas = { workspace = true }

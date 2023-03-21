@@ -3398,7 +3398,6 @@ version = "0.1.5"
 dependencies = [
  "anyhow",
  "base64 0.21.0",
- "cfg-if",
  "clap 4.1.9",
  "color-eyre",
  "demo-meta",
@@ -4293,7 +4292,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scale-info",
- "syn 1.0.109",
+ "syn 2.0.0",
 ]
 
 [[package]]

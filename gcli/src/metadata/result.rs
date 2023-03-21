@@ -34,7 +34,7 @@ pub enum Error {
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
     #[error(transparent)]
-    Codec(#[from] parity_scale_codec::Error),
+    Codec(#[from] codec::Error),
     #[error(transparent)]
     FromHex(#[from] hex::FromHexError),
 }

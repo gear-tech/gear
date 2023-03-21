@@ -9,20 +9,20 @@ homepage = "https://github.com/gear-tech/gear/tree/master/gsdk"
 readme = "./README.md"
 
 [dependencies]
-anyhow = "1.0.69"
-async-recursion = "1.0.2"
-base64 = "0.21.0"
-futures-util = "0.3.26"
-futures = "0.3"
-gear-core = { path = "../core" }
-hex = "0.4.3"
-jsonrpsee = { version = "^0.16", features = [ "http-client", "ws-client" ] }
-log = "0.4.17"
-parity-scale-codec = { version = "3" }
-primitive-types = { version = "0.12.1", default-features = false, features = ["codec", "scale-info", "serde"] }
-serde = "^1"
-serde_json = "^1"
-subxt = { version = "^0.27.0", default-features = false }
-thiserror = "1.0.39"
-sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+anyhow = { workspace = true }
+async-recursion = { workspace = true }
+base64 = { workspace = true }
+futures-util = { workspace = true }
+futures = { workspace = true }
+gear-core = { workspace = true }
+hex = { workspace = true }
+jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
+log = { workspace = true }
+parity-scale-codec = { workspace = true }
+primitive-types = { workspace = true, default-features = false, features = ["codec", "scale-info", "serde"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+subxt = { workspace = true }
+thiserror = { workspace = true }
+sp-runtime = { workspace = true }
+sp-core = { workspace = true }

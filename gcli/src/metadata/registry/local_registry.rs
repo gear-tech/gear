@@ -20,7 +20,7 @@ use crate::metadata::{
     registry::local_type::LocalType,
     result::{Error, Result},
 };
-use parity_scale_codec::Decode;
+use codec::Decode;
 use scale_info::{
     form::{Form, MetaForm, PortableForm},
     interner::UntrackedSymbol,
