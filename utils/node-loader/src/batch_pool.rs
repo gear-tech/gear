@@ -333,7 +333,7 @@ async fn create_renew_balance_task(
 
             let user_balance_demand = {
                 let current = root_api.free_balance(&user_address).await?;
-                user_target_balance.saturating_sub(rhs)
+                user_target_balance.saturating_sub(current)
             };
             tracing::debug!("User balance demand {user_balance_demand}");
 
