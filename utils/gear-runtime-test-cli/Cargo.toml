@@ -6,14 +6,14 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-anyhow = "1.0.70"
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
-colored = "2.0.0"
-clap = { version = "4.1.11", features = ["derive"] }
-log = { version = "0.4.17", default-features = false }
-serde_json = "1.0.94"
-quick-xml = { version = "0.27", features = [ "serialize" ] }
-rayon = "1.7"
+anyhow = { workspace = true }
+codec = { workspace = true, features = ["derive"] }
+colored = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+log = { workspace = true }
+serde_json = { workspace = true }
+quick-xml = { workspace = true, features = [ "serialize" ] }
+rayon = { workspace = true }
 
 # Substrate
 frame-support = { workspace = true }
@@ -32,7 +32,7 @@ sp-authority-discovery = { workspace = true, optional = true }
 pallet-im-online = { workspace = true, optional = true }
 
 # Gear
-runtime-primitives = { package = "gear-runtime-primitives", workspace = true }
+runtime-primitives = { workspace = true }
 gear-common = { workspace = true }
 gear-core = { workspace = true }
 gear-runtime = { workspace = true, optional = true, features = ["debug-mode"] }

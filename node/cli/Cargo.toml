@@ -22,9 +22,9 @@ log = { workspace = true }
 futures = { workspace = true }
 
 # Gear
-runtime-primitives = { package = "gear-runtime-primitives", workspace = true }
-gear-runtime-test-cli = { path = "../../utils/gear-runtime-test-cli", optional = true }
-service = { package = "gear-service", workspace = true }
+runtime-primitives = { workspace = true }
+gear-runtime-test-cli = { workspace = true, optional = true }
+service = { workspace = true }
 pallet-gear-payment = { workspace = true }
 pallet-gear-staking-rewards = { workspace = true }
 

@@ -12,13 +12,13 @@ repository = "https://github.com/gear-tech/gear"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.4.0", features = ["derive"] }
-futures = "0.3.27"
-futures-timer = "3.0.2"
-log = "0.4.17"
+codec = { workspace = true, features = ["derive"] }
+futures = { workspace = true }
+futures-timer = { workspace = true }
+log = { workspace = true }
 
 # Gear
-runtime-primitives = { package = "gear-runtime-primitives", workspace = true }
+runtime-primitives = { workspace = true }
 common = { workspace = true }
 pallet-gear-rpc-runtime-api = { workspace = true }
 
@@ -53,6 +53,6 @@ pallet-sudo = { workspace = true }
 pallet-timestamp = { workspace = true }
 pallet-gear = { workspace = true }
 pallet-gear-messenger = { workspace = true }
-testing = { package = "gear-node-testing", workspace = true }
+testing = { workspace = true }
 vara-runtime = { workspace = true }
 demo-mul-by-const = { workspace = true }

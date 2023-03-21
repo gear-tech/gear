@@ -8,7 +8,7 @@ license = "GPL-3.0"
 [dependencies]
 gsys = { workspace = true }
 gear-core-errors = { workspace = true }
-codec = { package = "parity-scale-codec", workspace = true, optional = true }
+codec = { workspace = true, optional = true }
 static_assertions = { workspace = true }
 
 [dev-dependencies]

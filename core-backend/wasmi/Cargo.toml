@@ -15,7 +15,7 @@ gear-wasm-instrument = { workspace = true }
 wasmi = { workspace = true }
 log = { workspace = true }
 derive_more = { workspace = true }
-codec = { package = "parity-scale-codec", workspace = true }
+codec = { workspace = true }
 blake2-rfc = { workspace = true }
 
 [dev-dependencies]

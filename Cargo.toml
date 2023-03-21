@@ -168,6 +168,7 @@ gear-core-errors = { path = "core-errors" }
 gear-core-processor = { path = "core-processor" }
 gear-node-testing = { path = "node/testing" }
 gear-runtime = { path = "runtime/gear" }
+gear-runtime-test-cli = { path = "utils/gear-runtime-test-cli" }
 gear-runtime-common = { path = "runtime/common" }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
 gear-service = { path = "node/service", default-features = false }
@@ -185,6 +186,7 @@ pallet-gear-payment = { version = "0.1.0", path = "pallets/payment" }
 pallet-gear-rpc = { path = "pallets/gear/rpc" }
 pallet-gear-rpc-runtime-api = { version = "2.0.0", path = "pallets/gear/rpc/runtime-api" }
 pallet-gear-staking-rewards = { version = "1.0.0", path = "pallets/staking-rewards" }
+quick-xml = "0.27"
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", version = "0.1.0", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
@@ -298,7 +300,6 @@ libp2p = "0.51.1"                                             # gcli
 nacl = "0.5.3"                                                # gcli
 nix = "0.26.2"                                                # gear-lazy-pages
 nonempty = "0.8.1"                                            # utils/utils
-quick-xml = "0.27"                                            # utils/regression-analysis
 libfuzzer-sys = "0.4"                                         # utils/runtime-fuzzer/fuzz
 pwasm-utils = "0.19.0"                                        # utils/wasm-builder
 pathdiff = { version = "0.2.1", default-features = false }    # utils/wasm-builder

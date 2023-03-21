@@ -10,12 +10,12 @@ gear-core = { workspace = true }
 gear-core-errors = { workspace = true }
 gear-backend-common = { workspace = true }
 gear-backend-wasmi = { workspace = true }
-core-processor = { package = "gear-core-processor", workspace = true }
+core-processor = { workspace = true }
 gear-wasm-builder = { workspace = true }
 
 anyhow = { workspace = true }
-codec = { package = "parity-scale-codec", workspace = true, features = ["derive"] }
-logger = { package = "log", workspace = true }
+codec = { workspace = true, features = ["derive"] }
+logger = { workspace = true }
 hex = { workspace = true }
 colored = { workspace = true }
 derive_more = { workspace = true, features = ["add", "add_assign", "display", "mul", "mul_assign"] }

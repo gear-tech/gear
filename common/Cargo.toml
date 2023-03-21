@@ -6,7 +6,7 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-codec = { workspace = true, package = "parity-scale-codec", features = ["derive", "max-encoded-len"] }
+codec = { package = "parity-scale-codec", workspace = true, features = ["derive", "max-encoded-len"] }
 scale-info = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
 log = { workspace = true }

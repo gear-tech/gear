@@ -16,7 +16,7 @@ sp-sandbox = { workspace = true, features = ["host-sandbox"] }
 # Use max_level_debug feature to remove tracing in sys-calls by default.
 log = { workspace = true }
 derive_more = { workspace = true }
-codec = { package = "parity-scale-codec", workspace = true }
+codec = { workspace = true }
 blake2-rfc = { workspace = true }
 
 [features]

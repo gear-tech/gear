@@ -13,7 +13,7 @@ scale-info = { workspace = true, features = ["derive"] }
 derive_more = { workspace = true }
 log = { workspace = true }
 gear-wasm-instrument = { workspace = true }
-wasmparser = { package = "wasmparser-nostd", workspace = true }
+wasmparser = { workspace = true }
 hex = { workspace = true, features = ["alloc"] }
 hashbrown = { workspace = true }
 static_assertions = { workspace = true }
