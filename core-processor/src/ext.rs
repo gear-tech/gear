@@ -22,7 +22,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason, TrapExplanation,
@@ -112,7 +112,7 @@ pub trait ProcessorExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPage>,
-        globals_config: GlobalsConfig,
+        globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
     );
 
@@ -120,7 +120,7 @@ pub trait ProcessorExt {
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory);
 
     /// Returns lazy pages status
-    fn lazy_pages_status() -> Option<Status>;
+    fn lazy_pages_status() -> Status;
 }
 
 /// [`Ext`](Ext)'s error
@@ -227,7 +227,7 @@ impl ProcessorExt for Ext {
         _mem: &mut impl Memory,
         _prog_id: ProgramId,
         _stack_end: Option<WasmPage>,
-        _globals_config: GlobalsConfig,
+        _globals_config: GlobalsAccessConfig,
         _lazy_pages_weights: LazyPagesWeights,
     ) {
         unreachable!("Must not be called: lazy-pages is unsupported by this ext")
@@ -237,7 +237,7 @@ impl ProcessorExt for Ext {
         unreachable!("Must not be called: lazy-pages is unsupported by this ext")
     }
 
-    fn lazy_pages_status() -> Option<Status> {
+    fn lazy_pages_status() -> Status {
         unreachable!("Must not be called: lazy-pages is unsupported by this ext")
     }
 }

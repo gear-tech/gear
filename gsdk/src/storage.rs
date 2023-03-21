@@ -28,7 +28,7 @@ use crate::{
     result::{Error, Result},
     types, Api,
 };
-use gear_core::{ids::*, memory::GEAR_PAGE_SIZE};
+use gear_core::ids::*;
 use hex::ToHex;
 use parity_scale_codec::Decode;
 use sp_core::{crypto::Ss58Codec, H256};
@@ -231,8 +231,7 @@ impl Api {
                 .fetch_raw(&lookup_bytes)
                 .await?
                 .ok_or_else(|| Error::PageNotFound(page.0, program_id.as_ref().encode_hex()))?;
-            let decoded = <[u8; GEAR_PAGE_SIZE]>::decode(&mut &encoded_page[..])?;
-            pages.insert(page.0, decoded.to_vec());
+            pages.insert(page.0, encoded_page);
         }
 
         Ok(pages)

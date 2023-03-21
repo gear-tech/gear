@@ -32,7 +32,7 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     ActorTerminationReason, BackendExt, BackendExtError, BackendReport, Environment,
     EnvironmentExecutionError, TerminationReason, TrapExplanation,
 };
@@ -135,7 +135,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     pages_data: &mut BTreeMap<GearPage, PageBuf>,
     static_pages: WasmPage,
     stack_end: Option<u32>,
-    globals_config: GlobalsConfig,
+    globals_config: GlobalsAccessConfig,
     lazy_pages_weights: LazyPagesWeights,
 ) -> Result<(), PrepareMemoryError> {
     let stack_end = if let Some(stack_end) = stack_end {
@@ -370,11 +370,7 @@ where
             if E::Ext::LAZY_PAGES_ENABLED {
                 E::Ext::lazy_pages_post_execution_actions(&mut memory);
 
-                let Some(status) = E::Ext::lazy_pages_status() else {
-                    unreachable!("Lazy page status must be set before contract execution");
-                };
-
-                match status {
+                match E::Ext::lazy_pages_status() {
                     Status::Normal => (),
                     Status::GasLimitExceeded => {
                         termination =
@@ -637,14 +633,14 @@ mod tests {
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
             _stack_end: Option<WasmPage>,
-            _globals_config: GlobalsConfig,
+            _globals_config: GlobalsAccessConfig,
             _lazy_pages_weights: LazyPagesWeights,
         ) {
         }
 
         fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
-        fn lazy_pages_status() -> Option<Status> {
-            None
+        fn lazy_pages_status() -> Status {
+            Status::Normal
         }
     }
 
@@ -659,14 +655,14 @@ mod tests {
             _mem: &mut impl Memory,
             _prog_id: ProgramId,
             _stack_end: Option<WasmPage>,
-            _globals_config: GlobalsConfig,
+            _globals_config: GlobalsAccessConfig,
             _lazy_pages_weights: LazyPagesWeights,
         ) {
         }
 
         fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {}
-        fn lazy_pages_status() -> Option<Status> {
-            None
+        fn lazy_pages_status() -> Status {
+            Status::Normal
         }
     }
 
@@ -747,43 +743,41 @@ mod tests {
     #[test]
     fn pages_to_update() {
         let old_pages = prepare_pages();
-        let mut new_pages = prepare_pages();
+        let mut new_pages = old_pages.clone();
+
+        let page_with_zero_data = WasmPage::from(30).to_page();
+        let changes: BTreeMap<GearPage, PageBuf> = [
+            (
+                WasmPage::from(1).to_page(),
+                PageBuf::from_inner(PageBufInner::filled_with(42u8)),
+            ),
+            (
+                WasmPage::from(5).to_page(),
+                PageBuf::from_inner(PageBufInner::filled_with(84u8)),
+            ),
+            (page_with_zero_data, PageBuf::new_zeroed()),
+        ]
+        .into_iter()
+        .collect();
+        new_pages.extend(changes.clone().into_iter());
 
         // Change pages
-        new_pages.insert(
-            1.into(),
-            PageBuf::from_inner(PageBufInner::filled_with(42u8)),
-        );
-        new_pages.insert(
-            5.into(),
-            PageBuf::from_inner(PageBufInner::filled_with(84u8)),
-        );
-        new_pages.insert(30.into(), PageBuf::new_zeroed());
         let static_pages = 4.into();
         let res = get_pages_to_be_updated::<TestExt>(old_pages, new_pages.clone(), static_pages);
-        assert_eq!(
-            res,
-            [
-                (
-                    1.into(),
-                    PageBuf::from_inner(PageBufInner::filled_with(42u8))
-                ),
-                (
-                    5.into(),
-                    PageBuf::from_inner(PageBufInner::filled_with(84u8))
-                ),
-                (30.into(), PageBuf::new_zeroed())
-            ]
-            .into()
-        );
+        assert_eq!(res, changes);
 
         // There was no any old page
         let res =
             get_pages_to_be_updated::<TestExt>(Default::default(), new_pages.clone(), static_pages);
+
         // The result is all pages except the static ones
         for page in static_pages.to_page::<GearPage>().iter_from_zero() {
             new_pages.remove(&page);
         }
-        assert_eq!(res, new_pages,);
+
+        // Remove page with zero data, because it must not be updated.
+        new_pages.remove(&page_with_zero_data);
+
+        assert_eq!(res, new_pages);
     }
 }

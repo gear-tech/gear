@@ -23,10 +23,10 @@ use crate::{
     memory::MemoryWrap,
     runtime::{self, Runtime},
 };
-use alloc::{collections::BTreeSet, format, string::ToString};
+use alloc::{collections::BTreeSet, format};
 use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
-    lazy_pages::{GlobalsAccessMod, GlobalsConfig},
+    lazy_pages::{GlobalsAccessConfig, GlobalsAccessMod},
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
     BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
 };
@@ -37,7 +37,7 @@ use gear_core::{
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -239,7 +239,7 @@ where
 
     fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
-        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), T>,
         T: Display,
     {
         use EnvironmentExecutionError::*;
@@ -274,12 +274,9 @@ where
             .map_err(|_| System(WrongInjectedAllowance))?;
 
         let globals_config = if cfg!(not(feature = "std")) {
-            GlobalsConfig {
-                global_gas_name: GLOBAL_NAME_GAS.to_string(),
-                global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
-                global_flags_name: GLOBAL_NAME_FLAGS.to_string(),
-                globals_access_ptr: instance.get_instance_ptr(),
-                globals_access_mod: GlobalsAccessMod::WasmRuntime,
+            GlobalsAccessConfig {
+                access_ptr: instance.get_instance_ptr(),
+                access_mod: GlobalsAccessMod::WasmRuntime,
             }
         } else {
             unreachable!("We cannot use sandbox backend in std environment currently");

@@ -21,7 +21,7 @@ use crate::mock::*;
 use common::{self, Origin as _};
 use frame_support::assert_ok;
 #[cfg(feature = "lazy-pages")]
-use gear_core::memory::{GearPage, GranularityPage};
+use gear_core::memory::GearPage;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageU32Size, WasmPage},
@@ -285,16 +285,6 @@ fn get_last_message_id() -> MessageId {
 }
 
 #[cfg(feature = "lazy-pages")]
-fn append_rest_psg_pages(page: GearPage, pages_data: &mut BTreeMap<GearPage, PageBuf>) {
-    page.to_page::<GranularityPage>()
-        .to_pages_iter()
-        .filter(|&p| p != page)
-        .for_each(|p| {
-            pages_data.insert(p, PageBuf::new_zeroed());
-        });
-}
-
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn check_not_allocated_pages() {
     // Currently we has no mechanism to restrict not allocated pages access during wasm execution
@@ -447,12 +437,6 @@ fn check_not_allocated_pages() {
         let mut persistent_pages = BTreeMap::new();
         persistent_pages.insert(gear_page0, page0_data.clone());
         persistent_pages.insert(gear_page7, page7_data);
-
-        // For all pages, which is write accessed, and has no data in storage yet,
-        // we must upload to storage all pages from [PAGE_STORAGE_GRANULARITY] interval.
-        [gear_page0, gear_page7]
-            .into_iter()
-            .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
@@ -687,12 +671,6 @@ fn check_changed_pages_in_storage() {
         persistent_pages.insert(gear_page8, page8_data);
         persistent_pages.insert(gear_page9, page9_data);
 
-        // For all pages, which is write accessed, and has no data in storage yet,
-        // we must upload to storage all pages from [PAGE_STORAGE_GRANULARITY] interval.
-        [gear_page1, gear_page8, gear_page9]
-            .into_iter()
-            .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
-
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
@@ -728,10 +706,6 @@ fn check_changed_pages_in_storage() {
 
         persistent_pages.insert(gear_page3, page3_data);
         persistent_pages.insert(gear_page4, PageBuf::new_zeroed());
-
-        [gear_page3, gear_page4]
-            .into_iter()
-            .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
@@ -823,11 +797,6 @@ fn check_gear_stack_end() {
 
         #[cfg(not(feature = "lazy-pages"))]
         log::debug!("LAZY-PAGES IS OFF");
-
-        #[cfg(feature = "lazy-pages")]
-        [gear_page2, gear_page3]
-            .into_iter()
-            .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
