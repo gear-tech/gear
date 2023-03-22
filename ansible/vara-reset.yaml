@@ -7,7 +7,7 @@
   tasks:
     - name: Stop docker-compose
       shell: >
-        /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" down
+        docker-compose -f "/home/ec2-user/docker-compose.yaml" down
       become: yes
    
     - name: Remove db
@@ -28,7 +28,7 @@
      
     - name: Pull docker images
       shell: >
-        /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" pull
+        docker-compose -f "/home/ec2-user/docker-compose.yaml" pull
       become: yes
 
     - name: Remove old docker images
