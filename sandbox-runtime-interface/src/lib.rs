@@ -437,11 +437,25 @@ pub trait Sandbox {
 
 	/// Teardown the sandbox instance with the given `instance_idx`.
 	fn instance_teardown(&mut self, instance_idx: u32) {
-        self.with_caller_mut(std::ptr::null_mut(), |_context, _caller| {
-            todo!()
-        });
-        
-        todo!()
+		struct Context<'a> {
+			instance_idx: u32,
+			store: &'a mut impl_::StoreBox,
+		}
+
+		let mut context = Context {
+			instance_idx,
+			store: unsafe { &mut impl_::SANDBOX_STORE },
+		};
+		let context_ptr: *mut Context = &mut context;
+
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+			let context_ptr: *mut Context = context_ptr.cast();
+			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+			
+			context.store
+				.instance_teardown(context.instance_idx)
+				.expect("Failed to teardown sandbox instance")
+		});
 	}
 
 	/// Get the value from a global with the given `name`. The sandbox is determined by the given
