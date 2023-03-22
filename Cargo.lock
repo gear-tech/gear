@@ -12560,6 +12560,7 @@ dependencies = [
 name = "vara-runtime"
 version = "0.1.0"
 dependencies = [
+ "env_logger",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -12615,6 +12616,8 @@ dependencies = [
  "sp-consensus-babe",
  "sp-core",
  "sp-inherents",
+ "sp-io",
+ "sp-keyring",
  "sp-npos-elections",
  "sp-offchain",
  "sp-runtime",
@@ -12625,6 +12628,7 @@ dependencies = [
  "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
+ "wat",
 ]
 
 [[package]]

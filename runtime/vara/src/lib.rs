@@ -865,6 +865,9 @@ pub type Executive = frame_executive::Executive<
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod integration_tests;
+
 #[cfg(feature = "debug-mode")]
 type DebugInfo = GearDebug;
 #[cfg(not(feature = "debug-mode"))]
