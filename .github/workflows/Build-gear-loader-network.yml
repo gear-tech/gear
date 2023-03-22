@@ -89,4 +89,4 @@ jobs:
           key: ${{secrets.SSH_PRIVATE_KEY}}
           inventory: |
             [all]
-            ${{secrets.GEAR_LOADER_NODE}}
+            ${{secrets.GEAR_LOADER_NODE_VARA}}
