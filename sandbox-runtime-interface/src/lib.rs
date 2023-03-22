@@ -29,7 +29,7 @@ use sp_wasm_interface::HostPointer;
 #[cfg(feature = "std")]
 mod impl_ {
 	use gear_sandbox_native::sandbox as sandbox;
-	use sp_wasm_interface::{wasmtime::{self, Func, Val, AsContext}, Caller, StoreData, Pointer, WordSize};
+	use sp_wasm_interface::{wasmtime::{self, Func, Val, AsContext}, Caller, StoreData, Pointer, WordSize, HostState};
 	use once_cell::unsync::Lazy;
 
 	// The sandbox store is inside of a Option<Box<..>>> so that we can temporarily borrow it.
@@ -53,6 +53,15 @@ mod impl_ {
 		/// Custom data to propagate it in supervisor export functions
 		pub(super) state: u32,
 	}
+
+    impl<'a, 'b> SandboxContext<'a, 'b> {
+        fn host_state_mut(&mut self) -> &mut HostState {
+            self.caller
+                .data_mut()
+                .host_state_mut()
+                .expect("host state is not empty when calling a function in wasm; qed")
+        }
+    }
 	
 	impl<'a, 'b> sandbox::SandboxContext for SandboxContext<'a, 'b> {
 		fn invoke(
@@ -110,27 +119,80 @@ mod impl_ {
 			memory[range].copy_from_slice(data);
 			Ok(())
 		}
-	
+
 		fn allocate_memory(&mut self, size: WordSize) -> sp_wasm_interface::Result<Pointer<u8>> {
 			let memory = self.caller.data().memory();
-			let (memory, data) = memory.data_and_store_mut(&mut self.caller);
-			data.host_state_mut()
-				.expect("host state is not empty when calling a function in wasm; qed")
-				.allocator
-				.allocate(memory, size)
-				.map_err(|e| e.to_string())
-		}
-	
+			let mut allocator = self
+                .host_state_mut()
+                .allocator
+                .take()
+                .expect("allocator is not empty when calling a function in wasm; qed");
+
+            // We can not return on error early, as we need to store back allocator.
+            let res = allocator
+                .allocate(&mut MemoryWrapper(&memory, &mut self.caller), size)
+                .map_err(|e| e.to_string());
+
+            self.host_state_mut().allocator = Some(allocator);
+
+            res
+        }
+
 		fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> sp_wasm_interface::Result<()> {
 			let memory = self.caller.data().memory();
-			let (memory, data) = memory.data_and_store_mut(&mut self.caller);
-			data.host_state_mut()
-				.expect("host state is not empty when calling a function in wasm; qed")
-				.allocator
-				.deallocate(memory, ptr)
-				.map_err(|e| e.to_string())
+			let mut allocator = self
+                .host_state_mut()
+                .allocator
+                .take()
+                .expect("allocator is not empty when calling a function in wasm; qed");
+
+            // We can not return on error early, as we need to store back allocator.
+            let res = allocator
+                .deallocate(&mut MemoryWrapper(&memory, &mut self.caller), ptr)
+                .map_err(|e| e.to_string());
+
+            self.host_state_mut().allocator = Some(allocator);
+
+            res
 		}
 	}
+
+
+    // TODO: temporary copy-pasta
+    // Wrapper around [`Memory`] that implements [`sp_allocator::Memory`].
+    pub(crate) struct MemoryWrapper<'a, C>(pub &'a wasmtime::Memory, pub &'a mut C);
+
+    impl<C: wasmtime::AsContextMut> sp_allocator::Memory for MemoryWrapper<'_, C> {
+        fn with_access<R>(&self, run: impl FnOnce(&[u8]) -> R) -> R {
+            run(self.0.data(&self.1))
+        }
+
+        fn with_access_mut<R>(&mut self, run: impl FnOnce(&mut [u8]) -> R) -> R {
+            run(self.0.data_mut(&mut self.1))
+        }
+
+        fn grow(&mut self, additional: u32) -> std::result::Result<(), ()> {
+            self.0
+                .grow(&mut self.1, additional as u64)
+                .map_err(|e| {
+                    log::error!(
+                        target: "wasm-executor",
+                        "Failed to grow memory by {} pages: {}",
+                        additional,
+                        e,
+                    )
+                })
+                .map(drop)
+        }
+
+        fn pages(&self) -> u32 {
+            self.0.size(&self.1) as u32
+        }
+
+        fn max_pages(&self) -> Option<u32> {
+            self.0.ty(&self.1).maximum().map(|p| p as _)
+        }
+    }
 }
 
 /// Wasm-only interface that provides functions for interacting with the sandbox.
@@ -492,10 +554,31 @@ pub trait Sandbox {
 	}
 
 	fn get_instance_ptr(&mut self, instance_id: u32) -> HostPointer {
-        self.with_caller_mut(std::ptr::null_mut(), |_context, _caller| {
-            todo!()
+        struct Context<'a> {
+			instance_id: u32,
+			store: &'a mut impl_::StoreBox,
+			result: HostPointer,
+		}
+
+		let mut context = Context {
+			instance_id,
+			store: unsafe { &mut impl_::SANDBOX_STORE },
+			result: u32::MAX.into(),
+		};
+		let context_ptr: *mut Context = &mut context;
+
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+			let context_ptr: *mut Context = context_ptr.cast();
+			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+
+			let instance = context
+				.store
+				.instance(context.instance_id)
+				.expect("Failed to get sandboxed instance");
+
+			context.result = instance.as_ref().get_ref() as *const gear_sandbox_native::sandbox::SandboxInstance as HostPointer;
         });
-        
-        todo!()
+
+        context.result
 	}
 }

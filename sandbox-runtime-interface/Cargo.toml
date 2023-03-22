@@ -10,6 +10,7 @@ repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
 log = { workspace = true, optional = true }
+sp-allocator.workspace = true
 sp-runtime-interface.workspace = true
 sp-wasm-interface.workspace = true
 sp-std.workspace = true
@@ -20,6 +21,7 @@ once_cell = { version = "1.17.1", optional = true }
 [features]
 default = ["std"]
 std = [
+    "sp-allocator/std",
 	"sp-runtime-interface/std",
 	"sp-wasm-interface/std",
 	"sp-std/std",

@@ -20,11 +20,10 @@
 
 use crate::common::{Error, GlobalNames};
 use core::any::Any;
-use std::marker::PhantomData;
 
 use gear_backend_common::lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor};
 use gear_core::memory::HostPointer;
-// use sc_executor_common::sandbox::SandboxInstance;
+use gear_sandbox_native::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
 
 #[derive(Debug, Clone, Copy)]
@@ -45,30 +44,27 @@ pub(crate) struct GlobalsContext {
 }
 
 struct GlobalsAccessWasmRuntime<'a> {
-    // pub instance: &'a mut SandboxInstance,
-    marker: PhantomData<&'a ()>,
+    pub instance: &'a mut SandboxInstance,
 }
 
 impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
     fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
-        // self.instance
-        //     .get_global_val(name)
-        //     .and_then(|value| match value {
-        //         Value::I64(value) => Some(value),
-        //         _ => None,
-        //     })
-        //     .ok_or(GlobalsAccessError)
-        Err(GlobalsAccessError)
+        self.instance
+            .get_global_val(name)
+            .and_then(|value| match value {
+                Value::I64(value) => Some(value),
+                _ => None,
+            })
+            .ok_or(GlobalsAccessError)
     }
 
     fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
-        // self.instance
-        //     .set_global_val(name, Value::I64(value))
-        //     .ok()
-        //     .flatten()
-        //     .ok_or(GlobalsAccessError)?;
-        // Ok(())
-        Err(GlobalsAccessError)
+        self.instance
+            .set_global_val(name, Value::I64(value))
+            .ok()
+            .flatten()
+            .ok_or(GlobalsAccessError)?;
+        Ok(())
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -116,11 +112,10 @@ pub(crate) unsafe fn apply_for_global(
     let name = globals_ctx.names[global_no as usize].as_str();
     match globals_ctx.access_mod {
         GlobalsAccessMod::WasmRuntime => {
-            // let instance = (globals_config.access_ptr as *mut SandboxInstance)
-            //     .as_mut()
-            //     .ok_or(Error::HostInstancePointerIsInvalid)?;
-            // apply_for_global_internal(GlobalsAccessWasmRuntime { instance }, name, f)
-            Err(GlobalsAccessError.into())
+            let instance = (globals_ctx.access_ptr as *mut SandboxInstance)
+                .as_mut()
+                .ok_or(Error::HostInstancePointerIsInvalid)?;
+            apply_for_global_internal(GlobalsAccessWasmRuntime { instance }, name, f)
         }
         GlobalsAccessMod::NativeRuntime => {
             let inner_access_provider = (globals_ctx.access_ptr as *mut &mut dyn GlobalsAccessor)
