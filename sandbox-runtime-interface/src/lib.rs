@@ -27,6 +27,9 @@ use sp_runtime_interface::{
 use sp_wasm_interface::HostPointer;
 
 #[cfg(feature = "std")]
+use codec::{Decode, Encode};
+
+#[cfg(feature = "std")]
 mod impl_ {
 	use gear_sandbox_native::sandbox as sandbox;
 	use sp_wasm_interface::{wasmtime::{self, Func, Val, AsContext}, Caller, StoreData, Pointer, WordSize, HostState};
@@ -305,11 +308,76 @@ pub trait Sandbox {
 		return_val_len: u32,
 		state_ptr: Pointer<u8>,
 	) -> u32 {
-        self.with_caller_mut(std::ptr::null_mut(), |_context, _caller| {
-            todo!()
-        });
-        
-        todo!()
+		use gear_sandbox_native::{sandbox, sandbox::SandboxContext};
+
+		struct Context<'a> {
+			instance_idx: u32,
+			function: &'a str,
+			args: &'a [u8],
+			return_val_ptr: Pointer<u8>,
+			return_val_len: u32,
+			state_ptr: Pointer<u8>,
+			store: &'a mut impl_::StoreBox,
+			result: u32,
+		}
+
+		let mut context = Context {
+			instance_idx,
+			function,
+			args,
+			return_val_ptr,
+			return_val_len,
+			state_ptr,
+			store: unsafe { &mut impl_::SANDBOX_STORE },
+			result: u32::MAX,
+		};
+		let context_ptr: *mut Context = &mut context;
+
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
+			let context_ptr: *mut Context = context_ptr.cast();
+			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+
+			log::trace!(target: "gear-sandbox", "invoke, instance_idx={}", context.instance_idx);
+	
+			// Deserialize arguments and convert them into wasmi types.
+			let args = Vec::<sp_wasm_interface::Value>::decode(&mut context.args)
+				.expect("Can't decode serialized arguments for the invocation")
+				.into_iter()
+				.collect::<Vec<_>>();
+	
+			let instance = context.store.instance(context.instance_idx)
+				.expect("backend instance not found");
+	
+			let dispatch_thunk =
+				context.store.dispatch_thunk(context.instance_idx).expect("dispatch_thunk not found");
+	
+			let mut sandbox_context = impl_::SandboxContext { caller, dispatch_thunk, state: context.state_ptr.into() };
+			let result = instance.invoke(
+				context.function,
+				&args,
+				&mut sandbox_context,
+			);
+	
+			context.result = match result {
+				Ok(None) => sandbox::env::ERR_OK,
+				Ok(Some(val)) => {
+					// Serialize return value and write it back into the memory.
+					sp_wasm_interface::ReturnValue::Value(val.into()).using_encoded(|val| {
+						if val.len() > context.return_val_len as usize {
+							panic!("Return value buffer is too small");
+						}
+
+						sandbox_context.write_memory(context.return_val_ptr, val)
+							.expect("can't write return value");
+
+						sandbox::env::ERR_OK
+					})
+				},
+				Err(_) => sandbox::env::ERR_EXECUTION,
+			};
+		});
+
+		context.result
 	}
 
 	/// Create a new memory instance with the given `initial` and `maximum` size.
