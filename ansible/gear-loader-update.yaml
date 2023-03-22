@@ -7,7 +7,7 @@
   tasks:
   - name: Stop docker compose
     shell: >
-        /usr/local/bin/docker-compose -f "/home/ubuntu/docker-compose.yaml" down
+        docker-compose -f "/home/ubuntu/docker-compose.yaml" down
     become: yes
     
   - name: remove db
@@ -23,7 +23,7 @@
     
   - name: Pull docker images
     shell: >
-       /usr/local/bin/docker-compose -f "/home/ubuntu/docker-compose.yaml" pull
+       docker-compose -f "/home/ubuntu/docker-compose.yaml" pull
     become: yes
  
   - name: remove gear-loader.log
@@ -51,7 +51,7 @@
         
   - name: Run docker-compose
     shell: >
-       /usr/local/bin/docker-compose -f "/home/ubuntu/docker-compose.yaml" up -d
+       docker-compose -f "/home/ubuntu/docker-compose.yaml" up -d
     become: yes
  
   - name: Pause for 10 seconds before run loader
