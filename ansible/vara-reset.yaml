@@ -18,7 +18,7 @@
   
     - name: Remove spec json
       ansible.builtin.file:
-        path: /home/ec2-user/gear-data/vara_staging.json
+        path: /home/ec2-user/gear-data/vara.json
         state: absent
       become: yes
   
