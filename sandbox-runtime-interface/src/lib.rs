@@ -33,16 +33,18 @@ mod impl_ {
 	use once_cell::unsync::Lazy;
 
 	// The sandbox store is inside of a Option<Box<..>>> so that we can temporarily borrow it.
-	pub(super) struct SandboxStore(pub(super) Option<Box<sandbox::Store<wasmtime::Func>>>);
+	pub(super) struct SandboxStore(pub(super) Box<sandbox::Store<wasmtime::Func>>);
 
 	// There are a bunch of `Rc`s within the sandbox store, however we only manipulate
 	// those within one thread so this should be safe.
 	unsafe impl Send for SandboxStore {}
 
-	pub(super) static mut SANDBOX_STORE: Lazy<SandboxStore> = Lazy::new(|| {
-		SandboxStore(Some(Box::new(sandbox::Store::new(
+	pub(super) type StoreBox = Box<sandbox::Store<wasmtime::Func>>;
+
+	pub(super) static mut SANDBOX_STORE: Lazy<StoreBox> = Lazy::new(|| {
+		Box::new(sandbox::Store::new(
 			sandbox::SandboxBackend::TryWasmer,
-		))))
+		))
 	});
 
 	pub(super) struct SandboxContext<'a, 'b> {
@@ -150,7 +152,7 @@ pub trait Sandbox {
 			wasm_code: &'a [u8],
 			raw_env_def: &'a [u8],
 			state_ptr: Pointer<u8>,
-			store: &'a mut impl_::SandboxStore,
+			store: &'a mut impl_::StoreBox,
 			result: u32,
 		}
 
@@ -187,7 +189,7 @@ pub trait Sandbox {
 					.expect("Failed to instantiate a new sandbox")
 			};
 
-			let guest_env = match sandbox::GuestEnvironment::decode(context.store.0.as_ref().expect("sandbox store is not empty"), context.raw_env_def) {
+			let guest_env = match sandbox::GuestEnvironment::decode(context.store.as_ref(), context.raw_env_def) {
 				Ok(guest_env) => guest_env,
 				Err(_) => {
 					context.result = sandbox::env::ERR_MODULE as u32;
@@ -205,7 +207,7 @@ pub trait Sandbox {
 			// Catch any potential panics so that we can properly restore the sandbox store
 			// which we've destructively borrowed.
 			let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-				context.store.0.as_mut().expect("sandbox store is not empty").instantiate(
+				context.store.as_mut().instantiate(
 					context.wasm_code,
 					guest_env,
 					&mut impl_::SandboxContext { caller, dispatch_thunk, state: context.state_ptr.into() },
@@ -220,7 +222,7 @@ pub trait Sandbox {
 			};
 
 			let instance_idx_or_err_code = match result {
-				Ok(instance) => instance.register(context.store.0.as_mut().expect("sandbox store is not empty"), dispatch_thunk),
+				Ok(instance) => instance.register(context.store.as_mut(), dispatch_thunk),
 				Err(sandbox::InstantiationError::StartTrapped) => sandbox::env::ERR_EXECUTION,
 				Err(_) => sandbox::env::ERR_MODULE,
 			};
@@ -250,14 +252,14 @@ pub trait Sandbox {
 
 	/// Create a new memory instance with the given `initial` and `maximum` size.
 	fn memory_new(&mut self, initial: u32, maximum: u32) -> u32 {
-		type Context<'a> = (&'a mut impl_::SandboxStore, u32, u32, u32);
+		type Context<'a> = (&'a mut impl_::StoreBox, u32, u32, u32);
 		let mut context: Context = (unsafe { &mut impl_::SANDBOX_STORE }, initial, maximum, 0);
 		let context_ptr: *mut Context = &mut context;
         self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
 			let (store, initial, maximum, result) = context;
-            *result = store.0.as_mut().expect("sandbox store is not empty").new_memory(*initial, *maximum).map_err(|e| e.to_string())
+            *result = store.as_mut().new_memory(*initial, *maximum).map_err(|e| e.to_string())
 				.expect("Failed to create new memory with sandbox");
         });
 
@@ -321,11 +323,33 @@ pub trait Sandbox {
 		instance_idx: u32,
 		name: &str,
 	) -> Option<sp_wasm_interface::Value> {
-        self.with_caller_mut(std::ptr::null_mut(), |_context, _caller| {
-            todo!()
-        });
-        
-        todo!()
+		struct Context<'a> {
+			instance_idx: u32,
+			name: &'a str,
+			store: &'a mut impl_::StoreBox,
+			result: Option<sp_wasm_interface::Value>,
+		}
+
+		let mut context = Context {
+			instance_idx,
+			name,
+			store: unsafe { &mut impl_::SANDBOX_STORE },
+			result: None,
+		};
+		let context_ptr: *mut Context = &mut context;
+
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+			let context_ptr: *mut Context = context_ptr.cast();
+			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+
+			context.result = context.store.as_mut()
+				.instance(context.instance_idx)
+				.map(|i| i.get_global_val(context.name))
+				.map_err(|e| e.to_string())
+				.expect("Failed to get global from sandbox");
+		});
+
+		context.result
 	}
 
     /// Set the value of a global with the given `name`. The sandbox is determined by the given
