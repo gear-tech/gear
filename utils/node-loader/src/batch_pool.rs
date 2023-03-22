@@ -316,7 +316,7 @@ async fn create_renew_balance_task(
     let root_target_balance = root_api.free_balance(&root_address).await?;
 
     // every 100 blocks renew balance
-    let duration_millis = root_api.expected_block_time()? * 100;
+    let duration_millis = root_api.expected_block_time()? * 5;
 
     tracing::info!(
         "Renewing balances every {} seconds, user target balance is {}, authority target balance is {}",

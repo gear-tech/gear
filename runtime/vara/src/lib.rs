@@ -836,7 +836,7 @@ pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
     // RELEASE: remove before final release
-    DisableValueTransfers,
+    // DisableValueTransfers,
     // Keep as long as it's needed
     StakingBlackList<Runtime>,
     frame_system::CheckNonZeroSender<Runtime>,
