@@ -28,7 +28,7 @@ use std::{collections::HashMap, rc::Rc, pin::Pin};
 
 use codec::Decode;
 use gear_sandbox_env as sandbox_env;
-use sp_wasm_interface::{FunctionContext, Pointer, WordSize};
+use sp_wasm_interface::{Pointer, WordSize};
 
 use crate::{
 	error::{self, Result},
@@ -45,6 +45,8 @@ use self::wasmi_backend::{
 	get_global as wasmi_get_global, set_global as wasmi_set_global, instantiate as wasmi_instantiate, invoke as wasmi_invoke,
 	new_memory as wasmi_new_memory, MemoryWrapper as WasmiMemoryWrapper,
 };
+
+pub use gear_sandbox_env as env;
 
 /// Index of a function inside the supervisor.
 ///
@@ -138,8 +140,28 @@ pub trait SandboxContext {
 		func_idx: SupervisorFuncIndex,
 	) -> Result<i64>;
 
-	/// Returns the supervisor context.
-	fn supervisor_context(&mut self) -> &mut dyn FunctionContext;
+	/// Read memory from `address` into a vector.
+	fn read_memory_into(
+		&self,
+		address: Pointer<u8>,
+		dest: &mut [u8],
+	) -> sp_wasm_interface::Result<()>;
+
+	/// Read memory into the given `dest` buffer from `address`.
+	fn read_memory(&self, address: Pointer<u8>, size: WordSize) -> Result<Vec<u8>> {
+		let mut vec = vec![0; size as usize];
+		self.read_memory_into(address, &mut vec)?;
+		Ok(vec)
+	}
+
+	/// Write the given data at `address` into the memory.
+	fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> sp_wasm_interface::Result<()>;
+
+	/// Allocate a memory instance of `size` bytes.
+	fn allocate_memory(&mut self, size: WordSize) -> sp_wasm_interface::Result<Pointer<u8>>;
+
+	/// Deallocate a given memory instance.
+	fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> sp_wasm_interface::Result<()>;
 }
 
 /// Implementation of [`Externals`] that allows execution of guest module with

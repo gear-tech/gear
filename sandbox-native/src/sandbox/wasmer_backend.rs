@@ -27,7 +27,7 @@ use wasmer::Module;
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::HostError;
-use sp_wasm_interface::{FunctionContext, Pointer, ReturnValue, Value, WordSize};
+use sp_wasm_interface::{Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
 	error::{Error, Result},
@@ -281,21 +281,20 @@ fn dispatch_function(
 			// then free allocated memory.
 			let invoke_args_len = invoke_args_data.len() as WordSize;
 			let invoke_args_ptr =
-				sandbox_context.supervisor_context().allocate_memory(invoke_args_len).map_err(
+				sandbox_context.allocate_memory(invoke_args_len).map_err(
 					|_| RuntimeError::new("Can't allocate memory in supervisor for the arguments"),
 				)?;
 
-			let deallocate = |fe: &mut dyn FunctionContext, ptr, fail_msg| {
+			let deallocate = |fe: &mut dyn SandboxContext, ptr, fail_msg| {
 				fe.deallocate_memory(ptr).map_err(|_| RuntimeError::new(fail_msg))
 			};
 
 			if sandbox_context
-				.supervisor_context()
 				.write_memory(invoke_args_ptr, &invoke_args_data)
 				.is_err()
 			{
 				deallocate(
-					sandbox_context.supervisor_context(),
+					sandbox_context,
 					invoke_args_ptr,
 					"Failed dealloction after failed write of invoke arguments",
 				)?;
@@ -309,7 +308,7 @@ fn dispatch_function(
 				.map_err(|e| RuntimeError::new(e.to_string()));
 
 			deallocate(
-				sandbox_context.supervisor_context(),
+				sandbox_context,
 				invoke_args_ptr,
 				"Failed dealloction after invoke",
 			)?;
@@ -327,14 +326,13 @@ fn dispatch_function(
 			};
 
 			let serialized_result_val = sandbox_context
-				.supervisor_context()
 				.read_memory(serialized_result_val_ptr, serialized_result_val_len)
 				.map_err(|_| {
 					RuntimeError::new("Can't read the serialized result from dispatch thunk")
 				});
 
 			deallocate(
-				sandbox_context.supervisor_context(),
+				sandbox_context,
 				serialized_result_val_ptr,
 				"Can't deallocate memory for dispatch thunk's result",
 			)?;

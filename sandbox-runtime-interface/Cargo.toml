@@ -27,3 +27,4 @@ std = [
 	"gear-sandbox-native",
 	"once_cell",
 ]
+host-sandbox = ["gear-sandbox-native?/host-sandbox"]

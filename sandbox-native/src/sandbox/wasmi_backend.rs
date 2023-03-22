@@ -22,7 +22,7 @@ use std::fmt;
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::HostError;
-use sp_wasm_interface::{FunctionContext, Pointer, ReturnValue, Value, WordSize};
+use sp_wasm_interface::{Pointer, ReturnValue, Value, WordSize};
 use wasmi::{
 	memory_units::Pages, ImportResolver, MemoryInstance, Module, ModuleInstance, RuntimeArgs,
 	RuntimeValue, Trap,
@@ -216,21 +216,19 @@ impl<'a> wasmi::Externals for GuestExternals<'a> {
 			// then free allocated memory.
 			let invoke_args_len = invoke_args_data.len() as WordSize;
 			let invoke_args_ptr = sandbox_context
-				.supervisor_context()
 				.allocate_memory(invoke_args_len)
 				.map_err(|_| trap("Can't allocate memory in supervisor for the arguments"))?;
 
-			let deallocate = |supervisor_context: &mut dyn FunctionContext, ptr, fail_msg| {
-				supervisor_context.deallocate_memory(ptr).map_err(|_| trap(fail_msg))
+			let deallocate = |sandbox_context: &mut dyn SandboxContext, ptr, fail_msg| {
+				sandbox_context.deallocate_memory(ptr).map_err(|_| trap(fail_msg))
 			};
 
 			if sandbox_context
-				.supervisor_context()
 				.write_memory(invoke_args_ptr, &invoke_args_data)
 				.is_err()
 			{
 				deallocate(
-					sandbox_context.supervisor_context(),
+					sandbox_context,
 					invoke_args_ptr,
 					"Failed dealloction after failed write of invoke arguments",
 				)?;
@@ -244,7 +242,7 @@ impl<'a> wasmi::Externals for GuestExternals<'a> {
 			);
 
 			deallocate(
-				sandbox_context.supervisor_context(),
+				sandbox_context,
 				invoke_args_ptr,
 				"Can't deallocate memory for dispatch thunk's invoke arguments",
 			)?;
@@ -261,12 +259,11 @@ impl<'a> wasmi::Externals for GuestExternals<'a> {
 			};
 
 			let serialized_result_val = sandbox_context
-				.supervisor_context()
 				.read_memory(serialized_result_val_ptr, serialized_result_val_len)
 				.map_err(|_| trap("Can't read the serialized result from dispatch thunk"));
 
 			deallocate(
-				sandbox_context.supervisor_context(),
+				sandbox_context,
 				serialized_result_val_ptr,
 				"Can't deallocate memory for dispatch thunk's result",
 			)
