@@ -26,6 +26,26 @@ use sp_runtime_interface::{
 };
 use sp_wasm_interface::HostPointer;
 
+#[cfg(feature = "std")]
+mod impl_ {
+	use gear_sandbox_native::sandbox as sandbox;
+	use sp_wasm_interface::wasmtime;
+	use once_cell::unsync::Lazy;
+
+	// The sandbox store is inside of a Option<Box<..>>> so that we can temporarily borrow it.
+	pub(super) struct SandboxStore(pub(super) Option<Box<sandbox::Store<wasmtime::Func>>>);
+
+	// There are a bunch of `Rc`s within the sandbox store, however we only manipulate
+	// those within one thread so this should be safe.
+	unsafe impl Send for SandboxStore {}
+
+	pub(super) static mut SANDBOX_STORE: Lazy<SandboxStore> = Lazy::new(|| {
+		SandboxStore(Some(Box::new(sandbox::Store::new(
+			sandbox::SandboxBackend::TryWasmer,
+		))))
+	});
+}
+
 /// Wasm-only interface that provides functions for interacting with the sandbox.
 #[runtime_interface(wasm_only)]
 pub trait Sandbox {
@@ -63,11 +83,18 @@ pub trait Sandbox {
 
 	/// Create a new memory instance with the given `initial` and `maximum` size.
 	fn memory_new(&mut self, initial: u32, maximum: u32) -> u32 {
-        self.with_caller_mut(std::ptr::null_mut(), |_context, _caller| {
-            todo!()
+		type Context<'a> = (&'a mut impl_::SandboxStore, u32, u32, u32);
+		let mut context: Context = (unsafe { &mut impl_::SANDBOX_STORE }, initial, maximum, 0);
+		let context_ptr: *mut Context = &mut context;
+        self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+			let context_ptr: *mut Context = context_ptr.cast();
+			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+			let (store, initial, maximum, result) = context;
+            *result = store.0.as_mut().expect("sandbox store is not empty").new_memory(*initial, *maximum).map_err(|e| e.to_string())
+				.expect("Failed to create new memory with sandbox");
         });
-        
-        todo!()
+
+		context.3
 	}
 
 	/// Get the memory starting at `offset` from the instance with `memory_idx` into the buffer.

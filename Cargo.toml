@@ -177,6 +177,8 @@ gear-runtime-test-cli = { path = "utils/gear-runtime-test-cli" }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
 gear-sandbox = { path = "sandbox", default-features = false }
+gear-sandbox-env = { path = "sandbox-env", default-features = false }
+gear-sandbox-native = { path = "sandbox-native" }
 gear-sandbox-runtime-interface = { path = "sandbox-runtime-interface", default-features = false }
 gear-service = { path = "node/service", default-features = false }
 gear-test = { path = "gear-test" }
@@ -272,6 +274,7 @@ sc-sync-state-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tec
 sc-sysinfo = { version = "6.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41" }
 sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41" }
 sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41" }
+sp-allocator = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41", default-features = false }
 sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41", default-features = false }
 sp-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41", default-features = false }
 sp-arithmetic = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41", default-features = false }

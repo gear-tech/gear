@@ -1,0 +1,32 @@
+[package]
+name = "gear-sandbox-native"
+version = "0.0.0"
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+description = "A set of common definitions that are needed for defining execution engines."
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { workspace = true, features = ["std"] }
+environmental = "1.1.3"
+thiserror.workspace = true
+log = { workspace = true, features = ["std"] }
+wasmer = { version = "2.2", features = ["singlepass"], optional = true }
+wasmi = { version = "0.13", features = ["virtual_memory"] }
+sp-allocator = { workspace = true, features = ["std"] }
+sp-wasm-interface = { workspace = true, features = ["std"] }
+gear-sandbox-env = { workspace = true, features = ["std"] }
+
+wasmer-cache = { version = "2.2.1", optional = true }
+
+[features]
+default = []
+host-sandbox = [
+	"wasmer",
+]
