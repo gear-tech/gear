@@ -463,11 +463,32 @@ pub trait Sandbox {
 	}
 
 	fn get_buff(&mut self, memory_idx: u32) -> HostPointer {
-        self.with_caller_mut(std::ptr::null_mut(), |_context, _caller| {
-            todo!()
+        use gear_sandbox_native::util::MemoryTransfer;
+
+        struct Context<'a> {
+			memory_idx: u32,
+			store: &'a mut impl_::StoreBox,
+			result: HostPointer,
+		}
+
+		let mut context = Context {
+			memory_idx,
+			store: unsafe { &mut impl_::SANDBOX_STORE },
+			result: u32::MAX.into(),
+		};
+		let context_ptr: *mut Context = &mut context;
+
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+			let context_ptr: *mut Context = context_ptr.cast();
+			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+
+			let mut m = context.store.memory(context.memory_idx)
+				.expect("Failed to grow memory: cannot get backend memory");
+
+			context.result = m.get_buff() as HostPointer;
         });
-        
-        todo!()
+
+        context.result
 	}
 
 	fn get_instance_ptr(&mut self, instance_id: u32) -> HostPointer {
