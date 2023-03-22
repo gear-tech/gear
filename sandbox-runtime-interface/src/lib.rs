@@ -30,23 +30,27 @@ use sp_wasm_interface::HostPointer;
 use codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
+use gear_sandbox_native::sandbox as sandbox_env;
+
+#[cfg(feature = "std")]
 mod impl_ {
+	use super::*;
 	use gear_sandbox_native::sandbox as sandbox;
-	use sp_wasm_interface::{wasmtime::{self, Func, Val, AsContext}, Caller, StoreData, Pointer, WordSize, HostState};
+	use sp_wasm_interface::{wasmtime::{self, Func, Val, AsContext, AsContextMut}, Caller, StoreData, Pointer, WordSize, HostState};
 	use once_cell::unsync::Lazy;
 
 	// The sandbox store is inside of a Option<Box<..>>> so that we can temporarily borrow it.
-	pub(super) struct SandboxStore(pub(super) Box<sandbox::Store<wasmtime::Func>>);
+	pub(super) struct SandboxStore(pub(super) Box<sandbox_env::Store<wasmtime::Func>>);
 
 	// There are a bunch of `Rc`s within the sandbox store, however we only manipulate
 	// those within one thread so this should be safe.
 	unsafe impl Send for SandboxStore {}
 
-	pub(super) type StoreBox = Box<sandbox::Store<wasmtime::Func>>;
+	pub(super) type StoreBox = Box<sandbox_env::Store<wasmtime::Func>>;
 
 	pub(super) static mut SANDBOX_STORE: Lazy<StoreBox> = Lazy::new(|| {
-		Box::new(sandbox::Store::new(
-			sandbox::SandboxBackend::TryWasmer,
+		Box::new(sandbox_env::Store::new(
+			sandbox_env::SandboxBackend::TryWasmer,
 		))
 	});
 
@@ -66,12 +70,12 @@ mod impl_ {
         }
     }
 	
-	impl<'a, 'b> sandbox::SandboxContext for SandboxContext<'a, 'b> {
+	impl<'a, 'b> sandbox_env::SandboxContext for SandboxContext<'a, 'b> {
 		fn invoke(
 			&mut self,
 			invoke_args_ptr: Pointer<u8>,
 			invoke_args_len: WordSize,
-			func_idx: sandbox::SupervisorFuncIndex,
+			func_idx: sandbox_env::SupervisorFuncIndex,
 		) -> gear_sandbox_native::error::Result<i64> {
 			let mut ret_vals = [Val::null()];
 			let result = self.dispatch_thunk.call(
@@ -160,12 +164,11 @@ mod impl_ {
 		}
 	}
 
-
     // TODO: temporary copy-pasta
     // Wrapper around [`Memory`] that implements [`sp_allocator::Memory`].
     pub(crate) struct MemoryWrapper<'a, C>(pub &'a wasmtime::Memory, pub &'a mut C);
 
-    impl<C: wasmtime::AsContextMut> sp_allocator::Memory for MemoryWrapper<'_, C> {
+    impl<C: AsContextMut> sp_allocator::Memory for MemoryWrapper<'_, C> {
         fn with_access<R>(&self, run: impl FnOnce(&[u8]) -> R) -> R {
             run(self.0.data(&self.1))
         }
@@ -196,6 +199,16 @@ mod impl_ {
             self.0.ty(&self.1).maximum().map(|p| p as _)
         }
     }
+
+	pub(super) fn write_memory(mut ctx: impl AsContextMut<Data = StoreData>, address: Pointer<u8>, data: &[u8]) -> sp_wasm_interface::Result<()> {
+		let memory = ctx.as_context().data().memory();
+		let memory = memory.data_mut(&mut ctx);
+
+		let range = gear_sandbox_native::util::checked_range(address.into(), data.len(), memory.len())
+			.ok_or_else(|| String::from("memory write is out of bounds"))?;
+		memory[range].copy_from_slice(data);
+		Ok(())
+	}
 }
 
 /// Wasm-only interface that provides functions for interacting with the sandbox.
@@ -254,10 +267,10 @@ pub trait Sandbox {
 					.expect("Failed to instantiate a new sandbox")
 			};
 
-			let guest_env = match sandbox::GuestEnvironment::decode(context.store.as_ref(), context.raw_env_def) {
+			let guest_env = match sandbox_env::GuestEnvironment::decode(context.store.as_ref(), context.raw_env_def) {
 				Ok(guest_env) => guest_env,
 				Err(_) => {
-					context.result = sandbox::env::ERR_MODULE as u32;
+					context.result = sandbox_env::env::ERR_MODULE as u32;
 					return;
 				}
 			};
@@ -288,8 +301,8 @@ pub trait Sandbox {
 
 			let instance_idx_or_err_code = match result {
 				Ok(instance) => instance.register(context.store.as_mut(), dispatch_thunk),
-				Err(sandbox::InstantiationError::StartTrapped) => sandbox::env::ERR_EXECUTION,
-				Err(_) => sandbox::env::ERR_MODULE,
+				Err(sandbox_env::InstantiationError::StartTrapped) => sandbox_env::env::ERR_EXECUTION,
+				Err(_) => sandbox_env::env::ERR_MODULE,
 			};
 
 			context.result = instance_idx_or_err_code as u32
@@ -308,7 +321,7 @@ pub trait Sandbox {
 		return_val_len: u32,
 		state_ptr: Pointer<u8>,
 	) -> u32 {
-		use gear_sandbox_native::{sandbox, sandbox::SandboxContext};
+		use sandbox_env::SandboxContext;
 
 		struct Context<'a> {
 			instance_idx: u32,
@@ -359,7 +372,7 @@ pub trait Sandbox {
 			);
 	
 			context.result = match result {
-				Ok(None) => sandbox::env::ERR_OK,
+				Ok(None) => sandbox_env::env::ERR_OK,
 				Ok(Some(val)) => {
 					// Serialize return value and write it back into the memory.
 					sp_wasm_interface::ReturnValue::Value(val.into()).using_encoded(|val| {
@@ -370,10 +383,10 @@ pub trait Sandbox {
 						sandbox_context.write_memory(context.return_val_ptr, val)
 							.expect("can't write return value");
 
-						sandbox::env::ERR_OK
+						sandbox_env::env::ERR_OK
 					})
 				},
-				Err(_) => sandbox::env::ERR_EXECUTION,
+				Err(_) => sandbox_env::env::ERR_EXECUTION,
 			};
 		});
 
@@ -404,11 +417,51 @@ pub trait Sandbox {
 		buf_ptr: Pointer<u8>,
 		buf_len: u32,
 	) -> u32 {
-        self.with_caller_mut(std::ptr::null_mut(), |_context, _caller| {
-            todo!()
-        });
-        
-        todo!()
+		use gear_sandbox_native::util::MemoryTransfer;
+
+		struct Context<'a> {
+			memory_idx: u32,
+			offset: u32,
+			buf_ptr: Pointer<u8>,
+			buf_len: u32,
+			store: &'a mut impl_::StoreBox,
+			result: u32,
+		}
+
+		let mut context = Context {
+			memory_idx,
+			offset,
+			buf_ptr,
+			buf_len,
+			store: unsafe { &mut impl_::SANDBOX_STORE },
+			result: u32::MAX,
+		};
+		let context_ptr: *mut Context = &mut context;
+
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
+			let context_ptr: *mut Context = context_ptr.cast();
+			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+
+			let sandboxed_memory = context.store.memory(context.memory_idx)
+				.expect("sandboxed memory not found");
+
+			let len = context.buf_len as usize;
+
+			let buffer = match sandboxed_memory.read(Pointer::new(context.offset as u32), len) {
+				Err(_) => {
+					context.result = sandbox_env::env::ERR_OUT_OF_BOUNDS;
+					return;
+				}
+				Ok(buffer) => buffer,
+			};
+
+			context.result = match impl_::write_memory(caller, context.buf_ptr, &buffer) {
+				Ok(_) => sandbox_env::env::ERR_OK,
+				Err(_) => sandbox_env::env::ERR_OUT_OF_BOUNDS,
+			};
+		});
+
+		context.result
 	}
 
 	/// Set the memory in the given `memory_idx` to the given value at `offset`.
@@ -504,8 +557,6 @@ pub trait Sandbox {
 		name: &str,
 		value: sp_wasm_interface::Value,
 	) -> u32 {
-		use gear_sandbox_native::sandbox as sandbox;
-
 		struct Context<'a> {
 			instance_idx: u32,
 			name: &'a str,
@@ -539,9 +590,9 @@ pub trait Sandbox {
 
 			log::trace!(target: "gear-sandbox", "set_global_val, name={}, value={:?}, result={result:?}", context.name, context.value);
 			context.result = match result {
-				Ok(None) => sandbox::env::ERROR_GLOBALS_NOT_FOUND,
-				Ok(Some(_)) => sandbox::env::ERROR_GLOBALS_OK,
-				Err(_) => sandbox::env::ERROR_GLOBALS_OTHER,
+				Ok(None) => sandbox_env::env::ERROR_GLOBALS_NOT_FOUND,
+				Ok(Some(_)) => sandbox_env::env::ERROR_GLOBALS_OK,
+				Err(_) => sandbox_env::env::ERROR_GLOBALS_OTHER,
 			};
         });
 
