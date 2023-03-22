@@ -209,6 +209,25 @@ mod impl_ {
 		memory[range].copy_from_slice(data);
 		Ok(())
 	}
+
+	pub(super) fn read_memory_into(
+		ctx: impl AsContext<Data = StoreData>,
+		address: Pointer<u8>,
+		dest: &mut [u8],
+	) -> sp_wasm_interface::Result<()> {
+		let memory = ctx.as_context().data().memory().data(&ctx);
+
+		let range = gear_sandbox_native::util::checked_range(address.into(), dest.len(), memory.len())
+			.ok_or_else(|| String::from("memory read is out of bounds"))?;
+		dest.copy_from_slice(&memory[range]);
+		Ok(())
+	}
+
+	pub(super) fn read_memory(ctx: impl AsContext<Data = StoreData>, address: Pointer<u8>, size: WordSize) -> sp_wasm_interface::Result<Vec<u8>> {
+		let mut vec = vec![0; size as usize];
+		read_memory_into(ctx, address, &mut vec)?;
+		Ok(vec)
+	}
 }
 
 /// Wasm-only interface that provides functions for interacting with the sandbox.
@@ -472,11 +491,48 @@ pub trait Sandbox {
 		val_ptr: Pointer<u8>,
 		val_len: u32,
 	) -> u32 {
-        self.with_caller_mut(std::ptr::null_mut(), |_context, _caller| {
-            todo!()
-        });
-        
-        todo!()
+		use gear_sandbox_native::util::MemoryTransfer;
+
+		struct Context<'a> {
+			memory_idx: u32,
+			offset: u32,
+			val_ptr: Pointer<u8>,
+			val_len: u32,
+			store: &'a mut impl_::StoreBox,
+			result: u32,
+		}
+
+		let mut context = Context {
+			memory_idx,
+			offset,
+			val_ptr,
+			val_len,
+			store: unsafe { &mut impl_::SANDBOX_STORE },
+			result: u32::MAX,
+		};
+		let context_ptr: *mut Context = &mut context;
+
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
+			let context_ptr: *mut Context = context_ptr.cast();
+			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+
+			let sandboxed_memory = context.store.memory(context.memory_idx).expect("memory_set: not found");
+
+			let buffer = match impl_::read_memory(&caller, context.val_ptr, context.val_len) {
+				Err(_) => {
+					context.result = sandbox_env::env::ERR_OUT_OF_BOUNDS;
+					return;
+				}
+				Ok(buffer) => buffer,
+			};
+
+			context.result = match sandboxed_memory.write_from(Pointer::new(context.offset as u32), &buffer) {
+				Ok(_) => sandbox_env::env::ERR_OK,
+				Err(_) => sandbox_env::env::ERR_OUT_OF_BOUNDS,
+			};
+		});
+
+		context.result
 	}
 
 	/// Teardown the memory instance with the given `memory_idx`.
