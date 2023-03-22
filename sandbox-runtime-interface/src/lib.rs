@@ -241,7 +241,6 @@ pub trait Sandbox {
 		raw_env_def: &[u8],
 		state_ptr: Pointer<u8>,
 	) -> u32 {
-		use gear_sandbox_native::sandbox as sandbox;
 		use sp_wasm_interface::wasmtime::AsContextMut;
 
 		struct Context<'a> {
@@ -537,11 +536,25 @@ pub trait Sandbox {
 
 	/// Teardown the memory instance with the given `memory_idx`.
 	fn memory_teardown(&mut self, memory_idx: u32) {
-        self.with_caller_mut(std::ptr::null_mut(), |_context, _caller| {
-            todo!()
-        });
-        
-        todo!()
+		struct Context<'a> {
+			memory_idx: u32,
+			store: &'a mut impl_::StoreBox,
+		}
+
+		let mut context = Context {
+			memory_idx,
+			store: unsafe { &mut impl_::SANDBOX_STORE },
+		};
+		let context_ptr: *mut Context = &mut context;
+
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+			let context_ptr: *mut Context = context_ptr.cast();
+			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+			
+			context.store
+				.memory_teardown(context.memory_idx)
+				.expect("Failed to teardown sandbox memory")
+		});
 	}
 
 	/// Teardown the sandbox instance with the given `instance_idx`.
