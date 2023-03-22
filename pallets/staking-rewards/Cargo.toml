@@ -18,7 +18,7 @@ scale-info = { version = "2.3.1", default-features = false, features = ["derive"
 primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"] }
 log = { version = "0.4.17", default-features = false }
 impl-trait-for-tuples = "0.2.2"
-serde = { version = "1.0.157", features = ["derive"], optional = true }
+serde = { version = "1.0.158", features = ["derive"], optional = true }
 
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }

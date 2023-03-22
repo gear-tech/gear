@@ -18,20 +18,16 @@
 
 //! Lazy-pages system signals accesses support.
 
-use std::{cell::RefMut, convert::TryFrom};
-
-use gear_backend_common::lazy_pages::Status;
-use gear_core::{
-    gas::GasLeft,
-    memory::{GranularityPage, PageU32Size, PagesIterInclusive},
-};
-
 use crate::{
-    common::{Error, GasLeftCharger, LazyPage, LazyPagesExecutionContext},
-    globals::{self, GearGlobal},
+    common::{Error, GasLeftCharger, LazyPagesExecutionContext, WeightNo},
+    globals::{self, GlobalNo},
+    pages::{GearPageNumber, PageDynSize},
     process::{self, AccessHandler},
-    LAZY_PAGES_PROGRAM_CONTEXT,
+    LAZY_PAGES_CONTEXT,
 };
+use gear_backend_common::lazy_pages::Status;
+use gear_core::gas::GasLeft;
+use std::convert::TryFrom;
 
 pub(crate) trait UserSignalHandler {
     /// # Safety
@@ -64,7 +60,7 @@ pub(crate) struct ExceptionInfo {
 /// instruction, which cause signal. Now memory which this instruction accesses
 /// is not protected and with correct data.
 unsafe fn user_signal_handler_internal(
-    mut ctx: RefMut<LazyPagesExecutionContext>,
+    ctx: &mut LazyPagesExecutionContext,
     info: ExceptionInfo,
 ) -> Result<(), Error> {
     let native_addr = info.fault_addr as usize;
@@ -77,23 +73,17 @@ unsafe fn user_signal_handler_internal(
 
     let offset =
         u32::try_from(native_addr - wasm_mem_addr).map_err(|_| Error::OutOfWasmMemoryAccess)?;
-    let lazy_page = LazyPage::from_offset(offset);
+    let page = GearPageNumber::from_offset(ctx, offset);
 
-    let pages = if is_write {
-        ctx.handle_psg_case_one_page(lazy_page)?
-    } else {
-        lazy_page.iter_once()
-    };
-
-    let gas_ctx = if let Some(globals_config) = ctx.globals_config.as_ref() {
-        let gas = globals::apply_for_global(globals_config, GearGlobal::GasLimit, |_| Ok(None))?;
+    let gas_ctx = if let Some(globals_config) = ctx.globals_context.as_ref() {
+        let gas = globals::apply_for_global(globals_config, GlobalNo::GasLimit, |_| Ok(None))?;
         let allowance =
-            globals::apply_for_global(globals_config, GearGlobal::AllowanceLimit, |_| Ok(None))?;
+            globals::apply_for_global(globals_config, GlobalNo::AllowanceLimit, |_| Ok(None))?;
         let gas_left_charger = GasLeftCharger {
-            read_cost: ctx.lazy_pages_weights.signal_read,
-            write_cost: ctx.lazy_pages_weights.signal_write,
-            write_after_read_cost: ctx.lazy_pages_weights.signal_write_after_read,
-            load_data_cost: ctx.lazy_pages_weights.load_page_storage_data,
+            read_cost: ctx.weight(WeightNo::SignalRead),
+            write_cost: ctx.weight(WeightNo::SignalWrite),
+            write_after_read_cost: ctx.weight(WeightNo::SignalWriteAfterRead),
+            load_data_cost: ctx.weight(WeightNo::LoadPageDataFromStorage),
         };
         Some((GasLeft { gas, allowance }, gas_left_charger))
     } else {
@@ -101,14 +91,18 @@ unsafe fn user_signal_handler_internal(
     };
 
     let handler = SignalAccessHandler { is_write, gas_ctx };
-    process::process_lazy_pages(ctx, handler, pages)
+    process::process_lazy_pages(ctx, handler, page)
 }
 
 /// User signal handler. Logic can depends on lazy-pages version.
 /// See also "user_signal_handler_internal".
 pub(crate) unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
     log::debug!("Interrupted, exception info = {:?}", info);
-    LAZY_PAGES_PROGRAM_CONTEXT.with(|ctx| user_signal_handler_internal(ctx.borrow_mut(), info))
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        let mut ctx = ctx.borrow_mut();
+        let ctx = ctx.execution_context_mut()?;
+        user_signal_handler_internal(ctx, info)
+    })
 }
 
 struct SignalAccessHandler {
@@ -117,15 +111,15 @@ struct SignalAccessHandler {
 }
 
 impl AccessHandler for SignalAccessHandler {
-    type Pages = PagesIterInclusive<LazyPage>;
+    type Pages = GearPageNumber;
     type Output = ();
 
     fn is_write(&self) -> bool {
         self.is_write
     }
 
-    fn last_page(pages: &Self::Pages) -> Option<LazyPage> {
-        Some(pages.end())
+    fn last_page(page: &Self::Pages) -> Option<GearPageNumber> {
+        Some(*page)
     }
 
     fn check_status_is_gas_exceeded() -> Result<(), Error> {
@@ -139,9 +133,9 @@ impl AccessHandler for SignalAccessHandler {
         Err(Error::SignalFromStackMemory)
     }
 
-    fn check_released_memory_access() -> Result<(), Error> {
-        // Released memory is unprotected, so signal cannot be received from it.
-        Err(Error::SignalFromReleasedPage)
+    fn check_write_accessed_memory_access() -> Result<(), Error> {
+        // Write accessed memory is unprotected, so signal cannot be received from it.
+        Err(Error::SignalFromWriteAccessedPage)
     }
 
     fn check_read_from_accessed_memory() -> Result<(), Error> {
@@ -150,49 +144,42 @@ impl AccessHandler for SignalAccessHandler {
         Err(Error::ReadAccessSignalFromAccessedPage)
     }
 
-    fn charge_for_pages(
+    fn charge_for_page_access(
         &mut self,
-        ctx: &mut RefMut<LazyPagesExecutionContext>,
-        pages: PagesIterInclusive<LazyPage>,
+        page: GearPageNumber,
+        is_accessed: bool,
     ) -> Result<Status, Error> {
         let (gas_left, gas_left_charger) = match self.gas_ctx.as_mut() {
             Some(ctx) => ctx,
             None => return Ok(Status::Normal),
         };
-        gas_left_charger.charge_for_pages(gas_left, ctx, pages, self.is_write)
+        gas_left_charger.charge_for_page_access(gas_left, page, self.is_write, is_accessed)
     }
 
-    fn charge_for_data_loading(
-        &mut self,
-        ctx: &mut RefMut<LazyPagesExecutionContext>,
-        page: GranularityPage,
-    ) -> Result<Status, Error> {
+    fn charge_for_page_data_loading(&mut self) -> Result<Status, Error> {
         let (gas_left, gas_left_charger) = match self.gas_ctx.as_mut() {
             Some(ctx) => ctx,
             None => return Ok(Status::Normal),
         };
-        gas_left_charger.charge_for_page_data_load(gas_left, ctx, page)
+        Ok(gas_left_charger.charge_for_page_data_load(gas_left))
     }
 
-    fn apply_for_pages(
-        pages: Self::Pages,
-        mut f: impl FnMut(PagesIterInclusive<LazyPage>) -> Result<(), Error>,
+    fn process_pages(
+        page: GearPageNumber,
+        mut process_one: impl FnMut(GearPageNumber) -> Result<(), Error>,
     ) -> Result<(), Error> {
-        f(pages)
+        process_one(page)
     }
 
-    fn into_output(
-        self,
-        ctx: &mut RefMut<LazyPagesExecutionContext>,
-    ) -> Result<Self::Output, Error> {
+    fn into_output(self, ctx: &mut LazyPagesExecutionContext) -> Result<Self::Output, Error> {
         if let (Some((gas_left, _)), Some(globals_config)) =
-            (self.gas_ctx, ctx.globals_config.as_ref())
+            (self.gas_ctx, ctx.globals_context.as_ref())
         {
             unsafe {
-                globals::apply_for_global(globals_config, GearGlobal::GasLimit, |_| {
+                globals::apply_for_global(globals_config, GlobalNo::GasLimit, |_| {
                     Ok(Some(gas_left.gas))
                 })?;
-                globals::apply_for_global(globals_config, GearGlobal::AllowanceLimit, |_| {
+                globals::apply_for_global(globals_config, GlobalNo::AllowanceLimit, |_| {
                     Ok(Some(gas_left.allowance))
                 })?;
             }

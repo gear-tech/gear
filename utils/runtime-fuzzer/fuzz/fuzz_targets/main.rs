@@ -18,18 +18,18 @@
 
 #![no_main]
 
-use chrono::NaiveDateTime;
 use libfuzzer_sys::fuzz_target;
 use once_cell::sync::OnceCell;
 use std::{
     fs::{self, OpenOptions},
     io::Write,
+    path::Path,
 };
 
 const SEEDS_STORE_DIR: &str = "fuzzing-seeds-dir";
 const SEEDS_STORE_FILE: &str = "fuzzing-seeds";
 
-static RUN_DIR: OnceCell<String> = OnceCell::new();
+static RUN_INTIALIZED: OnceCell<String> = OnceCell::new();
 
 fuzz_target!(|seed: u64| {
     gear_utils::init_default_logger();
@@ -42,24 +42,23 @@ fuzz_target!(|seed: u64| {
 
 // Dumps seed to the `SEEDS_STORE_FILE` file inside `SEEDS_STORE_DIR`
 // directory before running fuzz test.
+//
+// If directory already exists for the current run, it will be cleared.
 fn dump_seed(seed: u64) -> Result<(), String> {
-    let fuzzing_seeds_dir = RUN_DIR.get_or_init(|| {
-        let date_time = NaiveDateTime::from_timestamp_millis(gear_utils::now_millis() as i64)
-            .expect("timestamp is in i64 range");
-        let fuzzing_seeds_dir = format!(
-            "{SEEDS_STORE_DIR}-{}",
-            date_time.format("%Y-%m-%dT%H:%M:%S")
-        );
-        fs::create_dir_all(&fuzzing_seeds_dir)
-            .map(|_| fuzzing_seeds_dir)
-            .expect("internal error: can't create dir")
-    });
-    let fuzzing_seeds_file = format!("{fuzzing_seeds_dir}/{SEEDS_STORE_FILE}");
+    let seeds_file = RUN_INTIALIZED.get_or_try_init(|| {
+        let seeds_dir = Path::new(SEEDS_STORE_DIR);
+        if seeds_dir.exists() {
+            fs::remove_dir_all(seeds_dir).map_err(|e| e.to_string())?;
+        }
+        fs::create_dir_all(seeds_dir).map_err(|e| e.to_string())?;
+
+        Ok::<_, String>(format!("{SEEDS_STORE_DIR}/{SEEDS_STORE_FILE}"))
+    })?;
 
     OpenOptions::new()
         .create(true)
         .append(true)
-        .open(fuzzing_seeds_file)
+        .open(seeds_file)
         .and_then(|mut file| writeln!(file, "{seed}"))
         .map_err(|e| e.to_string())
 }
