@@ -360,11 +360,48 @@ pub trait Sandbox {
 		name: &str,
 		value: sp_wasm_interface::Value,
 	) -> u32 {
-        self.with_caller_mut(std::ptr::null_mut(), |_context, _caller| {
-            todo!()
+		use gear_sandbox_native::sandbox as sandbox;
+
+		struct Context<'a> {
+			instance_idx: u32,
+			name: &'a str,
+			value: sp_wasm_interface::Value,
+			store: &'a mut impl_::StoreBox,
+			result: u32,
+		}
+
+		let mut context = Context {
+			instance_idx,
+			name,
+			value,
+			store: unsafe { &mut impl_::SANDBOX_STORE },
+			result: u32::MAX,
+		};
+		let context_ptr: *mut Context = &mut context;
+
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+			let context_ptr: *mut Context = context_ptr.cast();
+			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+
+			let instance_idx = context.instance_idx;
+            log::trace!(target: "gear-sandbox", "set_global_val, instance_idx={instance_idx}");
+
+			let instance = context.store
+				.instance(instance_idx)
+				.map_err(|e| e.to_string())
+				.expect("Failed to set global in sandbox");
+
+			let result = instance.set_global_val(context.name, context.value);
+
+			log::trace!(target: "gear-sandbox", "set_global_val, name={}, value={:?}, result={result:?}", context.name, context.value);
+			context.result = match result {
+				Ok(None) => sandbox::env::ERROR_GLOBALS_NOT_FOUND,
+				Ok(Some(_)) => sandbox::env::ERROR_GLOBALS_OK,
+				Err(_) => sandbox::env::ERROR_GLOBALS_OTHER,
+			};
         });
-        
-        todo!()
+
+        context.result
 	}
 
 	fn memory_grow(&mut self, memory_idx: u32, size: u32) -> u32 {
