@@ -3,7 +3,6 @@ name: Release
 on:
   push:
     tags: ['*']
-  pull_request: # FIXME: Remove before release
 
 env:
   CARGO_TERM_COLOR: always
@@ -74,7 +73,6 @@ jobs:
           strip artifact/gear || true
 
       - name: Publish
-        if: false # FIXME: Remove before release
         uses: softprops/action-gh-release@v1
         with:
           files: artifact/*
