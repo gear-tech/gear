@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ['*']
+  pull_request: # FIXME: Remove before release
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,7 +23,7 @@ jobs:
 
   build:
     needs: prepare
-    runs-on: [self-hosted, cachepot, epyc-4, k8s-runner]
+    runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -41,20 +42,19 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/paritytech/cachepot/releases/download/0.1.0-rc.2/cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
-          sudo cp cachepot-0.1.0-rc.2-x86_64-unknown-linux-musl/cachepot /usr/bin/
-          sudo chmod +x /usr/bin/cachepot
+          sudo wget -c https://github.com/mozilla/sccache/releases/download/v0.3.3/sccache-v0.3.3-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+          sudo cp sccache-v0.3.3-x86_64-unknown-linux-musl/sccache /usr/bin/
+          sudo chmod +x /usr/bin/sccache
+          mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
 
       - name: Build wasm-proc
         run: |
           cargo build -p wasm-proc --release
           cp -vf target/release/wasm-proc ./
 
-      # TODO: Use default features after #2236
       - name: Build binaries
         run: >
           cargo build -p gear-cli --profile production
-          --no-default-features -F gear-native -F vara-native -F lazy-pages
 
       - name: Test runtimes
         run: |
@@ -74,6 +74,7 @@ jobs:
           strip artifact/gear || true
 
       - name: Publish
+        if: false # FIXME: Remove before release
         uses: softprops/action-gh-release@v1
         with:
           files: artifact/*
