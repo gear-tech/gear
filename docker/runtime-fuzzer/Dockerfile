@@ -17,7 +17,7 @@ RUN rustup update nightly && rustup target add wasm32-unknown-unknown --toolchai
 RUN rustup default nightly
 
 # Clone gear repo
-RUN git clone https://github.com/gear-tech/gear.git
+RUN git clone --branch st-stabilize-fuzzer-docker https://github.com/gear-tech/gear.git
 
 # Install cargo-fuzz
 RUN cd gear
