@@ -1517,7 +1517,7 @@ pub mod pallet {
         // May charge different gas value depend on is value zero or not.
         // Non-zero value may cause of extra database access.
         #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32)
-            .max(<T as Config>::WeightInfo::send_reply_zero_balance(payload.len() as u32)))]
+            .max(<T as Config>::WeightInfo::send_reply_zero_value(payload.len() as u32)))]
         pub fn send_reply(
             origin: OriginFor<T>,
             reply_to_id: MessageId,
@@ -1598,7 +1598,7 @@ pub mod pallet {
 
             if mailboxed.value().is_zero() {
                 return Ok(PostDispatchInfo {
-                    actual_weight: Some(<T as Config>::WeightInfo::send_reply_zero_balance(
+                    actual_weight: Some(<T as Config>::WeightInfo::send_reply_zero_value(
                         payload_len,
                     )),
                     pays_fee: Pays::No,
