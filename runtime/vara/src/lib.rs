@@ -119,7 +119,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 100,
+    spec_version: 120,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -266,7 +266,7 @@ impl pallet_grandpa::Config for Runtime {
 
 impl pallet_authorship::Config for Runtime {
     type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
-    type EventHandler = ();
+    type EventHandler = ImOnline;
 }
 
 parameter_types! {
@@ -433,12 +433,12 @@ impl pallet_gear_staking_rewards::Config for Runtime {
 
 // TODO: review staking parameters - currently copying Kusama
 parameter_types! {
-    // Six sessions in an era (4 hours)
+    // Six sessions in an era (12 hours)
     pub const SessionsPerEra: sp_staking::SessionIndex = 6;
     // 42 eras for unbonding (7 days)
-    pub const BondingDuration: sp_staking::EraIndex = 42;
+    pub const BondingDuration: sp_staking::EraIndex = 14;
     // 41 eras during which slashes can be cancelled (slightly less than 7 days)
-    pub const SlashDeferDuration: sp_staking::EraIndex = 41;
+    pub const SlashDeferDuration: sp_staking::EraIndex = 13;
     pub const MaxNominatorRewardedPerValidator: u32 = 256;
     pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
     pub HistoryDepth: u32 = 84;
@@ -864,6 +864,9 @@ pub type Executive = frame_executive::Executive<
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod integration_tests;
 
 #[cfg(feature = "debug-mode")]
 type DebugInfo = GearDebug;

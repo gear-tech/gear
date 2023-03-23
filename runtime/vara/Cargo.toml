@@ -91,6 +91,12 @@ pallet-gear-rpc-runtime-api = { version = "2.0.0", default-features = false, pat
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../primitives" }
 pallet-airdrop = { version = "1.0.0", default-features = false, path = "../../pallets/airdrop" }
 
+[dev-dependencies]
+sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-keyring = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+env_logger = "0.10"
+wat = "1.0.61"
+
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 

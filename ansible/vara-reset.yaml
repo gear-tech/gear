@@ -1,0 +1,36 @@
+- name: "reset vara network"
+  hosts: all
+  become: yes
+  remote_user: ec2-user
+  vars:
+
+  tasks:
+    - name: Stop docker-compose
+      shell: >
+        docker-compose -f "/home/ec2-user/docker-compose.yaml" down
+      become: yes
+   
+    - name: Remove db
+      ansible.builtin.file:
+        path: /home/ec2-user/gear-data/chains/vara_network/db
+        state: absent
+      become: yes
+  
+    - name: Remove spec json
+      ansible.builtin.file:
+        path: /home/ec2-user/gear-data/vara.json
+        state: absent
+      become: yes
+  
+    - name: Download new spec file
+      shell: >
+        wget https://raw.githubusercontent.com/gear-tech/gear/master/node/res/vara.json -O /home/ec2-user/gear-data/vara.json
+     
+    - name: Pull docker images
+      shell: >
+        docker-compose -f "/home/ec2-user/docker-compose.yaml" pull
+      become: yes
+
+    - name: Remove old docker images
+      shell:  docker image prune -f
+      become: yes
