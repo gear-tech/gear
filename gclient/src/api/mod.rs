@@ -99,6 +99,15 @@ impl GearApi {
         Ok(Self(api.0, Some(Arc::new(node))))
     }
 
+    /// Print node logs.
+    pub fn print_node_logs(&mut self) {
+        if let Some(node) = self.1.as_mut() {
+            Arc::get_mut(node)
+                .expect("Unable to mutate `Node`")
+                .print_logs();
+        }
+    }
+
     /// Create and init a new `GearApi` instance that will be used with the
     /// public Gear testnet.
     pub async fn gear() -> Result<Self> {

@@ -84,7 +84,7 @@ impl Node {
     /// Print node logs
     pub fn print_logs(&mut self) {
         let stderr = self.process.stderr.as_mut();
-        let reader = BufReader::new(stderr.unwrap());
+        let reader = BufReader::new(stderr.expect("Unable to get stderr"));
         for line in reader.lines().flatten() {
             println!("{line}");
         }
