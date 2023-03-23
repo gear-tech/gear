@@ -101,15 +101,6 @@ impl Node {
 
         Err(Error::EmptyStderr)
     }
-
-    /// Print node logs
-    pub fn print_logs(&mut self) {
-        let stderr = self.process.stderr.as_mut();
-        let reader = BufReader::new(stderr.unwrap());
-        for line in reader.lines().flatten() {
-            println!("{line}");
-        }
-    }
 }
 
 impl Drop for Node {
