@@ -125,6 +125,7 @@ path-clean = "1.0.1"
 primitive-types = { version = "0.12.1", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
 proptest = "1.1.0"
+quick-xml = "0.27"
 quote = { version = "1.0.23", default-features = false }
 rand = "0.8"
 rayon = "1.7"
@@ -148,7 +149,7 @@ winapi = "0.3.9"
 # Internal deps
 authorship = { package = "gear-authorship", path = "node/authorship" }
 common = { package = "gear-common", path = "common", default-features = false }
-core-processor = { package = "gear-core-processor", path = "core-processor" }
+core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
@@ -159,17 +160,19 @@ gsys = { path = "gsys" }
 gmeta = { path = "gmeta" }
 gear-authorship = { path = "node/authorship" }
 gear-backend-common = { path = "core-backend/common", default-features = false }
+gear-backend-sandbox = { path = "core-backend/sandbox", default-features = false }
 gear-backend-wasmi = { path = "core-backend/wasmi", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
 gear-common-codegen = { path = "common/codegen" }
 gear-core = { path = "core" }
 gear-core-errors = { path = "core-errors" }
-gear-core-processor = { path = "core-processor" }
+gear-core-processor = { path = "core-processor", default-features = false }
+gear-lazy-pages-common = { path = "common/lazy-pages", default-features = false }
 gear-node-testing = { path = "node/testing" }
 gear-runtime = { path = "runtime/gear" }
 gear-runtime-test-cli = { path = "utils/gear-runtime-test-cli" }
-gear-runtime-common = { path = "runtime/common" }
+gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
 gear-service = { path = "node/service", default-features = false }
 gear-test = { path = "gear-test" }
@@ -183,14 +186,13 @@ pallet-gear = { path = "pallets/gear", default-features = false }
 pallet-gear-debug = { path = "pallets/gear-debug", default-features = false }
 pallet-gear-gas = { path = "pallets/gas", default-features = false }
 pallet-gear-messenger = { path = "pallets/gear-messenger", default-features = false }
-pallet-gear-payment = { version = "0.1.0", path = "pallets/payment" }
+pallet-gear-payment = { version = "0.1.0", path = "pallets/payment", default-features = false }
 pallet-gear-program = { path = "pallets/gear-program", default-features = false }
 pallet-gear-rpc = { path = "pallets/gear/rpc" }
-pallet-gear-rpc-runtime-api = { version = "2.0.0", path = "pallets/gear/rpc/runtime-api" }
+pallet-gear-rpc-runtime-api = { version = "2.0.0", path = "pallets/gear/rpc/runtime-api", default-features = false }
 pallet-gear-scheduler = { path = "pallets/gear-scheduler", default-features = false }
-pallet-gear-staking-rewards = { version = "1.0.0", path = "pallets/staking-rewards" }
-quick-xml = "0.27"
-runtime-common = { package = "gear-runtime-common", path = "runtime/common" }
+pallet-gear-staking-rewards = { version = "1.0.0", path = "pallets/staking-rewards", default-features = false }
+runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", version = "0.1.0", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
@@ -200,39 +202,41 @@ wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tool
 # Substrate deps
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-frame-executive = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+frame-executive = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 frame-system-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 frame-try-runtime = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-frame-system-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+frame-system-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 generate-bags = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-authority-discovery = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-babe = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-bags-list = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-conviction-voting = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-election-provider-multi-phase = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-grandpa = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-identity = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-im-online = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-preimage = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-ranked-collective = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-referenda = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-scheduler = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-session = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-sudo = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-transaction-payment-rpc = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-treasury = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-utility = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-vesting = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-whitelist = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-babe = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-conviction-voting = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-election-provider-multi-phase = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-identity = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-preimage = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-ranked-collective = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-referenda = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-scheduler = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-staking-reward-fn = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-sudo = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-transaction-payment = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-transaction-payment-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-treasury = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-utility = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-vesting = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+pallet-whitelist = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sc-authority-discovery = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sc-block-builder = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
@@ -262,33 +266,34 @@ sc-sync-state-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tec
 sc-sysinfo = { version = "6.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38"}
 sp-arithmetic = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+sp-externalities = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-keyring = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-keystore = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-offchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+sp-offchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-sp-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-sp-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-storage = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-sp-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-transaction-storage-proof = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-trie = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-version = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-version = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-wasm-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
@@ -298,23 +303,45 @@ substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear
 try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 
 # Examples
+test-syscalls = { path = "examples/binaries/sys-calls", default-features = false }
+demo-async-custom-entry = { path = "examples/binaries/async-custom-entry", default-features = false }
+demo-async-signal-entry = { path = "examples/binaries/async-signal-entry", default-features = false }
 demo-async-tester = { path = "examples/binaries/async-tester" }
 demo-backend-error = { path = "examples/binaries/backend-error" }
 demo-btree = { path = "examples/binaries/btree" }
 demo-calc-hash = { path = "examples/binaries/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/binaries/calc-hash/in-one-block" }
+demo-calc-hash-over-blocks = { path = "examples/binaries/calc-hash/over-blocks" }
+demo-compose = { path = "examples/binaries/compose" }
+demo-delayed-sender = { path = "examples/binaries/delayed-sender" }
 demo-distributor = { path = "examples/binaries/distributor" }
+demo-exit-handle = { path = "examples/binaries/exit-handle" }
 demo-exit-handle-sender = { path = "examples/binaries/exit-handle-sender" }
+demo-exit-init = { path = "examples/binaries/exit-init" }
+demo-gas-burned = { path = "examples/binaries/gas-burned" }
 demo-gasless-wasting = { path = "examples/binaries/gasless-wasting" }
+demo-init-fail-sender = { path = "examples/binaries/init-fail-sender" }
+demo-init-wait = { path = "examples/binaries/init-wait" }
+demo-init-wait-reply-exit = { path = "examples/binaries/init-wait-reply-exit" }
+demo-init-with-value = { path = "examples/binaries/init-with-value" }
 demo-meta = { path = "examples/binaries/meta" }
 demo-meta-io = { path = "examples/binaries/new-meta/io" }
 demo-mul-by-const = { path = "examples/binaries/mul-by-const" }
+demo-new-meta = { path = "examples/binaries/new-meta" }
 demo-node = { path = "examples/binaries/node" }
+demo-out-of-memory = { path = "examples/binaries/out-of-memory" }
 demo-program-factory = { path = "examples/binaries/program-factory" }
-demo-proxy = { path = "examples/binaries/proxy" }
+demo-proxy = { path = "examples/binaries/proxy", default-features = false }
 demo-proxy-relay = { path = "examples/binaries/proxy-relay" }
+demo-proxy-reservation-with-gas = { path = "examples/binaries/proxy-reservation-with-gas" }
 demo-proxy-with-gas = { path = "examples/binaries/proxy-with-gas" }
+demo-reserve-gas = { path = "examples/binaries/reserve-gas" }
+demo-send-from-reservation = { path = "examples/binaries/send-from-reservation" }
+demo-signal-entry = { path = "examples/binaries/signal-entry" }
+demo-value-sender = { path = "examples/binaries/value-sender" }
 demo-waiter = { path = "examples/binaries/waiter" }
+demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
+demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
 
 # Dependencies that only used in one package
 #
@@ -322,6 +349,7 @@ demo-waiter = { path = "examples/binaries/waiter" }
 cfg-if = "1.0.0"                                              # gear-lazy-pages
 cargo_metadata = "0.15.3"                                     # utils/wasm-builder
 errno = "0.3"                                                 # gear-lazy-pages
+impl-trait-for-tuples = "0.2.2"                               # pallets/staking-rewards
 indicatif = "*"                                               # utils/wasm-gen
 keyring = "1.2.1"                                             # gcli
 libp2p = "0.51.1"                                             # gcli
@@ -330,9 +358,12 @@ nix = "0.26.2"                                                # gear-lazy-pages
 nonempty = "0.8.1"                                            # utils/utils
 libfuzzer-sys = "0.4"                                         # utils/runtime-fuzzer/fuzz
 pwasm-utils = "0.19.0"                                        # utils/wasm-builder
+page_size = { version = "0.2.1", default-features = false }   # pallets/gear
 pathdiff = { version = "0.2.1", default-features = false }    # utils/wasm-builder
+rand_pcg = "0.3.1"                                            # pallets/gear
 reqwest = { version = "0.11.15", default-features = false }   # utils/node-loder
 schnorrkel = "0.9.1"                                          # gcli
+scopeguard = { version = "1.1.0", default-features = false }  # pallets/gear
 tabled = "0.10.0"                                             # utils/regression-analysis
 thousands = "0.2.0"                                           # utils/regression-analysis
 toml = "0.7.3"                                                # utils/wasm-builder

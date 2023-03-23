@@ -13,29 +13,29 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
-scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
-primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"] }
-log = { version = "0.4.17", default-features = false }
+codec = { package = "parity-scale-codec", workspace = true }
+scale-info = { workspace = true, features = ["derive"] }
+primitive-types = { workspace = true, features = ["scale-info"] }
+log = { workspace = true }
 
 # Internal deps
-common = { package = "gear-common", path = "../../common", default-features = false }
-gear-core = { path = "../../core" }
+common = { workspace = true }
+gear-core = { workspace = true }
 
 # Substrate deps
-frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false, optional = true }
-sp-std = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+frame-benchmarking = { workspace = true, optional = true }
+sp-std = { workspace = true, default-features = false }
+sp-io = { workspace = true }
 
 [dev-dependencies]
-pallet-gear-gas = { path = "../gas" }
-sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-env_logger = "0.10"
+pallet-gear-gas = { workspace = true }
+sp-runtime = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-authorship = { workspace = true }
+pallet-timestamp = { workspace = true }
+env_logger = { workspace = true }
 
 [features]
 default = ['std']
