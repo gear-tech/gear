@@ -26,7 +26,7 @@ use std::{
     path::Path,
 };
 
-const SEEDS_STORE_DIR: &str = "fuzzing-seeds-dir";
+const SEEDS_STORE_DIR: &str = "/fuzzing-seeds-dir";
 const SEEDS_STORE_FILE: &str = "fuzzing-seeds";
 
 static RUN_INTIALIZED: OnceCell<String> = OnceCell::new();
@@ -34,7 +34,8 @@ static RUN_INTIALIZED: OnceCell<String> = OnceCell::new();
 fuzz_target!(|seed: u64| {
     gear_utils::init_default_logger();
 
-    dump_seed(seed).expect("internal error: failed dumping seed");
+    dump_seed(seed)
+        .unwrap_or_else(|e| unreachable!("internal error: failed dumping seed: {e}"));
 
     log::info!("Running the seed {seed}");
     runtime_fuzzer::run(seed);
