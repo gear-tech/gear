@@ -28,15 +28,15 @@ EOF
 }
 
 gear_build() {
-  cargo build --workspace --exclude economic-checks --exclude economic-checks-fuzz "$@"
+  $CARGO build --workspace "$@"
 }
 
 gear_test_build() {
-  cargo build -p gear-test "$@"
+  $CARGO build -p gear-test "$@"
 }
 
 node_build() {
-  cargo build -p gear-cli "$@"
+  $CARGO build -p gear-cli "$@"
 }
 
 wasm_proc_build() {

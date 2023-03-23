@@ -1,7 +1,7 @@
 use super::context::ContextUpdate;
 use crate::utils;
 use anyhow::Error;
-use gear_core::ids::{CodeId, ProgramId};
+use gear_core::ids::{CodeId, MessageId, ProgramId};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, thiserror::Error)]
@@ -37,9 +37,31 @@ impl TryFrom<Error> for CrashAlert {
 pub struct Report {
     pub codes: BTreeSet<CodeId>,
     pub program_ids: BTreeSet<ProgramId>,
+    pub mailbox_data: MailboxReport,
 }
 
 #[derive(Default)]
+pub struct MailboxReport {
+    pub added: BTreeSet<MessageId>,
+    pub removed: BTreeSet<MessageId>,
+}
+
+impl MailboxReport {
+    pub fn append_removed(&mut self, removed: impl IntoIterator<Item = MessageId>) {
+        self.removed.append(&mut BTreeSet::from_iter(removed));
+    }
+}
+
+impl From<BTreeSet<MessageId>> for MailboxReport {
+    fn from(v: BTreeSet<MessageId>) -> Self {
+        MailboxReport {
+            added: v,
+            removed: Default::default(),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct BatchRunReport {
     /// Seed of the batch is the id.
     pub id: u64,

@@ -27,9 +27,8 @@ use crate::{
     EventListener,
 };
 use error::*;
-use gp::api::{signer::Signer, Api};
+use gsdk::{ext::sp_runtime::AccountId32, signer::Signer, Api};
 use std::{marker::PhantomData, ops::Deref};
-use subxt::ext::sp_runtime::AccountId32;
 
 /// The API instance contains methods to access the node.
 #[derive(Clone)]
@@ -103,7 +102,7 @@ impl GearApi {
     /// Create an [`EventListener`] to subscribe and handle continuously
     /// incoming events.
     pub async fn subscribe(&self) -> Result<EventListener> {
-        let events = self.0.finalized_blocks().await?;
+        let events = self.0.api().finalized_blocks().await?;
         Ok(EventListener(events))
     }
 
@@ -123,8 +122,9 @@ impl GearApi {
     /// Actually sends the `system_accountNextIndex` RPC to the node.
     pub async fn rpc_nonce(&self) -> Result<u32> {
         self.0
+            .api()
             .rpc()
-            .system_account_next_index(self.0.signer.account_id())
+            .system_account_next_index(self.0.account_id())
             .await
             .map_err(Into::into)
     }
@@ -135,7 +135,7 @@ impl GearApi {
     ///
     /// ```
     /// use gclient::{GearApi, Result};
-    /// use subxt::ext::sp_runtime::AccountId32;
+    /// use gsdk::ext::sp_runtime::AccountId32;
     /// # use hex_literal::hex;
     ///
     /// #[tokio::test]

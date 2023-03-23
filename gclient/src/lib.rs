@@ -99,7 +99,7 @@
 //!     let (message_id, program_id, _hash) = api
 //!         .upload_program_bytes_by_path(
 //!             WASM_PATH,
-//!             gclient::now_in_micros().to_le_bytes(),
+//!             gclient::now_micros().to_le_bytes(),
 //!             vec![],
 //!             gas_info.min_limit,
 //!             0,
@@ -134,6 +134,6 @@ mod api;
 mod node;
 mod utils;
 
-pub use api::{calls::*, error::*, listener::*, storage::*, GearApi};
+pub use api::{calls::*, error::*, listener::*, GearApi, GearApiWithNode};
 pub use node::{ws::WSAddress, Node};
 pub use utils::*;

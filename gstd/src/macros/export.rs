@@ -20,6 +20,28 @@
 //! Wasm memory and the length of the data required to export.
 //! It enables, for example, JS applications to get data from Wasm.
 
+/// Create an FFI function that returns some data from the program as a fat
+/// pointer to the Wasm memory.
+///
+/// The value provided should have a `to_string` method (e.g., implement the
+/// [`Display`](https://doc.rust-lang.org/std/fmt/trait.Display.html) trait).
+///
+/// It enables, for example, JS applications to get data from Wasm.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::export;
+///
+/// static mut VALUE: i32 = 0;
+///
+/// export!(my_function -> unsafe { VALUE });
+///
+/// #[no_mangle]
+/// extern "C" fn init() {
+///     unsafe { VALUE = 42 };
+/// }
+/// ```
 #[macro_export]
 macro_rules! export {
     ($f:ident -> $val:expr) => {

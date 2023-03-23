@@ -37,7 +37,7 @@ pub struct Operation {
 
 #[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub struct Initialization {
-    status: u32,
+    pub status: u32,
 }
 
 #[derive(Encode, Debug, Decode, PartialEq, Eq)]

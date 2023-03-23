@@ -18,19 +18,29 @@
 
 //! Generator of the `pallet-gear` calls.
 
+mod claim_value;
 mod create_program;
 mod rand_utils;
 mod send_message;
+mod send_reply;
 mod upload_code;
 mod upload_program;
 
-pub type Seed = u64;
-
+pub use claim_value::ClaimValueArgs;
 pub use create_program::CreateProgramArgs;
+use gear_core::ids::ProgramId;
 pub use rand_utils::{CallGenRng, CallGenRngCore};
 pub use send_message::SendMessageArgs;
+pub use send_reply::SendReplyArgs;
 pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
+
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("Can't convert to gear call {0:?} call")]
+pub struct GearCallConversionError(pub &'static str);
+
+pub type Seed = u64;
+pub type GearProgGenConfig = gear_wasm_gen::GearConfig;
 
 /// Set of `pallet_gear` calls supported by the crate.
 pub enum GearCall {
@@ -42,10 +52,22 @@ pub enum GearCall {
     CreateProgram(CreateProgramArgs),
     /// Upload program call args.
     UploadCode(UploadCodeArgs),
+    /// Send reply call args.
+    SendReply(SendReplyArgs),
+    /// Claim value call args.
+    ClaimValue(ClaimValueArgs),
 }
 
-pub fn generate_gear_program<Rng: CallGenRng>(seed: u64) -> Vec<u8> {
+/// Function generates WASM-binary of a Gear program with the
+/// specified `seed`. `programs` may specify addresses which
+/// can be used for send-calls.
+pub fn generate_gear_program<Rng: CallGenRng>(
+    seed: u64,
+    mut config: GearProgGenConfig,
+    programs: Vec<ProgramId>,
+) -> Vec<u8> {
     use arbitrary::Unstructured;
+    use gear_wasm_gen::gsys;
 
     let mut rng = Rng::seed_from_u64(seed);
 
@@ -54,8 +76,16 @@ pub fn generate_gear_program<Rng: CallGenRng>(seed: u64) -> Vec<u8> {
 
     let mut u = Unstructured::new(&buf);
 
-    let mut config = gear_wasm_gen::GearConfig::new_normal();
     config.print_test_info = Some(format!("Gear program seed = '{seed}'"));
+    config.call_indirect_enabled = false;
 
-    gear_wasm_gen::gen_gear_program_code(&mut u, config)
+    let addresses = programs
+        .iter()
+        .map(|pid| gsys::HashWithValue {
+            hash: pid.into_bytes(),
+            value: 0,
+        })
+        .collect::<Vec<_>>();
+
+    gear_wasm_gen::gen_gear_program_code(&mut u, config, &addresses)
 }

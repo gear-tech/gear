@@ -19,13 +19,13 @@
 
 use crate::{api::Result, GearApi};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
-use gp::api::types::GasInfo;
+use gsdk::{
+    ext::{sp_core::H256, sp_runtime::DeserializeOwned},
+    types::GasInfo,
+};
 use parity_scale_codec::{Decode, Encode};
 use std::path::Path;
-use subxt::{
-    ext::{sp_core::H256, sp_runtime::DeserializeOwned},
-    rpc::{rpc_params, RpcParams},
-};
+use subxt::rpc::{rpc_params, RpcParams};
 
 use crate::utils;
 
@@ -245,7 +245,7 @@ impl GearApi {
         let response: String = self
             .rpc_request("gear_readState", rpc_params![H256(program_id.into()), at])
             .await?;
-        gp::utils::hex_to_vec(response).map_err(Into::into)
+        crate::utils::hex_to_vec(response).map_err(Into::into)
     }
 
     /// Read the program's state as decoded data.
@@ -297,7 +297,7 @@ impl GearApi {
                 ],
             )
             .await?;
-        gp::utils::hex_to_vec(response).map_err(Into::into)
+        crate::utils::hex_to_vec(response).map_err(Into::into)
     }
 
     /// Read the program's state as decoded data using a meta Wasm.
@@ -419,6 +419,7 @@ impl GearApi {
 
     async fn rpc_request<T: DeserializeOwned>(&self, method: &str, params: RpcParams) -> Result<T> {
         self.0
+            .api()
             .rpc()
             .request(method, params)
             .await

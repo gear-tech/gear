@@ -81,6 +81,10 @@ pub mod pallet {
         /// Cost for reservation holding.
         #[pallet::constant]
         type ReservationCost: Get<Cost>;
+
+        /// Cost for reservation holding.
+        #[pallet::constant]
+        type DispatchHoldCost: Get<Cost>;
     }
 
     // Gear Scheduler Pallet itself.
@@ -242,6 +246,10 @@ pub mod pallet {
 
         fn reservation() -> Self::Cost {
             T::ReservationCost::get()
+        }
+
+        fn dispatch_stash() -> Self::Cost {
+            T::DispatchHoldCost::get()
         }
     }
 

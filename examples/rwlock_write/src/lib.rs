@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{lock::rwlock::RwLock, msg, prelude::*, ActorId};
+use gstd::{lock::RwLock, msg, prelude::*, ActorId};
 
 static mut PING_DEST: ActorId = ActorId::new([0u8; 32]);
 static RWLOCK: RwLock<u32> = RwLock::new(0);

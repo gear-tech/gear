@@ -1,15 +1,22 @@
+#![allow(clippy::redundant_async_block)]
+
 use crate::utils;
 use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, Future};
 use gclient::{GearApi, Result as GClientResult};
-use gear_call_gen::{CreateProgramArgs, SendMessageArgs, UploadCodeArgs, UploadProgramArgs};
+use gear_call_gen::{
+    ClaimValueArgs, CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadCodeArgs,
+    UploadProgramArgs,
+};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use primitive_types::H256;
 
 pub type UploadProgramBatchOutput = StandardBatchOutput;
 pub type CreateProgramBatchOutput = StandardBatchOutput;
 pub type SendMessageBatchOutput = StandardBatchOutput;
+pub type SendReplyBatchOutput = StandardBatchOutput;
 pub type UploadCodeBatchOutput = (Vec<GClientResult<CodeId>>, H256);
+pub type ClaimValueBatchOutput = (Vec<GClientResult<u128>>, H256);
 type StandardBatchOutput = (Vec<GClientResult<(MessageId, ProgramId)>>, H256);
 
 mod nonce;
@@ -86,13 +93,39 @@ impl GearApiFacade {
         .await
     }
 
+    pub async fn send_reply_batch(
+        &mut self,
+        args: Vec<SendReplyArgs>,
+    ) -> Result<SendReplyBatchOutput> {
+        self.batch_call_impl(|api| async move {
+            api.send_reply_bytes_batch(utils::convert_iter(args)).await
+        })
+        .await
+        .map(|(batch_results, block_hash)| {
+            let batch_results = batch_results
+                .into_iter()
+                .map(|res| res.map(|(mid, pid, ..)| (mid, pid)))
+                .collect();
+            (batch_results, block_hash)
+        })
+    }
+
+    pub async fn claim_value_batch(
+        &mut self,
+        args: Vec<ClaimValueArgs>,
+    ) -> Result<ClaimValueBatchOutput> {
+        self.batch_call_impl(
+            |api| async move { api.claim_value_batch(utils::convert_iter(args)).await },
+        )
+        .await
+    }
+
     async fn batch_call_impl<T, F: Future<Output = GClientResult<T>>>(
         &mut self,
         batch_call: impl FnOnce(GearApi) -> F,
     ) -> Result<T> {
         let (api, nonce) = self.prepare_api_for_call();
 
-        // TODO #1800
         let r = utils::with_timeout(batch_call(api)).await.map_err(|_| {
             tracing::debug!("Extrinsic finalization wait timeout occurred");
             anyhow!(utils::WAITING_TX_FINALIZED_TIMEOUT_ERR_STR)

@@ -18,12 +18,12 @@
 
 //! Wrappers around system memory protections.
 
+use crate::{
+    pages::{PageDynSize, PagesIterInclusive, SizeManager},
+    utils,
+};
 use core::ops::RangeInclusive;
 use std::fmt::Debug;
-
-use gear_core::memory::{PageU32Size, PagesIterInclusive};
-
-use crate::utils;
 
 #[derive(Debug, derive_more::Display)]
 pub enum MprotectError {
@@ -80,7 +80,7 @@ unsafe fn sys_mprotect_interval(
 
 /// Mprotect native memory interval [`addr`, `addr` + `size`].
 /// Protection mask is set according to protection arguments, `prot_exec` is set as false always.
-pub fn mprotect_interval(
+pub(crate) fn mprotect_interval(
     addr: usize,
     size: usize,
     prot_read: bool,
@@ -91,11 +91,12 @@ pub fn mprotect_interval(
 
 /// Protect all pages in memory interval, except pages from `except_pages`.
 /// If `protect` is true then restrict read/write access, else allow them.
-pub fn mprotect_mem_interval_except_pages(
+pub(crate) fn mprotect_mem_interval_except_pages<S: SizeManager, P: PageDynSize>(
     mem_addr: usize,
     start_offset: usize,
     mem_size: usize,
-    except_pages: impl Iterator<Item = impl PageU32Size>,
+    except_pages: impl Iterator<Item = P>,
+    size_ctx: &S,
     prot_read: bool,
     prot_write: bool,
 ) -> Result<(), MprotectError> {
@@ -115,11 +116,11 @@ pub fn mprotect_mem_interval_except_pages(
 
     let mut interval_offset = start_offset;
     for page in except_pages {
-        let page_offset = page.offset() as usize;
+        let page_offset = page.offset(size_ctx) as usize;
         if page_offset > interval_offset {
             mprotect(interval_offset, page_offset)?;
         }
-        interval_offset = page.end_offset() as usize + 1;
+        interval_offset = page.end_offset(size_ctx) as usize + 1;
     }
     if mem_size > interval_offset {
         mprotect(interval_offset, mem_size)
@@ -129,9 +130,10 @@ pub fn mprotect_mem_interval_except_pages(
 }
 
 /// Mprotect all pages from `pages`.
-pub fn mprotect_pages<P: PageU32Size + Ord>(
+pub(crate) fn mprotect_pages<S: SizeManager, P: PageDynSize + Ord>(
     mem_addr: usize,
     pages: impl Iterator<Item = P>,
+    size_ctx: &S,
     prot_read: bool,
     prot_write: bool,
 ) -> Result<(), MprotectError> {
@@ -145,20 +147,18 @@ pub fn mprotect_pages<P: PageU32Size + Ord>(
         let end = interval.end();
 
         let addr = mem_addr
-            .checked_add(start.offset() as usize)
-            .ok_or(MprotectError::Overflow(mem_addr, start.offset() as usize))?;
+            .checked_add(start.offset(size_ctx) as usize)
+            .ok_or(MprotectError::Overflow(
+                mem_addr,
+                start.offset(size_ctx) as usize,
+            ))?;
 
         // `+ P::size()` because range is inclusive, and it's safe, because both are u32.
         let size = end
-            .sub(start)
-            .unwrap_or_else(|err| {
-                unreachable!(
-                    "interval `end` cannot be less than interval `start`, but get: {}",
-                    err
-                )
-            })
-            .offset() as usize
-            + P::size() as usize;
+            .checked_sub(start)
+            .unwrap_or_else(|| unreachable!("`end` cannot be less than `start`"))
+            .offset(size_ctx) as usize
+            + P::size(size_ctx) as usize;
         unsafe { sys_mprotect_interval(addr, size, prot_read, prot_write, false) }
     };
 

@@ -90,16 +90,14 @@ mod wasm {
 
             // Pass the input to the `other` contract first
             debug!(
-                "[0x{} ncompose::compose_with_self] Calling contract 0x{} with available gas {}",
+                "[0x{} ncompose::compose_with_self] Calling contract 0x{}",
                 hex::encode(self.me.handle),
-                hex::encode(self.other.handle),
-                exec::gas_available()
+                hex::encode(self.other.handle)
             );
             let output_other = self.other.call(input).await?;
             debug!(
-                "[0x{} ncompose::compose_with_self] Calling self with available gas {}",
-                hex::encode(exec::program_id()),
-                exec::gas_available()
+                "[0x{} ncompose::compose_with_self] Calling self",
+                hex::encode(exec::program_id())
             );
             let output = self.me.call(output_other).await?;
             debug!(
@@ -143,10 +141,9 @@ mod wasm {
     async fn main() {
         let input = msg::load_bytes().expect("Failed to load payload bytes");
         debug!(
-            "[0x{} ncompose::handle] input = {:?}, available gas: {}",
+            "[0x{} ncompose::handle] input = {:?}",
             hex::encode(unsafe { STATE.me.handle }),
-            input,
-            exec::gas_available()
+            input
         );
 
         if let Ok(outcome) = (unsafe { STATE.compose_with_self(input) }).await {

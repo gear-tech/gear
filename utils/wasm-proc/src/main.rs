@@ -21,7 +21,7 @@ use gear_wasm_builder::optimize::{OptType, Optimizer};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 53] = [
+const RT_ALLOWED_IMPORTS: [&str; 62] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -31,18 +31,19 @@ const RT_ALLOWED_IMPORTS: [&str; 53] = [
     "ext_crypto_finish_batch_verify_version_1",
     "ext_crypto_secp256k1_ecdsa_recover_compressed_version_2",
     "ext_crypto_sr25519_generate_version_1",
+    "ext_crypto_sr25519_public_keys_version_1",
+    "ext_crypto_sr25519_sign_version_1",
     "ext_crypto_sr25519_verify_version_2",
     "ext_crypto_start_batch_verify_version_1",
     // From `GearRI` (runtime-interface/scr/lib.rs)
     "ext_gear_ri_pre_process_memory_accesses_version_1",
-    "ext_gear_ri_get_lazy_pages_status_version_1",
-    "ext_gear_ri_get_released_pages_version_1",
+    "ext_gear_ri_lazy_pages_status_version_1",
+    "ext_gear_ri_write_accessed_pages_version_1",
     "ext_gear_ri_init_lazy_pages_version_1",
     "ext_gear_ri_init_lazy_pages_for_program_version_1",
     "ext_gear_ri_is_lazy_pages_enabled_version_1",
     "ext_gear_ri_mprotect_lazy_pages_version_1",
-    "ext_gear_ri_set_wasm_mem_begin_addr_version_1",
-    "ext_gear_ri_set_wasm_mem_size_version_1",
+    "ext_gear_ri_change_wasm_memory_addr_and_size_version_1",
     // From `Hashing` (substrate/primitives/io/src/lib.rs)
     "ext_hashing_blake2_128_version_1",
     "ext_hashing_blake2_256_version_1",
@@ -55,6 +56,16 @@ const RT_ALLOWED_IMPORTS: [&str; 53] = [
     "ext_misc_print_hex_version_1",
     "ext_misc_print_utf8_version_1",
     "ext_misc_runtime_version_version_1",
+    // From `OffchainIndex` (substrate/primitives/io/src/lib.rs)
+    "ext_offchain_index_set_version_1",
+    // From `Offchain` (substrate/primitives/io/src/lib.rs)
+    "ext_offchain_is_validator_version_1",
+    "ext_offchain_local_storage_compare_and_set_version_1",
+    "ext_offchain_local_storage_get_version_1",
+    "ext_offchain_local_storage_set_version_1",
+    "ext_offchain_network_state_version_1",
+    "ext_offchain_random_seed_version_1",
+    "ext_offchain_submit_transaction_version_1",
     // From `Sandbox` (substrate/primitives/io/src/lib.rs)
     "ext_sandbox_get_buff_version_1",
     "ext_sandbox_get_global_val_version_1",
@@ -102,11 +113,11 @@ struct Args {
     #[arg(long)]
     skip_opt: bool,
 
-    /// Don't export `__gear_stack_end`
+    /// Don't create gear stack end export
     #[arg(long)]
     skip_stack_end: bool,
 
-    /// Strip custom sections of wasm binarires
+    /// Strip custom sections of wasm binaries
     #[arg(long, default_value = "true")]
     strip_custom_sections: bool,
 
@@ -176,15 +187,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let file = PathBuf::from(file);
-        // Issue (#1971)
-        // let res = gear_wasm_builder::optimize::optimize_wasm(file.clone(), "s", true)?;
-
-        // log::info!(
-        //     "wasm-opt: {} {} Kb -> {} Kb",
-        //     res.dest_wasm.display(),
-        //     res.original_size,
-        //     res.optimized_size
-        // );
+        let res = gear_wasm_builder::optimize::optimize_wasm(file.clone(), "s", true)?;
+        log::info!(
+            "wasm-opt: {} {} Kb -> {} Kb",
+            res.dest_wasm.display(),
+            res.original_size,
+            res.optimized_size
+        );
 
         let mut optimizer = Optimizer::new(file.clone())?;
 

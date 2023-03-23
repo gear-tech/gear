@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod account_id;
+pub(crate) mod account_id;
 mod block;
 
 pub use block::*;
@@ -25,57 +25,70 @@ use super::{GearApi, Result};
 use crate::Error;
 use account_id::IntoAccountId32;
 use gear_core::{ids::*, message::StoredMessage};
-use gp::api::generated::api::{
-    runtime_types::{
-        gear_common::storage::primitives::Interval, gear_core::ids as generated_ids,
+use gsdk::{
+    ext::sp_core::crypto::Ss58Codec,
+    metadata::runtime_types::{
+        gear_common::storage::primitives::Interval, gear_core::message::stored,
         pallet_balances::AccountData,
     },
-    storage,
 };
 
 impl GearApi {
     /// Get a message identified by `message_id` from the mailbox.
-    pub async fn get_from_mailbox(
+    pub async fn get_mailbox_message(
         &self,
         message_id: MessageId,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
-        self.get_from_account_mailbox(self.0.account_id(), message_id)
+        self.get_mailbox_account_message(self.0.account_id(), message_id)
             .await
     }
 
     /// Get a message identified by `message_id` from the `account_id`'s
     /// mailbox.
-    pub async fn get_from_account_mailbox(
+    pub async fn get_mailbox_account_message(
         &self,
         account_id: impl IntoAccountId32,
         message_id: MessageId,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
-        let at = storage().gear_messenger().mailbox(
-            account_id.into_account_id(),
-            generated_ids::MessageId::from(message_id),
-        );
-        let data = self.0.storage().fetch(&at, None).await?;
-
+        let data: Option<(stored::StoredMessage, Interval<u32>)> = self
+            .0
+            .api()
+            .get_mailbox_account_message(account_id.into_account_id(), message_id)
+            .await?;
         Ok(data.map(|(m, i)| (m.into(), i)))
     }
 
-    async fn account_data(&self, account_id: impl IntoAccountId32) -> Result<AccountData<u128>> {
-        let at = storage().system().account(account_id.into_account_id());
-
+    /// Get up to `count` messages from the mailbox from
+    /// the provided `account_id`.
+    pub async fn get_mailbox_account_messages(
+        &self,
+        account_id: impl IntoAccountId32,
+        count: u32,
+    ) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
         let data = self
             .0
-            .storage()
-            .fetch(&at, None)
-            .await?
-            .map(|v| v.data)
-            .unwrap_or(AccountData {
-                free: 0,
-                reserved: 0,
-                misc_frozen: 0,
-                fee_frozen: 0,
-            });
+            .api()
+            .mailbox(Some(account_id.into_account_id()), count)
+            .await?;
+        Ok(data.into_iter().map(|(m, i)| (m.into(), i)).collect())
+    }
 
-        Ok(data)
+    /// Get up to `count` messages from the mailbox.
+    pub async fn get_mailbox_messages(
+        &self,
+        count: u32,
+    ) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
+        self.get_mailbox_account_messages(self.0.account_id(), count)
+            .await
+    }
+
+    async fn account_data(&self, account_id: impl IntoAccountId32) -> Result<AccountData<u128>> {
+        Ok(self
+            .0
+            .api()
+            .info(&account_id.into_account_id().to_ss58check())
+            .await?
+            .data)
     }
 
     /// Get the total balance of the account identified by `account_id`.

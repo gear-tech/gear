@@ -1,6 +1,6 @@
 use crate::Kind;
 use gstd::{
-    exec, msg,
+    exec, msg::{self, MessageHandle},
     prelude::{vec, *},
 };
 
@@ -66,16 +66,16 @@ async fn main() {
                 .await
         }
         Kind::SendCommit => {
-            let handle = msg::send_init().expect("init message failed");
-            msg::send_push(handle, &encoded_kind).expect("push payload failed");
-            msg::send_commit_for_reply(handle, msg::source(), 0)
+            let handle = MessageHandle::init().expect("init message failed");
+            handle.push(&encoded_kind).expect("push payload failed");
+            handle.commit_for_reply(msg::source(), 0)
                 .expect("send message failed")
                 .await
         }
         Kind::SendCommitWithGas(gas) => {
-            let handle = msg::send_init().expect("init message failed");
-            msg::send_push(handle, &encoded_kind).expect("push payload failed");
-            msg::send_commit_with_gas_for_reply(handle, msg::source(), gas, 0)
+            let handle = MessageHandle::init().expect("init message failed");
+            handle.push(&encoded_kind).expect("push payload failed");
+            handle.commit_with_gas_for_reply(msg::source(), gas, 0)
                 .expect("send message failed")
                 .await
         }

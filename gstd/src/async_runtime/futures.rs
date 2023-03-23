@@ -50,8 +50,11 @@ impl Task {
     }
 }
 
-/// Gear allows users and programs to interact with other users and programs via
-/// messages. This function enables an asynchronous message handling main loop.
+/// The main asynchronous message handling loop.
+///
+/// Gear allows user and program interaction via
+/// messages. This function is the entry point to run the asynchronous message
+/// processing.
 pub fn message_loop<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
@@ -68,6 +71,7 @@ where
 
     if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
         super::futures().remove(&msg_id);
+        super::locks().remove_message_entry(msg_id);
     } else {
         super::locks().wait(msg_id);
     }

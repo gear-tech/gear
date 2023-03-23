@@ -19,7 +19,7 @@
 //! Environment for running a module.
 
 use crate::{
-    costs::RuntimeCosts,
+    gas::GasLeft,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
@@ -156,9 +156,6 @@ pub trait Ext {
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> Result<ProgramId, Self::Error>;
 
-    /// Terminate the program and transfer all available value to the address.
-    fn exit(&mut self) -> Result<(), Self::Error>;
-
     /// Get the status code of the message being processed.
     fn status_code(&mut self) -> Result<StatusCode, Self::Error>;
 
@@ -173,11 +170,9 @@ pub trait Ext {
     /// This should be no-op in release builds.
     fn debug(&mut self, data: &str) -> Result<(), Self::Error>;
 
-    /// Interrupt the program, saving it's state.
-    fn leave(&mut self) -> Result<(), Self::Error>;
-
+    // TODO: remove GasLeft from result #2380
     /// Access currently handled message payload.
-    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error>;
+    fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error>;
 
     /// Size of currently handled message payload.
     fn size(&mut self) -> Result<usize, Self::Error>;
@@ -225,21 +220,4 @@ pub trait Ext {
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName>;
-
-    /// Return gas and gas allowance left in the counters.
-    fn counters(&self) -> (u64, u64);
-
-    /// Update counters with the provided values.
-    fn update_counters(&mut self, gas: u64, allowance: u64);
-
-    // TODO: remove `out_of_gas` and `out_of_allowance` in #2212
-
-    /// Handler for the case when gas is out.
-    fn out_of_gas(&mut self) -> Self::Error;
-
-    /// Handler for the case when gas allowance is out.
-    fn out_of_allowance(&mut self) -> Self::Error;
-
-    /// Get runtime cost weight.
-    fn runtime_cost(&self, costs: RuntimeCosts) -> u64;
 }

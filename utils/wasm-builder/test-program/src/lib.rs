@@ -1,5 +1,7 @@
 #![no_std]
 
+include!("rebuild_test.rs");
+
 use gstd::{debug, msg};
 
 #[no_mangle]
@@ -59,10 +61,7 @@ mod tests {
             fs::read("target/wasm32-unknown-unknown/debug/test_program.opt.wasm").unwrap(),
             code::WASM_BINARY_OPT,
         );
-        assert_eq!(
-            fs::read("target/wasm32-unknown-unknown/debug/test_program.meta.wasm").unwrap(),
-            code::WASM_BINARY_META,
-        );
+        assert!(fs::read("target/wasm32-unknown-unknown/debug/test_program.meta.wasm").is_err());
     }
 
     #[test]
@@ -76,9 +75,6 @@ mod tests {
             fs::read("target/wasm32-unknown-unknown/release/test_program.opt.wasm").unwrap(),
             code::WASM_BINARY_OPT,
         );
-        assert_eq!(
-            fs::read("target/wasm32-unknown-unknown/release/test_program.meta.wasm").unwrap(),
-            code::WASM_BINARY_META,
-        );
+        assert!(fs::read("target/wasm32-unknown-unknown/release/test_program.meta.wasm").is_err());
     }
 }

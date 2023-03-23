@@ -19,14 +19,14 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use core_processor::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
-    memory::OutOfMemoryAccessError,
+    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
+    memory::ProcessAccessError,
     BackendExt, ExtInfo,
 };
 use gear_core::{
     costs::RuntimeCosts,
     env::Ext as EnvExt,
-    gas::GasAmount,
+    gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GearPage, GrowHandler, Memory, MemoryInterval, PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
@@ -41,13 +41,11 @@ pub struct LazyPagesExt {
 }
 
 impl BackendExt for LazyPagesExt {
-    type ChargeError = <Ext as BackendExt>::ChargeError;
-
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
                 // Accessed pages are all pages, that had been released and are in allocations set or static.
-                let mut accessed_pages = lazy_pages::get_released_pages();
+                let mut accessed_pages = lazy_pages::get_write_accessed_pages();
                 accessed_pages.retain(|p| {
                     let wasm_page = p.to_page();
                     wasm_page < static_pages || allocations.contains(&wasm_page)
@@ -59,18 +57,15 @@ impl BackendExt for LazyPagesExt {
     }
 
     fn gas_amount(&self) -> GasAmount {
-        self.inner.context.gas_counter.clone().into()
-    }
-
-    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::ChargeError> {
-        self.inner.charge_gas_runtime(costs)
+        self.inner.context.gas_counter.to_amount()
     }
 
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
-    ) -> Result<(), OutOfMemoryAccessError> {
-        lazy_pages::pre_process_memory_accesses(reads, writes)
+        gas_left: &mut GasLeft,
+    ) -> Result<(), ProcessAccessError> {
+        lazy_pages::pre_process_memory_accesses(reads, writes, gas_left)
     }
 }
 
@@ -87,7 +82,7 @@ impl ProcessorExt for LazyPagesExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPage>,
-        globals_config: GlobalsConfig,
+        globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
     ) {
         lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
@@ -97,7 +92,7 @@ impl ProcessorExt for LazyPagesExt {
         lazy_pages::remove_lazy_pages_prot(mem);
     }
 
-    fn lazy_pages_status() -> Option<Status> {
+    fn lazy_pages_status() -> Status {
         lazy_pages::get_status()
     }
 }
@@ -132,6 +127,32 @@ impl GrowHandler for LazyGrowHandler {
             self.old_mem_size,
             new_mem_addr,
         );
+    }
+}
+
+impl CountersOwner for LazyPagesExt {
+    fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
+        self.inner.charge_gas_runtime(cost)
+    }
+
+    fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
+        self.inner.charge_gas_runtime_if_enough(cost)
+    }
+
+    fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError> {
+        self.inner.charge_gas_if_enough(amount)
+    }
+
+    fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError> {
+        self.inner.refund_gas(amount)
+    }
+
+    fn gas_left(&self) -> GasLeft {
+        self.inner.gas_left()
+    }
+
+    fn set_gas_left(&mut self, gas_left: GasLeft) {
+        self.inner.set_gas_left(gas_left)
     }
 }
 
@@ -227,10 +248,6 @@ impl EnvExt for LazyPagesExt {
         self.inner.source()
     }
 
-    fn exit(&mut self) -> Result<(), Self::Error> {
-        self.inner.exit()
-    }
-
     fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
         self.inner.status_code()
     }
@@ -247,7 +264,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.debug(data)
     }
 
-    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error> {
+    fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
         self.inner.read(at, len)
     }
 
@@ -277,10 +294,6 @@ impl EnvExt for LazyPagesExt {
 
     fn value(&mut self) -> Result<u128, Self::Error> {
         self.inner.value()
-    }
-
-    fn leave(&mut self) -> Result<(), Self::Error> {
-        self.inner.leave()
     }
 
     fn wait(&mut self) -> Result<(), Self::Error> {
@@ -313,25 +326,5 @@ impl EnvExt for LazyPagesExt {
 
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.inner.context.forbidden_funcs
-    }
-
-    fn counters(&self) -> (u64, u64) {
-        self.inner.counters()
-    }
-
-    fn update_counters(&mut self, gas: u64, allowance: u64) {
-        self.inner.update_counters(gas, allowance)
-    }
-
-    fn out_of_gas(&mut self) -> Self::Error {
-        self.inner.out_of_gas()
-    }
-
-    fn out_of_allowance(&mut self) -> Self::Error {
-        self.inner.out_of_allowance()
-    }
-
-    fn runtime_cost(&self, costs: RuntimeCosts) -> u64 {
-        self.inner.runtime_cost(costs)
     }
 }

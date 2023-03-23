@@ -33,8 +33,7 @@ use gear_wasm_instrument::{
     parity_wasm::{
         builder,
         elements::{
-            self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Module, Section,
-            ValueType,
+            self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Section, ValueType,
         },
     },
     syscalls::SysCallName,
@@ -85,11 +84,6 @@ pub struct ModuleDefinition {
     /// The amount of I64 arguments the aux function should have.
     pub aux_arg_num: u32,
     pub aux_res: Option<ValueType>,
-    /// If set to true the stack height limiter is injected into the the module. This is
-    /// needed for instruction debugging because the cost of executing the stack height
-    /// instrumentation should be included in the costs for the individual instructions
-    /// that cause more metering code (only call).
-    pub inject_stack_metering: bool,
     /// Create a table containing function pointers.
     pub table: Option<TableSegment>,
     /// Create a section named "dummy" of the specified size. This is useful in order to
@@ -124,6 +118,10 @@ impl ImportedMemory {
         Self {
             min_pages: max_pages::<T>() as u32,
         }
+    }
+
+    pub fn new_with_pages(min_pages: u32) -> Self {
+        Self { min_pages }
     }
 }
 
@@ -284,12 +282,7 @@ where
             )));
         }
 
-        let mut code = program.build();
-
-        if def.inject_stack_metering {
-            code = inject_stack_metering::<T>(code);
-        }
-
+        let code = program.build();
         let code = code.into_bytes().unwrap();
         let hash = CodeId::generate(&code);
         Self {
@@ -561,6 +554,32 @@ pub mod body {
         head
     }
 
+    pub fn repeated_instr(
+        repetitions: u32,
+        instructions: Vec<Instruction>,
+        head: Vec<Instruction>,
+    ) -> Vec<Instruction> {
+        repeated_dyn_instr(
+            repetitions,
+            instructions.into_iter().map(DynInstr::Regular).collect(),
+            head,
+        )
+    }
+
+    pub fn with_result_check(res_offset: u32, instrs: &[Instruction]) -> Vec<Instruction> {
+        let mut res = vec![Instruction::Block(BlockType::NoResult)];
+        res.extend_from_slice(instrs);
+        res.extend_from_slice(&[
+            Instruction::I32Const(res_offset as i32),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Eqz,
+            Instruction::BrIf(0),
+            Instruction::Unreachable,
+            Instruction::End,
+        ]);
+        res
+    }
+
     pub fn repeated_dyn(repetitions: u32, instructions: Vec<DynInstr>) -> FuncBody {
         let mut body = repeated_dyn_instr(repetitions, instructions, vec![]);
         body.push(Instruction::End);
@@ -580,12 +599,4 @@ where
     T: Config,
 {
     T::Schedule::get().limits.memory_pages
-}
-
-fn inject_stack_metering<T: Config>(module: Module) -> Module {
-    if let Some(height) = T::Schedule::get().limits.stack_height {
-        gear_wasm_instrument::wasm_instrument::inject_stack_limiter(module, height).unwrap()
-    } else {
-        module
-    }
 }

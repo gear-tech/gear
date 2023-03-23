@@ -21,12 +21,13 @@ use crate::mock::*;
 use common::{self, Origin as _};
 use frame_support::assert_ok;
 #[cfg(feature = "lazy-pages")]
-use gear_core::memory::{GearPage, GranularityPage};
+use gear_core::memory::GearPage;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageU32Size, WasmPage},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
+use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pallet_gear::{DebugInfo, Pallet as PalletGear};
 use sp_core::H256;
 use sp_std::collections::btree_map::BTreeMap;
@@ -284,16 +285,6 @@ fn get_last_message_id() -> MessageId {
 }
 
 #[cfg(feature = "lazy-pages")]
-fn append_rest_psg_pages(page: GearPage, pages_data: &mut BTreeMap<GearPage, PageBuf>) {
-    page.to_page::<GranularityPage>()
-        .to_pages_iter()
-        .filter(|&p| p != page)
-        .for_each(|p| {
-            pages_data.insert(p, PageBuf::new_zeroed());
-        });
-}
-
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn check_not_allocated_pages() {
     // Currently we has no mechanism to restrict not allocated pages access during wasm execution
@@ -446,12 +437,6 @@ fn check_not_allocated_pages() {
         let mut persistent_pages = BTreeMap::new();
         persistent_pages.insert(gear_page0, page0_data.clone());
         persistent_pages.insert(gear_page7, page7_data);
-
-        // For all pages, which is write accessed, and has no data in storage yet,
-        // we must upload to storage all pages from [PAGE_STORAGE_GRANULARITY] interval.
-        [gear_page0, gear_page7]
-            .into_iter()
-            .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
@@ -686,12 +671,6 @@ fn check_changed_pages_in_storage() {
         persistent_pages.insert(gear_page8, page8_data);
         persistent_pages.insert(gear_page9, page9_data);
 
-        // For all pages, which is write accessed, and has no data in storage yet,
-        // we must upload to storage all pages from [PAGE_STORAGE_GRANULARITY] interval.
-        [gear_page1, gear_page8, gear_page9]
-            .into_iter()
-            .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
-
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
@@ -728,10 +707,6 @@ fn check_changed_pages_in_storage() {
         persistent_pages.insert(gear_page3, page3_data);
         persistent_pages.insert(gear_page4, PageBuf::new_zeroed());
 
-        [gear_page3, gear_page4]
-            .into_iter()
-            .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
-
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
@@ -751,8 +726,9 @@ fn check_changed_pages_in_storage() {
 
 #[test]
 fn check_gear_stack_end() {
-    // This test checks that all pages, before `__gear_stack_end` addr, must not be updated in storage.
-    let wat = r#"
+    // This test checks that all pages, before stack end addr, must not be updated in storage.
+    let wat = format!(
+        r#"
         (module
             (import "env" "memory" (memory 4))
             (export "init" (func $init))
@@ -779,13 +755,14 @@ fn check_gear_stack_end() {
             )
             ;; "stack" contains 0 and 1 wasm pages
             (global (;0;) (mut i32) (i32.const 0x20000))
-            (export "__gear_stack_end" (global 0))
+            (export "{STACK_END_EXPORT_NAME}" (global 0))
         )
-    "#;
+    "#
+    );
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let code = parse_wat(wat);
+        let code = parse_wat(wat.as_str());
         let program_id = generate_program_id(&code);
         let origin = RuntimeOrigin::signed(1);
 
@@ -820,11 +797,6 @@ fn check_gear_stack_end() {
 
         #[cfg(not(feature = "lazy-pages"))]
         log::debug!("LAZY-PAGES IS OFF");
-
-        #[cfg(feature = "lazy-pages")]
-        [gear_page2, gear_page3]
-            .into_iter()
-            .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {

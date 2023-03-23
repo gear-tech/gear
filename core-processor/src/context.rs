@@ -29,7 +29,6 @@ use gear_core::{
     reservation::GasReserver,
 };
 
-#[derive(Clone)]
 pub(crate) struct ContextData {
     pub(crate) gas_counter: GasCounter,
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
@@ -69,7 +68,6 @@ impl From<(ContextChargedForCodeLength, u32)> for ContextChargedForCode {
 /// The instance returned by `precharge_for_instrumentation`.
 /// Existence of the instance means that corresponding counters were
 /// successfully charged for reinstrumentation of the code.
-#[derive(Clone)]
 pub struct ContextChargedForInstrumentation {
     pub(crate) data: ContextData,
     pub(crate) code_len_bytes: u32,
@@ -103,7 +101,6 @@ impl ContextChargedForMemory {
 }
 
 /// Checked parameters for message execution across processing runs.
-#[derive(Clone)]
 pub struct ProcessExecutionContext {
     pub(crate) gas_counter: GasCounter,
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
@@ -162,5 +159,12 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128, ProgramId)>
             program,
             memory_size,
         }
+    }
+}
+
+impl ProcessExecutionContext {
+    /// Returns ref to program.
+    pub fn program(&self) -> &Program {
+        &self.program
     }
 }

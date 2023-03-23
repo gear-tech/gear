@@ -19,7 +19,7 @@
 /// Extensions for additional features.
 pub mod ext {
     #[cfg(any(feature = "debug", debug_assertions))]
-    use crate::error::{ExtError, Result};
+    use crate::errors::{ExtError, Result};
 
     /// Add a `data` string to the debug log.
     ///

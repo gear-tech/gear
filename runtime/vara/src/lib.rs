@@ -50,6 +50,8 @@ use frame_system::{
     EnsureRoot,
 };
 pub use pallet_gear::manager::{ExtManager, HandleKind};
+pub use pallet_gear_payment::CustomChargeTransactionPayment;
+pub use pallet_gear_staking_rewards::StakingBlackList;
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
@@ -373,10 +375,30 @@ impl pallet_session_historical::Config for Runtime {
 pub struct BondCallFilter;
 impl Contains<RuntimeCall> for BondCallFilter {
     fn contains(call: &RuntimeCall) -> bool {
-        matches!(
-            call,
-            &RuntimeCall::Staking(pallet_staking::Call::bond { .. })
-        )
+        match call {
+            RuntimeCall::Staking(pallet_staking::Call::bond { .. }) => true,
+            RuntimeCall::Utility(utility_call) => {
+                match utility_call {
+                    pallet_utility::Call::batch { calls }
+                    | pallet_utility::Call::batch_all { calls }
+                    | pallet_utility::Call::force_batch { calls } => {
+                        for c in calls {
+                            if Self::contains(c) {
+                                return true;
+                            }
+                        }
+                    }
+                    pallet_utility::Call::as_derivative { call, .. }
+                    | pallet_utility::Call::dispatch_as { call, .. }
+                    | pallet_utility::Call::with_weight { call, .. } => {
+                        return Self::contains(call);
+                    }
+                    _ => (),
+                }
+                false
+            }
+            _ => false,
+        }
     }
 }
 
@@ -411,12 +433,12 @@ impl pallet_gear_staking_rewards::Config for Runtime {
 
 // TODO: review staking parameters - currently copying Kusama
 parameter_types! {
-    // Six sessions in an era (4 hours)
+    // Six sessions in an era (12 hours)
     pub const SessionsPerEra: sp_staking::SessionIndex = 6;
     // 42 eras for unbonding (7 days)
-    pub const BondingDuration: sp_staking::EraIndex = 42;
+    pub const BondingDuration: sp_staking::EraIndex = 14;
     // 41 eras during which slashes can be cancelled (slightly less than 7 days)
-    pub const SlashDeferDuration: sp_staking::EraIndex = 41;
+    pub const SlashDeferDuration: sp_staking::EraIndex = 13;
     pub const MaxNominatorRewardedPerValidator: u32 = 256;
     pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
     pub HistoryDepth: u32 = 84;
@@ -456,7 +478,9 @@ impl pallet_staking::Config for Runtime {
     type CurrencyToVote = U128CurrencyToVote;
     type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
-    type RewardRemainder = pallet_gear_staking_rewards::RewardsStash<Self, Treasury>;
+    // Burning the reward remainder for now.
+    // TODO: set remainder back to `RewardsStash<Self, Treasury>` to stop burning `Treasury` part.
+    type RewardRemainder = ();
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury;
     type Reward = StakingRewards;
@@ -596,6 +620,7 @@ parameter_types! {
     pub const WaitlistCost: u64 = 100;
     pub const MailboxCost: u64 = 100;
     pub const ReservationCost: u64 = 100;
+    pub const DispatchHoldCost: u64 = 100;
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
@@ -640,6 +665,7 @@ impl pallet_gear_scheduler::Config for Runtime {
     type WaitlistCost = WaitlistCost;
     type MailboxCost = MailboxCost;
     type ReservationCost = ReservationCost;
+    type DispatchHoldCost = DispatchHoldCost;
 }
 
 impl pallet_gear_gas::Config for Runtime {
@@ -707,48 +733,48 @@ construct_runtime!(
         NodeBlock = runtime_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
-        System: frame_system,
-        Timestamp: pallet_timestamp,
-        Authorship: pallet_authorship,
-        AuthorityDiscovery: pallet_authority_discovery,
-        Babe: pallet_babe,
-        Grandpa: pallet_grandpa,
-        Balances: pallet_balances,
-        Vesting: pallet_vesting,
-        TransactionPayment: pallet_transaction_payment,
-        BagsList: pallet_bags_list,
-        ImOnline: pallet_im_online,
-        Staking: pallet_staking,
-        Session: pallet_session,
-        Treasury: pallet_treasury,
-        Historical: pallet_session_historical,
+        System: frame_system = 0,
+        Timestamp: pallet_timestamp = 1,
+        Authorship: pallet_authorship = 2,
+        AuthorityDiscovery: pallet_authority_discovery = 9,
+        Babe: pallet_babe = 3,
+        Grandpa: pallet_grandpa = 4,
+        Balances: pallet_balances = 5,
+        Vesting: pallet_vesting = 10,
+        TransactionPayment: pallet_transaction_payment = 6,
+        BagsList: pallet_bags_list = 11,
+        ImOnline: pallet_im_online = 12,
+        Staking: pallet_staking = 13,
+        Session: pallet_session = 7,
+        Treasury: pallet_treasury = 14,
+        Historical: pallet_session_historical = 15,
 
         // Governance
-        ConvictionVoting: pallet_conviction_voting,
-        Referenda: pallet_referenda,
-        FellowshipCollective: pallet_ranked_collective::<Instance1>,
-        FellowshipReferenda: pallet_referenda::<Instance2>,
-        Origins: pallet_custom_origins,
-        Whitelist: pallet_whitelist,
+        ConvictionVoting: pallet_conviction_voting = 16,
+        Referenda: pallet_referenda = 17,
+        FellowshipCollective: pallet_ranked_collective::<Instance1> = 18,
+        FellowshipReferenda: pallet_referenda::<Instance2> = 19,
+        Origins: pallet_custom_origins = 20,
+        Whitelist: pallet_whitelist = 21,
 
-        Sudo: pallet_sudo,
-        Scheduler: pallet_scheduler,
-        Preimage: pallet_preimage,
-        Identity: pallet_identity,
-        Utility: pallet_utility,
-        GearProgram: pallet_gear_program,
-        GearMessenger: pallet_gear_messenger,
-        GearScheduler: pallet_gear_scheduler,
-        GearGas: pallet_gear_gas,
-        Gear: pallet_gear,
-        GearPayment: pallet_gear_payment,
-        StakingRewards: pallet_gear_staking_rewards,
+        Sudo: pallet_sudo = 99,
+        Scheduler: pallet_scheduler = 22,
+        Preimage: pallet_preimage = 23,
+        Identity: pallet_identity = 24,
+        Utility: pallet_utility = 8,
+        GearProgram: pallet_gear_program = 100,
+        GearMessenger: pallet_gear_messenger = 101,
+        GearScheduler: pallet_gear_scheduler = 102,
+        GearGas: pallet_gear_gas = 103,
+        Gear: pallet_gear = 104,
+        GearPayment: pallet_gear_payment = 105,
+        StakingRewards: pallet_gear_staking_rewards = 106,
 
         // TODO: remove from production version
-        Airdrop: pallet_airdrop,
+        Airdrop: pallet_airdrop = 198,
 
         // Only available with "debug-mode" feature on
-        GearDebug: pallet_gear_debug,
+        GearDebug: pallet_gear_debug = 199,
     }
 );
 
@@ -759,45 +785,45 @@ construct_runtime!(
         NodeBlock = runtime_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
-        System: frame_system,
-        Timestamp: pallet_timestamp,
-        Authorship: pallet_authorship,
-        AuthorityDiscovery: pallet_authority_discovery,
-        Babe: pallet_babe,
-        Grandpa: pallet_grandpa,
-        Balances: pallet_balances,
-        Vesting: pallet_vesting,
-        TransactionPayment: pallet_transaction_payment,
-        BagsList: pallet_bags_list,
-        ImOnline: pallet_im_online,
-        Staking: pallet_staking,
-        Session: pallet_session,
-        Treasury: pallet_treasury,
-        Historical: pallet_session_historical,
+        System: frame_system = 0,
+        Timestamp: pallet_timestamp = 1,
+        Authorship: pallet_authorship = 2,
+        AuthorityDiscovery: pallet_authority_discovery = 9,
+        Babe: pallet_babe = 3,
+        Grandpa: pallet_grandpa = 4,
+        Balances: pallet_balances = 5,
+        Vesting: pallet_vesting = 10,
+        TransactionPayment: pallet_transaction_payment = 6,
+        BagsList: pallet_bags_list = 11,
+        ImOnline: pallet_im_online = 12,
+        Staking: pallet_staking = 13,
+        Session: pallet_session = 7,
+        Treasury: pallet_treasury = 14,
+        Historical: pallet_session_historical = 15,
 
         // Governance
-        ConvictionVoting: pallet_conviction_voting,
-        Referenda: pallet_referenda,
-        FellowshipCollective: pallet_ranked_collective::<Instance1>,
-        FellowshipReferenda: pallet_referenda::<Instance2>,
-        Origins: pallet_custom_origins,
-        Whitelist: pallet_whitelist,
+        ConvictionVoting: pallet_conviction_voting = 16,
+        Referenda: pallet_referenda = 17,
+        FellowshipCollective: pallet_ranked_collective::<Instance1> = 18,
+        FellowshipReferenda: pallet_referenda::<Instance2> = 19,
+        Origins: pallet_custom_origins = 20,
+        Whitelist: pallet_whitelist = 21,
 
-        Sudo: pallet_sudo,
-        Scheduler: pallet_scheduler,
-        Preimage: pallet_preimage,
-        Identity: pallet_identity,
-        Utility: pallet_utility,
-        GearProgram: pallet_gear_program,
-        GearMessenger: pallet_gear_messenger,
-        GearScheduler: pallet_gear_scheduler,
-        GearGas: pallet_gear_gas,
-        Gear: pallet_gear,
-        GearPayment: pallet_gear_payment,
-        StakingRewards: pallet_gear_staking_rewards,
+        Sudo: pallet_sudo = 99,
+        Scheduler: pallet_scheduler = 22,
+        Preimage: pallet_preimage = 23,
+        Identity: pallet_identity = 24,
+        Utility: pallet_utility = 8,
+        GearProgram: pallet_gear_program = 100,
+        GearMessenger: pallet_gear_messenger = 101,
+        GearScheduler: pallet_gear_scheduler = 102,
+        GearGas: pallet_gear_gas = 103,
+        Gear: pallet_gear = 104,
+        GearPayment: pallet_gear_payment = 105,
+        StakingRewards: pallet_gear_staking_rewards = 106,
 
         // TODO: remove from production version
-        Airdrop: pallet_airdrop,
+        Airdrop: pallet_airdrop = 198,
     }
 );
 
@@ -812,7 +838,7 @@ pub type SignedExtra = (
     // RELEASE: remove before final release
     DisableValueTransfers,
     // Keep as long as it's needed
-    pallet_gear_staking_rewards::StakingBlackList<Runtime>,
+    StakingBlackList<Runtime>,
     frame_system::CheckNonZeroSender<Runtime>,
     frame_system::CheckSpecVersion<Runtime>,
     frame_system::CheckTxVersion<Runtime>,
@@ -820,7 +846,7 @@ pub type SignedExtra = (
     frame_system::CheckEra<Runtime>,
     frame_system::CheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
-    pallet_gear_payment::CustomChargeTransactionPayment<Runtime>,
+    CustomChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =

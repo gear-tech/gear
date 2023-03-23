@@ -18,7 +18,7 @@
 
 //! Send message args generator.
 
-use crate::{CallGenRng, GearCall, Seed};
+use crate::{CallGenRng, GearCall, GearCallConversionError, Seed};
 use gear_core::ids::ProgramId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -28,6 +28,7 @@ type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);
 /// Send message args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::send_message` call.
+#[derive(Debug, Clone)]
 pub struct SendMessageArgs(pub SendMessageArgsInner);
 
 impl From<SendMessageArgs> for SendMessageArgsInner {
@@ -36,7 +37,7 @@ impl From<SendMessageArgs> for SendMessageArgsInner {
     }
 }
 
-// TODO [sab] use macros for From and TryFrom calls
+// TODO #2204 use macros for From and TryFrom calls
 impl From<SendMessageArgs> for GearCall {
     fn from(args: SendMessageArgs) -> Self {
         GearCall::SendMessage(args)
@@ -44,20 +45,17 @@ impl From<SendMessageArgs> for GearCall {
 }
 
 impl TryFrom<GearCall> for SendMessageArgs {
-    type Error = ();
+    type Error = GearCallConversionError;
 
     fn try_from(call: GearCall) -> Result<Self, Self::Error> {
         if let GearCall::SendMessage(call) = call {
             Ok(call)
         } else {
-            Err(())
+            Err(GearCallConversionError("send_message"))
         }
     }
 }
 
-/// Send message args
-///
-/// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::send_message` call.
 impl SendMessageArgs {
     /// Generates `pallet_gear::Pallet::<T>::send_message` call arguments.
     pub fn generate<Rng: CallGenRng>(
@@ -74,7 +72,7 @@ impl SendMessageArgs {
         rng.fill_bytes(&mut payload);
 
         log::debug!(
-            "Generated `send_message` batch with destination = {destination}, payload = {}",
+            "Generated `send_message` call with destination = {destination}, payload = {}",
             hex::encode(&payload)
         );
 

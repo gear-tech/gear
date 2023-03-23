@@ -358,4 +358,49 @@ mod tests {
 
         assert_eq!(system.balance_of(receiver_id), 1000);
     }
+
+    #[test]
+    fn delayed_dispatches_works() {
+        // Arranging data for future messages.
+        let system = System::new();
+        let message_id: MessageId = Default::default();
+        let source_user_id = ProgramIdWrapper::from(100).0;
+        let destination_user_id = ProgramIdWrapper::from(200).0;
+        let message_payload: Payload = vec![1, 2, 3].try_into().unwrap();
+        let log = Log::builder().payload(message_payload.clone());
+
+        // Building message based on arranged data.
+        let message = Message::new(
+            message_id,
+            source_user_id,
+            destination_user_id,
+            message_payload.encode().try_into().unwrap(),
+            Default::default(),
+            0,
+            None,
+        );
+
+        let bn_before_schedule = 5;
+        let scheduled_delay = 10;
+        system.0.borrow_mut().send_delayed_dispatch(
+            Dispatch::new(DispatchKind::Handle, message),
+            scheduled_delay,
+        );
+
+        let mailbox = system.get_mailbox(destination_user_id);
+        assert!(!mailbox.contains(&log));
+
+        // Run to block number before scheduled delay
+        assert_eq!(system.spend_blocks(bn_before_schedule).len(), 0);
+        assert!(!mailbox.contains(&log));
+
+        // Run to block number at scheduled delay
+        assert_eq!(
+            system
+                .spend_blocks(scheduled_delay - bn_before_schedule)
+                .len(),
+            1
+        );
+        assert!(mailbox.contains(&log));
+    }
 }

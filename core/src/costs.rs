@@ -23,14 +23,14 @@ use codec::{Decode, Encode};
 use core::{fmt::Debug, marker::PhantomData};
 
 /// Cost per one memory page.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct CostPerPage<P: PageU32Size> {
     cost: u64,
     _phantom: PhantomData<P>,
 }
 
 impl<P: PageU32Size> CostPerPage<P> {
-    /// Constant constructor if `From<u64>` bound can't be used.
+    /// Const constructor
     pub const fn new(cost: u64) -> Self {
         Self {
             cost,
@@ -42,19 +42,27 @@ impl<P: PageU32Size> CostPerPage<P> {
     pub fn calc(&self, pages: P) -> u64 {
         self.cost.saturating_mul(pages.raw() as u64)
     }
+
     /// Cost for one page.
     pub fn one(&self) -> u64 {
         self.cost
     }
+
     /// Returns another [CostPerPage] with increased `cost` to `other.cost`.
-    pub fn add(&self, other: Self) -> Self {
+    pub fn saturating_add(&self, other: Self) -> Self {
         self.cost.saturating_add(other.cost).into()
+    }
+}
+
+impl<P: PageU32Size> Debug for CostPerPage<P> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_fmt(format_args!("{}", &self.cost))
     }
 }
 
 impl<P: PageU32Size> From<u64> for CostPerPage<P> {
     fn from(cost: u64) -> Self {
-        Self {
+        CostPerPage {
             cost,
             _phantom: PhantomData,
         }
@@ -157,8 +165,14 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: u64,
 
+    /// Weight per payload byte by `gr_reply_commit`.
+    pub gr_reply_commit_per_byte: u64,
+
     /// Weight of calling `gr_reservation_reply_commit`.
     pub gr_reservation_reply_commit: u64,
+
+    /// Weight per payload byte by `gr_reservation_reply_commit`.
+    pub gr_reservation_reply_commit_per_byte: u64,
 
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: u64,
@@ -230,6 +244,12 @@ pub struct RuntimeToken {
     weight: u64,
 }
 
+impl From<RuntimeToken> for u64 {
+    fn from(value: RuntimeToken) -> Self {
+        value.weight
+    }
+}
+
 impl Token for RuntimeToken {
     fn weight(&self) -> u64 {
         self.weight
@@ -274,7 +294,9 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_size`.
     Size,
     /// Weight of calling `gr_read`.
-    Read(u32),
+    Read,
+    /// Weight of calling `gr_read` per read buffer bytes number.
+    ReadPerByte(u32),
     /// Weight of calling `gr_block_height`.
     BlockHeight,
     /// Weight of calling `gr_block_timestamp`.
@@ -294,13 +316,13 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_reservation_send_commit`.
     ReservationSendCommit(u32),
     /// Weight of calling `gr_reply`.
-    Reply,
+    Reply(u32),
     /// Weight of calling `gr_reply_commit`.
-    ReplyCommit,
+    ReplyCommit(u32),
     /// Weight of calling `gr_reservation_reply`.
-    ReservationReply,
+    ReservationReply(u32),
     /// Weight of calling `gr_reservation_reply_commit`.
-    ReservationReplyCommit,
+    ReservationReplyCommit(u32),
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
     /// Weight of calling `gr_signal_from`.
@@ -325,16 +347,20 @@ pub enum RuntimeCosts {
     Wake,
     /// Weight of calling `gr_create_program_wgas`.
     CreateProgram(u32, u32),
-    /// Weight of calling `gr_resend_push`.
-    SendPushInput(u32),
+    /// Weight of calling `gr_send_push_input`.
+    SendPushInput,
+    /// Weight per buffer bytes number in sent input.
+    SendPushInputPerByte(u32),
     /// Weight of calling `gr_send_input`.
-    SendInput(u32),
+    SendInput,
     /// Weight of calling `gr_reply_push`.
     ReplyPush(u32),
-    /// Weight of calling `gr_reply_input`.
-    ReplyInput(u32),
     /// Weight of calling `gr_reply_push_input`.
-    ReplyPushInput(u32),
+    ReplyPushInput,
+    /// Weight per buffer bytes number in reply input.
+    ReplyPushInputPerByte(u32),
+    /// Weight of calling `gr_reply_input`.
+    ReplyInput,
 }
 
 impl RuntimeCosts {
@@ -356,9 +382,8 @@ impl RuntimeCosts {
             Value => s.gr_value,
             ValueAvailable => s.gr_value_available,
             Size => s.gr_size,
-            Read(len) => s
-                .gr_read
-                .saturating_add(s.gr_read_per_byte.saturating_mul(len.into())),
+            Read => s.gr_read,
+            ReadPerByte(len) => s.gr_read_per_byte.saturating_mul(len.into()),
             BlockHeight => s.gr_block_height,
             BlockTimestamp => s.gr_block_timestamp,
             Random => s.gr_random,
@@ -377,10 +402,15 @@ impl RuntimeCosts {
                 s.gr_reservation_send_commit_per_byte
                     .saturating_mul(len.into()),
             ),
-            Reply => ReplyCommit.token(s).weight(),
-            ReplyCommit => s.gr_reply_commit,
-            ReservationReply => ReservationReplyCommit.token(s).weight,
-            ReservationReplyCommit => s.gr_reservation_reply_commit,
+            Reply(len) => ReplyCommit(len).token(s).weight,
+            ReplyCommit(len) => s
+                .gr_reply_commit
+                .saturating_add(s.gr_reply_commit_per_byte.saturating_mul(len.into())),
+            ReservationReply(len) => ReservationReplyCommit(len).token(s).weight,
+            ReservationReplyCommit(len) => s.gr_reservation_reply_commit.saturating_add(
+                s.gr_reservation_reply_commit_per_byte
+                    .saturating_mul(len.into()),
+            ),
             ReplyPush(len) => s
                 .gr_reply_push
                 .saturating_add(s.gr_reply_push_per_byte.saturating_mul(len.into())),
@@ -407,18 +437,16 @@ impl RuntimeCosts {
                     s.gr_create_program_wgas_salt_per_byte
                         .saturating_mul(salt_len.into()),
                 ),
-            SendPushInput(len) => s
-                .gr_send_push_input
-                .saturating_add(s.gr_send_push_input_per_byte.saturating_mul(len.into())),
-            ReplyPushInput(len) => s
-                .gr_reply_push_input
-                .saturating_add(s.gr_reply_push_input_per_byte.saturating_mul(len.into())),
-            ReplyInput(len) => ReplyPushInput(len)
+            ReplyPushInput => s.gr_reply_push_input,
+            ReplyPushInputPerByte(len) => s.gr_reply_push_input_per_byte.saturating_mul(len.into()),
+            ReplyInput => ReplyPushInput
                 .token(s)
-                .saturating_add(ReplyCommit.token(s)),
-            SendInput(len) => SendInit
+                .saturating_add(ReplyCommit(0).token(s)),
+            SendPushInput => s.gr_send_push_input,
+            SendPushInputPerByte(len) => s.gr_send_push_input_per_byte.saturating_mul(len.into()),
+            SendInput => SendInit
                 .token(s)
-                .saturating_add(SendPushInput(len).token(s))
+                .saturating_add(SendPushInput.token(s))
                 // TODO: replace with normal addition some time.
                 .saturating_add(SendCommit(0).token(s).weight()),
         };

@@ -10,8 +10,9 @@ gear-core = { path = "../../core" }
 gear-utils = { path = "../utils" }
 
 # External deps
-arbitrary = "1.2.3"
+arbitrary = "1.3.0"
 dyn-clonable = "0.9.0"
 hex = "0.4.3"
 log = "0.4.17"
 rand = "0.8.5"
+thiserror = "1.0.40"

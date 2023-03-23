@@ -19,7 +19,7 @@
 //! Module for memory and allocations context.
 
 use crate::buffer::LimitedVec;
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, format};
 use codec::{Decode, Encode, EncodeLike, Input, Output};
 use core::{
     fmt,
@@ -40,33 +40,13 @@ pub const WASM_PAGE_SIZE: usize = 0x10000;
 /// we can download just some number of gear pages instead of whole wasm page.
 /// The number of small pages, which must be downloaded, is depends on host
 /// native page size, so can vary.
-pub const GEAR_PAGE_SIZE: usize = 0x1000;
-
-/// Pages data storage granularity (PSG) is a size and wasm addr alignment
-/// of a memory interval, for which the following conditions must be met:
-/// if some gear page has data in storage, then all gear
-/// pages, that are in the same granularity interval, must contain
-/// data in storage. For example:
-/// ````ignored
-///   granularity interval no.0       interval no.1        interval no.2
-///                |                    |                    |
-///                {====|====|====|====}{====|====|====|====}{====|====|====|====}
-///               /     |     \
-///    gear-page 0    page 1   page 2 ...
-/// ````
-/// In this example each PSG page contains 4 gear-pages. So, if gear-page `2`
-/// has data in storage, then gear-page `0`,`1`,`3` also has data in storage.
-/// This constant is necessary for consensus between nodes with different
-/// native page sizes. You can see an example of using in crate `gear-lazy-pages`.
-pub const PAGE_STORAGE_GRANULARITY: usize = 0x4000;
+pub const GEAR_PAGE_SIZE: usize = 0x4000;
 
 static_assertions::const_assert!(WASM_PAGE_SIZE < u32::MAX as usize);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
-static_assertions::const_assert_eq!(WASM_PAGE_SIZE % PAGE_STORAGE_GRANULARITY, 0);
-static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY % GEAR_PAGE_SIZE, 0);
 
 /// Interval in wasm program memory.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Encode, Decode)]
 pub struct MemoryInterval {
     /// Interval offset in bytes.
     pub offset: u32,
@@ -86,6 +66,15 @@ impl From<(u32, u32)> for MemoryInterval {
 impl From<MemoryInterval> for (u32, u32) {
     fn from(val: MemoryInterval) -> Self {
         (val.offset, val.size)
+    }
+}
+
+impl Debug for MemoryInterval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&format!(
+            "[offset: {:#x}, size: {:#x}]",
+            self.offset, self.size
+        ))
     }
 }
 
@@ -242,6 +231,13 @@ impl<P: PageU32Size> PagesIterInclusive<P> {
     pub fn end(&self) -> P {
         self.end
     }
+    /// Returns another page type iter, which pages intersect with `self` pages.
+    pub fn convert<P1: PageU32Size>(&self) -> PagesIterInclusive<P1> {
+        PagesIterInclusive::<P1> {
+            page: self.page.map(|p| p.to_page()),
+            end: self.end.to_last_page(),
+        }
+    }
 }
 
 /// Trait represents page with u32 size for u32 memory: max memory size is 2^32 bytes.
@@ -286,9 +282,13 @@ pub trait PageU32Size: Sized + Clone + Copy + PartialEq + Eq + PartialOrd + Ord 
     fn end_offset(&self) -> u32 {
         self.raw() * Self::size() + (Self::size() - 1)
     }
-    /// Returns new page, which impls PageU32Size, and contains self zero byte.
-    fn to_page<PAGE: PageU32Size>(&self) -> PAGE {
-        PAGE::from_offset(self.offset())
+    /// Returns new page, which contains `self` zero byte.
+    fn to_page<P1: PageU32Size>(&self) -> P1 {
+        P1::from_offset(self.offset())
+    }
+    /// Returns new page, which contains `self` last byte.
+    fn to_last_page<P1: PageU32Size>(&self) -> P1 {
+        P1::from_offset(self.end_offset())
     }
     /// Returns page which has number `page.raw() + raw`, with checks.
     fn add_raw(&self, raw: u32) -> Result<Self, PageError> {
@@ -425,25 +425,6 @@ impl PageU32Size for WasmPage {
     fn size_non_zero() -> NonZeroU32 {
         static_assertions::const_assert_ne!(WASM_PAGE_SIZE, 0);
         unsafe { NonZeroU32::new_unchecked(WASM_PAGE_SIZE as u32) }
-    }
-
-    fn raw(&self) -> u32 {
-        self.0
-    }
-
-    unsafe fn new_unchecked(num: u32) -> Self {
-        Self(num)
-    }
-}
-
-/// Page with size [PAGE_STORAGE_GRANULARITY].
-#[derive(Debug, Default, Encode, Decode, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GranularityPage(u32);
-
-impl PageU32Size for GranularityPage {
-    fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(PAGE_STORAGE_GRANULARITY, 0);
-        unsafe { NonZeroU32::new_unchecked(PAGE_STORAGE_GRANULARITY as u32) }
     }
 
     fn raw(&self) -> u32 {
@@ -724,10 +705,7 @@ mod tests {
             .map(|p| p.0)
             .collect();
 
-        let expectation = [
-            0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 160, 161, 162, 163, 164, 165,
-            166, 167, 168, 169, 170, 171, 172, 173, 174, 175,
-        ];
+        let expectation = [0, 1, 2, 3, 40, 41, 42, 43];
 
         assert!(gear_pages.eq(&expectation));
     }

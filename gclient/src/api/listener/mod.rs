@@ -19,25 +19,22 @@
 mod iterator;
 mod subscription;
 
+pub use gsdk::metadata::{gear::Event as GearEvent, Event};
 pub use iterator::*;
 pub use subscription::*;
 
 use crate::{Error, Result};
 use async_trait::async_trait;
 use gear_core::ids::MessageId;
-use gp::api::generated::api::{
-    gear::Event as GearEvent,
-    runtime_types::{
-        gear_common::event::DispatchStatus as GenDispatchStatus,
-        gear_core::{
-            ids::MessageId as GenMId,
-            message::{
-                common::{MessageDetails, ReplyDetails},
-                stored::StoredMessage as GenStoredMessage,
-            },
+use gsdk::metadata::runtime_types::{
+    gear_common::event::DispatchStatus as GenDispatchStatus,
+    gear_core::{
+        ids::MessageId as GenMId,
+        message::{
+            common::{MessageDetails, ReplyDetails},
+            stored::StoredMessage as GenStoredMessage,
         },
     },
-    Event,
 };
 
 /// Dispatch status returned after processing a message.

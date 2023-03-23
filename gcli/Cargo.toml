@@ -1,0 +1,55 @@
+[package]
+name = "gcli"
+version = "0.1.5"
+authors = ["Gear Technologies"]
+edition = "2021"
+description = "gear program cli"
+repository = "https://github.com/gear-tech/gear/tree/master/program"
+license = "GPL-3.0"
+documentation = "https://docs.rs/gear-program"
+homepage = "https://github.com/gear-tech/gear/tree/master/program"
+keywords = ["gear", "cli", "wasm"]
+readme = "./README.md"
+
+[[bin]]
+path = "bin/gcli.rs"
+name = "gcli"
+
+[dependencies]
+gsdk = { path = "../gsdk" }
+anyhow = "1.0.70"
+base64 = "0.21.0"
+color-eyre = "0.6.2"
+dirs = "5.0.0"
+env_logger = "0.10.0"
+gear-core = { path = "../core" }
+hex = "0.4.3"
+jsonrpsee = { version = "^0.16", features = [ "http-client", "ws-client" ] }
+keyring = "1.2.1"
+lazy_static = "1.4.0"
+libp2p = { version = "0.51.1", features = [ "identify" ], optional = true }
+log = "0.4.17"
+nacl = "0.5.3"
+parity-scale-codec = "3"
+scale-info = "2.3.1"
+schnorrkel = "0.9.1"
+serde = "^1"
+serde_json = "^1"
+clap = { version = "4.1.11", features = ["derive"] }
+thiserror = "1.0.40"
+tokio = { version = "1.26.0", features = [ "full" ] }
+wasmtime = "1"
+whoami = "1.4.0"
+
+[dev-dependencies]
+rand = "0.8.5"
+messager = { path = "./res/messager" }
+cfg-if = "1"
+demo-meta = { path = "../examples/binaries/meta" }
+demo-waiter = { path = "../examples/binaries/waiter" }
+
+[features]
+node-key = [ "libp2p" ]
+
+[package.metadata.docs.rs]
+all-features = true

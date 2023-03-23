@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{manager::ExtManager, Config, DispatchStashOf, Event, Pallet, QueueOf};
+use crate::{
+    manager::ExtManager, Config, CostsPerBlockOf, DispatchStashOf, Event, GasHandlerOf, Pallet,
+    QueueOf,
+};
 use alloc::string::ToString;
 use common::{
     event::{
@@ -25,7 +28,7 @@ use common::{
     },
     scheduler::*,
     storage::*,
-    Origin,
+    GasTree, Origin,
 };
 use core::convert::TryInto;
 use gear_core::{
@@ -137,21 +140,44 @@ where
 
     fn send_dispatch(&mut self, stashed_message_id: MessageId) {
         // No validation required. If program doesn't exist, then NotExecuted appears.
-        let dispatch = DispatchStashOf::<T>::take(stashed_message_id)
+
+        let (dispatch, hold_interval) = DispatchStashOf::<T>::take(stashed_message_id)
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
+
+        // Unlocking gas for delayed sending rent payment.
+        GasHandlerOf::<T>::unlock_all(dispatch.id())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        // Charging locked gas for holding in dispatch stash.
+        Pallet::<T>::charge_for_hold(
+            dispatch.id(),
+            hold_interval,
+            CostsPerBlockOf::<T>::dispatch_stash(),
+        );
 
         QueueOf::<T>::queue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }
 
-    fn send_user_message(&mut self, stashed_message_id: MessageId) {
+    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) {
         // TODO: validate here destination and send error reply, if required.
         // Atm despite the fact that program may exist, message goes into mailbox / event.
-        let message = DispatchStashOf::<T>::take(stashed_message_id)
-            .map(|dispatch| dispatch.into_parts().1)
+        let (message, hold_interval) = DispatchStashOf::<T>::take(stashed_message_id)
+            .map(|(dispatch, interval)| (dispatch.into_parts().1, interval))
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
 
-        Pallet::<T>::send_user_message_after_delay(message);
+        // Unlocking gas for delayed sending rent payment.
+        GasHandlerOf::<T>::unlock_all(message.id())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        // Charge gas for message save.
+        Pallet::<T>::charge_for_hold(
+            message.id(),
+            hold_interval,
+            CostsPerBlockOf::<T>::dispatch_stash(),
+        );
+
+        Pallet::<T>::send_user_message_after_delay(message, to_mailbox);
     }
 
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {

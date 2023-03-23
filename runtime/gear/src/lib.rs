@@ -43,6 +43,7 @@ pub use frame_support::{
 };
 use frame_system::limits::{BlockLength, BlockWeights};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
+pub use pallet_gear_payment::CustomChargeTransactionPayment;
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
@@ -322,6 +323,7 @@ parameter_types! {
     pub const WaitlistCost: u64 = 100;
     pub const MailboxCost: u64 = 100;
     pub const ReservationCost: u64 = 100;
+    pub const DispatchHoldCost: u64 = 100;
 
     pub const OutgoingLimit: u32 = 1024;
     pub const MailboxThreshold: u64 = 3000;
@@ -366,6 +368,7 @@ impl pallet_gear_scheduler::Config for Runtime {
     type WaitlistCost = WaitlistCost;
     type MailboxCost = MailboxCost;
     type ReservationCost = ReservationCost;
+    type DispatchHoldCost = DispatchHoldCost;
 }
 
 impl pallet_gear_gas::Config for Runtime {
@@ -405,6 +408,11 @@ where
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
+//
+// # NOTE
+//
+// While updating the indexes, please update the indexes in `gsdk/src/metadata/mod.rs`
+// as well, example: https://github.com/gear-tech/gear/pull/2370/commits/a82cb5ba365cf47aef2c42a285a1793a86e711c1
 #[cfg(feature = "debug-mode")]
 construct_runtime!(
     pub enum Runtime where
@@ -412,25 +420,27 @@ construct_runtime!(
         NodeBlock = runtime_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
-        System: frame_system,
-        Timestamp: pallet_timestamp,
-        Authorship: pallet_authorship,
-        Babe: pallet_babe,
-        Grandpa: pallet_grandpa,
-        Balances: pallet_balances,
-        TransactionPayment: pallet_transaction_payment,
-        Session: pallet_session,
-        Sudo: pallet_sudo,
-        Utility: pallet_utility,
-        GearProgram: pallet_gear_program,
-        GearMessenger: pallet_gear_messenger,
-        GearScheduler: pallet_gear_scheduler,
-        GearGas: pallet_gear_gas,
-        Gear: pallet_gear,
-        GearPayment: pallet_gear_payment,
+        System: frame_system = 0,
+        Timestamp: pallet_timestamp = 1,
+        Authorship: pallet_authorship = 2,
+        Babe: pallet_babe = 3,
+        Grandpa: pallet_grandpa = 4,
+        Balances: pallet_balances = 5,
+        TransactionPayment: pallet_transaction_payment = 6,
+        Session: pallet_session = 7,
+        Utility: pallet_utility = 8,
+        Sudo: pallet_sudo = 99,
+
+        // Gear pallets
+        GearProgram: pallet_gear_program = 100,
+        GearMessenger: pallet_gear_messenger = 101,
+        GearScheduler: pallet_gear_scheduler = 102,
+        GearGas: pallet_gear_gas = 103,
+        Gear: pallet_gear = 104,
+        GearPayment: pallet_gear_payment = 105,
 
         // Only available with "debug-mode" feature on
-        GearDebug: pallet_gear_debug,
+        GearDebug: pallet_gear_debug = 199,
     }
 );
 
@@ -441,22 +451,24 @@ construct_runtime!(
         NodeBlock = runtime_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
-        System: frame_system,
-        Timestamp: pallet_timestamp,
-        Authorship: pallet_authorship,
-        Babe: pallet_babe,
-        Grandpa: pallet_grandpa,
-        Balances: pallet_balances,
-        TransactionPayment: pallet_transaction_payment,
-        Session: pallet_session,
-        Sudo: pallet_sudo,
-        Utility: pallet_utility,
-        GearProgram: pallet_gear_program,
-        GearMessenger: pallet_gear_messenger,
-        GearScheduler: pallet_gear_scheduler,
-        GearGas: pallet_gear_gas,
-        Gear: pallet_gear,
-        GearPayment: pallet_gear_payment,
+        System: frame_system = 0,
+        Timestamp: pallet_timestamp = 1,
+        Authorship: pallet_authorship = 2,
+        Babe: pallet_babe = 3,
+        Grandpa: pallet_grandpa = 4,
+        Balances: pallet_balances = 5,
+        TransactionPayment: pallet_transaction_payment = 6,
+        Session: pallet_session = 7,
+        Utility: pallet_utility = 8,
+        Sudo: pallet_sudo = 99,
+
+        // Gear pallets
+        GearProgram: pallet_gear_program = 100,
+        GearMessenger: pallet_gear_messenger = 101,
+        GearScheduler: pallet_gear_scheduler = 102,
+        GearGas: pallet_gear_gas = 103,
+        Gear: pallet_gear = 104,
+        GearPayment: pallet_gear_payment = 105,
     }
 );
 
@@ -475,7 +487,7 @@ pub type SignedExtra = (
     frame_system::CheckEra<Runtime>,
     frame_system::CheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
-    pallet_gear_payment::CustomChargeTransactionPayment<Runtime>,
+    CustomChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =

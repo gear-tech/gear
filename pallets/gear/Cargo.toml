@@ -13,13 +13,13 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
-primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
+primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"] }
 gear-wasm-instrument = { path = "../../utils/wasm-instrument", default-features = false }
 derive_more = "0.99.17"
-env_logger = { version = "0.9", optional = true }
+env_logger = { version = "0.10", optional = true }
 scopeguard = { version = "1.1.0", default-features = false }
 
 # Internal deps
@@ -32,6 +32,7 @@ gear-backend-common = { path = "../../core-backend/common", default-features = f
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 gear-backend-wasmi = { path = "../../core-backend/wasmi", default-features = false, optional = true }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
+gsys = { path = "../../gsys", optional = true }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
@@ -77,6 +78,7 @@ demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
 demo-proxy-relay = { path = "../../examples/binaries/proxy-relay" }
 demo-proxy-with-gas = { path = "../../examples/binaries/proxy-with-gas" }
+demo-proxy-reservation-with-gas = { path = "../../examples/binaries/proxy-reservation-with-gas" }
 demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
 demo-gasless-wasting = { path = "../../examples/binaries/gasless-wasting" }
 demo-gas-burned = { path = "../../examples/binaries/gas-burned" }
@@ -148,6 +150,7 @@ runtime-benchmarks = [
 	"rand_pcg",
 	"test-syscalls/wasm-wrapper",
 	"demo-proxy/wasm-wrapper",
+	"gsys",
 ]
 try-runtime = ["frame-support/try-runtime"]
 lazy-pages = ["gear-lazy-pages-common"]

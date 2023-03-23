@@ -59,7 +59,7 @@ use common::{
 use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
-    configs::{BlockConfig, BlockInfo, PagesConfig},
+    configs::{BlockConfig, BlockInfo},
     ContextChargedForInstrumentation,
 };
 use frame_support::{
@@ -73,10 +73,8 @@ use frame_support::{
     weights::Weight,
 };
 use frame_system::pallet_prelude::{BlockNumberFor, *};
-use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
-    costs::CostPerPage,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, PageBuf},
     message::*,
@@ -963,32 +961,26 @@ pub mod pallet {
             manager: &mut ExtManager<T>,
             program_id: ProgramId,
             pages_with_data: &BTreeSet<GearPage>,
+            lazy_pages_enabled: bool,
         ) -> Option<BTreeMap<GearPage, PageBuf>> {
-            #[cfg(feature = "lazy-pages")]
-            let memory_pages = {
-                // To calm clippy on unused argument.
-                let _ = pages_with_data;
-                assert!(lazy_pages::try_to_enable_lazy_pages(
-                    ProgramStorageOf::<T>::pages_final_prefix()
-                ));
+            let pages = if lazy_pages_enabled {
                 Default::default()
-            };
-
-            #[cfg(not(feature = "lazy-pages"))]
-            let memory_pages = match ProgramStorageOf::<T>::get_program_data_for_pages(
-                program_id,
-                pages_with_data.iter(),
-            ) {
-                Ok(data) => data,
-                Err(err) => {
-                    log::error!("Cannot get data for program pages: {err:?}");
-                    return None;
+            } else {
+                match ProgramStorageOf::<T>::get_program_data_for_pages(
+                    program_id,
+                    pages_with_data.iter(),
+                ) {
+                    Ok(data) => data,
+                    Err(err) => {
+                        log::error!("Cannot get data for program pages: {err:?}");
+                        return None;
+                    }
                 }
             };
 
             manager.insert_program_id_loaded_pages(program_id);
 
-            Some(memory_pages)
+            Some(pages)
         }
 
         pub(crate) fn block_config() -> BlockConfig {
@@ -1001,52 +993,27 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
-            let pages_config = PagesConfig {
-                max_pages: schedule.limits.memory_pages.into(),
-                lazy_pages_weights: LazyPagesWeights {
-                    signal_read: CostPerPage::new(schedule.memory_weights.lazy_pages_read),
-                    signal_write: CostPerPage::new(schedule.memory_weights.lazy_pages_write),
-                    signal_write_after_read: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_write_after_read,
-                    ),
-                    host_func_read_access: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_read,
-                    ),
-                    host_func_write_access: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_write,
-                    ),
-                    host_func_write_after_read_access: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_write_after_read,
-                    ),
-                    load_page_storage_data: CostPerPage::new(
-                        schedule.memory_weights.lazy_pages_read,
-                    ),
-                },
-                init_cost: schedule.memory_weights.initial_cost,
-                alloc_cost: schedule.memory_weights.allocation_cost,
-                mem_grow_cost: schedule.memory_weights.grow_cost,
-                load_page_cost: schedule.memory_weights.load_cost,
-            };
-
             BlockConfig {
                 block_info,
-                pages_config,
+                max_pages: schedule.limits.memory_pages.into(),
+                page_costs: schedule.memory_weights.clone().into(),
                 existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
                 host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: Default::default(),
                 mailbox_threshold: T::MailboxThreshold::get(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
                 reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
                 write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-                write_per_byte_cost: schedule.db_write_per_byte,
-                read_per_byte_cost: schedule.db_read_per_byte,
-                module_instantiation_byte_cost: schedule.module_instantiation_per_byte,
+                write_per_byte_cost: schedule.db_write_per_byte.ref_time(),
+                read_per_byte_cost: schedule.db_read_per_byte.ref_time(),
+                module_instantiation_byte_cost: schedule.module_instantiation_per_byte.ref_time(),
                 max_reservations: T::ReservationsLimit::get(),
-                code_instrumentation_cost: schedule.code_instrumentation_cost,
-                code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost,
+                code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
+                code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
             }
         }
 

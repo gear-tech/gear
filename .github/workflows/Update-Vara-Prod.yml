@@ -1,0 +1,134 @@
+name: Upgrade Vara Production
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+
+  tag-image:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.image-tag.outputs.tag }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Create image tag
+        id: image-tag
+        run: echo "tag=ghcr.io/gear-tech/node-vara:0.1.0-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
+        
+  docker:
+    runs-on: ubuntu-latest
+    needs: tag-image
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./docker/Vara-Dockerfile
+          push: true
+          tags: ghcr.io/gear-tech/node-vara:latest, ${{ needs.tag-image.outputs.image_tag }}
+
+  deploy-one-validator:
+    runs-on: ubuntu-latest
+    needs: [docker, tag-image ]
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Info
+        run: |
+            ls -l .
+            ls -l ../..
+            pwd
+      - name: Send telegram notify before run playbook
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            Attention! Instances will be temporarily unavailable!
+            ${{ github.actor }} run build with commit: "${{ github.event.commits[0].message }}"
+            Build number: ${{ github.run_number }}
+      - name: Run playbook
+        uses: dawidd6/action-ansible-playbook@v2
+        with:
+          # Required, playbook filepath
+          directory: ./ansible/
+          playbook: vara.yaml
+          # Optional, SSH private key
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          # Optional, literal inventory file contents
+          inventory: |
+            [gearNodes:children]
+            nodes
+            [nodes]
+            ${{secrets.VARA_NODE_2}} name=vara-gear02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            
+  deploy-all-validator:
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [deploy-one-validator, tag-image]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Info
+        run: |
+            ls -l .
+            ls -l ../..
+            pwd
+      - name: Send telegram notify before run playbook
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            Attention! Instances will be temporarily unavailable!
+            ${{ github.actor }} run build with commit: "${{ github.event.commits[0].message }}"
+            Build number: ${{ github.run_number }}
+      - name: Run playbook
+        uses: dawidd6/action-ansible-playbook@v2
+        with:
+          # Required, playbook filepath
+          directory: ./ansible/
+          playbook: vara.yaml
+          # Optional, SSH private key
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          # Optional, literal inventory file contents
+          inventory: |
+            [gearNodes:children]
+            bootnode
+            nodes
+            [bootnode]
+            ${{secrets.VARA_NODE}} name=vara-gear01 loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            [nodes]
+            ${{secrets.VARA_NODE_3}} name=vara-rpc-node rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_4}} name=vara-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_5}} name=vara-gear05 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_6}} name=vara-gear06 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_7}} name=vara-gear07 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_8}} name=vara-gear08 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_9}} name=vara-gear09 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_ARCHIVE_RPC}} name=vara-archive-rpc rpc=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+          

@@ -7,13 +7,14 @@ license = "GPL-3.0"
 
 [dependencies]
 wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
-arbitrary = { version = "1.2.3", features = ["derive"] }
+arbitrary = { version = "1.3.0", features = ["derive"] }
 gear-wasm-instrument = { path = "../wasm-instrument", default-features = false }
 wasmprinter = "0.2"
+gsys = { path = "../../gsys" }
 
 [dev-dependencies]
-rand = { version = "0.8.0", features = ["small_rng"] }
-wasmparser = { version = "0.99.0" }
-wat = "1.0.59"
+rand = { version = "0.8.5", features = ["small_rng"] }
+wasmparser = "0.101.1"
+wat = "1.0.61"
 indicatif = "*"
-proptest = "1.0.0"
+proptest = "1.1.0"

@@ -16,6 +16,7 @@ test_usage() {
     help           show help message and exit
 
     gear           run workspace tests
+    gcli           run gcli package tests
     js             run metadata js tests
     gtest          run gear-test testing tool,
                    you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
@@ -28,8 +29,20 @@ test_usage() {
 EOF
 }
 
+test_run_node() {
+  $EXE_RUNNER "$TARGET_DIR/release/gear$EXE_EXTENSION" "$@"
+}
+
 workspace_test() {
-  cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
+  if [ "$CARGO" = "cargo xwin" ]; then
+    $CARGO test --workspace "$@" --no-fail-fast
+  else
+    cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
+  fi
+}
+
+gcli_test() {
+  cargo +nightly nextest run -p gcli "$@" --profile ci --no-fail-fast
 }
 
 # $1 - ROOT DIR
@@ -75,7 +88,7 @@ rtest() {
     YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
   fi
 
-  $ROOT_DIR/target/release/gear runtime-spec-tests $YAMLS -l0 --runtime "$RUNTIME_STR" --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
+  test_run_node runtime-spec-tests $YAMLS -l0 --runtime "$RUNTIME_STR" --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
 }
 
 pallet_test() {
@@ -87,17 +100,7 @@ pallet_test() {
 }
 
 client_tests() {
-  ROOT_DIR="$1"
-
-  if [ "$2" = "--run-node" ]; then
-    # Run node
-    RUST_LOG="pallet_gear=debug,gear::runtime=debug" $ROOT_DIR/target/release/gear \
-      --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
-
-    cargo test -p gclient -- --test-threads 1 || pkill -f 'gear |gear$' -9 | pkill -f 'gear |gear$' -9
-  else
-    cargo test -p gclient -- --test-threads 1
-  fi
+  RUST_TEST_THREADS=1 $CARGO test -p gclient
 }
 
 validators() {
@@ -109,33 +112,17 @@ validators() {
 run_fuzzer() {
   ROOT_DIR="$1"
 
-  for i in "${@:2}"; do
-    case $i in
-      *_fuzz_target)
-        TARGET="${i}"
-        ;;
-      *)
-        FEATURES="$FEATURES ${i}"
-        ;;
-    esac
-  done
-
-  if [[ -z $TARGET ]]
-  then
-    TARGET="simple_fuzz_target"
-  fi
-
   # Navigate to fuzzer dir
-  cd $ROOT_DIR/utils/economic-checks
+  cd $ROOT_DIR/utils/runtime-fuzzer
 
   # Run fuzzer
-  RUST_LOG="essential,pallet_gear=debug,gear_core_processor::executor=debug,economic_checks=debug,gwasm=debug" \
-  cargo fuzz run --release "$FEATURES" --sanitizer=none "$TARGET"
+  RUST_LOG="debug,runtime_fuzzer_fuzz=debug,wasmi,libfuzzer_sys,node_fuzzer=debug,gear,pallet_gear,gear-core-processor,gear-backend-wasmi,gwasm'" \
+  cargo fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192
 }
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
 syscalls_integrity_test() {
-  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks
+  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks "$@"
 }
 
 doc_test() {

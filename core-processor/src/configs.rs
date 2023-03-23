@@ -22,25 +22,13 @@ use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
-    code,
     costs::{CostPerPage, HostFnWeights},
-    memory::WasmPage,
+    memory::{GearPage, WasmPage},
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
-const INIT_COST: u64 = 5000;
-const ALLOC_COST: u64 = 10000;
-const MEM_GROW_COST: u64 = 10000;
-const LOAD_PAGE_COST: u64 = 3000;
-const LAZY_PAGES_WEIGHTS: LazyPagesWeights = LazyPagesWeights {
-    signal_read: CostPerPage::new(10),
-    signal_write: CostPerPage::new(10),
-    signal_write_after_read: CostPerPage::new(10),
-    host_func_read_access: CostPerPage::new(10),
-    host_func_write_access: CostPerPage::new(10),
-    host_func_write_after_read_access: CostPerPage::new(10),
-    load_page_storage_data: CostPerPage::new(10),
-};
+/// Number of max pages number to use it in tests.
+pub const TESTS_MAX_PAGES_NUMBER: u16 = 512;
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]
@@ -52,31 +40,87 @@ pub struct BlockInfo {
 }
 
 /// Memory/allocation config.
-#[derive(Clone, Debug, Decode, Encode)]
-pub struct PagesConfig {
-    /// Max amount of pages.
-    pub max_pages: WasmPage,
-    /// Lazy-pages accesses costs.
-    pub lazy_pages_weights: LazyPagesWeights,
-    /// Cost of initial memory.
-    pub init_cost: u64,
-    /// Cost of allocating memory.
-    pub alloc_cost: u64,
-    /// Memory grow cost.
-    pub mem_grow_cost: u64,
-    /// Load page cost.
-    pub load_page_cost: u64,
+#[derive(Clone, Debug, Decode, Encode, Default)]
+pub struct PageCosts {
+    /// Cost per one [GearPage] signal `read` processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub signal_read: CostPerPage<GearPage>,
+
+    /// Cost per one [GearPage] signal `write` processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub signal_write: CostPerPage<GearPage>,
+
+    /// Cost per one [GearPage] signal `write after read` processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub lazy_pages_signal_write_after_read: CostPerPage<GearPage>,
+
+    /// Cost per one [GearPage] host func `read` access processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub lazy_pages_host_func_read: CostPerPage<GearPage>,
+
+    /// Cost per one [GearPage] host func `write` access processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub lazy_pages_host_func_write: CostPerPage<GearPage>,
+
+    /// Cost per one [GearPage] host func `write after read` access processing in lazy-pages,
+    /// it does not include cost for loading page data from storage.
+    pub lazy_pages_host_func_write_after_read: CostPerPage<GearPage>,
+
+    /// Cost per one [GearPage] data loading from storage
+    /// and moving it in program memory.
+    pub load_page_data: CostPerPage<GearPage>,
+
+    /// Cost per one [GearPage] uploading data to storage.
+    pub upload_page_data: CostPerPage<GearPage>,
+
+    /// Cost per one [WasmPage] static page. Static pages can have static data,
+    /// and executor must to move this data to static pages before execution.
+    pub static_page: CostPerPage<WasmPage>,
+
+    /// Cost per one [WasmPage] for memory growing.
+    pub mem_grow: CostPerPage<WasmPage>,
+
+    /// Cost per one [GearPage] storage read, when para-chain execution.
+    pub parachain_load_heuristic: CostPerPage<GearPage>,
 }
 
-impl Default for PagesConfig {
-    fn default() -> Self {
+impl PageCosts {
+    /// Calculates and returns weights for lazy-pages.
+    pub fn lazy_pages_weights(&self) -> LazyPagesWeights {
+        LazyPagesWeights {
+            signal_read: self.signal_read,
+            signal_write: self.signal_write.saturating_add(self.upload_page_data),
+            signal_write_after_read: self
+                .lazy_pages_signal_write_after_read
+                .saturating_add(self.upload_page_data),
+            host_func_read: self.lazy_pages_host_func_read,
+            host_func_write: self
+                .lazy_pages_host_func_write
+                .saturating_add(self.upload_page_data),
+            host_func_write_after_read: self
+                .lazy_pages_host_func_write_after_read
+                .saturating_add(self.upload_page_data),
+            load_page_storage_data: self
+                .load_page_data
+                .saturating_add(self.parachain_load_heuristic),
+        }
+    }
+    /// New one for tests usage.
+    pub fn new_for_tests() -> Self {
+        let a = 1000.into();
+        let b = 4000.into();
         Self {
-            max_pages: code::MAX_WASM_PAGE_COUNT.into(),
-            lazy_pages_weights: LAZY_PAGES_WEIGHTS,
-            init_cost: INIT_COST,
-            alloc_cost: ALLOC_COST,
-            mem_grow_cost: MEM_GROW_COST,
-            load_page_cost: LOAD_PAGE_COST,
+            signal_read: a,
+            signal_write: a,
+            lazy_pages_signal_write_after_read: a,
+            lazy_pages_host_func_read: a,
+            lazy_pages_host_func_write: a,
+            lazy_pages_host_func_write_after_read: a,
+            load_page_data: a,
+            upload_page_data: a,
+            static_page: b,
+            mem_grow: b,
+            parachain_load_heuristic: a,
         }
     }
 }
@@ -85,8 +129,10 @@ impl Default for PagesConfig {
 pub struct ExecutionSettings {
     /// Contextual block information.
     pub block_info: BlockInfo,
-    /// Allocation config.
-    pub pages_config: PagesConfig,
+    /// Max amount of pages in program memory during execution.
+    pub max_pages: WasmPage,
+    /// Pages costs.
+    pub page_costs: PageCosts,
     /// Minimal amount of existence for account.
     pub existential_deposit: u128,
     /// Weights of host functions.
@@ -97,6 +143,8 @@ pub struct ExecutionSettings {
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
+    /// Cost of holding a message in dispatch stash.
+    pub dispatch_hold_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
     /// Cost for reservation holding.
@@ -106,20 +154,15 @@ pub struct ExecutionSettings {
     pub random_data: (Vec<u8>, u32),
 }
 
-impl ExecutionSettings {
-    /// Max amount of pages.
-    pub fn max_pages(&self) -> WasmPage {
-        self.pages_config.max_pages
-    }
-}
-
 /// Stable parameters for the whole block across processing runs.
 #[derive(Clone)]
 pub struct BlockConfig {
     /// Block info.
     pub block_info: BlockInfo,
+    /// Max allowed page numbers for wasm program.
+    pub max_pages: WasmPage,
     /// Allocations config.
-    pub pages_config: PagesConfig,
+    pub page_costs: PageCosts,
     /// Existential deposit.
     pub existential_deposit: u128,
     /// Outgoing limit.
@@ -132,6 +175,8 @@ pub struct BlockConfig {
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
     pub waitlist_cost: u64,
+    /// Cost of holding a message in dispatch stash.
+    pub dispatch_hold_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
     /// Cost for reservation holding.

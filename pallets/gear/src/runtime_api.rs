@@ -95,10 +95,21 @@ where
         let mut block_config = Self::block_config();
         block_config.forbidden_funcs = [SysCallName::GasAvailable].into();
 
+        #[cfg(feature = "lazy-pages")]
+        let lazy_pages_enabled = {
+            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+                unreachable!("By some reasons we cannot run lazy-pages on this machine");
+            }
+            true
+        };
+
+        #[cfg(not(feature = "lazy-pages"))]
+        let lazy_pages_enabled = false;
+
         let mut min_limit = 0;
         let mut reserved = 0;
         let mut burned = 0;
-        let mut may_be_returned = 0;
 
         let mut ext_manager = ExtManager::<T>::default();
 
@@ -197,32 +208,18 @@ where
                     }
                 };
 
-                let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
-                let subsequent_burned = if !subsequent_execution {
-                    core_processor::precharge_for_memory(&block_config, context.clone(), true)
-                        .map(|c| c.gas_counter().burned())
-                        .unwrap_or(0)
-                } else {
-                    0
-                };
-
-                let context = match core_processor::precharge_for_memory(
-                    &block_config,
-                    context,
-                    subsequent_execution,
-                ) {
+                let context = match core_processor::precharge_for_memory(&block_config, context) {
                     Ok(c) => c,
                     Err(journal) => {
                         return journal;
                     }
                 };
 
-                may_be_returned += context.gas_counter().burned() - subsequent_burned;
-
                 let memory_pages = match Self::get_and_track_memory_pages(
                     &mut ext_manager,
                     program_id,
                     &context.actor_data().pages_with_data,
+                    lazy_pages_enabled,
                 ) {
                     None => unreachable!(),
                     Some(m) => m,
@@ -302,7 +299,7 @@ where
             min_limit,
             reserved,
             burned,
-            may_be_returned,
+            may_be_returned: 0,
             waited,
         })
     }
@@ -346,9 +343,12 @@ where
         argument: Option<Vec<u8>>,
     ) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
-        assert!(lazy_pages::try_to_enable_lazy_pages(
-            ProgramStorageOf::<T>::pages_final_prefix()
-        ));
+        {
+            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+                unreachable!("By some reasons we cannot run lazy-pages on this machine");
+            }
+        }
 
         let schedule = T::Schedule::get();
 
@@ -395,9 +395,12 @@ where
 
     pub(crate) fn read_state_impl(program_id: ProgramId) -> Result<Vec<u8>, String> {
         #[cfg(feature = "lazy-pages")]
-        assert!(lazy_pages::try_to_enable_lazy_pages(
-            ProgramStorageOf::<T>::pages_final_prefix()
-        ));
+        {
+            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+                unreachable!("By some reasons we cannot run lazy-pages on this machine");
+            }
+        }
 
         log::debug!("Reading state of {program_id:?}");
 
@@ -426,9 +429,12 @@ where
 
     pub(crate) fn read_metahash_impl(program_id: ProgramId) -> Result<H256, String> {
         #[cfg(feature = "lazy-pages")]
-        assert!(lazy_pages::try_to_enable_lazy_pages(
-            ProgramStorageOf::<T>::pages_final_prefix()
-        ));
+        {
+            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+                unreachable!("By some reasons we cannot run lazy-pages on this machine");
+            }
+        }
 
         log::debug!("Reading metahash of {program_id:?}");
 

@@ -28,7 +28,6 @@ use frame_support::{
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureRoot};
 use pallet_session::historical::{self as pallet_session_historical};
-// use sp_authority_discovery::AuthorityId;
 use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
     testing::{Block as TestBlock, Header, UintAuthorityId},
@@ -37,24 +36,10 @@ use sp_runtime::{
 };
 use sp_std::convert::{TryFrom, TryInto};
 
-// // Old way without testing singed extension
-// type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-// type Block = frame_system::mocking::MockBlock<Test>;
-// type AccountId = u64;
-
-pub(crate) type SignedExtra = (
-    pallet_gear_staking_rewards::StakingBlackList<Test>,
-    frame_system::CheckNonce<Test>,
-    frame_system::CheckWeight<Test>,
-);
+pub(crate) type SignedExtra = pallet_gear_staking_rewards::StakingBlackList<Test>;
 type TestXt = sp_runtime::testing::TestXt<RuntimeCall, SignedExtra>;
 type Block = TestBlock<TestXt>;
 type UncheckedExtrinsic = TestXt;
-
-// pub(crate) type UncheckedExtrinsic =
-//     frame_system::mocking::MockUncheckedExtrinsic<Test, TestSignature, SignedExtra>;
-// type Block = sp_runtime::generic::Block<Header, UncheckedExtrinsic>;
-// pub(crate) type Block = TestBlock<TestXt<RuntimeCall, SignedExtra>>;
 type AccountId = u64;
 
 pub(crate) type Executive = frame_executive::Executive<
@@ -89,7 +74,7 @@ pub(crate) const DOLLARS: u128 = UNITS; // 1 to 1
 pub(crate) const CENTS: u128 = DOLLARS / 100; // 1_000
 pub(crate) const MILLICENTS: u128 = CENTS / 1_000; // 1
 pub(crate) const MILLISECONDS_PER_YEAR: u64 = 1_000 * 3_600 * 24 * 36_525 / 100;
-pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_000;
+pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
 pub(crate) const SESSION_DURATION: u64 = 1000;
 
 // Configure a mock runtime to test the pallet.
@@ -110,6 +95,7 @@ construct_runtime!(
         Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
         BagsList: pallet_bags_list::<Instance1>::{Pallet, Event<T>},
         Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Utility: pallet_utility::{Pallet, Call, Event},
     }
 );
 
@@ -190,14 +176,42 @@ impl pallet_sudo::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
 }
+
+impl pallet_utility::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type WeightInfo = ();
+    type PalletsOrigin = OriginCaller;
+}
+
 // Filter that matches `pallet_staking::Pallet<T>::bond()` call
 pub struct BondCallFilter;
 impl Contains<RuntimeCall> for BondCallFilter {
     fn contains(call: &RuntimeCall) -> bool {
-        matches!(
-            call,
-            &RuntimeCall::Staking(pallet_staking::Call::bond { .. })
-        )
+        match call {
+            RuntimeCall::Staking(pallet_staking::Call::bond { .. }) => true,
+            RuntimeCall::Utility(utility_call) => {
+                match utility_call {
+                    pallet_utility::Call::batch { calls }
+                    | pallet_utility::Call::batch_all { calls }
+                    | pallet_utility::Call::force_batch { calls } => {
+                        for c in calls {
+                            if Self::contains(c) {
+                                return true;
+                            }
+                        }
+                    }
+                    pallet_utility::Call::as_derivative { call, .. }
+                    | pallet_utility::Call::dispatch_as { call, .. }
+                    | pallet_utility::Call::with_weight { call, .. } => {
+                        return Self::contains(call);
+                    }
+                    _ => (),
+                }
+                false
+            }
+            _ => false,
+        }
     }
 }
 
@@ -280,7 +294,7 @@ parameter_types! {
     pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
     pub const MaxActiveValidators: u32 = 100;
     pub const OffchainRepeat: u64 = 5;
-    pub const HistoryDepth: u32 = 24;
+    pub const HistoryDepth: u32 = 84;
     pub const MaxNominations: u32 = 16;
     pub const MaxElectingVoters: u32 = 40_000;
     pub const MaxElectableTargets: u16 = 10_000;
@@ -307,7 +321,7 @@ impl pallet_staking::Config for Test {
     type CurrencyToVote = U128CurrencyToVote;
     type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
-    type RewardRemainder = pallet_gear_staking_rewards::RewardsStash<Self, Treasury>;
+    type RewardRemainder = ();
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury;
     type Reward = StakingRewards;
@@ -498,12 +512,6 @@ impl ExtBuilder {
             .assimilate_storage(&mut storage)
             .unwrap();
 
-        // GenesisBuild::<Test>::assimilate_storage(
-        //     &AuthorityDiscoveryConfig { keys: vec![] },
-        //     &mut storage,
-        // )
-        // .unwrap();
-
         GenesisBuild::<Test>::assimilate_storage(&TreasuryConfig {}, &mut storage).unwrap();
 
         SessionConfig {
@@ -603,7 +611,7 @@ pub(crate) fn run_for_n_blocks(n: u64) {
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
     System::on_initialize(new_block_number);
-    Timestamp::set_timestamp(new_block_number.saturating_mul(2000));
+    Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
     Balances::on_initialize(new_block_number);
     Authorship::on_initialize(new_block_number);
     Session::on_initialize(new_block_number);
