@@ -20,7 +20,7 @@
 
 use std::time::Duration;
 
-use gclient::{EventProcessor, GearApi, Node};
+use gclient::{EventProcessor, GearApi};
 
 const PATHS: [&str; 2] = [
     "../target/wat-examples/wrong_load.wasm",
@@ -84,8 +84,9 @@ async fn harmless_upload() -> anyhow::Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice, than re-login as Bob.
-    let node = Node::try_from_path("../target/release/gear")?;
-    let api = GearApi::node(&node).await?.clone().with("//Bob")?;
+    let api = GearApi::dev_from_path("../target/release/gear")
+        .await?
+        .with("//Bob")?;
 
     upload_programs_and_check(&api, codes, None).await?;
 
@@ -110,8 +111,9 @@ async fn alloc_zero_pages() -> anyhow::Result<()> {
                 drop
             )
         )"#;
-    let node = Node::try_from_path("../target/release/gear")?;
-    let api = GearApi::node(&node).await?.clone().with("//Bob")?;
+    let api = GearApi::dev_from_path("../target/release/gear")
+        .await?
+        .with("//Bob")?;
     let codes = vec![wat::parse_str(wat_code).unwrap()];
     upload_programs_and_check(&api, codes, Some(Duration::from_secs(5))).await
 }
@@ -121,8 +123,9 @@ async fn get_mailbox() -> anyhow::Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice, than re-login as Bob.
-    let node = Node::try_from_path("../target/release/gear")?;
-    let api = GearApi::node(&node).await?.clone().with("//Bob")?;
+    let api = GearApi::dev_from_path("../target/release/gear")
+        .await?
+        .with("//Bob")?;
 
     // Subscribe to events
     let mut listener = api.subscribe().await?;
