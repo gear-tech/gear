@@ -20,10 +20,11 @@
 //! that acts as an oracle to certify whether a proposal is good and can be
 //! submitted within an agile track yet being of high impact
 
-use frame_support::traits::MapSuccess;
+use frame_support::traits::{MapSuccess, TryMapSuccess};
+use sp_arithmetic::traits::CheckedSub;
 use sp_runtime::{
     morph_types,
-    traits::{CheckedSub, ConstU16, Replace, TypedGet},
+    traits::{ConstU16, Replace, TypedGet},
 };
 
 use super::*;
@@ -148,9 +149,9 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 
         match Origin::try_from(id.clone()) {
             Ok(Origin::FellowshipInitiates) => Ok(0),
-            Ok(Origin::Fellows) => Ok(1),
-            Ok(Origin::FellowshipExperts) => Ok(2),
-            Ok(Origin::FellowshipMasters) => Ok(3),
+            Ok(Origin::Fellowship1Dan) | Ok(Origin::Fellows) => Ok(1),
+            Ok(Origin::Fellowship2Dan) | Ok(Origin::FellowshipExperts) => Ok(2),
+            Ok(Origin::Fellowship3Dan) | Ok(Origin::FellowshipMasters) => Ok(3),
             _ => Err(()),
         }
     }
@@ -196,16 +197,24 @@ impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime 
     // Promotion is by any of:
     // - Root can demote arbitrarily.
     // - the FellowshipAdmin origin (i.e. token holder referendum);
+    // - a vote by the rank *above* the new rank.
     type PromoteOrigin = EitherOf<
         frame_system::EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>,
-        MapSuccess<FellowshipAdmin, Replace<ConstU16<3>>>,
+        EitherOf<
+            MapSuccess<FellowshipAdmin, Replace<ConstU16<3>>>,
+            TryMapSuccess<origins::EnsureFellowship, CheckedReduceBy<ConstU16<1>>>,
+        >,
     >;
     // Demotion is by any of:
     // - Root can demote arbitrarily.
     // - the FellowshipAdmin origin (i.e. token holder referendum);
+    // - a vote by the rank *above* the current rank.
     type DemoteOrigin = EitherOf<
         frame_system::EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>,
-        MapSuccess<FellowshipAdmin, Replace<ConstU16<3>>>,
+        EitherOf<
+            MapSuccess<FellowshipAdmin, Replace<ConstU16<3>>>,
+            TryMapSuccess<origins::EnsureFellowship, CheckedReduceBy<ConstU16<1>>>,
+        >,
     >;
     type Polls = FellowshipReferenda;
     type MinRankOfClass = sp_runtime::traits::Identity;
