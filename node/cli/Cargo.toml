@@ -59,7 +59,7 @@ gcli = { path = "../../gcli", optional = true }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 
 [features]
-default = ["gear-native", "vara-native", "lazy-pages"]
+default = ["gear-native", "vara-native", "lazy-pages", "runtime-benchmarks"]
 gear-native = [
 	"service/gear-native",
 	"gear-runtime-test-cli?/gear-native",

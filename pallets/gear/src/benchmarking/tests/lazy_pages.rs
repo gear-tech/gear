@@ -283,7 +283,6 @@ where
                 source,
                 HandleKind::Handle(program_id),
                 vec![],
-                0..0,
                 Default::default(),
             )
             .unwrap();
@@ -367,7 +366,6 @@ where
                 instance.caller.into_origin(),
                 HandleKind::Handle(ProgramId::from_origin(instance.addr)),
                 vec![],
-                0..0,
                 Default::default(),
             )
             .unwrap();
@@ -531,7 +529,6 @@ where
             source,
             HandleKind::Handle(ProgramId::from_origin(origin)),
             vec![],
-            0..0,
             Default::default(),
         )
         .unwrap();
@@ -570,7 +567,6 @@ where
             source,
             HandleKind::Handle(ProgramId::from_origin(origin)),
             vec![],
-            0..0,
             PrepareConfig {
                 gas_limit: gas_burned,
                 ..Default::default()
@@ -613,7 +609,6 @@ where
             source,
             HandleKind::Handle(ProgramId::from_origin(origin)),
             vec![],
-            0..0,
             PrepareConfig {
                 gas_allowance: gas_burned,
                 ..Default::default()

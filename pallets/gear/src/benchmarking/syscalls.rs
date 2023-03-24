@@ -24,7 +24,7 @@ use super::{
         max_pages, DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
     },
     utils::{self, PrepareConfig},
-    Exec, Program,
+    Exec, Program, API_BENCHMARK_BATCHES,
 };
 use crate::{
     benchmarking::MAX_PAYLOAD_LEN, manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE, Config,
@@ -58,24 +58,20 @@ where
     T: Config,
     T::AccountId: Origin,
 {
+    const OFFSET: u32 = 1;
     // size of error length field
     const ERR_LEN_SIZE: u32 = size_of::<u32>() as u32;
     const GR_DEBUG_STRING_LEN: u32 = 100;
     const GR_READ_BUFFER_LEN: u32 = 100;
     const MAX_PAGES: u16 = 64;
 
-    fn prepare_handle(
-        code: WasmModule<T>,
-        value: u32,
-        err_len_ptrs: Range<u32>,
-    ) -> Result<Exec<T>, &'static str> {
-        let instance = Program::<T>::new(code, vec![])?;
+    fn prepare_handle(module: WasmModule<T>, value: u32) -> Result<Exec<T>, &'static str> {
+        let instance = Program::<T>::new(module, vec![])?;
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
-            err_len_ptrs,
             PrepareConfig {
                 value: value.into(),
                 ..Default::default()
@@ -88,7 +84,7 @@ where
     }
 
     pub fn alloc(r: u32) -> Result<Exec<T>, &'static str> {
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory { min_pages: 0 }),
             imported_functions: vec![SysCallName::Alloc],
             handle_body: Some(body::repeated(
@@ -101,8 +97,10 @@ where
                 ],
             )),
             ..Default::default()
-        });
-        Self::prepare_handle(code, 0, 0..0)
+        }
+        .into();
+
+        Self::prepare_handle(module, 0)
     }
 
     pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
@@ -122,74 +120,87 @@ where
         }
         instructions.push(End);
 
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory { min_pages: 0 }),
             imported_functions: vec![SysCallName::Alloc, SysCallName::Free],
             init_body: None,
             handle_body: Some(body::plain(instructions)),
             ..Default::default()
-        });
-        Self::prepare_handle(code, 0, 0..0)
+        }
+        .into();
+
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let err_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
-        let mailbox_threshold = <T as Config>::MailboxThreshold::get(); // It is not allowed to reserve less than mailbox threshold
+        // It is not allowed to reserve less than mailbox threshold
+        let mailbox_threshold = <T as Config>::MailboxThreshold::get();
 
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::ReserveGas],
-            handle_body: Some(body::repeated_dyn(
+            handle_body: Some(body::syscall_repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
-                vec![
+                Self::OFFSET,
+                &[
                     // gas amount
-                    Regular(Instruction::I64Const(mailbox_threshold as i64)),
+                    Instruction::I64Const(mailbox_threshold as i64),
                     // duration
-                    Regular(Instruction::I32Const(1)),
+                    Instruction::I32Const(1),
                     // err_rid ptr
-                    Counter(1, Self::ERR_LEN_SIZE),
+                    Instruction::I32Const(Self::OFFSET as i32),
                     // CALL
-                    Regular(Instruction::Call(0)),
+                    Instruction::Call(0),
                 ],
             )),
             ..Default::default()
-        });
-        Self::prepare_handle(code, 0, err_ptrs)
+        }
+        .into();
+
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_unreserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let reservation_id_offset = 1;
-        let reservation_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let max_repetitions = API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE;
+        assert!(repetitions <= max_repetitions);
+
+        // Store max repetitions for any `r` to exclude data segments size contribution.
+        let reservation_id_offset = Self::OFFSET as u32;
+        let reservation_id_bytes: Vec<u8> = (0..max_repetitions)
             .map(|i| ReservationId::from(i as u64))
-            .collect::<Vec<_>>();
-        let reservation_id_bytes: Vec<u8> =
-            reservation_ids.iter().flat_map(|x| x.encode()).collect();
+            .flat_map(|x| x.encode())
+            .collect();
+        let res_offset = reservation_id_offset + reservation_id_bytes.len() as u32;
 
-        let err_offset = reservation_id_offset + reservation_id_bytes.len() as u32;
-        let err_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
+        // Any changes in memory will be in stack memory.
+        let stack_end = WasmPage::from_offset(res_offset + Self::ERR_LEN_SIZE + WasmPage::size());
 
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::UnreserveGas],
             data_segments: vec![DataSegment {
                 offset: reservation_id_offset,
                 value: reservation_id_bytes,
             }],
-            handle_body: Some(body::repeated_dyn(
-                r * API_BENCHMARK_BATCH_SIZE,
-                vec![
+            handle_body: Some(body::syscall_repeated_dyn(
+                repetitions,
+                res_offset,
+                &[
                     // reservation_id ptr
                     Counter(reservation_id_offset, size_of::<ReservationId>() as u32),
-                    // err_unreserved ptr
-                    Counter(err_offset, Self::ERR_LEN_SIZE),
+                    // result ptr
+                    Regular(Instruction::I32Const(res_offset as i32)),
                     // CALL
                     Regular(Instruction::Call(0)),
                 ],
             )),
+            stack_end: Some(stack_end),
             ..Default::default()
-        });
+        }
+        .into();
 
-        let instance = Program::<T>::new(code, vec![])?;
+        let instance = Program::<T>::new(module, vec![])?;
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
@@ -211,42 +222,35 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
-            err_ptrs,
             Default::default(),
         )
     }
 
     pub fn gr_system_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let err_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
-
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::SystemReserveGas],
-            handle_body: Some(body::repeated_dyn(
+            handle_body: Some(body::syscall_repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
-                vec![
+                Self::OFFSET,
+                &[
                     // gas amount
-                    Regular(Instruction::I64Const(50_000_000)),
+                    Instruction::I64Const(50_000_000),
                     // err len ptr
-                    Counter(1, Self::ERR_LEN_SIZE),
+                    Instruction::I32Const(Self::OFFSET as i32),
                     // CALL
-                    Regular(Instruction::Call(0)),
+                    Instruction::Call(0),
                 ],
             )),
             ..Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-            vec![],
-            err_ptrs,
-            Default::default(),
-        )
+        }
+        .into();
+
+        Self::prepare_handle(module, 0)
     }
 
     pub fn getter(name: SysCallName, r: u32) -> Result<Exec<T>, &'static str> {
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![name],
             handle_body: Some(body::repeated(
@@ -259,45 +263,44 @@ where
                 ],
             )),
             ..Default::default()
-        });
-        Self::prepare_handle(code, 0, 0..0)
+        }
+        .into();
+
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_read(r: u32) -> Result<Exec<T>, &'static str> {
-        let buffer_offset = 1;
+        let buffer_offset = Self::OFFSET;
         let buffer_len = Self::GR_READ_BUFFER_LEN;
-
         let err_len_offset = buffer_offset + buffer_len;
-        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_len_offset);
 
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Read],
-            handle_body: Some(body::repeated_dyn(
+            handle_body: Some(body::syscall_repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
-                vec![
+                err_len_offset,
+                &[
                     // at
-                    Regular(Instruction::I32Const(0)),
+                    Instruction::I32Const(0),
                     // len
-                    Regular(Instruction::I32Const(buffer_len as i32)),
+                    Instruction::I32Const(buffer_len as i32),
                     // buffer ptr
-                    Regular(Instruction::I32Const(buffer_offset as i32)),
+                    Instruction::I32Const(buffer_offset as i32),
                     // err len ptr
-                    Counter(err_len_offset, Self::ERR_LEN_SIZE),
+                    Instruction::I32Const(err_len_offset as i32),
                     // CALL
-                    Regular(Instruction::Call(0)),
+                    Instruction::Call(0),
                 ],
             )),
             ..Default::default()
-        });
+        };
 
-        let instance = Program::<T>::new(code, vec![])?;
-
+        let instance = Program::<T>::new(module.into(), vec![])?;
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![0; (buffer_len + buffer_offset) as usize],
-            err_len_ptrs,
             Default::default(),
         )
     }
@@ -344,7 +347,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![0xff; MAX_PAYLOAD_LEN as usize],
-            0..0,
             Default::default(),
         )
     }
@@ -370,64 +372,63 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, 0..0)
+        Self::prepare_handle(code, 0)
     }
 
     pub fn gr_send_init(r: u32) -> Result<Exec<T>, &'static str> {
-        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, 1);
-
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::SendInit],
-            handle_body: Some(body::repeated_dyn(
+            handle_body: Some(body::syscall_repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
-                vec![
+                Self::OFFSET,
+                &[
                     // err_handle ptr
-                    Counter(1, Self::ERR_LEN_SIZE),
+                    Instruction::I32Const(Self::OFFSET as i32),
                     // CALL
-                    Regular(Instruction::Call(0)),
+                    Instruction::Call(0),
                 ],
             )),
             ..Default::default()
-        });
-        Self::prepare_handle(code, 0, err_len_ptrs)
+        };
+        Self::prepare_handle(module.into(), 0)
     }
 
+    // TODO: add check for send init #+_+_+
     pub fn gr_send_push(r: u32) -> Result<Exec<T>, &'static str> {
-        let payload_offset = 1;
+        let payload_offset = Self::OFFSET;
         let payload_len = 100u32;
+        let init_res_offset = payload_offset + payload_len;
+        let push_res_offset = init_res_offset + 8;
 
-        let err_handle_ptr = payload_offset + payload_len;
-
-        let err_offset = err_handle_ptr + 8;
-        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
-
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::SendInit, SysCallName::SendPush],
-            handle_body: Some(body::repeated_dyn(
+            handle_body: Some(body::syscall_repeated(
                 r * API_BENCHMARK_BATCH_SIZE,
-                vec![
+                push_res_offset,
+                &[
                     // err_handle ptr for send_init
-                    Regular(Instruction::I32Const(err_handle_ptr as i32)),
+                    Instruction::I32Const(init_res_offset as i32),
                     // CALL init
-                    Regular(Instruction::Call(0)),
+                    Instruction::Call(0),
                     // handle
-                    Regular(Instruction::I32Const((err_handle_ptr + 4) as i32)),
-                    Regular(Instruction::I32Load(2, 0)),
+                    Instruction::I32Const((init_res_offset + 4) as i32),
+                    Instruction::I32Load(2, 0),
                     // payload ptr
-                    Regular(Instruction::I32Const(payload_offset as i32)),
+                    Instruction::I32Const(payload_offset as i32),
                     // payload len
-                    Regular(Instruction::I32Const(payload_len as i32)),
+                    Instruction::I32Const(payload_len as i32),
                     // err len ptr
-                    Counter(err_offset, Self::ERR_LEN_SIZE),
+                    Instruction::I32Const(push_res_offset as i32),
                     // CALL push
-                    Regular(Instruction::Call(1)),
+                    Instruction::Call(1),
                 ],
             )),
             ..Default::default()
-        });
-        Self::prepare_handle(code, 0, err_len_ptrs)
+        };
+
+        Self::prepare_handle(module.into(), 0)
     }
 
     // TODO: investigate how handle changes can affect on syscall perf (issue #1722).
@@ -465,7 +466,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, err_len_ptrs)
+        Self::prepare_handle(code, 0)
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -506,7 +507,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 10000000, err_len_ptrs)
+        Self::prepare_handle(code, 10000000)
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -547,7 +548,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 10000000, err_len_ptrs)
+        Self::prepare_handle(code, 10000000)
     }
 
     // Benchmark the `gr_reservation_send_commit` call.
@@ -618,7 +619,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
-            err_len_ptrs,
             Default::default(),
         )
     }
@@ -691,7 +691,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
-            err_len_ptrs,
             Default::default(),
         )
     }
@@ -720,7 +719,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 10000000, err_len_ptrs)
+        Self::prepare_handle(code, 10000000)
     }
 
     pub fn gr_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
@@ -750,7 +749,7 @@ where
             ])),
             ..Default::default()
         });
-        Self::prepare_handle(code, 10000000, err_len_ptrs)
+        Self::prepare_handle(code, 10000000)
     }
 
     pub fn gr_reply_push(r: u32) -> Result<Exec<T>, &'static str> {
@@ -778,7 +777,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 10000000, err_len_ptrs)
+        Self::prepare_handle(code, 10000000)
     }
 
     pub fn gr_reply_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
@@ -804,7 +803,7 @@ where
             ])),
             ..Default::default()
         });
-        Self::prepare_handle(code, 10000000, err_len_ptrs)
+        Self::prepare_handle(code, 10000000)
     }
 
     pub fn gr_reservation_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {
@@ -866,7 +865,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
-            err_len_ptrs,
             Default::default(),
         )
     }
@@ -936,7 +934,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
-            err_len_ptrs,
             Default::default(),
         )
     }
@@ -977,7 +974,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Reply(msg_id, 0),
             vec![],
-            err_len_ptrs,
             Default::default(),
         )
     }
@@ -997,7 +993,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, 0..0)
+        Self::prepare_handle(code, 0)
     }
 
     pub fn gr_reply_push_input(r: u32) -> Result<Exec<T>, &'static str> {
@@ -1030,7 +1026,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
-            err_len_ptrs,
             Default::default(),
         )
     }
@@ -1061,7 +1056,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
-            err_len_ptrs,
             Default::default(),
         )
     }
@@ -1108,7 +1102,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
-            err_len_ptrs,
             Default::default(),
         )
     }
@@ -1155,7 +1148,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![1u8; payload_len as usize],
-            err_len_ptrs,
             Default::default(),
         )
     }
@@ -1196,7 +1188,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Reply(msg_id, 0),
             vec![],
-            err_len_ptrs,
             Default::default(),
         )
     }
@@ -1221,7 +1212,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, 0..0)
+        Self::prepare_handle(code, 0)
     }
 
     pub fn gr_debug_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
@@ -1254,7 +1245,7 @@ where
             ..Default::default()
         });
 
-        Self::prepare_handle(code, 0, 0..0)
+        Self::prepare_handle(code, 0)
     }
 
     pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
@@ -1284,7 +1275,7 @@ where
             ..Default::default()
         });
 
-        Self::prepare_handle(code, 0, err_len_ptrs)
+        Self::prepare_handle(code, 0)
     }
 
     pub fn termination_bench(
@@ -1308,7 +1299,7 @@ where
             handle_body: Some(body::repeated(r, &instructions)),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, 0..0)
+        Self::prepare_handle(code, 0)
     }
 
     pub fn gr_wake(r: u32) -> Result<Exec<T>, &'static str> {
@@ -1350,7 +1341,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![],
-            err_len_ptrs,
             Default::default(),
         )
     }
@@ -1415,7 +1405,7 @@ where
             )),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, err_len_ptrs)
+        Self::prepare_handle(code, 0)
     }
 
     pub fn gr_create_program_wgas_per_kb(pkb: u32, skb: u32) -> Result<Exec<T>, &'static str> {
@@ -1472,7 +1462,7 @@ where
             ..Default::default()
         });
 
-        Self::prepare_handle(code, 0, err_len_ptrs)
+        Self::prepare_handle(code, 0)
     }
 
     pub fn lazy_pages_signal_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
@@ -1482,7 +1472,7 @@ where
             handle_body: Some(body::from_instructions(instrs)),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, 0..0)
+        Self::prepare_handle(code, 0)
     }
 
     pub fn lazy_pages_signal_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
@@ -1492,7 +1482,7 @@ where
             handle_body: Some(body::from_instructions(instrs)),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, 0..0)
+        Self::prepare_handle(code, 0)
     }
 
     pub fn lazy_pages_signal_write_after_read(
@@ -1505,7 +1495,7 @@ where
             handle_body: Some(body::from_instructions(instrs)),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, 0..0)
+        Self::prepare_handle(code, 0)
     }
 
     pub fn lazy_pages_load_page_storage_data(
@@ -1540,7 +1530,7 @@ where
             ])),
             ..Default::default()
         });
-        Self::prepare_handle(code, 0, 0..0)
+        Self::prepare_handle(code, 0)
     }
 
     pub fn lazy_pages_host_func_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
@@ -1568,7 +1558,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![0xff; MAX_PAYLOAD_LEN as usize],
-            0..0,
             Default::default(),
         )
     }
@@ -1606,7 +1595,6 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
             vec![0xff; MAX_PAYLOAD_LEN as usize],
-            0..0,
             Default::default(),
         )
     }

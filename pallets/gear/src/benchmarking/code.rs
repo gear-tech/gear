@@ -28,7 +28,10 @@
 use crate::Config;
 use common::Origin;
 use frame_support::traits::Get;
-use gear_core::ids::CodeId;
+use gear_core::{
+    ids::CodeId,
+    memory::{PageU32Size, WasmPage},
+};
 use gear_wasm_instrument::{
     parity_wasm::{
         builder,
@@ -37,6 +40,7 @@ use gear_wasm_instrument::{
         },
     },
     syscalls::SysCallName,
+    STACK_END_EXPORT_NAME,
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory},
@@ -90,6 +94,8 @@ pub struct ModuleDefinition {
     /// benchmark the overhead of loading and storing codes of specified sizes. The dummy
     /// section only contributes to the size of the program but does not affect execution.
     pub dummy_section: u32,
+    /// +_+_+
+    pub stack_end: Option<WasmPage>,
 }
 
 pub struct TableSegment {
@@ -264,6 +270,21 @@ where
             }
         }
 
+        // Add stack end export.
+        // Default is one, in order to remove lazy-pages factor from most benches.
+        let stack_end = def.stack_end.unwrap_or(1.into());
+        program = program
+            .global()
+            .value_type()
+            .i32()
+            .init_expr(Instruction::I32Const(stack_end.offset() as i32))
+            .build()
+            .export()
+            .field(STACK_END_EXPORT_NAME)
+            .internal()
+            .global(def.num_globals)
+            .build();
+
         // Add function pointer table
         if let Some(table) = def.table {
             program = program
@@ -417,6 +438,7 @@ pub mod body {
     /// When generating contract code by repeating a wasm sequence, it's sometimes necessary
     /// to change those instructions on each repetition. The variants of this enum describe
     /// various ways in which this can happen.
+    #[derive(Debug, Clone)]
     pub enum DynInstr {
         /// Insert the associated instruction.
         Regular(Instruction),
@@ -582,6 +604,14 @@ pub mod body {
         )
     }
 
+    pub fn to_dyn(instructions: &[Instruction]) -> Vec<DynInstr> {
+        instructions
+            .iter()
+            .cloned()
+            .map(DynInstr::Regular)
+            .collect()
+    }
+
     pub fn with_result_check(res_offset: u32, instrs: &[Instruction]) -> Vec<Instruction> {
         let mut res = vec![Instruction::Block(BlockType::NoResult)];
         res.extend_from_slice(instrs);
@@ -594,6 +624,39 @@ pub mod body {
             Instruction::End,
         ]);
         res
+    }
+
+    pub fn with_result_check_dyn(res_offset: u32, instructions: &[DynInstr]) -> Vec<DynInstr> {
+        let mut res = to_dyn(&[
+            Instruction::Block(BlockType::NoResult),
+            Instruction::I32Const(res_offset as i32),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Eqz,
+            Instruction::BrIf(0),
+            Instruction::Unreachable,
+            Instruction::End,
+        ]);
+        res.splice(1..1, instructions.iter().cloned());
+        res
+    }
+
+    pub fn syscall_repeated(
+        repetitions: u32,
+        res_offset: u32,
+        instructions: &[Instruction],
+    ) -> FuncBody {
+        let instructions = to_dyn(instructions);
+        let instructions = with_result_check_dyn(res_offset, &instructions);
+        repeated_dyn(repetitions, instructions)
+    }
+
+    pub fn syscall_repeated_dyn(
+        repetitions: u32,
+        res_offset: u32,
+        instructions: &[DynInstr],
+    ) -> FuncBody {
+        let instructions = with_result_check_dyn(res_offset, instructions);
+        repeated_dyn(repetitions, instructions)
     }
 
     pub fn repeated_dyn(repetitions: u32, instructions: Vec<DynInstr>) -> FuncBody {
