@@ -8,7 +8,7 @@ workspace = "../../../"
 
 [dependencies]
 demo-meta-io = { path = "io" }
-gstd = { path = "../../../gstd", features = ["debug"] }
+gstd = { workspace = true, features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
 demo-meta-state-v1 = { path = "state-v1", default-features = false, optional = true }
 demo-meta-state-v2 = { path = "state-v2", default-features = false, optional = true }
@@ -16,10 +16,10 @@ demo-meta-state-v3 = { path = "state-v3", default-features = false, optional = t
 
 [build-dependencies]
 demo-meta-io = { path = "io" }
-gear-wasm-builder = { path = "../../../utils/wasm-builder" }
+gear-wasm-builder = { workspace = true }
 
 [dev-dependencies]
-gtest = { path = "../../../gtest" }
+gtest = { workspace = true }
 
 [features]
 default = ["std"]
