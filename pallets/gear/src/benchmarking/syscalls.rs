@@ -31,7 +31,6 @@ use crate::{
     MailboxOf, Pallet as Gear, ProgramStorageOf,
 };
 use alloc::{vec, vec::Vec};
-use codec::Encode;
 use common::{benchmarking, storage::*, Origin, ProgramStorage};
 use core::{marker::PhantomData, mem, mem::size_of, ops::Range};
 use frame_system::RawOrigin;
@@ -43,7 +42,7 @@ use gear_core::{
 };
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
 use sp_core::Get;
-use sp_runtime::traits::UniqueSaturatedInto;
+use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
 
 pub(crate) struct Benches<T>
 where
