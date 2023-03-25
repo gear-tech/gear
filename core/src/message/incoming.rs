@@ -23,9 +23,11 @@ use crate::{
         StoredMessage, Value,
     },
 };
-use codec::{Decode, Encode};
 use core::ops::Deref;
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Incoming message.
 ///

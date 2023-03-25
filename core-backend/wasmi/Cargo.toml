@@ -23,4 +23,4 @@ gear-backend-common = { workspace = true, features = ["mock"] }
 
 [features]
 default = ["std"]
-std = ["wasmi/virtual_memory", "gear-wasm-instrument/std", "log/std"]
+std = ["wasmi/virtual_memory", "wasmi/std", "gear-wasm-instrument/std", "log/std"]

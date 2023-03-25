@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-codec = { package = "parity-scale-codec", workspace = true, features = ["derive", "full"] }
 scale-info = { workspace = true }
 blake2-rfc = { workspace = true }
 hex = { workspace = true, features = ["alloc"] }

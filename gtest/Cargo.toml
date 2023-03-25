@@ -9,7 +9,7 @@ license = "GPL-3.0"
 gear-core = { workspace = true }
 gear-core-errors = { workspace = true }
 gear-backend-common = { workspace = true }
-gear-backend-wasmi = { workspace = true }
+gear-backend-wasmi = { workspace = true, features = [ "std" ] }
 core-processor = { workspace = true }
 gear-wasm-builder = { workspace = true }
 

@@ -27,7 +27,6 @@ use crate::{
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use codec::{Decode, Encode};
 use gear_backend_common::SystemReservationContext;
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
@@ -35,10 +34,12 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{DispatchKind, IncomingDispatch, MessageWaitedType},
 };
+use scale_info::scale::{self, Decode, Encode};
 use scale_info::TypeInfo;
 
 /// Operation related to gas charging.
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+#[codec(crate = scale)]
 pub enum PreChargeGasOperation {
     /// Handle memory static pages.
     #[display(fmt = "handle memory static pages")]

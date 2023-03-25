@@ -22,7 +22,6 @@
 
 use crate::BackendExt;
 use alloc::vec::Vec;
-use codec::{Decode, DecodeAll, Encode, MaxEncodedLen};
 use core::{
     fmt::Debug,
     marker::PhantomData,
@@ -36,9 +35,11 @@ use gear_core::{
     memory::{Memory, MemoryInterval},
 };
 use gear_core_errors::MemoryError;
+use scale_info::scale::{self, Decode, DecodeAll, Encode, MaxEncodedLen};
 
 /// Memory access error during sys-call that lazy-pages have caught.
 #[derive(Debug, Clone, Encode, Decode)]
+#[codec(crate = scale)]
 pub enum ProcessAccessError {
     OutOfBounds,
     GasLimitExceeded,

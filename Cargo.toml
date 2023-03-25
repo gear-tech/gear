@@ -361,7 +361,7 @@ nix = "0.26.2"                                                # gear-lazy-pages
 nonempty = "0.8.1"                                            # utils/utils
 libfuzzer-sys = "0.4"                                         # utils/runtime-fuzzer/fuzz
 pwasm-utils = "0.19.0"                                        # utils/wasm-builder
-page_size = { version = "0.2.1", default-features = false }   # pallets/gear
+page_size = { version = "0.5", default-features = false }     # pallets/gear
 pathdiff = { version = "0.2.1", default-features = false }    # utils/wasm-builder
 rand_pcg = "0.3.1"                                            # pallets/gear
 reqwest = { version = "0.11.15", default-features = false }   # utils/node-loder

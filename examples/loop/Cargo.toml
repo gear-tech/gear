@@ -9,6 +9,6 @@ license = "GPL-3.0"
 crate-type = ["cdylib"]
 
 [dependencies.gstd]
-path = "../../gstd"
+workspace = true
 features = ["debug"]
 default-features = false

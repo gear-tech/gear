@@ -9,5 +9,5 @@ license = "GPL-3.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-gstd = { path = "../../gstd" }
+gstd = { workspace = true }
 hex-literal = "0.3.4"

@@ -8,7 +8,7 @@ license = "GPL-3.0"
 [dependencies]
 gear-core-errors = { workspace = true }
 blake2-rfc = { workspace = true }
-codec = { workspace = true, package = "parity-scale-codec", features = [ "derive", "max-encoded-len" ] }
+parity-scale-codec = { workspace = true, features = [ "derive", "max-encoded-len" ] }
 scale-info = { workspace = true, features = ["derive"] }
 derive_more = { workspace = true }
 log = { workspace = true }

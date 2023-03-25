@@ -18,9 +18,8 @@
 
 //! Utility functions.
 
-use codec::Encode;
 pub use scale_info::MetaType;
-use scale_info::{PortableRegistry, Registry};
+use scale_info::{scale::Encode, PortableRegistry, Registry};
 
 use crate::prelude::{Box, String, Vec};
 

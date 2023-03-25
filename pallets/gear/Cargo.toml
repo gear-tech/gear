@@ -13,7 +13,7 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 log = { workspace = true }
 primitive-types = { workspace = true, features = ["scale-info"] }
@@ -109,7 +109,7 @@ gmeta = { workspace = true }
 [features]
 default = ['std']
 std = [
-	"codec/std",
+	"parity-scale-codec/std",
 	"env_logger",
 	"log/std",
 	"common/std",

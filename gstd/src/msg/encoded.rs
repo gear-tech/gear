@@ -27,8 +27,8 @@ use crate::{
     prelude::{convert::AsRef, ops::RangeBounds},
     ActorId, MessageId, ReservationId,
 };
-use codec::{Decode, Encode};
 use gstd_codegen::wait_for_reply;
+use scale_info::scale::{Decode, Encode};
 
 /// Get a payload of the message that is currently being processed.
 ///

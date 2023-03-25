@@ -25,9 +25,9 @@ use crate::{
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
 use alloc::collections::BTreeSet;
-use codec::{Decode, Encode};
 use core::fmt::{Debug, Display};
 use gear_wasm_instrument::syscalls::SysCallName;
+use scale_info::scale::{Decode, Encode};
 
 /// Page access rights.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Copy)]

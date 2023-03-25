@@ -10,4 +10,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 galloc = { path = "../../galloc", default-features = false }
-gcore = { path = "../../gcore", default-features = false }
+gcore = { workspace = true, default-features = false }

@@ -20,10 +20,12 @@
 
 use crate::ids::{MessageId, ReservationId};
 use alloc::collections::BTreeMap;
-use codec::{Decode, Encode};
 use gear_core_errors::ReservationError;
 use hashbrown::HashMap;
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Gas reserver.
 ///

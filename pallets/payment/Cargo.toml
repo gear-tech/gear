@@ -13,7 +13,7 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", workspace = true, features = ["derive", "max-encoded-len"] }
+parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
 scale-info = { workspace = true, features = ["derive"] }
 log = { workspace = true }
 parity-wasm = { workspace = true, optional = true }
@@ -49,7 +49,7 @@ pallet-gear-scheduler = { workspace = true }
 [features]
 default = ['std']
 std = [
-	"codec/std",
+	"parity-scale-codec/std",
 	"log/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",

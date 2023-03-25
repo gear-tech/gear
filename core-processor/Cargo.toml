@@ -11,7 +11,6 @@ gear-core-errors = { workspace = true, features = ["codec"] }
 gear-backend-common = { workspace = true }
 gear-wasm-instrument = { workspace = true }
 
-codec = { package = "parity-scale-codec", workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 log = { workspace = true }
 derive_more = { workspace = true }

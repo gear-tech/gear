@@ -9,7 +9,6 @@ license = "GPL-3.0"
 scale-info = { workspace = true, features = ["derive"], optional = true }
 derive_more = { workspace = true }
 enum-iterator = { workspace = true }
-codec = { package = "parity-scale-codec", workspace = true, features = ["derive"], optional = true }
 
 [features]
-codec = ["scale-info", "dep:codec"]
+codec = ["scale-info"]

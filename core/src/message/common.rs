@@ -21,9 +21,11 @@ use crate::{
     message::{DispatchKind, GasLimit, Payload, StatusCode, StoredDispatch, StoredMessage, Value},
 };
 use alloc::string::ToString;
-use codec::{Decode, Encode};
 use core::{convert::TryInto, ops::Deref};
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// An entity that is used for interaction between actors.
 /// Can transfer value and executes by programs in corresponding function: init, handle or handle_reply.
