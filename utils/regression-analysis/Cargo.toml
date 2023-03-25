@@ -12,7 +12,7 @@ tabled = { workspace = true }
 junit-common = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-thousands = "0.2.0"
+thousands = { workspace = true }
 
 gear-runtime = { workspace = true }
 pallet-gear = { workspace = true }

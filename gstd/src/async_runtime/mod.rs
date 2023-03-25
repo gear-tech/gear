@@ -55,7 +55,9 @@ pub fn record_reply() {
 
 /// Default signal handler.
 pub fn handle_signal() {
-    let msg_id = crate::msg::id();
+    let msg_id = crate::msg::signal_from().expect(
+        "`gstd::async_runtime::handle_signal()` must be called only in `handle_signal` entrypoint",
+    );
     futures().remove(&msg_id);
     locks().remove_message_entry(msg_id);
 }

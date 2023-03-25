@@ -41,7 +41,6 @@ tokio = { workspace = true, features = [ "full" ] }
 wasmtime = { workspace = true }
 whoami = { workspace = true }
 
-
 [dev-dependencies]
 rand = { workspace = true }
 messager = { path = "./res/messager" }
