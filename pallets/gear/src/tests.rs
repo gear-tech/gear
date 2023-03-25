@@ -43,7 +43,6 @@ use crate::{
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
     GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, Schedule, TaskPoolOf, WaitlistOf,
 };
-use codec::{Decode, Encode};
 use common::{
     event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _,
     ProgramStorage,
@@ -55,6 +54,7 @@ use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BI
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 use frame_support::{
     assert_noop, assert_ok,
+    codec::{Decode, Encode},
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
     traits::{Currency, Randomness},
@@ -8781,7 +8781,6 @@ mod utils {
         mock::{Balances, Gear, System},
         BalanceOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
     };
-    use codec::Decode;
     use common::{
         event::*,
         storage::{CountedByKey, Counter, IterableByKeyMap},
@@ -8790,6 +8789,7 @@ mod utils {
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReason;
     use frame_support::{
+        codec::Decode,
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
         traits::tokens::{currency::Currency, Balance},
     };

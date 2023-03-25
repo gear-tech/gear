@@ -21,7 +21,6 @@ use crate::{
     SystemReservationContext, TerminationReason,
 };
 use alloc::collections::BTreeSet;
-use codec::{Decode, Encode};
 use core::fmt;
 use gear_core::{
     costs::RuntimeCosts,
@@ -34,9 +33,11 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError;
 use gear_wasm_instrument::syscalls::SysCallName;
+use scale_info::scale::{self, Decode, Encode};
 
 /// Mock error
 #[derive(Debug, Clone, Encode, Decode)]
+#[codec(crate = scale)]
 pub struct Error;
 
 impl fmt::Display for Error {
