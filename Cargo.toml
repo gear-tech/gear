@@ -169,6 +169,7 @@ gear-common-codegen = { path = "common/codegen" }
 gear-core = { path = "core" }
 gear-core-errors = { path = "core-errors" }
 gear-core-processor = { path = "core-processor", default-features = false }
+gear-lazy-pages = { path = "lazy-pages", default-features = false }
 gear-lazy-pages-common = { path = "common/lazy-pages", default-features = false }
 gear-node-testing = { path = "node/testing" }
 gear-runtime = { path = "runtime/gear" }
@@ -285,6 +286,7 @@ sp-keystore = { version = "0.13.0", git = "https://github.com/gear-tech/substrat
 sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-offchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+sp-runtime-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }

@@ -53,6 +53,7 @@ std = [
 	"log/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
+  "frame-support-test/std",
 	"frame-system/std",
 	"scale-info/std",
 	"sp-std/std",
@@ -60,6 +61,11 @@ std = [
 	"pallet-balances/std",
 	"pallet-transaction-payment/std",
 	"pallet-authorship/std",
+  "pallet-gear/std",
+  "pallet-gear-gas/std",
+  "pallet-gear-messenger/std",
+  "pallet-gear-program/std",
+  "pallet-gear-scheduler/std",
 	"primitive-types/std",
 ]
 runtime-benchmarks = [
