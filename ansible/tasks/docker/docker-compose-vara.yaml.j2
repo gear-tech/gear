@@ -28,6 +28,11 @@ services:
               expression: '(?P<error>(?i)error.*)'
           - labels:
               error:
+          - regex:
+              expression: '(.*Prepared block for proposing at [^ ]+ \((?P<block_time>\d+) ms\) \[hash: (?P<block_hash>[^;]+);.*)'
+          - labels:
+              block_time:
+              block_hash:
 {% endif %}
 volumes:
   gear-data:
