@@ -50,6 +50,7 @@ pallet-vesting = { workspace = true }
 pallet-whitelist = { workspace = true }
 
 # Primitives
+sp-arithmetic = { workspace = true }
 sp-api = { workspace = true }
 sp-authority-discovery = { workspace = true }
 sp-block-builder = { workspace = true }
@@ -148,6 +149,7 @@ std = [
 	"runtime-primitives/std",
 	"scale-info/std",
 	"sp-api/std",
+	"sp-arithmetic/std",
 	"sp-authority-discovery/std",
 	"sp-block-builder/std",
 	"sp-consensus-babe/std",
