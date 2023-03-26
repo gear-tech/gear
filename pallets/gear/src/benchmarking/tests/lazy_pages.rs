@@ -198,7 +198,7 @@ where
     let prob_max = load_prob + store_prob + syscall_prob;
 
     let memory = ImportedMemory::max::<T>();
-    let size_wasm_pages = WasmPage::new(memory.min_pages).unwrap();
+    let size_wasm_pages = memory.min_pages;
     let size_gear = size_wasm_pages.to_page::<GearPage>();
     let access_size = size_of::<u32>() as u32;
     let max_addr = size_wasm_pages.offset();

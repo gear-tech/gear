@@ -113,7 +113,7 @@ pub struct DataSegment {
 #[derive(Clone)]
 pub struct ImportedMemory {
     // TODO: change to WasmPage (issue #2094)
-    pub min_pages: u32,
+    pub min_pages: WasmPage,
 }
 
 impl ImportedMemory {
@@ -122,12 +122,20 @@ impl ImportedMemory {
         T: Config,
     {
         Self {
-            min_pages: max_pages::<T>() as u32,
+            min_pages: max_pages::<T>().into(),
         }
     }
 
-    pub fn new_with_pages(min_pages: u32) -> Self {
-        Self { min_pages }
+    pub fn one() -> Self {
+        Self {
+            min_pages: 1.into(),
+        }
+    }
+
+    pub fn new(min_pages: u16) -> Self {
+        Self {
+            min_pages: min_pages.into(),
+        }
     }
 }
 
@@ -226,7 +234,7 @@ where
                 .module("env")
                 .field("memory")
                 .external()
-                .memory(memory.min_pages, None)
+                .memory(memory.min_pages.raw(), None)
                 .build();
         }
 
@@ -272,7 +280,12 @@ where
 
         // Add stack end export.
         // Default is one, in order to remove lazy-pages factor from most benches.
-        let stack_end = def.stack_end.unwrap_or(1.into());
+        let stack_end = def.stack_end.unwrap_or(
+            def.memory
+                .as_ref()
+                .map(|memory| memory.min_pages.into())
+                .unwrap_or(0.into()),
+        );
         program = program
             .global()
             .value_type()
@@ -375,7 +388,7 @@ where
         } else {
             return None;
         };
-        let memory = Memory::new(memory.min_pages, None).unwrap();
+        let memory = Memory::new(memory.min_pages.raw(), None).unwrap();
         env.add_memory("env", "memory", memory.clone());
         Some(memory)
     }
@@ -440,6 +453,12 @@ pub mod body {
     /// various ways in which this can happen.
     #[derive(Debug, Clone)]
     pub enum DynInstr {
+        /// +_+_+
+        InstrI32Const(u32),
+        /// +_+_+
+        InstrI64Const(u64),
+        /// +_+_+
+        InstrCall(u32),
         /// Insert the associated instruction.
         Regular(Instruction),
         /// Insert a I32Const with incrementing value for each insertion.
@@ -546,6 +565,9 @@ pub mod body {
             .cycle()
             .take(instructions.len() * usize::try_from(repetitions).unwrap())
             .flat_map(|idx| match &mut instructions[idx] {
+                DynInstr::InstrI32Const(c) => vec![Instruction::I32Const(*c as i32)],
+                DynInstr::InstrI64Const(c) => vec![Instruction::I64Const(*c as i64)],
+                DynInstr::InstrCall(c) => vec![Instruction::Call(*c)],
                 DynInstr::Regular(instruction) => vec![instruction.clone()],
                 DynInstr::Counter(offset, increment_by) => {
                     let current = *offset;
@@ -656,6 +678,19 @@ pub mod body {
         instructions: &[DynInstr],
     ) -> FuncBody {
         let instructions = with_result_check_dyn(res_offset, instructions);
+        repeated_dyn(repetitions, instructions)
+    }
+
+    pub fn fallible_syscall(repetitions: u32, res_offset: u32, params: &[DynInstr]) -> FuncBody {
+        let mut instructions = params.to_vec();
+        instructions.extend([DynInstr::InstrI32Const(res_offset), DynInstr::InstrCall(0)]);
+        let instructions = with_result_check_dyn(res_offset, &instructions);
+        repeated_dyn(repetitions, instructions)
+    }
+
+    pub fn syscall(repetitions: u32, params: &[DynInstr]) -> FuncBody {
+        let mut instructions = params.to_vec();
+        instructions.push(DynInstr::InstrCall(0));
         repeated_dyn(repetitions, instructions)
     }
 

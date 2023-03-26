@@ -1247,13 +1247,13 @@ benchmarks! {
     instr_i64load {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>() as u32;
+        let mem_pages = code::max_pages::<T>();
         let instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)], vec![]);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory{min_pages: mem_pages}),
+            memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::from_instructions(instrs)),
             .. Default::default()
         }));
@@ -1284,13 +1284,13 @@ benchmarks! {
     instr_i64store {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>() as u32;
+        let mem_pages = code::max_pages::<T>();
         let instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))], vec![]);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory{min_pages: mem_pages}),
+            memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::from_instructions(instrs)),
             .. Default::default()
         }));
