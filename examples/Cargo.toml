@@ -50,9 +50,9 @@ exclude = [
 ]
 
 [workspace.dependencies]
-galloc = { path = "../galloc", default-features = false }
-gcore = { path = "../gcore", default-features = false }
-gstd = { path = "../gstd", default-features = false }
+galloc = { path = "../galloc" }
+gcore = { path = "../gcore" }
+gstd = { path = "../gstd" }
 
 [profile.release]
 lto = true

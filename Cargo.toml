@@ -307,8 +307,8 @@ try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/
 
 # Examples
 test-syscalls = { path = "examples/binaries/sys-calls", default-features = false }
-demo-async-custom-entry = { path = "examples/binaries/async-custom-entry", default-features = false }
-demo-async-signal-entry = { path = "examples/binaries/async-signal-entry", default-features = false }
+demo-async-custom-entry = { path = "examples/binaries/async-custom-entry" }
+demo-async-signal-entry = { path = "examples/binaries/async-signal-entry" }
 demo-async-tester = { path = "examples/binaries/async-tester" }
 demo-backend-error = { path = "examples/binaries/backend-error" }
 demo-btree = { path = "examples/binaries/btree" }
@@ -334,7 +334,7 @@ demo-new-meta = { path = "examples/binaries/new-meta" }
 demo-node = { path = "examples/binaries/node" }
 demo-out-of-memory = { path = "examples/binaries/out-of-memory" }
 demo-program-factory = { path = "examples/binaries/program-factory" }
-demo-proxy = { path = "examples/binaries/proxy", default-features = false }
+demo-proxy = { path = "examples/binaries/proxy" }
 demo-proxy-relay = { path = "examples/binaries/proxy-relay" }
 demo-proxy-reservation-with-gas = { path = "examples/binaries/proxy-reservation-with-gas" }
 demo-proxy-with-gas = { path = "examples/binaries/proxy-with-gas" }

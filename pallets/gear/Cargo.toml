@@ -139,8 +139,6 @@ std = [
 	"gear-lazy-pages-common?/std",
 	"sp-consensus-babe/std",
 	"test-syscalls?/std",
-  "demo-async-signal-entry/std",
-  "demo-async-custom-entry/std",
 	"demo-proxy?/std",
 ]
 runtime-benchmarks = [
