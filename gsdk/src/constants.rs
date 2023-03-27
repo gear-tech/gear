@@ -21,14 +21,6 @@ use crate::{result::Result, Api};
 use parity_scale_codec::Decode;
 
 impl Api {
-    /// pallet gear constants
-    ///
-    /// Get gas to balance multiplier
-    pub fn gas_to_balance_multiplier(&self) -> Result<u128> {
-        let addr = subxt::dynamic::constant("Gear", "GasToBalanceMultiplier");
-        Ok(u128::decode(&mut self.constants().at(&addr)?.encoded())?)
-    }
-
     /// pallet gas constants
     ///
     /// Get gas limit.

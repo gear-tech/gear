@@ -188,15 +188,8 @@ pub mod pallet {
         /// Balances management trait for gas/value migrations.
         type Currency: LockableCurrency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
 
-        /// Multiplier used for conversion from gas into balance.
-        #[pallet::constant]
-        type GasToBalanceMultiplier: Get<BalanceOf<Self>>;
-
         /// Gas to Currency converter
-        type GasPrice: GasPrice<
-            Balance = BalanceOf<Self>,
-            GasToBalanceMultiplier = Self::GasToBalanceMultiplier,
-        >;
+        type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;

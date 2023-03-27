@@ -337,7 +337,6 @@ impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
     type Currency = Balances;
-    type GasToBalanceMultiplier = <GasConverter as common::GasPrice>::GasToBalanceMultiplier;
     type GasPrice = GasConverter;
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;

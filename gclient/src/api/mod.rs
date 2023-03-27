@@ -149,11 +149,6 @@ impl GearApi {
     pub fn account_id(&self) -> &AccountId32 {
         self.0.account_id()
     }
-
-    /// Return gas to balance multiplier used by node.
-    pub fn gas_to_balance_multiplier(&self) -> Result<u128> {
-        self.0.api().gas_to_balance_multiplier().map_err(Into::into)
-    }
 }
 
 /// A struct playing a role of smart pointer to a `GearApi` instance

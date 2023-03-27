@@ -170,7 +170,6 @@ impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
     type Currency = Balances;
-    type GasToBalanceMultiplier = <GasConverter as common::GasPrice>::GasToBalanceMultiplier;
     type GasPrice = GasConverter;
     type WeightInfo = ();
     type Schedule = GearSchedule;
