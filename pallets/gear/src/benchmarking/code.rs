@@ -94,7 +94,8 @@ pub struct ModuleDefinition {
     /// benchmark the overhead of loading and storing codes of specified sizes. The dummy
     /// section only contributes to the size of the program but does not affect execution.
     pub dummy_section: u32,
-    /// +_+_+
+    /// Create global export [STACK_END_GLOBAL_NAME] with the given page offset addr.
+    /// If None, then all memory supposed to be stack memory, so stack end will be equal to memory size.
     pub stack_end: Option<WasmPage>,
 }
 
@@ -447,12 +448,14 @@ pub mod body {
     /// various ways in which this can happen.
     #[derive(Debug, Clone)]
     pub enum DynInstr {
-        /// +_+_+
+        /// Insert `i32.const (self.0 as i32)` operation
         InstrI32Const(u32),
-        /// +_+_+
+        /// Insert `i64.const (self.0 as i64)` operation
         InstrI64Const(u64),
-        /// +_+_+
+        /// Insert `call self.0` operation
         InstrCall(u32),
+        /// Insert `i32.load align=self.0, offset=self.1` operation
+        InstrI32Load(u32, u32),
         /// Insert the associated instruction.
         Regular(Instruction),
         /// Insert a I32Const with incrementing value for each insertion.
@@ -486,32 +489,6 @@ pub mod body {
         /// Insert a SetGlobal with a random offset in [low, high).
         /// (low, high)
         RandomSetGlobal(u32, u32),
-    }
-
-    pub fn plain(instructions: Vec<Instruction>) -> FuncBody {
-        FuncBody::new(Vec::new(), Instructions::new(instructions))
-    }
-
-    pub fn from_instructions(mut instructions: Vec<Instruction>) -> FuncBody {
-        instructions.push(Instruction::End);
-        FuncBody::new(Vec::new(), Instructions::new(instructions))
-    }
-
-    pub fn empty() -> FuncBody {
-        FuncBody::new(vec![], Instructions::empty())
-    }
-
-    pub fn repeated(repetitions: u32, instructions: &[Instruction]) -> FuncBody {
-        let instructions = Instructions::new(
-            instructions
-                .iter()
-                .cycle()
-                .take(instructions.len() * usize::try_from(repetitions).unwrap())
-                .cloned()
-                .chain(sp_std::iter::once(Instruction::End))
-                .collect(),
-        );
-        FuncBody::new(Vec::new(), instructions)
     }
 
     pub fn write_access_all_pages_instrs(
@@ -562,6 +539,9 @@ pub mod body {
                 DynInstr::InstrI32Const(c) => vec![Instruction::I32Const(*c as i32)],
                 DynInstr::InstrI64Const(c) => vec![Instruction::I64Const(*c as i64)],
                 DynInstr::InstrCall(c) => vec![Instruction::Call(*c)],
+                DynInstr::InstrI32Load(align, offset) => {
+                    vec![Instruction::I32Load(*align, *offset)]
+                }
                 DynInstr::Regular(instruction) => vec![instruction.clone()],
                 DynInstr::Counter(offset, increment_by) => {
                     let current = *offset;
@@ -608,38 +588,12 @@ pub mod body {
         head
     }
 
-    pub fn repeated_instr(
-        repetitions: u32,
-        instructions: Vec<Instruction>,
-        head: Vec<Instruction>,
-    ) -> Vec<Instruction> {
-        repeated_dyn_instr(
-            repetitions,
-            instructions.into_iter().map(DynInstr::Regular).collect(),
-            head,
-        )
-    }
-
     pub fn to_dyn(instructions: &[Instruction]) -> Vec<DynInstr> {
         instructions
             .iter()
             .cloned()
             .map(DynInstr::Regular)
             .collect()
-    }
-
-    pub fn with_result_check(res_offset: u32, instrs: &[Instruction]) -> Vec<Instruction> {
-        let mut res = vec![Instruction::Block(BlockType::NoResult)];
-        res.extend_from_slice(instrs);
-        res.extend_from_slice(&[
-            Instruction::I32Const(res_offset as i32),
-            Instruction::I32Load(2, 0),
-            Instruction::I32Eqz,
-            Instruction::BrIf(0),
-            Instruction::Unreachable,
-            Instruction::End,
-        ]);
-        res
     }
 
     pub fn with_result_check_dyn(res_offset: u32, instructions: &[DynInstr]) -> Vec<DynInstr> {
@@ -656,29 +610,40 @@ pub mod body {
         res
     }
 
-    pub fn syscall_repeated(
-        repetitions: u32,
-        res_offset: u32,
-        instructions: &[Instruction],
-    ) -> FuncBody {
-        let instructions = to_dyn(instructions);
-        let instructions = with_result_check_dyn(res_offset, &instructions);
-        repeated_dyn(repetitions, instructions)
+    pub fn from_instructions(mut instructions: Vec<Instruction>) -> FuncBody {
+        instructions.push(Instruction::End);
+        FuncBody::new(vec![], Instructions::new(instructions))
     }
 
-    pub fn syscall_repeated_dyn(
-        repetitions: u32,
-        res_offset: u32,
-        instructions: &[DynInstr],
-    ) -> FuncBody {
-        let instructions = with_result_check_dyn(res_offset, instructions);
-        repeated_dyn(repetitions, instructions)
+    pub fn empty() -> FuncBody {
+        FuncBody::new(vec![], Instructions::empty())
+    }
+
+    pub fn repeated(repetitions: u32, instructions: &[Instruction]) -> FuncBody {
+        let instructions = Instructions::new(
+            instructions
+                .iter()
+                .cycle()
+                .take(instructions.len() * usize::try_from(repetitions).unwrap())
+                .cloned()
+                .chain(sp_std::iter::once(Instruction::End))
+                .collect(),
+        );
+        FuncBody::new(vec![], instructions)
+    }
+
+    pub fn repeated_dyn(repetitions: u32, instructions: Vec<DynInstr>) -> FuncBody {
+        let mut body = repeated_dyn_instr(repetitions, instructions, vec![]);
+        body.push(Instruction::End);
+        FuncBody::new(vec![], Instructions::new(body))
     }
 
     pub fn fallible_syscall(repetitions: u32, res_offset: u32, params: &[DynInstr]) -> FuncBody {
         let mut instructions = params.to_vec();
         instructions.extend([DynInstr::InstrI32Const(res_offset), DynInstr::InstrCall(0)]);
-        let instructions = with_result_check_dyn(res_offset, &instructions);
+        if cfg!(feature = "runtime-benchmarks-checkers") {
+            instructions = with_result_check_dyn(res_offset, &instructions);
+        }
         repeated_dyn(repetitions, instructions)
     }
 
@@ -686,12 +651,6 @@ pub mod body {
         let mut instructions = params.to_vec();
         instructions.push(DynInstr::InstrCall(0));
         repeated_dyn(repetitions, instructions)
-    }
-
-    pub fn repeated_dyn(repetitions: u32, instructions: Vec<DynInstr>) -> FuncBody {
-        let mut body = repeated_dyn_instr(repetitions, instructions, vec![]);
-        body.push(Instruction::End);
-        FuncBody::new(Vec::new(), Instructions::new(body))
     }
 
     /// Replace the locals of the supplied `body` with `num` i64 locals.

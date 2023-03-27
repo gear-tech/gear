@@ -1248,15 +1248,15 @@ benchmarks! {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let mem_pages = code::max_pages::<T>();
-        let instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(mem_pages)),
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                         RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 8),
                         Regular(Instruction::I64Load(3, 0)),
-                        Regular(Instruction::Drop)], vec![]);
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::new(mem_pages)),
-            handle_body: Some(body::from_instructions(instrs)),
+                        Regular(Instruction::Drop)])),
             .. Default::default()
-        }));
+        };
+        let mut sbox = Sandbox::from_module_def::<T>(module);
     }: {
         sbox.invoke();
     }
@@ -1285,15 +1285,15 @@ benchmarks! {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let mem_pages = code::max_pages::<T>();
-        let instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(mem_pages)),
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                         RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 8),
                         RandomI64Repeated(1),
-                        Regular(Instruction::I64Store(3, 0))], vec![]);
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::new(mem_pages)),
-            handle_body: Some(body::from_instructions(instrs)),
+                        Regular(Instruction::I64Store(3, 0))])),
             .. Default::default()
-        }));
+        };
+        let mut sbox = Sandbox::from_module_def::<T>(module);
     }: {
         sbox.invoke();
     }
@@ -1447,7 +1447,7 @@ benchmarks! {
      instr_call_const {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            aux_body: Some(body::plain(vec![Instruction::I64Const(0x7ffffffff3ffffff), Instruction::End])),
+            aux_body: Some(body::from_instructions(vec![Instruction::I64Const(0x7ffffffff3ffffff)])),
             aux_res: Some(ValueType::I64),
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::Call(OFFSET_AUX),
@@ -1463,7 +1463,7 @@ benchmarks! {
     instr_call {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            aux_body: Some(body::plain(vec![Instruction::End])),
+            aux_body: Some(body::empty()),
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::Call(OFFSET_AUX),
             ])),
@@ -1478,7 +1478,7 @@ benchmarks! {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let num_elements = T::Schedule::get().limits.table_size;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            aux_body: Some(body::plain(vec![Instruction::End])),
+            aux_body: Some(body::empty()),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI32(0, num_elements as i32),
                 Regular(Instruction::CallIndirect(0, 0)),
@@ -1500,7 +1500,7 @@ benchmarks! {
         let p in 0 .. T::Schedule::get().limits.parameters;
         let num_elements = T::Schedule::get().limits.table_size;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            aux_body: Some(body::plain(vec![Instruction::End])),
+            aux_body: Some(body::empty()),
             aux_arg_num: p,
             handle_body: Some(body::repeated_dyn(INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI64Repeated(p as usize),
@@ -1520,9 +1520,7 @@ benchmarks! {
     // w_per_local = w_bench
     instr_call_per_local {
         let l in 0 .. T::Schedule::get().limits.locals;
-        let mut aux_body = body::plain(vec![
-            Instruction::End,
-        ]);
+        let mut aux_body = body::empty();
         body::inject_locals(&mut aux_body, l);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             aux_body: Some(aux_body),

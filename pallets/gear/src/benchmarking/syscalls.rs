@@ -151,7 +151,7 @@ where
         )
     }
 
-    // TODO: add check for alloc #+_+_+
+    // TODO: add check for alloc result #+_+_+
     pub fn alloc(r: u32) -> Result<Exec<T>, &'static str> {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
@@ -172,7 +172,7 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    // TODO: add check for free #+_+_+
+    // TODO: add check for alloc and free result #+_+_+
     pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
         assert!(r <= max_pages::<T>() as u32);
 
@@ -188,13 +188,12 @@ where
                 instructions.push(Drop);
             }
         }
-        instructions.push(End);
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
             imported_functions: vec![SysCallName::Alloc, SysCallName::Free],
             init_body: None,
-            handle_body: Some(body::plain(instructions)),
+            handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         }
         .into();
@@ -398,7 +397,7 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    // TODO: add check for send init #+_+_+
+    // TODO: add check for send init result #+_+_+
     pub fn gr_send_push(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         let payload_offset = COMMON_OFFSET;
@@ -419,7 +418,7 @@ where
                     InstrCall(1),
                     // get handle from send init result
                     InstrI32Const(init_res_offset + ERR_LEN_SIZE),
-                    Regular(Instruction::I32Load(2, 0)),
+                    InstrI32Load(2, 0),
                     // payload ptr
                     InstrI32Const(payload_offset),
                     // payload len
@@ -432,6 +431,7 @@ where
         Self::prepare_handle(module, 0)
     }
 
+    // TODO: add check for send init result #+_+_+
     pub fn gr_send_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = API_BENCHMARK_BATCH_SIZE;
         let payload_offset = COMMON_OFFSET;
@@ -452,7 +452,7 @@ where
                     InstrCall(1),
                     // get handle from send init result
                     InstrI32Const(handle_offset + ERR_LEN_SIZE),
-                    Regular(Instruction::I32Load(2, 0)),
+                    InstrI32Load(2, 0),
                     // payload offset
                     InstrI32Const(payload_offset),
                     // payload len
@@ -621,9 +621,10 @@ where
         Self::prepare_handle_with_reservation_slots(module, repetitions)
     }
 
-    // +_+_+ check in scheduler
     pub fn gr_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r;
+        assert!(repetitions <= 1);
+
         let value_offset = COMMON_OFFSET;
         let res_offset = value_offset + VALUE_SIZE;
 
@@ -634,7 +635,7 @@ where
                 repetitions,
                 res_offset,
                 &[
-                    // value ptr
+                    // value offset
                     InstrI32Const(value_offset),
                     // delay
                     InstrI32Const(10),
@@ -646,7 +647,6 @@ where
         Self::prepare_handle(module, 10000000)
     }
 
-    // +_+_+ check in scheduler
     pub fn gr_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = 1;
         let payload_offset = COMMON_OFFSET;
@@ -701,7 +701,6 @@ where
         Self::prepare_handle(module, 10000000)
     }
 
-    // +_+_+ check in scheduler
     pub fn gr_reply_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = 1;
         let payload_offset = COMMON_OFFSET;
@@ -727,10 +726,9 @@ where
         Self::prepare_handle(module, 10000000)
     }
 
-    // +_+_+ check in scheduler
     pub fn gr_reservation_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r;
-        let max_repetitions = API_BENCHMARK_BATCHES;
+        let max_repetitions = 1;
         assert!(repetitions <= max_repetitions);
 
         let rid_values: Vec<_> = (0..max_repetitions)
@@ -767,7 +765,6 @@ where
         Self::prepare_handle_with_reservation_slots(module, repetitions)
     }
 
-    // +_+_+ check in scheduler
     pub fn gr_reservation_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = 1;
         let rid_value_offset = COMMON_OFFSET;
@@ -872,7 +869,6 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    // +_+_+ check in scheduler
     // TODO: additional param for message payload len #+_+_+
     pub fn gr_reply_push_input_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = 1;
@@ -899,6 +895,7 @@ where
         Self::prepare_handle(module, 0)
     }
 
+    // TODO: add check for send init result #+_+_+
     pub fn gr_send_push_input(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         let payload_offset = COMMON_OFFSET;
@@ -919,7 +916,7 @@ where
                     InstrCall(1),
                     // get handle from send init result
                     InstrI32Const(err_handle_offset + ERR_LEN_SIZE),
-                    Regular(Instruction::I32Load(2, 0)),
+                    InstrI32Load(2, 0),
                     // payload offset
                     InstrI32Const(payload_offset),
                     // payload len
@@ -932,6 +929,7 @@ where
         Self::prepare_handle(module, 0)
     }
 
+    // TODO: add check for send init result #+_+_+
     // TODO: additional param for message payload len #+_+_+
     pub fn gr_send_push_input_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = API_BENCHMARK_BATCH_SIZE;
@@ -953,7 +951,7 @@ where
                     InstrCall(1),
                     // get handle
                     InstrI32Const(err_handle_offset + ERR_LEN_SIZE),
-                    Regular(Instruction::I32Load(2, 0)),
+                    InstrI32Load(2, 0),
                     // payload offset
                     InstrI32Const(payload_offset),
                     // payload len
