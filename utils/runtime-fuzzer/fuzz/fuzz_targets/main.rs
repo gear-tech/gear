@@ -48,10 +48,10 @@ fuzz_target!(|seed: u64| {
 fn dump_seed(seed: u64) -> Result<(), String> {
     let seeds_file = RUN_INTIALIZED.get_or_try_init(|| {
         let seeds_dir = Path::new(SEEDS_STORE_DIR);
-        if seeds_dir.exists() {
-            fs::remove_dir_all(seeds_dir).map_err(|e| e.to_string())?;
+        if !seeds_dir.exists() {
+            // fs::remove_dir_all(seeds_dir).map_err(|e| e.to_string())?;
+            fs::create_dir_all(seeds_dir).map_err(|e| e.to_string())?;
         }
-        fs::create_dir_all(seeds_dir).map_err(|e| e.to_string())?;
 
         Ok::<_, String>(format!("{SEEDS_STORE_DIR}/{SEEDS_STORE_FILE}"))
     })?;
