@@ -45,10 +45,19 @@ use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCall
 use sp_core::Get;
 use sp_runtime::traits::UniqueSaturatedInto;
 
+// +_+_+
+// 1) change to constants everywhere.
+// 2) change to small memory
+
+const ERR_LEN_SIZE: u32 = size_of::<u32>() as u32;
 const RID_PID_SIZE: u32 = 80;
 const RID_SIZE: u32 = 16 + 32;
 const ERR_HANDLE_SIZE: u32 = 8;
 const HANDLE_OFFSET: u32 = 4;
+const CID_SIZE: u32 = 32;
+const VALUE_SIZE: u32 = 16;
+
+const MAX_REPETITIONS: u32 = API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE;
 
 pub(crate) struct Benches<T>
 where
@@ -68,7 +77,6 @@ where
     // const RES_OFFSET: u32 = Self::OFFSET + GEAR_PAGE_SIZE as u32;
     // size of error length field
     const ERR_LEN_SIZE: u32 = size_of::<u32>() as u32;
-    const GR_DEBUG_STRING_LEN: u32 = 100;
     const GR_READ_BUFFER_LEN: u32 = 100;
     const MAX_PAGES: u16 = 64;
 
@@ -1012,27 +1020,18 @@ where
         Self::prepare_handle(module.into(), 0)
     }
 
-    // ZZZ
-
     pub fn gr_status_code(r: u32) -> Result<Exec<T>, &'static str> {
-        let err_code_ptr = 1;
-        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_code_ptr);
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let res_offset = Self::OFFSET;
 
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::StatusCode],
-            reply_body: Some(body::repeated_dyn(
-                r * API_BENCHMARK_BATCH_SIZE,
-                vec![
-                    // err_code ptr
-                    Counter(err_code_ptr, Self::ERR_LEN_SIZE),
-                    // CALL
-                    Regular(Instruction::Call(0)),
-                ],
-            )),
+            reply_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
+        };
+
+        let instance = Program::<T>::new(module.into(), vec![])?;
         let msg_id = MessageId::from(10);
         let msg = Message::new(
             msg_id,
@@ -1055,89 +1054,83 @@ where
     }
 
     pub fn gr_debug(r: u32) -> Result<Exec<T>, &'static str> {
-        let string_offset = 1;
-        let string_len = Self::GR_DEBUG_STRING_LEN;
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let string_offset = Self::OFFSET;
+        let string_len = 100;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::Debug],
-            handle_body: Some(body::repeated(
-                r * API_BENCHMARK_BATCH_SIZE,
+            handle_body: Some(body::syscall(
+                repetitions,
                 &[
                     // payload ptr
-                    Instruction::I32Const(string_offset),
+                    InstrI32Const(string_offset),
                     // payload len
-                    Instruction::I32Const(string_len as i32),
-                    // CALL
-                    Instruction::Call(0),
+                    InstrI32Const(string_len),
                 ],
             )),
             ..Default::default()
         });
+
         Self::prepare_handle(code, 0)
     }
 
     pub fn gr_debug_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let string_offset = 1;
-        let string_len = n as i32 * 1024;
-        assert!(
-            WasmPage::from_offset((string_offset + string_len) as u32) < Self::MAX_PAGES.into()
-        );
+        let repetitions = API_BENCHMARK_BATCH_SIZE;
+        let string_offset = Self::OFFSET;
+        let string_len = n * 1024;
 
-        // Access const amount of pages before debug call in order to remove lazy-pages factor.
-        let instrs = body::read_access_all_pages_instrs(Self::MAX_PAGES.into(), vec![]);
-
-        let instrs = body::repeated_dyn_instr(
-            API_BENCHMARK_BATCH_SIZE,
-            vec![
-                // payload ptr
-                Regular(Instruction::I32Const(string_offset)),
-                // payload len
-                Regular(Instruction::I32Const(string_len)),
-                // CALL
-                Regular(Instruction::Call(0)),
-            ],
-            instrs,
-        );
-
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Debug],
-            handle_body: Some(body::from_instructions(instrs)),
-            ..Default::default()
-        });
-
-        Self::prepare_handle(code, 0)
-    }
-
-    pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
-        let status_code_offset = 1;
-        let error_len_offset = status_code_offset + size_of::<u32>() as u32;
-        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, error_len_offset);
-        let error_offset = err_len_ptrs.end;
-
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::StatusCode, SysCallName::Error],
-            handle_body: Some(body::repeated_dyn(
-                r * API_BENCHMARK_BATCH_SIZE,
-                vec![
-                    // err_code ptr
-                    Regular(Instruction::I32Const(status_code_offset as i32)),
-                    // CALL
-                    Regular(Instruction::Call(0)),
-                    // error data ptr of previous syscall
-                    Regular(Instruction::I32Const(error_offset as i32)),
-                    // error length ptr of `gr_error`
-                    Counter(error_len_offset, Self::ERR_LEN_SIZE),
-                    // CALL
-                    Regular(Instruction::Call(1)),
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    // payload ptr
+                    InstrI32Const(string_offset),
+                    // payload len
+                    InstrI32Const(string_len),
                 ],
             )),
             ..Default::default()
-        });
+        };
 
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(module.into(), 0)
+    }
+
+    pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let res_offset = Self::OFFSET;
+        let err_data_buffer_offset = res_offset + ERR_LEN_SIZE;
+
+        let mut handle_body = body::fallible_syscall(
+            repetitions,
+            res_offset,
+            &[
+                // error encoded data buffer offset
+                InstrI32Const(err_data_buffer_offset),
+            ],
+        );
+
+        // Insert first `gr_error` call, which returns error, so all other `gr_error` calls will be Ok.
+        handle_body.code_mut().elements_mut().splice(
+            0..0,
+            [
+                Instruction::I32Const(0),
+                Instruction::I32Const(0),
+                Instruction::Call(0),
+            ],
+        );
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Error],
+            handle_body: Some(handle_body),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module.into(), 0)
     }
 
     pub fn termination_bench(
@@ -1145,186 +1138,171 @@ where
         param: Option<u32>,
         r: u32,
     ) -> Result<Exec<T>, &'static str> {
-        assert!(r <= 1);
+        let repetitions = r;
+        assert!(repetitions <= 1);
 
-        let instructions = if let Some(c) = param {
+        let params = if let Some(c) = param {
             assert!(name.signature().params.len() == 1);
-            vec![Instruction::I32Const(c as i32), Instruction::Call(0)]
+            vec![InstrI32Const(c)]
         } else {
             assert!(name.signature().params.is_empty());
-            vec![Instruction::Call(0)]
+            vec![]
         };
 
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
             imported_functions: vec![name],
-            handle_body: Some(body::repeated(r, &instructions)),
+            handle_body: Some(body::syscall(repetitions, &params)),
             ..Default::default()
-        });
-        Self::prepare_handle(code, 0)
+        };
+
+        Self::prepare_handle(module.into(), 0)
     }
 
+    // ZZZ
+
     pub fn gr_wake(r: u32) -> Result<Exec<T>, &'static str> {
-        let message_id_offset = 1;
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        assert!(repetitions <= MAX_REPETITIONS);
 
-        let message_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
+        let message_ids: Vec<u8> = (0..MAX_REPETITIONS)
             .flat_map(|i| <[u8; 32]>::from(MessageId::from(i as u64)).to_vec())
-            .collect::<Vec<_>>();
+            .collect();
 
-        let err_offset = message_id_offset + message_ids.len() as u32;
-        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_offset);
+        let message_id_offset = Self::OFFSET;
+        let res_offset = message_id_offset + message_ids.len() as u32;
 
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Wake],
             data_segments: vec![DataSegment {
                 offset: message_id_offset,
-                value: message_ids.to_vec(),
+                value: message_ids,
             }],
-            handle_body: Some(body::repeated_dyn(
-                r * API_BENCHMARK_BATCH_SIZE,
-                vec![
-                    // message_id ptr
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // message id offset
                     Counter(message_id_offset, 32),
                     // delay
-                    Regular(Instruction::I32Const(10)),
-                    // err len ptr
-                    Counter(err_offset, Self::ERR_LEN_SIZE),
-                    // CALL
-                    Regular(Instruction::Call(0)),
+                    InstrI32Const(10),
                 ],
             )),
             ..Default::default()
-        });
+        };
 
-        let instance = Program::<T>::new(code, vec![])?;
-
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-            vec![],
-            Default::default(),
-        )
+        Self::prepare_handle(module.into(), 0)
     }
 
     pub fn gr_create_program_wgas(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+
         let module = WasmModule::<T>::dummy();
+        let _ = Gear::<T>::upload_code_raw(
+            RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
+            module.code,
+        );
 
-        let cid_value_offset = 1;
-        let mut cid_value = [0; 32 + 16];
-        cid_value[0..32].copy_from_slice(module.hash.as_ref());
-        cid_value[32..].copy_from_slice(&0u128.to_le_bytes());
+        let mut cid_value = [0; (CID_SIZE + VALUE_SIZE) as usize];
+        cid_value[0..CID_SIZE as usize].copy_from_slice(module.hash.as_ref());
+        cid_value[CID_SIZE as usize..].copy_from_slice(&0u128.to_le_bytes());
 
+        let cid_value_offset = Self::OFFSET;
         let payload_offset = cid_value_offset + cid_value.len() as u32;
-        let payload = vec![0; 10];
-        let payload_len = payload.len() as u32;
-
+        let payload_len = 10;
         let salt_len = 32;
+        let res_offset = payload_offset + payload_len;
 
-        let err_mid_pid_offset = payload_offset + payload_len;
-        let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_mid_pid_offset);
+        // Use previous result bytes as salt. First one uses 0 bytes.
+        let salt_offset = res_offset;
 
-        let _ = Gear::<T>::upload_code_raw(
-            RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
-            module.code,
-        );
-
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::CreateProgramWGas],
-            data_segments: vec![
-                DataSegment {
-                    offset: cid_value_offset,
-                    value: cid_value.to_vec(),
-                },
-                DataSegment {
-                    offset: payload_offset,
-                    value: payload,
-                },
-            ],
-            handle_body: Some(body::repeated_dyn(
-                r * API_BENCHMARK_BATCH_SIZE,
-                vec![
-                    // cid_value ptr
-                    Regular(Instruction::I32Const(cid_value_offset as i32)),
-                    // salt ptr
-                    Counter(err_mid_pid_offset, Self::ERR_LEN_SIZE),
-                    // salt len
-                    Regular(Instruction::I32Const(salt_len)),
-                    // payload ptr
-                    Regular(Instruction::I32Const(payload_offset as i32)),
-                    // payload len
-                    Regular(Instruction::I32Const(payload_len as i32)),
-                    // gas limit
-                    Regular(Instruction::I64Const(100_000_000)),
-                    // delay
-                    Regular(Instruction::I32Const(10)),
-                    // err_mid_pid ptr
-                    Counter(err_mid_pid_offset, Self::ERR_LEN_SIZE),
-                    // CALL
-                    Regular(Instruction::Call(0)),
-                ],
-            )),
-            ..Default::default()
-        });
-        Self::prepare_handle(code, 0)
-    }
-
-    pub fn gr_create_program_wgas_per_kb(pkb: u32, skb: u32) -> Result<Exec<T>, &'static str> {
-        let module = WasmModule::<T>::dummy();
-
-        let cid_value_offset = 1;
-        let mut cid_value = [0; 32 + 16];
-        cid_value[0..32].copy_from_slice(module.hash.as_ref());
-        cid_value[32..].copy_from_slice(&0u128.to_le_bytes());
-
-        let salt_offset = cid_value_offset + cid_value.len() as u32;
-        let salt_len = skb * 1024;
-
-        let payload_offset = salt_offset + salt_len;
-        let payload_len = pkb * 1024;
-
-        let err_mid_pid_offset = payload_offset + payload_len;
-        let err_len_ptrs = Self::err_len_ptrs(API_BENCHMARK_BATCH_SIZE, err_mid_pid_offset);
-
-        let _ = Gear::<T>::upload_code_raw(
-            RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
-            module.code,
-        );
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::CreateProgramWGas],
             data_segments: vec![DataSegment {
                 offset: cid_value_offset,
                 value: cid_value.to_vec(),
             }],
-            handle_body: Some(body::repeated_dyn(
-                API_BENCHMARK_BATCH_SIZE,
-                vec![
-                    // cid_value ptr
-                    Regular(Instruction::I32Const(cid_value_offset as i32)),
-                    // salt ptr
-                    Counter(err_mid_pid_offset, Self::ERR_LEN_SIZE),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // cid value offset
+                    InstrI32Const(cid_value_offset),
+                    // salt offset
+                    InstrI32Const(salt_offset),
                     // salt len
-                    Regular(Instruction::I32Const(salt_len as i32)),
-                    // payload ptr
-                    Regular(Instruction::I32Const(payload_offset as i32)),
+                    InstrI32Const(salt_len),
+                    // payload offset
+                    InstrI32Const(payload_offset),
                     // payload len
-                    Regular(Instruction::I32Const(payload_len as i32)),
+                    InstrI32Const(payload_len),
                     // gas limit
-                    Regular(Instruction::I64Const(100_000_000)),
+                    InstrI64Const(100_000_000),
                     // delay
-                    Regular(Instruction::I32Const(10)),
-                    // err_mid_pid ptr
-                    Counter(err_mid_pid_offset, Self::ERR_LEN_SIZE),
-                    // CALL
-                    Regular(Instruction::Call(0)),
+                    InstrI32Const(10),
                 ],
             )),
             ..Default::default()
-        });
+        };
 
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(module.into(), 0)
+    }
+
+    pub fn gr_create_program_wgas_per_kb(pkb: u32, skb: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = API_BENCHMARK_BATCH_SIZE;
+
+        let module = WasmModule::<T>::dummy();
+        let _ = Gear::<T>::upload_code_raw(
+            RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
+            module.code,
+        );
+
+        let mut cid_value = [0; (CID_SIZE + VALUE_SIZE) as usize];
+        cid_value[0..CID_SIZE as usize].copy_from_slice(module.hash.as_ref());
+        cid_value[CID_SIZE as usize..].copy_from_slice(&0u128.to_le_bytes());
+
+        let cid_value_offset = Self::OFFSET;
+        let payload_offset = cid_value_offset + cid_value.len() as u32;
+        let payload_len = pkb * 1024;
+        let res_offset = payload_offset + payload_len;
+
+        // Use previous result bytes as part of salt buffer. First one uses 0 bytes.
+        let salt_offset = res_offset;
+        let salt_len = skb * 1024;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::CreateProgramWGas],
+            data_segments: vec![DataSegment {
+                offset: cid_value_offset,
+                value: cid_value.to_vec(),
+            }],
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // cid_value offset
+                    InstrI32Const(cid_value_offset),
+                    // salt offset
+                    InstrI32Const(salt_offset),
+                    // salt len
+                    InstrI32Const(salt_len),
+                    // payload offset
+                    InstrI32Const(payload_offset),
+                    // payload len
+                    InstrI32Const(payload_len),
+                    // gas limit
+                    InstrI64Const(100_000_000),
+                    // delay
+                    InstrI32Const(10),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module.into(), 0)
     }
 
     pub fn lazy_pages_signal_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
@@ -1332,6 +1310,7 @@ where
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::from_instructions(instrs)),
+            stack_end: Some(0.into()),
             ..Default::default()
         });
         Self::prepare_handle(code, 0)
@@ -1342,6 +1321,7 @@ where
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::from_instructions(instrs)),
+            stack_end: Some(0.into()),
             ..Default::default()
         });
         Self::prepare_handle(code, 0)
@@ -1355,6 +1335,7 @@ where
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::from_instructions(instrs)),
+            stack_end: Some(0.into()),
             ..Default::default()
         });
         Self::prepare_handle(code, 0)
@@ -1390,6 +1371,7 @@ where
                 // CALL
                 Instruction::Call(0),
             ])),
+            stack_end: Some(0.into()),
             ..Default::default()
         });
         Self::prepare_handle(code, 0)
@@ -1411,6 +1393,7 @@ where
                 // CALL
                 Instruction::Call(0),
             ])),
+            stack_end: Some(0.into()),
             ..Default::default()
         });
 
@@ -1448,6 +1431,7 @@ where
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Read],
             handle_body: Some(body::from_instructions(instrs)),
+            stack_end: Some(0.into()),
             ..Default::default()
         });
 
