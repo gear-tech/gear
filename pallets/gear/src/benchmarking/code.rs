@@ -617,6 +617,7 @@ where
     T::Schedule::get().limits.memory_pages
 }
 
+// Used for producing different code based on instruction bit width: 32-bit or 64-bit.
 enum BitWidth {
     X64,
     X86,
