@@ -12,10 +12,10 @@ repository = "https://github.com/gear-tech/gear"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
-log = { version = "0.4.17", default-features = false }
-scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
-static_assertions = "1.1.0"
+log = { workspace = true }
+parity-scale-codec = { workspace = true }
+scale-info = { workspace = true, features = ["derive"] }
+static_assertions = { workspace = true }
 
 # Frame deps
 frame-support = { workspace = true }
@@ -102,7 +102,7 @@ substrate-wasm-builder = { workspace = true }
 [features]
 default = ["std"]
 std = [
-	"codec/std",
+	"parity-scale-codec/std",
 	"common/std",
  	"frame-try-runtime?/std",
  	"frame-system-benchmarking?/std",

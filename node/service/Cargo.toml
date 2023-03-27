@@ -24,7 +24,7 @@ serde = { workspace = true, features = ["derive"] }
 pallet-gear-rpc = { workspace = true }
 pallet-gear-rpc-runtime-api = { workspace = true }
 runtime-primitives = { workspace = true }
-gear-runtime-interface = { workspace = true }
+gear-runtime-interface = { workspace = true, features = [ "std" ] }
 authorship = { workspace = true }
 
 # Gear Runtimes

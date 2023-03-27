@@ -51,6 +51,7 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"pallet-balances/std",
+  "pallet-bags-list/std",
 	"pallet-staking/std",
 	"pallet-staking-reward-fn/std",
   "parity-scale-codec/std",
