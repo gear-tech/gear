@@ -120,8 +120,9 @@ macro_rules! command {
                 .collect::<(Vec<_>, Vec<_>)>();
 
             if let Some(ref junit_path) = param.generate_junit {
-                let xml = quick_xml::se::to_writer(
-                    String::new(),
+                let mut xml = String::new();
+                quick_xml::se::to_writer(
+                    &mut xml,
                     &TestSuites {
                         time: times.iter().sum::<f64>().to_string(),
                         testsuite: executions,
