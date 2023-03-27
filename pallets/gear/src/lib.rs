@@ -1516,7 +1516,7 @@ pub mod pallet {
         #[pallet::call_index(4)]
         // May charge different gas value depend on is value zero or not.
         // Non-zero value may cause of extra database access.
-        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32)
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply_non_zero_value(payload.len() as u32)
             .max(<T as Config>::WeightInfo::send_reply_zero_value(payload.len() as u32)))]
         pub fn send_reply(
             origin: OriginFor<T>,
@@ -1605,7 +1605,9 @@ pub mod pallet {
                 });
             }
             Ok(PostDispatchInfo {
-                actual_weight: Some(<T as Config>::WeightInfo::send_reply(payload_len)),
+                actual_weight: Some(<T as Config>::WeightInfo::send_reply_non_zero_value(
+                    payload_len,
+                )),
                 pays_fee: Pays::No,
             })
         }

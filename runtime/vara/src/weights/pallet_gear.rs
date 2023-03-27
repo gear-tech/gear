@@ -47,7 +47,7 @@ pub trait WeightInfo {
     fn upload_program(c: u32, s: u32, ) -> Weight;
     fn send_message_program_interaction(p: u32, ) -> Weight;
     fn send_message_user_interaction(p: u32, ) -> Weight;
-    fn send_reply(p: u32, ) -> Weight;
+    fn send_reply_non_zero_value(p: u32, ) -> Weight;
     fn send_reply_zero_value(p: u32, ) -> Weight;
     fn initial_allocation(q: u32, ) -> Weight;
     fn alloc_in_handle(q: u32, ) -> Weight;
@@ -290,7 +290,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(3 as u64))
     }
     /// The range of component `p` is `[0, 2097152]`.
-    fn send_reply(p: u32, ) -> Weight {
+    fn send_reply_non_zero_value(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `1161`
         //  Estimated: `31831`
@@ -1613,7 +1613,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(3 as u64))
     }
     /// The range of component `p` is `[0, 2097152]`.
-    fn send_reply(p: u32, ) -> Weight {
+    fn send_reply_non_zero_value(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `1161`
         //  Estimated: `31831`

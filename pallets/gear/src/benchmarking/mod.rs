@@ -575,7 +575,7 @@ benchmarks! {
         // TODO: Add event assertion
     }
 
-    send_reply {
+    send_reply_non_zero_value {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, DEPOSIT_AMOUNT.unique_saturated_into());
@@ -600,7 +600,7 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, GAS_LIMIT_EXT, minimum_balance)
+    }: send_reply(RawOrigin::Signed(caller.clone()), original_message_id, payload, GAS_LIMIT_EXT, minimum_balance)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
