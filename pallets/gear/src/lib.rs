@@ -898,7 +898,7 @@ pub mod pallet {
                 // Checking gas allowance.
                 //
                 // Making sure we have gas to remove next task
-                // or update the first missing block.
+                // or update the first block of incomplete tasks.
                 if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
                     stopped_at = Some(bn);
                     log::debug!("Stopping processing tasks at: {stopped_at:?}");
@@ -922,7 +922,7 @@ pub mod pallet {
                     // Checking gas allowance.
                     //
                     // Making sure we have gas to remove next task
-                    // or update the first missing block.
+                    // or update the first block of incomplete tasks.
                     if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
                         stopped_at = Some(bn);
                         log::debug!("Stopping processing tasks at: {stopped_at:?}");
@@ -939,7 +939,7 @@ pub mod pallet {
             // If we didn't process all tasks and stopped at some block number,
             // then there are missed blocks set we should handle in next time.
             if let Some(stopped_at) = stopped_at {
-                // Charging for inserting into the first missing block storage,
+                // Charging for inserting into storage of the first block of incomplete tasks,
                 // if we were reading it only (they were empty).
                 if were_empty {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());

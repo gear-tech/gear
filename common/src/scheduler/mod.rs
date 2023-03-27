@@ -48,7 +48,7 @@ pub trait Scheduler {
     /// Storing costs per block.
     type CostsPerBlock: SchedulingCostsPerBlock<BlockNumber = Self::BlockNumber, Cost = Self::Cost>;
 
-    /// The first block number, which have already passed,
+    /// The first block of incomplete tasks, which have already passed,
     /// but still contain tasks to deal with.
     ///
     /// Used for checking if scheduler is able to process
@@ -84,7 +84,7 @@ pub trait SchedulingCostsPerBlock {
     /// Cost type.
     type Cost;
 
-    /// Extra reserve for being able to pay for the first missing block.
+    /// Extra reserve for being able to pay for blocks with incomplete tasks.
     fn reserve_for() -> Self::BlockNumber;
 
     /// Cost for storing code per block.

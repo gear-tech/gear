@@ -136,11 +136,11 @@ pub mod pallet {
 
     // ----
 
-    // Private storage for the first missing block.
+    // Private storage for the first block of incomplete tasks.
     #[pallet::storage]
     type FirstIncompleteTasksBlock<T> = StorageValue<_, BlockNumberFor<T>>;
 
-    // Public wrap of the first missing block storage.
+    // Public wrap for storage of the first block of incomplete tasks.
     common::wrap_storage_value!(
         storage: FirstIncompleteTasksBlock,
         name: FirstIncompleteTasksBlockWrap,
