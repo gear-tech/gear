@@ -237,8 +237,7 @@ impl pallet_babe::Config for Runtime {
         KeyTypeId,
         pallet_babe::AuthorityId,
     )>>::IdentificationTuple;
-    type HandleEquivocation =
-        pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, (), ReportLongevity>;
+    type HandleEquivocation = ();
 
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;

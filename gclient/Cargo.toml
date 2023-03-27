@@ -19,6 +19,7 @@ thiserror = { workspace = true }
 futures-timer = { workspace = true }
 async-trait = { workspace = true }
 wabt = { workspace = true }
+gstd = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
