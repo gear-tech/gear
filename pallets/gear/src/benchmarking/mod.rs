@@ -1298,7 +1298,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_store = w_bench - w_i64const
+    // w_store = w_bench - w_i32const
     instr_i32store {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mem_pages = code::max_pages::<T>() as u32;
