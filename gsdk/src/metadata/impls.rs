@@ -145,11 +145,7 @@ impl<M> From<generated_ids::ReservationId> for GasNodeId<M, ids::ReservationId> 
     }
 }
 
-impl<M, R> Clone for GasNodeId<M, R>
-where
-    M: Clone,
-    R: Clone,
-{
+impl<M: Clone, R: Clone> Clone for GasNodeId<M, R> {
     fn clone(&self) -> Self {
         match self {
             GasNodeId::Node(message_id) => GasNodeId::Node(message_id.clone()),
@@ -160,12 +156,7 @@ where
     }
 }
 
-impl<M, R> Copy for GasNodeId<M, R>
-where
-    M: Copy,
-    R: Copy,
-{
-}
+impl<M: Copy, R: Copy> Copy for GasNodeId<M, R> {}
 
 macro_rules! impl_basic {
     ($t:ty) => {

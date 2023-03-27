@@ -225,7 +225,10 @@ impl GearApi {
             ));
         }
 
-        let src_block_hash = src_block_hash.or(Some(self.last_block_hash().await?));
+        let mut src_block_hash = src_block_hash;
+        if src_block_hash.is_none() {
+            src_block_hash = Some(self.last_block_hash().await?);
+        }
 
         let dest_program_id = src_program_id;
 
@@ -275,7 +278,7 @@ impl GearApi {
             if let types::GearGasNode::Reserved { id, .. } = &gas_node.1 {
                 accounts_with_reserved_funds.insert(id);
             } else {
-                return Err(Error::GasNodeTypeInvalid);
+                unreachable!("Unexpected gas node type");
             }
         }
 
@@ -340,7 +343,9 @@ impl GearApi {
                 .set_balance(
                     account_with_reserved_funds.into_account_id(),
                     dest_account_data.free,
-                    dest_account_data.reserved + src_account_data.reserved,
+                    dest_account_data
+                        .reserved
+                        .saturating_add(src_account_data.reserved),
                 )
                 .await?;
         }

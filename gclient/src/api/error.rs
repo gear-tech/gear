@@ -85,7 +85,4 @@ pub enum Error {
     /// Occurs when being migrated program already exists in destination node.
     #[error("Program {0} already exists")]
     ProgramAlreadyExists(String),
-    /// Occurs when gas node type does not match with gas node id type.
-    #[error("Gas node type is invalid")]
-    GasNodeTypeInvalid,
 }

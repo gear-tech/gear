@@ -84,12 +84,12 @@ impl Api {
 
 // frame-system
 impl Api {
-    /// Get account info by address
+    /// Get account info by address.
     pub async fn info(&self, address: &str) -> Result<AccountInfo<u32, AccountData<u128>>> {
         self.info_at(address, None).await
     }
 
-    /// Get account info by address at specified block
+    /// Get account info by address at specified block.
     pub async fn info_at(
         &self,
         address: &str,
@@ -107,12 +107,12 @@ impl Api {
         self.fetch_storage(&addr).await
     }
 
-    /// Get balance by account address
+    /// Get balance by account address.
     pub async fn get_balance(&self, address: &str) -> Result<u128> {
         Ok(self.info(address).await?.data.free)
     }
 
-    // Get events from the block
+    /// Get events from the block.
     pub async fn get_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
         let addr = subxt::dynamic::storage_root("System", "Events");
         let thunk = self
