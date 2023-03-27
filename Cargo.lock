@@ -3460,6 +3460,7 @@ dependencies = [
  "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-with-gas",
+ "demo-reserve-gas",
  "env_logger",
  "futures",
  "futures-timer",
