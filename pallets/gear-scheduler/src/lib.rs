@@ -138,12 +138,12 @@ pub mod pallet {
 
     // Private storage for the first missing block.
     #[pallet::storage]
-    type FirstMissingBlock<T> = StorageValue<_, BlockNumberFor<T>>;
+    type FirstIncompleteTasksBlock<T> = StorageValue<_, BlockNumberFor<T>>;
 
     // Public wrap of the first missing block storage.
     common::wrap_storage_value!(
-        storage: FirstMissingBlock,
-        name: FirstMissingBlockWrap,
+        storage: FirstIncompleteTasksBlock,
+        name: FirstIncompleteTasksBlockWrap,
         value: BlockNumberFor<T>
     );
 
@@ -266,7 +266,7 @@ pub mod pallet {
 
         type CostsPerBlock = Self;
 
-        type FirstMissingBlock = FirstMissingBlockWrap<T>;
+        type FirstIncompleteTasksBlock = FirstIncompleteTasksBlockWrap<T>;
 
         type TaskPool = TaskPoolImpl<
             TaskPoolWrap<T>,

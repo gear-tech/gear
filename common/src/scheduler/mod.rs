@@ -54,7 +54,7 @@ pub trait Scheduler {
     /// Used for checking if scheduler is able to process
     /// current block aimed tasks, or there are some
     /// incomplete job from previous blocks.
-    type FirstMissingBlock: ValueStorage<Value = Self::BlockNumber>;
+    type FirstIncompleteTasksBlock: ValueStorage<Value = Self::BlockNumber>;
 
     /// Gear task pool.
     ///
@@ -72,7 +72,7 @@ pub trait Scheduler {
     /// It's a temporary production solution to avoid DB migrations
     /// and would be available for test purposes only in the future.
     fn reset() {
-        Self::FirstMissingBlock::kill();
+        Self::FirstIncompleteTasksBlock::kill();
         Self::TaskPool::clear();
     }
 }

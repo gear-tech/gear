@@ -118,7 +118,8 @@ pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
-pub(crate) type FirstMissingBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::FirstMissingBlock;
+pub(crate) type FirstIncompleteTasksBlockOf<T> =
+    <<T as Config>::Scheduler as Scheduler>::FirstIncompleteTasksBlock;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
 pub(crate) type SchedulingCostOf<T> = <<T as Config>::Scheduler as Scheduler>::Cost;
 pub(crate) type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
@@ -873,7 +874,7 @@ pub mod pallet {
             // value and charge for single write.
             //
             // We also iterate up to current bn (including) to process it together
-            let (first_missing_block, were_empty) = FirstMissingBlockOf::<T>::take()
+            let (first_incomplete_block, were_empty) = FirstIncompleteTasksBlockOf::<T>::take()
                 .map(|block| {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
                     (block, false)
@@ -887,7 +888,7 @@ pub mod pallet {
             let mut stopped_at = None;
 
             // Iterating over blocks.
-            let missing_blocks = (first_missing_block.saturated_into::<u64>()
+            let missing_blocks = (first_incomplete_block.saturated_into::<u64>()
                 ..=current_bn.saturated_into())
                 .map(|block| block.saturated_into::<BlockNumberFor<T>>());
             for bn in missing_blocks {
@@ -944,7 +945,7 @@ pub mod pallet {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
                 }
 
-                FirstMissingBlockOf::<T>::put(stopped_at);
+                FirstIncompleteTasksBlockOf::<T>::put(stopped_at);
             }
         }
 
