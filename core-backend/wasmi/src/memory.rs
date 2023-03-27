@@ -21,7 +21,7 @@
 use crate::state::HostState;
 use gear_core::{
     env::Ext,
-    memory::{AllocError, HostPointer, Memory, PageU32Size, WasmPage},
+    memory::{HostPointer, Memory, PageU32Size, WasmPage},
 };
 use gear_core_errors::MemoryError;
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
@@ -32,11 +32,12 @@ pub(crate) struct MemoryWrapRef<'a, E: Ext + 'static> {
 }
 
 impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
-    fn grow(&mut self, pages: WasmPage) -> Result<(), AllocError> {
+    type GrowError = wasmi::errors::MemoryError;
+
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
         self.memory
             .grow(&mut self.store, Pages(pages.raw() as usize))
             .map(|_| ())
-            .map_err(|_| AllocError::ProgramAllocOutOfBounds)
     }
 
     fn size(&self) -> WasmPage {
@@ -79,11 +80,12 @@ impl<E: Ext + 'static> MemoryWrap<E> {
 
 /// Memory interface for the allocator.
 impl<E: Ext + 'static> Memory for MemoryWrap<E> {
-    fn grow(&mut self, pages: WasmPage) -> Result<(), AllocError> {
+    type GrowError = wasmi::errors::MemoryError;
+
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
         self.memory
             .grow(&mut self.store, Pages(pages.raw() as usize))
             .map(|_| ())
-            .map_err(|_| AllocError::ProgramAllocOutOfBounds)
     }
 
     fn size(&self) -> WasmPage {
@@ -114,7 +116,7 @@ mod tests {
 
     use super::*;
     use gear_backend_common::{assert_err, assert_ok, mock::MockExt, ActorTerminationReason};
-    use gear_core::memory::{AllocInfo, AllocationsContext, NoopGrowHandler};
+    use gear_core::memory::{AllocError, AllocInfo, AllocationsContext, NoopGrowHandler};
     use wasmi::{Engine, Store};
 
     fn new_test_memory(
