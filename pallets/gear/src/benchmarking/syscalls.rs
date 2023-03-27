@@ -45,27 +45,40 @@ use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCall
 use sp_core::Get;
 use sp_runtime::traits::UniqueSaturatedInto;
 
-// +_+_+
-// * comments for constants
-// * alloc/free
-
+/// Size of fallible syscall error length
 const ERR_LEN_SIZE: u32 = size_of::<u32>() as u32;
+/// Handle size
 const HANDLE_SIZE: u32 = size_of::<u32>() as u32;
+/// Value size
 const VALUE_SIZE: u32 = size_of::<Value>() as u32;
+/// Reservation id size
 const RID_SIZE: u32 = size_of::<ReservationId>() as u32;
+/// Code id size
 const CID_SIZE: u32 = size_of::<CodeId>() as u32;
+/// Program id size
 const PID_SIZE: u32 = size_of::<ProgramId>() as u32;
+/// Message id size
 const MID_SIZE: u32 = size_of::<MessageId>() as u32;
+/// Random subject size
 const RANDOM_SUBJECT_SIZE: u32 = 32;
 
+/// Size of struct with fields: error len and handle
 const ERR_HANDLE_SIZE: u32 = ERR_LEN_SIZE + HANDLE_SIZE;
+/// Size of struct with fields: reservation id and value
 const RID_VALUE_SIZE: u32 = RID_SIZE + VALUE_SIZE;
+/// Size of struct with fields: program id and value
 const PID_VALUE_SIZE: u32 = PID_SIZE + VALUE_SIZE;
+/// Size of struct with fields: code id and value
 const CID_VALUE_SIZE: u32 = CID_SIZE + VALUE_SIZE;
+/// Size of struct with fields: reservation id, program id and value
 const RID_PID_VALUE_SIZE: u32 = RID_SIZE + PID_SIZE + VALUE_SIZE;
 
+/// Size of memory with one wasm page
 const SMALL_MEM_SIZE: u16 = 1;
+/// Common offset for data in memory. We use `1` to make memory accesses unaligned
+/// and therefore slower, because we wanna to identify max weights.
 const COMMON_OFFSET: u32 = 1;
+/// Common small payload len.
 const COMMON_PAYLOAD_LEN: u32 = 100;
 
 const MAX_REPETITIONS: u32 = API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE;
