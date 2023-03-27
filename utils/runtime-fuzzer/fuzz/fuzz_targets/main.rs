@@ -22,7 +22,7 @@ use libfuzzer_sys::fuzz_target;
 use once_cell::sync::OnceCell;
 use std::{
     fs::{self, OpenOptions},
-    io::Write,
+    io::{Write, Result as IoResult, Error as IoError},
     path::Path,
 };
 
@@ -34,8 +34,7 @@ static RUN_INTIALIZED: OnceCell<String> = OnceCell::new();
 fuzz_target!(|seed: u64| {
     gear_utils::init_default_logger();
 
-    dump_seed(seed)
-        .unwrap_or_else(|e| unreachable!("internal error: failed dumping seed: {e}"));
+    dump_seed(seed).unwrap_or_else(|e| unreachable!("internal error: failed dumping seed: {e}"));
 
     log::info!("Running the seed {seed}");
     runtime_fuzzer::run(seed);
@@ -45,15 +44,15 @@ fuzz_target!(|seed: u64| {
 // directory before running fuzz test.
 //
 // If directory already exists for the current run, it will be cleared.
-fn dump_seed(seed: u64) -> Result<(), String> {
+fn dump_seed(seed: u64) -> IoResult<()> {
     let seeds_file = RUN_INTIALIZED.get_or_try_init(|| {
         let seeds_dir = Path::new(SEEDS_STORE_DIR);
-        if !seeds_dir.exists() {
-            // fs::remove_dir_all(seeds_dir).map_err(|e| e.to_string())?;
-            fs::create_dir_all(seeds_dir).map_err(|e| e.to_string())?;
+        match seeds_dir.exists() {
+            true => clear_dir(seeds_dir)?,
+            false => fs::create_dir_all(seeds_dir)?,
         }
 
-        Ok::<_, String>(format!("{SEEDS_STORE_DIR}/{SEEDS_STORE_FILE}"))
+        Ok::<String, IoError>(format!("{SEEDS_STORE_DIR}/{SEEDS_STORE_FILE}"))
     })?;
 
     OpenOptions::new()
@@ -61,5 +60,16 @@ fn dump_seed(seed: u64) -> Result<(), String> {
         .append(true)
         .open(seeds_file)
         .and_then(|mut file| writeln!(file, "{seed}"))
-        .map_err(|e| e.to_string())
+
+}
+
+fn clear_dir(path: &Path) -> IoResult<()> {
+    for dir_entry in fs::read_dir(path)? {
+        let dir_entry = dir_entry?;
+        let path = dir_entry.path();
+
+        fs::remove_file(path)?;
+    }
+
+    Ok(())
 }
