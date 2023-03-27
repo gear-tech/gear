@@ -18,16 +18,16 @@
 
 //! Test for infinity loop, that it can't exceed block production time.
 
-use gclient::{EventProcessor, GearApi, Result};
+use gclient::{EventProcessor, GearApi};
 
 const PATH: &str = "../target/wasm32-unknown-unknown/release/demo_loop.opt.wasm";
 
 #[tokio::test]
-async fn inf_loop() -> Result<()> {
+async fn inf_loop() -> anyhow::Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice.
-    let api = GearApi::dev().await?;
+    let api = GearApi::dev_from_path("../target/release/gear").await?;
 
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit()?;

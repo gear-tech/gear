@@ -1,0 +1,64 @@
+- name: "deploy new ubuntu loader"
+  hosts: all
+  become: yes
+  remote_user: ubuntu
+  vars:
+
+  tasks:
+  - name: Stop docker compose
+    shell: >
+        docker-compose -f "/home/ubuntu/docker-compose.yaml" down
+    become: yes
+    
+  - name: remove db
+    ansible.builtin.file:
+      path: /home/ubuntu/gear-data/chains/gear_dev/db
+      state: absent
+    become: yes
+    
+  - name: Remove old docker images
+    shell: >
+       docker image prune -f
+    become: yes
+    
+  - name: Pull docker images
+    shell: >
+       docker-compose -f "/home/ubuntu/docker-compose.yaml" pull
+    become: yes
+ 
+  - name: remove gear-loader.log
+    ansible.builtin.file:
+      path: /home/ubuntu/gear-loader.log
+      state: absent
+    become: yes
+    
+  - name: remove gear-loader binary
+    ansible.builtin.file:
+      path: /home/ubuntu/gear-node-loader
+      state: absent
+    become: yes
+     
+  - name: copy new gear-loader binary
+    copy:
+      src: /home/runner/work/gear/gear/gear-node-loader
+      dest: /home/ubuntu/gear-node-loader
+    become: yes
+    
+  - name: Permission to exec
+    shell: >
+       chmod +x /home/ubuntu/gear-node-loader
+    become: yes
+        
+  - name: Run docker-compose
+    shell: >
+       docker-compose -f "/home/ubuntu/docker-compose.yaml" up -d
+    become: yes
+ 
+  - name: Pause for 10 seconds before run loader
+    ansible.builtin.pause:
+      seconds: 10
+
+  - name: Run loader
+    shell: >
+       /home/ubuntu/loader.sh
+    become: yes

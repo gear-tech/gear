@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use demo_meta_io::Wallet;
-use gclient::{EventProcessor, GearApi, Result};
+use gclient::{EventProcessor, GearApi};
 use parity_scale_codec::Decode;
 use tokio::fs;
 
@@ -27,8 +27,8 @@ const META_WASM_PATH: &str =
     "../target/wasm32-unknown-unknown/release/demo_meta_state_v1.meta.wasm";
 
 #[tokio::test]
-async fn get_state() -> Result<()> {
-    let api = GearApi::dev().await?;
+async fn get_state() -> anyhow::Result<()> {
+    let api = GearApi::dev_from_path("../target/release/gear").await?;
 
     // Subscribe to events
     let mut listener = api.subscribe().await?;

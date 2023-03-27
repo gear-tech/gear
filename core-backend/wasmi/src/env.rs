@@ -26,7 +26,7 @@ use crate::{
 use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
-    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor, GlobalsConfig},
+    lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
     BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
 };
@@ -36,9 +36,7 @@ use gear_core::{
     memory::{HostPointer, PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
-use gear_wasm_instrument::{
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
-};
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME};
 use wasmi::{
     core::Value, Engine, Extern, Global, Instance, Linker, Memory, MemoryType, Module, Store,
 };
@@ -207,7 +205,7 @@ where
 
     fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
-        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), T>,
         T: Display,
     {
         use EnvironmentExecutionError::*;
@@ -267,12 +265,9 @@ where
         // each moment when protect memory signal can occur, than this trick is pretty safe.
         let globals_access_ptr = &globals_provider_dyn_ref as *const _ as HostPointer;
 
-        let globals_config = GlobalsConfig {
-            global_gas_name: GLOBAL_NAME_GAS.to_string(),
-            global_allowance_name: GLOBAL_NAME_ALLOWANCE.to_string(),
-            global_flags_name: GLOBAL_NAME_FLAGS.to_string(),
-            globals_access_ptr,
-            globals_access_mod: GlobalsAccessMod::NativeRuntime,
+        let globals_config = GlobalsAccessConfig {
+            access_ptr: globals_access_ptr,
+            access_mod: GlobalsAccessMod::NativeRuntime,
         };
 
         let mut memory_wrap = MemoryWrap::new(memory, store);

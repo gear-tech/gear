@@ -57,7 +57,7 @@ pub mod time {
     ///
     /// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 
-    pub const MILLISECS_PER_BLOCK: Moment = 2400;
+    pub const MILLISECS_PER_BLOCK: Moment = 3000;
 
     // Milliseconds per year for the Julian year (365.25 days).
     pub const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
@@ -74,7 +74,7 @@ pub mod time {
 
     // NOTE: Currently it is not possible to change the epoch duration after the chain has started.
     //       Attempting to do so will brick block production.
-    pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 40 * MINUTES;
+    pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 2 * HOURS;
     pub const EPOCH_DURATION_IN_SLOTS: u64 = {
         const SLOT_FILL_RATE: f64 = MILLISECS_PER_BLOCK as f64 / SLOT_DURATION as f64;
 

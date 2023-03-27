@@ -13,6 +13,7 @@ runtime-fuzzer = { path = ".." }
 gear-utils = { path = "../../utils" }
 env_logger = "0.10"
 log = { version = "0.4.17" }
+once_cell = "1.17.0"
 
 [[bin]]
 name = "main"

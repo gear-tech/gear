@@ -68,7 +68,7 @@ use common::{
 use core::ops::Range;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
-    configs::BlockConfig,
+    configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
     ProcessExecutionContext, ProcessorContext, ProcessorExt,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
@@ -99,7 +99,7 @@ use sp_runtime::{
 };
 use sp_std::prelude::*;
 
-const MAX_PAYLOAD_LEN: u32 = 16 * 64 * 1024;
+const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const MAX_PAGES: u32 = 512;
 
@@ -172,7 +172,8 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
-        pages_config: Default::default(),
+        max_pages: TESTS_MAX_PAGES_NUMBER.into(),
+        page_costs: PageCosts::new_for_tests(),
         existential_deposit: 0,
         origin: Default::default(),
         program_id: Default::default(),
@@ -897,6 +898,17 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_reply_commit_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reply_commit_per_kb(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_reply_push {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -925,6 +937,17 @@ benchmarks! {
         let r in 0 .. 1;
         let mut res = None;
         let exec = Benches::<T>::gr_reservation_reply_commit(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_reply_commit_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_reply_commit_per_kb(n)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -966,7 +989,7 @@ benchmarks! {
     }
 
     gr_reply_push_input_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_input_per_kb(n)?;
     }: {
@@ -1143,10 +1166,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    lazy_pages_read_access {
+    lazy_pages_signal_read {
         let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_read_access((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_signal_read((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1154,10 +1177,65 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    lazy_pages_write_access {
+    lazy_pages_signal_write {
         let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
-        let exec = Benches::<T>::lazy_pages_write_access((p as u16).into())?;
+        let exec = Benches::<T>::lazy_pages_signal_write((p as u16).into())?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    lazy_pages_signal_write_after_read {
+        let p in 0 .. code::max_pages::<T>() as u32;
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_signal_write_after_read((p as u16).into())?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    lazy_pages_load_page_storage_data {
+        let p in 0 .. code::max_pages::<T>() as u32;
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_load_page_storage_data((p as u16).into())?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    lazy_pages_host_func_read {
+        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_host_func_read((p as u16).into())?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    lazy_pages_host_func_write {
+        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_host_func_write((p as u16).into())?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    lazy_pages_host_func_write_after_read {
+        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
+        let mut res = None;
+        let exec = Benches::<T>::lazy_pages_host_func_write_after_read((p as u16).into())?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1167,14 +1245,13 @@ benchmarks! {
 
     // w_load = w_bench
     instr_i64load {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        // Increased interval in order to increase accuracy
+        let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let mem_pages = code::max_pages::<T>() as u32;
-        // Warm up memory.
-        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
-        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+        let instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                         RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
                         Regular(Instruction::I64Load(3, 0)),
-                        Regular(Instruction::Drop)], instrs);
+                        Regular(Instruction::Drop)], vec![]);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory{min_pages: mem_pages}),
             handle_body: Some(body::from_instructions(instrs)),
@@ -1186,14 +1263,13 @@ benchmarks! {
 
     // w_store = w_bench - w_i64const
     instr_i64store {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        // Increased interval in order to increase accuracy
+        let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let mem_pages = code::max_pages::<T>() as u32;
-        // Warm up memory.
-        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
-        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+        let instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                         RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
                         RandomI64Repeated(1),
-                        Regular(Instruction::I64Store(3, 0))], instrs);
+                        Regular(Instruction::I64Store(3, 0))], vec![]);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory{min_pages: mem_pages}),
             handle_body: Some(body::from_instructions(instrs)),
@@ -1329,6 +1405,22 @@ benchmarks! {
         sbox.invoke();
     }
 
+     // w_i64const = w_bench - w_call
+     instr_call_const {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            aux_body: Some(body::plain(vec![Instruction::I64Const(0x7ffffffff3ffffff), Instruction::End])),
+            aux_res: Some(ValueType::I64),
+            handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
+                Instruction::Call(OFFSET_AUX),
+                Instruction::Drop,
+            ])),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
     // w_call = w_bench
     instr_call {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
@@ -1342,22 +1434,6 @@ benchmarks! {
     }: {
         sbox.invoke();
     }
-
-     // w_i64const = w_bench - w_call
-     instr_call_const {
-         let r in 0 .. INSTR_BENCHMARK_BATCHES;
-         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-             aux_body: Some(body::plain(vec![Instruction::I64Const(0x7ffffffff3ffffff), Instruction::End])),
-             aux_res: Some(ValueType::I64),
-             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
-                 Instruction::Call(OFFSET_AUX),
-                 Instruction::Drop,
-             ])),
-             .. Default::default()
-         }));
-     }: {
-         sbox.invoke();
-     }
 
     // w_call_indirect = w_bench
     instr_call_indirect {
@@ -1397,6 +1473,24 @@ benchmarks! {
                 num_elements,
                 function_index: OFFSET_AUX,
             }),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_per_local = w_bench
+    instr_call_per_local {
+        let l in 0 .. T::Schedule::get().limits.locals;
+        let mut aux_body = body::plain(vec![
+            Instruction::End,
+        ]);
+        body::inject_locals(&mut aux_body, l);
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            aux_body: Some(aux_body),
+            handle_body: Some(body::repeated(INSTR_BENCHMARK_BATCH_SIZE, &[
+                Instruction::Call(2), // call aux
+            ])),
             .. Default::default()
         }));
     }: {

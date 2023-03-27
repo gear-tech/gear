@@ -22,7 +22,7 @@ use gear_backend_common::{
         MemoryAccessManager, MemoryOwner, WasmMemoryRead, WasmMemoryReadAs, WasmMemoryReadDecoded,
         WasmMemoryWrite, WasmMemoryWriteAs,
     },
-    ActorTerminationReason, BackendExt, BackendState, TrapExplanation,
+    ActorTerminationReason, BackendExt, BackendState, TrapExplanation, PTR_SPECIAL,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft};
 
@@ -110,11 +110,13 @@ impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
     }
 
     #[track_caller]
-    pub fn memory(&mut self) -> MemoryWrapRef<'_, E> {
-        let store = self.caller.as_context_mut();
-        MemoryWrapRef {
-            memory: self.memory,
-            store,
+    pub fn memory<'b, 'c: 'b>(
+        caller: &'b mut Caller<'c, Option<State<E>>>,
+        memory: WasmiMemory,
+    ) -> MemoryWrapRef<'b, E> {
+        MemoryWrapRef::<'b, _> {
+            memory,
+            store: caller.as_context_mut(),
         }
     }
 
@@ -152,6 +154,25 @@ impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
         };
 
         f().unwrap_or_else(|| unreachable!("Globals must be checked during env creation"));
+    }
+
+    fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>
+    where
+        F: FnOnce(
+            &mut MemoryAccessManager<E>,
+            &mut MemoryWrapRef<E>,
+            &mut GasLeft,
+        ) -> Result<R, MemoryAccessError>,
+    {
+        let mut gas_left = self.host_state_mut().ext.gas_left();
+
+        let mut memory = Self::memory(&mut self.caller, self.memory);
+
+        let res = f(&mut self.manager, &mut memory, &mut gas_left);
+
+        self.host_state_mut().ext.set_gas_left(gas_left);
+
+        res
     }
 
     fn with_globals_update<T, F>(&mut self, f: F) -> Result<T, Trap>
@@ -259,42 +280,26 @@ impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E> {
 
 impl<'a, E: BackendExt + 'static> MemoryOwner for CallerWrap<'a, E> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
-        let store = self.caller.as_context_mut();
-        let memory = MemoryWrapRef {
-            memory: self.memory,
-            store,
-        };
-        self.manager.read(&memory, read)
+        self.with_memory(|manager, memory, gas_left| manager.read(memory, read, gas_left))
     }
 
     fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
-        let store = self.caller.as_context_mut();
-        let memory = MemoryWrapRef {
-            memory: self.memory,
-            store,
-        };
-        self.manager.read_as(&memory, read)
+        self.with_memory(|manager, memory, gas_left| manager.read_as(memory, read, gas_left))
     }
 
     fn read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         read: WasmMemoryReadDecoded<T>,
     ) -> Result<T, MemoryAccessError> {
-        let store = self.caller.as_context_mut();
-        let memory = MemoryWrapRef {
-            memory: self.memory,
-            store,
-        };
-        self.manager.read_decoded(&memory, read)
+        self.with_memory(move |manager, memory, gas_left| {
+            manager.read_decoded(memory, read, gas_left)
+        })
     }
 
     fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError> {
-        let store = self.caller.as_context_mut();
-        let mut memory = MemoryWrapRef {
-            memory: self.memory,
-            store,
-        };
-        self.manager.write(&mut memory, write, buff)
+        self.with_memory(move |manager, memory, gas_left| {
+            manager.write(memory, write, buff, gas_left)
+        })
     }
 
     fn write_as<T: Sized>(
@@ -302,11 +307,8 @@ impl<'a, E: BackendExt + 'static> MemoryOwner for CallerWrap<'a, E> {
         write: WasmMemoryWriteAs<T>,
         obj: T,
     ) -> Result<(), MemoryAccessError> {
-        let store = self.caller.as_context_mut();
-        let mut memory = MemoryWrapRef {
-            memory: self.memory,
-            store,
-        };
-        self.manager.write_as(&mut memory, write, obj)
+        self.with_memory(move |manager, memory, gas_left| {
+            manager.write_as(memory, write, obj, gas_left)
+        })
     }
 }

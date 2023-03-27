@@ -19,7 +19,7 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use core_processor::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
     BackendExt, ExtInfo,
 };
@@ -45,7 +45,7 @@ impl BackendExt for LazyPagesExt {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
                 // Accessed pages are all pages, that had been released and are in allocations set or static.
-                let mut accessed_pages = lazy_pages::get_released_pages();
+                let mut accessed_pages = lazy_pages::get_write_accessed_pages();
                 accessed_pages.retain(|p| {
                     let wasm_page = p.to_page();
                     wasm_page < static_pages || allocations.contains(&wasm_page)
@@ -63,8 +63,9 @@ impl BackendExt for LazyPagesExt {
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
+        gas_left: &mut GasLeft,
     ) -> Result<(), ProcessAccessError> {
-        lazy_pages::pre_process_memory_accesses(reads, writes)
+        lazy_pages::pre_process_memory_accesses(reads, writes, gas_left)
     }
 }
 
@@ -81,7 +82,7 @@ impl ProcessorExt for LazyPagesExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPage>,
-        globals_config: GlobalsConfig,
+        globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
     ) {
         lazy_pages::init_for_program(mem, prog_id, stack_end, globals_config, lazy_pages_weights);
@@ -91,7 +92,7 @@ impl ProcessorExt for LazyPagesExt {
         lazy_pages::remove_lazy_pages_prot(mem);
     }
 
-    fn lazy_pages_status() -> Option<Status> {
+    fn lazy_pages_status() -> Status {
         lazy_pages::get_status()
     }
 }
@@ -263,7 +264,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.debug(data)
     }
 
-    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error> {
+    fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
         self.inner.read(at, len)
     }
 

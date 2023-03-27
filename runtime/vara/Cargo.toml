@@ -52,6 +52,7 @@ pallet-vesting = { version = "4.0.0-dev", default-features = false, git = "https
 pallet-whitelist = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 
 # Primitives
+sp-arithmetic = { version = "6.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-authority-discovery = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-block-builder = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false, version = "4.0.0-dev" }
@@ -90,6 +91,12 @@ pallet-gear-staking-rewards = { version = "1.0.0", default-features = false, pat
 pallet-gear-rpc-runtime-api = { version = "2.0.0", default-features = false, path = "../../pallets/gear/rpc/runtime-api" }
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../primitives" }
 pallet-airdrop = { version = "1.0.0", default-features = false, path = "../../pallets/airdrop" }
+
+[dev-dependencies]
+sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-keyring = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+env_logger = "0.10"
+wat = "1.0.61"
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
@@ -144,6 +151,7 @@ std = [
 	"runtime-primitives/std",
 	"scale-info/std",
 	"sp-api/std",
+	"sp-arithmetic/std",
 	"sp-authority-discovery/std",
 	"sp-block-builder/std",
 	"sp-consensus-babe/std",

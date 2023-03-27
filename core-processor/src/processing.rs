@@ -54,7 +54,8 @@ where
 
     let BlockConfig {
         block_info,
-        pages_config,
+        max_pages,
+        page_costs,
         existential_deposit,
         outgoing_limit,
         host_fn_weights,
@@ -71,7 +72,8 @@ where
     let execution_settings = ExecutionSettings {
         block_info,
         existential_deposit,
-        pages_config,
+        max_pages,
+        page_costs,
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,

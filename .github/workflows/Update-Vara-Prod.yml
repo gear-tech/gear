@@ -1,4 +1,4 @@
-name: Vara CD
+name: Upgrade Vara Production
 
 on:
   workflow_dispatch:
@@ -130,5 +130,5 @@ jobs:
             ${{secrets.VARA_NODE_7}} name=vara-gear07 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             ${{secrets.VARA_NODE_8}} name=vara-gear08 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             ${{secrets.VARA_NODE_9}} name=vara-gear09 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.VARA_NODE_ARCHIVE_RPC}} name=vara-archive-rpc rpc=yes unsafe=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_ARCHIVE_RPC}} name=vara-archive-rpc rpc=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
           

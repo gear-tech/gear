@@ -18,12 +18,13 @@
 
 //! Upload code args generator.
 
-use crate::{CallGenRng, GearCall, GearProgGenConfig, Seed};
+use crate::{CallGenRng, GearCall, GearCallConversionError, GearProgGenConfig, Seed};
 use gear_core::ids::ProgramId;
 
 /// Upload code args
 ///
 /// Main type used to generate arguments for the `pallet_gear::Pallet::<T>::upload_code` call.
+#[derive(Debug, Clone)]
 pub struct UploadCodeArgs(pub Vec<u8>);
 
 impl From<UploadCodeArgs> for Vec<u8> {
@@ -39,13 +40,13 @@ impl From<UploadCodeArgs> for GearCall {
 }
 
 impl TryFrom<GearCall> for UploadCodeArgs {
-    type Error = ();
+    type Error = GearCallConversionError;
 
     fn try_from(call: GearCall) -> Result<Self, Self::Error> {
         if let GearCall::UploadCode(call) = call {
             Ok(call)
         } else {
-            Err(())
+            Err(GearCallConversionError("upload_code"))
         }
     }
 }

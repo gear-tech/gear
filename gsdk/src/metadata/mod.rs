@@ -1,24 +1,6 @@
-// This file is part of Gear.
-//
-// Copyright (C) 2021-2022 Gear Technologies Inc.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-//! Static metadata.
 #![allow(dead_code, unused_imports, non_camel_case_types)]
 #![allow(clippy::all)]
+#![allow(unused)]
 
 mod impls;
 
@@ -30,529 +12,143 @@ pub enum Event {
     Grandpa(grandpa::Event),
     #[codec(index = 5)]
     Balances(balances::Event),
+    #[codec(index = 10)]
+    Vesting(vesting::Event),
     #[codec(index = 6)]
     TransactionPayment(transaction_payment::Event),
+    #[codec(index = 11)]
+    BagsList(bags_list::Event),
+    #[codec(index = 12)]
+    ImOnline(im_online::Event),
+    #[codec(index = 13)]
+    Staking(staking::Event),
     #[codec(index = 7)]
     Session(session::Event),
-    #[codec(index = 8)]
-    Sudo(sudo::Event),
-    #[codec(index = 9)]
-    Utility(utility::Event),
     #[codec(index = 14)]
+    Treasury(treasury::Event),
+    #[codec(index = 16)]
+    ConvictionVoting(conviction_voting::Event),
+    #[codec(index = 17)]
+    Referenda(referenda::Event),
+    #[codec(index = 18)]
+    FellowshipCollective(fellowship_collective::Event),
+    #[codec(index = 19)]
+    FellowshipReferenda(fellowship_referenda::Event),
+    #[codec(index = 21)]
+    Whitelist(whitelist::Event),
+    #[codec(index = 99)]
+    Sudo(sudo::Event),
+    #[codec(index = 22)]
+    Scheduler(scheduler::Event),
+    #[codec(index = 23)]
+    Preimage(preimage::Event),
+    #[codec(index = 24)]
+    Identity(identity::Event),
+    #[codec(index = 8)]
+    Utility(utility::Event),
+    #[codec(index = 104)]
     Gear(gear::Event),
+    #[codec(index = 106)]
+    StakingRewards(staking_rewards::Event),
+    #[codec(index = 198)]
+    Airdrop(airdrop::Event),
+    #[codec(index = 199)]
+    GearDebug(gear_debug::Event),
 }
 
 pub mod system {
-
-    use super::runtime_types;
-
-    #[doc = "Event for the System pallet."]
-    pub type Event = runtime_types::frame_system::pallet::Event;
-    pub mod events {
-        use super::runtime_types;
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "An extrinsic completed successfully."]
-        pub struct ExtrinsicSuccess {
-            pub dispatch_info: runtime_types::frame_support::dispatch::DispatchInfo,
-        }
-        impl ::subxt::events::StaticEvent for ExtrinsicSuccess {
-            const PALLET: &'static str = "System";
-            const EVENT: &'static str = "ExtrinsicSuccess";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "An extrinsic failed."]
-        pub struct ExtrinsicFailed {
-            pub dispatch_error: runtime_types::sp_runtime::DispatchError,
-            pub dispatch_info: runtime_types::frame_support::dispatch::DispatchInfo,
-        }
-        impl ::subxt::events::StaticEvent for ExtrinsicFailed {
-            const PALLET: &'static str = "System";
-            const EVENT: &'static str = "ExtrinsicFailed";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "`:code` was updated."]
-        pub struct CodeUpdated;
-        impl ::subxt::events::StaticEvent for CodeUpdated {
-            const PALLET: &'static str = "System";
-            const EVENT: &'static str = "CodeUpdated";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "A new account was created."]
-        pub struct NewAccount {
-            pub account: ::sp_core::crypto::AccountId32,
-        }
-        impl ::subxt::events::StaticEvent for NewAccount {
-            const PALLET: &'static str = "System";
-            const EVENT: &'static str = "NewAccount";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "An account was reaped."]
-        pub struct KilledAccount {
-            pub account: ::sp_core::crypto::AccountId32,
-        }
-        impl ::subxt::events::StaticEvent for KilledAccount {
-            const PALLET: &'static str = "System";
-            const EVENT: &'static str = "KilledAccount";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "On on-chain remark happened."]
-        pub struct Remarked {
-            pub sender: ::sp_core::crypto::AccountId32,
-            pub hash: ::sp_core::H256,
-        }
-        impl ::subxt::events::StaticEvent for Remarked {
-            const PALLET: &'static str = "System";
-            const EVENT: &'static str = "Remarked";
-        }
-    }
+    pub use super::runtime_types::frame_system::pallet::Event;
 }
 
 pub mod grandpa {
-
-    use super::runtime_types;
-    #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
-    pub type Event = runtime_types::pallet_grandpa::pallet::Event;
-    pub mod events {
-        use super::runtime_types;
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "New authority set has been applied."]
-        pub struct NewAuthorities {
-            pub authority_set: ::std::vec::Vec<(
-                runtime_types::sp_finality_grandpa::app::Public,
-                ::core::primitive::u64,
-            )>,
-        }
-        impl ::subxt::events::StaticEvent for NewAuthorities {
-            const PALLET: &'static str = "Grandpa";
-            const EVENT: &'static str = "NewAuthorities";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Current authority set has been paused."]
-        pub struct Paused;
-        impl ::subxt::events::StaticEvent for Paused {
-            const PALLET: &'static str = "Grandpa";
-            const EVENT: &'static str = "Paused";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Current authority set has been resumed."]
-        pub struct Resumed;
-        impl ::subxt::events::StaticEvent for Resumed {
-            const PALLET: &'static str = "Grandpa";
-            const EVENT: &'static str = "Resumed";
-        }
-    }
+    pub use super::runtime_types::pallet_grandpa::pallet::Event;
 }
 
 pub mod balances {
+    pub use super::runtime_types::pallet_balances::pallet::Event;
+}
 
-    use super::runtime_types;
-
-    #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
-    pub type Event = runtime_types::pallet_balances::pallet::Event;
-    pub mod events {
-        use super::runtime_types;
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "An account was created with some free balance."]
-        pub struct Endowed {
-            pub account: ::sp_core::crypto::AccountId32,
-            pub free_balance: ::core::primitive::u128,
-        }
-        impl ::subxt::events::StaticEvent for Endowed {
-            const PALLET: &'static str = "Balances";
-            const EVENT: &'static str = "Endowed";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "An account was removed whose balance was non-zero but below ExistentialDeposit,"]
-        #[doc = "resulting in an outright loss."]
-        pub struct DustLost {
-            pub account: ::sp_core::crypto::AccountId32,
-            pub amount: ::core::primitive::u128,
-        }
-        impl ::subxt::events::StaticEvent for DustLost {
-            const PALLET: &'static str = "Balances";
-            const EVENT: &'static str = "DustLost";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Transfer succeeded."]
-        pub struct Transfer {
-            pub from: ::sp_core::crypto::AccountId32,
-            pub to: ::sp_core::crypto::AccountId32,
-            pub amount: ::core::primitive::u128,
-        }
-        impl ::subxt::events::StaticEvent for Transfer {
-            const PALLET: &'static str = "Balances";
-            const EVENT: &'static str = "Transfer";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "A balance was set by root."]
-        pub struct BalanceSet {
-            pub who: ::sp_core::crypto::AccountId32,
-            pub free: ::core::primitive::u128,
-            pub reserved: ::core::primitive::u128,
-        }
-        impl ::subxt::events::StaticEvent for BalanceSet {
-            const PALLET: &'static str = "Balances";
-            const EVENT: &'static str = "BalanceSet";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Some balance was reserved (moved from free to reserved)."]
-        pub struct Reserved {
-            pub who: ::sp_core::crypto::AccountId32,
-            pub amount: ::core::primitive::u128,
-        }
-        impl ::subxt::events::StaticEvent for Reserved {
-            const PALLET: &'static str = "Balances";
-            const EVENT: &'static str = "Reserved";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Some balance was unreserved (moved from reserved to free)."]
-        pub struct Unreserved {
-            pub who: ::sp_core::crypto::AccountId32,
-            pub amount: ::core::primitive::u128,
-        }
-        impl ::subxt::events::StaticEvent for Unreserved {
-            const PALLET: &'static str = "Balances";
-            const EVENT: &'static str = "Unreserved";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Some balance was moved from the reserve of the first account to the second account."]
-        #[doc = "Final argument indicates the destination balance type."]
-        pub struct ReserveRepatriated {
-            pub from: ::sp_core::crypto::AccountId32,
-            pub to: ::sp_core::crypto::AccountId32,
-            pub amount: ::core::primitive::u128,
-            pub destination_status:
-                runtime_types::frame_support::traits::tokens::misc::BalanceStatus,
-        }
-        impl ::subxt::events::StaticEvent for ReserveRepatriated {
-            const PALLET: &'static str = "Balances";
-            const EVENT: &'static str = "ReserveRepatriated";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Some amount was deposited (e.g. for transaction fees)."]
-        pub struct Deposit {
-            pub who: ::sp_core::crypto::AccountId32,
-            pub amount: ::core::primitive::u128,
-        }
-        impl ::subxt::events::StaticEvent for Deposit {
-            const PALLET: &'static str = "Balances";
-            const EVENT: &'static str = "Deposit";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Some amount was withdrawn from the account (e.g. for transaction fees)."]
-        pub struct Withdraw {
-            pub who: ::sp_core::crypto::AccountId32,
-            pub amount: ::core::primitive::u128,
-        }
-        impl ::subxt::events::StaticEvent for Withdraw {
-            const PALLET: &'static str = "Balances";
-            const EVENT: &'static str = "Withdraw";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Some amount was removed from the account (e.g. for misbehavior)."]
-        pub struct Slashed {
-            pub who: ::sp_core::crypto::AccountId32,
-            pub amount: ::core::primitive::u128,
-        }
-        impl ::subxt::events::StaticEvent for Slashed {
-            const PALLET: &'static str = "Balances";
-            const EVENT: &'static str = "Slashed";
-        }
-    }
+pub mod vesting {
+    pub use super::runtime_types::pallet_vesting::pallet::Event;
 }
 
 pub mod transaction_payment {
+    pub use super::runtime_types::pallet_transaction_payment::pallet::Event;
+}
 
-    use super::runtime_types;
-    #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
-    pub type Event = runtime_types::pallet_transaction_payment::pallet::Event;
-    pub mod events {
-        use super::runtime_types;
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "A transaction fee `actual_fee`, of which `tip` was added to the minimum inclusion fee,"]
-        #[doc = "has been paid by `who`."]
-        pub struct TransactionFeePaid {
-            pub who: ::sp_core::crypto::AccountId32,
-            pub actual_fee: ::core::primitive::u128,
-            pub tip: ::core::primitive::u128,
-        }
-        impl ::subxt::events::StaticEvent for TransactionFeePaid {
-            const PALLET: &'static str = "TransactionPayment";
-            const EVENT: &'static str = "TransactionFeePaid";
-        }
-    }
+pub mod bags_list {
+    pub use super::runtime_types::pallet_bags_list::pallet::Event;
+}
+
+pub mod im_online {
+    pub use super::runtime_types::pallet_im_online::pallet::Event;
+}
+
+pub mod staking {
+    pub use super::runtime_types::pallet_staking::pallet::pallet::Event;
 }
 
 pub mod session {
+    pub use super::runtime_types::pallet_session::pallet::Event;
+}
 
-    use super::runtime_types;
+pub mod treasury {
+    pub use super::runtime_types::pallet_treasury::pallet::Event;
+}
 
-    #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
-    pub type Event = runtime_types::pallet_session::pallet::Event;
-    pub mod events {
-        use super::runtime_types;
-        #[derive(
-            :: subxt :: ext :: codec :: CompactAs,
-            :: subxt :: ext :: codec :: Decode,
-            :: subxt :: ext :: codec :: Encode,
-            Debug,
-        )]
-        #[doc = "New session has happened. Note that the argument is the session index, not the"]
-        #[doc = "block number as the type might suggest."]
-        pub struct NewSession {
-            pub session_index: ::core::primitive::u32,
-        }
-        impl ::subxt::events::StaticEvent for NewSession {
-            const PALLET: &'static str = "Session";
-            const EVENT: &'static str = "NewSession";
-        }
-    }
+pub mod conviction_voting {
+    pub use super::runtime_types::pallet_conviction_voting::pallet::Event;
+}
+
+pub mod referenda {
+    pub use super::runtime_types::pallet_referenda::pallet::Event;
+}
+
+pub mod fellowship_collective {
+    pub use super::runtime_types::pallet_ranked_collective::pallet::Event;
+}
+
+pub mod fellowship_referenda {
+    pub use super::runtime_types::pallet_ranked_collective::pallet::Event;
+}
+
+pub mod whitelist {
+    pub use super::runtime_types::pallet_whitelist::pallet::Event;
 }
 
 pub mod sudo {
-
-    use super::runtime_types;
-
-    #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
-    pub type Event = runtime_types::pallet_sudo::pallet::Event;
-    pub mod events {
-        use super::runtime_types;
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "A sudo just took place. "]
-        pub struct Sudid {
-            pub sudo_result: ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
-        }
-        impl ::subxt::events::StaticEvent for Sudid {
-            const PALLET: &'static str = "Sudo";
-            const EVENT: &'static str = "Sudid";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "The sudoer just switched identity; the old key is supplied if one existed."]
-        pub struct KeyChanged {
-            pub old_sudoer: ::core::option::Option<::sp_core::crypto::AccountId32>,
-        }
-        impl ::subxt::events::StaticEvent for KeyChanged {
-            const PALLET: &'static str = "Sudo";
-            const EVENT: &'static str = "KeyChanged";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "A sudo just took place. "]
-        pub struct SudoAsDone {
-            pub sudo_result: ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
-        }
-        impl ::subxt::events::StaticEvent for SudoAsDone {
-            const PALLET: &'static str = "Sudo";
-            const EVENT: &'static str = "SudoAsDone";
-        }
-    }
+    pub use super::runtime_types::pallet_sudo::pallet::Event;
 }
 
+pub mod scheduler {
+    pub use super::runtime_types::pallet_scheduler::pallet::Event;
+}
+
+pub mod preimage {
+    pub use super::runtime_types::pallet_preimage::pallet::Event;
+}
+
+pub mod identity {
+    pub use super::runtime_types::pallet_identity::pallet::Event;
+}
 pub mod utility {
-
-    use super::runtime_types;
-
-    #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
-    pub type Event = runtime_types::pallet_utility::pallet::Event;
-    pub mod events {
-        use super::runtime_types;
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Batch of dispatches did not complete fully. Index of first failing dispatch given, as"]
-        #[doc = "well as the error."]
-        pub struct BatchInterrupted {
-            pub index: ::core::primitive::u32,
-            pub error: runtime_types::sp_runtime::DispatchError,
-        }
-        impl ::subxt::events::StaticEvent for BatchInterrupted {
-            const PALLET: &'static str = "Utility";
-            const EVENT: &'static str = "BatchInterrupted";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Batch of dispatches completed fully with no error."]
-        pub struct BatchCompleted;
-        impl ::subxt::events::StaticEvent for BatchCompleted {
-            const PALLET: &'static str = "Utility";
-            const EVENT: &'static str = "BatchCompleted";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Batch of dispatches completed but has errors."]
-        pub struct BatchCompletedWithErrors;
-        impl ::subxt::events::StaticEvent for BatchCompletedWithErrors {
-            const PALLET: &'static str = "Utility";
-            const EVENT: &'static str = "BatchCompletedWithErrors";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "A single item within a Batch of dispatches has completed with no error."]
-        pub struct ItemCompleted;
-        impl ::subxt::events::StaticEvent for ItemCompleted {
-            const PALLET: &'static str = "Utility";
-            const EVENT: &'static str = "ItemCompleted";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "A single item within a Batch of dispatches has completed with error."]
-        pub struct ItemFailed {
-            pub error: runtime_types::sp_runtime::DispatchError,
-        }
-        impl ::subxt::events::StaticEvent for ItemFailed {
-            const PALLET: &'static str = "Utility";
-            const EVENT: &'static str = "ItemFailed";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "A call was dispatched."]
-        pub struct DispatchedAs {
-            pub result: ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
-        }
-        impl ::subxt::events::StaticEvent for DispatchedAs {
-            const PALLET: &'static str = "Utility";
-            const EVENT: &'static str = "DispatchedAs";
-        }
-    }
+    pub use super::runtime_types::pallet_utility::pallet::Event;
 }
 
 pub mod gear {
+    pub use super::runtime_types::pallet_gear::pallet::Event;
+}
 
-    use super::runtime_types;
+pub mod staking_rewards {
+    pub use super::runtime_types::pallet_gear_staking_rewards::pallet::Event;
+}
 
-    #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
-    pub type Event = runtime_types::pallet_gear::pallet::Event;
-    pub mod events {
-        use super::runtime_types;
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "User sends message to program, which was successfully"]
-        #[doc = "added to the Gear message queue."]
-        pub struct MessageQueued {
-            pub id: runtime_types::gear_core::ids::MessageId,
-            pub source: ::sp_core::crypto::AccountId32,
-            pub destination: runtime_types::gear_core::ids::ProgramId,
-            pub entry: runtime_types::gear_common::event::MessageEntry,
-        }
-        impl ::subxt::events::StaticEvent for MessageQueued {
-            const PALLET: &'static str = "Gear";
-            const EVENT: &'static str = "MessageQueued";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Somebody sent a message to the user."]
-        pub struct UserMessageSent {
-            pub message: runtime_types::gear_core::message::stored::StoredMessage,
-            pub expiration: ::core::option::Option<::core::primitive::u32>,
-        }
-        impl ::subxt::events::StaticEvent for UserMessageSent {
-            const PALLET: &'static str = "Gear";
-            const EVENT: &'static str = "UserMessageSent";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Message marked as \"read\" and removes it from `Mailbox`."]
-        #[doc = "This event only affects messages that were"]
-        #[doc = "already inserted in `Mailbox`."]
-        pub struct UserMessageRead {
-            pub id: runtime_types::gear_core::ids::MessageId,
-            pub reason: runtime_types::gear_common::event::Reason<
-                runtime_types::gear_common::event::UserMessageReadRuntimeReason,
-                runtime_types::gear_common::event::UserMessageReadSystemReason,
-            >,
-        }
-        impl ::subxt::events::StaticEvent for UserMessageRead {
-            const PALLET: &'static str = "Gear";
-            const EVENT: &'static str = "UserMessageRead";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "The result of processing the messages within the block."]
-        pub struct MessagesDispatched {
-            pub total: ::core::primitive::u32,
-            pub statuses: ::subxt::utils::KeyedVec<
-                runtime_types::gear_core::ids::MessageId,
-                runtime_types::gear_common::event::DispatchStatus,
-            >,
-            pub state_changes: ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
-        }
-        impl ::subxt::events::StaticEvent for MessagesDispatched {
-            const PALLET: &'static str = "Gear";
-            const EVENT: &'static str = "MessagesDispatched";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Messages execution delayed (waited) and successfully"]
-        #[doc = "added to gear waitlist."]
-        pub struct MessageWaited {
-            pub id: runtime_types::gear_core::ids::MessageId,
-            pub origin: ::core::option::Option<
-                runtime_types::gear_common::gas_provider::node::GasNodeId<
-                    runtime_types::gear_core::ids::MessageId,
-                    runtime_types::gear_core::ids::ReservationId,
-                >,
-            >,
-            pub reason: runtime_types::gear_common::event::Reason<
-                runtime_types::gear_common::event::MessageWaitedRuntimeReason,
-                runtime_types::gear_common::event::MessageWaitedSystemReason,
-            >,
-            pub expiration: ::core::primitive::u32,
-        }
-        impl ::subxt::events::StaticEvent for MessageWaited {
-            const PALLET: &'static str = "Gear";
-            const EVENT: &'static str = "MessageWaited";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Message is ready to continue its execution"]
-        #[doc = "and was removed from `Waitlist`."]
-        pub struct MessageWoken {
-            pub id: runtime_types::gear_core::ids::MessageId,
-            pub reason: runtime_types::gear_common::event::Reason<
-                runtime_types::gear_common::event::MessageWokenRuntimeReason,
-                runtime_types::gear_common::event::MessageWokenSystemReason,
-            >,
-        }
-        impl ::subxt::events::StaticEvent for MessageWoken {
-            const PALLET: &'static str = "Gear";
-            const EVENT: &'static str = "MessageWoken";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Any data related to program codes changed."]
-        pub struct CodeChanged {
-            pub id: runtime_types::gear_core::ids::CodeId,
-            pub change: runtime_types::gear_common::event::CodeChangeKind<::core::primitive::u32>,
-        }
-        impl ::subxt::events::StaticEvent for CodeChanged {
-            const PALLET: &'static str = "Gear";
-            const EVENT: &'static str = "CodeChanged";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "Any data related to programs changed."]
-        pub struct ProgramChanged {
-            pub id: runtime_types::gear_core::ids::ProgramId,
-            pub change:
-                runtime_types::gear_common::event::ProgramChangeKind<::core::primitive::u32>,
-        }
-        impl ::subxt::events::StaticEvent for ProgramChanged {
-            const PALLET: &'static str = "Gear";
-            const EVENT: &'static str = "ProgramChanged";
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        #[doc = "The pseudo-inherent extrinsic that runs queue processing rolled back or not executed."]
-        pub struct QueueProcessingReverted;
-        impl ::subxt::events::StaticEvent for QueueProcessingReverted {
-            const PALLET: &'static str = "Gear";
-            const EVENT: &'static str = "QueueProcessingReverted";
-        }
-    }
+pub mod airdrop {
+    pub use super::runtime_types::pallet_airdrop::pallet::Event;
+}
+
+pub mod gear_debug {
+    pub use super::runtime_types::pallet_gear_debug::pallet::Event;
 }
 
 pub mod runtime_types {
@@ -620,6 +216,14 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
+            pub struct PostDispatchInfo {
+                pub actual_weight:
+                    ::core::option::Option<runtime_types::sp_weights::weight_v2::Weight>,
+                pub pays_fee: runtime_types::frame_support::dispatch::Pays,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
             pub enum RawOrigin<_0> {
                 #[codec(index = 0)]
                 Root,
@@ -631,6 +235,49 @@ pub mod runtime_types {
         }
         pub mod traits {
             use super::runtime_types;
+            pub mod misc {
+                use super::runtime_types;
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
+                pub struct WrapperOpaque<_0>(#[codec(compact)] pub ::core::primitive::u32, pub _0);
+            }
+            pub mod preimages {
+                use super::runtime_types;
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
+                pub enum Bounded<_0> {
+                    #[codec(index = 0)]
+                    Legacy {
+                        hash: ::subxt::utils::H256,
+                    },
+                    #[codec(index = 1)]
+                    Inline(
+                        runtime_types::sp_core::bounded::bounded_vec::BoundedVec<
+                            ::core::primitive::u8,
+                        >,
+                    ),
+                    #[codec(index = 2)]
+                    Lookup {
+                        hash: ::subxt::utils::H256,
+                        len: ::core::primitive::u32,
+                    },
+                    __Ignore(::core::marker::PhantomData<_0>),
+                }
+            }
+            pub mod schedule {
+                use super::runtime_types;
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
+                pub enum DispatchTime<_0> {
+                    #[codec(index = 0)]
+                    At(_0),
+                    #[codec(index = 1)]
+                    After(_0),
+                }
+            }
             pub mod tokens {
                 use super::runtime_types;
                 pub mod misc {
@@ -649,6 +296,8 @@ pub mod runtime_types {
                 }
             }
         }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct PalletId(pub [::core::primitive::u8; 8usize]);
     }
     pub mod frame_system {
         use super::runtime_types;
@@ -740,51 +389,23 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+
             pub enum Call {
                 #[codec(index = 0)]
-                #[doc = "Make some on-chain remark."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- `O(1)`"]
-                #[doc = "# </weight>"]
                 remark {
                     remark: ::std::vec::Vec<::core::primitive::u8>,
                 },
                 #[codec(index = 1)]
-                #[doc = "Set the number of pages in the WebAssembly environment's heap."]
                 set_heap_pages { pages: ::core::primitive::u64 },
                 #[codec(index = 2)]
-                #[doc = "Set the new runtime code."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- `O(C + S)` where `C` length of `code` and `S` complexity of `can_set_code`"]
-                #[doc = "- 1 call to `can_set_code`: `O(S)` (calls `sp_io::misc::runtime_version` which is"]
-                #[doc = "  expensive)."]
-                #[doc = "- 1 storage write (codec `O(C)`)."]
-                #[doc = "- 1 digest item."]
-                #[doc = "- 1 event."]
-                #[doc = "The weight of this function is dependent on the runtime, but generally this is very"]
-                #[doc = "expensive. We will treat this as a full block."]
-                #[doc = "# </weight>"]
                 set_code {
                     code: ::std::vec::Vec<::core::primitive::u8>,
                 },
                 #[codec(index = 3)]
-                #[doc = "Set the new runtime code without doing any checks of the given `code`."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- `O(C)` where `C` length of `code`"]
-                #[doc = "- 1 storage write (codec `O(C)`)."]
-                #[doc = "- 1 digest item."]
-                #[doc = "- 1 event."]
-                #[doc = "The weight of this function is dependent on the runtime. We will treat this as a full"]
-                #[doc = "block. # </weight>"]
                 set_code_without_checks {
                     code: ::std::vec::Vec<::core::primitive::u8>,
                 },
                 #[codec(index = 4)]
-                #[doc = "Set some items of storage."]
                 set_storage {
                     items: ::std::vec::Vec<(
                         ::std::vec::Vec<::core::primitive::u8>,
@@ -792,21 +413,15 @@ pub mod runtime_types {
                     )>,
                 },
                 #[codec(index = 5)]
-                #[doc = "Kill some items from storage."]
                 kill_storage {
                     keys: ::std::vec::Vec<::std::vec::Vec<::core::primitive::u8>>,
                 },
                 #[codec(index = 6)]
-                #[doc = "Kill all storage items with a key that starts with the given prefix."]
-                #[doc = ""]
-                #[doc = "**NOTE:** We rely on the Root origin to provide us the number of subkeys under"]
-                #[doc = "the prefix we are removing to accurately calculate the weight of this function."]
                 kill_prefix {
                     prefix: ::std::vec::Vec<::core::primitive::u8>,
                     subkeys: ::core::primitive::u32,
                 },
                 #[codec(index = 7)]
-                #[doc = "Make some on-chain remark and emit event."]
                 remark_with_event {
                     remark: ::std::vec::Vec<::core::primitive::u8>,
                 },
@@ -814,65 +429,45 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "Error for the System pallet"]
+
             pub enum Error {
                 #[codec(index = 0)]
-                #[doc = "The name of specification does not match between the current runtime"]
-                #[doc = "and the new runtime."]
                 InvalidSpecName,
                 #[codec(index = 1)]
-                #[doc = "The specification version is not allowed to decrease between the current runtime"]
-                #[doc = "and the new runtime."]
                 SpecVersionNeedsToIncrease,
                 #[codec(index = 2)]
-                #[doc = "Failed to extract the runtime version from the new runtime."]
-                #[doc = ""]
-                #[doc = "Either calling `Core_version` or decoding `RuntimeVersion` failed."]
                 FailedToExtractRuntimeVersion,
                 #[codec(index = 3)]
-                #[doc = "Suicide called when the account has non-default composite data."]
                 NonDefaultComposite,
                 #[codec(index = 4)]
-                #[doc = "There is a non-zero reference count preventing the account from being purged."]
                 NonZeroRefCount,
                 #[codec(index = 5)]
-                #[doc = "The origin filter prevent the call to be dispatched."]
                 CallFiltered,
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "Event for the System pallet."]
+
             pub enum Event {
                 #[codec(index = 0)]
-                #[doc = "An extrinsic completed successfully."]
                 ExtrinsicSuccess {
                     dispatch_info: runtime_types::frame_support::dispatch::DispatchInfo,
                 },
                 #[codec(index = 1)]
-                #[doc = "An extrinsic failed."]
                 ExtrinsicFailed {
                     dispatch_error: runtime_types::sp_runtime::DispatchError,
                     dispatch_info: runtime_types::frame_support::dispatch::DispatchInfo,
                 },
                 #[codec(index = 2)]
-                #[doc = "`:code` was updated."]
                 CodeUpdated,
                 #[codec(index = 3)]
-                #[doc = "A new account was created."]
-                NewAccount {
-                    account: ::sp_core::crypto::AccountId32,
-                },
+                NewAccount { account: ::sp_runtime::AccountId32 },
                 #[codec(index = 4)]
-                #[doc = "An account was reaped."]
-                KilledAccount {
-                    account: ::sp_core::crypto::AccountId32,
-                },
+                KilledAccount { account: ::sp_runtime::AccountId32 },
                 #[codec(index = 5)]
-                #[doc = "On on-chain remark happened."]
                 Remarked {
-                    sender: ::sp_core::crypto::AccountId32,
-                    hash: ::sp_core::H256,
+                    sender: ::sp_runtime::AccountId32,
+                    hash: ::subxt::utils::H256,
                 },
             }
         }
@@ -995,9 +590,9 @@ pub mod runtime_types {
                 Inactive,
                 #[codec(index = 2)]
                 Paused {
-                    code_hash: ::sp_core::H256,
-                    memory_hash: ::sp_core::H256,
-                    waitlist_hash: ::sp_core::H256,
+                    code_hash: ::subxt::utils::H256,
+                    memory_hash: ::subxt::utils::H256,
+                    waitlist_hash: ::subxt::utils::H256,
                 },
             }
             #[derive(
@@ -1051,7 +646,7 @@ pub mod runtime_types {
                         consumed: ::core::primitive::bool,
                     },
                     #[codec(index = 1)]
-                    Cut { id: _0, value: _2 },
+                    Cut { id: _0, value: _2, lock: _2 },
                     #[codec(index = 2)]
                     Reserved {
                         id: _0,
@@ -1116,7 +711,10 @@ pub mod runtime_types {
                     #[codec(index = 6)]
                     SendDispatch(runtime_types::gear_core::ids::MessageId),
                     #[codec(index = 7)]
-                    SendUserMessage(runtime_types::gear_core::ids::MessageId),
+                    SendUserMessage {
+                        message_id: runtime_types::gear_core::ids::MessageId,
+                        to_mailbox: ::core::primitive::bool,
+                    },
                     #[codec(index = 8)]
                     RemoveGasReservation(
                         runtime_types::gear_core::ids::ProgramId,
@@ -1161,14 +759,14 @@ pub mod runtime_types {
                 runtime_types::gear_core::ids::ReservationId,
                 runtime_types::gear_core::reservation::GasReservationSlot,
             >,
-            pub code_hash: ::sp_core::H256,
+            pub code_hash: ::subxt::utils::H256,
             pub code_exports: ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
             pub static_pages: runtime_types::gear_core::memory::WasmPage,
             pub state: runtime_types::gear_common::ProgramState,
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
         pub struct CodeMetadata {
-            pub author: ::sp_core::H256,
+            pub author: ::subxt::utils::H256,
             #[codec(compact)]
             pub block_number: ::core::primitive::u32,
         }
@@ -1374,63 +972,33 @@ pub mod runtime_types {
             }
         }
     }
-    pub mod gear_runtime {
+    pub mod pallet_airdrop {
         use super::runtime_types;
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        pub enum OriginCaller {
-            #[codec(index = 0)]
-            system(
-                runtime_types::frame_support::dispatch::RawOrigin<::sp_core::crypto::AccountId32>,
-            ),
-            #[codec(index = 1)]
-            Void(runtime_types::sp_core::Void),
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        pub struct Runtime;
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        pub enum RuntimeCall {
-            #[codec(index = 0)]
-            System(runtime_types::frame_system::pallet::Call),
-            #[codec(index = 1)]
-            Timestamp(runtime_types::pallet_timestamp::pallet::Call),
-            #[codec(index = 3)]
-            Babe(runtime_types::pallet_babe::pallet::Call),
-            #[codec(index = 4)]
-            Grandpa(runtime_types::pallet_grandpa::pallet::Call),
-            #[codec(index = 5)]
-            Balances(runtime_types::pallet_balances::pallet::Call),
-            #[codec(index = 7)]
-            Session(runtime_types::pallet_session::pallet::Call),
-            #[codec(index = 8)]
-            Sudo(runtime_types::pallet_sudo::pallet::Call),
-            #[codec(index = 9)]
-            Utility(runtime_types::pallet_utility::pallet::Call),
-            #[codec(index = 14)]
-            Gear(runtime_types::pallet_gear::pallet::Call),
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        pub enum RuntimeEvent {
-            #[codec(index = 0)]
-            System(runtime_types::frame_system::pallet::Event),
-            #[codec(index = 4)]
-            Grandpa(runtime_types::pallet_grandpa::pallet::Event),
-            #[codec(index = 5)]
-            Balances(runtime_types::pallet_balances::pallet::Event),
-            #[codec(index = 6)]
-            TransactionPayment(runtime_types::pallet_transaction_payment::pallet::Event),
-            #[codec(index = 7)]
-            Session(runtime_types::pallet_session::pallet::Event),
-            #[codec(index = 8)]
-            Sudo(runtime_types::pallet_sudo::pallet::Event),
-            #[codec(index = 9)]
-            Utility(runtime_types::pallet_utility::pallet::Event),
-            #[codec(index = 14)]
-            Gear(runtime_types::pallet_gear::pallet::Event),
-        }
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        pub struct SessionKeys {
-            pub babe: runtime_types::sp_consensus_babe::app::Public,
-            pub grandpa: runtime_types::sp_finality_grandpa::app::Public,
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                transfer {
+                    source: ::sp_runtime::AccountId32,
+                    dest: ::sp_runtime::AccountId32,
+                    amount: ::core::primitive::u128,
+                },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                TokensDeposited {
+                    account: ::sp_runtime::AccountId32,
+                    amount: ::core::primitive::u128,
+                },
+            }
         }
     }
     pub mod pallet_babe {
@@ -1440,13 +1008,9 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+
             pub enum Call {
                 #[codec(index = 0)]
-                #[doc = "Report authority equivocation/misbehavior. This method will verify"]
-                #[doc = "the equivocation proof and validate the given key ownership proof"]
-                #[doc = "against the extracted offender. If both are valid, the offence will"]
-                #[doc = "be reported."]
                 report_equivocation {
                     equivocation_proof: ::std::boxed::Box<
                         runtime_types::sp_consensus_slots::EquivocationProof<
@@ -1457,17 +1021,9 @@ pub mod runtime_types {
                             runtime_types::sp_consensus_babe::app::Public,
                         >,
                     >,
-                    key_owner_proof: runtime_types::sp_core::Void,
+                    key_owner_proof: runtime_types::sp_session::MembershipProof,
                 },
                 #[codec(index = 1)]
-                #[doc = "Report authority equivocation/misbehavior. This method will verify"]
-                #[doc = "the equivocation proof and validate the given key ownership proof"]
-                #[doc = "against the extracted offender. If both are valid, the offence will"]
-                #[doc = "be reported."]
-                #[doc = "This extrinsic must be called unsigned and it is expected that only"]
-                #[doc = "block authors will call it (validated in `ValidateUnsigned`), as such"]
-                #[doc = "if the block author is defined it will be defined as the equivocation"]
-                #[doc = "reporter."]
                 report_equivocation_unsigned {
                     equivocation_proof: ::std::boxed::Box<
                         runtime_types::sp_consensus_slots::EquivocationProof<
@@ -1478,13 +1034,9 @@ pub mod runtime_types {
                             runtime_types::sp_consensus_babe::app::Public,
                         >,
                     >,
-                    key_owner_proof: runtime_types::sp_core::Void,
+                    key_owner_proof: runtime_types::sp_session::MembershipProof,
                 },
                 #[codec(index = 2)]
-                #[doc = "Plan an epoch config change. The epoch config change is recorded and will be enacted on"]
-                #[doc = "the next call to `enact_epoch_change`. The config will be activated one epoch after."]
-                #[doc = "Multiple calls to this method will replace any existing planned config change that had"]
-                #[doc = "not been enacted yet."]
                 plan_config_change {
                     config: runtime_types::sp_consensus_babe::digests::NextConfigDescriptor,
                 },
@@ -1492,23 +1044,94 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
-			of this pallet.
-			"]
+
             pub enum Error {
                 #[codec(index = 0)]
-                #[doc = "An equivocation proof provided as part of an equivocation report is invalid."]
                 InvalidEquivocationProof,
                 #[codec(index = 1)]
-                #[doc = "A key ownership proof provided as part of an equivocation report is invalid."]
                 InvalidKeyOwnershipProof,
                 #[codec(index = 2)]
-                #[doc = "A given equivocation report is valid but already previously reported."]
                 DuplicateOffenceReport,
                 #[codec(index = 3)]
-                #[doc = "Submitted configuration is invalid."]
                 InvalidConfiguration,
+            }
+        }
+    }
+    pub mod pallet_bags_list {
+        use super::runtime_types;
+        pub mod list {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct Bag {
+                pub head: ::core::option::Option<::sp_runtime::AccountId32>,
+                pub tail: ::core::option::Option<::sp_runtime::AccountId32>,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub enum ListError {
+                #[codec(index = 0)]
+                Duplicate,
+                #[codec(index = 1)]
+                NotHeavier,
+                #[codec(index = 2)]
+                NotInSameBag,
+                #[codec(index = 3)]
+                NodeNotFound,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct Node {
+                pub id: ::sp_runtime::AccountId32,
+                pub prev: ::core::option::Option<::sp_runtime::AccountId32>,
+                pub next: ::core::option::Option<::sp_runtime::AccountId32>,
+                pub bag_upper: ::core::primitive::u64,
+                pub score: ::core::primitive::u64,
+            }
+        }
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                rebag {
+                    dislocated: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+                #[codec(index = 1)]
+                put_in_front_of {
+                    lighter: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                List(runtime_types::pallet_bags_list::list::ListError),
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                Rebagged {
+                    who: ::sp_runtime::AccountId32,
+                    from: ::core::primitive::u64,
+                    to: ::core::primitive::u64,
+                },
+                #[codec(index = 1)]
+                ScoreUpdated {
+                    who: ::sp_runtime::AccountId32,
+                    new_score: ::core::primitive::u64,
+                },
             }
         }
     }
@@ -1519,217 +1142,126 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+
             pub enum Call {
                 #[codec(index = 0)]
-                #[doc = "Transfer some liquid free balance to another account."]
-                #[doc = ""]
-                #[doc = "`transfer` will set the `FreeBalance` of the sender and receiver."]
-                #[doc = "If the sender's account is below the existential deposit as a result"]
-                #[doc = "of the transfer, the account will be reaped."]
-                #[doc = ""]
-                #[doc = "The dispatch origin for this call must be `Signed` by the transactor."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- Dependent on arguments but not critical, given proper implementations for input config"]
-                #[doc = "  types. See related functions below."]
-                #[doc = "- It contains a limited number of reads and writes internally and no complex"]
-                #[doc = "  computation."]
-                #[doc = ""]
-                #[doc = "Related functions:"]
-                #[doc = ""]
-                #[doc = "  - `ensure_can_withdraw` is always called internally but has a bounded complexity."]
-                #[doc = "  - Transferring balances to accounts that did not exist before will cause"]
-                #[doc = "    `T::OnNewAccount::on_new_account` to be called."]
-                #[doc = "  - Removing enough funds from an account will trigger `T::DustRemoval::on_unbalanced`."]
-                #[doc = "  - `transfer_keep_alive` works the same way as `transfer`, but has an additional check"]
-                #[doc = "    that the transfer will not kill the origin account."]
-                #[doc = "---------------------------------"]
-                #[doc = "- Origin account is already in memory, so no DB operations for them."]
-                #[doc = "# </weight>"]
                 transfer {
-                    dest: ::sp_runtime::MultiAddress<::sp_core::crypto::AccountId32, ()>,
+                    dest: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
                     #[codec(compact)]
                     value: ::core::primitive::u128,
                 },
                 #[codec(index = 1)]
-                #[doc = "Set the balances of a given account."]
-                #[doc = ""]
-                #[doc = "This will alter `FreeBalance` and `ReservedBalance` in storage. it will"]
-                #[doc = "also alter the total issuance of the system (`TotalIssuance`) appropriately."]
-                #[doc = "If the new free or reserved balance is below the existential deposit,"]
-                #[doc = "it will reset the account nonce (`frame_system::AccountNonce`)."]
-                #[doc = ""]
-                #[doc = "The dispatch origin for this call is `root`."]
                 set_balance {
-                    who: ::sp_runtime::MultiAddress<::sp_core::crypto::AccountId32, ()>,
+                    who: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
                     #[codec(compact)]
                     new_free: ::core::primitive::u128,
                     #[codec(compact)]
                     new_reserved: ::core::primitive::u128,
                 },
                 #[codec(index = 2)]
-                #[doc = "Exactly as `transfer`, except the origin must be root and the source account may be"]
-                #[doc = "specified."]
-                #[doc = "# <weight>"]
-                #[doc = "- Same as transfer, but additional read and write because the source account is not"]
-                #[doc = "  assumed to be in the overlay."]
-                #[doc = "# </weight>"]
                 force_transfer {
-                    source: ::sp_runtime::MultiAddress<::sp_core::crypto::AccountId32, ()>,
-                    dest: ::sp_runtime::MultiAddress<::sp_core::crypto::AccountId32, ()>,
+                    source: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    dest: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
                     #[codec(compact)]
                     value: ::core::primitive::u128,
                 },
                 #[codec(index = 3)]
-                #[doc = "Same as the [`transfer`] call, but with a check that the transfer will not kill the"]
-                #[doc = "origin account."]
-                #[doc = ""]
-                #[doc = "99% of the time you want [`transfer`] instead."]
-                #[doc = ""]
-                #[doc = "[`transfer`]: struct.Pallet.html#method.transfer"]
                 transfer_keep_alive {
-                    dest: ::sp_runtime::MultiAddress<::sp_core::crypto::AccountId32, ()>,
+                    dest: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
                     #[codec(compact)]
                     value: ::core::primitive::u128,
                 },
                 #[codec(index = 4)]
-                #[doc = "Transfer the entire transferable balance from the caller account."]
-                #[doc = ""]
-                #[doc = "NOTE: This function only attempts to transfer _transferable_ balances. This means that"]
-                #[doc = "any locked, reserved, or existential deposits (when `keep_alive` is `true`), will not be"]
-                #[doc = "transferred by this function. To ensure that this function results in a killed account,"]
-                #[doc = "you might need to prepare the account by removing any reference counters, storage"]
-                #[doc = "deposits, etc..."]
-                #[doc = ""]
-                #[doc = "The dispatch origin of this call must be Signed."]
-                #[doc = ""]
-                #[doc = "- `dest`: The recipient of the transfer."]
-                #[doc = "- `keep_alive`: A boolean to determine if the `transfer_all` operation should send all"]
-                #[doc = "  of the funds the account has, causing the sender account to be killed (false), or"]
-                #[doc = "  transfer everything except at least the existential deposit, which will guarantee to"]
-                #[doc = "  keep the sender account alive (true). # <weight>"]
-                #[doc = "- O(1). Just like transfer, but reading the user's transferable balance first."]
-                #[doc = "  #</weight>"]
                 transfer_all {
-                    dest: ::sp_runtime::MultiAddress<::sp_core::crypto::AccountId32, ()>,
+                    dest: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
                     keep_alive: ::core::primitive::bool,
                 },
                 #[codec(index = 5)]
-                #[doc = "Unreserve some balance from a user by force."]
-                #[doc = ""]
-                #[doc = "Can only be called by ROOT."]
                 force_unreserve {
-                    who: ::sp_runtime::MultiAddress<::sp_core::crypto::AccountId32, ()>,
+                    who: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
                     amount: ::core::primitive::u128,
                 },
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
-			of this pallet.
-			"]
+
             pub enum Error {
                 #[codec(index = 0)]
-                #[doc = "Vesting balance too high to send value"]
                 VestingBalance,
                 #[codec(index = 1)]
-                #[doc = "Account liquidity restrictions prevent withdrawal"]
                 LiquidityRestrictions,
                 #[codec(index = 2)]
-                #[doc = "Balance too low to send value."]
                 InsufficientBalance,
                 #[codec(index = 3)]
-                #[doc = "Value too low to create account due to existential deposit"]
                 ExistentialDeposit,
                 #[codec(index = 4)]
-                #[doc = "Transfer/payment would kill account"]
                 KeepAlive,
                 #[codec(index = 5)]
-                #[doc = "A vesting schedule already exists for this account"]
                 ExistingVestingSchedule,
                 #[codec(index = 6)]
-                #[doc = "Beneficiary account must pre-exist"]
                 DeadAccount,
                 #[codec(index = 7)]
-                #[doc = "Number of named reserves exceed MaxReserves"]
                 TooManyReserves,
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
+
             pub enum Event {
                 #[codec(index = 0)]
-                #[doc = "An account was created with some free balance."]
                 Endowed {
-                    account: ::sp_core::crypto::AccountId32,
+                    account: ::sp_runtime::AccountId32,
                     free_balance: ::core::primitive::u128,
                 },
                 #[codec(index = 1)]
-                #[doc = "An account was removed whose balance was non-zero but below ExistentialDeposit,"]
-                #[doc = "resulting in an outright loss."]
                 DustLost {
-                    account: ::sp_core::crypto::AccountId32,
+                    account: ::sp_runtime::AccountId32,
                     amount: ::core::primitive::u128,
                 },
                 #[codec(index = 2)]
-                #[doc = "Transfer succeeded."]
                 Transfer {
-                    from: ::sp_core::crypto::AccountId32,
-                    to: ::sp_core::crypto::AccountId32,
+                    from: ::sp_runtime::AccountId32,
+                    to: ::sp_runtime::AccountId32,
                     amount: ::core::primitive::u128,
                 },
                 #[codec(index = 3)]
-                #[doc = "A balance was set by root."]
                 BalanceSet {
-                    who: ::sp_core::crypto::AccountId32,
+                    who: ::sp_runtime::AccountId32,
                     free: ::core::primitive::u128,
                     reserved: ::core::primitive::u128,
                 },
                 #[codec(index = 4)]
-                #[doc = "Some balance was reserved (moved from free to reserved)."]
                 Reserved {
-                    who: ::sp_core::crypto::AccountId32,
+                    who: ::sp_runtime::AccountId32,
                     amount: ::core::primitive::u128,
                 },
                 #[codec(index = 5)]
-                #[doc = "Some balance was unreserved (moved from reserved to free)."]
                 Unreserved {
-                    who: ::sp_core::crypto::AccountId32,
+                    who: ::sp_runtime::AccountId32,
                     amount: ::core::primitive::u128,
                 },
                 #[codec(index = 6)]
-                #[doc = "Some balance was moved from the reserve of the first account to the second account."]
-                #[doc = "Final argument indicates the destination balance type."]
                 ReserveRepatriated {
-                    from: ::sp_core::crypto::AccountId32,
-                    to: ::sp_core::crypto::AccountId32,
+                    from: ::sp_runtime::AccountId32,
+                    to: ::sp_runtime::AccountId32,
                     amount: ::core::primitive::u128,
                     destination_status:
                         runtime_types::frame_support::traits::tokens::misc::BalanceStatus,
                 },
                 #[codec(index = 7)]
-                #[doc = "Some amount was deposited (e.g. for transaction fees)."]
                 Deposit {
-                    who: ::sp_core::crypto::AccountId32,
+                    who: ::sp_runtime::AccountId32,
                     amount: ::core::primitive::u128,
                 },
                 #[codec(index = 8)]
-                #[doc = "Some amount was withdrawn from the account (e.g. for transaction fees)."]
                 Withdraw {
-                    who: ::sp_core::crypto::AccountId32,
+                    who: ::sp_runtime::AccountId32,
                     amount: ::core::primitive::u128,
                 },
                 #[codec(index = 9)]
-                #[doc = "Some amount was removed from the account (e.g. for misbehavior)."]
                 Slashed {
-                    who: ::sp_core::crypto::AccountId32,
+                    who: ::sp_runtime::AccountId32,
                     amount: ::core::primitive::u128,
                 },
             }
@@ -1762,6 +1294,192 @@ pub mod runtime_types {
             pub amount: _1,
         }
     }
+    pub mod pallet_conviction_voting {
+        use super::runtime_types;
+        pub mod conviction {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub enum Conviction {
+                #[codec(index = 0)]
+                None,
+                #[codec(index = 1)]
+                Locked1x,
+                #[codec(index = 2)]
+                Locked2x,
+                #[codec(index = 3)]
+                Locked3x,
+                #[codec(index = 4)]
+                Locked4x,
+                #[codec(index = 5)]
+                Locked5x,
+                #[codec(index = 6)]
+                Locked6x,
+            }
+        }
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                vote {
+                    #[codec(compact)]
+                    poll_index: ::core::primitive::u32,
+                    vote: runtime_types::pallet_conviction_voting::vote::AccountVote<
+                        ::core::primitive::u128,
+                    >,
+                },
+                #[codec(index = 1)]
+                delegate {
+                    class: ::core::primitive::u16,
+                    to: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    conviction: runtime_types::pallet_conviction_voting::conviction::Conviction,
+                    balance: ::core::primitive::u128,
+                },
+                #[codec(index = 2)]
+                undelegate { class: ::core::primitive::u16 },
+                #[codec(index = 3)]
+                unlock {
+                    class: ::core::primitive::u16,
+                    target: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+                #[codec(index = 4)]
+                remove_vote {
+                    class: ::core::option::Option<::core::primitive::u16>,
+                    index: ::core::primitive::u32,
+                },
+                #[codec(index = 5)]
+                remove_other_vote {
+                    target: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    class: ::core::primitive::u16,
+                    index: ::core::primitive::u32,
+                },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                NotOngoing,
+                #[codec(index = 1)]
+                NotVoter,
+                #[codec(index = 2)]
+                NoPermission,
+                #[codec(index = 3)]
+                NoPermissionYet,
+                #[codec(index = 4)]
+                AlreadyDelegating,
+                #[codec(index = 5)]
+                AlreadyVoting,
+                #[codec(index = 6)]
+                InsufficientFunds,
+                #[codec(index = 7)]
+                NotDelegating,
+                #[codec(index = 8)]
+                Nonsense,
+                #[codec(index = 9)]
+                MaxVotesReached,
+                #[codec(index = 10)]
+                ClassNeeded,
+                #[codec(index = 11)]
+                BadClass,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                Delegated(::sp_runtime::AccountId32, ::sp_runtime::AccountId32),
+                #[codec(index = 1)]
+                Undelegated(::sp_runtime::AccountId32),
+            }
+        }
+        pub mod types {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct Delegations<_0> {
+                pub votes: _0,
+                pub capital: _0,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct Tally<_0> {
+                pub ayes: _0,
+                pub nays: _0,
+                pub support: _0,
+            }
+        }
+        pub mod vote {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub enum AccountVote<_0> {
+                #[codec(index = 0)]
+                Standard {
+                    vote: runtime_types::pallet_conviction_voting::vote::Vote,
+                    balance: _0,
+                },
+                #[codec(index = 1)]
+                Split { aye: _0, nay: _0 },
+                #[codec(index = 2)]
+                SplitAbstain { aye: _0, nay: _0, abstain: _0 },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct Casting<_0, _1, _2> {
+                pub votes: runtime_types::sp_core::bounded::bounded_vec::BoundedVec<(
+                    _1,
+                    runtime_types::pallet_conviction_voting::vote::AccountVote<_0>,
+                )>,
+                pub delegations: runtime_types::pallet_conviction_voting::types::Delegations<_0>,
+                pub prior: runtime_types::pallet_conviction_voting::vote::PriorLock<_1, _0>,
+                #[codec(skip)]
+                pub __subxt_unused_type_params: ::core::marker::PhantomData<_2>,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct Delegating<_0, _1, _2> {
+                pub balance: _0,
+                pub target: _1,
+                pub conviction: runtime_types::pallet_conviction_voting::conviction::Conviction,
+                pub delegations: runtime_types::pallet_conviction_voting::types::Delegations<_0>,
+                pub prior: runtime_types::pallet_conviction_voting::vote::PriorLock<_2, _0>,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct PriorLock<_0, _1>(pub _0, pub _1);
+            #[derive(
+                :: subxt :: ext :: codec :: CompactAs,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+            )]
+            pub struct Vote(pub ::core::primitive::u8);
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub enum Voting<_0, _1, _2, _3> {
+                #[codec(index = 0)]
+                Casting(runtime_types::pallet_conviction_voting::vote::Casting<_0, _2, _2>),
+                #[codec(index = 1)]
+                Delegating(runtime_types::pallet_conviction_voting::vote::Delegating<_0, _1, _2>),
+                __Ignore(::core::marker::PhantomData<_3>),
+            }
+        }
+    }
     pub mod pallet_gear {
         use super::runtime_types;
         pub mod pallet {
@@ -1769,67 +1487,13 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+
             pub enum Call {
                 #[codec(index = 0)]
-                #[doc = "Saves program `code` in storage."]
-                #[doc = ""]
-                #[doc = "The extrinsic was created to provide _deploy program from program_ functionality."]
-                #[doc = "Anyone who wants to define a \"factory\" logic in program should first store the code and metadata for the \"child\""]
-                #[doc = "program in storage. So the code for the child will be initialized by program initialization request only if it exists in storage."]
-                #[doc = ""]
-                #[doc = "More precisely, the code and its metadata are actually saved in the storage under the hash of the `code`. The code hash is computed"]
-                #[doc = "as Blake256 hash. At the time of the call the `code` hash should not be in the storage. If it was stored previously, call will end up"]
-                #[doc = "with an `CodeAlreadyExists` error. In this case user can be sure, that he can actually use the hash of his program's code bytes to define"]
-                #[doc = "\"program factory\" logic in his program."]
-                #[doc = ""]
-                #[doc = "Parameters"]
-                #[doc = "- `code`: wasm code of a program as a byte vector."]
-                #[doc = ""]
-                #[doc = "Emits the following events:"]
-                #[doc = "- `SavedCode(H256)` - when the code is saved in storage."]
                 upload_code {
                     code: ::std::vec::Vec<::core::primitive::u8>,
                 },
                 #[codec(index = 1)]
-                #[doc = "Creates program initialization request (message), that is scheduled to be run in the same block."]
-                #[doc = ""]
-                #[doc = "There are no guarantees that initialization message will be run in the same block due to block"]
-                #[doc = "gas limit restrictions. For example, when it will be the message's turn, required gas limit for it"]
-                #[doc = "could be more than remaining block gas limit. Therefore, the message processing will be postponed"]
-                #[doc = "until the next block."]
-                #[doc = ""]
-                #[doc = "`ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)"]
-                #[doc = "Such `ProgramId` must not exist in the Program Storage at the time of this call."]
-                #[doc = ""]
-                #[doc = "There is the same guarantee here as in `upload_code`. That is, future program's"]
-                #[doc = "`code` and metadata are stored before message was added to the queue and processed."]
-                #[doc = ""]
-                #[doc = "The origin must be Signed and the sender must have sufficient funds to pay"]
-                #[doc = "for `gas` and `value` (in case the latter is being transferred)."]
-                #[doc = ""]
-                #[doc = "Parameters:"]
-                #[doc = "- `code`: wasm code of a program as a byte vector."]
-                #[doc = "- `salt`: randomness term (a seed) to allow programs with identical code"]
-                #[doc = "  to be created independently."]
-                #[doc = "- `init_payload`: encoded parameters of the wasm module `init` function."]
-                #[doc = "- `gas_limit`: maximum amount of gas the program can spend before it is halted."]
-                #[doc = "- `value`: balance to be transferred to the program once it's been created."]
-                #[doc = ""]
-                #[doc = "Emits the following events:"]
-                #[doc = "- `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue."]
-                #[doc = ""]
-                #[doc = "# Note"]
-                #[doc = "Faulty (uninitialized) programs still have a valid addresses (program ids) that can deterministically be derived on the"]
-                #[doc = "caller's side upfront. It means that if messages are sent to such an address, they might still linger in the queue."]
-                #[doc = ""]
-                #[doc = "In order to mitigate the risk of users' funds being sent to an address,"]
-                #[doc = "where a valid program should have resided, while it's not,"]
-                #[doc = "such \"failed-to-initialize\" programs are not silently deleted from the"]
-                #[doc = "program storage but rather marked as \"ghost\" programs."]
-                #[doc = "Ghost program can be removed by their original author via an explicit call."]
-                #[doc = "The funds stored by a ghost program will be release to the author once the program"]
-                #[doc = "has been removed."]
                 upload_program {
                     code: ::std::vec::Vec<::core::primitive::u8>,
                     salt: ::std::vec::Vec<::core::primitive::u8>,
@@ -1838,22 +1502,6 @@ pub mod runtime_types {
                     value: ::core::primitive::u128,
                 },
                 #[codec(index = 2)]
-                #[doc = "Creates program via `code_id` from storage."]
-                #[doc = ""]
-                #[doc = "Parameters:"]
-                #[doc = "- `code_id`: wasm code id in the code storage."]
-                #[doc = "- `salt`: randomness term (a seed) to allow programs with identical code"]
-                #[doc = "  to be created independently."]
-                #[doc = "- `init_payload`: encoded parameters of the wasm module `init` function."]
-                #[doc = "- `gas_limit`: maximum amount of gas the program can spend before it is halted."]
-                #[doc = "- `value`: balance to be transferred to the program once it's been created."]
-                #[doc = ""]
-                #[doc = "Emits the following events:"]
-                #[doc = "- `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue."]
-                #[doc = ""]
-                #[doc = "# NOTE"]
-                #[doc = ""]
-                #[doc = "For the details of this extrinsic, see `upload_code`."]
                 create_program {
                     code_id: runtime_types::gear_core::ids::CodeId,
                     salt: ::std::vec::Vec<::core::primitive::u8>,
@@ -1862,23 +1510,6 @@ pub mod runtime_types {
                     value: ::core::primitive::u128,
                 },
                 #[codec(index = 3)]
-                #[doc = "Sends a message to a program or to another account."]
-                #[doc = ""]
-                #[doc = "The origin must be Signed and the sender must have sufficient funds to pay"]
-                #[doc = "for `gas` and `value` (in case the latter is being transferred)."]
-                #[doc = ""]
-                #[doc = "To avoid an undefined behavior a check is made that the destination address"]
-                #[doc = "is not a program in uninitialized state. If the opposite holds true,"]
-                #[doc = "the message is not enqueued for processing."]
-                #[doc = ""]
-                #[doc = "Parameters:"]
-                #[doc = "- `destination`: the message destination."]
-                #[doc = "- `payload`: in case of a program destination, parameters of the `handle` function."]
-                #[doc = "- `gas_limit`: maximum amount of gas the program can spend before it is halted."]
-                #[doc = "- `value`: balance to be transferred to the program once it's been created."]
-                #[doc = ""]
-                #[doc = "Emits the following events:"]
-                #[doc = "- `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue."]
                 send_message {
                     destination: runtime_types::gear_core::ids::ProgramId,
                     payload: ::std::vec::Vec<::core::primitive::u8>,
@@ -1886,19 +1517,6 @@ pub mod runtime_types {
                     value: ::core::primitive::u128,
                 },
                 #[codec(index = 4)]
-                #[doc = "Send reply on message in `Mailbox`."]
-                #[doc = ""]
-                #[doc = "Removes message by given `MessageId` from callers `Mailbox`:"]
-                #[doc = "rent funds become free, associated with the message value"]
-                #[doc = "transfers from message sender to extrinsic caller."]
-                #[doc = ""]
-                #[doc = "Generates reply on removed message with given parameters"]
-                #[doc = "and pushes it in `MessageQueue`."]
-                #[doc = ""]
-                #[doc = "NOTE: source of the message in mailbox guaranteed to be a program."]
-                #[doc = ""]
-                #[doc = "NOTE: only user who is destination of the message, can claim value"]
-                #[doc = "or reply on the message from mailbox."]
                 send_reply {
                     reply_to_id: runtime_types::gear_core::ids::MessageId,
                     payload: ::std::vec::Vec<::core::primitive::u8>,
@@ -1906,116 +1524,64 @@ pub mod runtime_types {
                     value: ::core::primitive::u128,
                 },
                 #[codec(index = 5)]
-                #[doc = "Claim value from message in `Mailbox`."]
-                #[doc = ""]
-                #[doc = "Removes message by given `MessageId` from callers `Mailbox`:"]
-                #[doc = "rent funds become free, associated with the message value"]
-                #[doc = "transfers from message sender to extrinsic caller."]
-                #[doc = ""]
-                #[doc = "NOTE: only user who is destination of the message, can claim value"]
-                #[doc = "or reply on the message from mailbox."]
                 claim_value {
                     message_id: runtime_types::gear_core::ids::MessageId,
                 },
                 #[codec(index = 6)]
-                #[doc = "Process message queue"]
                 run,
                 #[codec(index = 7)]
-                #[doc = "Sets `ExecuteInherent` flag."]
-                #[doc = ""]
-                #[doc = "Requires root origin (eventually, will only be set via referendum)"]
                 set_execute_inherent { value: ::core::primitive::bool },
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
-			of this pallet.
-			"]
+
             pub enum Error {
                 #[codec(index = 0)]
-                #[doc = "Message wasn't found in the mailbox."]
                 MessageNotFound,
                 #[codec(index = 1)]
-                #[doc = "Not enough balance to reserve."]
-                #[doc = ""]
-                #[doc = "Usually occurs when the gas_limit specified is such that the origin account can't afford the message."]
                 InsufficientBalanceForReserve,
                 #[codec(index = 2)]
-                #[doc = "Gas limit too high."]
-                #[doc = ""]
-                #[doc = "Occurs when an extrinsic's declared `gas_limit` is greater than a block's maximum gas limit."]
                 GasLimitTooHigh,
                 #[codec(index = 3)]
-                #[doc = "Program already exists."]
-                #[doc = ""]
-                #[doc = "Occurs if a program with some specific program id already exists in program storage."]
                 ProgramAlreadyExists,
                 #[codec(index = 4)]
-                #[doc = "Program is terminated."]
-                #[doc = ""]
-                #[doc = "Program init failed, so such message destination is no longer unavailable."]
                 InactiveProgram,
                 #[codec(index = 5)]
-                #[doc = "Message gas tree is not found."]
-                #[doc = ""]
-                #[doc = "When a message claimed from the mailbox has a corrupted or non-extant gas tree associated."]
                 NoMessageTree,
                 #[codec(index = 6)]
-                #[doc = "Code already exists."]
-                #[doc = ""]
-                #[doc = "Occurs when trying to save to storage a program code that has been saved there."]
                 CodeAlreadyExists,
                 #[codec(index = 7)]
-                #[doc = "Code does not exist."]
-                #[doc = ""]
-                #[doc = "Occurs when trying to get a program code from storage, that doesn't exist."]
                 CodeDoesntExist,
                 #[codec(index = 8)]
-                #[doc = "The code supplied to `upload_code` or `upload_program` exceeds the limit specified in the"]
-                #[doc = "current schedule."]
                 CodeTooLarge,
                 #[codec(index = 9)]
-                #[doc = "Failed to create a program."]
                 ProgramConstructionFailed,
                 #[codec(index = 10)]
-                #[doc = "Value doesn't cover ExistentialDeposit."]
                 ValueLessThanMinimal,
                 #[codec(index = 11)]
-                #[doc = "Messages storage corrupted."]
                 MessagesStorageCorrupted,
                 #[codec(index = 12)]
-                #[doc = "Message queue processing is disabled."]
                 MessageQueueProcessingDisabled,
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
+
             pub enum Event {
                 #[codec(index = 0)]
-                #[doc = "User sends message to program, which was successfully"]
-                #[doc = "added to the Gear message queue."]
                 MessageQueued {
                     id: runtime_types::gear_core::ids::MessageId,
-                    source: ::sp_core::crypto::AccountId32,
+                    source: ::sp_runtime::AccountId32,
                     destination: runtime_types::gear_core::ids::ProgramId,
                     entry: runtime_types::gear_common::event::MessageEntry,
                 },
                 #[codec(index = 1)]
-                #[doc = "Somebody sent a message to the user."]
                 UserMessageSent {
                     message: runtime_types::gear_core::message::stored::StoredMessage,
                     expiration: ::core::option::Option<::core::primitive::u32>,
                 },
                 #[codec(index = 2)]
-                #[doc = "Message marked as \"read\" and removes it from `Mailbox`."]
-                #[doc = "This event only affects messages that were"]
-                #[doc = "already inserted in `Mailbox`."]
                 UserMessageRead {
                     id: runtime_types::gear_core::ids::MessageId,
                     reason: runtime_types::gear_common::event::Reason<
@@ -2024,7 +1590,6 @@ pub mod runtime_types {
                     >,
                 },
                 #[codec(index = 3)]
-                #[doc = "The result of processing the messages within the block."]
                 MessagesDispatched {
                     total: ::core::primitive::u32,
                     statuses: ::subxt::utils::KeyedVec<
@@ -2034,8 +1599,6 @@ pub mod runtime_types {
                     state_changes: ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
                 },
                 #[codec(index = 4)]
-                #[doc = "Messages execution delayed (waited) and successfully"]
-                #[doc = "added to gear waitlist."]
                 MessageWaited {
                     id: runtime_types::gear_core::ids::MessageId,
                     origin: ::core::option::Option<
@@ -2051,8 +1614,6 @@ pub mod runtime_types {
                     expiration: ::core::primitive::u32,
                 },
                 #[codec(index = 5)]
-                #[doc = "Message is ready to continue its execution"]
-                #[doc = "and was removed from `Waitlist`."]
                 MessageWoken {
                     id: runtime_types::gear_core::ids::MessageId,
                     reason: runtime_types::gear_common::event::Reason<
@@ -2061,14 +1622,12 @@ pub mod runtime_types {
                     >,
                 },
                 #[codec(index = 6)]
-                #[doc = "Any data related to program codes changed."]
                 CodeChanged {
                     id: runtime_types::gear_core::ids::CodeId,
                     change:
                         runtime_types::gear_common::event::CodeChangeKind<::core::primitive::u32>,
                 },
                 #[codec(index = 7)]
-                #[doc = "Any data related to programs changed."]
                 ProgramChanged {
                     id: runtime_types::gear_core::ids::ProgramId,
                     change: runtime_types::gear_common::event::ProgramChangeKind<
@@ -2076,7 +1635,6 @@ pub mod runtime_types {
                     >,
                 },
                 #[codec(index = 8)]
-                #[doc = "The pseudo-inherent extrinsic that runs queue processing rolled back or not executed."]
                 QueueProcessingReverted,
             }
         }
@@ -2241,10 +1799,7 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
-			of this pallet.
-			"]
+
             pub enum Error {
                 #[codec(index = 0)]
                 Forbidden,
@@ -2257,34 +1812,22 @@ pub mod runtime_types {
                 #[codec(index = 4)]
                 NodeWasConsumed,
                 #[codec(index = 5)]
-                #[doc = "Errors stating that gas tree has been invalidated"]
                 ParentIsLost,
                 #[codec(index = 6)]
                 ParentHasNoChildren,
                 #[codec(index = 7)]
-                #[doc = "Output of `Tree::consume` procedure that wasn't expected."]
-                #[doc = ""]
-                #[doc = "Outputs of consumption procedure are determined. The error is returned"]
-                #[doc = "when unexpected one occurred. That signals, that algorithm works wrong"]
-                #[doc = "and expected invariants are not correct."]
                 UnexpectedConsumeOutput,
                 #[codec(index = 8)]
-                #[doc = "Node type that can't occur if algorithm work well"]
                 UnexpectedNodeType,
                 #[codec(index = 9)]
-                #[doc = "Value must have been caught, but was missed or blocked (for more info see `ValueNode::catch_value`)."]
                 ValueIsNotCaught,
                 #[codec(index = 10)]
-                #[doc = "Value must have been caught or moved upstream, but was blocked (for more info see `ValueNode::catch_value`)."]
                 ValueIsBlocked,
                 #[codec(index = 11)]
-                #[doc = "Value must have been blocked, but was either moved or caught (for more info see `ValueNode::catch_value`)."]
                 ValueIsNotBlocked,
                 #[codec(index = 12)]
-                #[doc = "`GasTree::consume` called on node, which has some balance locked."]
                 ConsumedWithLock,
                 #[codec(index = 13)]
-                #[doc = "`GasTree::consume` called on node, which has some system reservation."]
                 ConsumedWithSystemReservation,
             }
         }
@@ -2296,52 +1839,31 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
-			of this pallet.
-			"]
+
             pub enum Error {
                 #[codec(index = 0)]
-                #[doc = "Occurs when given key already exists in queue."]
                 QueueDuplicateKey,
                 #[codec(index = 1)]
-                #[doc = "Occurs when queue's element wasn't found in storage."]
                 QueueElementNotFound,
                 #[codec(index = 2)]
-                #[doc = "Occurs when queue's head should contain value,"]
-                #[doc = "but it's empty for some reason."]
                 QueueHeadShouldBeSet,
                 #[codec(index = 3)]
-                #[doc = "Occurs when queue's head should be empty,"]
-                #[doc = "but it contains value for some reason."]
                 QueueHeadShouldNotBeSet,
                 #[codec(index = 4)]
-                #[doc = "Occurs when queue's tail element contains link"]
-                #[doc = "to the next element."]
                 QueueTailHasNextKey,
                 #[codec(index = 5)]
-                #[doc = "Occurs when while searching queue's pre-tail,"]
-                #[doc = "element wasn't found."]
                 QueueTailParentNotFound,
                 #[codec(index = 6)]
-                #[doc = "Occurs when queue's tail should contain value,"]
-                #[doc = "but it's empty for some reason."]
                 QueueTailShouldBeSet,
                 #[codec(index = 7)]
-                #[doc = "Occurs when queue's tail should be empty,"]
-                #[doc = "but it contains value for some reason."]
                 QueueTailShouldNotBeSet,
                 #[codec(index = 8)]
-                #[doc = "Occurs when given value already exists in mailbox."]
                 MailboxDuplicateKey,
                 #[codec(index = 9)]
-                #[doc = "Occurs when mailbox's element wasn't found in storage."]
                 MailboxElementNotFound,
                 #[codec(index = 10)]
-                #[doc = "Occurs when given value already exists in waitlist."]
                 WaitlistDuplicateKey,
                 #[codec(index = 11)]
-                #[doc = "Occurs when waitlist's element wasn't found in storage."]
                 WaitlistElementNotFound,
             }
         }
@@ -2361,10 +1883,7 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
-			of this pallet.
-			"]
+
             pub enum Error {
                 #[codec(index = 0)]
                 DuplicateItem,
@@ -2384,17 +1903,65 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
-			of this pallet.
-			"]
+
             pub enum Error {
                 #[codec(index = 0)]
-                #[doc = "Occurs when given task already exists in task pool."]
                 DuplicateTask,
                 #[codec(index = 1)]
-                #[doc = "Occurs when task wasn't found in storage."]
                 TaskNotFound,
+            }
+        }
+    }
+    pub mod pallet_gear_staking_rewards {
+        use super::runtime_types;
+        pub mod extension {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct StakingBlackList;
+        }
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                refill { value: ::core::primitive::u128 },
+                #[codec(index = 1)]
+                force_refill {
+                    from: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    value: ::core::primitive::u128,
+                },
+                #[codec(index = 2)]
+                withdraw {
+                    to: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    value: ::core::primitive::u128,
+                },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                FailureToRefillPool,
+                #[codec(index = 1)]
+                FailureToWithdrawFromPool,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                Refilled { amount: ::core::primitive::u128 },
+                #[codec(index = 1)]
+                Withdrawn { amount: ::core::primitive::u128 },
+                #[codec(index = 2)]
+                Burned { amount: ::core::primitive::u128 },
             }
         }
     }
@@ -2405,54 +1972,29 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+
             pub enum Call {
                 #[codec(index = 0)]
-                #[doc = "Report voter equivocation/misbehavior. This method will verify the"]
-                #[doc = "equivocation proof and validate the given key ownership proof"]
-                #[doc = "against the extracted offender. If both are valid, the offence"]
-                #[doc = "will be reported."]
                 report_equivocation {
                     equivocation_proof: ::std::boxed::Box<
                         runtime_types::sp_finality_grandpa::EquivocationProof<
-                            ::sp_core::H256,
+                            ::subxt::utils::H256,
                             ::core::primitive::u32,
                         >,
                     >,
-                    key_owner_proof: runtime_types::sp_core::Void,
+                    key_owner_proof: runtime_types::sp_session::MembershipProof,
                 },
                 #[codec(index = 1)]
-                #[doc = "Report voter equivocation/misbehavior. This method will verify the"]
-                #[doc = "equivocation proof and validate the given key ownership proof"]
-                #[doc = "against the extracted offender. If both are valid, the offence"]
-                #[doc = "will be reported."]
-                #[doc = ""]
-                #[doc = "This extrinsic must be called unsigned and it is expected that only"]
-                #[doc = "block authors will call it (validated in `ValidateUnsigned`), as such"]
-                #[doc = "if the block author is defined it will be defined as the equivocation"]
-                #[doc = "reporter."]
                 report_equivocation_unsigned {
                     equivocation_proof: ::std::boxed::Box<
                         runtime_types::sp_finality_grandpa::EquivocationProof<
-                            ::sp_core::H256,
+                            ::subxt::utils::H256,
                             ::core::primitive::u32,
                         >,
                     >,
-                    key_owner_proof: runtime_types::sp_core::Void,
+                    key_owner_proof: runtime_types::sp_session::MembershipProof,
                 },
                 #[codec(index = 2)]
-                #[doc = "Note that the current authority set of the GRANDPA finality gadget has stalled."]
-                #[doc = ""]
-                #[doc = "This will trigger a forced authority set change at the beginning of the next session, to"]
-                #[doc = "be enacted `delay` blocks after that. The `delay` should be high enough to safely assume"]
-                #[doc = "that the block signalling the forced change will not be re-orged e.g. 1000 blocks."]
-                #[doc = "The block production rate (which may be slowed down because of finality lagging) should"]
-                #[doc = "be taken into account when choosing the `delay`. The GRANDPA voters based on the new"]
-                #[doc = "authority will start voting on top of `best_finalized_block_number` for new finalized"]
-                #[doc = "blocks. `best_finalized_block_number` should be the highest of the latest finalized"]
-                #[doc = "block of all validators of the new authority set."]
-                #[doc = ""]
-                #[doc = "Only callable by root."]
                 note_stalled {
                     delay: ::core::primitive::u32,
                     best_finalized_block_number: ::core::primitive::u32,
@@ -2461,45 +2003,29 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
-			of this pallet.
-			"]
+
             pub enum Error {
                 #[codec(index = 0)]
-                #[doc = "Attempt to signal GRANDPA pause when the authority set isn't live"]
-                #[doc = "(either paused or already pending pause)."]
                 PauseFailed,
                 #[codec(index = 1)]
-                #[doc = "Attempt to signal GRANDPA resume when the authority set isn't paused"]
-                #[doc = "(either live or already pending resume)."]
                 ResumeFailed,
                 #[codec(index = 2)]
-                #[doc = "Attempt to signal GRANDPA change with one already pending."]
                 ChangePending,
                 #[codec(index = 3)]
-                #[doc = "Cannot signal forced change so soon after last."]
                 TooSoon,
                 #[codec(index = 4)]
-                #[doc = "A key ownership proof provided as part of an equivocation report is invalid."]
                 InvalidKeyOwnershipProof,
                 #[codec(index = 5)]
-                #[doc = "An equivocation proof provided as part of an equivocation report is invalid."]
                 InvalidEquivocationProof,
                 #[codec(index = 6)]
-                #[doc = "A given equivocation report is valid but already previously reported."]
                 DuplicateOffenceReport,
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
+
             pub enum Event {
                 #[codec(index = 0)]
-                #[doc = "New authority set has been applied."]
                 NewAuthorities {
                     authority_set: ::std::vec::Vec<(
                         runtime_types::sp_finality_grandpa::app::Public,
@@ -2507,10 +2033,8 @@ pub mod runtime_types {
                     )>,
                 },
                 #[codec(index = 1)]
-                #[doc = "Current authority set has been paused."]
                 Paused,
                 #[codec(index = 2)]
-                #[doc = "Current authority set has been resumed."]
                 Resumed,
             }
         }
@@ -2537,6 +2061,1001 @@ pub mod runtime_types {
             PendingResume { scheduled_at: _0, delay: _0 },
         }
     }
+    pub mod pallet_identity {
+        use super::runtime_types;
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                add_registrar {
+                    account: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+                #[codec(index = 1)]
+                set_identity {
+                    info: ::std::boxed::Box<runtime_types::pallet_identity::types::IdentityInfo>,
+                },
+                #[codec(index = 2)]
+                set_subs {
+                    subs: ::std::vec::Vec<(
+                        ::sp_runtime::AccountId32,
+                        runtime_types::pallet_identity::types::Data,
+                    )>,
+                },
+                #[codec(index = 3)]
+                clear_identity,
+                #[codec(index = 4)]
+                request_judgement {
+                    #[codec(compact)]
+                    reg_index: ::core::primitive::u32,
+                    #[codec(compact)]
+                    max_fee: ::core::primitive::u128,
+                },
+                #[codec(index = 5)]
+                cancel_request { reg_index: ::core::primitive::u32 },
+                #[codec(index = 6)]
+                set_fee {
+                    #[codec(compact)]
+                    index: ::core::primitive::u32,
+                    #[codec(compact)]
+                    fee: ::core::primitive::u128,
+                },
+                #[codec(index = 7)]
+                set_account_id {
+                    #[codec(compact)]
+                    index: ::core::primitive::u32,
+                    new: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+                #[codec(index = 8)]
+                set_fields {
+                    #[codec(compact)]
+                    index: ::core::primitive::u32,
+                    fields: runtime_types::pallet_identity::types::BitFlags<
+                        runtime_types::pallet_identity::types::IdentityField,
+                    >,
+                },
+                #[codec(index = 9)]
+                provide_judgement {
+                    #[codec(compact)]
+                    reg_index: ::core::primitive::u32,
+                    target: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    judgement:
+                        runtime_types::pallet_identity::types::Judgement<::core::primitive::u128>,
+                    identity: ::subxt::utils::H256,
+                },
+                #[codec(index = 10)]
+                kill_identity {
+                    target: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+                #[codec(index = 11)]
+                add_sub {
+                    sub: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    data: runtime_types::pallet_identity::types::Data,
+                },
+                #[codec(index = 12)]
+                rename_sub {
+                    sub: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    data: runtime_types::pallet_identity::types::Data,
+                },
+                #[codec(index = 13)]
+                remove_sub {
+                    sub: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+                #[codec(index = 14)]
+                quit_sub,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                TooManySubAccounts,
+                #[codec(index = 1)]
+                NotFound,
+                #[codec(index = 2)]
+                NotNamed,
+                #[codec(index = 3)]
+                EmptyIndex,
+                #[codec(index = 4)]
+                FeeChanged,
+                #[codec(index = 5)]
+                NoIdentity,
+                #[codec(index = 6)]
+                StickyJudgement,
+                #[codec(index = 7)]
+                JudgementGiven,
+                #[codec(index = 8)]
+                InvalidJudgement,
+                #[codec(index = 9)]
+                InvalidIndex,
+                #[codec(index = 10)]
+                InvalidTarget,
+                #[codec(index = 11)]
+                TooManyFields,
+                #[codec(index = 12)]
+                TooManyRegistrars,
+                #[codec(index = 13)]
+                AlreadyClaimed,
+                #[codec(index = 14)]
+                NotSub,
+                #[codec(index = 15)]
+                NotOwned,
+                #[codec(index = 16)]
+                JudgementForDifferentIdentity,
+                #[codec(index = 17)]
+                JudgementPaymentFailed,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                IdentitySet { who: ::sp_runtime::AccountId32 },
+                #[codec(index = 1)]
+                IdentityCleared {
+                    who: ::sp_runtime::AccountId32,
+                    deposit: ::core::primitive::u128,
+                },
+                #[codec(index = 2)]
+                IdentityKilled {
+                    who: ::sp_runtime::AccountId32,
+                    deposit: ::core::primitive::u128,
+                },
+                #[codec(index = 3)]
+                JudgementRequested {
+                    who: ::sp_runtime::AccountId32,
+                    registrar_index: ::core::primitive::u32,
+                },
+                #[codec(index = 4)]
+                JudgementUnrequested {
+                    who: ::sp_runtime::AccountId32,
+                    registrar_index: ::core::primitive::u32,
+                },
+                #[codec(index = 5)]
+                JudgementGiven {
+                    target: ::sp_runtime::AccountId32,
+                    registrar_index: ::core::primitive::u32,
+                },
+                #[codec(index = 6)]
+                RegistrarAdded {
+                    registrar_index: ::core::primitive::u32,
+                },
+                #[codec(index = 7)]
+                SubIdentityAdded {
+                    sub: ::sp_runtime::AccountId32,
+                    main: ::sp_runtime::AccountId32,
+                    deposit: ::core::primitive::u128,
+                },
+                #[codec(index = 8)]
+                SubIdentityRemoved {
+                    sub: ::sp_runtime::AccountId32,
+                    main: ::sp_runtime::AccountId32,
+                    deposit: ::core::primitive::u128,
+                },
+                #[codec(index = 9)]
+                SubIdentityRevoked {
+                    sub: ::sp_runtime::AccountId32,
+                    main: ::sp_runtime::AccountId32,
+                    deposit: ::core::primitive::u128,
+                },
+            }
+        }
+        pub mod types {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: CompactAs,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+            )]
+            pub struct BitFlags<_0>(
+                pub ::core::primitive::u64,
+                #[codec(skip)] pub ::core::marker::PhantomData<_0>,
+            );
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub enum Data {
+                #[codec(index = 0)]
+                None,
+                #[codec(index = 1)]
+                Raw0([::core::primitive::u8; 0usize]),
+                #[codec(index = 2)]
+                Raw1([::core::primitive::u8; 1usize]),
+                #[codec(index = 3)]
+                Raw2([::core::primitive::u8; 2usize]),
+                #[codec(index = 4)]
+                Raw3([::core::primitive::u8; 3usize]),
+                #[codec(index = 5)]
+                Raw4([::core::primitive::u8; 4usize]),
+                #[codec(index = 6)]
+                Raw5([::core::primitive::u8; 5usize]),
+                #[codec(index = 7)]
+                Raw6([::core::primitive::u8; 6usize]),
+                #[codec(index = 8)]
+                Raw7([::core::primitive::u8; 7usize]),
+                #[codec(index = 9)]
+                Raw8([::core::primitive::u8; 8usize]),
+                #[codec(index = 10)]
+                Raw9([::core::primitive::u8; 9usize]),
+                #[codec(index = 11)]
+                Raw10([::core::primitive::u8; 10usize]),
+                #[codec(index = 12)]
+                Raw11([::core::primitive::u8; 11usize]),
+                #[codec(index = 13)]
+                Raw12([::core::primitive::u8; 12usize]),
+                #[codec(index = 14)]
+                Raw13([::core::primitive::u8; 13usize]),
+                #[codec(index = 15)]
+                Raw14([::core::primitive::u8; 14usize]),
+                #[codec(index = 16)]
+                Raw15([::core::primitive::u8; 15usize]),
+                #[codec(index = 17)]
+                Raw16([::core::primitive::u8; 16usize]),
+                #[codec(index = 18)]
+                Raw17([::core::primitive::u8; 17usize]),
+                #[codec(index = 19)]
+                Raw18([::core::primitive::u8; 18usize]),
+                #[codec(index = 20)]
+                Raw19([::core::primitive::u8; 19usize]),
+                #[codec(index = 21)]
+                Raw20([::core::primitive::u8; 20usize]),
+                #[codec(index = 22)]
+                Raw21([::core::primitive::u8; 21usize]),
+                #[codec(index = 23)]
+                Raw22([::core::primitive::u8; 22usize]),
+                #[codec(index = 24)]
+                Raw23([::core::primitive::u8; 23usize]),
+                #[codec(index = 25)]
+                Raw24([::core::primitive::u8; 24usize]),
+                #[codec(index = 26)]
+                Raw25([::core::primitive::u8; 25usize]),
+                #[codec(index = 27)]
+                Raw26([::core::primitive::u8; 26usize]),
+                #[codec(index = 28)]
+                Raw27([::core::primitive::u8; 27usize]),
+                #[codec(index = 29)]
+                Raw28([::core::primitive::u8; 28usize]),
+                #[codec(index = 30)]
+                Raw29([::core::primitive::u8; 29usize]),
+                #[codec(index = 31)]
+                Raw30([::core::primitive::u8; 30usize]),
+                #[codec(index = 32)]
+                Raw31([::core::primitive::u8; 31usize]),
+                #[codec(index = 33)]
+                Raw32([::core::primitive::u8; 32usize]),
+                #[codec(index = 34)]
+                BlakeTwo256([::core::primitive::u8; 32usize]),
+                #[codec(index = 35)]
+                Sha256([::core::primitive::u8; 32usize]),
+                #[codec(index = 36)]
+                Keccak256([::core::primitive::u8; 32usize]),
+                #[codec(index = 37)]
+                ShaThree256([::core::primitive::u8; 32usize]),
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub enum IdentityField {
+                #[codec(index = 1)]
+                Display,
+                #[codec(index = 2)]
+                Legal,
+                #[codec(index = 4)]
+                Web,
+                #[codec(index = 8)]
+                Riot,
+                #[codec(index = 16)]
+                Email,
+                #[codec(index = 32)]
+                PgpFingerprint,
+                #[codec(index = 64)]
+                Image,
+                #[codec(index = 128)]
+                Twitter,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct IdentityInfo {
+                pub additional: runtime_types::sp_core::bounded::bounded_vec::BoundedVec<(
+                    runtime_types::pallet_identity::types::Data,
+                    runtime_types::pallet_identity::types::Data,
+                )>,
+                pub display: runtime_types::pallet_identity::types::Data,
+                pub legal: runtime_types::pallet_identity::types::Data,
+                pub web: runtime_types::pallet_identity::types::Data,
+                pub riot: runtime_types::pallet_identity::types::Data,
+                pub email: runtime_types::pallet_identity::types::Data,
+                pub pgp_fingerprint: ::core::option::Option<[::core::primitive::u8; 20usize]>,
+                pub image: runtime_types::pallet_identity::types::Data,
+                pub twitter: runtime_types::pallet_identity::types::Data,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub enum Judgement<_0> {
+                #[codec(index = 0)]
+                Unknown,
+                #[codec(index = 1)]
+                FeePaid(_0),
+                #[codec(index = 2)]
+                Reasonable,
+                #[codec(index = 3)]
+                KnownGood,
+                #[codec(index = 4)]
+                OutOfDate,
+                #[codec(index = 5)]
+                LowQuality,
+                #[codec(index = 6)]
+                Erroneous,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct RegistrarInfo<_0, _1> {
+                pub account: _1,
+                pub fee: _0,
+                pub fields: runtime_types::pallet_identity::types::BitFlags<
+                    runtime_types::pallet_identity::types::IdentityField,
+                >,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct Registration<_0> {
+                pub judgements: runtime_types::sp_core::bounded::bounded_vec::BoundedVec<(
+                    ::core::primitive::u32,
+                    runtime_types::pallet_identity::types::Judgement<_0>,
+                )>,
+                pub deposit: _0,
+                pub info: runtime_types::pallet_identity::types::IdentityInfo,
+            }
+        }
+    }
+    pub mod pallet_im_online {
+        use super::runtime_types;
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                heartbeat {
+                    heartbeat: runtime_types::pallet_im_online::Heartbeat<::core::primitive::u32>,
+                    signature: runtime_types::pallet_im_online::sr25519::app_sr25519::Signature,
+                },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                InvalidKey,
+                #[codec(index = 1)]
+                DuplicatedHeartbeat,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                HeartbeatReceived {
+                    authority_id: runtime_types::pallet_im_online::sr25519::app_sr25519::Public,
+                },
+                #[codec(index = 1)]
+                AllGood,
+                #[codec(index = 2)]
+                SomeOffline {
+                    offline: ::std::vec::Vec<(
+                        ::sp_runtime::AccountId32,
+                        runtime_types::pallet_staking::Exposure<
+                            ::sp_runtime::AccountId32,
+                            ::core::primitive::u128,
+                        >,
+                    )>,
+                },
+            }
+        }
+        pub mod sr25519 {
+            use super::runtime_types;
+            pub mod app_sr25519 {
+                use super::runtime_types;
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
+                pub struct Public(pub runtime_types::sp_core::sr25519::Public);
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
+                pub struct Signature(pub runtime_types::sp_core::sr25519::Signature);
+            }
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct BoundedOpaqueNetworkState {
+            pub peer_id: runtime_types::sp_core::bounded::weak_bounded_vec::WeakBoundedVec<
+                ::core::primitive::u8,
+            >,
+            pub external_addresses:
+                runtime_types::sp_core::bounded::weak_bounded_vec::WeakBoundedVec<
+                    runtime_types::sp_core::bounded::weak_bounded_vec::WeakBoundedVec<
+                        ::core::primitive::u8,
+                    >,
+                >,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct Heartbeat<_0> {
+            pub block_number: _0,
+            pub network_state: runtime_types::sp_core::offchain::OpaqueNetworkState,
+            pub session_index: _0,
+            pub authority_index: _0,
+            pub validators_len: _0,
+        }
+    }
+    pub mod pallet_preimage {
+        use super::runtime_types;
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                note_preimage {
+                    bytes: ::std::vec::Vec<::core::primitive::u8>,
+                },
+                #[codec(index = 1)]
+                unnote_preimage { hash: ::subxt::utils::H256 },
+                #[codec(index = 2)]
+                request_preimage { hash: ::subxt::utils::H256 },
+                #[codec(index = 3)]
+                unrequest_preimage { hash: ::subxt::utils::H256 },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                TooBig,
+                #[codec(index = 1)]
+                AlreadyNoted,
+                #[codec(index = 2)]
+                NotAuthorized,
+                #[codec(index = 3)]
+                NotNoted,
+                #[codec(index = 4)]
+                Requested,
+                #[codec(index = 5)]
+                NotRequested,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                Noted { hash: ::subxt::utils::H256 },
+                #[codec(index = 1)]
+                Requested { hash: ::subxt::utils::H256 },
+                #[codec(index = 2)]
+                Cleared { hash: ::subxt::utils::H256 },
+            }
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub enum RequestStatus<_0, _1> {
+            #[codec(index = 0)]
+            Unrequested {
+                deposit: (_0, _1),
+                len: ::core::primitive::u32,
+            },
+            #[codec(index = 1)]
+            Requested {
+                deposit: ::core::option::Option<(_0, _1)>,
+                count: ::core::primitive::u32,
+                len: ::core::option::Option<::core::primitive::u32>,
+            },
+        }
+    }
+    pub mod pallet_ranked_collective {
+        use super::runtime_types;
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                add_member {
+                    who: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+                #[codec(index = 1)]
+                promote_member {
+                    who: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+                #[codec(index = 2)]
+                demote_member {
+                    who: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+                #[codec(index = 3)]
+                remove_member {
+                    who: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    min_rank: ::core::primitive::u16,
+                },
+                #[codec(index = 4)]
+                vote {
+                    poll: ::core::primitive::u32,
+                    aye: ::core::primitive::bool,
+                },
+                #[codec(index = 5)]
+                cleanup_poll {
+                    poll_index: ::core::primitive::u32,
+                    max: ::core::primitive::u32,
+                },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                AlreadyMember,
+                #[codec(index = 1)]
+                NotMember,
+                #[codec(index = 2)]
+                NotPolling,
+                #[codec(index = 3)]
+                Ongoing,
+                #[codec(index = 4)]
+                NoneRemaining,
+                #[codec(index = 5)]
+                Corruption,
+                #[codec(index = 6)]
+                RankTooLow,
+                #[codec(index = 7)]
+                InvalidWitness,
+                #[codec(index = 8)]
+                NoPermission,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                MemberAdded { who: ::sp_runtime::AccountId32 },
+                #[codec(index = 1)]
+                RankChanged {
+                    who: ::sp_runtime::AccountId32,
+                    rank: ::core::primitive::u16,
+                },
+                #[codec(index = 2)]
+                MemberRemoved {
+                    who: ::sp_runtime::AccountId32,
+                    rank: ::core::primitive::u16,
+                },
+                #[codec(index = 3)]
+                Voted {
+                    who: ::sp_runtime::AccountId32,
+                    poll: ::core::primitive::u32,
+                    vote: runtime_types::pallet_ranked_collective::VoteRecord,
+                    tally: runtime_types::pallet_ranked_collective::Tally,
+                },
+            }
+        }
+        #[derive(
+            :: subxt :: ext :: codec :: CompactAs,
+            :: subxt :: ext :: codec :: Decode,
+            :: subxt :: ext :: codec :: Encode,
+            Debug,
+        )]
+        pub struct MemberRecord {
+            pub rank: ::core::primitive::u16,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct Tally {
+            pub bare_ayes: ::core::primitive::u32,
+            pub ayes: ::core::primitive::u32,
+            pub nays: ::core::primitive::u32,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub enum VoteRecord {
+            #[codec(index = 0)]
+            Aye(::core::primitive::u32),
+            #[codec(index = 1)]
+            Nay(::core::primitive::u32),
+        }
+    }
+    pub mod pallet_referenda {
+        use super::runtime_types;
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                submit {
+                    proposal_origin: ::std::boxed::Box<runtime_types::gear_runtime::OriginCaller>,
+                    proposal: runtime_types::frame_support::traits::preimages::Bounded<
+                        runtime_types::gear_runtime::RuntimeCall,
+                    >,
+                    enactment_moment: runtime_types::frame_support::traits::schedule::DispatchTime<
+                        ::core::primitive::u32,
+                    >,
+                },
+                #[codec(index = 1)]
+                place_decision_deposit { index: ::core::primitive::u32 },
+                #[codec(index = 2)]
+                refund_decision_deposit { index: ::core::primitive::u32 },
+                #[codec(index = 3)]
+                cancel { index: ::core::primitive::u32 },
+                #[codec(index = 4)]
+                kill { index: ::core::primitive::u32 },
+                #[codec(index = 5)]
+                nudge_referendum { index: ::core::primitive::u32 },
+                #[codec(index = 6)]
+                one_fewer_deciding { track: ::core::primitive::u16 },
+                #[codec(index = 7)]
+                refund_submission_deposit { index: ::core::primitive::u32 },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                NotOngoing,
+                #[codec(index = 1)]
+                HasDeposit,
+                #[codec(index = 2)]
+                BadTrack,
+                #[codec(index = 3)]
+                Full,
+                #[codec(index = 4)]
+                QueueEmpty,
+                #[codec(index = 5)]
+                BadReferendum,
+                #[codec(index = 6)]
+                NothingToDo,
+                #[codec(index = 7)]
+                NoTrack,
+                #[codec(index = 8)]
+                Unfinished,
+                #[codec(index = 9)]
+                NoPermission,
+                #[codec(index = 10)]
+                NoDeposit,
+                #[codec(index = 11)]
+                BadStatus,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                Submitted {
+                    index: ::core::primitive::u32,
+                    track: ::core::primitive::u16,
+                    proposal: runtime_types::frame_support::traits::preimages::Bounded<
+                        runtime_types::gear_runtime::RuntimeCall,
+                    >,
+                },
+                #[codec(index = 1)]
+                DecisionDepositPlaced {
+                    index: ::core::primitive::u32,
+                    who: ::sp_runtime::AccountId32,
+                    amount: ::core::primitive::u128,
+                },
+                #[codec(index = 2)]
+                DecisionDepositRefunded {
+                    index: ::core::primitive::u32,
+                    who: ::sp_runtime::AccountId32,
+                    amount: ::core::primitive::u128,
+                },
+                #[codec(index = 3)]
+                DepositSlashed {
+                    who: ::sp_runtime::AccountId32,
+                    amount: ::core::primitive::u128,
+                },
+                #[codec(index = 4)]
+                DecisionStarted {
+                    index: ::core::primitive::u32,
+                    track: ::core::primitive::u16,
+                    proposal: runtime_types::frame_support::traits::preimages::Bounded<
+                        runtime_types::gear_runtime::RuntimeCall,
+                    >,
+                    tally: runtime_types::pallet_ranked_collective::Tally,
+                },
+                #[codec(index = 5)]
+                ConfirmStarted { index: ::core::primitive::u32 },
+                #[codec(index = 6)]
+                ConfirmAborted { index: ::core::primitive::u32 },
+                #[codec(index = 7)]
+                Confirmed {
+                    index: ::core::primitive::u32,
+                    tally: runtime_types::pallet_ranked_collective::Tally,
+                },
+                #[codec(index = 8)]
+                Approved { index: ::core::primitive::u32 },
+                #[codec(index = 9)]
+                Rejected {
+                    index: ::core::primitive::u32,
+                    tally: runtime_types::pallet_ranked_collective::Tally,
+                },
+                #[codec(index = 10)]
+                TimedOut {
+                    index: ::core::primitive::u32,
+                    tally: runtime_types::pallet_ranked_collective::Tally,
+                },
+                #[codec(index = 11)]
+                Cancelled {
+                    index: ::core::primitive::u32,
+                    tally: runtime_types::pallet_ranked_collective::Tally,
+                },
+                #[codec(index = 12)]
+                Killed {
+                    index: ::core::primitive::u32,
+                    tally: runtime_types::pallet_ranked_collective::Tally,
+                },
+                #[codec(index = 13)]
+                SubmissionDepositRefunded {
+                    index: ::core::primitive::u32,
+                    who: ::sp_runtime::AccountId32,
+                    amount: ::core::primitive::u128,
+                },
+            }
+        }
+        pub mod types {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub enum Curve {
+                #[codec(index = 0)]
+                LinearDecreasing {
+                    length: runtime_types::sp_arithmetic::per_things::Perbill,
+                    floor: runtime_types::sp_arithmetic::per_things::Perbill,
+                    ceil: runtime_types::sp_arithmetic::per_things::Perbill,
+                },
+                #[codec(index = 1)]
+                SteppedDecreasing {
+                    begin: runtime_types::sp_arithmetic::per_things::Perbill,
+                    end: runtime_types::sp_arithmetic::per_things::Perbill,
+                    step: runtime_types::sp_arithmetic::per_things::Perbill,
+                    period: runtime_types::sp_arithmetic::per_things::Perbill,
+                },
+                #[codec(index = 2)]
+                Reciprocal {
+                    factor: runtime_types::sp_arithmetic::fixed_point::FixedI64,
+                    x_offset: runtime_types::sp_arithmetic::fixed_point::FixedI64,
+                    y_offset: runtime_types::sp_arithmetic::fixed_point::FixedI64,
+                },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct DecidingStatus<_0> {
+                pub since: _0,
+                pub confirming: ::core::option::Option<_0>,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct Deposit<_0, _1> {
+                pub who: _0,
+                pub amount: _1,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub enum ReferendumInfo<_0, _1, _2, _3, _4, _5, _6, _7> {
+                #[codec(index = 0)]
+                Ongoing(
+                    runtime_types::pallet_referenda::types::ReferendumStatus<
+                        _0,
+                        _1,
+                        _2,
+                        _3,
+                        _4,
+                        _5,
+                        _6,
+                        _7,
+                    >,
+                ),
+                #[codec(index = 1)]
+                Approved(
+                    _2,
+                    ::core::option::Option<runtime_types::pallet_referenda::types::Deposit<_6, _4>>,
+                    ::core::option::Option<runtime_types::pallet_referenda::types::Deposit<_6, _4>>,
+                ),
+                #[codec(index = 2)]
+                Rejected(
+                    _2,
+                    ::core::option::Option<runtime_types::pallet_referenda::types::Deposit<_6, _4>>,
+                    ::core::option::Option<runtime_types::pallet_referenda::types::Deposit<_6, _4>>,
+                ),
+                #[codec(index = 3)]
+                Cancelled(
+                    _2,
+                    ::core::option::Option<runtime_types::pallet_referenda::types::Deposit<_6, _4>>,
+                    ::core::option::Option<runtime_types::pallet_referenda::types::Deposit<_6, _4>>,
+                ),
+                #[codec(index = 4)]
+                TimedOut(
+                    _2,
+                    ::core::option::Option<runtime_types::pallet_referenda::types::Deposit<_6, _4>>,
+                    ::core::option::Option<runtime_types::pallet_referenda::types::Deposit<_6, _4>>,
+                ),
+                #[codec(index = 5)]
+                Killed(_2),
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct ReferendumStatus<_0, _1, _2, _3, _4, _5, _6, _7> {
+                pub track: _0,
+                pub origin: _1,
+                pub proposal: _3,
+                pub enactment: runtime_types::frame_support::traits::schedule::DispatchTime<_2>,
+                pub submitted: _2,
+                pub submission_deposit: runtime_types::pallet_referenda::types::Deposit<_6, _4>,
+                pub decision_deposit:
+                    ::core::option::Option<runtime_types::pallet_referenda::types::Deposit<_6, _4>>,
+                pub deciding: ::core::option::Option<
+                    runtime_types::pallet_referenda::types::DecidingStatus<_2>,
+                >,
+                pub tally: _5,
+                pub in_queue: ::core::primitive::bool,
+                pub alarm: ::core::option::Option<(_2, _7)>,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct TrackInfo<_0, _1> {
+                pub name: ::std::string::String,
+                pub max_deciding: _1,
+                pub decision_deposit: _0,
+                pub prepare_period: _1,
+                pub decision_period: _1,
+                pub confirm_period: _1,
+                pub min_enactment_period: _1,
+                pub min_approval: runtime_types::pallet_referenda::types::Curve,
+                pub min_support: runtime_types::pallet_referenda::types::Curve,
+            }
+        }
+    }
+    pub mod pallet_scheduler {
+        use super::runtime_types;
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                schedule {
+                    when: ::core::primitive::u32,
+                    maybe_periodic:
+                        ::core::option::Option<(::core::primitive::u32, ::core::primitive::u32)>,
+                    priority: ::core::primitive::u8,
+                    call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                },
+                #[codec(index = 1)]
+                cancel {
+                    when: ::core::primitive::u32,
+                    index: ::core::primitive::u32,
+                },
+                #[codec(index = 2)]
+                schedule_named {
+                    id: [::core::primitive::u8; 32usize],
+                    when: ::core::primitive::u32,
+                    maybe_periodic:
+                        ::core::option::Option<(::core::primitive::u32, ::core::primitive::u32)>,
+                    priority: ::core::primitive::u8,
+                    call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                },
+                #[codec(index = 3)]
+                cancel_named {
+                    id: [::core::primitive::u8; 32usize],
+                },
+                #[codec(index = 4)]
+                schedule_after {
+                    after: ::core::primitive::u32,
+                    maybe_periodic:
+                        ::core::option::Option<(::core::primitive::u32, ::core::primitive::u32)>,
+                    priority: ::core::primitive::u8,
+                    call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                },
+                #[codec(index = 5)]
+                schedule_named_after {
+                    id: [::core::primitive::u8; 32usize],
+                    after: ::core::primitive::u32,
+                    maybe_periodic:
+                        ::core::option::Option<(::core::primitive::u32, ::core::primitive::u32)>,
+                    priority: ::core::primitive::u8,
+                    call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                FailedToSchedule,
+                #[codec(index = 1)]
+                NotFound,
+                #[codec(index = 2)]
+                TargetBlockNumberInPast,
+                #[codec(index = 3)]
+                RescheduleNoChange,
+                #[codec(index = 4)]
+                Named,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                Scheduled {
+                    when: ::core::primitive::u32,
+                    index: ::core::primitive::u32,
+                },
+                #[codec(index = 1)]
+                Canceled {
+                    when: ::core::primitive::u32,
+                    index: ::core::primitive::u32,
+                },
+                #[codec(index = 2)]
+                Dispatched {
+                    task: (::core::primitive::u32, ::core::primitive::u32),
+                    id: ::core::option::Option<[::core::primitive::u8; 32usize]>,
+                    result: ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
+                },
+                #[codec(index = 3)]
+                CallUnavailable {
+                    task: (::core::primitive::u32, ::core::primitive::u32),
+                    id: ::core::option::Option<[::core::primitive::u8; 32usize]>,
+                },
+                #[codec(index = 4)]
+                PeriodicFailed {
+                    task: (::core::primitive::u32, ::core::primitive::u32),
+                    id: ::core::option::Option<[::core::primitive::u8; 32usize]>,
+                },
+                #[codec(index = 5)]
+                PermanentlyOverweight {
+                    task: (::core::primitive::u32, ::core::primitive::u32),
+                    id: ::core::option::Option<[::core::primitive::u8; 32usize]>,
+                },
+            }
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct Scheduled<_0, _1, _2, _3, _4> {
+            pub maybe_id: ::core::option::Option<_0>,
+            pub priority: ::core::primitive::u8,
+            pub call: _1,
+            pub maybe_periodic: ::core::option::Option<(_2, _2)>,
+            pub origin: _3,
+            #[codec(skip)]
+            pub __subxt_unused_type_params: ::core::marker::PhantomData<_4>,
+        }
+    }
     pub mod pallet_session {
         use super::runtime_types;
         pub mod pallet {
@@ -2544,82 +3063,439 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+
             pub enum Call {
                 #[codec(index = 0)]
-                #[doc = "Sets the session key(s) of the function caller to `keys`."]
-                #[doc = "Allows an account to set its session key prior to becoming a validator."]
-                #[doc = "This doesn't take effect until the next session."]
-                #[doc = ""]
-                #[doc = "The dispatch origin of this function must be signed."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- Complexity: `O(1)`. Actual cost depends on the number of length of"]
-                #[doc = "  `T::Keys::key_ids()` which is fixed."]
-                #[doc = "- DbReads: `origin account`, `T::ValidatorIdOf`, `NextKeys`"]
-                #[doc = "- DbWrites: `origin account`, `NextKeys`"]
-                #[doc = "- DbReads per key id: `KeyOwner`"]
-                #[doc = "- DbWrites per key id: `KeyOwner`"]
-                #[doc = "# </weight>"]
                 set_keys {
                     keys: runtime_types::gear_runtime::SessionKeys,
                     proof: ::std::vec::Vec<::core::primitive::u8>,
                 },
                 #[codec(index = 1)]
-                #[doc = "Removes any session key(s) of the function caller."]
-                #[doc = ""]
-                #[doc = "This doesn't take effect until the next session."]
-                #[doc = ""]
-                #[doc = "The dispatch origin of this function must be Signed and the account must be either be"]
-                #[doc = "convertible to a validator ID using the chain's typical addressing system (this usually"]
-                #[doc = "means being a controller account) or directly convertible into a validator ID (which"]
-                #[doc = "usually means being a stash account)."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- Complexity: `O(1)` in number of key types. Actual cost depends on the number of length"]
-                #[doc = "  of `T::Keys::key_ids()` which is fixed."]
-                #[doc = "- DbReads: `T::ValidatorIdOf`, `NextKeys`, `origin account`"]
-                #[doc = "- DbWrites: `NextKeys`, `origin account`"]
-                #[doc = "- DbWrites per key id: `KeyOwner`"]
-                #[doc = "# </weight>"]
                 purge_keys,
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "Error for the session pallet."]
+
             pub enum Error {
                 #[codec(index = 0)]
-                #[doc = "Invalid ownership proof."]
                 InvalidProof,
                 #[codec(index = 1)]
-                #[doc = "No associated validator ID for account."]
                 NoAssociatedValidatorId,
                 #[codec(index = 2)]
-                #[doc = "Registered duplicate key."]
                 DuplicatedKey,
                 #[codec(index = 3)]
-                #[doc = "No keys are associated with this account."]
                 NoKeys,
                 #[codec(index = 4)]
-                #[doc = "Key setting account is not live, so it's impossible to associate keys."]
                 NoAccount,
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
+
             pub enum Event {
                 #[codec(index = 0)]
-                #[doc = "New session has happened. Note that the argument is the session index, not the"]
-                #[doc = "block number as the type might suggest."]
                 NewSession {
                     session_index: ::core::primitive::u32,
                 },
             }
+        }
+    }
+    pub mod pallet_staking {
+        use super::runtime_types;
+        pub mod pallet {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
+
+                pub enum Call {
+                    #[codec(index = 0)]
+                    bond {
+                        controller: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                        #[codec(compact)]
+                        value: ::core::primitive::u128,
+                        payee: runtime_types::pallet_staking::RewardDestination<
+                            ::sp_runtime::AccountId32,
+                        >,
+                    },
+                    #[codec(index = 1)]
+                    bond_extra {
+                        #[codec(compact)]
+                        max_additional: ::core::primitive::u128,
+                    },
+                    #[codec(index = 2)]
+                    unbond {
+                        #[codec(compact)]
+                        value: ::core::primitive::u128,
+                    },
+                    #[codec(index = 3)]
+                    withdraw_unbonded {
+                        num_slashing_spans: ::core::primitive::u32,
+                    },
+                    #[codec(index = 4)]
+                    validate {
+                        prefs: runtime_types::pallet_staking::ValidatorPrefs,
+                    },
+                    #[codec(index = 5)]
+                    nominate {
+                        targets: ::std::vec::Vec<
+                            ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                        >,
+                    },
+                    #[codec(index = 6)]
+                    chill,
+                    #[codec(index = 7)]
+                    set_payee {
+                        payee: runtime_types::pallet_staking::RewardDestination<
+                            ::sp_runtime::AccountId32,
+                        >,
+                    },
+                    #[codec(index = 8)]
+                    set_controller {
+                        controller: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    },
+                    #[codec(index = 9)]
+                    set_validator_count {
+                        #[codec(compact)]
+                        new: ::core::primitive::u32,
+                    },
+                    #[codec(index = 10)]
+                    increase_validator_count {
+                        #[codec(compact)]
+                        additional: ::core::primitive::u32,
+                    },
+                    #[codec(index = 11)]
+                    scale_validator_count {
+                        factor: runtime_types::sp_arithmetic::per_things::Percent,
+                    },
+                    #[codec(index = 12)]
+                    force_no_eras,
+                    #[codec(index = 13)]
+                    force_new_era,
+                    #[codec(index = 14)]
+                    set_invulnerables {
+                        invulnerables: ::std::vec::Vec<::sp_runtime::AccountId32>,
+                    },
+                    #[codec(index = 15)]
+                    force_unstake {
+                        stash: ::sp_runtime::AccountId32,
+                        num_slashing_spans: ::core::primitive::u32,
+                    },
+                    #[codec(index = 16)]
+                    force_new_era_always,
+                    #[codec(index = 17)]
+                    cancel_deferred_slash {
+                        era: ::core::primitive::u32,
+                        slash_indices: ::std::vec::Vec<::core::primitive::u32>,
+                    },
+                    #[codec(index = 18)]
+                    payout_stakers {
+                        validator_stash: ::sp_runtime::AccountId32,
+                        era: ::core::primitive::u32,
+                    },
+                    #[codec(index = 19)]
+                    rebond {
+                        #[codec(compact)]
+                        value: ::core::primitive::u128,
+                    },
+                    #[codec(index = 20)]
+                    reap_stash {
+                        stash: ::sp_runtime::AccountId32,
+                        num_slashing_spans: ::core::primitive::u32,
+                    },
+                    #[codec(index = 21)]
+                    kick {
+                        who: ::std::vec::Vec<
+                            ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                        >,
+                    },
+                    #[codec(index = 22)]
+                    set_staking_configs {
+                        min_nominator_bond: runtime_types::pallet_staking::pallet::pallet::ConfigOp<
+                            ::core::primitive::u128,
+                        >,
+                        min_validator_bond: runtime_types::pallet_staking::pallet::pallet::ConfigOp<
+                            ::core::primitive::u128,
+                        >,
+                        max_nominator_count:
+                            runtime_types::pallet_staking::pallet::pallet::ConfigOp<
+                                ::core::primitive::u32,
+                            >,
+                        max_validator_count:
+                            runtime_types::pallet_staking::pallet::pallet::ConfigOp<
+                                ::core::primitive::u32,
+                            >,
+                        chill_threshold: runtime_types::pallet_staking::pallet::pallet::ConfigOp<
+                            runtime_types::sp_arithmetic::per_things::Percent,
+                        >,
+                        min_commission: runtime_types::pallet_staking::pallet::pallet::ConfigOp<
+                            runtime_types::sp_arithmetic::per_things::Perbill,
+                        >,
+                    },
+                    #[codec(index = 23)]
+                    chill_other {
+                        controller: ::sp_runtime::AccountId32,
+                    },
+                    #[codec(index = 24)]
+                    force_apply_min_commission {
+                        validator_stash: ::sp_runtime::AccountId32,
+                    },
+                    #[codec(index = 25)]
+                    set_min_commission {
+                        new: runtime_types::sp_arithmetic::per_things::Perbill,
+                    },
+                }
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
+                pub enum ConfigOp<_0> {
+                    #[codec(index = 0)]
+                    Noop,
+                    #[codec(index = 1)]
+                    Set(_0),
+                    #[codec(index = 2)]
+                    Remove,
+                }
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
+
+                pub enum Error {
+                    #[codec(index = 0)]
+                    NotController,
+                    #[codec(index = 1)]
+                    NotStash,
+                    #[codec(index = 2)]
+                    AlreadyBonded,
+                    #[codec(index = 3)]
+                    AlreadyPaired,
+                    #[codec(index = 4)]
+                    EmptyTargets,
+                    #[codec(index = 5)]
+                    DuplicateIndex,
+                    #[codec(index = 6)]
+                    InvalidSlashIndex,
+                    #[codec(index = 7)]
+                    InsufficientBond,
+                    #[codec(index = 8)]
+                    NoMoreChunks,
+                    #[codec(index = 9)]
+                    NoUnlockChunk,
+                    #[codec(index = 10)]
+                    FundedTarget,
+                    #[codec(index = 11)]
+                    InvalidEraToReward,
+                    #[codec(index = 12)]
+                    InvalidNumberOfNominations,
+                    #[codec(index = 13)]
+                    NotSortedAndUnique,
+                    #[codec(index = 14)]
+                    AlreadyClaimed,
+                    #[codec(index = 15)]
+                    IncorrectHistoryDepth,
+                    #[codec(index = 16)]
+                    IncorrectSlashingSpans,
+                    #[codec(index = 17)]
+                    BadState,
+                    #[codec(index = 18)]
+                    TooManyTargets,
+                    #[codec(index = 19)]
+                    BadTarget,
+                    #[codec(index = 20)]
+                    CannotChillOther,
+                    #[codec(index = 21)]
+                    TooManyNominators,
+                    #[codec(index = 22)]
+                    TooManyValidators,
+                    #[codec(index = 23)]
+                    CommissionTooLow,
+                    #[codec(index = 24)]
+                    BoundNotMet,
+                }
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
+
+                pub enum Event {
+                    #[codec(index = 0)]
+                    EraPaid {
+                        era_index: ::core::primitive::u32,
+                        validator_payout: ::core::primitive::u128,
+                        remainder: ::core::primitive::u128,
+                    },
+                    #[codec(index = 1)]
+                    Rewarded {
+                        stash: ::sp_runtime::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 2)]
+                    Slashed {
+                        staker: ::sp_runtime::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 3)]
+                    SlashReported {
+                        validator: ::sp_runtime::AccountId32,
+                        fraction: runtime_types::sp_arithmetic::per_things::Perbill,
+                        slash_era: ::core::primitive::u32,
+                    },
+                    #[codec(index = 4)]
+                    OldSlashingReportDiscarded {
+                        session_index: ::core::primitive::u32,
+                    },
+                    #[codec(index = 5)]
+                    StakersElected,
+                    #[codec(index = 6)]
+                    Bonded {
+                        stash: ::sp_runtime::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 7)]
+                    Unbonded {
+                        stash: ::sp_runtime::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 8)]
+                    Withdrawn {
+                        stash: ::sp_runtime::AccountId32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 9)]
+                    Kicked {
+                        nominator: ::sp_runtime::AccountId32,
+                        stash: ::sp_runtime::AccountId32,
+                    },
+                    #[codec(index = 10)]
+                    StakingElectionFailed,
+                    #[codec(index = 11)]
+                    Chilled { stash: ::sp_runtime::AccountId32 },
+                    #[codec(index = 12)]
+                    PayoutStarted {
+                        era_index: ::core::primitive::u32,
+                        validator_stash: ::sp_runtime::AccountId32,
+                    },
+                    #[codec(index = 13)]
+                    ValidatorPrefsSet {
+                        stash: ::sp_runtime::AccountId32,
+                        prefs: runtime_types::pallet_staking::ValidatorPrefs,
+                    },
+                    #[codec(index = 14)]
+                    ForceEra {
+                        mode: runtime_types::pallet_staking::Forcing,
+                    },
+                }
+            }
+        }
+        pub mod slashing {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct SlashingSpans {
+                pub span_index: ::core::primitive::u32,
+                pub last_start: ::core::primitive::u32,
+                pub last_nonzero_slash: ::core::primitive::u32,
+                pub prior: ::std::vec::Vec<::core::primitive::u32>,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct SpanRecord<_0> {
+                pub slashed: _0,
+                pub paid_out: _0,
+            }
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct ActiveEraInfo {
+            pub index: ::core::primitive::u32,
+            pub start: ::core::option::Option<::core::primitive::u64>,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct EraRewardPoints<_0> {
+            pub total: ::core::primitive::u32,
+            pub individual: ::subxt::utils::KeyedVec<_0, ::core::primitive::u32>,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct Exposure<_0, _1> {
+            #[codec(compact)]
+            pub total: _1,
+            #[codec(compact)]
+            pub own: _1,
+            pub others: ::std::vec::Vec<runtime_types::pallet_staking::IndividualExposure<_0, _1>>,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub enum Forcing {
+            #[codec(index = 0)]
+            NotForcing,
+            #[codec(index = 1)]
+            ForceNew,
+            #[codec(index = 2)]
+            ForceNone,
+            #[codec(index = 3)]
+            ForceAlways,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct IndividualExposure<_0, _1> {
+            pub who: _0,
+            #[codec(compact)]
+            pub value: _1,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct Nominations {
+            pub targets:
+                runtime_types::sp_core::bounded::bounded_vec::BoundedVec<::sp_runtime::AccountId32>,
+            pub submitted_in: ::core::primitive::u32,
+            pub suppressed: ::core::primitive::bool,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub enum RewardDestination<_0> {
+            #[codec(index = 0)]
+            Staked,
+            #[codec(index = 1)]
+            Stash,
+            #[codec(index = 2)]
+            Controller,
+            #[codec(index = 3)]
+            Account(_0),
+            #[codec(index = 4)]
+            None,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct StakingLedger {
+            pub stash: ::sp_runtime::AccountId32,
+            #[codec(compact)]
+            pub total: ::core::primitive::u128,
+            #[codec(compact)]
+            pub active: ::core::primitive::u128,
+            pub unlocking: runtime_types::sp_core::bounded::bounded_vec::BoundedVec<
+                runtime_types::pallet_staking::UnlockChunk<::core::primitive::u128>,
+            >,
+            pub claimed_rewards:
+                runtime_types::sp_core::bounded::bounded_vec::BoundedVec<::core::primitive::u32>,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct UnappliedSlash<_0, _1> {
+            pub validator: _0,
+            pub own: _1,
+            pub others: ::std::vec::Vec<(_0, _1)>,
+            pub reporters: ::std::vec::Vec<_0>,
+            pub payout: _1,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct UnlockChunk<_0> {
+            #[codec(compact)]
+            pub value: _0,
+            #[codec(compact)]
+            pub era: ::core::primitive::u32,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct ValidatorPrefs {
+            #[codec(compact)]
+            pub commission: runtime_types::sp_arithmetic::per_things::Perbill,
+            pub blocked: ::core::primitive::bool,
         }
     }
     pub mod pallet_sudo {
@@ -2629,98 +3505,50 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+
             pub enum Call {
                 #[codec(index = 0)]
-                #[doc = "Authenticates the sudo key and dispatches a function call with `Root` origin."]
-                #[doc = ""]
-                #[doc = "The dispatch origin for this call must be _Signed_."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- O(1)."]
-                #[doc = "- Limited storage reads."]
-                #[doc = "- One DB write (event)."]
-                #[doc = "- Weight of derivative `call` execution + 10,000."]
-                #[doc = "# </weight>"]
                 sudo {
                     call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
                 },
                 #[codec(index = 1)]
-                #[doc = "Authenticates the sudo key and dispatches a function call with `Root` origin."]
-                #[doc = "This function does not check the weight of the call, and instead allows the"]
-                #[doc = "Sudo user to specify the weight of the call."]
-                #[doc = ""]
-                #[doc = "The dispatch origin for this call must be _Signed_."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- O(1)."]
-                #[doc = "- The weight of this call is defined by the caller."]
-                #[doc = "# </weight>"]
                 sudo_unchecked_weight {
                     call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
                     weight: runtime_types::sp_weights::weight_v2::Weight,
                 },
                 #[codec(index = 2)]
-                #[doc = "Authenticates the current sudo key and sets the given AccountId (`new`) as the new sudo"]
-                #[doc = "key."]
-                #[doc = ""]
-                #[doc = "The dispatch origin for this call must be _Signed_."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- O(1)."]
-                #[doc = "- Limited storage reads."]
-                #[doc = "- One DB change."]
-                #[doc = "# </weight>"]
                 set_key {
-                    new: ::sp_runtime::MultiAddress<::sp_core::crypto::AccountId32, ()>,
+                    new: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
                 },
                 #[codec(index = 3)]
-                #[doc = "Authenticates the sudo key and dispatches a function call with `Signed` origin from"]
-                #[doc = "a given account."]
-                #[doc = ""]
-                #[doc = "The dispatch origin for this call must be _Signed_."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- O(1)."]
-                #[doc = "- Limited storage reads."]
-                #[doc = "- One DB write (event)."]
-                #[doc = "- Weight of derivative `call` execution + 10,000."]
-                #[doc = "# </weight>"]
                 sudo_as {
-                    who: ::sp_runtime::MultiAddress<::sp_core::crypto::AccountId32, ()>,
+                    who: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
                     call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
                 },
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "Error for the Sudo pallet"]
+
             pub enum Error {
                 #[codec(index = 0)]
-                #[doc = "Sender must be the Sudo account"]
                 RequireSudo,
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
+
             pub enum Event {
                 #[codec(index = 0)]
-                #[doc = "A sudo just took place. "]
                 Sudid {
                     sudo_result:
                         ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
                 },
                 #[codec(index = 1)]
-                #[doc = "The sudoer just switched identity; the old key is supplied if one existed."]
                 KeyChanged {
-                    old_sudoer: ::core::option::Option<::sp_core::crypto::AccountId32>,
+                    old_sudoer: ::core::option::Option<::sp_runtime::AccountId32>,
                 },
                 #[codec(index = 2)]
-                #[doc = "A sudo just took place. "]
                 SudoAsDone {
                     sudo_result:
                         ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
@@ -2735,25 +3563,9 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+
             pub enum Call {
                 #[codec(index = 0)]
-                #[doc = "Set the current time."]
-                #[doc = ""]
-                #[doc = "This call should be invoked exactly once per block. It will panic at the finalization"]
-                #[doc = "phase, if this call hasn't been invoked by that time."]
-                #[doc = ""]
-                #[doc = "The timestamp should be greater than the previous one by the amount specified by"]
-                #[doc = "`MinimumPeriod`."]
-                #[doc = ""]
-                #[doc = "The dispatch origin for this call must be `Inherent`."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- `O(1)` (Note that implementations of `OnTimestampSet` must also be `O(1)`)"]
-                #[doc = "- 1 storage read and 1 storage mutation (codec `O(1)`). (because of `DidUpdate::take` in"]
-                #[doc = "  `on_finalize`)"]
-                #[doc = "- 1 event handler `on_timestamp_set`. Must be `O(1)`."]
-                #[doc = "# </weight>"]
                 set {
                     #[codec(compact)]
                     now: ::core::primitive::u64,
@@ -2768,16 +3580,11 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
+
             pub enum Event {
                 #[codec(index = 0)]
-                #[doc = "A transaction fee `actual_fee`, of which `tip` was added to the minimum inclusion fee,"]
-                #[doc = "has been paid by `who`."]
                 TransactionFeePaid {
-                    who: ::sp_core::crypto::AccountId32,
+                    who: ::sp_runtime::AccountId32,
                     actual_fee: ::core::primitive::u128,
                     tip: ::core::primitive::u128,
                 },
@@ -2793,7 +3600,336 @@ pub mod runtime_types {
             V2,
         }
     }
+    pub mod pallet_treasury {
+        use super::runtime_types;
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                propose_spend {
+                    #[codec(compact)]
+                    value: ::core::primitive::u128,
+                    beneficiary: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+                #[codec(index = 1)]
+                reject_proposal {
+                    #[codec(compact)]
+                    proposal_id: ::core::primitive::u32,
+                },
+                #[codec(index = 2)]
+                approve_proposal {
+                    #[codec(compact)]
+                    proposal_id: ::core::primitive::u32,
+                },
+                #[codec(index = 3)]
+                spend {
+                    #[codec(compact)]
+                    amount: ::core::primitive::u128,
+                    beneficiary: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+                #[codec(index = 4)]
+                remove_approval {
+                    #[codec(compact)]
+                    proposal_id: ::core::primitive::u32,
+                },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                InsufficientProposersBalance,
+                #[codec(index = 1)]
+                InvalidIndex,
+                #[codec(index = 2)]
+                TooManyApprovals,
+                #[codec(index = 3)]
+                InsufficientPermission,
+                #[codec(index = 4)]
+                ProposalNotApproved,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                Proposed {
+                    proposal_index: ::core::primitive::u32,
+                },
+                #[codec(index = 1)]
+                Spending {
+                    budget_remaining: ::core::primitive::u128,
+                },
+                #[codec(index = 2)]
+                Awarded {
+                    proposal_index: ::core::primitive::u32,
+                    award: ::core::primitive::u128,
+                    account: ::sp_runtime::AccountId32,
+                },
+                #[codec(index = 3)]
+                Rejected {
+                    proposal_index: ::core::primitive::u32,
+                    slashed: ::core::primitive::u128,
+                },
+                #[codec(index = 4)]
+                Burnt {
+                    burnt_funds: ::core::primitive::u128,
+                },
+                #[codec(index = 5)]
+                Rollover {
+                    rollover_balance: ::core::primitive::u128,
+                },
+                #[codec(index = 6)]
+                Deposit { value: ::core::primitive::u128 },
+                #[codec(index = 7)]
+                SpendApproved {
+                    proposal_index: ::core::primitive::u32,
+                    amount: ::core::primitive::u128,
+                    beneficiary: ::sp_runtime::AccountId32,
+                },
+                #[codec(index = 8)]
+                UpdatedInactive {
+                    reactivated: ::core::primitive::u128,
+                    deactivated: ::core::primitive::u128,
+                },
+            }
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct Proposal<_0, _1> {
+            pub proposer: _0,
+            pub value: _1,
+            pub beneficiary: _0,
+            pub bond: _1,
+        }
+    }
     pub mod pallet_utility {
+        use super::runtime_types;
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                batch {
+                    calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
+                },
+                #[codec(index = 1)]
+                as_derivative {
+                    index: ::core::primitive::u16,
+                    call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                },
+                #[codec(index = 2)]
+                batch_all {
+                    calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
+                },
+                #[codec(index = 3)]
+                dispatch_as {
+                    as_origin: ::std::boxed::Box<runtime_types::gear_runtime::OriginCaller>,
+                    call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                },
+                #[codec(index = 4)]
+                force_batch {
+                    calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
+                },
+                #[codec(index = 5)]
+                with_weight {
+                    call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                    weight: runtime_types::sp_weights::weight_v2::Weight,
+                },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                TooManyCalls,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                BatchInterrupted {
+                    index: ::core::primitive::u32,
+                    error: runtime_types::sp_runtime::DispatchError,
+                },
+                #[codec(index = 1)]
+                BatchCompleted,
+                #[codec(index = 2)]
+                BatchCompletedWithErrors,
+                #[codec(index = 3)]
+                ItemCompleted,
+                #[codec(index = 4)]
+                ItemFailed {
+                    error: runtime_types::sp_runtime::DispatchError,
+                },
+                #[codec(index = 5)]
+                DispatchedAs {
+                    result: ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
+                },
+            }
+        }
+    }
+    pub mod pallet_vesting {
+        use super::runtime_types;
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                vest,
+                #[codec(index = 1)]
+                vest_other {
+                    target: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                },
+                #[codec(index = 2)]
+                vested_transfer {
+                    target: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    schedule: runtime_types::pallet_vesting::vesting_info::VestingInfo<
+                        ::core::primitive::u128,
+                        ::core::primitive::u32,
+                    >,
+                },
+                #[codec(index = 3)]
+                force_vested_transfer {
+                    source: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    target: ::sp_runtime::MultiAddress<::sp_runtime::AccountId32, ()>,
+                    schedule: runtime_types::pallet_vesting::vesting_info::VestingInfo<
+                        ::core::primitive::u128,
+                        ::core::primitive::u32,
+                    >,
+                },
+                #[codec(index = 4)]
+                merge_schedules {
+                    schedule1_index: ::core::primitive::u32,
+                    schedule2_index: ::core::primitive::u32,
+                },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                NotVesting,
+                #[codec(index = 1)]
+                AtMaxVestingSchedules,
+                #[codec(index = 2)]
+                AmountLow,
+                #[codec(index = 3)]
+                ScheduleIndexOutOfBounds,
+                #[codec(index = 4)]
+                InvalidScheduleParams,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                VestingUpdated {
+                    account: ::sp_runtime::AccountId32,
+                    unvested: ::core::primitive::u128,
+                },
+                #[codec(index = 1)]
+                VestingCompleted { account: ::sp_runtime::AccountId32 },
+            }
+        }
+        pub mod vesting_info {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct VestingInfo<_0, _1> {
+                pub locked: _0,
+                pub per_block: _0,
+                pub starting_block: _1,
+            }
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub enum Releases {
+            #[codec(index = 0)]
+            V0,
+            #[codec(index = 1)]
+            V1,
+        }
+    }
+    pub mod pallet_whitelist {
+        use super::runtime_types;
+        pub mod pallet {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Call {
+                #[codec(index = 0)]
+                whitelist_call { call_hash: ::subxt::utils::H256 },
+                #[codec(index = 1)]
+                remove_whitelisted_call { call_hash: ::subxt::utils::H256 },
+                #[codec(index = 2)]
+                dispatch_whitelisted_call {
+                    call_hash: ::subxt::utils::H256,
+                    call_encoded_len: ::core::primitive::u32,
+                    call_weight_witness: runtime_types::sp_weights::weight_v2::Weight,
+                },
+                #[codec(index = 3)]
+                dispatch_whitelisted_call_with_preimage {
+                    call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
+                },
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Error {
+                #[codec(index = 0)]
+                UnavailablePreImage,
+                #[codec(index = 1)]
+                UndecodableCall,
+                #[codec(index = 2)]
+                InvalidCallWeightWitness,
+                #[codec(index = 3)]
+                CallIsNotWhitelisted,
+                #[codec(index = 4)]
+                CallAlreadyWhitelisted,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+
+            pub enum Event {
+                #[codec(index = 0)]
+                CallWhitelisted { call_hash: ::subxt::utils::H256 },
+                #[codec(index = 1)]
+                WhitelistedCallRemoved { call_hash: ::subxt::utils::H256 },
+                #[codec(index = 2)]
+                WhitelistedCallDispatched {
+                    call_hash: ::subxt::utils::H256,
+                    result: ::core::result::Result<
+                        runtime_types::frame_support::dispatch::PostDispatchInfo,
+                        runtime_types::sp_runtime::DispatchErrorWithPostInfo<
+                            runtime_types::frame_support::dispatch::PostDispatchInfo,
+                        >,
+                    >,
+                },
+            }
+        }
+    }
+    pub mod pallet_gear_debug {
         use super::runtime_types;
         pub mod pallet {
             use super::runtime_types;
@@ -2803,167 +3939,81 @@ pub mod runtime_types {
             #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
             pub enum Call {
                 #[codec(index = 0)]
-                #[doc = "Send a batch of dispatch calls."]
+                #[doc = "Turn the debug mode on and off."]
                 #[doc = ""]
-                #[doc = "May be called from any origin except `None`."]
+                #[doc = "The origin must be the root."]
                 #[doc = ""]
-                #[doc = "- `calls`: The calls to be dispatched from the same origin. The number of call must not"]
-                #[doc = "  exceed the constant: `batched_calls_limit` (available in constant metadata)."]
+                #[doc = "Parameters:"]
+                #[doc = "- `debug_mode_on`: if true, debug mode will be turned on, turned off otherwise."]
                 #[doc = ""]
-                #[doc = "If origin is root then the calls are dispatched without checking origin filter. (This"]
-                #[doc = "includes bypassing `frame_system::Config::BaseCallFilter`)."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- Complexity: O(C) where C is the number of calls to be batched."]
-                #[doc = "# </weight>"]
-                #[doc = ""]
-                #[doc = "This will return `Ok` in all circumstances. To determine the success of the batch, an"]
-                #[doc = "event is deposited. If a call failed and the batch was interrupted, then the"]
-                #[doc = "`BatchInterrupted` event is deposited, along with the number of successful calls made"]
-                #[doc = "and the error of the failed call. If all were successful, then the `BatchCompleted`"]
-                #[doc = "event is deposited."]
-                batch {
-                    calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
-                },
-                #[codec(index = 1)]
-                #[doc = "Send a call through an indexed pseudonym of the sender."]
-                #[doc = ""]
-                #[doc = "Filter from origin are passed along. The call will be dispatched with an origin which"]
-                #[doc = "use the same filter as the origin of this call."]
-                #[doc = ""]
-                #[doc = "NOTE: If you need to ensure that any account-based filtering is not honored (i.e."]
-                #[doc = "because you expect `proxy` to have been used prior in the call stack and you do not want"]
-                #[doc = "the call restrictions to apply to any sub-accounts), then use `as_multi_threshold_1`"]
-                #[doc = "in the Multisig pallet instead."]
-                #[doc = ""]
-                #[doc = "NOTE: Prior to version *12, this was called `as_limited_sub`."]
-                #[doc = ""]
-                #[doc = "The dispatch origin for this call must be _Signed_."]
-                as_derivative {
-                    index: ::core::primitive::u16,
-                    call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
-                },
-                #[codec(index = 2)]
-                #[doc = "Send a batch of dispatch calls and atomically execute them."]
-                #[doc = "The whole transaction will rollback and fail if any of the calls failed."]
-                #[doc = ""]
-                #[doc = "May be called from any origin except `None`."]
-                #[doc = ""]
-                #[doc = "- `calls`: The calls to be dispatched from the same origin. The number of call must not"]
-                #[doc = "  exceed the constant: `batched_calls_limit` (available in constant metadata)."]
-                #[doc = ""]
-                #[doc = "If origin is root then the calls are dispatched without checking origin filter. (This"]
-                #[doc = "includes bypassing `frame_system::Config::BaseCallFilter`)."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- Complexity: O(C) where C is the number of calls to be batched."]
-                #[doc = "# </weight>"]
-                batch_all {
-                    calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
-                },
-                #[codec(index = 3)]
-                #[doc = "Dispatches a function call with a provided origin."]
-                #[doc = ""]
-                #[doc = "The dispatch origin for this call must be _Root_."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- O(1)."]
-                #[doc = "- Limited storage reads."]
-                #[doc = "- One DB write (event)."]
-                #[doc = "- Weight of derivative `call` execution + T::WeightInfo::dispatch_as()."]
-                #[doc = "# </weight>"]
-                dispatch_as {
-                    as_origin: ::std::boxed::Box<runtime_types::gear_runtime::OriginCaller>,
-                    call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
-                },
-                #[codec(index = 4)]
-                #[doc = "Send a batch of dispatch calls."]
-                #[doc = "Unlike `batch`, it allows errors and won't interrupt."]
-                #[doc = ""]
-                #[doc = "May be called from any origin except `None`."]
-                #[doc = ""]
-                #[doc = "- `calls`: The calls to be dispatched from the same origin. The number of call must not"]
-                #[doc = "  exceed the constant: `batched_calls_limit` (available in constant metadata)."]
-                #[doc = ""]
-                #[doc = "If origin is root then the calls are dispatch without checking origin filter. (This"]
-                #[doc = "includes bypassing `frame_system::Config::BaseCallFilter`)."]
-                #[doc = ""]
-                #[doc = "# <weight>"]
-                #[doc = "- Complexity: O(C) where C is the number of calls to be batched."]
-                #[doc = "# </weight>"]
-                force_batch {
-                    calls: ::std::vec::Vec<runtime_types::gear_runtime::RuntimeCall>,
-                },
-                #[codec(index = 5)]
-                #[doc = "Dispatch a function call with a specified weight."]
-                #[doc = ""]
-                #[doc = "This function does not check the weight of the call, and instead allows the"]
-                #[doc = "Root origin to specify the weight of the call."]
-                #[doc = ""]
-                #[doc = "The dispatch origin for this call must be _Root_."]
-                with_weight {
-                    call: ::std::boxed::Box<runtime_types::gear_runtime::RuntimeCall>,
-                    weight: runtime_types::sp_weights::weight_v2::Weight,
+                #[doc = "Emits the following events:"]
+                #[doc = "- `DebugMode(debug_mode_on)."]
+                enable_debug_mode {
+                    debug_mode_on: ::core::primitive::bool,
                 },
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			Custom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)
-			of this pallet.
-			"]
-            pub enum Error {
-                #[codec(index = 0)]
-                #[doc = "Too many calls batched."]
-                TooManyCalls,
+            pub struct DebugData {
+                pub dispatch_queue:
+                    ::std::vec::Vec<runtime_types::gear_core::message::stored::StoredDispatch>,
+                pub programs:
+                    ::std::vec::Vec<runtime_types::pallet_gear_debug::pallet::ProgramDetails>,
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            #[doc = "
-			The [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted
-			by this pallet.
-			"]
+            #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+            pub enum Error {}
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
             pub enum Event {
                 #[codec(index = 0)]
-                #[doc = "Batch of dispatches did not complete fully. Index of first failing dispatch given, as"]
-                #[doc = "well as the error."]
-                BatchInterrupted {
-                    index: ::core::primitive::u32,
-                    error: runtime_types::sp_runtime::DispatchError,
-                },
+                DebugMode(::core::primitive::bool),
                 #[codec(index = 1)]
-                #[doc = "Batch of dispatches completed fully with no error."]
-                BatchCompleted,
-                #[codec(index = 2)]
-                #[doc = "Batch of dispatches completed but has errors."]
-                BatchCompletedWithErrors,
-                #[codec(index = 3)]
-                #[doc = "A single item within a Batch of dispatches has completed with no error."]
-                ItemCompleted,
-                #[codec(index = 4)]
-                #[doc = "A single item within a Batch of dispatches has completed with error."]
-                ItemFailed {
-                    error: runtime_types::sp_runtime::DispatchError,
-                },
-                #[codec(index = 5)]
-                #[doc = "A call was dispatched."]
-                DispatchedAs {
-                    result: ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
-                },
+                #[doc = "A snapshot of the debug data: programs and message queue ('debug mode' only)"]
+                DebugDataSnapshot(runtime_types::pallet_gear_debug::pallet::DebugData),
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct ProgramDetails {
+                pub id: runtime_types::gear_core::ids::ProgramId,
+                pub state: runtime_types::pallet_gear_debug::pallet::ProgramState,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct ProgramInfo {
+                pub static_pages: runtime_types::gear_core::memory::WasmPage,
+                pub persistent_pages: ::subxt::utils::KeyedVec<
+                    runtime_types::gear_core::memory::GearPage,
+                    runtime_types::gear_core::memory::PageBuf,
+                >,
+                pub code_hash: ::subxt::utils::H256,
+            }
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub enum ProgramState {
+                #[codec(index = 0)]
+                Active(runtime_types::pallet_gear_debug::pallet::ProgramInfo),
+                #[codec(index = 1)]
+                Terminated,
             }
         }
-    }
-    pub mod primitive_types {
-        use super::runtime_types;
-        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        pub struct H256(pub [::core::primitive::u8; 32usize]);
     }
     pub mod sp_arithmetic {
         use super::runtime_types;
         pub mod fixed_point {
             use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct FixedI64(pub ::core::primitive::i64);
             #[derive(
                 :: subxt :: ext :: codec :: CompactAs,
                 :: subxt :: ext :: codec :: Decode,
@@ -2971,6 +4021,37 @@ pub mod runtime_types {
                 Debug,
             )]
             pub struct FixedU128(pub ::core::primitive::u128);
+        }
+        pub mod per_things {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: CompactAs,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+            )]
+            pub struct Perbill(pub ::core::primitive::u32);
+            #[derive(
+                :: subxt :: ext :: codec :: CompactAs,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+            )]
+            pub struct Percent(pub ::core::primitive::u8);
+            #[derive(
+                :: subxt :: ext :: codec :: CompactAs,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+            )]
+            pub struct Permill(pub ::core::primitive::u32);
+            #[derive(
+                :: subxt :: ext :: codec :: CompactAs,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+            )]
+            pub struct Perquintill(pub ::core::primitive::u64);
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
         pub enum ArithmeticError {
@@ -2980,6 +4061,16 @@ pub mod runtime_types {
             Overflow,
             #[codec(index = 2)]
             DivisionByZero,
+        }
+    }
+    pub mod sp_authority_discovery {
+        use super::runtime_types;
+        pub mod app {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct Public(pub runtime_types::sp_core::sr25519::Public);
         }
     }
     pub mod sp_consensus_babe {
@@ -3096,10 +4187,6 @@ pub mod runtime_types {
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
             )]
-            pub struct AccountId32(pub [::core::primitive::u8; 32usize]);
-            #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
-            )]
             pub struct KeyTypeId(pub [::core::primitive::u8; 4usize]);
         }
         pub mod ecdsa {
@@ -3120,6 +4207,21 @@ pub mod runtime_types {
             )]
             pub struct Signature(pub [::core::primitive::u8; 64usize]);
         }
+        pub mod offchain {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct OpaqueMultiaddr(pub ::std::vec::Vec<::core::primitive::u8>);
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct OpaqueNetworkState {
+                pub peer_id: runtime_types::sp_core::OpaquePeerId,
+                pub external_addresses:
+                    ::std::vec::Vec<runtime_types::sp_core::offchain::OpaqueMultiaddr>,
+            }
+        }
         pub mod sr25519 {
             use super::runtime_types;
             #[derive(
@@ -3131,6 +4233,8 @@ pub mod runtime_types {
             )]
             pub struct Signature(pub [::core::primitive::u8; 64usize]);
         }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct OpaquePeerId(pub ::std::vec::Vec<::core::primitive::u8>);
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
         pub enum Void {}
     }
@@ -3736,11 +4840,11 @@ pub mod runtime_types {
                     :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
                 )]
                 pub struct Header<_0, _1> {
-                    pub parent_hash: ::sp_core::H256,
+                    pub parent_hash: ::subxt::utils::H256,
                     #[codec(compact)]
                     pub number: _0,
-                    pub state_root: ::sp_core::H256,
-                    pub extrinsics_root: ::sp_core::H256,
+                    pub state_root: ::subxt::utils::H256,
+                    pub extrinsics_root: ::subxt::utils::H256,
                     pub digest: runtime_types::sp_runtime::generic::digest::Digest,
                     #[codec(skip)]
                     pub __subxt_unused_type_params: ::core::marker::PhantomData<_1>,
@@ -3753,26 +4857,8 @@ pub mod runtime_types {
                 )]
                 pub struct UncheckedExtrinsic<_0, _1, _2, _3>(
                     pub ::std::vec::Vec<::core::primitive::u8>,
-                    #[codec(skip)] pub ::core::marker::PhantomData<(_0, _1, _2, _3)>,
+                    #[codec(skip)] pub ::core::marker::PhantomData<(_1, _0, _2, _3)>,
                 );
-            }
-        }
-        pub mod multiaddress {
-            use super::runtime_types;
-            #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
-            )]
-            pub enum MultiAddress<_0, _1> {
-                #[codec(index = 0)]
-                Id(_0),
-                #[codec(index = 1)]
-                Index(#[codec(compact)] _1),
-                #[codec(index = 2)]
-                Raw(::std::vec::Vec<::core::primitive::u8>),
-                #[codec(index = 3)]
-                Address32([::core::primitive::u8; 32usize]),
-                #[codec(index = 4)]
-                Address20([::core::primitive::u8; 20usize]),
             }
         }
         pub mod traits {
@@ -3810,6 +4896,11 @@ pub mod runtime_types {
             Corruption,
             #[codec(index = 12)]
             Unavailable,
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct DispatchErrorWithPostInfo<_0> {
+            pub post_info: _0,
+            pub error: runtime_types::sp_runtime::DispatchError,
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
         pub struct ModuleError {
@@ -3850,6 +4941,15 @@ pub mod runtime_types {
             NoLayer,
         }
     }
+    pub mod sp_session {
+        use super::runtime_types;
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct MembershipProof {
+            pub session: ::core::primitive::u32,
+            pub trie_nodes: ::std::vec::Vec<::std::vec::Vec<::core::primitive::u8>>,
+            pub validator_count: ::core::primitive::u32,
+        }
+    }
     pub mod sp_version {
         use super::runtime_types;
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
@@ -3884,7 +4984,178 @@ pub mod runtime_types {
             pub write: ::core::primitive::u64,
         }
     }
+    pub mod gear_runtime {
+        use super::runtime_types;
+        pub mod extensions {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct DisableValueTransfers;
+        }
+        pub mod governance {
+            use super::runtime_types;
+            pub mod origins {
+                use super::runtime_types;
+                pub mod pallet_custom_origins {
+                    use super::runtime_types;
+                    #[derive(
+                        :: subxt :: ext :: codec :: Decode,
+                        :: subxt :: ext :: codec :: Encode,
+                        Debug,
+                    )]
+                    pub enum Origin {
+                        #[codec(index = 0)]
+                        StakingAdmin,
+                        #[codec(index = 1)]
+                        Treasurer,
+                        #[codec(index = 2)]
+                        FellowshipAdmin,
+                        #[codec(index = 3)]
+                        GeneralAdmin,
+                        #[codec(index = 4)]
+                        ReferendumCanceller,
+                        #[codec(index = 5)]
+                        ReferendumKiller,
+                        #[codec(index = 6)]
+                        WhitelistedCaller,
+                        #[codec(index = 7)]
+                        FellowshipInitiates,
+                        #[codec(index = 8)]
+                        Fellows,
+                        #[codec(index = 9)]
+                        FellowshipExperts,
+                        #[codec(index = 10)]
+                        FellowshipMasters,
+                    }
+                }
+            }
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub enum OriginCaller {
+            #[codec(index = 0)]
+            system(runtime_types::frame_support::dispatch::RawOrigin<::sp_runtime::AccountId32>),
+            #[codec(index = 19)]
+            Origins(
+                runtime_types::gear_runtime::governance::origins::pallet_custom_origins::Origin,
+            ),
+            #[codec(index = 2)]
+            Void(runtime_types::sp_core::Void),
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct Runtime;
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub enum RuntimeCall {
+            #[codec(index = 0)]
+            System(runtime_types::frame_system::pallet::Call),
+            #[codec(index = 1)]
+            Timestamp(runtime_types::pallet_timestamp::pallet::Call),
+            #[codec(index = 3)]
+            Babe(runtime_types::pallet_babe::pallet::Call),
+            #[codec(index = 4)]
+            Grandpa(runtime_types::pallet_grandpa::pallet::Call),
+            #[codec(index = 5)]
+            Balances(runtime_types::pallet_balances::pallet::Call),
+            #[codec(index = 10)]
+            Vesting(runtime_types::pallet_vesting::pallet::Call),
+            #[codec(index = 11)]
+            BagsList(runtime_types::pallet_bags_list::pallet::Call),
+            #[codec(index = 12)]
+            ImOnline(runtime_types::pallet_im_online::pallet::Call),
+            #[codec(index = 13)]
+            Staking(runtime_types::pallet_staking::pallet::pallet::Call),
+            #[codec(index = 7)]
+            Session(runtime_types::pallet_session::pallet::Call),
+            #[codec(index = 14)]
+            Treasury(runtime_types::pallet_treasury::pallet::Call),
+            #[codec(index = 16)]
+            ConvictionVoting(runtime_types::pallet_conviction_voting::pallet::Call),
+            #[codec(index = 17)]
+            Referenda(runtime_types::pallet_referenda::pallet::Call),
+            #[codec(index = 18)]
+            FellowshipCollective(runtime_types::pallet_ranked_collective::pallet::Call),
+            #[codec(index = 19)]
+            FellowshipReferenda(runtime_types::pallet_referenda::pallet::Call),
+            #[codec(index = 21)]
+            Whitelist(runtime_types::pallet_whitelist::pallet::Call),
+            #[codec(index = 99)]
+            Sudo(runtime_types::pallet_sudo::pallet::Call),
+            #[codec(index = 22)]
+            Scheduler(runtime_types::pallet_scheduler::pallet::Call),
+            #[codec(index = 23)]
+            Preimage(runtime_types::pallet_preimage::pallet::Call),
+            #[codec(index = 24)]
+            Identity(runtime_types::pallet_identity::pallet::Call),
+            #[codec(index = 8)]
+            Utility(runtime_types::pallet_utility::pallet::Call),
+            #[codec(index = 104)]
+            Gear(runtime_types::pallet_gear::pallet::Call),
+            #[codec(index = 106)]
+            StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Call),
+            #[codec(index = 198)]
+            Airdrop(runtime_types::pallet_airdrop::pallet::Call),
+            #[codec(index = 199)]
+            GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub enum RuntimeEvent {
+            #[codec(index = 0)]
+            System(runtime_types::frame_system::pallet::Event),
+            #[codec(index = 4)]
+            Grandpa(runtime_types::pallet_grandpa::pallet::Event),
+            #[codec(index = 5)]
+            Balances(runtime_types::pallet_balances::pallet::Event),
+            #[codec(index = 10)]
+            Vesting(runtime_types::pallet_vesting::pallet::Event),
+            #[codec(index = 6)]
+            TransactionPayment(runtime_types::pallet_transaction_payment::pallet::Event),
+            #[codec(index = 11)]
+            BagsList(runtime_types::pallet_bags_list::pallet::Event),
+            #[codec(index = 12)]
+            ImOnline(runtime_types::pallet_im_online::pallet::Event),
+            #[codec(index = 13)]
+            Staking(runtime_types::pallet_staking::pallet::pallet::Event),
+            #[codec(index = 7)]
+            Session(runtime_types::pallet_session::pallet::Event),
+            #[codec(index = 14)]
+            Treasury(runtime_types::pallet_treasury::pallet::Event),
+            #[codec(index = 16)]
+            ConvictionVoting(runtime_types::pallet_conviction_voting::pallet::Event),
+            #[codec(index = 17)]
+            Referenda(runtime_types::pallet_referenda::pallet::Event),
+            #[codec(index = 18)]
+            FellowshipCollective(runtime_types::pallet_ranked_collective::pallet::Event),
+            #[codec(index = 19)]
+            FellowshipReferenda(runtime_types::pallet_referenda::pallet::Event),
+            #[codec(index = 21)]
+            Whitelist(runtime_types::pallet_whitelist::pallet::Event),
+            #[codec(index = 99)]
+            Sudo(runtime_types::pallet_sudo::pallet::Event),
+            #[codec(index = 22)]
+            Scheduler(runtime_types::pallet_scheduler::pallet::Event),
+            #[codec(index = 23)]
+            Preimage(runtime_types::pallet_preimage::pallet::Event),
+            #[codec(index = 24)]
+            Identity(runtime_types::pallet_identity::pallet::Event),
+            #[codec(index = 8)]
+            Utility(runtime_types::pallet_utility::pallet::Event),
+            #[codec(index = 104)]
+            Gear(runtime_types::pallet_gear::pallet::Event),
+            #[codec(index = 106)]
+            StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Event),
+            #[codec(index = 198)]
+            Airdrop(runtime_types::pallet_airdrop::pallet::Event),
+            #[codec(index = 199)]
+            GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
+        }
+        #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
+        pub struct SessionKeys {
+            pub babe: runtime_types::sp_consensus_babe::app::Public,
+            pub grandpa: runtime_types::sp_finality_grandpa::app::Public,
+            pub im_online: runtime_types::pallet_im_online::sr25519::app_sr25519::Public,
+            pub authority_discovery: runtime_types::sp_authority_discovery::app::Public,
+        }
+    }
 }
-#[doc = r" The default error type returned when there is a runtime issue,"]
-#[doc = r" exposed here for ease of use."]
+
 pub type DispatchError = runtime_types::sp_runtime::DispatchError;

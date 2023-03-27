@@ -9,8 +9,8 @@ homepage = "https://github.com/gear-tech/gear/tree/master/gsdk"
 readme = "./README.md"
 
 [dependencies]
-anyhow = "1.0.69"
-async-recursion = "1.0.2"
+anyhow = "1.0.70"
+async-recursion = "1.0.4"
 base64 = "0.21.0"
 futures-util = "0.3.26"
 futures = "0.3"
@@ -23,6 +23,6 @@ primitive-types = { version = "0.12.1", default-features = false, features = ["c
 serde = "^1"
 serde_json = "^1"
 subxt = { version = "^0.27.0", default-features = false }
-thiserror = "1.0.39"
+thiserror = "1.0.40"
 sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }

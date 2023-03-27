@@ -16,13 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::configs::{BlockInfo, PagesConfig};
+use crate::configs::{BlockInfo, PageCosts};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason, TrapExplanation,
@@ -32,7 +32,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{
         ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
-        GasLeft, Token, ValueCounter,
+        GasLeft, GasRefunder, Token, ValueCounter,
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
@@ -67,8 +67,10 @@ pub struct ProcessorContext {
     pub message_context: MessageContext,
     /// Block info.
     pub block_info: BlockInfo,
+    /// Max allowed wasm memory pages.
+    pub max_pages: WasmPage,
     /// Allocations config.
-    pub pages_config: PagesConfig,
+    pub page_costs: PageCosts,
     /// Account existential deposit
     pub existential_deposit: u128,
     /// Communication origin
@@ -110,7 +112,7 @@ pub trait ProcessorExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPage>,
-        globals_config: GlobalsConfig,
+        globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
     );
 
@@ -118,7 +120,7 @@ pub trait ProcessorExt {
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory);
 
     /// Returns lazy pages status
-    fn lazy_pages_status() -> Option<Status>;
+    fn lazy_pages_status() -> Status;
 }
 
 /// [`Ext`](Ext)'s error
@@ -200,40 +202,6 @@ impl BackendAllocExtError for ProcessorAllocError {
         }
     }
 }
-
-/// Charger for pages in `alloc()`
-/// that checks we always charge more than refund
-struct ChargedAllocGas {
-    amount: u64,
-}
-
-impl ChargedAllocGas {
-    fn calculate_gas(ext: &Ext, alloc: u32, mem_grow: u32) -> u64 {
-        let alloc = alloc as u64;
-        let mem_grow = mem_grow as u64;
-        alloc
-            .saturating_mul(ext.context.pages_config.alloc_cost)
-            .saturating_add(mem_grow.saturating_mul(ext.context.pages_config.mem_grow_cost))
-    }
-
-    fn charge(ext: &mut Ext, pages: u32) -> Result<Self, ChargeError> {
-        let amount = Self::calculate_gas(ext, pages, pages);
-        ext.charge_gas_if_enough(amount)?;
-        Ok(Self { amount })
-    }
-
-    fn refund(self, ext: &mut Ext, not_allocated: u32, not_grown: u32) -> Result<(), ChargeError> {
-        let amount = Self::calculate_gas(ext, not_allocated, not_grown);
-        ext.refund_gas(amount)?;
-
-        if self.amount < amount {
-            unreachable!("Allocation logic invalidated: trying to refund more than charged");
-        }
-
-        Ok(())
-    }
-}
-
 /// Structure providing externalities for running host functions.
 pub struct Ext {
     /// Processor context.
@@ -259,7 +227,7 @@ impl ProcessorExt for Ext {
         _mem: &mut impl Memory,
         _prog_id: ProgramId,
         _stack_end: Option<WasmPage>,
-        _globals_config: GlobalsConfig,
+        _globals_config: GlobalsAccessConfig,
         _lazy_pages_weights: LazyPagesWeights,
     ) {
         unreachable!("Must not be called: lazy-pages is unsupported by this ext")
@@ -269,7 +237,7 @@ impl ProcessorExt for Ext {
         unreachable!("Must not be called: lazy-pages is unsupported by this ext")
     }
 
-    fn lazy_pages_status() -> Option<Status> {
+    fn lazy_pages_status() -> Status {
         unreachable!("Must not be called: lazy-pages is unsupported by this ext")
     }
 }
@@ -295,6 +263,7 @@ impl BackendExt for Ext {
     fn pre_process_memory_accesses(
         _reads: &[MemoryInterval],
         _writes: &[MemoryInterval],
+        _gas_left: &mut GasLeft,
     ) -> Result<(), ProcessAccessError> {
         Ok(())
     }
@@ -521,14 +490,10 @@ impl EnvExt for Ext {
     }
 
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
-        self.context.allocations_context.free(page)?;
-
-        // Returns back gas for allocated page if it's new
-        if !self.context.allocations_context.is_init_page(page) {
-            self.refund_gas(self.context.pages_config.alloc_cost)?;
-        }
-
-        Ok(())
+        self.context
+            .allocations_context
+            .free(page)
+            .map_err(Into::into)
     }
 
     fn block_height(&mut self) -> Result<u32, Self::Error> {
@@ -710,7 +675,7 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error> {
+    fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
         // Verify read is correct
         let end = at
             .checked_add(len)
@@ -726,7 +691,7 @@ impl EnvExt for Ext {
             .into());
         }
 
-        Ok(&msg[at as usize..end as usize])
+        Ok((&msg[at as usize..end as usize], self.gas_left()))
     }
 
     fn size(&mut self) -> Result<usize, Self::Error> {
@@ -907,26 +872,17 @@ impl Ext {
         pages: WasmPage,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, ProcessorAllocError> {
-        // Charge gas for allocations & grow
-        let charged = ChargedAllocGas::charge(self, pages.raw())?;
-
+        // Charge gas for memory grow.
+        // TODO: move charging for grow inside alloc function, so that we can skip refunding #2337
+        let gas_refunder =
+            GasRefunder::charge_if_enough(self, self.context.page_costs.mem_grow.calc(pages))?;
         let AllocInfo { page, not_grown } =
             self.context.allocations_context.alloc::<G>(pages, mem)?;
 
-        // Returns back greedily used gas for allocations
-        let new_allocated_pages_num: u32 = page
-            .iter_count(pages)
-            // This is safe cause panic is unreachable: alloc returns page, for which `page + pages` is inside u32 memory.
-            .unwrap_or_else(|err| unreachable!("Alloc implementation error: {}", err))
-            .map(|page| !self.context.allocations_context.is_init_page(page) as u32)
-            .sum();
-
-        // Subtraction is safe because we met constraint
-        // page <= pages for `new_allocated_pages_num` so
-        // `new_allocated_pages_num` <= pages
-        let not_allocated = pages.raw() - new_allocated_pages_num;
-        let not_grown = not_grown.raw();
-        charged.refund(self, not_allocated, not_grown)?;
+        // Refund gas if memory has not been grown to `pages` size.
+        gas_refunder
+            .refund(self, self.context.page_costs.mem_grow.calc(not_grown))
+            .unwrap_or_else(|err| unreachable!("Alloc implementation error: {err}"))?;
 
         Ok(page)
     }
@@ -1018,7 +974,8 @@ mod tests {
                     ContextSettings::new(0, 0, 0, 0, 0, 0),
                 ),
                 block_info: Default::default(),
-                pages_config: Default::default(),
+                max_pages: 512.into(),
+                page_costs: PageCosts::new_for_tests(),
                 existential_deposit: 0,
                 origin: Default::default(),
                 program_id: Default::default(),

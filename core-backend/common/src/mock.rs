@@ -162,8 +162,8 @@ impl Ext for MockExt {
     fn debug(&mut self, _data: &str) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn read(&mut self, _at: u32, _len: u32) -> Result<&[u8], Self::Error> {
-        Ok(&[])
+    fn read(&mut self, _at: u32, _len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
+        Ok((&[], Default::default()))
     }
     fn size(&mut self) -> Result<usize, Self::Error> {
         Ok(0)
@@ -259,6 +259,7 @@ impl BackendExt for MockExt {
     fn pre_process_memory_accesses(
         _reads: &[MemoryInterval],
         _writes: &[MemoryInterval],
+        _gas_left: &mut GasLeft,
     ) -> Result<(), ProcessAccessError> {
         Ok(())
     }

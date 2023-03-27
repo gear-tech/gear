@@ -155,7 +155,10 @@ impl Key {
     fn generate_node_key() {
         let key = crate::keystore::node::generate();
 
-        println!("Secret:  0x{}", hex::encode(key.0.secret().as_ref()));
+        println!(
+            "Secret:  0x{}",
+            hex::encode(key.0.into_ed25519().expect("Infallible").secret().as_ref())
+        );
         println!("Peer ID: {}", key.1)
     }
 

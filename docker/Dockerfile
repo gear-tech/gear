@@ -1,4 +1,4 @@
-FROM amazonlinux:latest as builder
+FROM amazonlinux:2023 as builder
 LABEL description="This is the build stage for Gear. Here we create the binary."
 
 ARG PROFILE=production
@@ -7,7 +7,7 @@ WORKDIR /gear
 COPY . /gear
 
 # Install dependecies
-RUN yum update -y && yum install -y amazon-linux-extras clang gcc git gzip make tar wget unzip
+RUN yum update -y && yum install -y clang gcc git gzip make tar wget unzip
 
 ARG PROTOC_ZIP=protoc-3.14.0-linux-x86_64.zip
 RUN curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.14.0/$PROTOC_ZIP
@@ -37,7 +37,7 @@ RUN cargo build -p gear-cli --profile $PROFILE
 
 # ===== SECOND STAGE ======
 
-FROM debian:stable-slim
+FROM ubuntu:22.10
 MAINTAINER GEAR
 LABEL description="This is the 2nd stage: a very small image where we copy the Gear binary."
 ARG PROFILE=production

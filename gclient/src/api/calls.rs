@@ -68,6 +68,11 @@ impl GearApi {
             }
         }
 
+        // Sending zero value is a no-op, so now event occurres.
+        if value == 0 {
+            return Ok(tx.block_hash());
+        }
+
         Err(Error::EventNotFound)
     }
 
@@ -382,7 +387,7 @@ impl GearApi {
     ///   of values from the mailbox.
     pub async fn claim_value(&self, message_id: MessageId) -> Result<(u128, H256)> {
         let value = self
-            .get_from_mailbox(message_id)
+            .get_mailbox_message(message_id)
             .await?
             .map(|(message, _interval)| message.value());
 
@@ -410,21 +415,20 @@ impl GearApi {
     /// processing multiple replies in the mailbox at once.
     pub async fn claim_value_batch(
         &self,
-        args: impl IntoIterator<Item = MessageId>,
+        args: impl IntoIterator<Item = MessageId> + Clone,
     ) -> Result<(Vec<Result<u128>>, H256)> {
-        let mut message_ids = args.into_iter();
         let mut values = BTreeMap::new();
-
-        for message_id in message_ids.by_ref() {
+        for message_id in args.clone().into_iter() {
             values.insert(
                 message_id,
-                self.get_from_mailbox(message_id)
+                self.get_mailbox_message(message_id)
                     .await?
                     .map(|(message, _interval)| message.value()),
             );
         }
 
-        let calls: Vec<_> = message_ids
+        let calls: Vec<_> = args
+            .into_iter()
             .map(|message_id| {
                 RuntimeCall::Gear(GearCall::claim_value {
                     message_id: message_id.into(),
@@ -594,7 +598,7 @@ impl GearApi {
     ) -> Result<(MessageId, u128, H256)> {
         let payload = payload.as_ref().to_vec();
 
-        let data = self.get_from_mailbox(reply_to_id).await?;
+        let data = self.get_mailbox_message(reply_to_id).await?;
 
         let tx = self
             .0
@@ -625,23 +629,26 @@ impl GearApi {
     /// entry of the `args` iterator is a tuple of parameters used in the
     /// [`send_reply_bytes`](Self::send_reply_bytes) function. It is useful when
     /// replying to several programs at once.
+    ///
+    /// The output for each call slightly differs from
+    /// [`send_reply_bytes`](Self::send_reply_bytes) as the destination
+    /// program id is also returned in the resulting tuple.
     pub async fn send_reply_bytes_batch(
         &self,
-        args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)>,
-    ) -> Result<(Vec<Result<(MessageId, u128)>>, H256)> {
-        let mut args = args.into_iter();
+        args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)> + Clone,
+    ) -> Result<(Vec<Result<(MessageId, ProgramId, u128)>>, H256)> {
         let mut values = BTreeMap::new();
-
-        for (message_id, _, _, _) in args.by_ref() {
+        for (message_id, _, _, _) in args.clone().into_iter() {
             values.insert(
                 message_id,
-                self.get_from_mailbox(message_id)
+                self.get_mailbox_message(message_id)
                     .await?
                     .map(|(message, _interval)| message.value()),
             );
         }
 
         let calls: Vec<_> = args
+            .into_iter()
             .map(|(reply_to_id, payload, gas_limit, value)| {
                 RuntimeCall::Gear(GearCall::send_reply {
                     reply_to_id: reply_to_id.into(),
@@ -662,9 +669,11 @@ impl GearApi {
                 Event::Gear(GearEvent::MessageQueued {
                     id,
                     entry: MessageEntry::Reply(reply_to_id),
+                    destination,
                     ..
                 }) => res.push(Ok((
                     id.into(),
+                    destination.into(),
                     values
                         .remove(&reply_to_id.into())
                         .flatten()

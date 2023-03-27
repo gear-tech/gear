@@ -9,11 +9,11 @@ repository = "https://github.com/gear-tech/gear"
 readme = "README.md"
 
 [dependencies]
-anyhow = "1.0.69"
+anyhow = "1.0.70"
 cargo_metadata = "0.15.3"
 pwasm-utils = "0.19.0"
-toml = "0.7.2"
-thiserror = "1.0.39"
+toml = "0.7.3"
+thiserror = "1.0.40"
 log = "0.4.17"
 pathdiff = { version = "0.2.1", default-features = false }
 which = "4.4.0"

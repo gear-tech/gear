@@ -27,8 +27,8 @@ use super::{
     Exec, Program,
 };
 use crate::{
-    manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE, Config, MailboxOf, Pallet as Gear,
-    ProgramStorageOf,
+    benchmarking::MAX_PAYLOAD_LEN, manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE, Config,
+    MailboxOf, Pallet as Gear, ProgramStorageOf,
 };
 use alloc::{vec, vec::Vec};
 use codec::Encode;
@@ -37,7 +37,7 @@ use core::{marker::PhantomData, mem, mem::size_of, ops::Range};
 use frame_system::RawOrigin;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
-    memory::WasmPage,
+    memory::{GearPage, PageBuf, PageBufInner, PageU32Size, WasmPage},
     message::Message,
     reservation::GasReservationSlot,
 };
@@ -60,6 +60,9 @@ where
 {
     // size of error length field
     const ERR_LEN_SIZE: u32 = size_of::<u32>() as u32;
+    const GR_DEBUG_STRING_LEN: u32 = 100;
+    const GR_READ_BUFFER_LEN: u32 = 100;
+    const MAX_PAGES: u16 = 64;
 
     fn prepare_handle(
         code: WasmModule<T>,
@@ -262,7 +265,7 @@ where
 
     pub fn gr_read(r: u32) -> Result<Exec<T>, &'static str> {
         let buffer_offset = 1;
-        let buffer_len = 100u32;
+        let buffer_len = Self::GR_READ_BUFFER_LEN;
 
         let err_len_offset = buffer_offset + buffer_len;
         let err_len_ptrs = Self::err_len_ptrs(r * API_BENCHMARK_BATCH_SIZE, err_len_offset);
@@ -301,34 +304,37 @@ where
 
     pub fn gr_read_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let buffer_offset = 1;
-        let buffer = vec![0xff; (n * 1024) as usize];
-        let buffer_len = buffer.len() as u32;
+        let buffer_len = n as i32 * 1024;
 
-        let err_len_offset = buffer_offset + buffer_len;
-        let err_len_ptrs = Self::err_len_ptrs(API_BENCHMARK_BATCH_SIZE, err_len_offset);
+        assert!(
+            WasmPage::from_offset((buffer_offset + buffer_len) as u32) < Self::MAX_PAGES.into()
+        );
+        assert!(buffer_len <= MAX_PAYLOAD_LEN as i32);
+
+        let instrs_batch = body::with_result_check(
+            0,
+            &[
+                // at
+                Instruction::I32Const(0),
+                // len
+                Instruction::I32Const(buffer_len),
+                // buffer ptr
+                Instruction::I32Const(buffer_offset),
+                // err len ptr
+                Instruction::I32Const(0),
+                // CALL
+                Instruction::Call(0),
+            ],
+        );
+
+        // Access const amount of pages before debug call in order to remove lazy-pages factor.
+        let instrs = body::write_access_all_pages_instrs(Self::MAX_PAGES.into(), vec![]);
+        let instrs = body::repeated_instr(API_BENCHMARK_BATCH_SIZE, instrs_batch, instrs);
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Read],
-            data_segments: vec![DataSegment {
-                offset: buffer_offset,
-                value: buffer,
-            }],
-            handle_body: Some(body::repeated_dyn(
-                API_BENCHMARK_BATCH_SIZE,
-                vec![
-                    // at
-                    Regular(Instruction::I32Const(0)),
-                    // len
-                    Regular(Instruction::I32Const(buffer_len as i32)),
-                    // buffer ptr
-                    Regular(Instruction::I32Const(buffer_offset as i32)),
-                    // err len ptr
-                    Counter(err_len_offset, Self::ERR_LEN_SIZE),
-                    // CALL
-                    Regular(Instruction::Call(0)),
-                ],
-            )),
+            handle_body: Some(body::from_instructions(instrs)),
             ..Default::default()
         });
 
@@ -337,8 +343,8 @@ where
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-            vec![0; (buffer_len + buffer_len) as usize],
-            err_len_ptrs,
+            vec![0xff; MAX_PAYLOAD_LEN as usize],
+            0..0,
             Default::default(),
         )
     }
@@ -717,6 +723,36 @@ where
         Self::prepare_handle(code, 10000000, err_len_ptrs)
     }
 
+    pub fn gr_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let payload_offset = 1;
+        let payload_len = n * 1024;
+
+        let err_mid_offset = payload_offset + payload_len;
+        let err_len_ptrs = Self::err_len_ptrs(1, err_mid_offset);
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Reply],
+            handle_body: Some(body::plain(vec![
+                // payload ptr
+                Instruction::I32Const(payload_offset as i32),
+                // payload len
+                Instruction::I32Const(payload_len as i32),
+                // value ptr
+                Instruction::I32Const(payload_offset as i32),
+                // delay
+                Instruction::I32Const(10),
+                // err_mid ptr
+                Instruction::I32Const(err_mid_offset as i32),
+                // CALL Reply
+                Instruction::Call(0),
+                Instruction::End,
+            ])),
+            ..Default::default()
+        });
+        Self::prepare_handle(code, 10000000, err_len_ptrs)
+    }
+
     pub fn gr_reply_push(r: u32) -> Result<Exec<T>, &'static str> {
         let payload_offset = 1;
         let payload_len = 100;
@@ -814,6 +850,76 @@ where
         let program_id = ProgramId::from_origin(instance.addr);
         ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
             for x in 0..r * API_BENCHMARK_BATCH_SIZE {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
+        .unwrap();
+
+        utils::prepare_exec::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(program_id),
+            vec![],
+            err_len_ptrs,
+            Default::default(),
+        )
+    }
+
+    pub fn gr_reservation_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let payload_offset = 1;
+        let payload_len = n as i32 * 1024;
+        let r = 1;
+
+        let rid_value_offset = 1;
+
+        let rid_values = (0..r)
+            .flat_map(|i| {
+                let mut bytes = [0; 32 + 16];
+                bytes[..32].copy_from_slice(ReservationId::from(i as u64).as_ref());
+                bytes.to_vec()
+            })
+            .collect::<Vec<_>>();
+
+        let err_mid_offset = rid_value_offset + rid_values.len() as u32;
+        let err_len_ptrs = Self::err_len_ptrs(1, err_mid_offset);
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::ReservationReply],
+            data_segments: vec![DataSegment {
+                offset: rid_value_offset,
+                value: rid_values,
+            }],
+            handle_body: Some(body::plain(vec![
+                // rid_value ptr
+                Instruction::I32Const(rid_value_offset as i32),
+                // payload ptr
+                Instruction::I32Const(payload_offset),
+                // payload len
+                Instruction::I32Const(payload_len),
+                // delay
+                Instruction::I32Const(10),
+                // err_mid ptr
+                Instruction::I32Const(err_mid_offset as i32),
+                // CALL ReservationReply
+                Instruction::Call(0),
+                Instruction::End,
+            ])),
+            ..Default::default()
+        });
+
+        let instance = Program::<T>::new(code, vec![])?;
+
+        // insert gas reservation slots
+        let program_id = ProgramId::from_origin(instance.addr);
+        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
+            for x in 0..API_BENCHMARK_BATCH_SIZE {
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),
                     GasReservationSlot {
@@ -1097,7 +1203,7 @@ where
 
     pub fn gr_debug(r: u32) -> Result<Exec<T>, &'static str> {
         let string_offset = 1;
-        let string_len = 100;
+        let string_len = Self::GR_DEBUG_STRING_LEN;
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1108,7 +1214,7 @@ where
                     // payload ptr
                     Instruction::I32Const(string_offset),
                     // payload len
-                    Instruction::I32Const(string_len),
+                    Instruction::I32Const(string_len as i32),
                     // CALL
                     Instruction::Call(0),
                 ],
@@ -1121,23 +1227,33 @@ where
     pub fn gr_debug_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let string_offset = 1;
         let string_len = n as i32 * 1024;
+        assert!(
+            WasmPage::from_offset((string_offset + string_len) as u32) < Self::MAX_PAGES.into()
+        );
+
+        // Access const amount of pages before debug call in order to remove lazy-pages factor.
+        let instrs = body::read_access_all_pages_instrs(Self::MAX_PAGES.into(), vec![]);
+
+        let instrs = body::repeated_dyn_instr(
+            API_BENCHMARK_BATCH_SIZE,
+            vec![
+                // payload ptr
+                Regular(Instruction::I32Const(string_offset)),
+                // payload len
+                Regular(Instruction::I32Const(string_len)),
+                // CALL
+                Regular(Instruction::Call(0)),
+            ],
+            instrs,
+        );
 
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Debug],
-            handle_body: Some(body::repeated(
-                API_BENCHMARK_BATCH_SIZE,
-                &[
-                    // payload ptr
-                    Instruction::I32Const(string_offset),
-                    // payload len
-                    Instruction::I32Const(string_len),
-                    // CALL
-                    Instruction::Call(0),
-                ],
-            )),
+            handle_body: Some(body::from_instructions(instrs)),
             ..Default::default()
         });
+
         Self::prepare_handle(code, 0, 0..0)
     }
 
@@ -1359,7 +1475,7 @@ where
         Self::prepare_handle(code, 0, err_len_ptrs)
     }
 
-    pub fn lazy_pages_read_access(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_signal_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let instrs = body::read_access_all_pages_instrs(wasm_pages, vec![]);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -1369,7 +1485,19 @@ where
         Self::prepare_handle(code, 0, 0..0)
     }
 
-    pub fn lazy_pages_write_access(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_signal_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+        let instrs = body::write_access_all_pages_instrs(wasm_pages, vec![]);
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            handle_body: Some(body::from_instructions(instrs)),
+            ..Default::default()
+        });
+        Self::prepare_handle(code, 0, 0..0)
+    }
+
+    pub fn lazy_pages_signal_write_after_read(
+        wasm_pages: WasmPage,
+    ) -> Result<Exec<T>, &'static str> {
         let mut instrs = body::read_access_all_pages_instrs(max_pages::<T>().into(), vec![]);
         instrs = body::write_access_all_pages_instrs(wasm_pages, instrs);
         let code = WasmModule::<T>::from(ModuleDefinition {
@@ -1378,5 +1506,108 @@ where
             ..Default::default()
         });
         Self::prepare_handle(code, 0, 0..0)
+    }
+
+    pub fn lazy_pages_load_page_storage_data(
+        wasm_pages: WasmPage,
+    ) -> Result<Exec<T>, &'static str> {
+        let exec = Self::lazy_pages_signal_read(wasm_pages)?;
+        let program_id = exec.context.program().id();
+        for page in wasm_pages
+            .iter_from_zero()
+            .flat_map(|p| p.to_pages_iter::<GearPage>())
+        {
+            ProgramStorageOf::<T>::set_program_page_data(
+                program_id,
+                page,
+                PageBuf::from_inner(PageBufInner::filled_with(1)),
+            );
+        }
+        Ok(exec)
+    }
+
+    pub fn lazy_pages_host_func_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Debug],
+            handle_body: Some(body::from_instructions(vec![
+                // payload ptr
+                Instruction::I32Const(0),
+                // payload len
+                Instruction::I32Const(wasm_pages.offset() as i32),
+                // CALL
+                Instruction::Call(0),
+            ])),
+            ..Default::default()
+        });
+        Self::prepare_handle(code, 0, 0..0)
+    }
+
+    pub fn lazy_pages_host_func_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Read],
+            handle_body: Some(body::from_instructions(vec![
+                // at
+                Instruction::I32Const(0),
+                // len
+                Instruction::I32Const(wasm_pages.offset() as i32),
+                // buffer ptr
+                Instruction::I32Const(0),
+                // err len ptr
+                Instruction::I32Const(0),
+                // CALL
+                Instruction::Call(0),
+            ])),
+            ..Default::default()
+        });
+
+        let instance = Program::<T>::new(code, vec![])?;
+
+        utils::prepare_exec::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![0xff; MAX_PAYLOAD_LEN as usize],
+            0..0,
+            Default::default(),
+        )
+    }
+
+    pub fn lazy_pages_host_func_write_after_read(
+        wasm_pages: WasmPage,
+    ) -> Result<Exec<T>, &'static str> {
+        assert!(wasm_pages <= Self::MAX_PAGES.into());
+
+        // Access const amount of pages before `gr_read` calls in order to make all pages read accessed.
+        let mut instrs = body::read_access_all_pages_instrs(Self::MAX_PAGES.into(), vec![]);
+        instrs.extend_from_slice(&[
+            // at
+            Instruction::I32Const(0),
+            // len
+            Instruction::I32Const(wasm_pages.offset() as i32),
+            // buffer ptr
+            Instruction::I32Const(0),
+            // err len ptr
+            Instruction::I32Const(0),
+            // CALL
+            Instruction::Call(0),
+        ]);
+
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Read],
+            handle_body: Some(body::from_instructions(instrs)),
+            ..Default::default()
+        });
+
+        let instance = Program::<T>::new(code, vec![])?;
+
+        utils::prepare_exec::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![0xff; MAX_PAYLOAD_LEN as usize],
+            0..0,
+            Default::default(),
+        )
     }
 }

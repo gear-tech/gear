@@ -35,6 +35,18 @@ where
             T::DebugInfo::remap_id();
         }
 
+        #[cfg(feature = "lazy-pages")]
+        let lazy_pages_enabled = {
+            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+                unreachable!("By some reasons we cannot run lazy-pages on this machine");
+            }
+            true
+        };
+
+        #[cfg(not(feature = "lazy-pages"))]
+        let lazy_pages_enabled = false;
+
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue()
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
@@ -189,11 +201,7 @@ where
                 };
 
             // The last one thing is to load program memory. Adjust gas counters for memory pages.
-            let context = match core_processor::precharge_for_memory(
-                &block_config,
-                context,
-                ext_manager.program_pages_loaded(&program_id),
-            ) {
+            let context = match core_processor::precharge_for_memory(&block_config, context) {
                 Ok(c) => c,
                 Err(journal) => {
                     core_processor::handle_journal(journal, &mut ext_manager);
@@ -206,6 +214,7 @@ where
                 &mut ext_manager,
                 program_id,
                 &context.actor_data().pages_with_data,
+                lazy_pages_enabled,
             ) {
                 None => continue,
                 Some(m) => m,

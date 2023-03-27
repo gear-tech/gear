@@ -20,6 +20,7 @@
 
 use crate::{AccountId, RuntimeCall};
 use codec::{Decode, Encode};
+use frame_support::traits::Contains;
 use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{DispatchInfoOf, SignedExtension, Zero},
@@ -30,6 +31,41 @@ use sp_runtime::{
 ///
 /// RELEASE: This is only relevant for the initial PoA run-in period and will be removed
 /// from the release runtime.
+
+struct ValueTransferCallFilter;
+impl Contains<RuntimeCall> for ValueTransferCallFilter {
+    fn contains(call: &RuntimeCall) -> bool {
+        match call {
+            RuntimeCall::Balances(_) => true,
+            RuntimeCall::Gear(pallet_gear::Call::create_program { value, .. })
+            | RuntimeCall::Gear(pallet_gear::Call::upload_program { value, .. })
+            | RuntimeCall::Gear(pallet_gear::Call::send_message { value, .. })
+            | RuntimeCall::Gear(pallet_gear::Call::send_reply { value, .. }) => !value.is_zero(),
+            RuntimeCall::Utility(utility_call) => {
+                match utility_call {
+                    pallet_utility::Call::batch { calls }
+                    | pallet_utility::Call::batch_all { calls }
+                    | pallet_utility::Call::force_batch { calls } => {
+                        for c in calls {
+                            if Self::contains(c) {
+                                return true;
+                            }
+                        }
+                    }
+                    pallet_utility::Call::as_derivative { call, .. }
+                    | pallet_utility::Call::dispatch_as { call, .. }
+                    | pallet_utility::Call::with_weight { call, .. } => {
+                        return Self::contains(call);
+                    }
+                    _ => (),
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+}
+
 #[derive(Default, Encode, Debug, Decode, Clone, Eq, PartialEq, TypeInfo)]
 pub struct DisableValueTransfers;
 
@@ -49,21 +85,10 @@ impl SignedExtension for DisableValueTransfers {
         _: &DispatchInfoOf<Self::Call>,
         _: usize,
     ) -> TransactionValidity {
-        match call {
-            RuntimeCall::Balances(_) => {
-                Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
-            }
-            RuntimeCall::Gear(pallet_gear::Call::create_program { value, .. })
-            | RuntimeCall::Gear(pallet_gear::Call::upload_program { value, .. })
-            | RuntimeCall::Gear(pallet_gear::Call::send_message { value, .. })
-            | RuntimeCall::Gear(pallet_gear::Call::send_reply { value, .. }) => {
-                if value.is_zero() {
-                    Ok(Default::default())
-                } else {
-                    Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
-                }
-            }
-            _ => Ok(Default::default()),
+        if ValueTransferCallFilter::contains(call) {
+            Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
+        } else {
+            Ok(Default::default())
         }
     }
     fn pre_dispatch(

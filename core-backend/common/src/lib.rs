@@ -45,7 +45,7 @@ use core::{
 use gear_core::{
     buffer::RuntimeBufferSizeError,
     env::Ext as EnvExt,
-    gas::{ChargeError, CountersOwner, GasAmount},
+    gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, IncorrectAllocationDataError, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
@@ -55,11 +55,14 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};
-use lazy_pages::GlobalsConfig;
+use lazy_pages::GlobalsAccessConfig;
 use memory::ProcessAccessError;
 use scale_info::TypeInfo;
 
 pub use crate::utils::TrimmedString;
+pub use log;
+
+pub const PTR_SPECIAL: u32 = u32::MAX;
 
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum TerminationReason {
@@ -97,16 +100,13 @@ impl From<FromUtf8Error> for TerminationReason {
 impl From<MemoryAccessError> for TerminationReason {
     fn from(err: MemoryAccessError) -> Self {
         match err {
-            MemoryAccessError::Memory(err) => {
-                ActorTerminationReason::Trap(TrapExplanation::Ext(err.into()))
+            MemoryAccessError::Memory(err) => TrapExplanation::Ext(err.into()).into(),
+            MemoryAccessError::RuntimeBuffer(_) => {
+                TrapExplanation::Ext(MemoryError::RuntimeAllocOutOfBounds.into()).into()
             }
-            MemoryAccessError::RuntimeBuffer(_) => ActorTerminationReason::Trap(
-                TrapExplanation::Ext(MemoryError::RuntimeAllocOutOfBounds.into()),
-            ),
             MemoryAccessError::Decode => unreachable!("{:?}", err),
-            MemoryAccessError::GasLimitExceeded | MemoryAccessError::GasAllowanceExceeded => {
-                unimplemented!("#2216")
-            }
+            MemoryAccessError::GasLimitExceeded => TrapExplanation::GasLimitExceeded.into(),
+            MemoryAccessError::GasAllowanceExceeded => ActorTerminationReason::GasAllowanceExceeded,
         }
         .into()
     }
@@ -132,13 +132,20 @@ impl<E: BackendExtError> From<E> for TerminationReason {
     }
 }
 
-#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+impl From<TrapExplanation> for TerminationReason {
+    fn from(trap: TrapExplanation) -> Self {
+        ActorTerminationReason::Trap(trap).into()
+    }
+}
+
+#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
 pub enum ActorTerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
     Wait(Option<u32>, MessageWaitedType),
     GasAllowanceExceeded,
+    #[from]
     Trap(TrapExplanation),
 }
 
@@ -228,6 +235,7 @@ pub trait BackendExt: EnvExt + CountersOwner {
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
+        gas_left: &mut GasLeft,
     ) -> Result<(), ProcessAccessError>;
 }
 
@@ -305,7 +313,7 @@ where
     /// Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
     where
-        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsConfig) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), T>,
         T: Display;
 }
 
@@ -391,5 +399,40 @@ pub trait BackendTermination<E: BackendExt, M: Sized>: Sized {
         };
 
         (ext, memory, termination_reason)
+    }
+}
+
+#[macro_export]
+macro_rules! syscall_args_trace {
+    ($val:expr) => {
+        {
+            let s = stringify!($val);
+            if s.ends_with("_ptr") {
+                format!(", {} = {:#x?}", s, $val)
+            } else {
+                format!(", {} = {:?}", s, $val)
+            }
+        }
+    };
+    ($val:expr, $($rest:expr),+) => {
+        {
+            let mut s = $crate::syscall_args_trace!($val);
+            s.push_str(&$crate::syscall_args_trace!($($rest),+));
+            s
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! syscall_trace {
+    ($name:expr, $($args:expr),+) => {
+        {
+            $crate::log::trace!(target: "syscalls", "{}{}", $name, $crate::syscall_args_trace!($($args),+));
+        }
+    };
+    ($name:expr) => {
+        {
+            $crate::log::trace!(target: "syscalls", "{}", $name);
+        }
     }
 }

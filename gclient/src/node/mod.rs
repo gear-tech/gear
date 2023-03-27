@@ -25,44 +25,23 @@ use std::{
 use ws::WSAddress;
 
 mod port;
-mod result;
-pub mod ws;
+pub(crate) mod result;
+pub(crate) mod ws;
 
 /// A struct representing a node running on local PC.
 #[derive(Debug)]
-pub struct Node {
+pub(crate) struct Node {
     process: Child,
     ws_address: WSAddress,
 }
 
 impl Node {
-    /// Instantiates a Gear node running in development mode (`--dev`) via
-    /// spawning its process using the specified `path` on a randomly picked
-    /// port. Waits for the node getting initialized before returning it to
-    /// a caller. Ideally, the node's binary should be downloaded by means
-    /// of CI pipeline from <https://get.gear.rs>.
-    pub fn try_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
-        Self::try_node_from_path(path, vec!["--dev"])
-    }
-
-    /// Instantiates a Vara node running in development mode (`--dev`) via
-    /// spawning its process using the specified `path` on a randomly picked
-    /// port. Waits for the node getting initialized before returning it to
-    /// a caller. Ideally, the node's binary should be downloaded by means
-    /// of CI pipeline from <https://get.gear.rs>.
-    pub fn try_vara_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
-        Self::try_node_from_path(
-            path,
-            vec!["--chain=vara-dev", "--validator", "--alice", "--tmp"],
-        )
-    }
-
     /// Returns Web Socket address the node is listening to.
     pub fn ws_address(&self) -> &WSAddress {
         &self.ws_address
     }
 
-    fn try_node_from_path(path: impl AsRef<OsStr>, args: Vec<&str>) -> Result<Self> {
+    pub fn try_from_path(path: impl AsRef<OsStr>, args: Vec<&str>) -> Result<Self> {
         let port = port::pick();
         let port_string = port.to_string();
 
@@ -100,6 +79,15 @@ impl Node {
         }
 
         Err(Error::EmptyStderr)
+    }
+
+    /// Print node logs
+    pub fn print_logs(&mut self) {
+        let stderr = self.process.stderr.as_mut();
+        let reader = BufReader::new(stderr.expect("Unable to get stderr"));
+        for line in reader.lines().flatten() {
+            println!("{line}");
+        }
     }
 }
 
