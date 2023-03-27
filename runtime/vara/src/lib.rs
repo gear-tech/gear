@@ -119,7 +119,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 100,
+    spec_version: 130,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -266,7 +266,7 @@ impl pallet_grandpa::Config for Runtime {
 
 impl pallet_authorship::Config for Runtime {
     type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
-    type EventHandler = ();
+    type EventHandler = ImOnline;
 }
 
 parameter_types! {
@@ -864,6 +864,9 @@ pub type Executive = frame_executive::Executive<
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod integration_tests;
 
 #[cfg(feature = "debug-mode")]
 type DebugInfo = GearDebug;
