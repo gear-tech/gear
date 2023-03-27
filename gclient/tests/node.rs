@@ -160,14 +160,10 @@ async fn program_migration_fails_if_program_exists() {
 /// Running this test requires gear node to be built in advance.
 #[tokio::test]
 async fn program_with_gas_reservation_migrated_to_another_node() {
-    let src_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate source node");
-    let dest_node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate destination node");
-
     // Arrange
 
     // Upload source program to the source node
     let (src_node_api, src_program_id) = upload_program_to_node(
-        &src_node,
         demo_reserve_gas::WASM_BINARY,
         &gclient::now_micros().to_le_bytes(),
         Some(demo_reserve_gas::InitAction::Normal),
@@ -180,7 +176,7 @@ async fn program_with_gas_reservation_migrated_to_another_node() {
         .expect("Unable to get source node last block hash");
 
     // Initialize the destination node api
-    let dest_node_api = GearApi::node(&dest_node)
+    let dest_node_api = GearApi::dev_from_path(GEAR_PATH)
         .await
         .expect("Unable to connect to destination node api");
 
