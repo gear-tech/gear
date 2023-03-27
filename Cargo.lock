@@ -3448,6 +3448,7 @@ dependencies = [
  "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-with-gas",
+ "demo-reserve-gas",
  "env_logger",
  "futures",
  "futures-timer",
@@ -4345,7 +4346,7 @@ dependencies = [
  "gstd",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.10",
  "trybuild",
 ]
 
@@ -7169,7 +7170,7 @@ version = "2.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.10",
 ]
 
 [[package]]

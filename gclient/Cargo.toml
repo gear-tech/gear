@@ -45,3 +45,4 @@ demo-program-factory = { workspace = true }
 demo-proxy = { workspace = true }
 demo-proxy-relay = { workspace = true }
 demo-proxy-with-gas = { workspace = true }
+demo-reserve-gas = { workspace = true }
