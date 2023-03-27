@@ -33,12 +33,12 @@ use crate::{
 use alloc::{vec, vec::Vec};
 use codec::Encode;
 use common::{benchmarking, storage::*, Origin, ProgramStorage};
-use core::{marker::PhantomData, mem, mem::size_of, ops::Range};
+use core::{marker::PhantomData, mem::size_of};
 use frame_system::RawOrigin;
 use gear_core::{
-    ids::{MessageId, ProgramId, ReservationId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, PageBuf, PageBufInner, PageU32Size, WasmPage},
-    message::Message,
+    message::{Message, Value},
     reservation::GasReservationSlot,
 };
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
@@ -46,16 +46,27 @@ use sp_core::Get;
 use sp_runtime::traits::UniqueSaturatedInto;
 
 // +_+_+
-// 1) change to constants everywhere.
-// 2) change to small memory
+// * comments for constants
+// * alloc/free
 
 const ERR_LEN_SIZE: u32 = size_of::<u32>() as u32;
-const RID_PID_SIZE: u32 = 80;
-const RID_SIZE: u32 = 16 + 32;
-const ERR_HANDLE_SIZE: u32 = 8;
-const HANDLE_OFFSET: u32 = 4;
-const CID_SIZE: u32 = 32;
-const VALUE_SIZE: u32 = 16;
+const HANDLE_SIZE: u32 = size_of::<u32>() as u32;
+const VALUE_SIZE: u32 = size_of::<Value>() as u32;
+const RID_SIZE: u32 = size_of::<ReservationId>() as u32;
+const CID_SIZE: u32 = size_of::<CodeId>() as u32;
+const PID_SIZE: u32 = size_of::<ProgramId>() as u32;
+const MID_SIZE: u32 = size_of::<MessageId>() as u32;
+const RANDOM_SUBJECT_SIZE: u32 = 32;
+
+const ERR_HANDLE_SIZE: u32 = ERR_LEN_SIZE + HANDLE_SIZE;
+const RID_VALUE_SIZE: u32 = RID_SIZE + VALUE_SIZE;
+const PID_VALUE_SIZE: u32 = PID_SIZE + VALUE_SIZE;
+const CID_VALUE_SIZE: u32 = CID_SIZE + VALUE_SIZE;
+const RID_PID_VALUE_SIZE: u32 = RID_SIZE + PID_SIZE + VALUE_SIZE;
+
+const SMALL_MEM_SIZE: u16 = 1;
+const COMMON_OFFSET: u32 = 1;
+const COMMON_PAYLOAD_LEN: u32 = 100;
 
 const MAX_REPETITIONS: u32 = API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE;
 
@@ -72,17 +83,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    const SMALL_MEM_SIZE: u16 = 1;
-    const OFFSET: u32 = 1;
-    // const RES_OFFSET: u32 = Self::OFFSET + GEAR_PAGE_SIZE as u32;
-    // size of error length field
-    const ERR_LEN_SIZE: u32 = size_of::<u32>() as u32;
-    const GR_READ_BUFFER_LEN: u32 = 100;
-    const MAX_PAGES: u16 = 64;
-
-    fn prepare_handle(module: WasmModule<T>, value: u32) -> Result<Exec<T>, &'static str> {
-        let instance = Program::<T>::new(module, vec![])?;
-
+    fn prepare_handle(module: ModuleDefinition, value: u32) -> Result<Exec<T>, &'static str> {
+        let instance = Program::<T>::new(module.into(), vec![])?;
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Handle(ProgramId::from_origin(instance.addr)),
@@ -94,8 +96,46 @@ where
         )
     }
 
-    const fn err_len_ptrs(repetitions: u32, offset: u32) -> Range<u32> {
-        offset..repetitions * Self::ERR_LEN_SIZE + offset
+    fn prepare_handle_with_reservation_slots(
+        module: ModuleDefinition,
+        repetitions: u32,
+    ) -> Result<Exec<T>, &'static str> {
+        let instance = Program::<T>::new(module.into(), vec![])?;
+
+        // insert gas reservation slots
+        let program_id = ProgramId::from_origin(instance.addr);
+        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
+            for x in 0..repetitions {
+                program.gas_reservation_map.insert(
+                    ReservationId::from(x as u64),
+                    GasReservationSlot {
+                        amount: 1_000,
+                        start: 1,
+                        finish: 100,
+                    },
+                );
+            }
+        })
+        .unwrap();
+
+        utils::prepare_exec::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(program_id),
+            vec![],
+            Default::default(),
+        )
+    }
+
+    fn prepare_handle_with_const_payload(
+        module: ModuleDefinition,
+    ) -> Result<Exec<T>, &'static str> {
+        let instance = Program::<T>::new(module.into(), vec![])?;
+        utils::prepare_exec::<T>(
+            instance.caller.into_origin(),
+            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            vec![0xff; MAX_PAYLOAD_LEN as usize],
+            Default::default(),
+        )
     }
 
     // TODO: add check for alloc #+_+_+
@@ -150,15 +190,18 @@ where
     }
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let res_offset = COMMON_OFFSET;
+
         // It is not allowed to reserve less than mailbox threshold
         let mailbox_threshold = <T as Config>::MailboxThreshold::get();
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::one()),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::ReserveGas],
             handle_body: Some(body::fallible_syscall(
-                r * API_BENCHMARK_BATCH_SIZE,
-                Self::OFFSET,
+                repetitions,
+                res_offset,
                 &[
                     // gas amount
                     InstrI64Const(mailbox_threshold),
@@ -167,27 +210,26 @@ where
                 ],
             )),
             ..Default::default()
-        }
-        .into();
+        };
 
         Self::prepare_handle(module, 0)
     }
 
     pub fn gr_unreserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let max_repetitions = API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE;
-        assert!(repetitions <= max_repetitions);
+        assert!(repetitions <= MAX_REPETITIONS);
 
         // Store max repetitions for any `r` to exclude data segments size contribution.
-        let reservation_id_offset = Self::OFFSET as u32;
-        let reservation_id_bytes: Vec<u8> = (0..max_repetitions)
+        let reservation_id_bytes: Vec<u8> = (0..MAX_REPETITIONS)
             .map(|i| ReservationId::from(i as u64))
             .flat_map(|x| x.encode())
             .collect();
+
+        let reservation_id_offset = COMMON_OFFSET;
         let res_offset = reservation_id_offset + reservation_id_bytes.len() as u32;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::one()),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::UnreserveGas],
             data_segments: vec![DataSegment {
                 offset: reservation_id_offset,
@@ -197,201 +239,173 @@ where
                 repetitions,
                 res_offset,
                 &[
-                    // reservation id ptr
-                    Counter(reservation_id_offset, size_of::<ReservationId>() as u32),
+                    // reservation id offset
+                    Counter(reservation_id_offset, RID_SIZE),
                 ],
             )),
             ..Default::default()
-        }
-        .into();
+        };
 
-        let instance = Program::<T>::new(module, vec![])?;
-
-        // insert gas reservation slots
-        let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
-            for x in 0..r * API_BENCHMARK_BATCH_SIZE {
-                program.gas_reservation_map.insert(
-                    ReservationId::from(x as u64),
-                    GasReservationSlot {
-                        amount: 1_000,
-                        start: 1,
-                        finish: 100,
-                    },
-                );
-            }
-        })
-        .unwrap();
-
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(program_id),
-            vec![],
-            Default::default(),
-        )
+        Self::prepare_handle_with_reservation_slots(module, repetitions)
     }
 
     pub fn gr_system_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let res_offset = COMMON_OFFSET;
+
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::one()),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::SystemReserveGas],
             handle_body: Some(body::fallible_syscall(
-                r * API_BENCHMARK_BATCH_SIZE,
-                Self::OFFSET,
+                repetitions,
+                res_offset,
                 &[
                     // gas amount
                     InstrI64Const(50_000_000),
                 ],
             )),
             ..Default::default()
-        }
-        .into();
+        };
 
         Self::prepare_handle(module, 0)
     }
 
     pub fn getter(name: SysCallName, r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let res_offset = COMMON_OFFSET;
+
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::one()),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![name],
-            handle_body: Some(body::repeated(
-                r * API_BENCHMARK_BATCH_SIZE,
+            handle_body: Some(body::syscall(
+                repetitions,
                 &[
-                    // ptr to write taken data
-                    Instruction::I32Const(1),
-                    // CALL
-                    Instruction::Call(0),
-                ],
-            )),
-            ..Default::default()
-        }
-        .into();
-
-        Self::prepare_handle(module, 0)
-    }
-
-    pub fn gr_read(r: u32) -> Result<Exec<T>, &'static str> {
-        let buffer_offset = Self::OFFSET;
-        let buffer_len = Self::GR_READ_BUFFER_LEN;
-        let err_len_offset = buffer_offset + buffer_len;
-
-        let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::Read],
-            handle_body: Some(body::fallible_syscall(
-                r * API_BENCHMARK_BATCH_SIZE,
-                err_len_offset,
-                &[
-                    // at
-                    InstrI32Const(0),
-                    // len
-                    InstrI32Const(buffer_len),
-                    // buffer ptr
-                    InstrI32Const(buffer_offset),
+                    // offset where to write taken data
+                    InstrI32Const(res_offset),
                 ],
             )),
             ..Default::default()
         };
 
-        let instance = Program::<T>::new(module.into(), vec![])?;
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-            vec![0; (buffer_len + buffer_offset) as usize],
-            Default::default(),
-        )
+        Self::prepare_handle(module, 0)
     }
 
-    pub fn gr_read_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let buffer_offset = Self::OFFSET;
-        let buffer_len = n * 1024;
-        assert!(buffer_len <= MAX_PAYLOAD_LEN);
+    pub fn gr_read(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let buffer_offset = COMMON_OFFSET;
+        let buffer_len = COMMON_PAYLOAD_LEN;
         let res_offset = buffer_offset + buffer_len;
 
+        assert!(buffer_len <= MAX_PAYLOAD_LEN);
+
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::Read],
             handle_body: Some(body::fallible_syscall(
-                API_BENCHMARK_BATCH_SIZE,
+                repetitions,
                 res_offset,
                 &[
                     // at
                     InstrI32Const(0),
                     // len
                     InstrI32Const(buffer_len),
-                    // buffer ptr
+                    // buffer offset
                     InstrI32Const(buffer_offset),
                 ],
             )),
             ..Default::default()
         };
 
-        let instance = Program::<T>::new(module.into(), vec![])?;
-
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-            vec![0xff; MAX_PAYLOAD_LEN as usize],
-            Default::default(),
-        )
+        Self::prepare_handle_with_const_payload(module)
     }
 
-    pub fn gr_random(r: u32) -> Result<Exec<T>, &'static str> {
-        let subject_ptr = 1;
-        let subject_len = 32;
-        let bn_random_ptr = subject_ptr + subject_len;
+    pub fn gr_read_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = API_BENCHMARK_BATCH_SIZE;
+        let buffer_offset = COMMON_OFFSET;
+        let buffer_len = n * 1024;
+        let res_offset = buffer_offset + buffer_len;
+
+        assert!(buffer_len <= MAX_PAYLOAD_LEN);
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::Random],
-            handle_body: Some(body::syscall(
-                r * API_BENCHMARK_BATCH_SIZE,
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::Read],
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
                 &[
-                    // subject ptr
-                    InstrI32Const(subject_ptr),
-                    // bn_random ptr
-                    InstrI32Const(bn_random_ptr),
+                    // at
+                    InstrI32Const(0),
+                    // len
+                    InstrI32Const(buffer_len),
+                    // buffer offset
+                    InstrI32Const(buffer_offset),
                 ],
             )),
             ..Default::default()
         };
-        Self::prepare_handle(module.into(), 0)
+
+        Self::prepare_handle_with_const_payload(module)
     }
 
-    pub fn gr_send_init(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_random(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let subject_offset = COMMON_OFFSET;
+        let bn_random_offset = subject_offset + RANDOM_SUBJECT_SIZE;
+
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::SendInit],
-            handle_body: Some(body::fallible_syscall(
-                r * API_BENCHMARK_BATCH_SIZE,
-                Self::OFFSET,
-                &[],
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SysCallName::Random],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    // subject offset
+                    InstrI32Const(subject_offset),
+                    // bn random offset
+                    InstrI32Const(bn_random_offset),
+                ],
             )),
             ..Default::default()
         };
-        Self::prepare_handle(module.into(), 0)
+
+        Self::prepare_handle(module, 0)
+    }
+
+    pub fn gr_send_init(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let res_offset = COMMON_OFFSET;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SysCallName::SendInit],
+            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
     }
 
     // TODO: add check for send init #+_+_+
     pub fn gr_send_push(r: u32) -> Result<Exec<T>, &'static str> {
-        let payload_offset = Self::OFFSET;
-        let payload_len = 100u32;
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let payload_offset = COMMON_OFFSET;
+        let payload_len = COMMON_PAYLOAD_LEN;
         let init_res_offset = payload_offset + payload_len;
-        let push_res_offset = init_res_offset + 8;
+        let res_offset = init_res_offset + ERR_HANDLE_SIZE;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::SendPush, SysCallName::SendInit],
             handle_body: Some(body::fallible_syscall(
-                r * API_BENCHMARK_BATCH_SIZE,
-                push_res_offset,
+                repetitions,
+                res_offset,
                 &[
-                    // err_handle ptr for send_init
+                    // res offset for send init
                     InstrI32Const(init_res_offset),
                     // CALL init
                     InstrCall(1),
-                    // handle
-                    InstrI32Const(init_res_offset + 4),
+                    // get handle from send init result
+                    InstrI32Const(init_res_offset + ERR_LEN_SIZE),
                     Regular(Instruction::I32Load(2, 0)),
                     // payload ptr
                     InstrI32Const(payload_offset),
@@ -402,28 +416,29 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_send_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let payload_offset = Self::OFFSET;
+        let repetitions = API_BENCHMARK_BATCH_SIZE;
+        let payload_offset = COMMON_OFFSET;
         let payload_len = n * 1024;
         let handle_offset = payload_offset + payload_len;
-        let res_offset = handle_offset + 8;
+        let res_offset = handle_offset + ERR_HANDLE_SIZE;
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::SendPush, SysCallName::SendInit],
             handle_body: Some(body::fallible_syscall(
-                API_BENCHMARK_BATCH_SIZE,
+                repetitions,
                 res_offset,
                 &[
-                    // res offset for init
+                    // res offset for send init
                     InstrI32Const(handle_offset),
                     // CALL init
                     InstrCall(1),
-                    // handle
-                    InstrI32Const(handle_offset + 4),
+                    // get handle from send init result
+                    InstrI32Const(handle_offset + ERR_LEN_SIZE),
                     Regular(Instruction::I32Load(2, 0)),
                     // payload offset
                     InstrI32Const(payload_offset),
@@ -434,22 +449,23 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     // Benchmark the `gr_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     pub fn gr_send_commit(r: u32) -> Result<Exec<T>, &'static str> {
-        let pid_value_offset = Self::OFFSET;
-        let payload_offset = pid_value_offset + 16 + 32;
-        let payload_len = 100;
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let pid_value_offset = COMMON_OFFSET;
+        let payload_offset = pid_value_offset + PID_VALUE_SIZE;
+        let payload_len = COMMON_PAYLOAD_LEN;
         let res_offset = payload_offset + payload_len;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::Send],
             handle_body: Some(body::fallible_syscall(
-                r * API_BENCHMARK_BATCH_SIZE,
+                repetitions,
                 res_offset,
                 &[
                     // pid value offset
@@ -465,14 +481,15 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 10000000)
+        Self::prepare_handle(module, 10000000)
     }
 
     // Benchmark the `gr_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     pub fn gr_send_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let pid_value_offset = Self::OFFSET;
-        let payload_offset = pid_value_offset + 16 + 32;
+        let repetitions = API_BENCHMARK_BATCH_SIZE;
+        let pid_value_offset = COMMON_OFFSET;
+        let payload_offset = pid_value_offset + PID_VALUE_SIZE;
         let payload_len = n * 1024;
         let res_offset = payload_offset + payload_len;
 
@@ -480,7 +497,7 @@ where
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Send],
             handle_body: Some(body::fallible_syscall(
-                API_BENCHMARK_BATCH_SIZE,
+                repetitions,
                 res_offset,
                 &[
                     // pid value offset
@@ -496,27 +513,72 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 10000000)
+        Self::prepare_handle(module, 10000000)
     }
 
     // Benchmark the `gr_reservation_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     pub fn gr_reservation_send_commit(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let max_repetitions = API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE;
-        assert!(repetitions <= max_repetitions);
+        assert!(repetitions <= MAX_REPETITIONS);
 
-        let rid_pid_values = (0..max_repetitions)
+        let rid_pid_values: Vec<u8> = (0..MAX_REPETITIONS)
             .flat_map(|i| {
-                let mut bytes = [0; RID_PID_SIZE as usize];
-                bytes[..32].copy_from_slice(ReservationId::from(i as u64).as_ref());
+                let mut bytes = [0; RID_PID_VALUE_SIZE as usize];
+                bytes[..RID_SIZE as usize].copy_from_slice(ReservationId::from(i as u64).as_ref());
+                bytes
+            })
+            .collect();
+
+        let rid_pid_value_offset = COMMON_OFFSET;
+        let payload_offset = rid_pid_value_offset + rid_pid_values.len() as u32;
+        let payload_len = COMMON_PAYLOAD_LEN;
+        let res_offset = payload_offset + payload_len;
+
+        let module = ModuleDefinition {
+            // One `SMALL_MEM_SIZE + 1` in order to fit data segments in memory
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE + 1)),
+            imported_functions: vec![SysCallName::ReservationSend],
+            data_segments: vec![DataSegment {
+                offset: rid_pid_value_offset,
+                value: rid_pid_values,
+            }],
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // rid pid value offset
+                    Counter(rid_pid_value_offset, RID_PID_VALUE_SIZE),
+                    // payload offset
+                    InstrI32Const(payload_offset),
+                    // payload len
+                    InstrI32Const(payload_len),
+                    // delay
+                    InstrI32Const(10),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle_with_reservation_slots(module, repetitions)
+    }
+
+    // Benchmark the `gr_send_commit` call.
+    // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
+    pub fn gr_reservation_send_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = API_BENCHMARK_BATCH_SIZE;
+
+        let rid_pid_values = (0..repetitions)
+            .flat_map(|i| {
+                let mut bytes = [0; RID_PID_VALUE_SIZE as usize];
+                bytes[..RID_SIZE as usize].copy_from_slice(ReservationId::from(i as u64).as_ref());
                 bytes
             })
             .collect::<Vec<_>>();
 
-        let rid_pid_value_offset = Self::OFFSET;
+        let rid_pid_value_offset = COMMON_OFFSET;
         let payload_offset = rid_pid_value_offset + rid_pid_values.len() as u32;
-        let payload_len = 100;
+        let payload_len = n * 1024;
         let res_offset = payload_offset + payload_len;
 
         let module = ModuleDefinition {
@@ -531,7 +593,7 @@ where
                 res_offset,
                 &[
                     // rid pid value offset
-                    Counter(rid_pid_value_offset, RID_PID_SIZE),
+                    Counter(rid_pid_value_offset, RID_PID_VALUE_SIZE),
                     // payload offset
                     InstrI32Const(payload_offset),
                     // payload len
@@ -543,108 +605,20 @@ where
             ..Default::default()
         };
 
-        let instance = Program::<T>::new(module.into(), vec![])?;
-
-        // insert gas reservation slots
-        let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
-            for x in 0..r * API_BENCHMARK_BATCH_SIZE {
-                program.gas_reservation_map.insert(
-                    ReservationId::from(x as u64),
-                    GasReservationSlot {
-                        amount: 1_000,
-                        start: 1,
-                        finish: 100,
-                    },
-                );
-            }
-        })
-        .unwrap();
-
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(program_id),
-            vec![],
-            Default::default(),
-        )
-    }
-
-    // Benchmark the `gr_send_commit` call.
-    // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
-    pub fn gr_reservation_send_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let rid_pid_values = (0..API_BENCHMARK_BATCH_SIZE)
-            .flat_map(|i| {
-                let mut bytes = [0; RID_PID_SIZE as usize];
-                bytes[..32].copy_from_slice(ReservationId::from(i as u64).as_ref());
-                bytes
-            })
-            .collect::<Vec<_>>();
-
-        let rid_pid_value_offset = Self::OFFSET;
-        let payload_offset = rid_pid_value_offset + rid_pid_values.len() as u32;
-        let payload_len = n * 1024;
-        let res_offset = payload_offset + payload_len;
-
-        let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::ReservationSend],
-            data_segments: vec![DataSegment {
-                offset: rid_pid_value_offset,
-                value: rid_pid_values,
-            }],
-            handle_body: Some(body::fallible_syscall(
-                API_BENCHMARK_BATCH_SIZE,
-                res_offset,
-                &[
-                    // rid pid value offset
-                    Counter(rid_pid_value_offset, RID_PID_SIZE),
-                    // payload offset
-                    InstrI32Const(payload_offset),
-                    // payload len
-                    InstrI32Const(payload_len),
-                    // delay
-                    InstrI32Const(10),
-                ],
-            )),
-            ..Default::default()
-        };
-
-        let instance = Program::<T>::new(module.into(), vec![])?;
-
-        // insert gas reservation slots
-        let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
-            for x in 0..API_BENCHMARK_BATCH_SIZE {
-                program.gas_reservation_map.insert(
-                    ReservationId::from(x as u64),
-                    GasReservationSlot {
-                        amount: 1_000,
-                        start: 1,
-                        finish: 100,
-                    },
-                );
-            }
-        })
-        .unwrap();
-
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(program_id),
-            vec![],
-            Default::default(),
-        )
+        Self::prepare_handle_with_reservation_slots(module, repetitions)
     }
 
     // +_+_+ check in scheduler
     pub fn gr_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {
-        let value_offset = Self::OFFSET;
-        let res_offset = value_offset + mem::size_of::<u128>() as u32;
+        let repetitions = r;
+        let value_offset = COMMON_OFFSET;
+        let res_offset = value_offset + VALUE_SIZE;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::ReplyCommit],
             handle_body: Some(body::fallible_syscall(
-                r,
+                repetitions,
                 res_offset,
                 &[
                     // value ptr
@@ -656,12 +630,13 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 10000000)
+        Self::prepare_handle(module, 10000000)
     }
 
     // +_+_+ check in scheduler
     pub fn gr_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let payload_offset = Self::OFFSET;
+        let repetitions = 1;
+        let payload_offset = COMMON_OFFSET;
         let payload_len = n * 1024;
         let res_offset = payload_offset + payload_len;
 
@@ -669,7 +644,7 @@ where
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Reply],
             handle_body: Some(body::fallible_syscall(
-                1,
+                repetitions,
                 res_offset,
                 &[
                     // payload ptr
@@ -689,15 +664,16 @@ where
     }
 
     pub fn gr_reply_push(r: u32) -> Result<Exec<T>, &'static str> {
-        let payload_offset = Self::OFFSET;
-        let payload_len = 100;
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let payload_offset = COMMON_OFFSET;
+        let payload_len = COMMON_PAYLOAD_LEN;
         let res_offset = payload_offset + payload_len;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::ReplyPush],
             handle_body: Some(body::fallible_syscall(
-                r * API_BENCHMARK_BATCH_SIZE,
+                repetitions,
                 res_offset,
                 &[
                     // payload ptr
@@ -709,20 +685,21 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 10000000)
+        Self::prepare_handle(module, 10000000)
     }
 
     // +_+_+ check in scheduler
     pub fn gr_reply_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let payload_offset = Self::OFFSET;
+        let repetitions = 1;
+        let payload_offset = COMMON_OFFSET;
         let payload_len = n * 1024;
         let res_offset = payload_offset + payload_len;
 
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::ReplyPush],
             handle_body: Some(body::fallible_syscall(
-                1,
+                repetitions,
                 res_offset,
                 &[
                     // payload ptr
@@ -732,8 +709,9 @@ where
                 ],
             )),
             ..Default::default()
-        });
-        Self::prepare_handle(code, 10000000)
+        };
+
+        Self::prepare_handle(module, 10000000)
     }
 
     // +_+_+ check in scheduler
@@ -744,17 +722,17 @@ where
 
         let rid_values: Vec<_> = (0..max_repetitions)
             .flat_map(|i| {
-                let mut bytes = [0; RID_SIZE as usize];
-                bytes[..32].copy_from_slice(ReservationId::from(i as u64).as_ref());
+                let mut bytes = [0; RID_VALUE_SIZE as usize];
+                bytes[..RID_SIZE as usize].copy_from_slice(ReservationId::from(i as u64).as_ref());
                 bytes.to_vec()
             })
             .collect();
 
-        let rid_value_offset = Self::OFFSET;
+        let rid_value_offset = COMMON_OFFSET;
         let res_offset = rid_value_offset + rid_values.len() as u32;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::ReservationReplyCommit],
             data_segments: vec![DataSegment {
                 offset: rid_value_offset,
@@ -765,7 +743,7 @@ where
                 res_offset,
                 &[
                     // rid_value ptr
-                    Counter(rid_value_offset, RID_SIZE),
+                    Counter(rid_value_offset, RID_VALUE_SIZE),
                     // delay
                     InstrI32Const(10),
                 ],
@@ -773,36 +751,14 @@ where
             ..Default::default()
         };
 
-        let instance = Program::<T>::new(module.into(), vec![])?;
-
-        // insert gas reservation slots
-        let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
-            for x in 0..r * API_BENCHMARK_BATCH_SIZE {
-                program.gas_reservation_map.insert(
-                    ReservationId::from(x as u64),
-                    GasReservationSlot {
-                        amount: 1_000,
-                        start: 1,
-                        finish: 100,
-                    },
-                );
-            }
-        })
-        .unwrap();
-
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(program_id),
-            vec![],
-            Default::default(),
-        )
+        Self::prepare_handle_with_reservation_slots(module, repetitions)
     }
 
     // +_+_+ check in scheduler
     pub fn gr_reservation_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let rid_value_offset = Self::OFFSET;
-        let payload_offset = rid_value_offset + RID_SIZE;
+        let repetitions = 1;
+        let rid_value_offset = COMMON_OFFSET;
+        let payload_offset = rid_value_offset + RID_VALUE_SIZE;
         let payload_len = n * 1024;
         let res_offset = payload_offset + payload_len;
 
@@ -810,7 +766,7 @@ where
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::ReservationReply],
             handle_body: Some(body::fallible_syscall(
-                1,
+                repetitions,
                 res_offset,
                 &[
                     // rid_value ptr
@@ -826,38 +782,15 @@ where
             ..Default::default()
         };
 
-        let instance = Program::<T>::new(module.into(), vec![])?;
-
-        // insert gas reservation slots
-        let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
-            for x in 0..API_BENCHMARK_BATCH_SIZE {
-                program.gas_reservation_map.insert(
-                    ReservationId::from(x as u64),
-                    GasReservationSlot {
-                        amount: 1_000,
-                        start: 1,
-                        finish: 100,
-                    },
-                );
-            }
-        })
-        .unwrap();
-
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(program_id),
-            vec![],
-            Default::default(),
-        )
+        Self::prepare_handle_with_reservation_slots(module, repetitions)
     }
 
     pub fn gr_reply_to(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let res_offset = Self::OFFSET;
+        let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::ReplyTo],
             reply_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
@@ -889,10 +822,10 @@ where
 
     pub fn gr_signal_from(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let res_offset = Self::OFFSET;
+        let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::SignalFrom],
             handle_body: Some(body::syscall(repetitions, &[InstrI32Const(res_offset)])),
             ..Default::default()
@@ -903,12 +836,12 @@ where
 
     pub fn gr_reply_push_input(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let payload_offset = Self::OFFSET;
-        let payload_len = 100;
+        let payload_offset = COMMON_OFFSET;
+        let payload_len = COMMON_PAYLOAD_LEN;
         let res_offset = payload_offset + payload_len;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::ReplyPushInput],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
@@ -923,14 +856,14 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     // +_+_+ check in scheduler
     // TODO: additional param for message payload len #+_+_+
     pub fn gr_reply_push_input_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = 1;
-        let payload_offset = Self::OFFSET;
+        let payload_offset = COMMON_OFFSET;
         let payload_len = n * 1024;
         let res_offset = payload_offset + payload_len;
 
@@ -950,18 +883,18 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_send_push_input(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let payload_offset = Self::OFFSET;
-        let payload_len = 100;
+        let payload_offset = COMMON_OFFSET;
+        let payload_len = COMMON_PAYLOAD_LEN;
         let err_handle_offset = payload_offset + payload_len;
         let res_offset = err_handle_offset + ERR_HANDLE_SIZE;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::SendPushInput, SysCallName::SendInit],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
@@ -971,8 +904,8 @@ where
                     InstrI32Const(err_handle_offset),
                     // CALL send init
                     InstrCall(1),
-                    // get handle
-                    InstrI32Const(err_handle_offset + HANDLE_OFFSET),
+                    // get handle from send init result
+                    InstrI32Const(err_handle_offset + ERR_LEN_SIZE),
                     Regular(Instruction::I32Load(2, 0)),
                     // payload offset
                     InstrI32Const(payload_offset),
@@ -983,13 +916,13 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     // TODO: additional param for message payload len #+_+_+
     pub fn gr_send_push_input_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = API_BENCHMARK_BATCH_SIZE;
-        let payload_offset = Self::OFFSET;
+        let payload_offset = COMMON_OFFSET;
         let payload_len = n * 1024;
         let err_handle_offset = payload_offset + payload_len;
         let res_offset = err_handle_offset + ERR_HANDLE_SIZE;
@@ -1006,7 +939,7 @@ where
                     // call send init
                     InstrCall(1),
                     // get handle
-                    InstrI32Const(err_handle_offset + HANDLE_OFFSET),
+                    InstrI32Const(err_handle_offset + ERR_LEN_SIZE),
                     Regular(Instruction::I32Load(2, 0)),
                     // payload offset
                     InstrI32Const(payload_offset),
@@ -1017,21 +950,22 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_status_code(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let res_offset = Self::OFFSET;
+        let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::StatusCode],
             reply_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
         };
 
         let instance = Program::<T>::new(module.into(), vec![])?;
+
         let msg_id = MessageId::from(10);
         let msg = Message::new(
             msg_id,
@@ -1045,6 +979,7 @@ where
         .into_stored();
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
+
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
             HandleKind::Reply(msg_id, 0),
@@ -1055,11 +990,11 @@ where
 
     pub fn gr_debug(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let string_offset = Self::OFFSET;
-        let string_len = 100;
+        let string_offset = COMMON_OFFSET;
+        let string_len = COMMON_PAYLOAD_LEN;
 
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::Debug],
             handle_body: Some(body::syscall(
                 repetitions,
@@ -1071,14 +1006,14 @@ where
                 ],
             )),
             ..Default::default()
-        });
+        };
 
-        Self::prepare_handle(code, 0)
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_debug_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = API_BENCHMARK_BATCH_SIZE;
-        let string_offset = Self::OFFSET;
+        let string_offset = COMMON_OFFSET;
         let string_len = n * 1024;
 
         let module = ModuleDefinition {
@@ -1096,12 +1031,12 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let res_offset = Self::OFFSET;
+        let res_offset = COMMON_OFFSET;
         let err_data_buffer_offset = res_offset + ERR_LEN_SIZE;
 
         let mut handle_body = body::fallible_syscall(
@@ -1124,13 +1059,13 @@ where
         );
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::Error],
             handle_body: Some(handle_body),
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     pub fn termination_bench(
@@ -1150,7 +1085,7 @@ where
         };
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(Self::SMALL_MEM_SIZE)),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![name],
             handle_body: Some(body::syscall(repetitions, &params)),
             ..Default::default()
@@ -1159,21 +1094,19 @@ where
         Self::prepare_handle(module.into(), 0)
     }
 
-    // ZZZ
-
     pub fn gr_wake(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         assert!(repetitions <= MAX_REPETITIONS);
 
         let message_ids: Vec<u8> = (0..MAX_REPETITIONS)
-            .flat_map(|i| <[u8; 32]>::from(MessageId::from(i as u64)).to_vec())
+            .flat_map(|i| <[u8; MID_SIZE as usize]>::from(MessageId::from(i as u64)).to_vec())
             .collect();
 
-        let message_id_offset = Self::OFFSET;
+        let message_id_offset = COMMON_OFFSET;
         let res_offset = message_id_offset + message_ids.len() as u32;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::Wake],
             data_segments: vec![DataSegment {
                 offset: message_id_offset,
@@ -1184,7 +1117,7 @@ where
                 res_offset,
                 &[
                     // message id offset
-                    Counter(message_id_offset, 32),
+                    Counter(message_id_offset, MID_SIZE),
                     // delay
                     InstrI32Const(10),
                 ],
@@ -1192,7 +1125,7 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_create_program_wgas(r: u32) -> Result<Exec<T>, &'static str> {
@@ -1204,21 +1137,21 @@ where
             module.code,
         );
 
-        let mut cid_value = [0; (CID_SIZE + VALUE_SIZE) as usize];
+        let mut cid_value = [0; CID_VALUE_SIZE as usize];
         cid_value[0..CID_SIZE as usize].copy_from_slice(module.hash.as_ref());
         cid_value[CID_SIZE as usize..].copy_from_slice(&0u128.to_le_bytes());
 
-        let cid_value_offset = Self::OFFSET;
+        let cid_value_offset = COMMON_OFFSET;
         let payload_offset = cid_value_offset + cid_value.len() as u32;
         let payload_len = 10;
-        let salt_len = 32;
         let res_offset = payload_offset + payload_len;
 
         // Use previous result bytes as salt. First one uses 0 bytes.
         let salt_offset = res_offset;
+        let salt_len = 32;
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::CreateProgramWGas],
             data_segments: vec![DataSegment {
                 offset: cid_value_offset,
@@ -1263,7 +1196,7 @@ where
         cid_value[0..CID_SIZE as usize].copy_from_slice(module.hash.as_ref());
         cid_value[CID_SIZE as usize..].copy_from_slice(&0u128.to_le_bytes());
 
-        let cid_value_offset = Self::OFFSET;
+        let cid_value_offset = COMMON_OFFSET;
         let payload_offset = cid_value_offset + cid_value.len() as u32;
         let payload_len = pkb * 1024;
         let res_offset = payload_offset + payload_len;
@@ -1302,43 +1235,43 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     pub fn lazy_pages_signal_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let instrs = body::read_access_all_pages_instrs(wasm_pages, vec![]);
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()
-        });
-        Self::prepare_handle(code, 0)
+        };
+        Self::prepare_handle(module, 0)
     }
 
     pub fn lazy_pages_signal_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let instrs = body::write_access_all_pages_instrs(wasm_pages, vec![]);
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()
-        });
-        Self::prepare_handle(code, 0)
+        };
+        Self::prepare_handle(module, 0)
     }
 
     pub fn lazy_pages_signal_write_after_read(
         wasm_pages: WasmPage,
     ) -> Result<Exec<T>, &'static str> {
-        let mut instrs = body::read_access_all_pages_instrs(max_pages::<T>().into(), vec![]);
-        instrs = body::write_access_all_pages_instrs(wasm_pages, instrs);
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let instrs = body::read_access_all_pages_instrs(max_pages::<T>().into(), vec![]);
+        let instrs = body::write_access_all_pages_instrs(wasm_pages, instrs);
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()
-        });
-        Self::prepare_handle(code, 0)
+        };
+        Self::prepare_handle(module, 0)
     }
 
     pub fn lazy_pages_load_page_storage_data(
@@ -1360,11 +1293,11 @@ where
     }
 
     pub fn lazy_pages_host_func_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Debug],
             handle_body: Some(body::from_instructions(vec![
-                // payload ptr
+                // payload offset
                 Instruction::I32Const(0),
                 // payload len
                 Instruction::I32Const(wasm_pages.offset() as i32),
@@ -1373,12 +1306,12 @@ where
             ])),
             stack_end: Some(0.into()),
             ..Default::default()
-        });
-        Self::prepare_handle(code, 0)
+        };
+        Self::prepare_handle(module, 0)
     }
 
     pub fn lazy_pages_host_func_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Read],
             handle_body: Some(body::from_instructions(vec![
@@ -1395,25 +1328,21 @@ where
             ])),
             stack_end: Some(0.into()),
             ..Default::default()
-        });
+        };
 
-        let instance = Program::<T>::new(code, vec![])?;
-
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-            vec![0xff; MAX_PAYLOAD_LEN as usize],
-            Default::default(),
-        )
+        Self::prepare_handle_with_const_payload(module)
     }
 
     pub fn lazy_pages_host_func_write_after_read(
         wasm_pages: WasmPage,
     ) -> Result<Exec<T>, &'static str> {
-        assert!(wasm_pages <= Self::MAX_PAGES.into());
+        let max_pages = WasmPage::from_offset(MAX_PAYLOAD_LEN);
+        assert!(wasm_pages <= max_pages);
 
         // Access const amount of pages before `gr_read` calls in order to make all pages read accessed.
-        let mut instrs = body::read_access_all_pages_instrs(Self::MAX_PAGES.into(), vec![]);
+        let mut instrs = body::read_access_all_pages_instrs(max_pages, vec![]);
+
+        // Add `gr_read` call.
         instrs.extend_from_slice(&[
             // at
             Instruction::I32Const(0),
@@ -1427,21 +1356,14 @@ where
             Instruction::Call(0),
         ]);
 
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Read],
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()
-        });
+        };
 
-        let instance = Program::<T>::new(code, vec![])?;
-
-        utils::prepare_exec::<T>(
-            instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
-            vec![0xff; MAX_PAYLOAD_LEN as usize],
-            Default::default(),
-        )
+        Self::prepare_handle_with_const_payload(module)
     }
 }

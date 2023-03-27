@@ -126,12 +126,6 @@ impl ImportedMemory {
         }
     }
 
-    pub fn one() -> Self {
-        Self {
-            min_pages: 1.into(),
-        }
-    }
-
     pub fn new(min_pages: u16) -> Self {
         Self {
             min_pages: min_pages.into(),

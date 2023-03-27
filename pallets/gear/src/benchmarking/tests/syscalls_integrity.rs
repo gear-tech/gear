@@ -1053,7 +1053,7 @@ where
     T::AccountId: Origin,
 {
     ModuleDefinition {
-        memory: Some(ImportedMemory::one()),
+        memory: Some(ImportedMemory::new(1)),
         ..Default::default()
     }
     .into()
@@ -1130,7 +1130,7 @@ where
     use gear_wasm_instrument::parity_wasm::elements::{FuncBody, Instructions};
 
     ModuleDefinition {
-        memory: Some(ImportedMemory::one()),
+        memory: Some(ImportedMemory::new(1)),
         imported_functions: vec![SysCallName::Alloc, SysCallName::Free],
         init_body: Some(FuncBody::new(
             vec![],
