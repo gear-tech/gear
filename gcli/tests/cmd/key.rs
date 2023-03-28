@@ -38,7 +38,7 @@ fn test_sign_and_verify() -> Result<()> {
     //     Secret Seed:  0xb437604109791c3ea203cb840e29d7512e65251237bb927b65fae9bea0829c09
     //     Public key:   0xcafede900f53dae1b499d2a0d70898d631900e5918b2ba76bbcfafef9e5f007f
     //     SS58 Address: 5GesEyyr5EU1rGLt9JK72EYdvAeakqWNoKk5i7ZZSq9n6U3R
-    let key_info = common::gcli(&["key", "generate"])?.stdout.convert();
+    let key_info = common::gcli(["key", "generate"])?.stdout.convert();
     let secret = parse_from(&key_info, SEED_PATT);
     let public = parse_from(&key_info, PUBLIC_PATT);
 
@@ -50,7 +50,7 @@ fn test_sign_and_verify() -> Result<()> {
     //     Public key:   0xe4b6453570bc573eebe4143e40e023c7d702e2d8ffc0e3b39d4268671a3f1362
     //     SS58 Address: 5HEavLjXpVQtAWrsr7BjxXZysoW27zESHGpMX6nro7RGFEMA
     let message = "42";
-    let sign_info = common::gcli(&["key", "sign", secret, message])?
+    let sign_info = common::gcli(["key", "sign", secret, message])?
         .stdout
         .convert();
     let sig = parse_from(&sign_info, SIGNATURE_PATT);
@@ -58,7 +58,7 @@ fn test_sign_and_verify() -> Result<()> {
     // STDOUT of verify output template:
     //
     // Result: true
-    let verify_info = common::gcli(&["key", "verify", sig, message, public])?
+    let verify_info = common::gcli(["key", "verify", sig, message, public])?
         .stdout
         .convert();
 
@@ -73,15 +73,13 @@ fn test_node_key() -> Result<()> {
     //
     // Secret:  0x510b7a90ac2050b8952682489da36f5064f0b7348f3da557dacc36ae8c66cc99
     // Peer ID: 12D3KooWQEUQzpFif7Kv7BgGpniQPat8X1tjLkogrNyL4cww51MR
-    let key_info = common::gcli(&["key", "generate-node-key"])?
-        .stdout
-        .convert();
+    let key_info = common::gcli(["key", "generate-node-key"])?.stdout.convert();
     let secret = parse_from(&key_info, SECRET_PATT);
 
     // template STDOUT
     //
     // Peer ID: 12D3KooWQEUQzpFif7Kv7BgGpniQPat8X1tjLkogrNyL4cww51MR
-    let inspect_info = common::gcli(&["key", "inspect-node-key", secret])?
+    let inspect_info = common::gcli(["key", "inspect-node-key", secret])?
         .stdout
         .convert();
 

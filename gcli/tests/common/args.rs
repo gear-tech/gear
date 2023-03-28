@@ -56,7 +56,7 @@ impl From<Args> for Vec<String> {
             vec![args.command.to_string()],
             args.args
                 .into_iter()
-                .map(|(f, a)| [f.to_string(), a])
+                .map(|(f, a)| [f, a])
                 .collect::<Vec<[String; 2]>>()
                 .concat(),
             args.with,
