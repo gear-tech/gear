@@ -32,7 +32,7 @@ pub struct UploadProgram {
     salt: String,
     /// gear program init payload ( hex encoding )
     #[arg(short, long, default_value = "0x")]
-    init_payload: String,
+    payload: String,
     /// gear program gas limit
     ///
     /// if zero, gear will estimate this automatically
@@ -47,7 +47,7 @@ impl UploadProgram {
     /// Exec command submit
     pub async fn exec(&self, signer: Signer) -> Result<()> {
         let code = fs::read(&self.code)?;
-        let payload = utils::hex_to_vec(&self.init_payload)?;
+        let payload = utils::hex_to_vec(&self.payload)?;
 
         let gas = if self.gas_limit == 0 {
             signer

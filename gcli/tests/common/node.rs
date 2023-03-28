@@ -49,6 +49,7 @@ impl Node {
             "--tmp",
             "--chain=vara-dev",
             "--alice",
+            "--validator",
             "--reserved-only",
         ];
         let ps = Command::new(env::bin("gear"))

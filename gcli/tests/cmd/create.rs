@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `deploy`
-use crate::common::{self, env, logs, traits::Convert, Result};
+use crate::common::{self, env, logs, traits::Convert, Args, Result};
 
 #[tokio::test]
 async fn test_command_upload_program_works() -> Result<()> {
@@ -25,13 +25,8 @@ async fn test_command_upload_program_works() -> Result<()> {
     let mut node = common::Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let output = common::gear(&[
-        "-e",
-        &node.ws(),
-        "upload-program",
-        &env::wasm_bin("demo_meta.opt.wasm"),
-    ])?;
-
+    let output =
+        node.run(Args::new("upload-program").program(env::wasm_bin("demo_meta.opt.wasm")))?;
     let stderr = output.stderr.convert();
     if !stderr.contains(logs::gear_program::EX_UPLOAD_PROGRAM) {
         panic!("{stderr}")

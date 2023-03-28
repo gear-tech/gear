@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `send`
-use crate::common::{self, Result};
+use crate::common::{self, Args, Result};
 use gsdk::Api;
 use parity_scale_codec::Encode;
 
@@ -35,7 +35,7 @@ async fn test_command_send_works() -> Result<()> {
 
     // Send message to messager
     let dest = hex::encode(mailbox[0].0.source.0);
-    let _ = common::gear(&["-e", &node.ws(), "send", &dest, "--gas-limit", "2000000000"])?;
+    let _ = node.run(Args::new("send").destination(dest).gas_limit("2000000000"))?;
     let mailbox = signer
         .api()
         .mailbox(Some(common::alice_account_id()), 10)

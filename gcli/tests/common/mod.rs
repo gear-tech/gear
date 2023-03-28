@@ -18,15 +18,18 @@
 
 //! Common utils for integration tests
 pub use self::{
+    args::Args,
     node::Node,
     result::{Error, Result},
 };
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
-#[cfg(not(feature = "vara-testing"))]
-use parity_scale_codec::Encode;
-use std::process::{Command, Output};
+use std::{
+    iter::IntoIterator,
+    process::{Command, Output},
+};
 
+mod args;
 pub mod env;
 pub mod logs;
 mod node;
@@ -34,13 +37,34 @@ mod port;
 mod result;
 pub mod traits;
 
-pub const ALICE_SS58_ADDRESS: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
 #[cfg(not(feature = "vara-testing"))]
-pub const MESSAGER_SENT_VALUE: u128 = 5_000;
+mod prelude {
+    pub use parity_scale_codec::Encode;
 
-/// Run binary `gear`
-pub fn gear(args: &[&str]) -> Result<Output> {
-    Ok(Command::new(env::bin("gcli")).args(args).output()?)
+    pub const ALICE_SS58_ADDRESS: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
+    pub const MESSAGER_SENT_VALUE: u128 = 5_000;
+}
+
+#[cfg(not(feature = "vara-testing"))]
+pub use prelude::*;
+
+// TODO: refactor this implementation after #2481.
+impl Node {
+    /// Run binary `gcli`
+    pub fn run(&self, args: Args) -> Result<Output> {
+        gcli(Vec::<String>::from(args.endpoint(self.ws())))
+    }
+}
+
+/// Run binary `gcli`
+pub fn gcli<T: ToString>(args: impl IntoIterator<Item = T>) -> Result<Output> {
+    Ok(Command::new(env::bin("gcli"))
+        .args(
+            args.into_iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>(),
+        )
+        .output()?)
 }
 
 /// Init env logger
@@ -51,7 +75,7 @@ pub fn init_logger() {
 
 /// Login as //Alice
 pub fn login_as_alice() -> Result<()> {
-    let _ = gear(&["login", "//Alice"])?;
+    let _ = gcli(&["login", "//Alice"])?;
 
     Ok(())
 }
@@ -73,32 +97,12 @@ pub async fn create_messager() -> Result<Node> {
     let mut node = Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let messager = env::wasm_bin("messager.opt.wasm");
+    let args = Args::new("upload-program").program(env::wasm_bin("messager.opt.wasm"));
+    #[cfg(not(feature = "vara-testing"))]
+    let args = args
+        .payload("0x".to_owned() + &hex::encode(MESSAGER_SENT_VALUE.encode()))
+        .value("10000000");
 
-    let args = &[
-        "-e",
-        &node.ws(),
-        "upload-program",
-        &messager,
-        "--gas-limit",
-        "20000000000",
-    ];
-
-    let _ = gear(
-        #[cfg(feature = "vara-testing")]
-        args,
-        #[cfg(not(feature = "vara-testing"))]
-        &[
-            args.to_vec(),
-            vec![
-                "--init-payload",
-                &("0x".to_owned() + &hex::encode(MESSAGER_SENT_VALUE.encode())),
-                "--value",
-                "10000000",
-            ],
-        ]
-        .concat(),
-    )?;
-
+    let _ = node.run(args)?;
     Ok(node)
 }

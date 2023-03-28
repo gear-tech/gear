@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `deploy`
-use crate::common::{self, logs, traits::Convert, Result, ALICE_SS58_ADDRESS};
+use crate::common::{self, logs, traits::Convert, Args, Result};
 
 #[cfg(not(feature = "vara-testing"))]
 const EXPECTED_BALANCE: &str = r#"
@@ -83,7 +83,7 @@ async fn test_action_balance_works() -> Result<()> {
     let mut node = common::Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let output = common::gear(&["-e", &node.ws(), "info", "//Alice", "balance"])?;
+    let output = node.run(Args::new("info").address("//Alice").action("balance"))?;
     assert_eq!(EXPECTED_BALANCE.trim(), output.stdout.convert().trim());
     Ok(())
 }
@@ -91,7 +91,7 @@ async fn test_action_balance_works() -> Result<()> {
 #[tokio::test]
 async fn test_action_mailbox_works() -> Result<()> {
     let node = common::create_messager().await?;
-    let output = common::gear(&["-e", &node.ws(), "info", ALICE_SS58_ADDRESS, "mailbox"])?;
+    let output = node.run(Args::new("info").address("//Alice").action("mailbox"))?;
 
     let stdout = output.stdout.convert();
     if !stdout.contains(EXPECTED_MAILBOX.trim()) {
