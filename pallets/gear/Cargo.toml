@@ -21,7 +21,7 @@ gear-wasm-instrument = { workspace = true }
 derive_more = { workspace = true }
 env_logger = { workspace = true, optional = true }
 scopeguard = { workspace = true }
- 
+
 # Internal deps
 common = { workspace = true }
 gear-lazy-pages-common = { workspace = true, optional = true }
@@ -33,7 +33,7 @@ gear-backend-sandbox = { workspace = true }
 gear-backend-wasmi = { workspace = true, optional = true }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 gsys = { workspace = true, optional = true }
- 
+
 # Substrate deps
 frame-support = { workspace = true }
 frame-system = { workspace = true }
@@ -102,7 +102,7 @@ pallet-gear-gas = { workspace = true }
 pallet-gear-messenger = { workspace = true }
 pallet-gear-scheduler = { workspace = true }
 pallet-gear-program = { workspace = true }
-gear-runtime-interface = { workspace = true }
+gear-runtime-interface = { workspace = true, features = ["std"] }
 gmeta = { workspace = true }
 
 [features]
@@ -114,7 +114,7 @@ std = [
 	"common/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
-  "frame-support-test/std",
+	"frame-support-test/std",
 	"frame-system/std",
 	"gear-wasm-instrument/std",
 	"scopeguard/use_std",
@@ -128,10 +128,10 @@ std = [
 	"sp-externalities/std",
 	"pallet-balances/std",
 	"pallet-authorship/std",
-  "pallet-gear-gas/std",
-  "pallet-gear-messenger/std",
-  "pallet-gear-scheduler/std",
-  "pallet-gear-program/std",
+	"pallet-gear-gas/std",
+	"pallet-gear-messenger/std",
+	"pallet-gear-scheduler/std",
+	"pallet-gear-program/std",
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",
