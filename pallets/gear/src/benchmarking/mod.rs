@@ -65,7 +65,6 @@ use common::{
     storage::{Counter, *},
     CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
 };
-use core::ops::Range;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
@@ -189,7 +188,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
     }
 }
 
-fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Range<u32>)) {
+fn verify_process(notes: Vec<JournalNote>) {
     assert!(
         !notes.is_empty(),
         "Journal notes cannot be empty after execution"
@@ -213,40 +212,20 @@ fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Range<u32>)) {
             _ => {}
         }
     }
-
-    let start_page_number = GearPage::from_offset(err_len_ptrs.start);
-    let end_page_number = GearPage::from_offset(err_len_ptrs.end);
-    start_page_number
-        .iter_end_inclusive(end_page_number)
-        .unwrap()
-        .flat_map(|page_number| {
-            pages_data
-                .get(&page_number)
-                .map(|page| (page as &[u8]).to_vec())
-                .unwrap_or_else(|| vec![0; GearPage::size() as usize])
-        })
-        .skip(err_len_ptrs.start as usize)
-        .take(err_len_ptrs.len())
-        .all(|b| b == 0)
-        .then_some(())
-        .expect("Fallible sys-call returned error")
 }
 
-fn run_process<T>(exec: Exec<T>) -> (Vec<JournalNote>, Range<u32>)
+fn run_process<T>(exec: Exec<T>) -> Vec<JournalNote>
 where
     T: Config,
     T::AccountId: Origin,
 {
-    (
-        core_processor::process::<ExecutionEnvironment>(
-            &exec.block_config,
-            exec.context,
-            exec.random_data,
-            exec.memory_pages,
-        )
-        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e)),
-        exec.err_len_ptrs,
+    core_processor::process::<ExecutionEnvironment>(
+        &exec.block_config,
+        exec.context,
+        exec.random_data,
+        exec.memory_pages,
     )
+    .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
 
 /// An instantiated and deployed program.
@@ -319,7 +298,6 @@ pub struct Exec<T: Config> {
     context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
     memory_pages: BTreeMap<GearPage, PageBuf>,
-    err_len_ptrs: Range<u32>,
 }
 
 benchmarks! {

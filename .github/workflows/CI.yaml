@@ -258,8 +258,8 @@ jobs:
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
-          cargo build -p gear-cli --release --features runtime-benchmarks
-          ./target/release/gear benchmark pallet --chain=dev --steps=2 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+          cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
           # check also lazy-pages benchmarks tests for native runtime
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra

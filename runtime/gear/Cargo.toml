@@ -123,6 +123,9 @@ runtime-benchmarks = [
 	"pallet-gear/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
+runtime-benchmarks-checkers = [
+	"pallet-gear/runtime-benchmarks-checkers",
+]
 try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-try-runtime",

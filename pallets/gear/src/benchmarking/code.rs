@@ -273,8 +273,7 @@ where
             }
         }
 
-        // Add stack end export.
-        // Default is one, in order to remove lazy-pages factor from most benches.
+        // Add stack end export
         let stack_end = def.stack_end.unwrap_or(
             def.memory
                 .as_ref()

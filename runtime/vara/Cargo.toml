@@ -186,6 +186,9 @@ runtime-benchmarks = [
 	"pallet-ranked-collective/runtime-benchmarks",
 	"pallet-referenda/runtime-benchmarks",
 ]
+runtime-benchmarks-checkers = [
+	"pallet-gear/runtime-benchmarks-checkers",
+]
 try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-try-runtime",

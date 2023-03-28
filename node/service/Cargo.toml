@@ -121,6 +121,10 @@ runtime-benchmarks = [
 	"gear-runtime?/runtime-benchmarks",
 	"vara-runtime?/runtime-benchmarks",
 ]
+runtime-benchmarks-checkers = [
+	"gear-runtime?/runtime-benchmarks-checkers",
+	"vara-runtime?/runtime-benchmarks-checkers",
+]
 debug-mode = [
 	"gear-runtime?/debug-mode",
 	"vara-runtime?/debug-mode",

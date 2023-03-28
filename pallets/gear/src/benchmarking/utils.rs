@@ -290,8 +290,6 @@ where
         block_config,
         context: (context, code, balance, origin).into(),
         random_data: (vec![0u8; 32], 0),
-        // actor without pages data, because of lazy pages enabled
         memory_pages: Default::default(),
-        err_len_ptrs: 0..0,
     })
 }
