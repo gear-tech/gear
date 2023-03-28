@@ -22,7 +22,7 @@ use libfuzzer_sys::fuzz_target;
 use once_cell::sync::OnceCell;
 use std::{
     fs::{self, OpenOptions},
-    io::{Write, Result as IoResult, Error as IoError},
+    io::{Error as IoError, Result as IoResult, Write},
     path::Path,
 };
 
@@ -60,7 +60,6 @@ fn dump_seed(seed: u64) -> IoResult<()> {
         .append(true)
         .open(seeds_file)
         .and_then(|mut file| writeln!(file, "{seed}"))
-
 }
 
 fn clear_dir(path: &Path) -> IoResult<()> {
