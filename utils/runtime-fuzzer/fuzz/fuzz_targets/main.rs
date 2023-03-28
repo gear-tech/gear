@@ -64,10 +64,7 @@ fn dump_seed(seed: u64) -> IoResult<()> {
 
 fn clear_dir(path: &Path) -> IoResult<()> {
     for dir_entry in fs::read_dir(path)? {
-        let dir_entry = dir_entry?;
-        let path = dir_entry.path();
-
-        fs::remove_file(path)?;
+        fs::remove_file(dir_entry?.path())?;
     }
 
     Ok(())
