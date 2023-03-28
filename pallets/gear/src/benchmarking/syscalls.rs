@@ -166,8 +166,7 @@ where
                 ],
             )),
             ..Default::default()
-        }
-        .into();
+        };
 
         Self::prepare_handle(module, 0)
     }
@@ -195,8 +194,7 @@ where
             init_body: None,
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
-        }
-        .into();
+        };
 
         Self::prepare_handle(module, 0)
     }
@@ -673,7 +671,7 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 10000000)
+        Self::prepare_handle(module, 10000000)
     }
 
     pub fn gr_reply_push(r: u32) -> Result<Exec<T>, &'static str> {
@@ -841,7 +839,7 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_reply_push_input(r: u32) -> Result<Exec<T>, &'static str> {
@@ -1102,7 +1100,7 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_wake(r: u32) -> Result<Exec<T>, &'static str> {
@@ -1191,7 +1189,7 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module.into(), 0)
+        Self::prepare_handle(module, 0)
     }
 
     pub fn gr_create_program_wgas_per_kb(pkb: u32, skb: u32) -> Result<Exec<T>, &'static str> {

@@ -259,13 +259,14 @@ where
         }
 
         // Upload program with code
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Random],
             handle_body: Some(body::from_instructions(instrs)),
+            stack_end: Some(0.into()),
             ..Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![]).unwrap();
+        };
+        let instance = Program::<T>::new(module.into(), vec![]).unwrap();
         let source = instance.caller.into_origin();
         let program_id = ProgramId::from_origin(instance.addr);
 
@@ -353,12 +354,13 @@ where
     let write_after_read_cost = 100u64;
 
     let test = |instrs, expected| {
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::from_instructions(instrs)),
+            stack_end: Some(0.into()),
             ..Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![]).unwrap();
+        };
+        let instance = Program::<T>::new(module.into(), vec![]).unwrap();
 
         let charged = |i: u64| {
             let instance = instance.clone();
@@ -514,12 +516,13 @@ where
         Instruction::I32Const(42),
         Instruction::I32Store(2, 0),
     ];
-    let code = WasmModule::<T>::from(ModuleDefinition {
+    let module = ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
         handle_body: Some(body::from_instructions(instrs)),
+        stack_end: Some(0.into()),
         ..Default::default()
-    });
-    let instance = Program::<T>::new(code, vec![]).unwrap();
+    };
+    let instance = Program::<T>::new(module.into(), vec![]).unwrap();
     let source = instance.caller.into_origin();
     let origin = instance.addr;
 

@@ -277,7 +277,7 @@ where
         let stack_end = def.stack_end.unwrap_or(
             def.memory
                 .as_ref()
-                .map(|memory| memory.min_pages.into())
+                .map(|memory| memory.min_pages)
                 .unwrap_or(0.into()),
         );
         program = program
