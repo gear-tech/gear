@@ -4,16 +4,25 @@ updates:
     directory: "/"
     labels: ["A4-insubstantial", "E2-forcemacos"]
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "friday"
+    commit-message:
+      prefix: "[skip ci] "
 
   - package-ecosystem: "cargo"
     directory: "/examples/"
     labels: ["A4-insubstantial"]
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "friday"
+    commit-message:
+      prefix: "[skip ci] "
 
   - package-ecosystem: "github-actions"
     directory: "/"
     labels: ["A4-insubstantial"]
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "friday"
+    commit-message:
+      prefix: "[skip ci] "
