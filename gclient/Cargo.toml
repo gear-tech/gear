@@ -42,7 +42,7 @@ demo-meta-io = { workspace = true }
 demo-mul-by-const = { workspace = true }
 demo-node = { workspace = true }
 demo-program-factory = { workspace = true }
-demo-proxy = { workspace = true }
+demo-proxy = { workspace = true, features = ["std"] }
 demo-proxy-relay = { workspace = true }
 demo-proxy-with-gas = { workspace = true }
 demo-reserve-gas = { workspace = true }
