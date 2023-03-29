@@ -56,7 +56,7 @@ mod v1 {
     );
 }
 
-pub fn migrate_to_v2<T: Config>() -> Weight {
+fn migrate_to_v2<T: Config>() -> Weight {
     pallet::FirstIncompleteTasksBlock::<T>::translate(
         |set: Option<v1::MissedBlocksCollection<T>>| {
             let set = set?;
