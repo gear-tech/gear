@@ -23,7 +23,6 @@
 
 use codec::{Decode, Encode};
 use gear_core::{ids::MessageId, message::MessageWaitedType};
-use primitive_types::H256;
 use scale_info::TypeInfo;
 
 /// Programs entry for messages.
@@ -193,6 +192,12 @@ pub type UserMessageReadReason = Reason<UserMessageReadRuntimeReason, UserMessag
 /// Type of changes applied to program in storage.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
 pub enum ProgramChangeKind<BlockNumber> {
+    /// Occurs when new program has been added to storage.
+    ///
+    /// Expiration block number presents block number when this program become
+    /// paused due to losing ability to pay rent for holding.
+    Added { expiration: BlockNumber },
+
     /// Active status achieved.
     ///
     /// Occurs when new program created, paused program was resumed
@@ -211,12 +216,5 @@ pub enum ProgramChangeKind<BlockNumber> {
     ///
     /// Program is no longer available for interaction, but can be
     /// resumed by paying rent and giving whole data related to it.
-    Paused {
-        /// Code hash the program relates to.
-        code_hash: H256,
-        /// Hash of memory pages of the program.
-        memory_hash: H256,
-        /// Waitlist hash addressed to the program.
-        waitlist_hash: H256,
-    },
+    Paused,
 }

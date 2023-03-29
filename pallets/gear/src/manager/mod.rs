@@ -298,6 +298,29 @@ where
         }
     }
 
+    fn remove_gas_reservation_slot(
+        reservation_id: ReservationId,
+        slot: GasReservationSlot,
+    ) -> GasReservationSlot {
+        GasHandlerOf::<T>::unlock_all(reservation_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        let interval = Interval {
+            start: BlockNumberFor::<T>::from(slot.start),
+            finish: BlockNumberFor::<T>::from(slot.finish),
+        };
+
+        Pallet::<T>::charge_for_hold(
+            reservation_id,
+            interval,
+            CostsPerBlockOf::<T>::reservation(),
+        );
+
+        Pallet::<T>::consume_and_retrieve(reservation_id);
+
+        slot
+    }
+
     pub fn remove_gas_reservation_impl(
         program_id: ProgramId,
         reservation_id: ReservationId,
@@ -319,23 +342,15 @@ where
             )
         });
 
-        GasHandlerOf::<T>::unlock_all(reservation_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        Self::remove_gas_reservation_slot(reservation_id, slot)
+    }
 
-        let interval = Interval {
-            start: BlockNumberFor::<T>::from(slot.start),
-            finish: BlockNumberFor::<T>::from(slot.finish),
-        };
-
-        Pallet::<T>::charge_for_hold(
-            reservation_id,
-            interval,
-            CostsPerBlockOf::<T>::reservation(),
-        );
-
-        Pallet::<T>::consume_and_retrieve(reservation_id);
-
-        slot
+    pub fn remove_gas_reservation_map(
+        gas_reservation_map: BTreeMap<ReservationId, GasReservationSlot>,
+    ) {
+        for (reservation_id, slot) in gas_reservation_map {
+            let _slot = Self::remove_gas_reservation_slot(reservation_id, slot);
+        }
     }
 
     fn send_signal(

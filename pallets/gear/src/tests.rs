@@ -1784,7 +1784,7 @@ fn send_message_works() {
         // User 1 has sent two messages
         assert_eq!(
             Balances::free_balance(USER_1),
-            user1_initial_balance - user1_potential_msgs_spends
+            user1_initial_balance - user1_potential_msgs_spends - Gear::rent_fee()
         );
 
         // Clear messages from the queue to refund unused gas
@@ -2115,7 +2115,7 @@ fn unused_gas_released_back_works() {
 
         assert_eq!(
             Balances::free_balance(USER_1),
-            user1_initial_balance - user1_potential_msgs_spends
+            user1_initial_balance - user1_potential_msgs_spends - Gear::rent_fee()
         );
         assert_eq!(
             Balances::reserved_balance(USER_1),
@@ -2134,7 +2134,7 @@ fn unused_gas_released_back_works() {
 
         assert_eq!(
             Balances::free_balance(USER_1),
-            user1_initial_balance - user1_actual_msgs_spends
+            user1_initial_balance - user1_actual_msgs_spends - Gear::rent_fee()
         );
 
         // All created gas cancels out.
@@ -3417,7 +3417,7 @@ fn distributor_initialize() {
         // and the value unreserved back to the original sender (USER_1)
         let final_balance = Balances::free_balance(USER_1) + Balances::free_balance(BLOCK_AUTHOR);
 
-        assert_eq!(initial_balance, final_balance);
+        assert_eq!(initial_balance - Gear::rent_fee(), final_balance);
     });
 }
 
@@ -3467,7 +3467,10 @@ fn distributor_distribute() {
             mail_box_len as u64 * <Test as Config>::MailboxThreshold::get();
         let mailbox_threshold_reserved =
             <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
-        assert_eq!(initial_balance - mailbox_threshold_reserved, final_balance);
+        assert_eq!(
+            initial_balance - mailbox_threshold_reserved - Gear::rent_fee(),
+            final_balance
+        );
 
         // All gas cancelled out in the end
         assert_eq!(
@@ -5803,7 +5806,7 @@ fn gas_spent_vs_balance() {
         assert_eq!(total_balance_after_handle, Balances::total_balance(&USER_1));
 
         assert_eq!(
-            (initial_balance - balance_after_init),
+            (initial_balance - balance_after_init - Gear::rent_fee()),
             GasPrice::gas_price(init_gas_spent)
         );
 
@@ -6991,7 +6994,7 @@ fn missing_functions_are_not_executed() {
         // there is no 'init' so memory pages and code don't get loaded and
         // no execution is performed at all and hence user was not charged for program execution.
         assert_eq!(
-            balance_before,
+            balance_before - Gear::rent_fee(),
             Balances::free_balance(USER_1) + GasPrice::gas_price(program_cost)
         );
 

@@ -189,6 +189,8 @@ pub mod pallet {
         }
     }
 
+    impl<T: Config> common::PausedProgramStorageError for Error<T> {}
+
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type CodeStorage<T: Config> = StorageMap<_, Identity, CodeId, InstrumentedCode>;
@@ -269,6 +271,22 @@ pub mod pallet {
         value: Vec<MessageId>
     );
 
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type PausedProgramStorage<T: Config> = StorageMap<
+        _,
+        Identity,
+        ProgramId,
+        common::paused_program_storage::PausedProgram<BlockNumberFor<T>>,
+    >;
+
+    common::wrap_storage_map!(
+        storage: PausedProgramStorage,
+        name: PausedProgramStorageWrap,
+        key: ProgramId,
+        value: common::paused_program_storage::PausedProgram<BlockNumberFor<T>>
+    );
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
@@ -291,6 +309,16 @@ pub mod pallet {
         fn pages_final_prefix() -> [u8; 32] {
             MemoryPageStorage::<T>::final_prefix()
         }
+    }
+
+    impl<T: Config> common::PausedProgramStorage for pallet::Pallet<T> {
+        type InternalError = Error<T>;
+        type Error = DispatchError;
+        type BlockNumber = BlockNumberFor<T>;
+
+        type PausedProgramMap = PausedProgramStorageWrap<T>;
+
+        type ProgramStorage = Self;
     }
 
     #[cfg(feature = "debug-mode")]

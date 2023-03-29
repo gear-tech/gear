@@ -38,6 +38,8 @@ use sp_std::convert::{TryFrom, TryInto};
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
+type BlockNumber = u64;
+type Balance = u128;
 
 type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
 
@@ -87,7 +89,7 @@ impl pallet_balances::Config for Test {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    type Balance = u128;
+    type Balance = Balance;
     type DustRemoval = ();
     type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
@@ -114,7 +116,7 @@ impl system::Config for Test {
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
@@ -146,6 +148,20 @@ parameter_types! {
     pub const BlockGasLimit: u64 = MAX_BLOCK;
     pub const OutgoingLimit: u32 = 1024;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
+    pub RentFreePeriod: BlockNumber = 10;
+    pub RentBasePeriod: BlockNumber = 30;
+    pub RentCostPerBlock: Balance = 11;
+}
+
+pub struct ProgramRentConfig;
+
+impl common::ProgramRentConfig for ProgramRentConfig {
+    type BlockNumber = BlockNumber;
+    type Balance = Balance;
+
+    type FreePeriod = RentFreePeriod;
+    type BasePeriod = RentBasePeriod;
+    type CostPerBlock = RentCostPerBlock;
 }
 
 impl pallet_gear::Config for Test {
@@ -166,6 +182,8 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type PausedProgramStorage = GearProgram;
+    type ProgramRentConfig = ProgramRentConfig;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -227,6 +245,10 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
+            (
+                <AccountId as Origin>::from_origin(ProgramId::RENT_FUND.into_origin()),
+                ExistentialDeposit::get().into(),
+            ),
         ],
     }
     .assimilate_storage(&mut t)
@@ -234,9 +256,15 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| {
+        // prevent the account from being destroyed
+        let who = <AccountId as Origin>::from_origin(ProgramId::RENT_FUND.into_origin());
+        let _ = frame_system::pallet::Pallet::<Test>::inc_consumers_without_limit(&who).unwrap();
+        let _ = CurrencyOf::<Test>::slash(&who, ExistentialDeposit::get().into());
+
         System::set_block_number(1);
         Gear::on_initialize(System::block_number());
     });
+
     ext
 }
 

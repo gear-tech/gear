@@ -31,6 +31,9 @@ pub use code_storage::{CodeStorage, Error as CodeStorageError};
 pub mod program_storage;
 pub use program_storage::{Error as ProgramStorageError, ProgramStorage};
 
+pub mod paused_program_storage;
+pub use paused_program_storage::{Error as PausedProgramStorageError, PausedProgramStorage};
+
 pub mod gas_provider;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -149,6 +152,16 @@ pub trait GasPrice {
             &Weight::from_ref_time(gas),
         )
     }
+}
+
+/// Trait defines basic parameters of programs rent charging.
+pub trait ProgramRentConfig {
+    type BlockNumber;
+    type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
+
+    type FreePeriod: Get<Self::BlockNumber>;
+    type BasePeriod: Get<Self::BlockNumber>;
+    type CostPerBlock: Get<Self::Balance>;
 }
 
 pub trait QueueRunner {

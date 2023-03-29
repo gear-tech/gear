@@ -18,7 +18,7 @@
 
 use crate::{
     manager::ExtManager, Config, CostsPerBlockOf, DispatchStashOf, Event, GasHandlerOf, Pallet,
-    QueueOf,
+    PausedProgramStorageOf, QueueOf,
 };
 use alloc::string::ToString;
 use common::{
@@ -28,7 +28,7 @@ use common::{
     },
     scheduler::*,
     storage::*,
-    GasTree, Origin,
+    GasTree, Origin, PausedProgramStorage,
 };
 use core::convert::TryInto;
 use gear_core::{
@@ -41,8 +41,16 @@ impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    fn pause_program(&mut self, _program_id: ProgramId) {
-        todo!("#646");
+    fn pause_program(&mut self, program_id: ProgramId) {
+        let Some(gas_reservation_map) = PausedProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number()) else {
+            return;
+        };
+
+        Self::remove_gas_reservation_map(gas_reservation_map);
+        Pallet::<T>::deposit_event(Event::ProgramChanged {
+            id: program_id,
+            change: common::event::ProgramChangeKind::Paused,
+        });
     }
 
     fn remove_code(&mut self, _code_id: CodeId) {

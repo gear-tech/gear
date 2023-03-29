@@ -70,6 +70,21 @@ pub trait ProgramStorage {
         })
     }
 
+    /// Remove an active program with the given key `program_id` from the map.
+    fn remove_active_program(program_id: ProgramId) -> Option<ActiveProgram> {
+        Self::ProgramMap::mutate(program_id, |maybe| {
+            let mut program = maybe.take();
+            match program {
+                Some((Program::Active(p), _bn)) => Some(p),
+                _ => {
+                    *maybe = program.take();
+
+                    None
+                }
+            }
+        })
+    }
+
     /// Load the program associated with the given key `program_id` from the map.
     fn get_program(program_id: ProgramId) -> Option<(Program, Self::BlockNumber)> {
         Self::ProgramMap::get(&program_id)

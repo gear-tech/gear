@@ -53,8 +53,8 @@ use alloc::{format, string::String};
 use codec::{Decode, Encode};
 use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
-    CodeStorage, GasPrice, GasProvider, GasTree, Origin, Program, ProgramState, ProgramStorage,
-    QueueRunner,
+    CodeStorage, GasPrice, GasProvider, GasTree, Origin, PausedProgramStorage, Program,
+    ProgramRentConfig, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -126,6 +126,11 @@ pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
 pub type GasUnitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
+pub type PausedProgramStorageOf<T> = <T as Config>::PausedProgramStorage;
+pub type RentFreePeriodOf<T> = <<T as Config>::ProgramRentConfig as ProgramRentConfig>::FreePeriod;
+pub type RentBasePeriodOf<T> = <<T as Config>::ProgramRentConfig as ProgramRentConfig>::BasePeriod;
+pub type RentCostPerBlockOf<T> =
+    <<T as Config>::ProgramRentConfig as ProgramRentConfig>::CostPerBlock;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -259,6 +264,16 @@ pub mod pallet {
 
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasUnitOf<Self>>;
+
+        /// Storage of paused programs.
+        type PausedProgramStorage: PausedProgramStorage<
+            BlockNumber = Self::BlockNumber,
+            ProgramStorage = Self::ProgramStorage,
+        >;
+        type ProgramRentConfig: ProgramRentConfig<
+            BlockNumber = Self::BlockNumber,
+            Balance = BalanceOf<Self>,
+        >;
     }
 
     #[pallet::pallet]
@@ -1126,6 +1141,18 @@ pub mod pallet {
             Ok(())
         }
 
+        pub(crate) fn rent_fee() -> BalanceOf<T> {
+            let rent_blocks: u32 = RentBasePeriodOf::<T>::get().unique_saturated_into();
+
+            RentCostPerBlockOf::<T>::get() * rent_blocks.into()
+        }
+
+        pub(crate) fn total_rent_blocks() -> BlockNumberFor<T> {
+            let rent_blocks = RentBasePeriodOf::<T>::get();
+
+            rent_blocks.saturating_add(RentFreePeriodOf::<T>::get())
+        }
+
         pub(crate) fn init_packet(
             who: T::AccountId,
             code_id: CodeId,
@@ -1153,10 +1180,11 @@ pub mod pallet {
             );
 
             let reserve_fee = T::GasPrice::gas_price(gas_limit);
+            let rent_fee = Self::rent_fee();
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            <T as Config>::Currency::reserve(&who, reserve_fee + value)
+            <T as Config>::Currency::reserve(&who, reserve_fee + rent_fee + value)
                 .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
             Ok(packet)
@@ -1179,6 +1207,15 @@ pub mod pallet {
                 block_number,
             );
 
+            let program_id = packet.destination();
+            let expiration_block = block_number.saturating_add(Self::total_rent_blocks());
+            let program_event = Event::ProgramChanged {
+                id: program_id,
+                change: ProgramChangeKind::Added {
+                    expiration: expiration_block,
+                },
+            };
+
             // # Safety
             //
             // This is unreachable since the `message_id` is new generated
@@ -1196,13 +1233,30 @@ pub mod pallet {
 
             let event = Event::MessageQueued {
                 id: dispatch.id(),
-                source: who,
+                source: who.clone(),
                 destination: dispatch.destination(),
                 entry: MessageEntry::Init,
             };
 
             QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
+            if expiration_block > block_number {
+                let task = ScheduledTask::PauseProgram(program_id);
+                TaskPoolOf::<T>::add(expiration_block, task)
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+            }
+
+            let rent_fee = Self::rent_fee();
+            if !rent_fee.is_zero() {
+                let _leftover = CurrencyOf::<T>::repatriate_reserved(
+                    &who,
+                    &<T::AccountId as Origin>::from_origin(ProgramId::RENT_FUND.into_origin()),
+                    rent_fee,
+                    BalanceStatus::Free,
+                )?;
+            }
+
+            Self::deposit_event(program_event);
             Self::deposit_event(event);
 
             Ok(())

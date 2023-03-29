@@ -222,6 +222,9 @@ impl ProgramId {
     /// System program ID
     pub const SYSTEM: Self = Self(*b"geargeargeargeargeargeargeargear");
 
+    /// Account receiving rent payouts.
+    pub const RENT_FUND: Self = Self(*b"geargeargeargeargeargeargear0000");
+
     /// Generate ProgramId from given CodeId and salt
     pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
         let argument = [code_id.as_ref(), salt].concat();
