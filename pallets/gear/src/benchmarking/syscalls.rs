@@ -844,9 +844,9 @@ where
 
     pub fn gr_reply_push_input(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let payload_offset = COMMON_OFFSET;
-        let payload_len = COMMON_PAYLOAD_LEN;
-        let res_offset = payload_offset + payload_len;
+        let input_at = 0;
+        let input_len = COMMON_PAYLOAD_LEN;
+        let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
@@ -855,24 +855,25 @@ where
                 repetitions,
                 res_offset,
                 &[
-                    // payload offset
-                    InstrI32Const(payload_offset),
-                    // payload len
-                    InstrI32Const(payload_len),
+                    // input at
+                    InstrI32Const(input_at),
+                    // input len
+                    InstrI32Const(input_len),
                 ],
             )),
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 0)
+        Self::prepare_handle_with_const_payload(module)
     }
 
-    // TODO: additional param for message payload len #+_+_+
     pub fn gr_reply_push_input_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = 1;
-        let payload_offset = COMMON_OFFSET;
-        let payload_len = n * 1024;
-        let res_offset = payload_offset + payload_len;
+        let input_at = 0;
+        let input_len = n * 1024;
+        let res_offset = COMMON_OFFSET;
+
+        assert!(input_len <= MAX_PAYLOAD_LEN);
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
@@ -881,85 +882,106 @@ where
                 repetitions,
                 res_offset,
                 &[
-                    // payload offset
-                    InstrI32Const(payload_offset),
-                    // payload len
-                    InstrI32Const(payload_len),
+                    // input at
+                    InstrI32Const(input_at),
+                    // input len
+                    InstrI32Const(input_len),
                 ],
             )),
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 0)
+        Self::prepare_handle_with_const_payload(module)
     }
 
     // TODO: add check for send init result #+_+_+
     pub fn gr_send_push_input(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let payload_offset = COMMON_OFFSET;
-        let payload_len = COMMON_PAYLOAD_LEN;
-        let err_handle_offset = payload_offset + payload_len;
-        let res_offset = err_handle_offset + ERR_HANDLE_SIZE;
+        assert!(repetitions <= MAX_REPETITIONS);
+
+        let input_at = 0;
+        let input_len = COMMON_PAYLOAD_LEN;
+        let res_offset = COMMON_OFFSET;
+        let err_handle_offset = COMMON_OFFSET + ERR_LEN_SIZE;
+
+        let init_instructions = body::repeated_dyn_instr(
+            MAX_REPETITIONS,
+            vec![
+                // err handle offset
+                Counter(err_handle_offset, ERR_HANDLE_SIZE),
+                // CALL send init
+                InstrCall(1),
+            ],
+            vec![],
+        );
+
+        let mut body = body::fallible_syscall(
+            repetitions,
+            res_offset,
+            &[
+                // get handle from send init results
+                Counter(err_handle_offset + ERR_LEN_SIZE, ERR_HANDLE_SIZE),
+                InstrI32Load(2, 0),
+                // payload offset
+                InstrI32Const(input_at),
+                // payload len
+                InstrI32Const(input_len),
+            ],
+        );
+        body::prepend(&mut body, init_instructions);
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
             imported_functions: vec![SysCallName::SendPushInput, SysCallName::SendInit],
-            handle_body: Some(body::fallible_syscall(
-                repetitions,
-                res_offset,
-                &[
-                    // err handle offset
-                    InstrI32Const(err_handle_offset),
-                    // CALL send init
-                    InstrCall(1),
-                    // get handle from send init result
-                    InstrI32Const(err_handle_offset + ERR_LEN_SIZE),
-                    InstrI32Load(2, 0),
-                    // payload offset
-                    InstrI32Const(payload_offset),
-                    // payload len
-                    InstrI32Const(payload_len),
-                ],
-            )),
+            handle_body: Some(body),
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 0)
+        Self::prepare_handle_with_const_payload(module)
     }
 
     // TODO: add check for send init result #+_+_+
-    // TODO: additional param for message payload len #+_+_+
     pub fn gr_send_push_input_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = API_BENCHMARK_BATCH_SIZE;
-        let payload_offset = COMMON_OFFSET;
-        let payload_len = n * 1024;
-        let err_handle_offset = payload_offset + payload_len;
-        let res_offset = err_handle_offset + ERR_HANDLE_SIZE;
+        let input_at = 0;
+        let input_len = n * 1024;
+        let res_offset = COMMON_OFFSET;
+        let err_handle_offset = res_offset + ERR_LEN_SIZE;
+
+        let init_instructions = body::repeated_dyn_instr(
+            repetitions,
+            vec![
+                // err handle offset
+                Counter(err_handle_offset, ERR_HANDLE_SIZE),
+                // CALL send init
+                InstrCall(1),
+            ],
+            vec![],
+        );
+
+        let mut body = body::fallible_syscall(
+            repetitions,
+            res_offset,
+            &[
+                // get handle from send init results
+                Counter(err_handle_offset + ERR_LEN_SIZE, ERR_HANDLE_SIZE),
+                InstrI32Load(2, 0),
+                // input at
+                InstrI32Const(input_at),
+                // input len
+                InstrI32Const(input_len),
+            ],
+        );
+        body::prepend(&mut body, init_instructions);
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::SendPushInput, SysCallName::SendInit],
-            handle_body: Some(body::fallible_syscall(
-                repetitions,
-                res_offset,
-                &[
-                    // res offset for send init
-                    InstrI32Const(err_handle_offset),
-                    // call send init
-                    InstrCall(1),
-                    // get handle
-                    InstrI32Const(err_handle_offset + ERR_LEN_SIZE),
-                    InstrI32Load(2, 0),
-                    // payload offset
-                    InstrI32Const(payload_offset),
-                    // payload len
-                    InstrI32Const(payload_len),
-                ],
-            )),
+            handle_body: Some(body),
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 0)
+        Self::prepare_handle_with_const_payload(module)
     }
 
     pub fn gr_status_code(r: u32) -> Result<Exec<T>, &'static str> {

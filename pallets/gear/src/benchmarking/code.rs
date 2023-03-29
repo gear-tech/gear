@@ -652,6 +652,12 @@ pub mod body {
         repeated_dyn(repetitions, instructions)
     }
 
+    pub fn prepend(body: &mut FuncBody, instructions: Vec<Instruction>) {
+        body.code_mut()
+            .elements_mut()
+            .splice(0..0, instructions.iter().cloned());
+    }
+
     /// Replace the locals of the supplied `body` with `num` i64 locals.
     pub fn inject_locals(body: &mut FuncBody, num: u32) {
         use self::elements::Local;
