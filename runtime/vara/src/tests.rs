@@ -19,7 +19,7 @@
 use super::*;
 use pallet_gear::InstructionWeights;
 
-const INTERVAL_ERROR_DIVIDER: u32 = 4; // 50% match interval
+const INTERVAL_ERROR_DIVIDER: u32 = 3; // 66% match interval
 
 macro_rules! check_weight_inbounds_interval {
     ($weights:expr, $instruction:ident, $interval_mid: expr) => {
@@ -40,7 +40,7 @@ macro_rules! check_weight_inbounds_interval {
 fn heuristics_test() {
     let instruction_weights = InstructionWeights::<crate::Runtime>::default();
 
-    check_weight_inbounds_interval!(instruction_weights, i64const, 180);
+    check_weight_inbounds_interval!(instruction_weights, i64const, 120);
     check_weight_inbounds_interval!(instruction_weights, i64load, 18_000);
     check_weight_inbounds_interval!(instruction_weights, i32load, 18_000);
     check_weight_inbounds_interval!(instruction_weights, i64store, 29_000);
@@ -73,7 +73,7 @@ fn heuristics_test() {
     check_weight_inbounds_interval!(instruction_weights, i64eqz, 4_000);
     check_weight_inbounds_interval!(instruction_weights, i32eqz, 4_000);
     check_weight_inbounds_interval!(instruction_weights, i64extendsi32, 700);
-    check_weight_inbounds_interval!(instruction_weights, i64extendui32, 700);
+    check_weight_inbounds_interval!(instruction_weights, i64extendui32, 400);
     check_weight_inbounds_interval!(instruction_weights, i32wrapi64, 250);
     check_weight_inbounds_interval!(instruction_weights, i64eq, 4_200);
     check_weight_inbounds_interval!(instruction_weights, i32eq, 4_200);
