@@ -20,6 +20,7 @@ use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
 use gear_core::ids::*;
 use gsdk::{
+    config::GearConfig,
     ext::{
         sp_core::H256,
         sp_runtime::{AccountId32, MultiAddress},
@@ -35,6 +36,7 @@ use gsdk::{
             pallet_gear::pallet::Call as GearCall,
             sp_weights::weight_v2::Weight,
         },
+        sudo::Event as SudoEvent,
         utility::Event as UtilityEvent,
         Event,
     },
@@ -46,6 +48,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     path::Path,
 };
+use subxt::blocks::ExtrinsicEvents;
 
 impl GearApi {
     /// Transfer `value` to `destination`'s account.
@@ -999,6 +1002,20 @@ impl GearApi {
             .await
     }
 
+    fn check_for_sudid(&self, events: &ExtrinsicEvents<GearConfig>) -> Result<()> {
+        for event in events.iter() {
+            let event = event?.as_root_event::<Event>()?;
+            if let Event::Sudo(SudoEvent::Sudid {
+                sudo_result: Err(err),
+            }) = event
+            {
+                return Err(self.0.api().decode_error(err).into());
+            }
+        }
+
+        Ok(())
+    }
+
     /// Upgrade the runtime with the `code` containing the Wasm code of the new
     /// runtime.
     ///
@@ -1021,7 +1038,10 @@ impl GearApi {
                 },
             )
             .await?;
-        Ok(tx.wait_for_success().await?.block_hash())
+
+        let events = tx.wait_for_success().await?;
+        self.check_for_sudid(&events)?;
+        Ok(events.block_hash())
     }
 
     /// Upgrade the runtime by reading the code from the file located at the
@@ -1061,6 +1081,8 @@ impl GearApi {
                 },
             )
             .await?;
-        Ok(tx.wait_for_success().await?.block_hash())
+        let events = tx.wait_for_success().await?;
+        self.check_for_sudid(&events)?;
+        Ok(events.block_hash())
     }
 }
