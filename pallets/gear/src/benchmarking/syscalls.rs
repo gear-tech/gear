@@ -151,7 +151,7 @@ where
         )
     }
 
-    // TODO: add check for alloc result #+_+_+
+    // TODO: add check for alloc result #2498
     pub fn alloc(r: u32) -> Result<Exec<T>, &'static str> {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
@@ -171,7 +171,7 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    // TODO: add check for alloc and free result #+_+_+
+    // TODO: add check for alloc and free result #2498
     pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
         assert!(r <= max_pages::<T>() as u32);
 
