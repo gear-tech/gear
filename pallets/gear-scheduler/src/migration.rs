@@ -26,7 +26,7 @@ mod v1 {
     use common::storage::ValueStorage;
     use frame_support::{pallet_prelude::StorageValue, traits::PalletInfo};
     use frame_system::pallet_prelude::BlockNumberFor;
-    use std::{collections::BTreeSet, marker::PhantomData};
+    use sp_std::{collections::btree_set::BTreeSet, marker::PhantomData};
 
     // BTreeSet used to exclude duplicates and always keep collection sorted.
     /// Missed blocks collection type.
