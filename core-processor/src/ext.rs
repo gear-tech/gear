@@ -1122,7 +1122,7 @@ mod tests {
 
     mod property_tests {
         use super::*;
-        use gear_core::memory::HostPointer;
+        use gear_core::memory::{HostPointer, PageError};
         use proptest::{
             arbitrary::any,
             collection::size_range,
@@ -1134,11 +1134,10 @@ mod tests {
         struct TestMemory(WasmPage);
 
         impl Memory for TestMemory {
-            fn grow(&mut self, pages: WasmPage) -> Result<(), AllocError> {
-                self.0 = self
-                    .0
-                    .add(pages)
-                    .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
+            type GrowError = PageError;
+
+            fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
+                self.0 = self.0.add(pages)?;
                 Ok(())
             }
 

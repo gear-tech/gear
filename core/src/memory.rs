@@ -462,8 +462,11 @@ static_assertions::const_assert!(
 
 /// Backend wasm memory interface.
 pub trait Memory {
+    /// Memory grow error.
+    type GrowError: Debug;
+
     /// Grow memory by number of pages.
-    fn grow(&mut self, pages: WasmPage) -> Result<(), AllocError>;
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError>;
 
     /// Return current size of the memory.
     fn size(&self) -> WasmPage;
@@ -630,7 +633,8 @@ impl AllocationsContext {
             }
 
             let grow_handler = G::before_grow_action(mem);
-            mem.grow(extra_grow)?;
+            mem.grow(extra_grow)
+                .unwrap_or_else(|err| unreachable!("Failed to grow memory: {:?}", err));
             grow_handler.after_grow_action(mem);
 
             // Panic is impossible, because of way `extra_grow` was calculated.
