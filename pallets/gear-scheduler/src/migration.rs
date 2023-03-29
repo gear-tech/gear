@@ -70,6 +70,8 @@ fn migrate_to_v2<T: Config>() -> Weight {
 
     StorageVersion::new(2).put::<Pallet<T>>();
 
+    log::info!("Successfully migrated storage from v1 to v2");
+
     T::DbWeight::get().reads_writes(1, 1)
 }
 
@@ -79,6 +81,7 @@ pub fn migrate<T: Config>() -> Weight {
     if version == StorageVersion::new(1) {
         migrate_to_v2::<T>()
     } else {
+        log::info!("No migration required for storage version: {:?}", version);
         Weight::zero()
     }
 }
