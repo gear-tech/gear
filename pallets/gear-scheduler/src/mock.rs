@@ -17,17 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_scheduler;
-use common::storage::Limiter;
+use common::{storage::Limiter, Origin};
 use frame_support::{
     construct_runtime,
     pallet_prelude::*,
     parameter_types,
-    traits::{ConstU64, FindAuthor},
+    traits::{ConstU64, Currency, FindAuthor},
     weights::constants::RocksDbWeight,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
-use pallet_gear::GasAllowanceOf;
+use gear_core::ids::ProgramId;
+use pallet_gear::{CurrencyOf, GasAllowanceOf};
 use sp_core::{ConstU128, H256};
 use sp_runtime::{
     testing::Header,
@@ -39,6 +40,8 @@ use sp_std::convert::{TryFrom, TryInto};
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
+type BlockNumber = u64;
+type Balance = u128;
 
 pub(crate) const USER_1: AccountId = 1;
 pub(crate) const USER_2: AccountId = 2;
@@ -69,7 +72,7 @@ impl pallet_balances::Config for Test {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    type Balance = u128;
+    type Balance = Balance;
     type DustRemoval = ();
     type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
@@ -91,7 +94,7 @@ impl system::Config for Test {
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
@@ -112,7 +115,7 @@ impl system::Config for Test {
 
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
-    type Balance = u128;
+    type Balance = Balance;
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
@@ -122,6 +125,20 @@ parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
+    pub RentFreePeriod: BlockNumber = 10;
+    pub RentBasePeriod: BlockNumber = 30;
+    pub RentCostPerBlock: Balance = 11;
+}
+
+pub struct ProgramRentConfig;
+
+impl common::ProgramRentConfig for ProgramRentConfig {
+    type BlockNumber = BlockNumber;
+    type Balance = Balance;
+
+    type FreePeriod = RentFreePeriod;
+    type BasePeriod = RentBasePeriod;
+    type CostPerBlock = RentCostPerBlock;
 }
 
 impl pallet_gear::Config for Test {
@@ -142,6 +159,8 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type PausedProgramStorage = GearProgram;
+    type ProgramRentConfig = ProgramRentConfig;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -203,6 +222,10 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
+            (
+                <AccountId as Origin>::from_origin(ProgramId::RENT_FUND.into_origin()),
+                ExistentialDeposit::get().into(),
+            ),
         ],
     }
     .assimilate_storage(&mut t)
@@ -210,6 +233,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| {
+        // prevent the account from being destroyed
+        let who = <AccountId as Origin>::from_origin(ProgramId::RENT_FUND.into_origin());
+        let _ = frame_system::pallet::Pallet::<Test>::inc_consumers_without_limit(&who).unwrap();
+        let _ = CurrencyOf::<Test>::slash(&who, ExistentialDeposit::get().into());
+
         System::set_block_number(1);
         Gear::on_initialize(System::block_number());
     });

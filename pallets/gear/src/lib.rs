@@ -103,7 +103,6 @@ type ExecutionEnvironment<EP = DispatchKind> = gear_backend_wasmi::WasmiEnvironm
 #[cfg(not(feature = "std"))]
 type ExecutionEnvironment<EP = DispatchKind> = gear_backend_sandbox::SandboxEnvironment<Ext, EP>;
 
-pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 pub(crate) type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 pub(crate) type SentOf<T> = <<T as Config>::Messenger as Messenger>::Sent;
@@ -120,6 +119,7 @@ pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::Co
 pub(crate) type SchedulingCostOf<T> = <<T as Config>::Scheduler as Scheduler>::Cost;
 pub(crate) type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub(crate) type DispatchStashOf<T> = <<T as Config>::Messenger as Messenger>::DispatchStash;
+pub type CurrencyOf<T> = <T as Config>::Currency;
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
@@ -1253,7 +1253,7 @@ pub mod pallet {
                     &<T::AccountId as Origin>::from_origin(ProgramId::RENT_FUND.into_origin()),
                     rent_fee,
                     BalanceStatus::Free,
-                )?;
+                );
             }
 
             Self::deposit_event(program_event);

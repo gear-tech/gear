@@ -12584,6 +12584,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "gear-common",
+ "gear-core",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "hex-literal",

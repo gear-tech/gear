@@ -97,6 +97,7 @@ sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git",
 sp-keyring = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
 env_logger = "0.10"
 wat = "1.0.61"
+gear-core = { path = "../../core" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }

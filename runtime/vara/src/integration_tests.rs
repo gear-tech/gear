@@ -134,6 +134,9 @@ impl ExtBuilder {
     }
 
     pub fn build(self) -> sp_io::TestExternalities {
+        use common::Origin;
+        use gear_core::ids::ProgramId;
+
         let mut storage = frame_system::GenesisConfig::default()
             .build_storage::<Runtime>()
             .unwrap();
@@ -148,6 +151,10 @@ impl ExtBuilder {
                         .iter()
                         .map(|k| (k.clone(), self.endowment)),
                 )
+                .chain([(
+                    <AccountId as Origin>::from_origin(ProgramId::RENT_FUND.into_origin()),
+                    EXISTENTIAL_DEPOSIT,
+                )])
                 .collect(),
         }
         .assimilate_storage(&mut storage)
@@ -189,6 +196,12 @@ impl ExtBuilder {
         let mut ext: sp_io::TestExternalities = storage.into();
 
         ext.execute_with(|| {
+            // prevent the account from being destroyed
+            let who = <AccountId as Origin>::from_origin(ProgramId::RENT_FUND.into_origin());
+            let _ =
+                frame_system::pallet::Pallet::<Runtime>::inc_consumers_without_limit(&who).unwrap();
+            let _ = pallet_gear::CurrencyOf::<Runtime>::slash(&who, EXISTENTIAL_DEPOSIT);
+
             let new_blk = 1;
             initialize_block(new_blk);
             on_initialize(new_blk);
@@ -486,7 +499,7 @@ fn tokens_locking_works() {
                 code,
                 b"salt".to_vec(),
                 vec![],
-                10_000_000_000,
+                9_000_000_000,
                 0,
             ));
             let program_id = get_last_program_id();
