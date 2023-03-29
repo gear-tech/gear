@@ -18,14 +18,67 @@
 
 //! Database migration module.
 
-use crate::{Config, Pallet, Weight};
+use crate::{pallet, Config, Pallet, Weight};
+use frame_support::traits::{Get, StorageVersion};
+
+mod v1 {
+    use crate::{Config, Pallet};
+    use common::storage::ValueStorage;
+    use frame_support::{pallet_prelude::StorageValue, traits::PalletInfo};
+    use frame_system::pallet_prelude::BlockNumberFor;
+    use std::{collections::BTreeSet, marker::PhantomData};
+
+    // BTreeSet used to exclude duplicates and always keep collection sorted.
+    /// Missed blocks collection type.
+    ///
+    /// Defines block number, which should already contain no tasks,
+    /// because they were processed before.
+    /// Missed blocks processing prioritized.
+    pub type MissedBlocksCollection<T> = BTreeSet<BlockNumberFor<T>>;
+
+    pub struct MissedBlocksPrefix<T>(PhantomData<(T,)>);
+
+    impl<T: Config> frame_support::traits::StorageInstance for MissedBlocksPrefix<T> {
+        fn pallet_prefix() -> &'static str {
+            <<T as frame_system::Config>::PalletInfo as PalletInfo>::name::<Pallet<T>>().expect("No name found for the pallet in the runtime! This usually means that the pallet wasn't added to `construct_runtime!`.")
+        }
+        const STORAGE_PREFIX: &'static str = "MissedBlocks";
+    }
+
+    // Private storage for missed blocks collection.
+    pub type MissedBlocks<T> = StorageValue<MissedBlocksPrefix<T>, MissedBlocksCollection<T>>;
+
+    // Public wrap of the missed blocks collection.
+    common::wrap_storage_value!(
+        storage: MissedBlocks,
+        name: MissedBlocksWrap,
+        value: MissedBlocksCollection<T>
+    );
+}
+
+pub fn migrate_to_v2<T: Config>() -> Weight {
+    pallet::FirstIncompleteTasksBlock::<T>::translate(
+        |set: Option<v1::MissedBlocksCollection<T>>| {
+            let set = set?;
+            let bn = set.first().copied()?;
+            Some(bn)
+        },
+    )
+    .unwrap_or_else(|()| {
+        unreachable!("Failed to decode old value as `v1::MissedBlocksCollection<T>`")
+    });
+
+    StorageVersion::new(2).put::<Pallet<T>>();
+
+    T::DbWeight::get().reads_writes(1, 1)
+}
 
 /// Wrapper for all migrations of this pallet, based on `StorageVersion`.
 pub fn migrate<T: Config>() -> Weight {
-    use frame_support::traits::StorageVersion;
-
-    let _version = StorageVersion::get::<Pallet<T>>();
-    let weight: Weight = Weight::zero();
-
-    weight
+    let version = StorageVersion::get::<Pallet<T>>();
+    if version == StorageVersion::new(1) {
+        migrate_to_v2::<T>()
+    } else {
+        Weight::zero()
+    }
 }

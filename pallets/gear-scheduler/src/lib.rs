@@ -58,7 +58,7 @@ pub mod pallet {
     pub(crate) type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
     /// The current storage version.
-    const SCHEDULER_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+    const SCHEDULER_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
     // Gear Scheduler Pallet's `Config`.
     #[pallet::config]
@@ -138,7 +138,7 @@ pub mod pallet {
 
     // Private storage for the first block of incomplete tasks.
     #[pallet::storage]
-    type FirstIncompleteTasksBlock<T> = StorageValue<_, BlockNumberFor<T>>;
+    pub(crate) type FirstIncompleteTasksBlock<T> = StorageValue<_, BlockNumberFor<T>>;
 
     // Public wrap for storage of the first block of incomplete tasks.
     common::wrap_storage_value!(
@@ -275,5 +275,12 @@ pub mod pallet {
             DispatchError,
             TaskPoolCallbacksImpl<T>,
         >;
+    }
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_runtime_upgrade() -> Weight {
+            crate::migration::migrate::<T>()
+        }
     }
 }
