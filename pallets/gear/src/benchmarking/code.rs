@@ -595,18 +595,32 @@ pub mod body {
             .collect()
     }
 
-    pub fn with_result_check_dyn(res_offset: u32, instructions: &[DynInstr]) -> Vec<DynInstr> {
-        let mut res = to_dyn(&[
-            Instruction::Block(BlockType::NoResult),
-            Instruction::I32Const(res_offset as i32),
-            Instruction::I32Load(2, 0),
-            Instruction::I32Eqz,
-            Instruction::BrIf(0),
-            Instruction::Unreachable,
-            Instruction::End,
-        ]);
+    pub fn with_result_check_dyn(res_offset: DynInstr, instructions: &[DynInstr]) -> Vec<DynInstr> {
+        let mut res = vec![
+            DynInstr::Regular(Instruction::Block(BlockType::NoResult)),
+            res_offset,
+            DynInstr::InstrI32Load(2, 0),
+            DynInstr::Regular(Instruction::I32Eqz),
+            DynInstr::Regular(Instruction::BrIf(0)),
+            DynInstr::Regular(Instruction::Unreachable),
+            DynInstr::Regular(Instruction::End),
+        ];
         res.splice(1..1, instructions.iter().cloned());
         res
+    }
+
+    pub fn fallible_syscall_instr(
+        repetitions: u32,
+        call_index: u32,
+        res_offset: DynInstr,
+        params: &[DynInstr],
+    ) -> Vec<Instruction> {
+        let mut instructions = params.to_vec();
+        instructions.extend([res_offset.clone(), DynInstr::InstrCall(call_index)]);
+        if cfg!(feature = "runtime-benchmarks-checkers") {
+            instructions = with_result_check_dyn(res_offset, &instructions);
+        }
+        repeated_dyn_instr(repetitions, instructions, vec![])
     }
 
     pub fn from_instructions(mut instructions: Vec<Instruction>) -> FuncBody {
@@ -641,7 +655,8 @@ pub mod body {
         let mut instructions = params.to_vec();
         instructions.extend([DynInstr::InstrI32Const(res_offset), DynInstr::InstrCall(0)]);
         if cfg!(feature = "runtime-benchmarks-checkers") {
-            instructions = with_result_check_dyn(res_offset, &instructions);
+            instructions =
+                with_result_check_dyn(DynInstr::InstrI32Const(res_offset), &instructions);
         }
         repeated_dyn(repetitions, instructions)
     }
