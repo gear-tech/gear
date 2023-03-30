@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `deploy`
-use crate::common::{self, logs, traits::Convert, Result, ALICE_SS58_ADDRESS};
+use crate::common::{self, logs, traits::Convert, Args, Result};
 
+#[cfg(not(feature = "vara-testing"))]
 const EXPECTED_BALANCE: &str = r#"
 AccountInfo {
     nonce: 0,
@@ -34,10 +35,40 @@ AccountInfo {
 }
 "#;
 
+#[cfg(feature = "vara-testing")]
+const EXPECTED_BALANCE: &str = r#"
+AccountInfo {
+    nonce: 0,
+    consumers: 0,
+    providers: 1,
+    sufficients: 0,
+    data: AccountData {
+        free: 1000000000000000000,
+        reserved: 0,
+        misc_frozen: 0,
+        fee_frozen: 0,
+    },
+}
+"#;
+
+#[cfg(feature = "vara-testing")]
 const EXPECTED_MAILBOX: &str = r#"
     destination: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
     payload: "0x",
-    value: 1000000,
+    value: 0,
+    details: None,
+    interval: Interval {
+        start: 3,
+        finish: 32,
+    },
+}
+"#;
+
+#[cfg(not(feature = "vara-testing"))]
+const EXPECTED_MAILBOX: &str = r#"
+    destination: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
+    payload: "0x",
+    value: 5000,
     details: None,
     interval: Interval {
         start: 3,
@@ -52,7 +83,7 @@ async fn test_action_balance_works() -> Result<()> {
     let mut node = common::Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let output = common::gear(&["-e", &node.ws(), "info", "//Alice", "balance"])?;
+    let output = node.run(Args::new("info").address("//Alice").action("balance"))?;
     assert_eq!(EXPECTED_BALANCE.trim(), output.stdout.convert().trim());
     Ok(())
 }
@@ -60,9 +91,11 @@ async fn test_action_balance_works() -> Result<()> {
 #[tokio::test]
 async fn test_action_mailbox_works() -> Result<()> {
     let node = common::create_messager().await?;
-    let output = common::gear(&["-e", &node.ws(), "info", ALICE_SS58_ADDRESS, "mailbox"])?;
+    let output = node.run(Args::new("info").address("//Alice").action("mailbox"))?;
 
-    assert!(output.stdout.convert().contains(EXPECTED_MAILBOX.trim()));
-
+    let stdout = output.stdout.convert();
+    if !stdout.contains(EXPECTED_MAILBOX.trim()) {
+        panic!("{stdout}")
+    }
     Ok(())
 }

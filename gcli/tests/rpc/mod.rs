@@ -84,7 +84,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
             salt,
             vec![],
             100_000_000_000,
-            10_000_000_000,
+            0,
         )
         .await?;
 

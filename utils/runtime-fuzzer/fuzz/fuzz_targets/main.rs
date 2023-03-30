@@ -22,11 +22,11 @@ use libfuzzer_sys::fuzz_target;
 use once_cell::sync::OnceCell;
 use std::{
     fs::{self, OpenOptions},
-    io::Write,
+    io::{Error as IoError, Result as IoResult, Write},
     path::Path,
 };
 
-const SEEDS_STORE_DIR: &str = "fuzzing-seeds-dir";
+const SEEDS_STORE_DIR: &str = "/fuzzing-seeds-dir";
 const SEEDS_STORE_FILE: &str = "fuzzing-seeds";
 
 static RUN_INTIALIZED: OnceCell<String> = OnceCell::new();
@@ -34,7 +34,7 @@ static RUN_INTIALIZED: OnceCell<String> = OnceCell::new();
 fuzz_target!(|seed: u64| {
     gear_utils::init_default_logger();
 
-    dump_seed(seed).expect("internal error: failed dumping seed");
+    dump_seed(seed).unwrap_or_else(|e| unreachable!("internal error: failed dumping seed: {e}"));
 
     log::info!("Running the seed {seed}");
     runtime_fuzzer::run(seed);
@@ -44,15 +44,15 @@ fuzz_target!(|seed: u64| {
 // directory before running fuzz test.
 //
 // If directory already exists for the current run, it will be cleared.
-fn dump_seed(seed: u64) -> Result<(), String> {
+fn dump_seed(seed: u64) -> IoResult<()> {
     let seeds_file = RUN_INTIALIZED.get_or_try_init(|| {
         let seeds_dir = Path::new(SEEDS_STORE_DIR);
-        if seeds_dir.exists() {
-            fs::remove_dir_all(seeds_dir).map_err(|e| e.to_string())?;
+        match seeds_dir.exists() {
+            true => clear_dir(seeds_dir)?,
+            false => fs::create_dir_all(seeds_dir)?,
         }
-        fs::create_dir_all(seeds_dir).map_err(|e| e.to_string())?;
 
-        Ok::<_, String>(format!("{SEEDS_STORE_DIR}/{SEEDS_STORE_FILE}"))
+        Ok::<String, IoError>(format!("{SEEDS_STORE_DIR}/{SEEDS_STORE_FILE}"))
     })?;
 
     OpenOptions::new()
@@ -60,5 +60,12 @@ fn dump_seed(seed: u64) -> Result<(), String> {
         .append(true)
         .open(seeds_file)
         .and_then(|mut file| writeln!(file, "{seed}"))
-        .map_err(|e| e.to_string())
+}
+
+fn clear_dir(path: &Path) -> IoResult<()> {
+    for dir_entry in fs::read_dir(path)? {
+        fs::remove_file(dir_entry?.path())?;
+    }
+
+    Ok(())
 }

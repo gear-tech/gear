@@ -46,7 +46,8 @@ pub struct Optimizer {
 
 impl Optimizer {
     pub fn new(file: PathBuf) -> Result<Self> {
-        let module = parity_wasm::deserialize_file(&file)?;
+        let module =
+            parity_wasm::deserialize_file(&file).with_context(|| format!("File path: {file:?}"))?;
         Ok(Self { module, file })
     }
 

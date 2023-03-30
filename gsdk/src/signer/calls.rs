@@ -242,6 +242,27 @@ impl Signer {
     }
 }
 
+// pallet-gas
+impl Signer {
+    /// Writes Gear gas nodes into storage at their ids.
+    pub async fn set_gas_nodes(
+        &self,
+        gas_nodes: &impl AsRef<[(types::GearGasNodeId, types::GearGasNode)]>,
+    ) -> InBlock {
+        let gas_nodes = gas_nodes.as_ref();
+        let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
+        for gas_node in gas_nodes {
+            let addr = subxt::dynamic::storage(
+                "GearGas",
+                "GasNodes",
+                vec![subxt::metadata::EncodeStaticType(gas_node.0)],
+            );
+            gas_nodes_to_set.push((addr, &gas_node.1));
+        }
+        self.set_storage(&gas_nodes_to_set).await
+    }
+}
+
 // pallet-gear-program
 impl Signer {
     /// Writes `InstrumentedCode` length into storage at `CodeId`
