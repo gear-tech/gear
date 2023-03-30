@@ -38,13 +38,13 @@ pub struct Reply {
     /// Reply to
     reply_to_id: String,
     /// Reply payload
-    #[arg(default_value = "0x")]
+    #[arg(short, long, default_value = "0x")]
     payload: String,
     /// Reply gas limit
-    #[arg(default_value = "0")]
+    #[arg(short, long, default_value = "0")]
     gas_limit: u64,
     /// Reply value
-    #[arg(default_value = "0")]
+    #[arg(short, long, default_value = "0")]
     value: u128,
 }
 

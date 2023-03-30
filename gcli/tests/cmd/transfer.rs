@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `deploy`
-use crate::common::{self, logs, Result};
+#![cfg(not(feature = "vara-testing"))]
+use crate::common::{self, logs, Args, Result};
 use gsdk::Api;
 
 // Testing account
@@ -45,7 +46,11 @@ async fn test_command_transfer_works() -> Result<()> {
 
     // Run command transfer
     let value = 1_000_000_000u128;
-    let _ = common::gear(&["-e", &node.ws(), "transfer", ADDRESS, &value.to_string()])?;
+    let _ = node.run(
+        Args::new("transfer")
+            .destination(ADDRESS)
+            .amount(value.to_string()),
+    )?;
 
     let after = signer.api().get_balance(ADDRESS).await?;
     assert_eq!(after.saturating_sub(before), value);

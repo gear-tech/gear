@@ -28,18 +28,18 @@ pub struct UploadProgram {
     /// gear program code <*.wasm>
     code: PathBuf,
     /// gear program salt ( hex encoding )
-    #[arg(default_value = "0x")]
+    #[arg(short, long, default_value = "0x")]
     salt: String,
     /// gear program init payload ( hex encoding )
-    #[arg(default_value = "0x")]
-    init_payload: String,
+    #[arg(short, long, default_value = "0x")]
+    payload: String,
     /// gear program gas limit
     ///
     /// if zero, gear will estimate this automatically
-    #[arg(default_value = "0")]
+    #[arg(short, long, default_value = "0")]
     gas_limit: u64,
     /// gear program balance
-    #[arg(default_value = "0")]
+    #[arg(short, long, default_value = "0")]
     value: u128,
 }
 
@@ -47,7 +47,7 @@ impl UploadProgram {
     /// Exec command submit
     pub async fn exec(&self, signer: Signer) -> Result<()> {
         let code = fs::read(&self.code)?;
-        let payload = utils::hex_to_vec(&self.init_payload)?;
+        let payload = utils::hex_to_vec(&self.payload)?;
 
         let gas = if self.gas_limit == 0 {
             signer
