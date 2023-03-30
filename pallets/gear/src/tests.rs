@@ -41,7 +41,7 @@ use crate::{
         USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, Schedule, TaskPoolOf, WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, Schedule, TaskPoolOf, WaitlistOf, RentCostPerBlockOf, BalanceOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -1410,11 +1410,17 @@ fn mailbox_rent_out_of_rent() {
         ));
 
         let sender = utils::get_last_program_id();
+
+        let balance_before = Balances::free_balance(USER_2);
+        let blocks = 1_000u64;
         assert_ok!(Gear::extend_rent_interval(
             RuntimeOrigin::signed(USER_2),
             sender,
-            1_000u64
+            blocks,
         ));
+
+        let expected_balance = balance_before - RentCostPerBlockOf::<Test>::get() * BalanceOf::<Test>::from(blocks);
+        assert_eq!(Balances::free_balance(USER_2), expected_balance);
 
         run_to_next_block(None);
 

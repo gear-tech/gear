@@ -1145,9 +1145,13 @@ pub mod pallet {
         }
 
         pub(crate) fn rent_fee() -> BalanceOf<T> {
-            let rent_blocks: u32 = RentBasePeriodOf::<T>::get().unique_saturated_into();
+            Self::rent_fee_for(RentBasePeriodOf::<T>::get())
+        }
 
-            RentCostPerBlockOf::<T>::get() * rent_blocks.into()
+        pub(crate) fn rent_fee_for(blocks: BlockNumberFor<T>) -> BalanceOf<T> {
+            let blocks: u32 = blocks.unique_saturated_into();
+
+            RentCostPerBlockOf::<T>::get() * blocks.into()
         }
 
         pub(crate) fn total_rent_blocks() -> BlockNumberFor<T> {
@@ -1734,7 +1738,7 @@ pub mod pallet {
             CurrencyOf::<T>::transfer(
                 &who,
                 &<T::AccountId as Origin>::from_origin(ProgramId::RENT_FUND.into_origin()),
-                Self::rent_fee(),
+                Self::rent_fee_for(delta),
                 ExistenceRequirement::AllowDeath,
             )
             .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
