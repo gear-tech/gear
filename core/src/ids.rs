@@ -94,7 +94,14 @@ macro_rules! declare_id {
 
         impl From<&[u8]> for $name {
             fn from(slice: &[u8]) -> Self {
-                slice.try_into().expect("Identifier must be 32 length")
+                if slice.len() != HASH_LENGTH {
+                    panic!("Identifier must be 32 length");
+                }
+
+                let mut arr: Hash = Default::default();
+                arr[..].copy_from_slice(slice);
+
+                Self(arr)
             }
         }
 
