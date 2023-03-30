@@ -178,7 +178,9 @@ pub mod pallet {
         frame_system::Config + pallet_authorship::Config + pallet_timestamp::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+        type RuntimeEvent: From<Event<Self>>
+            + TryInto<Event<Self>>
+            + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
         /// The generator used to supply randomness to contracts through `seal_random`
         type Randomness: Randomness<Self::Hash, Self::BlockNumber>;

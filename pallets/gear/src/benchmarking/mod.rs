@@ -55,8 +55,8 @@ use self::{
 };
 use crate::{
     manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BTreeMap, BalanceOf,
-    BenchmarkStorage, Call, Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf,
-    MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
+    BenchmarkStorage, Call, Config, Event, ExecutionEnvironment, Ext as Externalities,
+    GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
 };
 use ::alloc::vec;
 use codec::Encode;
@@ -65,7 +65,7 @@ use common::{
     storage::{Counter, *},
     CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
 };
-use core::ops::Range;
+use core::{convert::TryInto, ops::Range};
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
@@ -572,7 +572,12 @@ benchmarks! {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
         let user = T::AccountId::from_origin(user_id.into_origin());
         assert!(MailboxOf::<T>::is_empty(&user));
-        // TODO: Add event assertion
+        let events = SystemPallet::<T>::events();
+        assert!(events.into_iter().any(|e| {
+            let rt_event: <T as Config>::RuntimeEvent = e.event.try_into().expect("Unable to convert an event");
+            let event: Result<Event<T>, _> = rt_event.try_into();
+            matches!(event, Ok(Event::UserMessageSent { expiration: None, .. }))
+        }));
     }
 
     send_reply_non_zero_value {
