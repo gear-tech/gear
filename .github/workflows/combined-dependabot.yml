@@ -1,7 +1,7 @@
 # This file is extracted from https://github.com/hrvey/combine-prs-workflow
 #
 # see how it works here: https://www.hrvey.com/blog/combine-dependabot-prs
-name: Combined dependabot
+name: Combine dependabot's PRs
 
 # Controls when the action will run - in this case triggered manually
 on:
@@ -148,7 +148,7 @@ jobs:
             await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: 'deps: combined dependabot',
+              title: "deps: combine dependabot's PRs",
               head: '${{ github.event.inputs.combineBranchName }}',
               base: baseBranch,
               body: body
