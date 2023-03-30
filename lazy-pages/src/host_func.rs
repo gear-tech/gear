@@ -88,10 +88,10 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
         pages: Self::Pages,
         mut process_one: impl FnMut(GearPageNumber) -> Result<(), Error>,
     ) -> Result<(), Error> {
-        for page in pages {
-            process_one(page)?;
-        }
-        Ok(())
+        pages.iter().try_for_each(|page| -> Result<(), Error> {
+            process_one(*page)?;
+            Ok(())
+        })
     }
 
     fn into_output(self, ctx: &mut LazyPagesExecutionContext) -> Result<Self::Output, Error> {
@@ -102,28 +102,27 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
 fn accesses_pages(
     ctx: &mut LazyPagesExecutionContext,
     accesses: &[MemoryInterval],
-) -> Result<BTreeSet<GearPageNumber>, Error> {
-    let mut set = BTreeSet::new();
-    for access in accesses {
-        // TODO: here we suppose zero byte access like one byte access, because
-        // backend memory impl can access memory even in case access has size 0.
-        // We can optimize this if will ignore zero bytes access in core-backend (issue #2095).
-        let last_byte = access
-            .offset
-            .checked_add(access.size.saturating_sub(1))
-            .ok_or(Error::OutOfWasmMemoryAccess)?;
+    pages: &mut BTreeSet<GearPageNumber>,
+) -> Result<(), Error> {
+    let page_size = GearPageNumber::size(ctx);
 
-        let page_size = GearPageNumber::size(ctx);
-        let mut offset = access.offset;
-        while offset <= last_byte {
-            set.insert(GearPageNumber::from_offset(ctx, offset));
-            offset = match offset.checked_add(page_size) {
-                Some(offset) => (offset / page_size) * page_size,
-                None => break,
+    accesses
+        .iter()
+        .try_for_each(|access| -> Result<(), Error> {
+            // TODO: here we suppose zero byte access like one byte access, because
+            // backend memory impl can access memory even in case access has size 0.
+            // We can optimize this if will ignore zero bytes access in core-backend (issue #2095).
+            let last_byte = access
+                .offset
+                .checked_add(access.size.saturating_sub(1))
+                .ok_or_else(|| Error::OutOfWasmMemoryAccess)?;
+
+            for offset in (access.offset..=last_byte).step_by(page_size as usize) {
+                pages.insert(GearPageNumber::from_offset(ctx, offset));
             }
-        }
-    }
-    Ok(set)
+            Ok(())
+        })?;
+    Ok(())
 }
 
 pub fn pre_process_memory_accesses(
@@ -133,11 +132,12 @@ pub fn pre_process_memory_accesses(
 ) -> Result<(), ProcessAccessError> {
     log::trace!("host func mem accesses: {reads:?} {writes:?}");
     LAZY_PAGES_CONTEXT
-        .with(|ctx| unsafe {
+        .with(|ctx| {
             let mut ctx = ctx.borrow_mut();
             let ctx = ctx.execution_context_mut()?;
-            let read_pages = accesses_pages(ctx, reads)?;
-            let write_pages = accesses_pages(ctx, writes)?;
+
+            let mut read_pages = BTreeSet::new();
+            accesses_pages(ctx, reads, &mut read_pages)?;
 
             let gas_left_charger = {
                 GasLeftCharger {
@@ -162,6 +162,9 @@ pub fn pre_process_memory_accesses(
             if !matches!(status, Status::Normal) {
                 return Ok(status);
             }
+
+            let mut write_pages = BTreeSet::new();
+            accesses_pages(ctx, writes, &mut write_pages)?;
 
             process::process_lazy_pages(
                 ctx,
