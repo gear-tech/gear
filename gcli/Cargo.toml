@@ -16,36 +16,36 @@ path = "bin/gcli.rs"
 name = "gcli"
 
 [dependencies]
-gsdk = { workspace = true }
-anyhow = { workspace = true }
-base64 = { workspace = true }
-color-eyre = { workspace = true }
-dirs = { workspace = true }
-env_logger = { workspace = true }
-gear-core = { workspace = true }
-hex = { workspace = true }
+gsdk.workspace = true
+anyhow.workspace = true
+base64.workspace = true
+color-eyre.workspace = true
+dirs.workspace = true
+env_logger.workspace = true
+gear-core.workspace = true
+hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
-keyring = { workspace = true }
-lazy_static = { workspace = true }
+keyring.workspace = true
+lazy_static.workspace = true
 libp2p = { workspace = true, features = [ "identify" ], optional = true }
-log = { workspace = true }
-nacl = { workspace = true }
+log.workspace = true
+nacl.workspace = true
 parity-scale-codec = { workspace = true, features = ["std"] }
 scale-info = { workspace = true, features = ["std"] }
-schnorrkel = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
+schnorrkel.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 clap = { workspace = true, features = ["derive"] }
-thiserror = { workspace = true }
+thiserror.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
-wasmtime = { workspace = true }
-whoami = { workspace = true }
+wasmtime.workspace = true
+whoami.workspace = true
 
 [dev-dependencies]
-rand = { workspace = true }
+rand.workspace = true
 messager = { path = "./res/messager" }
-demo-meta = { workspace = true }
-demo-waiter = { workspace = true }
+demo-meta.workspace = true
+demo-waiter.workspace = true
 
 [features]
 node-key = [ "libp2p" ]

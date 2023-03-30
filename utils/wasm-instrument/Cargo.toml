@@ -10,11 +10,11 @@ wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-
 enum-iterator = "1.4.0"
 
 [dev-dependencies]
-wasmparser = { workspace = true }
-wat = { workspace = true }
-gear-backend-wasmi = { workspace = true }
+wasmparser.workspace = true
+wat.workspace = true
+gear-backend-wasmi.workspace = true
 gear-backend-common = { workspace = true, features = ["mock"] }
-gear-core = { workspace = true }
+gear-core.workspace = true
 
 [features]
 default = ["std"]

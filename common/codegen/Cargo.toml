@@ -9,5 +9,5 @@ license = "GPL-3.0"
 proc-macro = true
 
 [dependencies]
-quote = { workspace = true }
-syn = { workspace = true }
+quote.workspace = true
+syn.workspace = true

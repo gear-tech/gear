@@ -6,15 +6,15 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-wasm-smith = { workspace = true }
+wasm-smith.workspace = true
 arbitrary = { workspace = true, features = ["derive"] }
-gear-wasm-instrument = { workspace = true }
-wasmprinter = { workspace = true }
-gsys = { workspace = true }
+gear-wasm-instrument.workspace = true
+wasmprinter.workspace = true
+gsys.workspace = true
 
 [dev-dependencies]
 rand = { workspace = true, features = ["small_rng"] }
-wasmparser = { workspace = true }
-wat = { workspace = true }
-indicatif = { workspace = true }
-proptest = { workspace = true }
+wasmparser.workspace = true
+wat.workspace = true
+indicatif.workspace = true
+proptest.workspace = true

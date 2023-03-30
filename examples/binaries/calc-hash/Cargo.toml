@@ -11,4 +11,4 @@ codec = { package = "parity-scale-codec", version = "3.4.0", default-features = 
 sha2 = { version = "0.10.6", default-features = false }
 
 [build-dependencies]
-gear-wasm-builder = { workspace = true }
+gear-wasm-builder.workspace = true

@@ -8,13 +8,13 @@ name = "validator-checks"
 path = "bin/validator-checks.rs"
 
 [dependencies]
-gsdk = { workspace = true }
+gsdk.workspace = true
 clap = { workspace = true, features = ["derive"] }
-subxt = { workspace = true }
-thiserror = { workspace = true }
-futures-util = { workspace = true }
-log = { workspace = true }
-env_logger = { workspace = true }
+subxt.workspace = true
+thiserror.workspace = true
+futures-util.workspace = true
+log.workspace = true
+env_logger.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
-parity-scale-codec = { workspace = true }
-sp-consensus-babe = { workspace = true }
+parity-scale-codec.workspace = true
+sp-consensus-babe.workspace = true

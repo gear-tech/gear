@@ -5,11 +5,11 @@ edition = "2018"
 
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
-log = { workspace = true }
-env_logger = { workspace = true }
-thiserror = { workspace = true }
-gear-wasm-builder = { workspace = true }
-parity-wasm = { workspace = true }
+log.workspace = true
+env_logger.workspace = true
+thiserror.workspace = true
+gear-wasm-builder.workspace = true
+parity-wasm.workspace = true
 
 [features]
 default = ["wasm-opt"]

@@ -17,15 +17,15 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
-scale-info = { workspace = true }
-log = { workspace = true }
-futures = { workspace = true }
+scale-info.workspace = true
+log.workspace = true
+futures.workspace = true
  
 # Gear
-runtime-primitives = { workspace = true }
+runtime-primitives.workspace = true
 gear-runtime-test-cli = { workspace = true, optional = true }
-service = { workspace = true }
-pallet-gear-payment = { workspace = true }
+service.workspace = true
+pallet-gear-payment.workspace = true
 pallet-gear-staking-rewards = { workspace = true, features = ["std"] }
  
 # Gear Runtimes
@@ -33,21 +33,21 @@ gear-runtime = { workspace = true, features = ["std"], optional = true }
 vara-runtime = { workspace = true, features = ["std"], optional = true }
 
 # Substrate client
-sc-cli = { workspace = true }
-sc-executor = { workspace = true }
-sc-service = { workspace = true }
-sc-client-api = { workspace = true }
+sc-cli.workspace = true
+sc-executor.workspace = true
+sc-service.workspace = true
+sc-client-api.workspace = true
 
 # Substrate primitives
-sp-core = { workspace = true }
-sp-io = { workspace = true }
-sp-inherents = { workspace = true }
-sp-keyring = { workspace = true }
-sp-runtime = { workspace = true }
-sp-timestamp = { workspace = true }
+sp-core.workspace = true
+sp-io.workspace = true
+sp-inherents.workspace = true
+sp-keyring.workspace = true
+sp-runtime.workspace = true
+sp-timestamp.workspace = true
 
 # Substrate other (benchmarking etc)
-frame-system = { workspace = true }
+frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 frame-benchmarking-cli = { workspace = true, optional = true }
 try-runtime-cli = { workspace = true, optional = true }
@@ -56,7 +56,7 @@ try-runtime-cli = { workspace = true, optional = true }
 gcli = { workspace = true, optional = true }
 
 [build-dependencies]
-substrate-build-script-utils = { workspace = true }
+substrate-build-script-utils.workspace = true
 
 [features]
 default = ["gear-native", "vara-native", "lazy-pages"]

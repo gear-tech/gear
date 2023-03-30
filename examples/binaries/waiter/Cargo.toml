@@ -11,7 +11,7 @@ gstd = { workspace = true, features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
 
 [build-dependencies]
-gear-wasm-builder = { workspace = true }
+gear-wasm-builder.workspace = true
 
 [dev-dependencies]
 

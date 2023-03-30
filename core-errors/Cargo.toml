@@ -7,8 +7,8 @@ license = "GPL-3.0"
 
 [dependencies]
 scale-info = { workspace = true, features = ["derive"], optional = true }
-derive_more = { workspace = true }
-enum-iterator = { workspace = true }
+derive_more.workspace = true
+enum-iterator.workspace = true
 
 [features]
 codec = ["scale-info"]

@@ -8,12 +8,12 @@ license = "GPL-3.0"
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
 quick-xml = { workspace = true, features = [ "serialize" ] }
-tabled = { workspace = true }
-junit-common = { workspace = true }
+tabled.workspace = true
+junit-common.workspace = true
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-thousands = { workspace = true }
+serde_json.workspace = true
+thousands.workspace = true
 
-gear-runtime = { workspace = true }
-pallet-gear = { workspace = true }
-frame-support = { workspace = true }
+gear-runtime.workspace = true
+pallet-gear.workspace = true
+frame-support.workspace = true

@@ -6,14 +6,14 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-gsys = { workspace = true }
-gear-core-errors = { workspace = true }
+gsys.workspace = true
+gear-core-errors.workspace = true
 codec = { workspace = true, optional = true }
-static_assertions = { workspace = true }
+static_assertions.workspace = true
 
 [dev-dependencies]
-hex-literal = { workspace = true }
-galloc = { workspace = true }
+hex-literal.workspace = true
+galloc.workspace = true
 
 [features]
 codec = ["dep:codec", "gear-core-errors/codec"]

@@ -12,7 +12,7 @@ codec = { package = "parity-scale-codec", version = "3.4.0", default-features = 
 scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
 
 [build-dependencies]
-gear-wasm-builder = { workspace = true }
+gear-wasm-builder.workspace = true
 
 [lib]
 

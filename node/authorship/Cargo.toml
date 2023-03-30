@@ -13,46 +13,46 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { workspace = true, features = ["derive"] }
-futures = { workspace = true }
-futures-timer = { workspace = true }
-log = { workspace = true }
+futures.workspace = true
+futures-timer.workspace = true
+log.workspace = true
 
 # Gear
-runtime-primitives = { workspace = true }
-common = { workspace = true }
-pallet-gear-rpc-runtime-api = { workspace = true }
+runtime-primitives.workspace = true
+common.workspace = true
+pallet-gear-rpc-runtime-api.workspace = true
 
 # Substrate Client
-sc-block-builder = { workspace = true }
-sc-telemetry = { workspace = true }
-sc-transaction-pool = { workspace = true }
-sc-transaction-pool-api = { workspace = true }
-sc-client-api = { workspace = true }
-sc-proposer-metrics = { workspace = true }
+sc-block-builder.workspace = true
+sc-telemetry.workspace = true
+sc-transaction-pool.workspace = true
+sc-transaction-pool-api.workspace = true
+sc-client-api.workspace = true
+sc-proposer-metrics.workspace = true
 
 # Substrate Primitives
-sp-core = { workspace = true }
-sp-api = { workspace = true }
-sp-consensus = { workspace = true }
-sp-runtime = { workspace = true }
-sp-blockchain = { workspace = true }
-sp-inherents = { workspace = true }
+sp-core.workspace = true
+sp-api.workspace = true
+sp-consensus.workspace = true
+sp-runtime.workspace = true
+sp-blockchain.workspace = true
+sp-inherents.workspace = true
 
 # Substrate Other
-frame-system = { workspace = true }
-prometheus-endpoint = { workspace = true }
+frame-system.workspace = true
+prometheus-endpoint.workspace = true
 
 [dev-dependencies]
-sc-transaction-pool = { workspace = true }
-frame-support = { workspace = true }
-sp-io = { workspace = true }
-sp-std = { workspace = true }
-sp-timestamp = { workspace = true }
-sp-consensus-babe = { workspace = true }
-pallet-sudo = { workspace = true }
-pallet-timestamp = { workspace = true }
-pallet-gear = { workspace = true }
-pallet-gear-messenger = { workspace = true }
-testing = { workspace = true }
-vara-runtime = { workspace = true }
-demo-mul-by-const = { workspace = true }
+sc-transaction-pool.workspace = true
+frame-support.workspace = true
+sp-io.workspace = true
+sp-std.workspace = true
+sp-timestamp.workspace = true
+sp-consensus-babe.workspace = true
+pallet-sudo.workspace = true
+pallet-timestamp.workspace = true
+pallet-gear.workspace = true
+pallet-gear-messenger.workspace = true
+testing.workspace = true
+vara-runtime.workspace = true
+demo-mul-by-const.workspace = true

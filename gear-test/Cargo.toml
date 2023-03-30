@@ -6,30 +6,30 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-anyhow = { workspace = true }
+anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
-derive_more = { workspace = true }
-env_logger = { workspace = true }
-colored = { workspace = true }
-regex = { workspace = true }
-serde_yaml = { workspace = true }
-hex = { workspace = true }
+derive_more.workspace = true
+env_logger.workspace = true
+colored.workspace = true
+regex.workspace = true
+serde_yaml.workspace = true
+hex.workspace = true
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-log = { workspace = true }
-rayon = { workspace = true }
-rand = { workspace = true }
-gear-wasm-instrument = { workspace = true }
+serde_json.workspace = true
+log.workspace = true
+rayon.workspace = true
+rand.workspace = true
+gear-wasm-instrument.workspace = true
 primitive-types = { workspace = true, features = ["scale-info"] }
-once_cell = { workspace = true }
+once_cell.workspace = true
 
 # Internal deps
-gear-core = { workspace = true }
-gear-core-errors = { workspace = true }
-common = { workspace = true }
-core-processor = { workspace = true }
-gear-backend-common = { workspace = true }
-gear-backend-wasmi = { workspace = true }
+gear-core.workspace = true
+gear-core-errors.workspace = true
+common.workspace = true
+core-processor.workspace = true
+gear-backend-common.workspace = true
+gear-backend-wasmi.workspace = true
 
 [dev-dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }

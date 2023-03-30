@@ -12,7 +12,7 @@ codec = { package = "parity-scale-codec", version = "3.4.0", default-features = 
 hex-literal = "*"
 
 [build-dependencies]
-gear-wasm-builder = { workspace = true }
+gear-wasm-builder.workspace = true
 
 [lib]
 

@@ -13,90 +13,90 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { workspace = true, features = ["derive"] }
-futures = { workspace = true }
-futures-timer = { workspace = true }
-hex-literal = { workspace = true }
+futures.workspace = true
+futures-timer.workspace = true
+hex-literal.workspace = true
 jsonrpsee = { workspace = true, features = ["server"] }
-log = { workspace = true }
+log.workspace = true
 serde = { workspace = true, features = ["derive"] }
 
 # Gear
-pallet-gear-rpc = { workspace = true }
-pallet-gear-rpc-runtime-api = { workspace = true }
-runtime-primitives = { workspace = true }
+pallet-gear-rpc.workspace = true
+pallet-gear-rpc-runtime-api.workspace = true
+runtime-primitives.workspace = true
 gear-runtime-interface = { workspace = true, features = [ "std" ] }
-authorship = { workspace = true }
+authorship.workspace = true
 
 # Gear Runtimes
-common = { workspace = true }
-gear-runtime-common = { workspace = true }
+common.workspace = true
+gear-runtime-common.workspace = true
 gear-runtime = { workspace = true, optional = true }
 vara-runtime = { workspace = true, optional = true }
 
 # Substrate Client
-sc-block-builder = { workspace = true }
-sc-chain-spec = { workspace = true }
-sc-authority-discovery = { workspace = true }
+sc-block-builder.workspace = true
+sc-chain-spec.workspace = true
+sc-authority-discovery.workspace = true
 sc-executor = { workspace = true, features = [ "host-sandbox", "wasmer-cache" ] }
-sc-service = { workspace = true }
-sc-telemetry = { workspace = true }
-sc-keystore = { workspace = true }
-sc-network = { workspace = true }
-sc-network-common = { workspace = true }
-sc-consensus-slots = { workspace = true }
-sc-transaction-pool = { workspace = true }
-sc-transaction-pool-api = { workspace = true }
-sc-rpc-api = { workspace = true }
-sc-consensus = { workspace = true }
-sc-consensus-epochs = { workspace = true }
-sc-consensus-babe = { workspace = true }
-sc-consensus-babe-rpc = { workspace = true }
-sc-finality-grandpa = { workspace = true }
-sc-finality-grandpa-rpc = { workspace = true }
-sc-client-api = { workspace = true }
-sc-rpc = { workspace = true }
-sc-rpc-spec-v2 = { workspace = true }
-sc-sync-state-rpc = { workspace = true }
-sc-sysinfo = { workspace = true }
+sc-service.workspace = true
+sc-telemetry.workspace = true
+sc-keystore.workspace = true
+sc-network.workspace = true
+sc-network-common.workspace = true
+sc-consensus-slots.workspace = true
+sc-transaction-pool.workspace = true
+sc-transaction-pool-api.workspace = true
+sc-rpc-api.workspace = true
+sc-consensus.workspace = true
+sc-consensus-epochs.workspace = true
+sc-consensus-babe.workspace = true
+sc-consensus-babe-rpc.workspace = true
+sc-finality-grandpa.workspace = true
+sc-finality-grandpa-rpc.workspace = true
+sc-client-api.workspace = true
+sc-rpc.workspace = true
+sc-rpc-spec-v2.workspace = true
+sc-sync-state-rpc.workspace = true
+sc-sysinfo.workspace = true
 
 # Substrate Primitives
-sp-core = { workspace = true }
-sp-api = { workspace = true }
+sp-core.workspace = true
+sp-api.workspace = true
 sp-authority-discovery = { workspace = true, optional = true }
-sp-consensus = { workspace = true }
-sp-consensus-babe = { workspace = true }
-sp-transaction-pool = { workspace = true }
-sp-transaction-storage-proof = { workspace = true }
-sp-finality-grandpa = { workspace = true }
-sp-runtime = { workspace = true }
-sp-timestamp = { workspace = true }
-sp-blockchain = { workspace = true }
-sp-block-builder = { workspace = true }
-sp-keystore = { workspace = true }
-sp-trie = { workspace = true }
-sp-storage = { workspace = true }
-sp-offchain = { workspace = true }
-sp-session = { workspace = true }
+sp-consensus.workspace = true
+sp-consensus-babe.workspace = true
+sp-transaction-pool.workspace = true
+sp-transaction-storage-proof.workspace = true
+sp-finality-grandpa.workspace = true
+sp-runtime.workspace = true
+sp-timestamp.workspace = true
+sp-blockchain.workspace = true
+sp-block-builder.workspace = true
+sp-keystore.workspace = true
+sp-trie.workspace = true
+sp-storage.workspace = true
+sp-offchain.workspace = true
+sp-session.workspace = true
 
 # Frame Pallets
-pallet-transaction-payment = { workspace = true }
-pallet-transaction-payment-rpc = { workspace = true }
-pallet-transaction-payment-rpc-runtime-api = { workspace = true }
+pallet-transaction-payment.workspace = true
+pallet-transaction-payment-rpc.workspace = true
+pallet-transaction-payment-rpc-runtime-api.workspace = true
 pallet-staking = { workspace = true, optional = true }
 pallet-im-online = { workspace = true, optional = true }
 
 # Substrate Other
-frame-benchmarking = { workspace = true }
-frame-benchmarking-cli = { workspace = true }
-substrate-frame-rpc-system = { workspace = true }
-frame-support = { workspace = true }
-frame-system = { workspace = true }
-frame-system-rpc-runtime-api = { workspace = true }
-substrate-state-trie-migration-rpc = { workspace = true }
+frame-benchmarking.workspace = true
+frame-benchmarking-cli.workspace = true
+substrate-frame-rpc-system.workspace = true
+frame-support.workspace = true
+frame-system.workspace = true
+frame-system-rpc-runtime-api.workspace = true
+substrate-state-trie-migration-rpc.workspace = true
 try-runtime-cli = { workspace = true, optional = true }
 
 [build-dependencies]
-substrate-build-script-utils = { workspace = true }
+substrate-build-script-utils.workspace = true
 
 [features]
 gear-native = [

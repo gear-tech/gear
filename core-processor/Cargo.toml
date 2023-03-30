@@ -6,20 +6,20 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-gear-core = { workspace = true }
+gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
-gear-backend-common = { workspace = true }
-gear-wasm-instrument = { workspace = true }
+gear-backend-common.workspace = true
+gear-wasm-instrument.workspace = true
 
 scale-info = { workspace = true, features = ["derive"] }
-log = { workspace = true }
-derive_more = { workspace = true }
-static_assertions = { workspace = true }
+log.workspace = true
+derive_more.workspace = true
+static_assertions.workspace = true
 
 [dev-dependencies]
-proptest = { workspace = true }
-env_logger = { workspace = true }
-enum-iterator = { workspace = true }
+proptest.workspace = true
+env_logger.workspace = true
+enum-iterator.workspace = true
 
 [features]
 strict = []

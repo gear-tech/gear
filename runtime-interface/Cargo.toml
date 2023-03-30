@@ -9,16 +9,16 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
-gear-core = { workspace = true }
+gear-core.workspace = true
 gear-backend-common = { workspace =true }
 log = { workspace = true, optional = true }
-libc = { workspace = true }
-sp-runtime-interface = { workspace = true }
-sp-std = { workspace = true }
+libc.workspace = true
+sp-runtime-interface.workspace = true
+sp-std.workspace = true
 gear-lazy-pages = { workspace = true, optional = true }
 codec = { workspace = true, default-features = false }
-derive_more = { workspace = true }
-static_assertions = { workspace = true }
+derive_more.workspace = true
+static_assertions.workspace = true
 region = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]

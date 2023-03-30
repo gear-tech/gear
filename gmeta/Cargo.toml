@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-scale-info = { workspace = true }
-blake2-rfc = { workspace = true }
+scale-info.workspace = true
+blake2-rfc.workspace = true
 hex = { workspace = true, features = ["alloc"] }
 gmeta-codegen = { path = "codegen", optional = true }
-derive_more = { workspace = true }
+derive_more.workspace = true
 
 [features]
 codegen = ["gmeta-codegen"]

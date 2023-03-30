@@ -16,33 +16,33 @@ targets = ["x86_64-unknown-linux-gnu"]
 parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
-log = { workspace = true }
+log.workspace = true
 
 # Internal deps
-common = { workspace = true }
-gear-core = { workspace = true }
-gear-core-errors = { workspace = true }
+common.workspace = true
+gear-core.workspace = true
+gear-core-errors.workspace = true
 
 # Substrate deps
-frame-support = { workspace = true }
-frame-system = { workspace = true }
+frame-support.workspace = true
+frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
-sp-std = { workspace = true }
-sp-io = { workspace = true }
+sp-std.workspace = true
+sp-io.workspace = true
 
 [dev-dependencies]
-core-processor = { workspace = true }
-pallet-gear = { workspace = true }
-pallet-gear-messenger = { workspace = true }
-pallet-gear-program = { workspace = true }
-pallet-gear-gas = { workspace = true }
-sp-core = { workspace = true }
-sp-runtime = { workspace = true }
-frame-support-test = { workspace = true }
-pallet-balances = { workspace = true }
-pallet-authorship = { workspace = true }
-pallet-timestamp = { workspace = true }
-env_logger = { workspace = true }
+core-processor.workspace = true
+pallet-gear.workspace = true
+pallet-gear-messenger.workspace = true
+pallet-gear-program.workspace = true
+pallet-gear-gas.workspace = true
+sp-core.workspace = true
+sp-runtime.workspace = true
+frame-support-test.workspace = true
+pallet-balances.workspace = true
+pallet-authorship.workspace = true
+pallet-timestamp.workspace = true
+env_logger.workspace = true
 
 [features]
 default = ['std']

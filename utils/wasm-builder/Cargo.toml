@@ -9,17 +9,17 @@ repository = "https://github.com/gear-tech/gear"
 readme = "README.md"
 
 [dependencies]
-anyhow = { workspace = true }
-cargo_metadata = { workspace = true }
-pwasm-utils = { workspace = true }
-toml = { workspace = true }
-thiserror = { workspace = true }
-log = { workspace = true }
-pathdiff = { workspace = true }
-which = { workspace = true }
-colored = { workspace = true }
-gmeta = { workspace = true }
-gear-wasm-instrument = { workspace = true }
+anyhow.workspace = true
+cargo_metadata.workspace = true
+pwasm-utils.workspace = true
+toml.workspace = true
+thiserror.workspace = true
+log.workspace = true
+pathdiff.workspace = true
+which.workspace = true
+colored.workspace = true
+gmeta.workspace = true
+gear-wasm-instrument.workspace = true
 wasm-opt = { workspace = true, optional = true }
 
 [features]

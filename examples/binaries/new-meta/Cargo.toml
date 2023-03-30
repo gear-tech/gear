@@ -16,10 +16,10 @@ demo-meta-state-v3 = { path = "state-v3", default-features = false, optional = t
 
 [build-dependencies]
 demo-meta-io = { path = "io" }
-gear-wasm-builder = { workspace = true }
+gear-wasm-builder.workspace = true
 
 [dev-dependencies]
-gtest = { workspace = true }
+gtest.workspace = true
 
 [features]
 default = ["std"]

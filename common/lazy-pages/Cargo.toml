@@ -6,16 +6,16 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-derive_more = { workspace = true }
-log = { workspace = true }
+derive_more.workspace = true
+log.workspace = true
 
-gear-core = { workspace = true }
-gear-backend-common = { workspace = true }
-gear-common = { workspace = true }
-gear-runtime-interface = { workspace = true }
-gear-wasm-instrument = { workspace = true }
+gear-core.workspace = true
+gear-backend-common.workspace = true
+gear-common.workspace = true
+gear-runtime-interface.workspace = true
+gear-wasm-instrument.workspace = true
 
-sp-std = { workspace = true }
+sp-std.workspace = true
 
 [features]
 default = ["std"]

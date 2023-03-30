@@ -6,8 +6,8 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-vara-runtime = { workspace = true }
-generate-bags = { workspace = true }
+vara-runtime.workspace = true
+generate-bags.workspace = true
 
 # third-party
 clap = { workspace = true, features = ["derive"] }

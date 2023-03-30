@@ -6,18 +6,18 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-gear-core = { workspace = true }
+gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
-gear-backend-common = { workspace = true }
+gear-backend-common.workspace = true
 gsys ={ workspace = true }
 
-gear-wasm-instrument = { workspace = true }
+gear-wasm-instrument.workspace = true
 sp-sandbox = { workspace = true, features = ["host-sandbox"] }
 # Use max_level_debug feature to remove tracing in sys-calls by default.
-log = { workspace = true }
-derive_more = { workspace = true }
-codec = { workspace = true }
-blake2-rfc = { workspace = true }
+log.workspace = true
+derive_more.workspace = true
+codec.workspace = true
+blake2-rfc.workspace = true
 
 [features]
 default = ["std"]

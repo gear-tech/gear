@@ -6,44 +6,44 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-anyhow = { workspace = true }
+anyhow.workspace = true
 codec = { workspace = true, features = ["derive"] }
-colored = { workspace = true }
+colored.workspace = true
 clap = { workspace = true, features = ["derive"] }
-log = { workspace = true }
-serde_json = { workspace = true }
+log.workspace = true
+serde_json.workspace = true
 quick-xml = { workspace = true, features = [ "serialize" ] }
-rayon = { workspace = true }
+rayon.workspace = true
 
 # Substrate
-frame-support = { workspace = true }
-frame-system = { workspace = true }
-sc-cli = { workspace = true }
-sp-core = { workspace = true }
-sc-service = { workspace = true }
-sp-io = { workspace = true }
-sp-runtime = { workspace = true }
-pallet-balances = { workspace = true }
-sp-consensus-slots = { workspace = true }
-sp-consensus-babe = { workspace = true }
-sp-finality-grandpa = { workspace = true }
-pallet-authorship = { workspace = true }
+frame-support.workspace = true
+frame-system.workspace = true
+sc-cli.workspace = true
+sp-core.workspace = true
+sc-service.workspace = true
+sp-io.workspace = true
+sp-runtime.workspace = true
+pallet-balances.workspace = true
+sp-consensus-slots.workspace = true
+sp-consensus-babe.workspace = true
+sp-finality-grandpa.workspace = true
+pallet-authorship.workspace = true
 sp-authority-discovery = { workspace = true, optional = true }
 pallet-im-online = { workspace = true, optional = true }
 
 # Gear
-runtime-primitives = { workspace = true }
-gear-common = { workspace = true }
-gear-core = { workspace = true }
+runtime-primitives.workspace = true
+gear-common.workspace = true
+gear-core.workspace = true
 gear-runtime = { workspace = true, optional = true, features = ["debug-mode"] }
 vara-runtime = { workspace = true, optional = true, features = ["debug-mode"] }
-gear-test = { workspace = true }
-pallet-gear = { workspace = true }
-pallet-gear-gas = { workspace = true }
-pallet-gear-messenger = { workspace = true }
-pallet-gear-debug = { workspace = true }
-gear-core-processor = { workspace = true }
-junit-common = { workspace = true }
+gear-test.workspace = true
+pallet-gear.workspace = true
+pallet-gear-gas.workspace = true
+pallet-gear-messenger.workspace = true
+pallet-gear-debug.workspace = true
+gear-core-processor.workspace = true
+junit-common.workspace = true
 
 [features]
 gear-native = ["gear-runtime"]

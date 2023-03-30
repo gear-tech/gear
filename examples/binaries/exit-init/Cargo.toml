@@ -8,10 +8,10 @@ workspace = "../../../"
 
 [dependencies]
 gstd = { workspace = true, features = ["debug"] }
-gcore = { workspace = true }
+gcore.workspace = true
 
 [build-dependencies]
-gear-wasm-builder = { workspace = true }
+gear-wasm-builder.workspace = true
 
 [lib]
 

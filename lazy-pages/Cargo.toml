@@ -9,30 +9,30 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
-log = { workspace = true }
-sp-io = { workspace = true }
-sp-std = { workspace = true }
-sp-wasm-interface = { workspace = true }
-sc-executor-common = { workspace = true }
-cfg-if = { workspace = true }
-region = { workspace = true }
-derive_more = { workspace = true }
-static_assertions = { workspace = true }
-once_cell = { workspace = true }
+log.workspace = true
+sp-io.workspace = true
+sp-std.workspace = true
+sp-wasm-interface.workspace = true
+sc-executor-common.workspace = true
+cfg-if.workspace = true
+region.workspace = true
+derive_more.workspace = true
+static_assertions.workspace = true
+once_cell.workspace = true
 
-gear-core = { workspace = true }
-gear-backend-common = { workspace = true }
+gear-core.workspace = true
+gear-backend-common.workspace = true
 
 [target."cfg(target_vendor = \"apple\")".dependencies.mach]
 version = "0.3.2"
 
 [target.'cfg(unix)'.dependencies]
-nix = { workspace = true }
-libc = { workspace = true }
-errno = { workspace = true }
+nix.workspace = true
+libc.workspace = true
+errno.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["excpt", "memoryapi"] }
 
 [dev-dependencies]
-env_logger = { workspace = true }
+env_logger.workspace = true

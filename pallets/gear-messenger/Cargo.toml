@@ -13,29 +13,29 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-parity-scale-codec = { workspace = true }
+parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
-log = { workspace = true }
+log.workspace = true
 
 # Internal deps
-common = { workspace = true }
-gear-core = { workspace = true }
+common.workspace = true
+gear-core.workspace = true
 
 # Substrate deps
-frame-support = { workspace = true }
-frame-system = { workspace = true }
+frame-support.workspace = true
+frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 sp-std = { workspace = true, default-features = false }
-sp-io = { workspace = true }
+sp-io.workspace = true
 
 [dev-dependencies]
-pallet-gear-gas = { workspace = true }
-sp-runtime = { workspace = true }
-pallet-balances = { workspace = true }
-pallet-authorship = { workspace = true }
-pallet-timestamp = { workspace = true }
-env_logger = { workspace = true }
+pallet-gear-gas.workspace = true
+sp-runtime.workspace = true
+pallet-balances.workspace = true
+pallet-authorship.workspace = true
+pallet-timestamp.workspace = true
+env_logger.workspace = true
 
 [features]
 default = ['std']

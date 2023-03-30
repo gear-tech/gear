@@ -11,7 +11,7 @@ gstd = { workspace = true, features = ["debug"] }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 
 [build-dependencies]
-gear-wasm-builder = { workspace = true }
+gear-wasm-builder.workspace = true
 
 [lib]
 
