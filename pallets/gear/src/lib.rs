@@ -1723,7 +1723,7 @@ pub mod pallet {
 
         /// Extend rent interval of the program.
         #[pallet::call_index(8)]
-        #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
+        #[pallet::weight(<T as Config>::WeightInfo::extend_rent_interval())]
         pub fn extend_rent_interval(
             origin: OriginFor<T>,
             program_id: ProgramId,
