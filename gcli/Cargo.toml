@@ -49,6 +49,7 @@ demo-waiter.workspace = true
 
 [features]
 node-key = [ "libp2p" ]
+vara-testing = [ ]
 
 [package.metadata.docs.rs]
 all-features = true

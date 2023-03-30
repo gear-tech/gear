@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `upload`
-use crate::common::{self, env, logs};
+use crate::common::{self, env, logs, Args};
 use gear_core::ids::CodeId;
 use gsdk::Api;
 
@@ -37,13 +37,8 @@ async fn test_command_upload_works() {
     let code_id = CodeId::generate(demo_meta::WASM_BINARY);
     assert!(signer.api().code_storage(code_id).await.is_err());
 
-    let _ = common::gear(&[
-        "-e",
-        &node.ws(),
-        "upload",
-        &env::wasm_bin("demo_meta.opt.wasm"),
-    ])
-    .expect("run command upload failed");
-
+    let _ = node
+        .run(Args::new("upload").program(env::wasm_bin("demo_meta.opt.wasm")))
+        .expect("run command upload failed");
     assert!(signer.api().code_storage(code_id).await.is_ok());
 }
