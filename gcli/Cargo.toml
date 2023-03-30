@@ -27,7 +27,7 @@ hex = "0.4.3"
 jsonrpsee = { version = "^0.16", features = [ "http-client", "ws-client" ] }
 keyring = "1.2.1"
 lazy_static = "1.4.0"
-libp2p = { version = "0.51.1", features = [ "identify" ], optional = true }
+libp2p = { version = "0.51.2", features = [ "identify" ], optional = true }
 log = "0.4.17"
 nacl = "0.5.3"
 parity-scale-codec = "3"
