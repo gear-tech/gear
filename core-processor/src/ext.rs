@@ -22,7 +22,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    lazy_pages::{GlobalsConfig, LazyPagesWeights, Status},
+    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason, TrapExplanation,
@@ -112,7 +112,7 @@ pub trait ProcessorExt {
         mem: &mut impl Memory,
         prog_id: ProgramId,
         stack_end: Option<WasmPage>,
-        globals_config: GlobalsConfig,
+        globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
     );
 
@@ -120,7 +120,7 @@ pub trait ProcessorExt {
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory);
 
     /// Returns lazy pages status
-    fn lazy_pages_status() -> Option<Status>;
+    fn lazy_pages_status() -> Status;
 }
 
 /// [`Ext`](Ext)'s error
@@ -227,7 +227,7 @@ impl ProcessorExt for Ext {
         _mem: &mut impl Memory,
         _prog_id: ProgramId,
         _stack_end: Option<WasmPage>,
-        _globals_config: GlobalsConfig,
+        _globals_config: GlobalsAccessConfig,
         _lazy_pages_weights: LazyPagesWeights,
     ) {
         unreachable!("Must not be called: lazy-pages is unsupported by this ext")
@@ -237,7 +237,7 @@ impl ProcessorExt for Ext {
         unreachable!("Must not be called: lazy-pages is unsupported by this ext")
     }
 
-    fn lazy_pages_status() -> Option<Status> {
+    fn lazy_pages_status() -> Status {
         unreachable!("Must not be called: lazy-pages is unsupported by this ext")
     }
 }
@@ -1122,7 +1122,7 @@ mod tests {
 
     mod property_tests {
         use super::*;
-        use gear_core::memory::HostPointer;
+        use gear_core::memory::{HostPointer, PageError};
         use proptest::{
             arbitrary::any,
             collection::size_range,
@@ -1134,11 +1134,10 @@ mod tests {
         struct TestMemory(WasmPage);
 
         impl Memory for TestMemory {
-            fn grow(&mut self, pages: WasmPage) -> Result<(), AllocError> {
-                self.0 = self
-                    .0
-                    .add(pages)
-                    .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
+            type GrowError = PageError;
+
+            fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
+                self.0 = self.0.add(pages)?;
                 Ok(())
             }
 

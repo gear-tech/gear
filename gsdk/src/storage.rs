@@ -28,7 +28,7 @@ use crate::{
     result::{Error, Result},
     types, Api,
 };
-use gear_core::{ids::*, memory::GEAR_PAGE_SIZE};
+use gear_core::ids::*;
 use hex::ToHex;
 use parity_scale_codec::Decode;
 use sp_core::{crypto::Ss58Codec, H256};
@@ -50,16 +50,29 @@ impl Api {
             StorageAddress<IsFetchable = Yes, IsDefaultable = Yes, Target = DecodedValueThunk> + 'a,
         Value: Decode,
     {
+        self.fetch_storage_at(address, None).await
+    }
+
+    /// Shortcut for fetching storage at block specified by its hash.
+    pub async fn fetch_storage_at<'a, Address, Value>(
+        &self,
+        address: &'a Address,
+        block_hash: Option<H256>,
+    ) -> Result<Value>
+    where
+        Address:
+            StorageAddress<IsFetchable = Yes, IsDefaultable = Yes, Target = DecodedValueThunk> + 'a,
+        Value: Decode,
+    {
         Ok(Value::decode(
             &mut self
                 .storage()
-                .at(None)
+                .at(block_hash)
                 .await?
                 .fetch(address)
                 .await?
                 .ok_or(Error::StorageNotFound)?
-                .into_encoded()
-                .as_ref(),
+                .encoded(),
         )?)
     }
 
@@ -71,12 +84,21 @@ impl Api {
 
 // frame-system
 impl Api {
-    /// Get account info by address
+    /// Get account info by address.
     pub async fn info(&self, address: &str) -> Result<AccountInfo<u32, AccountData<u128>>> {
+        self.info_at(address, None).await
+    }
+
+    /// Get account info by address at specified block.
+    pub async fn info_at(
+        &self,
+        address: &str,
+        block_hash: Option<H256>,
+    ) -> Result<AccountInfo<u32, AccountData<u128>>> {
         let dest = AccountId32::from_ss58check(address)?;
         let addr = subxt::dynamic::storage("System", "Account", vec![Value::from_bytes(dest)]);
 
-        self.fetch_storage(&addr).await
+        self.fetch_storage_at(&addr, block_hash).await
     }
 
     /// Get block number.
@@ -85,12 +107,12 @@ impl Api {
         self.fetch_storage(&addr).await
     }
 
-    /// Get balance by account address
+    /// Get balance by account address.
     pub async fn get_balance(&self, address: &str) -> Result<u128> {
         Ok(self.info(address).await?.data.free)
     }
 
-    // Get events from the block
+    /// Get events from the block.
     pub async fn get_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
         let addr = subxt::dynamic::storage_root("System", "Events");
         let thunk = self
@@ -138,6 +160,37 @@ impl Api {
     }
 }
 
+// pallet-gas
+impl Api {
+    /// Get Gear gas nodes by their ids.
+    pub async fn gas_nodes(
+        &self,
+        gas_node_ids: &impl AsRef<[types::GearGasNodeId]>,
+    ) -> Result<Vec<(types::GearGasNodeId, types::GearGasNode)>> {
+        self.gas_nodes_at(gas_node_ids, None).await
+    }
+
+    /// Get Gear gas nodes by their ids at specified block.
+    pub async fn gas_nodes_at(
+        &self,
+        gas_node_ids: &impl AsRef<[types::GearGasNodeId]>,
+        block_hash: Option<H256>,
+    ) -> Result<Vec<(types::GearGasNodeId, types::GearGasNode)>> {
+        let gas_node_ids = gas_node_ids.as_ref();
+        let mut gas_nodes = Vec::with_capacity(gas_node_ids.len());
+        for gas_node_id in gas_node_ids {
+            let addr = subxt::dynamic::storage(
+                "GearGas",
+                "GasNodes",
+                vec![subxt::metadata::EncodeStaticType(gas_node_id)],
+            );
+            let gas_node = self.fetch_storage_at(&addr, block_hash).await?;
+            gas_nodes.push((*gas_node_id, gas_node));
+        }
+        Ok(gas_nodes)
+    }
+}
+
 // pallet-gear
 impl Api {
     /// Check whether the message queue processing is stopped or not.
@@ -173,33 +226,63 @@ impl Api {
 impl Api {
     /// Get `InstrumentedCode` by its `CodeId`
     pub async fn code_storage(&self, code_id: CodeId) -> Result<InstrumentedCode> {
+        self.code_storage_at(code_id, None).await
+    }
+
+    /// Get `InstrumentedCode` by its `CodeId` at specified block.
+    pub async fn code_storage_at(
+        &self,
+        code_id: CodeId,
+        block_hash: Option<H256>,
+    ) -> Result<InstrumentedCode> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeStorage",
             vec![Value::from_bytes(code_id)],
         );
-        self.fetch_storage(&addr).await
+        self.fetch_storage_at(&addr, block_hash).await
     }
 
     /// Get `InstrumentedCode` length by its `CodeId`
     pub async fn code_len_storage(&self, code_id: CodeId) -> Result<u32> {
+        self.code_len_storage_at(code_id, None).await
+    }
+
+    /// Get `InstrumentedCode` length by its `CodeId` at specified block.
+    pub async fn code_len_storage_at(
+        &self,
+        code_id: CodeId,
+        block_hash: Option<H256>,
+    ) -> Result<u32> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeLenStorage",
             vec![Value::from_bytes(code_id)],
         );
-        self.fetch_storage(&addr).await
+        self.fetch_storage_at(&addr, block_hash).await
     }
 
     /// Get active program from program id.
     pub async fn gprog(&self, program_id: ProgramId) -> Result<ActiveProgram> {
+        self.gprog_at(program_id, None).await
+    }
+
+    /// Get active program from program id at specified block.
+    pub async fn gprog_at(
+        &self,
+        program_id: ProgramId,
+        block_hash: Option<H256>,
+    ) -> Result<ActiveProgram> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "ProgramStorage",
             vec![Value::from_bytes(program_id)],
         );
 
-        let program = self.fetch_storage::<_, (Program, u32)>(&addr).await?.0;
+        let program = self
+            .fetch_storage_at::<_, (Program, u32)>(&addr, block_hash)
+            .await?
+            .0;
 
         match program {
             Program::Active(p) => Ok(p),
@@ -212,6 +295,16 @@ impl Api {
         &self,
         program_id: ProgramId,
         program: &ActiveProgram,
+    ) -> Result<types::GearPages> {
+        self.gpages_at(program_id, program, None).await
+    }
+
+    /// Get pages of active program at specified block.
+    pub async fn gpages_at(
+        &self,
+        program_id: ProgramId,
+        program: &ActiveProgram,
+        block_hash: Option<H256>,
     ) -> Result<types::GearPages> {
         let mut pages = HashMap::new();
         for page in &program.pages_with_data {
@@ -226,13 +319,12 @@ impl Api {
 
             let encoded_page = self
                 .storage()
-                .at(None)
+                .at(block_hash)
                 .await?
                 .fetch_raw(&lookup_bytes)
                 .await?
                 .ok_or_else(|| Error::PageNotFound(page.0, program_id.as_ref().encode_hex()))?;
-            let decoded = <[u8; GEAR_PAGE_SIZE]>::decode(&mut &encoded_page[..])?;
-            pages.insert(page.0, decoded.to_vec());
+            pages.insert(page.0, encoded_page);
         }
 
         Ok(pages)

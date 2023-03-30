@@ -43,6 +43,7 @@ workspace_test() {
 
 gcli_test() {
   cargo +nightly nextest run -p gcli "$@" --profile ci --no-fail-fast
+  cargo +nightly nextest run -p gcli "$@" --features vara-testing --profile ci --no-fail-fast
 }
 
 # $1 - ROOT DIR

@@ -1,4 +1,4 @@
-use gclient::{GearApi, Node, Result};
+use gclient::{GearApi, Result};
 use gear_core::ids::ProgramId;
 use parity_scale_codec::Encode;
 use std::collections::HashMap;
@@ -239,8 +239,7 @@ async fn send_messages(api: &GearApi, progs: &HashMap<&str, ProgramId>) -> Resul
 async fn full_block_of_messages() -> Result<()> {
     env_logger::init();
 
-    let node = Node::try_from_path(GEAR_PATH).expect("Unable to instantiate dev node");
-    let api = GearApi::node(&node).await?;
+    let api = GearApi::dev_from_path(GEAR_PATH).await?;
 
     let progs = upload_programs(&api).await?;
 

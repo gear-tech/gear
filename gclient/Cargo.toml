@@ -17,7 +17,7 @@ parity-scale-codec = "3"
 rand = "0.8.5"
 thiserror = "1.0.40"
 futures-timer = "3.0.2"
-async-trait = "0.1.66"
+async-trait = "0.1.68"
 wabt = "0.10.0"
 
 [dev-dependencies]
@@ -44,3 +44,4 @@ demo-program-factory = { path = "../examples/binaries/program-factory" }
 demo-proxy = { path = "../examples/binaries/proxy" }
 demo-proxy-relay = { path = "../examples/binaries/proxy-relay" }
 demo-proxy-with-gas = { path = "../examples/binaries/proxy-with-gas" }
+demo-reserve-gas = { path = "../examples/binaries/reserve-gas" }

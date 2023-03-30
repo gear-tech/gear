@@ -1,7 +1,6 @@
 version: '3'
 services:
   gear:
-    user: root
     ports:
       - "30333:30333"
       - "9933:9933"
@@ -18,20 +17,22 @@ services:
       {% if name is defined %} --name={{ name }} {% endif %}
       {% if rpc is not defined %} --validator --pruning 86400 {% endif %}
       {% if rpc is defined and unsafe == "yes" %} --unsafe-ws-external --pruning 86400 --ws-max-connections='1000' --unsafe-rpc-external --rpc-cors all {% endif %}
-      {% if rpc is defined and unsafe == "yes" and archive_node == "yes" %} --ws-max-connections='1000' --unsafe-ws-external --unsafe-rpc-external --pruning archive --rpc-cors all {% endif %}
+      {% if archive_node == "yes" %} --ws-max-connections='1000' --unsafe-ws-external --unsafe-rpc-external --pruning archive --rpc-cors all {% endif %}
 
 {% if loki is defined and loki == "yes" and loki_url is defined %}
     logging:
       driver: loki
       options:
-        loki-url: "{{ loki_url }}"
-        loki-tls-insecure-skip-verify: "true"
-        loki-external-labels: job=docker_node,gear_network=vara
         loki-pipeline-stages: |
           - regex:
-              expression: '(?P<error>Error.*)'
+              expression: '(?P<error>(?i)error.*)'
           - labels:
               error:
+          - regex:
+              expression: '(.*Prepared block for proposing at [^ ]+ \((?P<block_time>\d+) ms\) \[hash: (?P<block_hash>[^;]+);.*)'
+          - labels:
+              block_time:
+              block_hash:
 {% endif %}
 volumes:
   gear-data:

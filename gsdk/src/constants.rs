@@ -26,9 +26,7 @@ impl Api {
     /// Get gas limit.
     pub fn gas_limit(&self) -> Result<u64> {
         let addr = subxt::dynamic::constant("GearGas", "BlockGasLimit");
-        Ok(u64::decode(
-            &mut self.constants().at(&addr)?.into_encoded().as_ref(),
-        )?)
+        Ok(u64::decode(&mut self.constants().at(&addr)?.encoded())?)
     }
 
     /// pallet babe constant
@@ -36,8 +34,6 @@ impl Api {
     /// Get expected block time.
     pub fn expected_block_time(&self) -> Result<u64> {
         let addr = subxt::dynamic::constant("Babe", "ExpectedBlockTime");
-        Ok(u64::decode(
-            &mut self.constants().at(&addr)?.into_encoded().as_ref(),
-        )?)
+        Ok(u64::decode(&mut self.constants().at(&addr)?.encoded())?)
     }
 }

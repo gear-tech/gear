@@ -13,6 +13,7 @@ gear-core = { path = "../../core" }
 gear-backend-common = { path = "../../core-backend/common", default-features = false }
 gear-common = { path = "..", default-features = false }
 gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
+gear-wasm-instrument = { path = "../../utils/wasm-instrument", default-features = false }
 
 sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
 

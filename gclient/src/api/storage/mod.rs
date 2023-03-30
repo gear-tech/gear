@@ -26,7 +26,7 @@ use crate::Error;
 use account_id::IntoAccountId32;
 use gear_core::{ids::*, message::StoredMessage};
 use gsdk::{
-    ext::sp_core::crypto::Ss58Codec,
+    ext::sp_core::{crypto::Ss58Codec, H256},
     metadata::runtime_types::{
         gear_common::storage::primitives::Interval, gear_core::message::stored,
         pallet_balances::AccountData,
@@ -82,11 +82,24 @@ impl GearApi {
             .await
     }
 
-    async fn account_data(&self, account_id: impl IntoAccountId32) -> Result<AccountData<u128>> {
+    /// Get account data by `account_id`.
+    pub(crate) async fn account_data(
+        &self,
+        account_id: impl IntoAccountId32,
+    ) -> Result<AccountData<u128>> {
+        self.account_data_at(account_id, None).await
+    }
+
+    /// Get account data by `account_id` at specified block.
+    pub(crate) async fn account_data_at(
+        &self,
+        account_id: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<AccountData<u128>> {
         Ok(self
             .0
             .api()
-            .info(&account_id.into_account_id().to_ss58check())
+            .info_at(&account_id.into_account_id().to_ss58check(), block_hash)
             .await?
             .data)
     }

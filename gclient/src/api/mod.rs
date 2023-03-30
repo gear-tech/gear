@@ -28,11 +28,11 @@ use crate::{
 };
 use error::*;
 use gsdk::{ext::sp_runtime::AccountId32, signer::Signer, Api};
-use std::{marker::PhantomData, ops::Deref};
+use std::{ffi::OsStr, sync::Arc};
 
 /// The API instance contains methods to access the node.
 #[derive(Clone)]
-pub struct GearApi(Signer);
+pub struct GearApi(Signer, Option<Arc<Node>>);
 
 impl GearApi {
     /// Create and init a new `GearApi` specified by its `address` on behalf of
@@ -55,6 +55,7 @@ impl GearApi {
             .and_then(|api| {
                 Ok(Self(
                     api.signer(suri.next().expect("Infallible"), suri.next())?,
+                    None,
                 ))
             })
             .map_err(Into::into)
@@ -67,6 +68,7 @@ impl GearApi {
         Ok(Self(
             self.0
                 .change(suri.next().expect("Infallible"), suri.next())?,
+            self.1,
         ))
     }
 
@@ -76,15 +78,34 @@ impl GearApi {
         Self::init(WSAddress::dev()).await
     }
 
-    /// Create and init a new `GearApi` instance that will be used with the
-    /// local node working in developer mode (running with `--dev` argument)
-    /// and spawned programmatically via the `[crate::Node]` struct.
-    pub async fn node(node: &Node) -> Result<GearApiWithNode> {
+    /// Create and init a new `GearApi` instance via spawning a new node process
+    /// in development mode using the `--dev` flag and listening on an a
+    /// random port number. The node process uses a binary specified by the
+    /// `path` param. Ideally, the binary should be downloaded by means of CI pipeline from <https://get.gear.rs>.
+    pub async fn dev_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
+        let node = Node::try_from_path(path, vec!["--dev"])?;
         let api = Self::init(node.ws_address().clone()).await?;
-        Ok(GearApiWithNode {
-            api,
-            phantom: PhantomData,
-        })
+        Ok(Self(api.0, Some(Arc::new(node))))
+    }
+
+    /// Create and init a new `GearApi` instance via spawning a new node process
+    /// in development mode using the `--chain=vara-dev`, `--validator`,
+    /// `--tmp` flags and listening on an a random port number. The node
+    /// process uses a binary specified by the `path` param. Ideally, the
+    /// binary should be downloaded by means of CI pipeline from <https://get.gear.rs>.
+    pub async fn vara_dev_from_path(path: impl AsRef<OsStr>) -> Result<Self> {
+        let node = Node::try_from_path(path, vec!["--chain=vara-dev", "--validator", "--tmp"])?;
+        let api = Self::init(node.ws_address().clone()).await?;
+        Ok(Self(api.0, Some(Arc::new(node))))
+    }
+
+    /// Print node logs.
+    pub fn print_node_logs(&mut self) {
+        if let Some(node) = self.1.as_mut() {
+            Arc::get_mut(node)
+                .expect("Unable to mutate `Node`")
+                .print_logs();
+        }
     }
 
     /// Create and init a new `GearApi` instance that will be used with the
@@ -148,21 +169,5 @@ impl GearApi {
     /// ```
     pub fn account_id(&self) -> &AccountId32 {
         self.0.account_id()
-    }
-}
-
-/// A struct playing a role of smart pointer to a `GearApi` instance
-/// created for working with a programmatically spawn node and preventing
-/// the refernced node being destroyed before the instance.
-pub struct GearApiWithNode<'a> {
-    api: GearApi,
-    phantom: PhantomData<&'a Node>,
-}
-
-impl Deref for GearApiWithNode<'_> {
-    type Target = GearApi;
-
-    fn deref(&self) -> &Self::Target {
-        &self.api
     }
 }

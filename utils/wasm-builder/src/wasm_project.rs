@@ -337,7 +337,8 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
     }
 
     fn get_exports(file: &PathBuf) -> Result<Vec<String>> {
-        let module = parity_wasm::deserialize_file(file)?;
+        let module =
+            parity_wasm::deserialize_file(file).with_context(|| format!("File path: {file:?}"))?;
 
         let exports = module
             .export_section()

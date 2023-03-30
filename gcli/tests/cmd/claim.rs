@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `send`
-use crate::common::{self, Result, ALICE_SS58_ADDRESS as ADDRESS};
+#![cfg(not(feature = "vara-testing"))]
+use crate::common::{self, Args, Result, ALICE_SS58_ADDRESS as ADDRESS, MESSAGER_SENT_VALUE};
 use gsdk::Api;
 
 const REWARD_PER_BLOCK: u128 = 3_000_000; // 3_000 gas * 1_000 value per gas
@@ -38,7 +39,7 @@ async fn test_command_claim_works() -> Result<()> {
 
     // Claim value from message id
     let before = signer.api().get_balance(ADDRESS).await?;
-    let _ = common::gear(&["-e", &node.ws(), "claim", &id])?;
+    let _ = node.run(Args::new("claim").message_id(id))?;
     let after = signer.api().get_balance(ADDRESS).await?;
 
     // # TODO
@@ -47,7 +48,7 @@ async fn test_command_claim_works() -> Result<()> {
     // before this checking.
     assert_eq!(
         after.saturating_sub(before),
-        messager::SENT_VALUE + REWARD_PER_BLOCK
+        MESSAGER_SENT_VALUE + REWARD_PER_BLOCK
     );
 
     Ok(())

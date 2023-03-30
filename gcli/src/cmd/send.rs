@@ -43,13 +43,13 @@ pub struct Send {
     /// Send to
     pub destination: String,
     /// Send payload
-    #[arg(default_value = "0x")]
+    #[arg(short, long, default_value = "0x")]
     pub payload: String,
     /// Send gas limit
-    #[arg(default_value = "0")]
+    #[arg(short, long, default_value = "0")]
     pub gas_limit: u64,
     /// Send value
-    #[arg(default_value = "0")]
+    #[arg(short, long, default_value = "0")]
     pub value: u128,
 }
 

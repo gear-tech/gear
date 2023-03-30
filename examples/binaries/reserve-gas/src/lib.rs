@@ -40,6 +40,7 @@ static mut INIT_MSG: MessageId = MessageId::new([0; 32]);
 static mut WAKE_STATE: WakeState = WakeState::Initial;
 
 pub const RESERVATION_AMOUNT: u64 = 50_000_000;
+pub const REPLY_FROM_RESERVATION_PAYLOAD: &[u8; 5] = b"Hello";
 
 #[derive(Debug, Eq, PartialEq)]
 enum WakeState {
@@ -59,6 +60,7 @@ pub enum InitAction {
 pub enum HandleAction {
     Unreserve,
     Exit,
+    ReplyFromReservation,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -157,6 +159,11 @@ extern "C" fn handle() {
         }
         HandleAction::Exit => {
             exec::exit(msg::source());
+        }
+        HandleAction::ReplyFromReservation => {
+            let id = unsafe { RESERVATION_ID.take().unwrap() };
+            msg::reply_from_reservation(id, REPLY_FROM_RESERVATION_PAYLOAD, 0)
+                .expect("unable to reply from reservation");
         }
     }
 }
