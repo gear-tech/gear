@@ -145,7 +145,8 @@ jobs:
               const mergeFailedPRsString = mergeFailedPRs.join('\n');
               body += '\n\n⚠️ The following PRs were left out due to merge conflicts:\n' + mergeFailedPRsString
             }
-            await github.rest.pulls.create({
+
+            const pull = await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: "deps: combine dependabot's PRs",
@@ -153,3 +154,15 @@ jobs:
               base: baseBranch,
               body: body
             });
+
+            // Try adding labels...
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pull.number,
+                labels: [ "A4-insubstantial", "E1-forcewindows", "E2-forcemacos" ]
+              });
+            } catch (e) {
+              console.log("Failed to add labels:", e);
+            }

@@ -11,7 +11,7 @@ env:
 
 jobs:
   upgrade:
-    runs-on: ubuntu
+    runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
@@ -39,4 +39,5 @@ jobs:
               [1]: https://github.com/peter-evans/create-pull-request
           labels: |
             A4-insubstantial
+            E1-forcewindows
             E2-forcemacos
