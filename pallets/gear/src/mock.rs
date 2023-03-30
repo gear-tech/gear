@@ -258,7 +258,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     ext.execute_with(|| {
         // prevent the account from being destroyed
         let who = <AccountId as Origin>::from_origin(ProgramId::RENT_FUND.into_origin());
-        let _ = frame_system::pallet::Pallet::<Test>::inc_consumers_without_limit(&who).unwrap();
+        frame_system::pallet::Pallet::<Test>::inc_consumers_without_limit(&who).unwrap();
         let _ = CurrencyOf::<Test>::slash(&who, ExistentialDeposit::get().into());
 
         System::set_block_number(1);

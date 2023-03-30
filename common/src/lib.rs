@@ -29,7 +29,9 @@ pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
 pub mod program_storage;
-pub use program_storage::{Error as ProgramStorageError, ProgramStorage};
+pub use program_storage::{
+    Error as ProgramStorageError, Item as ProgramStorageItem, ProgramStorage,
+};
 
 pub mod paused_program_storage;
 pub use paused_program_storage::{Error as PausedProgramStorageError, PausedProgramStorage};

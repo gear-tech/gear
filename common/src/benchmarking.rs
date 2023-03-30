@@ -166,6 +166,7 @@ pub fn set_program<
             gas_reservation_map: GasReservationMap::default(),
         },
         Zero::zero(),
+        Zero::zero(),
     )
     .expect("benchmarking; program duplicates should not exist");
 }

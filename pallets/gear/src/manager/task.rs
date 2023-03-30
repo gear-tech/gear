@@ -46,7 +46,7 @@ where
             return;
         };
 
-        Self::remove_gas_reservation_map(gas_reservation_map);
+        Self::remove_gas_reservation_map(program_id, gas_reservation_map);
         Pallet::<T>::deposit_event(Event::ProgramChanged {
             id: program_id,
             change: common::event::ProgramChangeKind::Paused,

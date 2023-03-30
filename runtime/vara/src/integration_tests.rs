@@ -198,8 +198,7 @@ impl ExtBuilder {
         ext.execute_with(|| {
             // prevent the account from being destroyed
             let who = <AccountId as Origin>::from_origin(ProgramId::RENT_FUND.into_origin());
-            let _ =
-                frame_system::pallet::Pallet::<Runtime>::inc_consumers_without_limit(&who).unwrap();
+            frame_system::pallet::Pallet::<Runtime>::inc_consumers_without_limit(&who).unwrap();
             let _ = pallet_gear::CurrencyOf::<Runtime>::slash(&who, EXISTENTIAL_DEPOSIT);
 
             let new_blk = 1;

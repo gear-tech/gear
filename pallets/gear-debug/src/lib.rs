@@ -32,7 +32,9 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, storage::*, CodeStorage, Origin, Program, ProgramStorage};
+    use common::{
+        self, storage::*, CodeStorage, Origin, Program, ProgramStorage, ProgramStorageItem,
+    };
     use core::fmt;
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
     use frame_system::pallet_prelude::*;
@@ -62,7 +64,8 @@ pub mod pallet {
 
         type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
 
-        type ProgramStorage: ProgramStorage + IterableMap<(ProgramId, (Program, Self::BlockNumber))>;
+        type ProgramStorage: ProgramStorage
+            + IterableMap<(ProgramId, ProgramStorageItem<Self::BlockNumber>)>;
     }
 
     #[pallet::pallet]
@@ -200,8 +203,8 @@ pub mod pallet {
                 .collect();
 
             let programs = T::ProgramStorage::iter()
-                .map(|(id, (prog, _bn))| {
-                    let active = match prog {
+                .map(|(id, item)| {
+                    let active = match item.program {
                         Program::Active(active) => active,
                         _ => {
                             return ProgramDetails {

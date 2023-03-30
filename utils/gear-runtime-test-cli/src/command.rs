@@ -254,6 +254,7 @@ macro_rules! command {
                     ProgramId::from_origin(*id),
                     program,
                     DEFAULT_BLOCK_NUMBER.into(),
+                    1_000u32.into(),
                 );
             }
 
@@ -464,12 +465,11 @@ macro_rules! command {
 
                             let memory = info.persistent_pages.clone();
                             let gas_reservation_map = {
-                                let (prog, _bn) =
-                                    ProgramStorageOf::<Runtime>::get_program(*pid).unwrap();
+                                let item = ProgramStorageOf::<Runtime>::get_program(*pid).unwrap();
                                 if let gear_common::Program::Active(gear_common::ActiveProgram {
                                     gas_reservation_map,
                                     ..
-                                }) = prog
+                                }) = item.program
                                 {
                                     gas_reservation_map
                                 } else {

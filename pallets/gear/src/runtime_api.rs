@@ -305,10 +305,10 @@ where
     }
 
     fn code_with_memory(program_id: ProgramId) -> Result<CodeWithMemoryData, String> {
-        let (program, _bn) = ProgramStorageOf::<T>::get_program(program_id)
+        let item = ProgramStorageOf::<T>::get_program(program_id)
             .ok_or(String::from("Program not found"))?;
 
-        let program = ActiveProgram::try_from(program)
+        let program = ActiveProgram::try_from(item.program)
             .map_err(|e| format!("Get active program error: {e:?}"))?;
 
         let code_id = CodeId::from_origin(program.code_hash);

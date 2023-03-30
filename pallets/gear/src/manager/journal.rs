@@ -111,8 +111,7 @@ where
                 );
 
                 wake_waiting_init_msgs(program_id);
-                ProgramStorageOf::<T>::update_active_program(program_id, |p, bn_ref| {
-                    *bn_ref = Pallet::<T>::block_number();
+                ProgramStorageOf::<T>::update_active_program(program_id, |p| {
                     p.state = ProgramState::Initialized;
                 })
                 .unwrap_or_else(|e| {
@@ -160,8 +159,7 @@ where
 
                 self.clean_reservation_tasks(program_id, maybe_inactive);
 
-                ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn_ref| {
-                    *bn_ref = Pallet::<T>::block_number();
+                ProgramStorageOf::<T>::update_program_if_active(program_id, |p| {
                     *p = Program::Terminated(origin);
                 }).unwrap_or_else(|e| {
                     if !maybe_inactive {
@@ -229,8 +227,7 @@ where
         // Program can't be inactive, cause it was executed.
         self.clean_reservation_tasks(id_exited, false);
 
-        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn_ref| {
-            *bn_ref = Pallet::<T>::block_number();
+        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p| {
             *p = Program::Exited(value_destination);
         })
         .unwrap_or_else(|e| {
@@ -409,7 +406,7 @@ where
     ) {
         self.state_changes.insert(program_id);
 
-        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             for (page, data) in pages_data {
                 ProgramStorageOf::<T>::set_program_page_data(program_id, page, data);
                 p.pages_with_data.insert(page);
@@ -428,7 +425,7 @@ where
         program_id: ProgramId,
         allocations: BTreeSet<gear_core::memory::WasmPage>,
     ) {
-        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             let removed_pages = p.allocations.difference(&allocations);
             for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
                 if p.pages_with_data.remove(&page) {
@@ -457,7 +454,13 @@ where
             for (init_message, candidate_id) in candidates {
                 if !ProgramStorageOf::<T>::program_exists(candidate_id) {
                     let block_number = Pallet::<T>::block_number();
-                    self.set_program(candidate_id, &code_info, init_message, block_number);
+                    self.set_program(
+                        candidate_id,
+                        &code_info,
+                        init_message,
+                        block_number,
+                        Pallet::<T>::total_rent_blocks(),
+                    );
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
@@ -545,7 +548,7 @@ where
     }
 
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
-        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             p.gas_reservation_map = reserver.into_map(
                 Pallet::<T>::block_number().unique_saturated_into(),
                 |duration| {

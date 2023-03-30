@@ -193,7 +193,7 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
             for x in 0..r * API_BENCHMARK_BATCH_SIZE {
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),
@@ -600,7 +600,7 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
             for x in 0..r * API_BENCHMARK_BATCH_SIZE {
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),
@@ -673,7 +673,7 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
             for x in 0..API_BENCHMARK_BATCH_SIZE {
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),
@@ -848,7 +848,7 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
             for x in 0..r * API_BENCHMARK_BATCH_SIZE {
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),
@@ -918,7 +918,7 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
             for x in 0..API_BENCHMARK_BATCH_SIZE {
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),

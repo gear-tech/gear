@@ -151,6 +151,7 @@ where
                 &code_info,
                 root_message_id,
                 DEFAULT_BLOCK_NUMBER.into(),
+                1_000u32.into(),
             );
 
             Dispatch::new(
@@ -177,6 +178,7 @@ where
                 &code_info,
                 root_message_id,
                 DEFAULT_BLOCK_NUMBER.into(),
+                1_000u32.into(),
             );
 
             Dispatch::new(
