@@ -1241,19 +1241,18 @@ benchmarks! {
 
     // w_load = w_bench
     instr_i32load {
+        // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>() as u32;
-        // Warm up memory.
-        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
-        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
+        let mem_pages = code::max_pages::<T>();
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(mem_pages)),
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 4),
                         Regular(Instruction::I32Load(2, 0)),
-                        Regular(Instruction::Drop)], instrs);
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory{min_pages: mem_pages}),
-            handle_body: Some(body::from_instructions(instrs)),
+                        Regular(Instruction::Drop)])),
             .. Default::default()
-        }));
+        };
+        let mut sbox = Sandbox::from_module_def::<T>(module);
     }: {
         sbox.invoke();
     }
@@ -1278,19 +1277,18 @@ benchmarks! {
 
     // w_store = w_bench
     instr_i32store {
+        // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>() as u32;
-        // Warm up memory.
-        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
-        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
+        let mem_pages = code::max_pages::<T>();
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(mem_pages)),
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 4),
                         RandomI32Repeated(1),
-                        Regular(Instruction::I32Store(2, 0))], instrs);
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory{min_pages: mem_pages}),
-            handle_body: Some(body::from_instructions(instrs)),
+                        Regular(Instruction::I32Store(2, 0))])),
             .. Default::default()
-        }));
+        };
+        let mut sbox = Sandbox::from_module_def::<T>(module);
     }: {
         sbox.invoke();
     }
