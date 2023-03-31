@@ -37,34 +37,34 @@ pub struct LocalType<'t, T: Form> {
 impl<'t, T: Form> LocalType<'t, T> {
     /// If this type is from the rust standard library.
     fn is_std(&self) -> bool {
-        self.ty.path().namespace().len() == 1
+        self.ty.path.namespace().len() == 1
     }
 
     /// Get the module of this type.
     fn module(&self) -> Option<&str> {
-        self.ty.path().namespace().iter().next().map(|s| s.as_ref())
+        self.ty.path.namespace().iter().next().map(|s| s.as_ref())
     }
 }
 
 impl<'t, T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Debug for LocalType<'t, T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match self.ty.type_def() {
+        match &self.ty.type_def {
             TypeDef::Array(array) => fmt.write_str(&format!(
                 "[{:?}; {}]",
                 self.registry
-                    .derive_id(array.type_param().id())
+                    .derive_id(array.type_param.id)
                     .map_err(|_| fmt::Error)?,
-                array.len()
+                array.len
             )),
             TypeDef::BitSequence(bit_sequence) => {
                 write!(
                     fmt,
                     "BitVec<{:?}, {:?}>",
                     self.registry
-                        .derive_id(bit_sequence.bit_store_type().id())
+                        .derive_id(bit_sequence.bit_store_type.id)
                         .map_err(|_| fmt::Error)?,
                     self.registry
-                        .derive_id(bit_sequence.bit_order_type().id())
+                        .derive_id(bit_sequence.bit_order_type.id)
                         .map_err(|_| fmt::Error)?,
                 )
             }
@@ -73,17 +73,16 @@ impl<'t, T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Debug for LocalType<'t, T
                     fmt,
                     "{:?}",
                     self.registry
-                        .derive_id(compact.type_param().id())
+                        .derive_id(compact.type_param.id)
                         .map_err(|_| fmt::Error)?
                 )
             }
             TypeDef::Composite(composite) => {
-                let mut debug =
-                    fmt.debug_struct(self.ty.path().ident().ok_or(fmt::Error)?.as_ref());
-                for field in composite.fields() {
+                let mut debug = fmt.debug_struct(self.ty.path.ident().ok_or(fmt::Error)?.as_ref());
+                for field in &composite.fields {
                     debug.field(
-                        field.name().ok_or(fmt::Error)?.as_ref(),
-                        &field.type_name().ok_or(fmt::Error)?.as_ref(),
+                        field.name.as_ref().ok_or(fmt::Error)?.as_ref(),
+                        &field.type_name.as_ref().ok_or(fmt::Error)?.as_ref(),
                     );
                 }
 
@@ -97,29 +96,23 @@ impl<'t, T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Debug for LocalType<'t, T
                     fmt,
                     "[{:?}]",
                     self.registry
-                        .derive_id(sequence.type_param().id())
+                        .derive_id(sequence.type_param.id)
                         .map_err(|_| fmt::Error)?,
                 )
             }
             TypeDef::Tuple(tuple) => {
-                let mut debug = fmt.debug_tuple(self.ty.path().ident().ok_or(fmt::Error)?.as_ref());
-                for field in tuple.fields() {
+                let mut debug = fmt.debug_tuple(self.ty.path.ident().ok_or(fmt::Error)?.as_ref());
+                for field in &tuple.fields {
                     debug.field(&format!(
                         "{:?}",
-                        self.registry
-                            .derive_id(field.id())
-                            .map_err(|_| fmt::Error)?
+                        self.registry.derive_id(field.id).map_err(|_| fmt::Error)?
                     ));
                 }
 
                 debug.finish()
             }
             TypeDef::Variant(_) => {
-                write!(
-                    fmt,
-                    "{} ",
-                    self.ty.path().ident().ok_or(fmt::Error)?.as_ref()
-                )
+                write!(fmt, "{} ", self.ty.path.ident().ok_or(fmt::Error)?.as_ref())
             }
         }
     }

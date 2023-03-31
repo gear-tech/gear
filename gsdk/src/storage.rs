@@ -394,8 +394,8 @@ pub(crate) fn storage_type_id(
         .storage(address.entry_name())?
         .ty;
     let storage_type_id = match storage_type {
-        subxt::ext::frame_metadata::StorageEntryType::Plain(ty) => ty.id(),
-        subxt::ext::frame_metadata::StorageEntryType::Map { value, .. } => value.id(),
+        subxt::ext::frame_metadata::StorageEntryType::Plain(ty) => ty.id,
+        subxt::ext::frame_metadata::StorageEntryType::Map { value, .. } => value.id,
     };
     Ok(storage_type_id)
 }
