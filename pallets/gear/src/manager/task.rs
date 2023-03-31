@@ -42,6 +42,8 @@ where
     T::AccountId: Origin,
 {
     fn pause_program(&mut self, program_id: ProgramId) {
+        log::debug!("Pause program with id {:?}", program_id);
+
         let Some(gas_reservation_map) = PausedProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number()) else {
             return;
         };

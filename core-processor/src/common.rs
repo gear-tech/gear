@@ -188,6 +188,8 @@ pub enum JournalNote {
         message_id: MessageId,
         /// Amount of gas burned.
         amount: u64,
+        /// Count of program candidates.
+        program_candidate_count: usize,
     },
     /// Exit the program.
     ExitDispatch {
@@ -336,7 +338,7 @@ pub trait JournalHandler {
         outcome: DispatchOutcome,
     );
     /// Process gas burned.
-    fn gas_burned(&mut self, message_id: MessageId, amount: u64);
+    fn gas_burned(&mut self, program_candidate_count: usize, message_id: MessageId, amount: u64);
     /// Process exit dispatch.
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId);
     /// Process message consumed.
@@ -550,6 +552,7 @@ impl PrechargedDispatch {
         let journal = alloc::vec![JournalNote::GasBurned {
             message_id: self.dispatch.id(),
             amount: self.gas.burned(),
+            program_candidate_count: 0,
         }];
 
         (self.dispatch, journal)

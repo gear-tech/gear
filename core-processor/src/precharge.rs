@@ -227,6 +227,7 @@ pub fn precharge_for_program(
                 system_reservation_ctx,
                 ActorExecutionErrorReason::PreChargeGasLimitExceeded(op),
                 false,
+                0,
             ))
         }
     }
@@ -299,6 +300,7 @@ pub fn precharge_for_code_length(
                 system_reservation_ctx,
                 ActorExecutionErrorReason::PreChargeGasLimitExceeded(op),
                 false,
+                0,
             ))
         }
     }
@@ -335,6 +337,7 @@ pub fn precharge_for_code(
                 system_reservation_ctx,
                 ActorExecutionErrorReason::PreChargeGasLimitExceeded(op),
                 false,
+                0,
             ))
         }
     }
@@ -372,6 +375,7 @@ pub fn precharge_for_instrumentation(
                 system_reservation_ctx,
                 ActorExecutionErrorReason::PreChargeGasLimitExceeded(op),
                 false,
+                0,
             ))
         }
     }
@@ -439,6 +443,7 @@ pub fn precharge_for_memory(
                 system_reservation_ctx,
                 reason,
                 false,
+                0,
             ));
         }
     };

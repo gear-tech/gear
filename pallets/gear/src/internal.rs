@@ -238,7 +238,11 @@ where
     ///
     /// Represents logic of burning gas by transferring gas from
     /// current `GasTree` owner to actual block producer.
-    pub(crate) fn spend_gas(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>, amount: GasBalanceOf<T>) {
+    pub(crate) fn spend_gas(
+        id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>,
+        amount: GasBalanceOf<T>,
+        program_candidate_count: usize,
+    ) {
         let id = id.into();
 
         // If amount is zero, nothing to do.
@@ -261,8 +265,16 @@ where
         // Converting gas amount into value.
         let value = T::GasPrice::gas_price(amount);
 
+        let count = program_candidate_count as u64;
+        let rent_fee = T::GasPrice::gas_price(count * Pallet::<T>::rent_fee_gas());
+
         // Transferring reserved funds from external user to block author.
-        Self::transfer_reserved(&external, &block_author, value);
+        Self::transfer_reserved(&external, &block_author, value - rent_fee);
+        Self::transfer_reserved(
+            &external,
+            &<T::AccountId as Origin>::from_origin(ProgramId::RENT_FUND.into_origin()),
+            rent_fee,
+        );
     }
 
     /// Consumes message by given `MessageId` or gas reservation by `ReservationId`.
@@ -336,7 +348,7 @@ where
         // Spending gas, if need.
         if !amount.is_zero() {
             // Spending gas.
-            Self::spend_gas(id, amount)
+            Self::spend_gas(id, amount, 0)
         }
     }
 

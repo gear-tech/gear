@@ -202,12 +202,12 @@ where
         }
     }
 
-    fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
+    fn gas_burned(&mut self, program_candidate_count: usize, message_id: MessageId, amount: u64) {
         log::debug!("Burned: {:?} from: {:?}", amount, message_id);
 
         GasAllowanceOf::<T>::decrease(amount);
 
-        Pallet::<T>::spend_gas(message_id, amount)
+        Pallet::<T>::spend_gas(message_id, amount, program_candidate_count)
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
@@ -461,6 +461,15 @@ where
                         block_number,
                         Pallet::<T>::total_rent_blocks(),
                     );
+
+                    let expiration_block =
+                        block_number.saturating_add(Pallet::<T>::total_rent_blocks());
+                    if expiration_block > block_number {
+                        let task = ScheduledTask::PauseProgram(candidate_id);
+                        TaskPoolOf::<T>::add(expiration_block, task).unwrap_or_else(|e| {
+                            unreachable!("Scheduling logic invalidated! {:?}", e)
+                        });
+                    }
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }

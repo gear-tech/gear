@@ -140,6 +140,10 @@ where
                 res.system_reservation_context,
                 ActorExecutionErrorReason::Trap(reason),
                 true,
+                res.program_candidates
+                    .iter()
+                    .map(|(_code_id, programs)| programs.len())
+                    .sum(),
             ),
             DispatchResultKind::Success => process_success(Success, res),
             DispatchResultKind::Wait(duration, ref waited_type) => {
@@ -159,6 +163,7 @@ where
             SystemReservationContext::default(),
             e.reason,
             true,
+            0,
         )),
         Err(ExecutionError::System(e)) => Err(e),
     }
@@ -172,6 +177,7 @@ pub fn process_error(
     system_reservation_ctx: SystemReservationContext,
     err: ActorExecutionErrorReason,
     executed: bool,
+    program_candidate_count: usize,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
 
@@ -182,6 +188,7 @@ pub fn process_error(
     journal.push(JournalNote::GasBurned {
         message_id,
         amount: gas_burned,
+        program_candidate_count,
     });
 
     // We check if value is greater than zero to don't provide
@@ -301,6 +308,10 @@ pub fn process_success(
     journal.push(JournalNote::GasBurned {
         message_id,
         amount: gas_amount.burned(),
+        program_candidate_count: program_candidates
+            .iter()
+            .map(|(_code_id, programs)| programs.len())
+            .sum(),
     });
 
     if let Some(gas_reserver) = gas_reserver {

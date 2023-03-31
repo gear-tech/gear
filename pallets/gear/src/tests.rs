@@ -40,14 +40,14 @@ use crate::{
         USER_2,
         USER_3,
     },
-    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event,
-    GasAllowanceOf, GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf,
+    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, Error, Event,
+    GasAllowanceOf, GasHandlerOf, GasInfo, MailboxOf, PausedProgramStorageOf, ProgramStorageOf,
     Schedule, TaskPoolOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
     event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _,
-    ProgramStorage,
+    PausedProgramStorage, ProgramStorage,
 };
 use core_processor::{common::ActorExecutionErrorReason, ActorPrepareMemoryError};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
@@ -1421,8 +1421,7 @@ fn mailbox_rent_out_of_rent() {
         ));
 
         let rent_fee = Gear::rent_fee_for(blocks);
-        let expected_balance =
-            balance_before - rent_fee;
+        let expected_balance = balance_before - rent_fee;
         assert_eq!(Balances::free_balance(USER_2), expected_balance);
 
         run_to_next_block(None);
@@ -5135,6 +5134,63 @@ fn test_create_program_simple() {
 
         assert_total_dequeued(12 + 2); // +2 for extrinsics
         assert_init_success(2);
+    })
+}
+
+#[test]
+fn test_create_program_rent_fee() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let factory_code = PROGRAM_FACTORY_WASM_BINARY;
+        let factory_id = generate_program_id(factory_code, DEFAULT_SALT);
+        let child_code = ProgramCodeKind::Default.to_bytes();
+        let child_code_hash = generate_code_hash(&child_code);
+        let child_program_id = generate_program_id(&child_code, DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), child_code,));
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            factory_code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        ));
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            factory_id,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt".to_vec(), 10_000_000_000)])
+                .encode(),
+            50_000_000_000,
+            0,
+        ));
+        run_to_block(3, None);
+
+        let program_item =
+            ProgramStorageOf::<Test>::get_program(child_program_id).expect("program should exist");
+        let bn = program_item.block_number;
+        let expected_block = bn.saturating_add(program_item.interval);
+        assert_eq!(Gear::total_rent_blocks(), program_item.interval);
+        assert!(TaskPoolOf::<Test>::contains(
+            &expected_block,
+            &ScheduledTask::PauseProgram(child_program_id)
+        ));
+
+        run_to_block(expected_block + 1, None);
+
+        assert!(!ProgramStorageOf::<Test>::program_exists(child_program_id));
+        assert!(PausedProgramStorageOf::<Test>::paused_program_exists(
+            &child_program_id
+        ));
+        assert_eq!(
+            Balances::free_balance(<AccountId as common::Origin>::from_origin(
+                ProgramId::RENT_FUND.into_origin()
+            )),
+            CurrencyOf::<Test>::minimum_balance() + 2 * Gear::rent_fee()
+        );
     })
 }
 

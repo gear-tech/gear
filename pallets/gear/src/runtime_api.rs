@@ -275,7 +275,9 @@ where
                         }
                     }
 
-                    JournalNote::GasBurned { amount, message_id } => {
+                    JournalNote::GasBurned {
+                        amount, message_id, ..
+                    } => {
                         if from_main_chain(message_id)? {
                             burned = burned.saturating_add(amount);
                         }

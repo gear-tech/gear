@@ -64,8 +64,8 @@ pub trait PausedProgramStorage {
     }
 
     /// Does the paused program (explicitly) exist in storage?
-    fn program_exists(program_id: ProgramId) -> bool {
-        Self::PausedProgramMap::contains_key(&program_id)
+    fn paused_program_exists(program_id: &ProgramId) -> bool {
+        Self::PausedProgramMap::contains_key(program_id)
     }
 
     /// Pause an active program with the given key `program_id`.
