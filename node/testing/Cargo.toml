@@ -17,7 +17,7 @@ futures = "0.3.27"
 futures-timer = "3.0.1"
 log = "0.4.17"
 parking_lot = "0.12.1"
-scale-info = { version = "2.1.1", features = ["derive"] }
+scale-info = { version = "2.5.0", features = ["derive"] }
 
 # Gear
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", path = "../../runtime/primitives" }

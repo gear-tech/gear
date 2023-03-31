@@ -31,7 +31,7 @@ libp2p = { version = "0.51.2", features = [ "identify" ], optional = true }
 log = "0.4.17"
 nacl = "0.5.3"
 parity-scale-codec = "3"
-scale-info = "2.3.1"
+scale-info = "2.5.0"
 schnorrkel = "0.9.1"
 serde = "^1"
 serde_json = "^1"
