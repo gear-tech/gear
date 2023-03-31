@@ -112,6 +112,8 @@ use governance::pallet_custom_origins;
 mod extensions;
 pub use extensions::DisableValueTransfers;
 
+type GasBalance = pallet_gear_gas::Balance;
+
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
@@ -629,14 +631,14 @@ parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentBasePeriod: BlockNumber = 3_000;
-    pub RentCostPerBlock: Balance = 1_000;
+    pub RentCostPerBlock: GasBalance = 1_000;
 }
 
 pub struct ProgramRentConfig;
 
 impl common::ProgramRentConfig for ProgramRentConfig {
     type BlockNumber = BlockNumber;
-    type Balance = Balance;
+    type GasBalance = GasBalance;
 
     type FreePeriod = RentFreePeriod;
     type BasePeriod = RentBasePeriod;

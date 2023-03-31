@@ -35,6 +35,7 @@ type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
+type GasBalance = pallet_gear_gas::Balance;
 
 pub const ALICE: u64 = 1;
 pub const ROOT: u64 = 255;
@@ -145,14 +146,14 @@ impl common::GasPrice for GasConverter {
 parameter_types! {
     pub RentFreePeriod: BlockNumber = 10;
     pub RentBasePeriod: BlockNumber = 30;
-    pub RentCostPerBlock: Balance = 11;
+    pub RentCostPerBlock: GasBalance = 11;
 }
 
 pub struct ProgramRentConfig;
 
 impl common::ProgramRentConfig for ProgramRentConfig {
     type BlockNumber = BlockNumber;
-    type Balance = Balance;
+    type GasBalance = GasBalance;
 
     type FreePeriod = RentFreePeriod;
     type BasePeriod = RentBasePeriod;

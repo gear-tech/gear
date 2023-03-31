@@ -90,6 +90,8 @@ pub use constants::{currency::*, time::*};
 // Weights used in the runtime.
 mod weights;
 
+type GasBalance = pallet_gear_gas::Balance;
+
 // The version of the runtime specification.
 //
 // Full node will not attempt to use its native runtime in substitute for the
@@ -333,14 +335,14 @@ parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentBasePeriod: BlockNumber = 3_000;
-    pub RentCostPerBlock: Balance = 1_000;
+    pub RentCostPerBlock: GasBalance = 1_000;
 }
 
 pub struct ProgramRentConfig;
 
 impl common::ProgramRentConfig for ProgramRentConfig {
     type BlockNumber = BlockNumber;
-    type Balance = Balance;
+    type GasBalance = GasBalance;
 
     type FreePeriod = RentFreePeriod;
     type BasePeriod = RentBasePeriod;

@@ -124,7 +124,6 @@ pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
-pub type GasUnitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
 pub type PausedProgramStorageOf<T> = <T as Config>::PausedProgramStorage;
 pub type RentFreePeriodOf<T> = <<T as Config>::ProgramRentConfig as ProgramRentConfig>::FreePeriod;
@@ -252,7 +251,7 @@ pub mod pallet {
         >;
 
         /// Block limits.
-        type BlockLimiter: BlockLimiter<Balance = u64>;
+        type BlockLimiter: BlockLimiter<Balance = GasBalanceOf<Self>>;
 
         /// Scheduler.
         type Scheduler: Scheduler<
@@ -263,7 +262,7 @@ pub mod pallet {
         >;
 
         /// Message Queue processing routing provider.
-        type QueueRunner: QueueRunner<Gas = GasUnitOf<Self>>;
+        type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
 
         /// Storage of paused programs.
         type PausedProgramStorage: PausedProgramStorage<
@@ -272,7 +271,7 @@ pub mod pallet {
         >;
         type ProgramRentConfig: ProgramRentConfig<
             BlockNumber = Self::BlockNumber,
-            Balance = BalanceOf<Self>,
+            GasBalance = GasBalanceOf<Self>,
         >;
     }
 
@@ -1149,9 +1148,9 @@ pub mod pallet {
         }
 
         pub(crate) fn rent_fee_for(blocks: BlockNumberFor<T>) -> BalanceOf<T> {
-            let blocks: u32 = blocks.unique_saturated_into();
+            let blocks: u64 = blocks.unique_saturated_into();
 
-            RentCostPerBlockOf::<T>::get() * blocks.into()
+            <T as Config>::GasPrice::gas_price(RentCostPerBlockOf::<T>::get() * blocks)
         }
 
         pub(crate) fn total_rent_blocks() -> BlockNumberFor<T> {
@@ -1760,7 +1759,7 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        type Gas = GasUnitOf<T>;
+        type Gas = GasBalanceOf<T>;
 
         fn run_queue(initial_gas: Self::Gas) -> Self::Gas {
             // Setting adjusted initial gas allowance

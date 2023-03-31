@@ -40,8 +40,8 @@ use crate::{
         USER_2,
         USER_3,
     },
-    pallet, BalanceOf, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event,
-    GasAllowanceOf, GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, RentCostPerBlockOf,
+    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event,
+    GasAllowanceOf, GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf,
     Schedule, TaskPoolOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
@@ -1420,8 +1420,9 @@ fn mailbox_rent_out_of_rent() {
             blocks,
         ));
 
+        let rent_fee = Gear::rent_fee_for(blocks);
         let expected_balance =
-            balance_before - RentCostPerBlockOf::<Test>::get() * BalanceOf::<Test>::from(blocks);
+            balance_before - rent_fee;
         assert_eq!(Balances::free_balance(USER_2), expected_balance);
 
         run_to_next_block(None);

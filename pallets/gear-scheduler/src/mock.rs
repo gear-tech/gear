@@ -42,6 +42,7 @@ type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
+type GasBalance = pallet_gear_gas::Balance;
 
 pub(crate) const USER_1: AccountId = 1;
 pub(crate) const USER_2: AccountId = 2;
@@ -127,14 +128,14 @@ parameter_types! {
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 10;
     pub RentBasePeriod: BlockNumber = 30;
-    pub RentCostPerBlock: Balance = 11;
+    pub RentCostPerBlock: GasBalance = 11;
 }
 
 pub struct ProgramRentConfig;
 
 impl common::ProgramRentConfig for ProgramRentConfig {
     type BlockNumber = BlockNumber;
-    type Balance = Balance;
+    type GasBalance = GasBalance;
 
     type FreePeriod = RentFreePeriod;
     type BasePeriod = RentBasePeriod;
