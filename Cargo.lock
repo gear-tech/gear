@@ -3427,7 +3427,7 @@ dependencies = [
  "jsonrpsee",
  "keyring",
  "lazy_static",
- "libp2p 0.51.1",
+ "libp2p 0.51.2",
  "log",
  "messager",
  "nacl",
@@ -5320,15 +5320,17 @@ dependencies = [
 
 [[package]]
 name = "libp2p"
-version = "0.51.1"
+version = "0.51.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53e068bb83ef4e0bed45de5ca4a4118018ac1f70ea3ecb1f4878742d08a97473"
+checksum = "ab78d6d2201578bb3a33dff33c540af6b8f0bdcd751b4028e798e868c2ca0722"
 dependencies = [
  "bytes",
  "futures",
  "futures-timer",
  "getrandom 0.2.8",
  "instant",
+ "libp2p-allow-block-list",
+ "libp2p-connection-limits",
  "libp2p-core 0.39.1",
  "libp2p-identify 0.42.1",
  "libp2p-identity",
@@ -5336,6 +5338,30 @@ dependencies = [
  "libp2p-swarm 0.42.0",
  "multiaddr 0.17.1",
  "pin-project",
+]
+
+[[package]]
+name = "libp2p-allow-block-list"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0c54073648b20bb47335164544a4e5694434f44530f47a4f6618f5f585f3ff5"
+dependencies = [
+ "libp2p-core 0.39.1",
+ "libp2p-identity",
+ "libp2p-swarm 0.42.0",
+ "void",
+]
+
+[[package]]
+name = "libp2p-connection-limits"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4caa33f1d26ed664c4fe2cca81a08c8e07d4c1c04f2f4ac7655c2dd85467fda0"
+dependencies = [
+ "libp2p-core 0.39.1",
+ "libp2p-identity",
+ "libp2p-swarm 0.42.0",
+ "void",
 ]
 
 [[package]]
