@@ -5952,7 +5952,7 @@ fn gas_spent_precalculated() {
 
         let call_cost = schedule.instruction_weights.call;
         let get_local_cost = schedule.instruction_weights.local_get;
-        let add_cost = schedule.instruction_weights.i64add;
+        let add_cost = schedule.instruction_weights.i32add;
         let module_instantiation = module_instantiation_per_byte * code.len() as u64;
 
         let total_cost = {
@@ -6723,7 +6723,8 @@ fn execution_over_blocks() {
     new_test_ext().execute_with(|| {
         use demo_calc_hash_in_one_block::{Package, WASM_BINARY};
 
-        let block_gas_limit = BlockGasLimitOf::<Test>::get();
+        // We suppose that gas limit is less than gas allowance
+        let block_gas_limit = BlockGasLimitOf::<Test>::get() - 10000;
 
         // Deploy demo-calc-hash-in-one-block.
         assert_ok!(Gear::upload_program(
@@ -6755,7 +6756,7 @@ fn execution_over_blocks() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             in_one_block,
-            Package::new(16_384, src).encode(),
+            Package::new(17_384, src).encode(),
             block_gas_limit,
             0,
         ));
