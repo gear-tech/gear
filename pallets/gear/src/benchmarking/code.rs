@@ -359,13 +359,21 @@ where
         Some(memory)
     }
 
-    pub fn unary_instr(instr: Instruction, repeat: u32) -> Self {
-        use body::DynInstr::{RandomI64Repeated, Regular};
+    pub fn unary_instr_64(instr: Instruction, repeat: u32) -> Self {
+        Self::unary_instr_for_bit_width(instr, BitWidth::X64, repeat)
+    }
+
+    pub fn unary_instr_32(instr: Instruction, repeat: u32) -> Self {
+        Self::unary_instr_for_bit_width(instr, BitWidth::X86, repeat)
+    }
+
+    fn unary_instr_for_bit_width(instr: Instruction, bit_width: BitWidth, repeat: u32) -> Self {
+        use body::DynInstr::Regular;
         ModuleDefinition {
             handle_body: Some(body::repeated_dyn(
                 repeat,
                 vec![
-                    RandomI64Repeated(1),
+                    bit_width.random_repeated(1),
                     Regular(instr),
                     Regular(Instruction::Drop),
                 ],
@@ -375,13 +383,21 @@ where
         .into()
     }
 
-    pub fn binary_instr(instr: Instruction, repeat: u32) -> Self {
-        use body::DynInstr::{RandomI64Repeated, Regular};
+    pub fn binary_instr_64(instr: Instruction, repeat: u32) -> Self {
+        Self::binary_instr_for_bit_width(instr, BitWidth::X64, repeat)
+    }
+
+    pub fn binary_instr_32(instr: Instruction, repeat: u32) -> Self {
+        Self::binary_instr_for_bit_width(instr, BitWidth::X86, repeat)
+    }
+
+    fn binary_instr_for_bit_width(instr: Instruction, bit_width: BitWidth, repeat: u32) -> Self {
+        use body::DynInstr::Regular;
         ModuleDefinition {
             handle_body: Some(body::repeated_dyn(
                 repeat,
                 vec![
-                    RandomI64Repeated(2),
+                    bit_width.random_repeated(2),
                     Regular(instr),
                     Regular(Instruction::Drop),
                 ],
@@ -599,4 +615,19 @@ where
     T: Config,
 {
     T::Schedule::get().limits.memory_pages
+}
+
+// Used for producing different code based on instruction bit width: 32-bit or 64-bit.
+enum BitWidth {
+    X64,
+    X86,
+}
+
+impl BitWidth {
+    pub fn random_repeated(&self, count: usize) -> body::DynInstr {
+        match self {
+            BitWidth::X64 => body::DynInstr::RandomI64Repeated(count),
+            BitWidth::X86 => body::DynInstr::RandomI32Repeated(count),
+        }
+    }
 }
