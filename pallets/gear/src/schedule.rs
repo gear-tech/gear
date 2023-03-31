@@ -684,7 +684,7 @@ impl<T: Config> Default for InstructionWeights<T> {
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),
             i64store: cost_instr!(instr_i64store, 1),
-            i32store: cost_instr!(instr_i32store, 1),
+            i32store: cost_instr!(instr_i32store, 0),
             select: cost_instr!(instr_select, 2),
             r#if: cost_instr!(instr_if, 0),
             br: cost_instr!(instr_br, 0),

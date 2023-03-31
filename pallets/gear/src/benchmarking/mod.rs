@@ -1263,7 +1263,7 @@ benchmarks! {
 
     // w_load = w_bench
     instr_i32load {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let mem_pages = code::max_pages::<T>() as u32;
         // Warm up memory.
         let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
@@ -1298,9 +1298,9 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_store = w_bench - w_i32const
+    // w_store = w_bench
     instr_i32store {
-        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let mem_pages = code::max_pages::<T>() as u32;
         // Warm up memory.
         let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
