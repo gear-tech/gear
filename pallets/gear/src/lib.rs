@@ -1031,6 +1031,7 @@ pub mod pallet {
                 max_reservations: T::ReservationsLimit::get(),
                 code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
+                rent_fee: Self::rent_fee_gas(),
             }
         }
 
@@ -1147,10 +1148,18 @@ pub mod pallet {
             Self::rent_fee_for(RentBasePeriodOf::<T>::get())
         }
 
+        pub(crate) fn rent_fee_gas() -> GasBalanceOf<T> {
+            Self::rent_fee_gas_for(RentBasePeriodOf::<T>::get())
+        }
+
         pub(crate) fn rent_fee_for(blocks: BlockNumberFor<T>) -> BalanceOf<T> {
+            <T as Config>::GasPrice::gas_price(Self::rent_fee_gas_for(blocks))
+        }
+
+        pub(crate) fn rent_fee_gas_for(blocks: BlockNumberFor<T>) -> GasBalanceOf<T> {
             let blocks: u64 = blocks.unique_saturated_into();
 
-            <T as Config>::GasPrice::gas_price(RentCostPerBlockOf::<T>::get() * blocks)
+            RentCostPerBlockOf::<T>::get() * blocks
         }
 
         pub(crate) fn total_rent_blocks() -> BlockNumberFor<T> {

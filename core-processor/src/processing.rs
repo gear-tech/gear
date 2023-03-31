@@ -66,6 +66,7 @@ where
         reserve_for,
         reservation,
         write_cost,
+        rent_fee,
         ..
     } = block_config.clone();
 
@@ -82,6 +83,7 @@ where
         reserve_for,
         reservation,
         random_data,
+        rent_fee,
     };
 
     let dispatch = execution_context.dispatch;

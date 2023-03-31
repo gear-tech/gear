@@ -96,6 +96,8 @@ pub struct ProcessorContext {
     pub reservation: u64,
     /// Output from Randomness.
     pub random_data: (Vec<u8>, u32),
+    /// Fee for program rent.
+    pub rent_fee: u64,
 }
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -399,6 +401,13 @@ impl Ext {
             }
         }
         Ok(())
+    }
+
+    fn charge_rent_fee(&mut self) -> Result<(), ChargeError> {
+        match self.context.gas_counter.reduce(self.context.rent_fee) {
+            ChargeResult::Enough => Ok(()),
+            ChargeResult::NotEnough => Err(ChargeError::GasLimitExceeded),
+        }
     }
 }
 
@@ -835,6 +844,8 @@ impl EnvExt for Ext {
 
         self.charge_for_dispatch_stash_hold(delay)?;
 
+        self.charge_rent_fee()?;
+
         let code_hash = packet.code_id();
 
         // Send a message for program creation
@@ -852,7 +863,13 @@ impl EnvExt for Ext {
                 entry.push((init_msg_id, new_prog_id));
 
                 (init_msg_id, new_prog_id)
+            })
+            .map_err(|e| {
+                self.context.gas_counter.refund(self.context.rent_fee);
+
+                e
             })?;
+
         Ok((mid, pid))
     }
 
@@ -988,6 +1005,7 @@ mod tests {
                 reserve_for: 0,
                 reservation: 0,
                 random_data: ([0u8; 32].to_vec(), 0),
+                rent_fee: 0,
             };
 
             Self(default_pc)

@@ -322,6 +322,7 @@ where
         reserve_for: settings.reserve_for,
         reservation: settings.reservation,
         random_data: settings.random_data,
+        rent_fee: settings.rent_fee,
     };
 
     let lazy_pages_weights = context.page_costs.lazy_pages_weights();
@@ -535,6 +536,7 @@ where
         reservation: Default::default(),
         random_data: Default::default(),
         system_reservation: Default::default(),
+        rent_fee: Default::default(),
     };
 
     let lazy_pages_weights = context.page_costs.lazy_pages_weights();
