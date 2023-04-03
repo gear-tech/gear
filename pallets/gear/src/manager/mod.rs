@@ -219,7 +219,10 @@ where
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
-        let active: ActiveProgram = ProgramStorageOf::<T>::get_program(id)?.0.try_into().ok()?;
+        let active: ActiveProgram = ProgramStorageOf::<T>::get_program(id)?
+            .program
+            .try_into()
+            .ok()?;
         let code_id = CodeId::from_origin(active.code_hash);
 
         let balance =
@@ -274,7 +277,7 @@ where
 
     fn clean_reservation_tasks(&mut self, program_id: ProgramId, maybe_inactive: bool) {
         let maybe_active_program = ProgramStorageOf::<T>::get_program(program_id)
-            .and_then(|(p, _bn)| ActiveProgram::try_from(p).ok());
+            .and_then(|item| ActiveProgram::try_from(item.program).ok());
 
         if maybe_active_program.is_none() && maybe_inactive {
             return;
@@ -325,7 +328,7 @@ where
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -> GasReservationSlot {
-        let slot = ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
+        let slot = ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             p.gas_reservation_map
                 .remove(&reservation_id)
                 .unwrap_or_else(|| {

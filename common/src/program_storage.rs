@@ -37,13 +37,20 @@ pub trait Error {
     fn cannot_find_page_data() -> Self;
 }
 
+/// The entity specifies the structure of stored data.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+pub struct Item<BlockNumber> {
+    pub program: Program,
+    pub block_number: BlockNumber,
+}
+
 /// Trait to work with program data in a storage.
 pub trait ProgramStorage {
     type InternalError: Error;
     type Error: From<Self::InternalError> + Debug;
-    type BlockNumber;
+    type BlockNumber: Clone + Copy + sp_arithmetic::traits::Saturating;
 
-    type ProgramMap: MapStorage<Key = ProgramId, Value = (Program, Self::BlockNumber)>;
+    type ProgramMap: MapStorage<Key = ProgramId, Value = Item<Self::BlockNumber>>;
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;
     type WaitingInitMap: AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>;
 
@@ -65,13 +72,34 @@ pub trait ProgramStorage {
                 return Err(Self::InternalError::duplicate_item().into());
             }
 
-            *maybe = Some((Program::Active(program), block_number));
+            *maybe = Some(Item {
+                program: Program::Active(program),
+                block_number,
+            });
             Ok(())
         })
     }
 
+    /// Remove an active program with the given key `program_id` from the map.
+    fn remove_active_program(program_id: ProgramId) -> Option<ActiveProgram> {
+        Self::ProgramMap::mutate(program_id, |maybe| {
+            let mut program = maybe.take();
+            match program {
+                Some(Item {
+                    program: Program::Active(p),
+                    ..
+                }) => Some(p),
+                _ => {
+                    *maybe = program.take();
+
+                    None
+                }
+            }
+        })
+    }
+
     /// Load the program associated with the given key `program_id` from the map.
-    fn get_program(program_id: ProgramId) -> Option<(Program, Self::BlockNumber)> {
+    fn get_program(program_id: ProgramId) -> Option<Item<Self::BlockNumber>> {
         Self::ProgramMap::get(&program_id)
     }
 
@@ -86,10 +114,10 @@ pub trait ProgramStorage {
         update_action: F,
     ) -> Result<ReturnType, Self::Error>
     where
-        F: FnOnce(&mut ActiveProgram, &mut Self::BlockNumber) -> ReturnType,
+        F: FnOnce(&mut ActiveProgram) -> ReturnType,
     {
-        Self::update_program_if_active(program_id, |program, bn_ref| match program {
-            Program::Active(active_program) => update_action(active_program, bn_ref),
+        Self::update_program_if_active(program_id, |program| match program {
+            Program::Active(active_program) => update_action(active_program),
             _ => unreachable!("invariant kept by update_program_if_active"),
         })
     }
@@ -101,17 +129,25 @@ pub trait ProgramStorage {
         update_action: F,
     ) -> Result<ReturnType, Self::Error>
     where
-        F: FnOnce(&mut Program, &mut Self::BlockNumber) -> ReturnType,
+        F: FnOnce(&mut Program) -> ReturnType,
     {
-        let (mut program, mut bn) =
-            Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
+        let Item {
+            mut program,
+            block_number,
+        } = Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
         match program {
             Program::Active(_) => (),
             _ => return Err(Self::InternalError::not_active_program().into()),
         }
 
-        let result = update_action(&mut program, &mut bn);
-        Self::ProgramMap::insert(program_id, (program, bn));
+        let result = update_action(&mut program);
+        Self::ProgramMap::insert(
+            program_id,
+            Item {
+                program,
+                block_number,
+            },
+        );
 
         Ok(result)
     }
