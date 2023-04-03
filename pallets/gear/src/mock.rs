@@ -38,6 +38,8 @@ use sp_std::convert::{TryFrom, TryInto};
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
+type BlockNumber = u64;
+type Balance = u128;
 
 type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
 
@@ -87,7 +89,7 @@ impl pallet_balances::Config for Test {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    type Balance = u128;
+    type Balance = Balance;
     type DustRemoval = ();
     type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
@@ -102,7 +104,7 @@ parameter_types! {
         NORMAL_DISPATCH_RATIO,
     );
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 500;
+    pub const ExistentialDeposit: Balance = 500;
     pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 1110, write: 2300 };
 }
 
@@ -114,7 +116,7 @@ impl system::Config for Test {
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
@@ -135,7 +137,7 @@ impl system::Config for Test {
 
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
-    type Balance = u128;
+    type Balance = Balance;
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
