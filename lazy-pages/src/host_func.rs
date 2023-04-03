@@ -117,8 +117,12 @@ fn accesses_pages(
                 .checked_add(access.size.saturating_sub(1))
                 .ok_or_else(|| Error::OutOfWasmMemoryAccess)?;
 
-            for offset in (access.offset..=last_byte).step_by(page_size as usize) {
+            let start = (access.offset / page_size) * page_size;
+            let end = (last_byte / page_size) * page_size;
+            let mut offset = start;
+            while offset <= end {
                 pages.insert(GearPageNumber::from_offset(ctx, offset));
+                offset += page_size;
             }
             Ok(())
         })?;
