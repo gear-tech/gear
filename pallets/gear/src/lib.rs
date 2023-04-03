@@ -118,13 +118,12 @@ pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPoo
 pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
 pub(crate) type SchedulingCostOf<T> = <<T as Config>::Scheduler as Scheduler>::Cost;
-pub(crate) type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub(crate) type DispatchStashOf<T> = <<T as Config>::Messenger as Messenger>::DispatchStash;
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
-pub type GasUnitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::Balance;
+pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
 
 /// The current storage version.
@@ -247,7 +246,7 @@ pub mod pallet {
         >;
 
         /// Block limits.
-        type BlockLimiter: BlockLimiter<Balance = u64>;
+        type BlockLimiter: BlockLimiter<Balance = GasBalanceOf<Self>>;
 
         /// Scheduler.
         type Scheduler: Scheduler<
@@ -258,7 +257,7 @@ pub mod pallet {
         >;
 
         /// Message Queue processing routing provider.
-        type QueueRunner: QueueRunner<Gas = GasUnitOf<Self>>;
+        type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
     }
 
     #[pallet::pallet]
@@ -1664,7 +1663,7 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        type Gas = GasUnitOf<T>;
+        type Gas = GasBalanceOf<T>;
 
         fn run_queue(initial_gas: Self::Gas) -> Self::Gas {
             // Setting adjusted initial gas allowance
