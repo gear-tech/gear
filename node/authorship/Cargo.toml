@@ -12,47 +12,47 @@ repository = "https://github.com/gear-tech/gear"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.4.0", features = ["derive"] }
-futures = "0.3.27"
-futures-timer = "3.0.2"
-log = "0.4.17"
+codec = { workspace = true, features = ["derive"] }
+futures.workspace = true
+futures-timer.workspace = true
+log.workspace = true
 
 # Gear
-runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", path = "../../runtime/primitives" }
-common = { package = "gear-common", version = "0.1.0", path = "../../common" }
-pallet-gear-rpc-runtime-api = { version = "2.0.0", path = "../../pallets/gear/rpc/runtime-api" }
+runtime-primitives.workspace = true
+common.workspace = true
+pallet-gear-rpc-runtime-api.workspace = true
 
 # Substrate Client
-sc-block-builder = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sc-telemetry = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sc-proposer-metrics = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sc-block-builder.workspace = true
+sc-telemetry.workspace = true
+sc-transaction-pool.workspace = true
+sc-transaction-pool-api.workspace = true
+sc-client-api.workspace = true
+sc-proposer-metrics.workspace = true
 
 # Substrate Primitives
-sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-core.workspace = true
+sp-api.workspace = true
+sp-consensus.workspace = true
+sp-runtime.workspace = true
+sp-blockchain.workspace = true
+sp-inherents.workspace = true
 
 # Substrate Other
-frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+frame-system.workspace = true
+prometheus-endpoint.workspace = true
 
 [dev-dependencies]
-sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-std = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-sudo = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-gear = { path = "../../pallets/gear" }
-pallet-gear-messenger = { path = "../../pallets/gear-messenger" }
-testing = { package = "gear-node-testing", path = "../testing" }
-vara-runtime = { path = "../../runtime/vara" }
-demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
+sc-transaction-pool.workspace = true
+frame-support.workspace = true
+sp-io.workspace = true
+sp-std.workspace = true
+sp-timestamp.workspace = true
+sp-consensus-babe.workspace = true
+pallet-sudo.workspace = true
+pallet-timestamp.workspace = true
+pallet-gear.workspace = true
+pallet-gear-messenger.workspace = true
+testing.workspace = true
+vara-runtime.workspace = true
+demo-mul-by-const.workspace = true

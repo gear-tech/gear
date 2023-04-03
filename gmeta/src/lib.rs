@@ -6,20 +6,24 @@ extern crate alloc;
 pub use gmeta_codegen::metawasm;
 
 pub use alloc::{collections::BTreeMap, string::String};
-pub use codec::{Decode, Encode};
-pub use scale_info::{MetaType, PortableRegistry, Registry, TypeInfo};
+pub use scale_info::{
+    scale::{self, Decode, Encode},
+    MetaType, PortableRegistry, Registry, TypeInfo,
+};
 
 use alloc::vec::Vec;
 use blake2_rfc::blake2b;
 use core::any::TypeId;
 
 #[derive(Encode, Debug, Decode, Eq, PartialEq)]
+#[codec(crate = scale)]
 pub struct TypesRepr {
     pub input: Option<u32>,
     pub output: Option<u32>,
 }
 
 #[derive(Encode, Debug, Decode, Eq, PartialEq)]
+#[codec(crate = scale)]
 pub struct MetadataRepr {
     pub init: TypesRepr,
     pub handle: TypesRepr,
@@ -31,6 +35,7 @@ pub struct MetadataRepr {
 }
 
 #[derive(Encode, Debug, Decode)]
+#[codec(crate = scale)]
 pub struct MetawasmData {
     pub funcs: BTreeMap<String, TypesRepr>,
     pub registry: Vec<u8>,
@@ -109,7 +114,7 @@ impl MetadataRepr {
 
 #[derive(Debug, derive_more::From)]
 pub enum MetadataParseError {
-    Codec(codec::Error),
+    Codec(scale_info::scale::Error),
     FromHex(hex::FromHexError),
 }
 

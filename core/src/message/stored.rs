@@ -24,9 +24,11 @@ use crate::{
     },
 };
 use alloc::string::ToString;
-use codec::{Decode, Encode};
 use core::{convert::TryInto, ops::Deref};
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Stored message.
 ///

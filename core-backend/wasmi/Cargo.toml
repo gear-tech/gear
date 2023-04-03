@@ -6,21 +6,21 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-gear-core = { path = "../../core" }
-gear-core-errors = { path = "../../core-errors", features = ["codec"] }
-gear-backend-common = { path = "../common" }
-gsys ={ path = "../../gsys" }
+gear-core.workspace = true
+gear-core-errors = { workspace = true, features = ["codec"] }
+gear-backend-common.workspace = true
+gsys ={ workspace = true }
 
-gear-wasm-instrument = { path = "../../utils/wasm-instrument", default-features = false }
-wasmi = { version = "0.14.0", default-features = false }
-log = { version = "0.4.17", default-features = false }
-derive_more = "0.99.17"
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
-blake2-rfc = { version = "0.2.18", default-features = false }
+gear-wasm-instrument.workspace = true
+wasmi.workspace = true
+log.workspace = true
+derive_more.workspace = true
+codec.workspace = true
+blake2-rfc.workspace = true
 
 [dev-dependencies]
-gear-backend-common = { path = "../common", features = ["mock"] }
+gear-backend-common = { workspace = true, features = ["mock"] }
 
 [features]
 default = ["std"]
-std = ["wasmi/virtual_memory", "gear-wasm-instrument/std", "log/std"]
+std = ["wasmi/virtual_memory", "wasmi/std", "gear-wasm-instrument/std", "log/std"]

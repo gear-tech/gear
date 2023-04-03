@@ -19,8 +19,10 @@
 //! Message processing module.
 
 use alloc::{collections::BTreeSet, string::String};
-use codec::{Decode, Encode};
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 mod common;
 mod context;

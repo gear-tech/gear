@@ -45,8 +45,8 @@ use crate::{
     prelude::convert::AsRef,
     ActorId, CodeId, MessageId,
 };
-use codec::Decode;
 use gstd_codegen::wait_create_program_for_reply;
+use scale_info::scale::Decode;
 
 /// Create a new program from the already existing on-chain code identified by
 /// [`CodeId`].

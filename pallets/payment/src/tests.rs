@@ -19,10 +19,10 @@
 #![allow(clippy::identity_op)]
 
 use crate::{mock::*, Config, CustomChargeTransactionPayment, QueueOf};
-use codec::Encode;
 use common::{storage::*, Origin};
 use frame_support::{
     assert_ok,
+    codec::Encode,
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
     weights::{Weight, WeightToFee},
 };

@@ -22,10 +22,12 @@
 #![allow(unused_parens)]
 
 use crate::{weights::WeightInfo, Config};
-
-use codec::{Decode, Encode};
 use core_processor::configs::PageCosts;
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{
+    codec::{Decode, Encode},
+    traits::Get,
+    weights::Weight,
+};
 use gear_core::{
     code,
     costs::HostFnWeights as CoreHostFnWeights,

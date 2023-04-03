@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-nonempty = "0.8.1"
-env_logger = "0.10"
+nonempty.workspace = true
+env_logger.workspace = true

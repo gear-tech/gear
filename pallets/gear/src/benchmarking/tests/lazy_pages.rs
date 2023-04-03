@@ -21,13 +21,12 @@
 use core::mem::size_of;
 
 use ::alloc::{collections::BTreeSet, format};
-use codec::MaxEncodedLen;
 use common::ProgramStorage;
+use frame_support::codec::MaxEncodedLen;
 use gear_backend_common::lazy_pages::Status;
 use gear_core::memory::{MemoryInterval, PageU32Size};
-use rand::{Rng, SeedableRng};
-
 use gear_lazy_pages_common as lazy_pages;
+use rand::{Rng, SeedableRng};
 
 use super::*;
 use crate::{

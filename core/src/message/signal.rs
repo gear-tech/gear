@@ -20,9 +20,11 @@ use crate::{
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, SignalDetails, StatusCode},
 };
-use codec::{Decode, Encode};
 use gear_core_errors::{SimpleCodec, SimpleSignalError};
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Message for signal entry point.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]

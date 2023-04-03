@@ -59,7 +59,6 @@ use crate::{
     MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
 };
 use ::alloc::vec;
-use codec::Encode;
 use common::{
     self, benchmarking,
     storage::{Counter, *},
@@ -72,7 +71,10 @@ use core_processor::{
     ProcessExecutionContext, ProcessorContext, ProcessorExt,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
-use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
+use frame_support::{
+    codec::Encode,
+    traits::{Currency, Get, Hooks, ReservableCurrency},
+};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_backend_common::Environment;
 use gear_core::{

@@ -55,7 +55,6 @@ use crate::{
     Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf,
     TaskPoolOf,
 };
-use codec::{Decode, Encode};
 use common::{
     event::*,
     scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
@@ -64,7 +63,10 @@ use common::{
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
-use frame_support::traits::Currency;
+use frame_support::{
+    codec::{Decode, Encode},
+    traits::Currency,
+};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},

@@ -6,19 +6,18 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-galloc = { path = "../galloc" }
-gcore = { path = "../gcore", features = ["codec"] }
+galloc.workspace = true
+gcore = { workspace = true, features = ["codec"] }
 gstd-codegen = { path = "codegen" }
-gear-core-errors = { path = "../core-errors" }
-hashbrown = "0.13.2"
-bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
-codec = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive", "full"]}
-hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
-primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"]}
-scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-futures = { version = "0.3", default-features = false, features = ["alloc"] }
+gear-core-errors.workspace = true
+hashbrown.workspace = true
+bs58 = { workspace = true, features = ["alloc"] }
+hex = { workspace = true, features = ["alloc"] }
+primitive-types = { workspace = true, features = ["scale-info"]}
+scale-info = { workspace = true, features = ["derive"] }
+futures = { workspace = true, features = ["alloc"] }
 
-static_assertions = "1"
+static_assertions.workspace = true
 
 [features]
 debug = ["galloc/debug", "gcore/debug"]
