@@ -51,7 +51,7 @@ pub trait Type: TypeInfo + 'static {
     }
 
     fn register(registry: &mut Registry) -> Option<u32> {
-        (!Self::is_unit()).then(|| registry.register_type(&Self::meta_type()).id())
+        (!Self::is_unit()).then(|| registry.register_type(&Self::meta_type()).id)
     }
 }
 
