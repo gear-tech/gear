@@ -64,7 +64,6 @@ use common::{
     storage::{Counter, *},
     CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
 };
-use core::ops::Range;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
@@ -191,7 +190,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
     }
 }
 
-fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Range<u32>)) {
+fn verify_process(notes: Vec<JournalNote>) {
     assert!(
         !notes.is_empty(),
         "Journal notes cannot be empty after execution"
@@ -215,40 +214,20 @@ fn verify_process((notes, err_len_ptrs): (Vec<JournalNote>, Range<u32>)) {
             _ => {}
         }
     }
-
-    let start_page_number = GearPage::from_offset(err_len_ptrs.start);
-    let end_page_number = GearPage::from_offset(err_len_ptrs.end);
-    start_page_number
-        .iter_end_inclusive(end_page_number)
-        .unwrap()
-        .flat_map(|page_number| {
-            pages_data
-                .get(&page_number)
-                .map(|page| (page as &[u8]).to_vec())
-                .unwrap_or_else(|| vec![0; GearPage::size() as usize])
-        })
-        .skip(err_len_ptrs.start as usize)
-        .take(err_len_ptrs.len())
-        .all(|b| b == 0)
-        .then_some(())
-        .expect("Fallible sys-call returned error")
 }
 
-fn run_process<T>(exec: Exec<T>) -> (Vec<JournalNote>, Range<u32>)
+fn run_process<T>(exec: Exec<T>) -> Vec<JournalNote>
 where
     T: Config,
     T::AccountId: Origin,
 {
-    (
-        core_processor::process::<ExecutionEnvironment>(
-            &exec.block_config,
-            exec.context,
-            exec.random_data,
-            exec.memory_pages,
-        )
-        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e)),
-        exec.err_len_ptrs,
+    core_processor::process::<ExecutionEnvironment>(
+        &exec.block_config,
+        exec.context,
+        exec.random_data,
+        exec.memory_pages,
     )
+    .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
 
 /// An instantiated and deployed program.
@@ -321,7 +300,6 @@ pub struct Exec<T: Config> {
     context: ProcessExecutionContext,
     random_data: (Vec<u8>, u32),
     memory_pages: BTreeMap<GearPage, PageBuf>,
-    err_len_ptrs: Range<u32>,
 }
 
 benchmarks! {
@@ -1249,35 +1227,34 @@ benchmarks! {
     instr_i64load {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>() as u32;
-        let instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
+        let mem_pages = code::max_pages::<T>();
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(mem_pages)),
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 8),
                         Regular(Instruction::I64Load(3, 0)),
-                        Regular(Instruction::Drop)], vec![]);
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory{min_pages: mem_pages}),
-            handle_body: Some(body::from_instructions(instrs)),
+                        Regular(Instruction::Drop)])),
             .. Default::default()
-        }));
+        };
+        let mut sbox = Sandbox::from_module_def::<T>(module);
     }: {
         sbox.invoke();
     }
 
     // w_load = w_bench
     instr_i32load {
+        // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>() as u32;
-        // Warm up memory.
-        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
-        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
+        let mem_pages = code::max_pages::<T>();
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(mem_pages)),
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 4),
                         Regular(Instruction::I32Load(2, 0)),
-                        Regular(Instruction::Drop)], instrs);
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory{min_pages: mem_pages}),
-            handle_body: Some(body::from_instructions(instrs)),
+                        Regular(Instruction::Drop)])),
             .. Default::default()
-        }));
+        };
+        let mut sbox = Sandbox::from_module_def::<T>(module);
     }: {
         sbox.invoke();
     }
@@ -1286,35 +1263,34 @@ benchmarks! {
     instr_i64store {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>() as u32;
-        let instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
+        let mem_pages = code::max_pages::<T>();
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(mem_pages)),
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 8),
                         RandomI64Repeated(1),
-                        Regular(Instruction::I64Store(3, 0))], vec![]);
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory{min_pages: mem_pages}),
-            handle_body: Some(body::from_instructions(instrs)),
+                        Regular(Instruction::I64Store(3, 0))])),
             .. Default::default()
-        }));
+        };
+        let mut sbox = Sandbox::from_module_def::<T>(module);
     }: {
         sbox.invoke();
     }
 
     // w_store = w_bench
     instr_i32store {
+        // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
-        let mem_pages = code::max_pages::<T>() as u32;
-        // Warm up memory.
-        let mut instrs = body::write_access_all_pages_instrs((mem_pages as u16).into(), vec![]);
-        instrs = body::repeated_dyn_instr(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages * WasmPage::size() - 8),
+        let mem_pages = code::max_pages::<T>();
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(mem_pages)),
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 4),
                         RandomI32Repeated(1),
-                        Regular(Instruction::I32Store(2, 0))], instrs);
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory{min_pages: mem_pages}),
-            handle_body: Some(body::from_instructions(instrs)),
+                        Regular(Instruction::I32Store(2, 0))])),
             .. Default::default()
-        }));
+        };
+        let mut sbox = Sandbox::from_module_def::<T>(module);
     }: {
         sbox.invoke();
     }
@@ -1449,7 +1425,7 @@ benchmarks! {
      instr_call_const {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            aux_body: Some(body::plain(vec![Instruction::I64Const(0x7ffffffff3ffffff), Instruction::End])),
+            aux_body: Some(body::from_instructions(vec![Instruction::I64Const(0x7ffffffff3ffffff)])),
             aux_res: Some(ValueType::I64),
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::Call(OFFSET_AUX),
@@ -1465,7 +1441,7 @@ benchmarks! {
     instr_call {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            aux_body: Some(body::plain(vec![Instruction::End])),
+            aux_body: Some(body::empty()),
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::Call(OFFSET_AUX),
             ])),
@@ -1480,7 +1456,7 @@ benchmarks! {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let num_elements = T::Schedule::get().limits.table_size;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            aux_body: Some(body::plain(vec![Instruction::End])),
+            aux_body: Some(body::empty()),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI32(0, num_elements as i32),
                 Regular(Instruction::CallIndirect(0, 0)),
@@ -1502,7 +1478,7 @@ benchmarks! {
         let p in 0 .. T::Schedule::get().limits.parameters;
         let num_elements = T::Schedule::get().limits.table_size;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            aux_body: Some(body::plain(vec![Instruction::End])),
+            aux_body: Some(body::empty()),
             aux_arg_num: p,
             handle_body: Some(body::repeated_dyn(INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI64Repeated(p as usize),
@@ -1522,9 +1498,7 @@ benchmarks! {
     // w_per_local = w_bench
     instr_call_per_local {
         let l in 0 .. T::Schedule::get().limits.locals;
-        let mut aux_body = body::plain(vec![
-            Instruction::End,
-        ]);
+        let mut aux_body = body::empty();
         body::inject_locals(&mut aux_body, l);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             aux_body: Some(aux_body),

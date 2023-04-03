@@ -156,5 +156,6 @@ runtime-benchmarks = [
 	"demo-proxy/wasm-wrapper",
 	"gsys",
 ]
+runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
 lazy-pages = ["gear-lazy-pages-common"]

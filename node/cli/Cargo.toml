@@ -81,6 +81,9 @@ runtime-benchmarks = [
   "frame-benchmarking",
 	"frame-benchmarking-cli/runtime-benchmarks",
 ]
+runtime-benchmarks-checkers = [
+	"service/runtime-benchmarks-checkers",
+]
 debug-mode = [
 	"service/debug-mode",
 	"gear-runtime?/debug-mode",
