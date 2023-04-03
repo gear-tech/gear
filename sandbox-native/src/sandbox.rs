@@ -488,6 +488,26 @@ impl<DT: Clone> Store<DT> {
 		}
 	}
 
+	///
+	pub fn lengths(&self) -> (usize, usize) {
+		(self.instances.len(), self.memories.len())
+	}
+
+	///
+	pub fn clear(&mut self) {
+		log::trace!("clear; instances = {}", self.instances.iter().any(|i| i.is_some()));
+		self.instances.clear();
+		log::trace!("clear; memories = {}", self.memories.iter().any(|m| m.is_some()));
+		self.memories.clear();
+
+        match self.backend_context {
+            BackendContext::Wasmi => (),
+            BackendContext::Wasmer(_) => {
+                self.backend_context = BackendContext::Wasmer(WasmerBackend::new());
+            }
+        }
+	}
+
 	/// Create a new memory instance and return it's index.
 	///
 	/// # Errors

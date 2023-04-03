@@ -26,7 +26,8 @@ gear-sandbox-env = { workspace = true, features = ["std"] }
 wasmer-cache = { version = "2.2.1", optional = true }
 
 [features]
-default = []
+default = ["host-sandbox"]
 host-sandbox = [
 	"wasmer",
+	"wasmer-cache",
 ]

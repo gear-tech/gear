@@ -46,13 +46,36 @@ mod impl_ {
 	// those within one thread so this should be safe.
 	unsafe impl Send for SandboxStore {}
 
-	pub(super) type StoreBox = Box<sandbox_env::Store<wasmtime::Func>>;
+	pub(super) struct StoreBox {
+		pub(super) store_data_key: u64,
+		store: Box<sandbox_env::Store<wasmtime::Func>>,
+	}
 
-	pub(super) static mut SANDBOX_STORE: Lazy<StoreBox> = Lazy::new(|| {
-		Box::new(sandbox_env::Store::new(
-			sandbox_env::SandboxBackend::TryWasmer,
-		))
-	});
+	impl StoreBox {
+		pub fn new() -> Self {
+			Self {
+				store_data_key: 0,
+				store: Box::new(sandbox_env::Store::new(
+					sandbox_env::SandboxBackend::TryWasmer,
+				)),
+			}
+		}
+
+		pub fn get(&mut self, store_data_key: u64) -> &mut sandbox_env::Store<wasmtime::Func> {
+			if self.store_data_key != store_data_key {
+				self.store_data_key = store_data_key;
+				self.store.clear();
+			}
+
+			self.store.as_mut()
+		}
+
+		pub fn lengths(&self) -> (usize, usize) {
+			self.store.lengths()
+		}
+	}
+
+	pub(super) static mut SANDBOX_STORE: Lazy<StoreBox> = Lazy::new(|| StoreBox::new());
 
 	pub(super) struct SandboxContext<'a, 'b> {
 		pub(super) caller: &'a mut Caller<'b, StoreData>,
@@ -266,6 +289,22 @@ pub trait Sandbox {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
 
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
+
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"instantiate; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
 			// Extract a dispatch thunk from the instance's table by the specified index.
 			let dispatch_thunk = {
 				let table = caller
@@ -285,7 +324,7 @@ pub trait Sandbox {
 					.expect("Failed to instantiate a new sandbox")
 			};
 
-			let guest_env = match sandbox_env::GuestEnvironment::decode(context.store.as_ref(), context.raw_env_def) {
+			let guest_env = match sandbox_env::GuestEnvironment::decode(context.store.get(store_data_key), context.raw_env_def) {
 				Ok(guest_env) => guest_env,
 				Err(_) => {
 					context.result = sandbox_env::env::ERR_MODULE as u32;
@@ -303,7 +342,7 @@ pub trait Sandbox {
 			// Catch any potential panics so that we can properly restore the sandbox store
 			// which we've destructively borrowed.
 			let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-				context.store.as_mut().instantiate(
+				context.store.get(store_data_key).instantiate(
 					context.wasm_code,
 					guest_env,
 					&mut impl_::SandboxContext { caller, dispatch_thunk, state: context.state_ptr.into() },
@@ -318,7 +357,7 @@ pub trait Sandbox {
 			};
 
 			let instance_idx_or_err_code = match result {
-				Ok(instance) => instance.register(context.store.as_mut(), dispatch_thunk),
+				Ok(instance) => instance.register(context.store.get(store_data_key), dispatch_thunk),
 				Err(sandbox_env::InstantiationError::StartTrapped) => sandbox_env::env::ERR_EXECUTION,
 				Err(_) => sandbox_env::env::ERR_MODULE,
 			};
@@ -368,7 +407,23 @@ pub trait Sandbox {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
 
-			log::trace!(target: "gear-sandbox", "invoke, instance_idx={}", context.instance_idx);
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
+
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"invoke; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
+			log::trace!(target: "gear-sandbox-runtime-interface", "invoke, instance_idx={}", context.instance_idx);
 	
 			// Deserialize arguments and convert them into wasmi types.
 			let args = Vec::<sp_wasm_interface::Value>::decode(&mut context.args)
@@ -376,11 +431,11 @@ pub trait Sandbox {
 				.into_iter()
 				.collect::<Vec<_>>();
 	
-			let instance = context.store.instance(context.instance_idx)
+			let instance = context.store.get(store_data_key).instance(context.instance_idx)
 				.expect("backend instance not found");
 	
 			let dispatch_thunk =
-				context.store.dispatch_thunk(context.instance_idx).expect("dispatch_thunk not found");
+				context.store.get(store_data_key).dispatch_thunk(context.instance_idx).expect("dispatch_thunk not found");
 	
 			let mut sandbox_context = impl_::SandboxContext { caller, dispatch_thunk, state: context.state_ptr.into() };
 			let result = instance.invoke(
@@ -404,7 +459,11 @@ pub trait Sandbox {
 						sandbox_env::env::ERR_OK
 					})
 				},
-				Err(_) => sandbox_env::env::ERR_EXECUTION,
+				Err(e) => {
+					log::trace!(target: "gear-sandbox-runtime-interface", "e = {e:?}");
+
+					sandbox_env::env::ERR_EXECUTION
+				},
 			};
 		});
 
@@ -416,11 +475,30 @@ pub trait Sandbox {
 		type Context<'a> = (&'a mut impl_::StoreBox, u32, u32, u32);
 		let mut context: Context = (unsafe { &mut impl_::SANDBOX_STORE }, initial, maximum, 0);
 		let context_ptr: *mut Context = &mut context;
-        self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+        self.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let data_ptr: *const _ = caller.data();
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
+
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"memory_new; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
 			let (store, initial, maximum, result) = context;
-            *result = store.as_mut().new_memory(*initial, *maximum).map_err(|e| e.to_string())
+
+            *result = store.get(store_data_key).new_memory(*initial, *maximum).map_err(|e| e.to_string())
 				.expect("Failed to create new memory with sandbox");
         });
 
@@ -460,7 +538,24 @@ pub trait Sandbox {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
 
-			let sandboxed_memory = context.store.memory(context.memory_idx)
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let data_ptr: *const _ = caller.data();
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
+
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"memory_get; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
+			let sandboxed_memory = context.store.get(store_data_key).memory(context.memory_idx)
 				.expect("sandboxed memory not found");
 
 			let len = context.buf_len as usize;
@@ -515,7 +610,24 @@ pub trait Sandbox {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
 
-			let sandboxed_memory = context.store.memory(context.memory_idx).expect("memory_set: not found");
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let data_ptr: *const _ = caller.data();
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
+
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"memory_set; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
+			let sandboxed_memory = context.store.get(store_data_key).memory(context.memory_idx).expect("memory_set: not found");
 
 			let buffer = match impl_::read_memory(&caller, context.val_ptr, context.val_len) {
 				Err(_) => {
@@ -547,11 +659,28 @@ pub trait Sandbox {
 		};
 		let context_ptr: *mut Context = &mut context;
 
-		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
-			
-			context.store
+
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let data_ptr: *const _ = caller.data();
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
+
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"memory_teardown; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
+			context.store.get(store_data_key)
 				.memory_teardown(context.memory_idx)
 				.expect("Failed to teardown sandbox memory")
 		});
@@ -570,11 +699,28 @@ pub trait Sandbox {
 		};
 		let context_ptr: *mut Context = &mut context;
 
-		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
-			
-			context.store
+
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let data_ptr: *const _ = caller.data();
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
+
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"instance_teardown; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
+			context.store.get(store_data_key)
 				.instance_teardown(context.instance_idx)
 				.expect("Failed to teardown sandbox instance")
 		});
@@ -604,11 +750,28 @@ pub trait Sandbox {
 		};
 		let context_ptr: *mut Context = &mut context;
 
-		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
 
-			context.result = context.store.as_mut()
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let data_ptr: *const _ = caller.data();
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
+
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"get_global_val; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
+			context.result = context.store.get(store_data_key)
 				.instance(context.instance_idx)
 				.map(|i| i.get_global_val(context.name))
 				.map_err(|e| e.to_string())
@@ -643,21 +806,38 @@ pub trait Sandbox {
 		};
 		let context_ptr: *mut Context = &mut context;
 
-		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
 
-			let instance_idx = context.instance_idx;
-            log::trace!(target: "gear-sandbox", "set_global_val, instance_idx={instance_idx}");
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let data_ptr: *const _ = caller.data();
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
 
-			let instance = context.store
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"set_global_val; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
+			let instance_idx = context.instance_idx;
+            log::trace!(target: "gear-sandbox-runtime-interface", "set_global_val, instance_idx={instance_idx}");
+
+			let instance = context.store.get(store_data_key)
 				.instance(instance_idx)
 				.map_err(|e| e.to_string())
 				.expect("Failed to set global in sandbox");
 
 			let result = instance.set_global_val(context.name, context.value);
 
-			log::trace!(target: "gear-sandbox", "set_global_val, name={}, value={:?}, result={result:?}", context.name, context.value);
+			log::trace!(target: "gear-sandbox-runtime-interface", "set_global_val, name={}, value={:?}, result={result:?}", context.name, context.value);
 			context.result = match result {
 				Ok(None) => sandbox_env::env::ERROR_GLOBALS_NOT_FOUND,
 				Ok(Some(_)) => sandbox_env::env::ERROR_GLOBALS_OK,
@@ -686,12 +866,30 @@ pub trait Sandbox {
 		};
 		let context_ptr: *mut Context = &mut context;
 
-		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
 
-			let mut m = context.store.memory(context.memory_idx)
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let data_ptr: *const _ = caller.data();
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
+
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"memory_grow; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
+			let mut m = context.store.get(store_data_key).memory(context.memory_idx)
 				.expect("Failed to grow memory: cannot get backend memory");
+
 			context.result = m.memory_grow(context.size).expect("Failed to grow memory: cannot get backend memory");
         });
 
@@ -714,12 +912,30 @@ pub trait Sandbox {
 		};
 		let context_ptr: *mut Context = &mut context;
 
-		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
 
-			let mut m = context.store.memory(context.memory_idx)
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let data_ptr: *const _ = caller.data();
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
+
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"memory_size; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
+			let mut m = context.store.get(store_data_key).memory(context.memory_idx)
 				.expect("Failed to grow memory: cannot get backend memory");
+
 			context.result = m.memory_size();
         });
 
@@ -742,11 +958,28 @@ pub trait Sandbox {
 		};
 		let context_ptr: *mut Context = &mut context;
 
-		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
 
-			let mut m = context.store.memory(context.memory_idx)
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let data_ptr: *const _ = caller.data();
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
+
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"get_buff; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
+			let mut m = context.store.get(store_data_key).memory(context.memory_idx)
 				.expect("Failed to grow memory: cannot get backend memory");
 
 			context.result = m.get_buff() as HostPointer;
@@ -769,12 +1002,28 @@ pub trait Sandbox {
 		};
 		let context_ptr: *mut Context = &mut context;
 
-		self.with_caller_mut(context_ptr as *mut (), |context_ptr, _caller| {
+		self.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
 			let context_ptr: *mut Context = context_ptr.cast();
 			let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
 
-			let instance = context
-				.store
+			let data_ptr: *const _ = caller.data();
+			let store_data_key = data_ptr as u64;
+			{
+				// logging
+				let data_ptr: *const _ = caller.data();
+				let caller_ptr: *mut _ = caller;
+				let thread_id = std::thread::current().id();
+
+				log::trace!(target: "gear-sandbox-runtime-interface",
+					"get_instance_ptr; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+					unsafe { &mut impl_::SANDBOX_STORE }.lengths(),
+					data_ptr as u64,
+					caller_ptr as u64,
+					thread_id,
+				);
+			}
+
+			let instance = context.store.get(store_data_key)
 				.instance(context.instance_id)
 				.expect("Failed to get sandboxed instance");
 
