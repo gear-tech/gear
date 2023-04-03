@@ -253,6 +253,12 @@ mod impl_ {
 	}
 }
 
+#[cfg(feature = "std")]
+pub fn initialize() {
+	let storage = unsafe { &mut impl_::SANDBOX_STORE };
+	let _ = storage.get(0);
+}
+
 /// Wasm-only interface that provides functions for interacting with the sandbox.
 #[runtime_interface(wasm_only)]
 pub trait Sandbox {

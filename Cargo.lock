@@ -3699,6 +3699,7 @@ dependencies = [
  "gear-runtime",
  "gear-runtime-primitives",
  "gear-runtime-test-cli",
+ "gear-sandbox-runtime-interface",
  "gear-service",
  "log",
  "mimalloc",

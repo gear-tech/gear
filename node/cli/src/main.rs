@@ -17,5 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 fn main() -> gear_cli::Result<()> {
+    gear_sandbox_runtime_interface::initialize();
     gear_cli::run()
 }
