@@ -409,6 +409,10 @@ lto = "fat"
 # https://doc.rust-lang.org/rustc/codegen-options/index.html#codegen-units
 codegen-units = 1
 
+[profile.profiling]
+inherits = "release"
+debug = true
+
 [patch.crates-io]
 # TODO: remove after Substrate update
 wasmtime-runtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }
