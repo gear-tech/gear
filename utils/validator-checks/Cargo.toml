@@ -10,11 +10,11 @@ path = "bin/validator-checks.rs"
 [dependencies]
 gsdk = { path = "../../gsdk" }
 clap = { version = "4.2.1", features = ["derive"] }
-subxt = { version = "^0.27.0", default-features = false }
+subxt = { version = "^0.27.1", default-features = false }
 thiserror = "1.0.40"
-futures-util = "0.3.26"
+futures-util = "0.3.28"
 log = "0.4.17"
 env_logger = "0.10.0"
-tokio = { version = "1.26.0", features = [ "full" ] }
+tokio = { version = "1.27.0", features = [ "full" ] }
 parity-scale-codec = "3.4.0"
 sp-consensus-babe = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }

@@ -12,7 +12,7 @@ gear-core = { path = "../core" }
 futures = "0.3"
 anyhow = "1.0"
 hex = "0.4"
-subxt = { version = "^0.27.0", default-features = false }
+subxt = { version = "^0.27.1", default-features = false }
 parity-scale-codec = "3"
 rand = "0.8.5"
 thiserror = "1.0.40"
@@ -21,7 +21,7 @@ async-trait = "0.1.68"
 wabt = "0.10.0"
 
 [dev-dependencies]
-tokio = { version = "1.26.0", features = ["full"] }
+tokio = { version = "1.27.0", features = ["full"] }
 wat = "1.0.61"
 async-std = "1.12"
 env_logger = "0.10"
