@@ -6171,6 +6171,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "migration-checker"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap 4.1.14",
+ "env_logger",
+ "frame-remote-externalities",
+ "gclient",
+ "gear-runtime",
+ "log",
+ "tokio",
+]
+
+[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
