@@ -32,7 +32,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{
         ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
-        GasLeft, GasRefunder, Token, ValueCounter,
+        GasLeft, Token, ValueCounter,
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
@@ -357,20 +357,6 @@ impl Ext {
         }
     }
 
-    fn check_charge_results(
-        &mut self,
-        common_charge: ChargeResult,
-        allowance_charge: ChargeResult,
-    ) -> Result<(), ChargeError> {
-        use ChargeResult::*;
-
-        match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err(ChargeError::GasLimitExceeded),
-            (Enough, NotEnough) => Err(ChargeError::GasAllowanceExceeded),
-            (Enough, Enough) => Ok(()),
-        }
-    }
-
     fn charge_sending_fee(&mut self, delay: u32) -> Result<(), ChargeError> {
         if delay == 0 {
             self.charge_gas_if_enough(self.context.message_context.settings().sending_fee())
@@ -400,6 +386,24 @@ impl Ext {
         }
         Ok(())
     }
+
+    fn charge_gas_if_enough(
+        gas_counter: &mut gear_core::gas::GasCounter,
+        gas_allowance_counter: &mut gear_core::gas::GasAllowanceCounter,
+        amount: u64,
+    ) -> Result<(), ChargeError> {
+        if gas_counter.charge_if_enough(amount) != ChargeResult::Enough {
+            return Err(ChargeError::GasLimitExceeded);
+        }
+        if gas_allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
+            if gas_counter.refund(amount) != ChargeResult::Enough {
+                // We have just charged `amount` from `self.gas_counter`, so this must be correct.
+                unreachable!("Cannot refund {amount} for `gas_counter`");
+            }
+            return Err(ChargeError::GasAllowanceExceeded);
+        }
+        Ok(())
+    }
 }
 
 impl CountersOwner for Ext {
@@ -407,7 +411,13 @@ impl CountersOwner for Ext {
         let token = cost.token(&self.context.host_fn_weights);
         let common_charge = self.context.gas_counter.charge(token);
         let allowance_charge = self.context.gas_allowance_counter.charge(token);
-        self.check_charge_results(common_charge, allowance_charge)
+        match (common_charge, allowance_charge) {
+            (ChargeResult::NotEnough, _) => Err(ChargeError::GasLimitExceeded),
+            (ChargeResult::Enough, ChargeResult::NotEnough) => {
+                Err(ChargeError::GasAllowanceExceeded)
+            }
+            (ChargeResult::Enough, ChargeResult::Enough) => Ok(()),
+        }
     }
 
     fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
@@ -416,17 +426,11 @@ impl CountersOwner for Ext {
     }
 
     fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError> {
-        if self.context.gas_counter.charge_if_enough(amount) != ChargeResult::Enough {
-            return Err(ChargeError::GasLimitExceeded);
-        }
-        if self.context.gas_allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
-            if self.context.gas_counter.refund(amount) != ChargeResult::Enough {
-                // We have just charged `amount` from `self.gas_counter`, so this must be correct.
-                unreachable!("Cannot refund {amount} for `gas_counter`");
-            }
-            return Err(ChargeError::GasAllowanceExceeded);
-        }
-        Ok(())
+        Ext::charge_gas_if_enough(
+            &mut self.context.gas_counter,
+            &mut self.context.gas_allowance_counter,
+            amount,
+        )
     }
 
     fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError> {
@@ -872,18 +876,16 @@ impl Ext {
         pages: WasmPage,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, ProcessorAllocError> {
-        // Charge gas for memory grow.
-        // TODO: move charging for grow inside alloc function, so that we can skip refunding #2337
-        let gas_refunder =
-            GasRefunder::charge_if_enough(self, self.context.page_costs.mem_grow.calc(pages))?;
-        let AllocInfo { page, not_grown } =
-            self.context.allocations_context.alloc::<G>(pages, mem)?;
-
-        // Refund gas if memory has not been grown to `pages` size.
-        gas_refunder
-            .refund(self, self.context.page_costs.mem_grow.calc(not_grown))
-            .unwrap_or_else(|err| unreachable!("Alloc implementation error: {err}"))?;
-
+        let AllocInfo { page, .. } =
+            self.context
+                .allocations_context
+                .alloc::<G>(pages, mem, |pages| {
+                    Ext::charge_gas_if_enough(
+                        &mut self.context.gas_counter,
+                        &mut self.context.gas_allowance_counter,
+                        self.context.page_costs.mem_grow.calc(pages),
+                    )
+                })?;
         Ok(page)
     }
 

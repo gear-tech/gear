@@ -18,7 +18,7 @@
 
 //! Module for memory and allocations context.
 
-use crate::buffer::LimitedVec;
+use crate::{buffer::LimitedVec, gas::ChargeError};
 use alloc::{collections::BTreeSet, format};
 use codec::{Decode, Encode, EncodeLike, Input, Output};
 use core::{
@@ -543,6 +543,10 @@ pub enum AllocError {
     /// outside additionally allocated for this program.
     #[display(fmt = "Page {_0} cannot be freed by the current program")]
     InvalidFree(u32),
+    /// Gas charge error
+    #[from]
+    #[display(fmt = "{_0}")]
+    GasChargeError(ChargeError),
 }
 
 /// Alloc method result.
@@ -584,6 +588,7 @@ impl AllocationsContext {
         &mut self,
         pages: WasmPage,
         mem: &mut impl Memory,
+        charge_gas_for_grow: impl FnOnce(WasmPage) -> Result<(), ChargeError>,
     ) -> Result<AllocInfo, AllocError> {
         let mem_size = mem.size();
         let mut start = self.static_pages;
@@ -631,6 +636,8 @@ impl AllocationsContext {
             if extra_grow == WasmPage::zero() {
                 unreachable!("`extra grow cannot be zero");
             }
+
+            charge_gas_for_grow(extra_grow)?;
 
             let grow_handler = G::before_grow_action(mem);
             mem.grow(extra_grow)
