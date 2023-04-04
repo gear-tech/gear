@@ -388,8 +388,8 @@ impl Ext {
     }
 
     fn charge_gas_if_enough(
-        gas_counter: &mut gear_core::gas::GasCounter,
-        gas_allowance_counter: &mut gear_core::gas::GasAllowanceCounter,
+        gas_counter: &mut GasCounter,
+        gas_allowance_counter: &mut GasAllowanceCounter,
         amount: u64,
     ) -> Result<(), ChargeError> {
         if gas_counter.charge_if_enough(amount) != ChargeResult::Enough {
