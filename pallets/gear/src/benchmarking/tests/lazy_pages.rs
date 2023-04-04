@@ -21,13 +21,12 @@
 use core::mem::size_of;
 
 use ::alloc::{collections::BTreeSet, format};
-use codec::MaxEncodedLen;
 use common::ProgramStorage;
+use frame_support::codec::MaxEncodedLen;
 use gear_backend_common::lazy_pages::Status;
 use gear_core::memory::{MemoryInterval, PageU32Size};
-use rand::{Rng, SeedableRng};
-
 use gear_lazy_pages_common as lazy_pages;
+use rand::{Rng, SeedableRng};
 
 use super::*;
 use crate::{
@@ -198,7 +197,7 @@ where
     let prob_max = load_prob + store_prob + syscall_prob;
 
     let memory = ImportedMemory::max::<T>();
-    let size_wasm_pages = WasmPage::new(memory.min_pages).unwrap();
+    let size_wasm_pages = memory.min_pages;
     let size_gear = size_wasm_pages.to_page::<GearPage>();
     let access_size = size_of::<u32>() as u32;
     let max_addr = size_wasm_pages.offset();
@@ -259,13 +258,14 @@ where
         }
 
         // Upload program with code
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::Random],
             handle_body: Some(body::from_instructions(instrs)),
+            stack_end: Some(0.into()),
             ..Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![]).unwrap();
+        };
+        let instance = Program::<T>::new(module.into(), vec![]).unwrap();
         let source = instance.caller.into_origin();
         let program_id = ProgramId::from_origin(instance.addr);
 
@@ -283,7 +283,6 @@ where
                 source,
                 HandleKind::Handle(program_id),
                 vec![],
-                0..0,
                 Default::default(),
             )
             .unwrap();
@@ -354,12 +353,13 @@ where
     let write_after_read_cost = 100u64;
 
     let test = |instrs, expected| {
-        let code = WasmModule::<T>::from(ModuleDefinition {
+        let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::from_instructions(instrs)),
+            stack_end: Some(0.into()),
             ..Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![]).unwrap();
+        };
+        let instance = Program::<T>::new(module.into(), vec![]).unwrap();
 
         let charged = |i: u64| {
             let instance = instance.clone();
@@ -367,7 +367,6 @@ where
                 instance.caller.into_origin(),
                 HandleKind::Handle(ProgramId::from_origin(instance.addr)),
                 vec![],
-                0..0,
                 Default::default(),
             )
             .unwrap();
@@ -516,12 +515,13 @@ where
         Instruction::I32Const(42),
         Instruction::I32Store(2, 0),
     ];
-    let code = WasmModule::<T>::from(ModuleDefinition {
+    let module = ModuleDefinition {
         memory: Some(ImportedMemory::max::<T>()),
         handle_body: Some(body::from_instructions(instrs)),
+        stack_end: Some(0.into()),
         ..Default::default()
-    });
-    let instance = Program::<T>::new(code, vec![]).unwrap();
+    };
+    let instance = Program::<T>::new(module.into(), vec![]).unwrap();
     let source = instance.caller.into_origin();
     let origin = instance.addr;
 
@@ -531,7 +531,6 @@ where
             source,
             HandleKind::Handle(ProgramId::from_origin(origin)),
             vec![],
-            0..0,
             Default::default(),
         )
         .unwrap();
@@ -570,7 +569,6 @@ where
             source,
             HandleKind::Handle(ProgramId::from_origin(origin)),
             vec![],
-            0..0,
             PrepareConfig {
                 gas_limit: gas_burned,
                 ..Default::default()
@@ -613,7 +611,6 @@ where
             source,
             HandleKind::Handle(ProgramId::from_origin(origin)),
             vec![],
-            0..0,
             PrepareConfig {
                 gas_allowance: gas_burned,
                 ..Default::default()

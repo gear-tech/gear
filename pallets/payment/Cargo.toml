@@ -13,46 +13,47 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-log = { version = "0.4.17", default-features = false }
-parity-wasm = { version = "0.45.0", default-features = false, optional = true }
-primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"] }
+parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+log.workspace = true
+parity-wasm = { workspace = true, optional = true }
+primitive-types = { workspace = true, features = ["scale-info"] }
 
 # Internal dependencies
-common = { package = "gear-common", path = "../../common", default-features = false }
+common.workspace = true
 
 # Substrate deps
-frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false, optional = true }
-sp-std = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+frame-support.workspace = true
+frame-system.workspace = true
+frame-benchmarking = { workspace = true, optional = true }
+sp-std.workspace = true
+sp-runtime.workspace = true
+pallet-authorship.workspace = true
+pallet-balances.workspace = true
+pallet-transaction-payment.workspace = true
 
 [dev-dependencies]
-serde = "1.0.158"
-env_logger = "0.10"
-wabt = "0.10"
-gear-core = { path = "../../core" }
-sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-gear = { path = "../gear" }
-pallet-gear-gas = { path = "../gas" }
-pallet-gear-messenger = { path = "../gear-messenger" }
-pallet-gear-program = { path = "../gear-program" }
-pallet-gear-scheduler = { path = "../gear-scheduler" }
+serde.workspace = true
+env_logger.workspace = true
+wabt.workspace = true
+gear-core.workspace = true
+sp-io.workspace = true
+frame-support-test.workspace = true
+pallet-timestamp.workspace = true
+pallet-gear.workspace = true
+pallet-gear-gas.workspace = true
+pallet-gear-messenger.workspace = true
+pallet-gear-program.workspace = true
+pallet-gear-scheduler.workspace = true
 
 [features]
 default = ['std']
 std = [
-	"codec/std",
+	"parity-scale-codec/std",
 	"log/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
+	"frame-support-test/std",
 	"frame-system/std",
 	"scale-info/std",
 	"sp-std/std",
@@ -60,6 +61,11 @@ std = [
 	"pallet-balances/std",
 	"pallet-transaction-payment/std",
 	"pallet-authorship/std",
+	"pallet-gear/std",
+	"pallet-gear-gas/std",
+	"pallet-gear-messenger/std",
+	"pallet-gear-program/std",
+	"pallet-gear-scheduler/std",
 	"primitive-types/std",
 ]
 runtime-benchmarks = [

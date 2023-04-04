@@ -20,15 +20,16 @@
 
 use core::fmt::Debug;
 
-use codec::{Decode, Encode};
 use core::any::Any;
 use gear_core::{
     costs::CostPerPage,
     memory::{GearPage, HostPointer},
 };
+use scale_info::scale::{self, Decode, Encode};
 
 /// Informs lazy-pages whether they work with native or WASM runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[codec(crate = scale)]
 pub enum GlobalsAccessMod {
     /// Is wasm runtime.
     WasmRuntime,
@@ -38,6 +39,7 @@ pub enum GlobalsAccessMod {
 
 /// Lazy-pages cases weights.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
+#[codec(crate = scale)]
 pub struct LazyPagesWeights {
     /// First read page access cost.
     pub signal_read: CostPerPage<GearPage>,
@@ -57,6 +59,7 @@ pub struct LazyPagesWeights {
 
 /// Globals ctx for lazy-pages initialization for program.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[codec(crate = scale)]
 pub struct GlobalsAccessConfig {
     /// Raw pointer to the globals access provider.
     pub access_ptr: HostPointer,
@@ -96,6 +99,7 @@ pub trait GlobalsAccessor {
 /// termination reason sets as `gas limit exceeded` or `gas allowance exceeded`, depending on status.
 /// NOTE: `repr(i64)` is important to be able add additional fields, without old runtimes separate support logic.
 #[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq)]
+#[codec(crate = scale)]
 #[repr(i64)]
 pub enum Status {
     /// Lazy-pages works in normal mode.

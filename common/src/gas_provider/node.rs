@@ -17,11 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use codec::MaxEncodedLen;
+use frame_support::{codec, dispatch::MaxEncodedLen, scale_info};
 use gear_core::ids::ReservationId;
 
 /// ID of the [`GasNode`].
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum GasNodeId<T, U> {
     Node(T),
     Reservation(U),
@@ -70,6 +72,8 @@ impl<T> From<ReservationId> for GasNodeId<T, ReservationId> {
 
 /// Node of the ['Tree'] gas tree
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// A root node for each gas tree.
     ///
@@ -134,6 +138,8 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
 
 /// Children references convenience struct
 #[derive(Clone, Copy, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub struct ChildrenRefs {
     spec_refs: u32,
     unspec_refs: u32,

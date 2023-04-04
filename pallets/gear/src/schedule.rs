@@ -22,10 +22,12 @@
 #![allow(unused_parens)]
 
 use crate::{weights::WeightInfo, Config};
-
-use codec::{Decode, Encode};
 use core_processor::configs::PageCosts;
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{
+    codec::{Decode, Encode},
+    traits::Get,
+    weights::Weight,
+};
 use gear_core::{
     code,
     costs::HostFnWeights as CoreHostFnWeights,
@@ -862,14 +864,14 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_reservation_send_commit_per_byte: to_weight!(cost_byte_batched!(
                 gr_reservation_send_commit_per_kb
             )),
-            gr_reply_commit: to_weight!(cost_batched!(gr_reply_commit)),
+            gr_reply_commit: to_weight!(cost!(gr_reply_commit)),
             gr_reply_commit_per_byte: to_weight!(cost_byte!(gr_reply_commit_per_kb)),
-            gr_reservation_reply_commit: to_weight!(cost_batched!(gr_reservation_reply_commit)),
+            gr_reservation_reply_commit: to_weight!(cost!(gr_reservation_reply_commit)),
             gr_reservation_reply_commit_per_byte: to_weight!(cost_byte!(
                 gr_reservation_reply_commit_per_kb
             )),
             gr_reply_push: to_weight!(cost_batched!(gr_reply_push)),
-            gr_reply_push_per_byte: to_weight!(cost_byte_batched!(gr_reply_push_per_kb)),
+            gr_reply_push_per_byte: to_weight!(cost_byte!(gr_reply_push_per_kb)),
             gr_debug: to_weight!(cost_batched!(gr_debug)),
             gr_debug_per_byte: to_weight!(cost_byte_batched!(gr_debug_per_kb)),
             // TODO: https://github.com/gear-tech/gear/issues/1846
@@ -897,9 +899,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_send_push_input: to_weight!(cost_batched!(gr_send_push_input)),
             gr_send_push_input_per_byte: to_weight!(cost_byte_batched!(gr_send_push_input_per_kb)),
             gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
-            gr_reply_push_input_per_byte: to_weight!(cost_byte_batched!(
-                gr_reply_push_input_per_kb
-            )),
+            gr_reply_push_input_per_byte: to_weight!(cost_byte!(gr_reply_push_input_per_kb)),
             _phantom: PhantomData,
         }
     }

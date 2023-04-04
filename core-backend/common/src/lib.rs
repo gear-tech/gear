@@ -40,7 +40,6 @@ use alloc::{
     string::{FromUtf8Error, String},
     vec::Vec,
 };
-use codec::{Decode, Encode};
 use core::{
     convert::Infallible,
     fmt::{Debug, Display},
@@ -60,7 +59,10 @@ use gear_core::{
 use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};
 use lazy_pages::GlobalsAccessConfig;
 use memory::ProcessAccessError;
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{self, Decode, Encode},
+    TypeInfo,
+};
 
 pub use crate::utils::TrimmedString;
 pub use log;
@@ -142,6 +144,7 @@ impl From<TrapExplanation> for TerminationReason {
 }
 
 #[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
+#[codec(crate = scale)]
 pub enum ActorTerminationReason {
     Exit(ProgramId),
     Leave,
@@ -173,6 +176,7 @@ pub enum SystemTerminationReason {
     derive_more::Display,
     derive_more::From,
 )]
+#[codec(crate = scale)]
 pub enum TrapExplanation {
     /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
@@ -411,9 +415,9 @@ macro_rules! syscall_args_trace {
         {
             let s = stringify!($val);
             if s.ends_with("_ptr") {
-                format!(", {} = {:#x?}", s, $val)
+                alloc::format!(", {} = {:#x?}", s, $val)
             } else {
-                format!(", {} = {:?}", s, $val)
+                alloc::format!(", {} = {:?}", s, $val)
             }
         }
     };

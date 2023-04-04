@@ -7,10 +7,10 @@ license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-gstd = { path = "../../../gstd", features = ["debug"] }
+gstd = { workspace = true, features = ["debug"] }
 
 [build-dependencies]
-gear-wasm-builder = { path = "../../../utils/wasm-builder" }
+gear-wasm-builder.workspace = true
 
 [features]
 std = [ ]

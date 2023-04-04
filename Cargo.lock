@@ -433,7 +433,7 @@ dependencies = [
  "log",
  "parking",
  "polling",
- "rustix 0.37.5",
+ "rustix 0.37.6",
  "slab",
  "socket2",
  "waker-fn",
@@ -456,7 +456,7 @@ checksum = "0e97ce7de6cf12de5d7226c73f5ba9811622f4db3a5b91b55c53e987e5f91cba"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -499,7 +499,7 @@ checksum = "b9ccdd8f2a161be9bd5c023df56f1b2a0bd1d83872ae53b71a84a12c9bf6e842"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -1161,7 +1161,7 @@ dependencies = [
  "heck 0.4.1",
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -1720,7 +1720,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scratch",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -1737,7 +1737,7 @@ checksum = "2345488264226bf682893e25de0769f3360aac9957980ec49361b083ddaa5bc5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -1989,7 +1989,7 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "hex-literal",
+ "hex-literal 0.4.0",
  "parity-scale-codec",
 ]
 
@@ -2099,7 +2099,7 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
- "hex-literal",
+ "hex-literal 0.4.0",
  "parity-scale-codec",
 ]
 
@@ -2401,7 +2401,7 @@ version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f51c5d4ddabd36886dd3e1438cb358cdcb0d7c499cb99cb4ac2e38e18b5cb210"
 dependencies = [
- "dirs-sys 0.3.7",
+ "dirs-sys",
 ]
 
 [[package]]
@@ -2416,11 +2416,11 @@ dependencies = [
 
 [[package]]
 name = "dirs"
-version = "5.0.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dece029acd3353e3a58ac2e3eb3c8d6c35827a892edc6cc4138ef9c33df46ecd"
+checksum = "ca3aa72a6f96ea37bbc5aa912f6788242832f75369bdfdadcb0e38423f100059"
 dependencies = [
- "dirs-sys 0.4.0",
+ "dirs-sys",
 ]
 
 [[package]]
@@ -2432,17 +2432,6 @@ dependencies = [
  "libc",
  "redox_users",
  "winapi",
-]
-
-[[package]]
-name = "dirs-sys"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04414300db88f70d74c5ff54e50f9e1d1737d9a5b90f53fcf2e95ca2a9ab554b"
-dependencies = [
- "libc",
- "redox_users",
- "windows-sys 0.45.0",
 ]
 
 [[package]]
@@ -3397,7 +3386,7 @@ checksum = "89ca545a94061b6365f2c7355b4b32bd20df3ff95f02da9329b34ccc3bd6ee72"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -3469,7 +3458,6 @@ version = "0.1.5"
 dependencies = [
  "anyhow",
  "base64 0.21.0",
- "cfg-if",
  "clap 4.2.1",
  "color-eyre",
  "demo-meta",
@@ -3530,7 +3518,7 @@ dependencies = [
  "gsdk",
  "gstd",
  "hex",
- "hex-literal",
+ "hex-literal 0.3.4",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -3548,7 +3536,7 @@ dependencies = [
  "galloc",
  "gear-core-errors",
  "gsys",
- "hex-literal",
+ "hex-literal 0.3.4",
  "parity-scale-codec",
  "static_assertions",
 ]
@@ -3601,7 +3589,6 @@ dependencies = [
  "gear-core-errors",
  "gear-wasm-instrument",
  "log",
- "parity-scale-codec",
  "rand 0.8.5",
  "scale-info",
 ]
@@ -3707,16 +3694,13 @@ dependencies = [
  "gear-core",
  "gear-utils",
  "gear-wasm-instrument",
- "hex-literal",
+ "hex-literal 0.3.4",
  "log",
- "parity-scale-codec",
  "primitive-types",
  "proptest",
- "scale-info",
  "sp-arithmetic",
  "sp-core",
  "sp-io",
- "sp-runtime",
  "sp-std 5.0.0",
 ]
 
@@ -3725,7 +3709,7 @@ name = "gear-common-codegen"
 version = "0.1.0"
 dependencies = [
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -3753,7 +3737,6 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.0",
- "parity-scale-codec",
  "scale-info",
 ]
 
@@ -3769,7 +3752,6 @@ dependencies = [
  "gear-core-errors",
  "gear-wasm-instrument",
  "log",
- "parity-scale-codec",
  "proptest",
  "scale-info",
  "static_assertions",
@@ -3894,7 +3876,7 @@ dependencies = [
  "gear-common",
  "gear-runtime-common",
  "gear-runtime-primitives",
- "hex-literal",
+ "hex-literal 0.3.4",
  "log",
  "pallet-authorship",
  "pallet-babe",
@@ -4029,7 +4011,7 @@ dependencies = [
  "gear-runtime-common",
  "gear-runtime-interface",
  "gear-runtime-primitives",
- "hex-literal",
+ "hex-literal 0.3.4",
  "jsonrpsee",
  "log",
  "pallet-gear-rpc",
@@ -4171,7 +4153,7 @@ dependencies = [
  "proptest",
  "rand 0.8.5",
  "wasm-smith",
- "wasmparser 0.101.1",
+ "wasmparser-nostd 0.100.1",
  "wasmprinter",
  "wat",
 ]
@@ -4185,7 +4167,7 @@ dependencies = [
  "gear-backend-wasmi",
  "gear-core",
  "wasm-instrument 0.2.1",
- "wasmparser 0.101.1",
+ "wasmparser-nostd 0.100.1",
  "wat",
 ]
 
@@ -4351,7 +4333,6 @@ dependencies = [
  "derive_more",
  "gmeta-codegen",
  "hex",
- "parity-scale-codec",
  "scale-info",
 ]
 
@@ -4365,7 +4346,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scale-info",
- "syn 1.0.109",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -4414,7 +4395,6 @@ dependencies = [
  "gstd-codegen",
  "hashbrown 0.13.2",
  "hex",
- "parity-scale-codec",
  "primitive-types",
  "scale-info",
  "static_assertions",
@@ -4427,7 +4407,7 @@ dependencies = [
  "gstd",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.13",
  "trybuild",
 ]
 
@@ -4582,6 +4562,12 @@ name = "hex-literal"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ebdb29d2ea9ed0083cd8cece49bbd968021bd99b0849edb4a9a7ee0fdf6a4e0"
+
+[[package]]
+name = "hex-literal"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bcb5b3e439c92a7191df2f9bbe733de8de55c3f86368cdb1c63f8be7e9e328e"
 
 [[package]]
 name = "hkdf"
@@ -4978,7 +4964,7 @@ checksum = "256017f749ab3117e93acb91063009e1f1bb56d03965b14c2c8df4eb02c524d8"
 dependencies = [
  "hermit-abi 0.3.1",
  "io-lifetimes 1.0.9",
- "rustix 0.37.5",
+ "rustix 0.37.6",
  "windows-sys 0.45.0",
 ]
 
@@ -6169,7 +6155,7 @@ version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffc89ccdc6e10d6907450f753537ebc5c5d3460d2e4e62ea74bd571db62c0f9e"
 dependencies = [
- "rustix 0.37.5",
+ "rustix 0.37.6",
 ]
 
 [[package]]
@@ -7164,7 +7150,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-wasm-instrument",
- "hex-literal",
+ "hex-literal 0.3.4",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -7270,7 +7256,7 @@ version = "2.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -7929,7 +7915,7 @@ dependencies = [
  "pest_meta",
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -8192,9 +8178,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.54"
+version = "1.0.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e472a104799c74b514a57226160104aa483546de37e839ec50e3c2e41dd87534"
+checksum = "2b63bdb0cd06f1f4dedf69b254734f9b45af66e4a031e42a7480257d9898b435"
 dependencies = [
  "unicode-ident",
 ]
@@ -8673,7 +8659,7 @@ checksum = "8d2275aab483050ab2a7364c1a46604865ee7d6906684e08db0f090acf74f9e7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -9025,9 +9011,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.37.5"
+version = "0.37.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e78cc525325c06b4a7ff02db283472f3c042b7ff0c391f96c6d5ac6f4f91b75"
+checksum = "d097081ed288dfe45699b72f5b5d648e5f15d64d900c7080273baa20c16a6849"
 dependencies = [
  "bitflags",
  "errno 0.3.0",
@@ -10450,7 +10436,7 @@ checksum = "4c614d17805b093df4b147b51339e7e44bf05ef59fba1e45d83500bcfb4d8585"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -10472,7 +10458,7 @@ checksum = "bcec881020c684085e55a25f7fd888954d56609ef363479dc5a1305eb0d40cab"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -11794,9 +11780,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.12"
+version = "2.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79d9531f94112cfc3e4c8f5f02cb2b58f72c97b7efd85f70203cc6d8efda5927"
+checksum = "4c9da457c5285ac1f936ebd076af6dac17a61cfe7826f2076b4d015cf47bc8ec"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -11881,7 +11867,7 @@ dependencies = [
  "cfg-if",
  "fastrand",
  "redox_syscall 0.3.5",
- "rustix 0.37.5",
+ "rustix 0.37.6",
  "windows-sys 0.45.0",
 ]
 
@@ -11941,7 +11927,7 @@ checksum = "f9456a42c5b0d803c8cd86e73dd7cc9edd429499f37a3550d286d5e86720569f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -12088,7 +12074,7 @@ checksum = "61a573bdc87985e9d6ddeed1b3d864e8a302c847e40d647746df2f1de209d1ce"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -12666,7 +12652,7 @@ dependencies = [
  "gear-common",
  "gear-runtime-common",
  "gear-runtime-primitives",
- "hex-literal",
+ "hex-literal 0.3.4",
  "log",
  "pallet-airdrop",
  "pallet-authority-discovery",
@@ -13352,16 +13338,6 @@ version = "0.90.0"
 source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#2db6004e21aa014f411f8b575a99969284cff702"
 dependencies = [
  "indexmap",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.101.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf2f22ef84ac5666544afa52f326f13e16f3d019d2e61e704fd8091c9358b130"
-dependencies = [
- "indexmap",
- "url",
 ]
 
 [[package]]
@@ -14308,7 +14284,7 @@ checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.13",
 ]
 
 [[package]]

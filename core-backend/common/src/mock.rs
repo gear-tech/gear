@@ -22,7 +22,6 @@ use crate::{
 };
 use alloc::collections::BTreeSet;
 use alloc::vec::Vec;
-use codec::{Decode, Encode};
 use core::fmt;
 use core::fmt::Debug;
 use gear_core::memory::{PageU32Size, WASM_PAGE_SIZE};
@@ -37,9 +36,11 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError;
 use gear_wasm_instrument::syscalls::SysCallName;
+use scale_info::scale::{self, Decode, Encode};
 
 /// Mock error
 #[derive(Debug, Clone, Encode, Decode)]
+#[codec(crate = scale)]
 pub struct Error;
 
 impl fmt::Display for Error {

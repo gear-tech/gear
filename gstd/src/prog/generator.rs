@@ -25,8 +25,8 @@ use crate::{
     prelude::convert::AsRef,
     prog, ActorId, CodeId, MessageId,
 };
-use codec::{alloc::vec::Vec, Decode};
 use gstd_codegen::wait_create_program_for_reply;
+use scale_info::scale::{alloc::vec::Vec, Decode};
 
 /// Helper to create programs without setting the salt manually.
 pub struct ProgramGenerator(u64);

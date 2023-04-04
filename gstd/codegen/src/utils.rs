@@ -19,7 +19,7 @@ use proc_macro2::Span;
 use syn::{
     parse_quote,
     punctuated::Punctuated,
-    token::{Add, Comma},
+    token::{Comma, Plus},
     Expr, Generics, Ident, PathArguments, PathSegment, Token, TraitBound, TraitBoundModifier,
     TypeParam, TypeParamBound,
 };
@@ -85,7 +85,7 @@ pub fn wait_for_reply_docs(name: String) -> (String, String) {
 ///
 /// Only supports `TraitBound` for now.
 pub fn append_generic(mut generics: Generics, ident: Ident, traits: Vec<Ident>) -> Generics {
-    let mut bounds: Punctuated<TypeParamBound, Add> = Punctuated::new();
+    let mut bounds: Punctuated<TypeParamBound, Plus> = Punctuated::new();
     for t in traits {
         bounds.push_value(
             TraitBound {
