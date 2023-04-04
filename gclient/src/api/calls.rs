@@ -1064,8 +1064,8 @@ impl GearApi {
     /// Upgrade the runtime by reading the code from the file located at the
     /// `path`.
     ///
-    /// Same as [`set_code_without_checks`](Self::set_code_without_checks), but reads the runtime code from a
-    /// file instead of using a byte vector.
+    /// Same as [`set_code_without_checks`](Self::set_code_without_checks), but
+    /// reads the runtime code from a file instead of using a byte vector.
     pub async fn set_code_without_checks_by_path(&self, path: impl AsRef<Path>) -> Result<H256> {
         let code = utils::code_from_os(path)?;
         self.set_code_without_checks(code).await
