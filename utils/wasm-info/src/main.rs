@@ -1,20 +1,20 @@
+use clap::Parser;
 use parity_wasm::elements::{Module, Section, Serialize};
 use std::{fs, path::PathBuf};
-use structopt::StructOpt;
 
 /// Parse info of wasm binaries
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Info {
     /// Show code hex
-    #[structopt(short, long)]
+    #[arg(short = 'H', long)]
     pub hex: bool,
 
     /// Show code size
-    #[structopt(long)]
+    #[arg(long)]
     pub size: bool,
 
     /// Strip custom sections
-    #[structopt(short, long)]
+    #[arg(short, long)]
     pub strip_custom_sections: bool,
 
     /// Path or hex encoding of wasm binary
@@ -53,7 +53,7 @@ impl Info {
 }
 
 fn main() {
-    let info = Info::from_args();
+    let info = Info::parse();
 
     let mut module = info.module();
     println!("Module sections: {}", module.sections().len());
