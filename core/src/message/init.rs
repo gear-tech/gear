@@ -23,8 +23,10 @@ use crate::{
         StoredMessage, Value,
     },
 };
-use codec::{Decode, Encode};
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Message for Init entry point.
 /// Used to initiate a newly created program.

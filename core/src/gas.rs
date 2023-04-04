@@ -18,9 +18,8 @@
 
 //! Gas module.
 
-use codec::{Decode, Encode};
-
 use crate::costs::RuntimeCosts;
+use scale_info::scale::{Decode, Encode};
 
 /// This trait represents a token that can be used for charging `GasCounter`.
 ///

@@ -48,6 +48,7 @@ static_assertions::const_assert!(
 );
 
 #[derive(Debug, Clone, Encode, Decode)]
+#[codec(crate = codec)]
 pub struct LazyPagesProgramContext {
     /// Wasm program memory addr.
     pub wasm_mem_addr: Option<HostPointer>,
@@ -68,6 +69,7 @@ impl PassBy for LazyPagesProgramContext {
 }
 
 #[derive(Debug, Clone, Encode, Decode)]
+#[codec(crate = codec)]
 pub struct LazyPagesRuntimeContext {
     pub page_sizes: Vec<u32>,
     // TODO: considering change global name types to `TrimmedString` (issue #2098)

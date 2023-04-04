@@ -24,9 +24,11 @@ use crate::{
         StoredMessage, Value,
     },
 };
-use codec::{Decode, Encode};
 use gear_core_errors::{SimpleCodec, SimpleReplyError};
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Message for Reply entry point.
 /// [`ReplyMessage`] is unique because of storing [`MessageId`] from message on what it replies, and can be the only one per some message execution.

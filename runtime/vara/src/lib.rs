@@ -24,10 +24,10 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use codec::Encode;
 use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::weights::ConstantMultiplier;
 pub use frame_support::{
+    codec::Encode,
     construct_runtime,
     dispatch::{DispatchClass, WeighData},
     parameter_types,

@@ -175,7 +175,7 @@ where
                 .map_err(|e| System(Linking(e)))?;
         }
 
-        let module = Module::new(store.engine(), &mut &binary[..])
+        let module = Module::new(store.engine(), binary)
             .map_err(|e| Actor(ext.gas_amount(), e.to_string()))?;
 
         let runtime = State {

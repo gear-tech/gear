@@ -831,7 +831,7 @@ where
         // Expected to burn not more than 750_000_000
         // Provided gas in the test by default is 50_000_000_000
         let lower = 50_000_000_000 - 1_000_000_000;
-        let upper = 50_000_000_000 - 300_000_000;
+        let upper = 50_000_000_000 - 200_000_000;
         let mp = Kind::GasAvailable(lower, upper).encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
@@ -1053,7 +1053,7 @@ where
     T::AccountId: Origin,
 {
     ModuleDefinition {
-        memory: Some(ImportedMemory { min_pages: 1 }),
+        memory: Some(ImportedMemory::new(1)),
         ..Default::default()
     }
     .into()
@@ -1130,7 +1130,7 @@ where
     use gear_wasm_instrument::parity_wasm::elements::{FuncBody, Instructions};
 
     ModuleDefinition {
-        memory: Some(ImportedMemory { min_pages: 1 }),
+        memory: Some(ImportedMemory::new(1)),
         imported_functions: vec![SysCallName::Alloc, SysCallName::Free],
         init_body: Some(FuncBody::new(
             vec![],

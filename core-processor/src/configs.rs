@@ -19,19 +19,20 @@
 //! Configurations.
 
 use alloc::{collections::BTreeSet, vec::Vec};
-use codec::{Decode, Encode};
 use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core::{
     costs::{CostPerPage, HostFnWeights},
     memory::{GearPage, WasmPage},
 };
 use gear_wasm_instrument::syscalls::SysCallName;
+use scale_info::scale::{self, Decode, Encode};
 
 /// Number of max pages number to use it in tests.
 pub const TESTS_MAX_PAGES_NUMBER: u16 = 512;
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]
+#[codec(crate = scale)]
 pub struct BlockInfo {
     /// Height.
     pub height: u32,
@@ -41,6 +42,7 @@ pub struct BlockInfo {
 
 /// Memory/allocation config.
 #[derive(Clone, Debug, Decode, Encode, Default)]
+#[codec(crate = scale)]
 pub struct PageCosts {
     /// Cost per one [GearPage] signal `read` processing in lazy-pages,
     /// it does not include cost for loading page data from storage.
