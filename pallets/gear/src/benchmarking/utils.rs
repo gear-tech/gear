@@ -45,6 +45,7 @@ use crate::ProgramStorageOf;
 use common::ProgramStorage;
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
+const DEFAULT_INTERVAL: u32 = 1_000;
 
 pub fn prepare_block_config<T>() -> BlockConfig
 where
@@ -151,6 +152,7 @@ where
                 &code_info,
                 root_message_id,
                 DEFAULT_BLOCK_NUMBER.into(),
+                DEFAULT_INTERVAL.into(),
             );
 
             Dispatch::new(
@@ -177,6 +179,7 @@ where
                 &code_info,
                 root_message_id,
                 DEFAULT_BLOCK_NUMBER.into(),
+                DEFAULT_INTERVAL.into(),
             );
 
             Dispatch::new(

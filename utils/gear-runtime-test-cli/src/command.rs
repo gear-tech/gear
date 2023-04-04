@@ -53,6 +53,7 @@ use std::{
 };
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
+const DEFAULT_INTERVAL: u32 = 1_000;
 
 impl CliConfiguration for RuntimeTestCmd {
     fn shared_params(&self) -> &SharedParams {
@@ -254,6 +255,7 @@ macro_rules! command {
                     ProgramId::from_origin(*id),
                     program,
                     DEFAULT_BLOCK_NUMBER.into(),
+                    DEFAULT_INTERVAL.into(),
                 );
             }
 

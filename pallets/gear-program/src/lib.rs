@@ -149,6 +149,7 @@ pub mod pallet {
         ids::{CodeId, MessageId, ProgramId},
         memory::{GearPage, PageBuf},
     };
+    use primitive_types::H256;
     use sp_runtime::DispatchError;
     use sp_std::prelude::*;
 
@@ -269,6 +270,18 @@ pub mod pallet {
         value: Vec<MessageId>
     );
 
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type PausedProgramStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, (BlockNumberFor<T>, H256)>;
+
+    common::wrap_storage_map!(
+        storage: PausedProgramStorage,
+        name: PausedProgramStorageWrap,
+        key: ProgramId,
+        value: (BlockNumberFor<T>, H256)
+    );
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
@@ -291,6 +304,14 @@ pub mod pallet {
         fn pages_final_prefix() -> [u8; 32] {
             MemoryPageStorage::<T>::final_prefix()
         }
+    }
+
+    impl<T: Config> common::PausedProgramStorage for pallet::Pallet<T> {
+        type BlockNumber = BlockNumberFor<T>;
+
+        type PausedProgramMap = PausedProgramStorageWrap<T>;
+
+        type ProgramStorage = Self;
     }
 
     #[cfg(feature = "debug-mode")]

@@ -627,6 +627,18 @@ parameter_types! {
 
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
+    pub RentFreePeriod: BlockNumber = 1_000;
+    pub RentCostPerBlock: Balance = EXISTENTIAL_DEPOSIT;
+}
+
+pub struct ProgramRentConfig;
+
+impl common::ProgramRentConfig for ProgramRentConfig {
+    type BlockNumber = BlockNumber;
+    type Balance = Balance;
+
+    type FreePeriod = RentFreePeriod;
+    type CostPerBlock = RentCostPerBlock;
 }
 
 impl pallet_gear::Config for Runtime {
@@ -647,6 +659,8 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type PausedProgramStorage = GearProgram;
+    type ProgramRentConfig = ProgramRentConfig;
 }
 
 #[cfg(feature = "debug-mode")]

@@ -142,6 +142,21 @@ impl common::GasPrice for GasConverter {
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
+parameter_types! {
+    pub RentFreePeriod: BlockNumber = 10;
+    pub RentCostPerBlock: Balance = 11;
+}
+
+pub struct ProgramRentConfig;
+
+impl common::ProgramRentConfig for ProgramRentConfig {
+    type BlockNumber = BlockNumber;
+    type Balance = Balance;
+
+    type FreePeriod = RentFreePeriod;
+    type CostPerBlock = RentCostPerBlock;
+}
+
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
@@ -160,6 +175,8 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type PausedProgramStorage = GearProgram;
+    type ProgramRentConfig = ProgramRentConfig;
 }
 
 impl pallet_gear_scheduler::Config for Test {

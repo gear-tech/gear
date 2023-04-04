@@ -20,7 +20,7 @@ use crate::{
     internal::HoldBound,
     manager::{CodeInfo, ExtManager},
     Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, Pallet,
-    ProgramStorageOf, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
+    ProgramStorageOf, QueueOf, RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -41,6 +41,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::SimpleSignalError;
+use sp_core::Get as _;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -454,7 +455,14 @@ where
             for (init_message, candidate_id) in candidates {
                 if !ProgramStorageOf::<T>::program_exists(candidate_id) {
                     let block_number = Pallet::<T>::block_number();
-                    self.set_program(candidate_id, &code_info, init_message, block_number);
+                    let interval = RentFreePeriodOf::<T>::get();
+                    self.set_program(
+                        candidate_id,
+                        &code_info,
+                        init_message,
+                        block_number,
+                        interval,
+                    );
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
