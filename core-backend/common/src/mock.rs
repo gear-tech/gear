@@ -283,12 +283,9 @@ impl MockMemory {
     }
 
     fn page_index(&self, offset: u32) -> Option<usize> {
-        let index = offset as usize / WASM_PAGE_SIZE;
-        if (index as usize) < self.pages.len() / WASM_PAGE_SIZE {
-            Some(index as usize)
-        } else {
-            None
-        }
+        let offset = offset as usize;
+
+        (offset < self.pages.len()).then(|| offset / WASM_PAGE_SIZE)
     }
 }
 
@@ -297,15 +294,14 @@ impl Memory for MockMemory {
 
     fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
         let new_size = self.pages.len() + (pages.raw() as usize) * WASM_PAGE_SIZE;
-        self.pages.reserve(new_size);
-        unsafe {
-            self.pages.set_len(new_size);
-        }
+
+        self.pages.resize(new_size, 0);
+
         Ok(())
     }
 
     fn size(&self) -> WasmPage {
-        WasmPage::new((self.pages.len() / WASM_PAGE_SIZE) as u32).unwrap_or(WasmPage::default())
+        WasmPage::new((self.pages.len() / WASM_PAGE_SIZE) as u32).unwrap_or_default()
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
@@ -337,12 +333,12 @@ impl Memory for MockMemory {
             .ok_or(MemoryError::AccessOutOfBounds)?;
         let page_offset = offset as usize % WASM_PAGE_SIZE;
 
-        if page_offset as usize + buffer.len() > WASM_PAGE_SIZE {
+        if page_offset + buffer.len() > WASM_PAGE_SIZE {
             return Err(MemoryError::AccessOutOfBounds);
         }
 
         let page_start = page_index * WASM_PAGE_SIZE;
-        let start = page_start + page_offset as usize;
+        let start = page_start + page_offset;
 
         if start + buffer.len() > self.pages.len() {
             return Err(MemoryError::AccessOutOfBounds);

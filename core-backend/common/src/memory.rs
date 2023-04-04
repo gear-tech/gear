@@ -383,7 +383,7 @@ mod tests {
 
         let result = memory_access_manager.pre_process_memory_accesses(&mut gas_left);
 
-        assert_eq!(result.unwrap(), ());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -394,7 +394,7 @@ mod tests {
 
         let result = memory_access_manager.pre_process_memory_accesses(&mut gas_left);
 
-        assert_eq!(result.unwrap(), ());
+        assert!(result.is_ok());
         assert!(memory_access_manager.reads.is_empty());
     }
 
@@ -406,7 +406,7 @@ mod tests {
 
         let result = memory_access_manager.pre_process_memory_accesses(&mut gas_left);
 
-        assert_eq!(result.unwrap(), ());
+        assert!(result.is_ok());
         assert!(memory_access_manager.writes.is_empty());
     }
 
@@ -419,7 +419,7 @@ mod tests {
 
         let result = memory_access_manager.pre_process_memory_accesses(&mut gas_left);
 
-        assert_eq!(result.unwrap(), ());
+        assert!(result.is_ok());
         assert!(memory_access_manager.reads.is_empty());
         assert!(memory_access_manager.writes.is_empty());
     }
