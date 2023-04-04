@@ -15,7 +15,7 @@ parking_lot = "0.12.1"
 rand = { version = "0.8.0", features = ["small_rng"] }
 
 # Temporary deps for the reproducing crash script until #2313 is implemented
-structopt = "0.3.26"
+clap = { version = "4.2.1", features = ["derive"] }
 
 gear-call-gen = { path = "../call-gen" }
 runtime-primitives = { path = "../../runtime/primitives", package = "gear-runtime-primitives", default-features = false }

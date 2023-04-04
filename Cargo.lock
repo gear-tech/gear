@@ -8934,6 +8934,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "clap 4.2.1",
  "frame-support",
  "frame-system",
  "gear-call-gen",
@@ -8958,7 +8959,6 @@ dependencies = [
  "sp-io",
  "sp-keyring",
  "sp-runtime",
- "structopt",
 ]
 
 [[package]]
