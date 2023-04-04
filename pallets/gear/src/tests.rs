@@ -44,8 +44,8 @@ use crate::{
     GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _,
-    ProgramStorage,
+    event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, LockableTree,
+    Origin as _, ProgramStorage, ReservableTree,
 };
 use core_processor::{common::ActorExecutionErrorReason, ActorPrepareMemoryError};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;

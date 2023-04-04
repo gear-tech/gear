@@ -28,7 +28,7 @@ use common::{
     },
     scheduler::*,
     storage::*,
-    GasTree, Origin,
+    LockableTree, Origin,
 };
 use core::convert::TryInto;
 use gear_core::{

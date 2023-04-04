@@ -315,8 +315,7 @@ pub mod pallet {
 
     impl<T: Config> GasProvider for Pallet<T> {
         type ExternalOrigin = AccountIdOf<T>;
-        type Key = MessageId;
-        type ReservationKey = ReservationId;
+        type NodeId = GasNodeId<MessageId, ReservationId>;
         type Balance = Balance;
         type InternalError = Error<T>;
         type Error = DispatchError;
@@ -326,6 +325,7 @@ pub mod pallet {
             Self::InternalError,
             Self::Error,
             Self::ExternalOrigin,
+            Self::NodeId,
             GasNodesWrap<T>,
         >;
     }

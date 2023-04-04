@@ -59,7 +59,8 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
     storage::{Interval, Queue},
-    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState, ProgramStorage,
+    ActiveProgram, CodeStorage, GasTree, LockableTree, Origin, ProgramState, ProgramStorage,
+    ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};

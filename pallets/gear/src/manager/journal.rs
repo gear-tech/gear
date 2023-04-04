@@ -26,7 +26,8 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
     storage::*,
-    CodeStorage, GasTree, Origin, Program, ProgramState, ProgramStorage,
+    CodeStorage, GasTree, LockableTree, Origin, Program, ProgramState, ProgramStorage,
+    ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{

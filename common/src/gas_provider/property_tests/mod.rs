@@ -297,8 +297,7 @@ struct GasProvider;
 
 impl super::Provider for GasProvider {
     type ExternalOrigin = ExternalOrigin;
-    type Key = MapKey;
-    type ReservationKey = ReservationKey;
+    type NodeId = GasNodeId<MapKey, ReservationKey>;
     type Balance = Balance;
     type InternalError = Error;
     type Error = Error;
@@ -308,6 +307,7 @@ impl super::Provider for GasProvider {
         Self::InternalError,
         Self::Error,
         ExternalOrigin,
+        Self::NodeId,
         GasTreeNodesWrap,
     >;
 }

@@ -20,7 +20,7 @@ use super::*;
 use crate::mock::*;
 use common::{
     gas_provider::{GasNodeId, Imbalance, NegativeImbalance},
-    GasTree as _, Origin,
+    GasTree as _, LockableTree as _, Origin,
 };
 use frame_support::{assert_noop, assert_ok};
 use gear_core::ids::MessageId;

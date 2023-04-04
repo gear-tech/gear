@@ -20,7 +20,8 @@
 
 use crate::{
     Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
-    GasBalanceOf, GasHandlerOf, MailboxOf, Pallet, SchedulingCostOf, TaskPoolOf, WaitlistOf,
+    GasBalanceOf, GasHandlerOf, GasNodeIdOf, MailboxOf, Pallet, SchedulingCostOf, TaskPoolOf,
+    WaitlistOf,
 };
 use alloc::collections::BTreeSet;
 use common::{
@@ -29,10 +30,10 @@ use common::{
         MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, Reason, Reason::*,
         UserMessageReadReason, UserMessageReadRuntimeReason,
     },
-    gas_provider::{GasNodeId, GasNodeIdOf, Imbalance},
+    gas_provider::{GasNodeId, Imbalance},
     scheduler::*,
     storage::*,
-    GasPrice, GasTree, Origin,
+    GasPrice, GasTree, LockableTree, Origin,
 };
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReason;
@@ -240,7 +241,7 @@ where
     ///
     /// Represents logic of burning gas by transferring gas from
     /// current `GasTree` owner to actual block producer.
-    pub(crate) fn spend_gas(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>, amount: GasBalanceOf<T>) {
+    pub(crate) fn spend_gas(id: impl Into<GasNodeIdOf<T>>, amount: GasBalanceOf<T>) {
         let id = id.into();
 
         // If amount is zero, nothing to do.
@@ -270,7 +271,7 @@ where
     /// Consumes message by given `MessageId` or gas reservation by `ReservationId`.
     ///
     /// Updates currency and balances data on imbalance creation.
-    pub(crate) fn consume_and_retrieve(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>) {
+    pub(crate) fn consume_and_retrieve(id: impl Into<GasNodeIdOf<T>>) {
         let id = id.into();
 
         // Consuming `GasNode`, returning optional outcome with imbalance.
@@ -304,7 +305,7 @@ where
 
     /// Charges for holding in some storage.
     pub(crate) fn charge_for_hold(
-        id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>,
+        id: impl Into<GasNodeIdOf<T>>,
         hold_interval: Interval<BlockNumberFor<T>>,
         cost: SchedulingCostOf<T>,
     ) {
