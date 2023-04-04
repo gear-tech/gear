@@ -57,16 +57,9 @@ mod v1 {
 }
 
 fn migrate_to_v2<T: Config>() -> Weight {
-    pallet::FirstIncompleteTasksBlock::<T>::translate(
-        |set: Option<v1::MissedBlocksCollection<T>>| {
-            let set = set?;
-            let bn = set.first().copied()?;
-            Some(bn)
-        },
-    )
-    .unwrap_or_else(|()| {
-        unreachable!("Failed to decode old value as `v1::MissedBlocksCollection<T>`")
-    });
+    let set = v1::MissedBlocks::<T>::take();
+    let bn = set.and_then(|set| set.first().copied());
+    pallet::FirstIncompleteTasksBlock::<T>::set(bn);
 
     StorageVersion::new(2).put::<Pallet<T>>();
 
