@@ -3819,6 +3819,7 @@ version = "0.1.6"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "clap 4.2.1",
  "dyn-clonable",
  "futures",
  "futures-timer",
@@ -3833,7 +3834,6 @@ dependencies = [
  "primitive-types",
  "rand 0.8.5",
  "reqwest",
- "structopt",
  "thiserror",
  "tokio",
  "tracing",
