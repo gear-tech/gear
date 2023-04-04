@@ -546,7 +546,7 @@ pub enum AllocError {
     /// Gas charge error
     #[from]
     #[display(fmt = "{_0}")]
-    GasChargeError(ChargeError),
+    GasCharge(ChargeError),
 }
 
 /// Alloc method result.
