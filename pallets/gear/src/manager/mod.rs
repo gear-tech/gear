@@ -349,6 +349,24 @@ where
         Self::remove_gas_reservation_slot(reservation_id, slot)
     }
 
+    pub fn remove_gas_reservation_map(
+        program_id: ProgramId,
+        gas_reservation_map: BTreeMap<ReservationId, GasReservationSlot>,
+    ) {
+        for (reservation_id, slot) in gas_reservation_map {
+            let slot = Self::remove_gas_reservation_slot(reservation_id, slot);
+
+            let result = TaskPoolOf::<T>::delete(
+                BlockNumberFor::<T>::from(slot.finish),
+                ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+            );
+
+            log::debug!(
+                "remove_gas_reservation_map; program_id = {program_id:?}, result = {result:?}"
+            );
+        }
+    }
+
     fn send_signal(
         &mut self,
         message_id: MessageId,

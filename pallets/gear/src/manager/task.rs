@@ -18,17 +18,17 @@
 
 use crate::{
     manager::ExtManager, Config, CostsPerBlockOf, DispatchStashOf, Event, GasHandlerOf, Pallet,
-    QueueOf,
+    PausedProgramStorageOf, QueueOf,
 };
 use alloc::string::ToString;
 use common::{
     event::{
-        MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
-        UserMessageReadSystemReason,
+        MessageWokenRuntimeReason, MessageWokenSystemReason, ProgramChangeKind, RuntimeReason,
+        SystemReason, UserMessageReadSystemReason,
     },
     scheduler::*,
     storage::*,
-    GasTree, Origin,
+    GasTree, Origin, PausedProgramStorage,
 };
 use core::convert::TryInto;
 use gear_core::{
@@ -41,8 +41,19 @@ impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    fn pause_program(&mut self, _program_id: ProgramId) {
-        todo!("#646");
+    fn pause_program(&mut self, program_id: ProgramId) {
+        log::debug!("pause_program; id = {:?}", program_id);
+
+        let Some(gas_reservation_map) = PausedProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number()) else {
+            log::debug!("pause_program; not found or is not active");
+            return;
+        };
+
+        Self::remove_gas_reservation_map(program_id, gas_reservation_map);
+        Pallet::<T>::deposit_event(Event::ProgramChanged {
+            id: program_id,
+            change: ProgramChangeKind::Paused,
+        });
     }
 
     fn remove_code(&mut self, _code_id: CodeId) {

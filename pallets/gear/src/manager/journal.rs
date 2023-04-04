@@ -463,6 +463,14 @@ where
                         block_number,
                         interval,
                     );
+
+                    let expiration_block = block_number.saturating_add(interval);
+                    if expiration_block > block_number {
+                        let task = ScheduledTask::PauseProgram(candidate_id);
+                        TaskPoolOf::<T>::add(expiration_block, task).unwrap_or_else(|e| {
+                            unreachable!("Scheduling logic invalidated! {:?}", e)
+                        });
+                    }
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
