@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-hex = "0.4.3"
-parity-wasm = "0.45.0"
-clap = { version = "4.2.1", features = ["derive"] }
+hex = { workspace = true, features = ["std"]}
+parity-wasm.workspace = true
+clap = { workspace = true, features = ["derive"] }

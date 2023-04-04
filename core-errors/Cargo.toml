@@ -6,16 +6,9 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-scale-info = { version = "2.5.0", default-features = false, features = ["derive"], optional = true }
-derive_more = "0.99.17"
-enum-iterator = "1.3.0"
-
-[dependencies.codec]
-package = "parity-scale-codec"
-version = "3.4.0"
-features = ["derive"]
-default-features = false
-optional = true
+scale-info = { workspace = true, features = ["derive"], optional = true }
+derive_more.workspace = true
+enum-iterator.workspace = true
 
 [features]
-codec = ["scale-info", "dep:codec"]
+codec = ["scale-info"]

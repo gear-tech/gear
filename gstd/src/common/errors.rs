@@ -37,7 +37,7 @@ pub enum ContractError {
     /// Conversion error.
     Convert(&'static str),
     /// Decoding error.
-    Decode(codec::Error),
+    Decode(scale_info::scale::Error),
     /// Status code returned by another program.
     StatusCode(i32),
     /// API error (see [`ExtError`] for details).

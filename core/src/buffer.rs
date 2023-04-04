@@ -25,8 +25,10 @@ use core::{
 };
 
 use alloc::{vec, vec::Vec};
-use codec::{Decode, Encode};
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Limited len vector.
 /// `T` is data type.

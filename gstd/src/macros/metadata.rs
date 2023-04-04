@@ -33,31 +33,37 @@
 /// use gstd::{metadata, msg, prelude::*};
 ///
 /// #[derive(Decode, Encode, TypeInfo)]
+/// #[codec(crate = gstd::codec)]
 /// struct InitInput {
 ///     field: String,
 /// }
 ///
 /// #[derive(Decode, Encode, TypeInfo)]
+/// #[codec(crate = gstd::codec)]
 /// struct InitOutput {
 ///     field: String,
 /// }
 ///
 /// #[derive(Decode, Encode, TypeInfo)]
+/// #[codec(crate = gstd::codec)]
 /// struct Input {
 ///     field: String,
 /// }
 ///
 /// #[derive(Decode, Encode, TypeInfo)]
+/// #[codec(crate = gstd::codec)]
 /// struct Output {
 ///     field: String,
 /// }
 ///
 /// #[derive(Decode, Encode, TypeInfo)]
+/// #[codec(crate = gstd::codec)]
 /// struct StateInput {
 ///     threshold: i32,
 /// }
 ///
 /// #[derive(Decode, Encode, TypeInfo)]
+/// #[codec(crate = gstd::codec)]
 /// enum StateOutput {
 ///     Small(i32),
 ///     Big(i32),

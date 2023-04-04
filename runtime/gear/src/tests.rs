@@ -19,7 +19,7 @@
 use super::*;
 use pallet_gear::InstructionWeights;
 
-const INTERVAL_ERROR_DIVIDER: u32 = 4; // 50% match interval
+const INTERVAL_ERROR_DIVIDER: u32 = 3; // 66% match interval
 
 macro_rules! check_weight_inbounds_interval {
     ($weights:expr, $instruction:ident, $interval_mid: expr) => {
@@ -40,11 +40,11 @@ macro_rules! check_weight_inbounds_interval {
 fn heuristics_test() {
     let instruction_weights = InstructionWeights::<crate::Runtime>::default();
 
-    check_weight_inbounds_interval!(instruction_weights, i64const, 160);
+    check_weight_inbounds_interval!(instruction_weights, i64const, 110);
     check_weight_inbounds_interval!(instruction_weights, i64load, 17_000);
-    check_weight_inbounds_interval!(instruction_weights, i32load, 17_000);
+    check_weight_inbounds_interval!(instruction_weights, i32load, 7_000);
     check_weight_inbounds_interval!(instruction_weights, i64store, 29_000);
-    check_weight_inbounds_interval!(instruction_weights, i32store, 29_000);
+    check_weight_inbounds_interval!(instruction_weights, i32store, 16_000);
     check_weight_inbounds_interval!(instruction_weights, select, 7_100);
     check_weight_inbounds_interval!(instruction_weights, r#if, 8_000);
     check_weight_inbounds_interval!(instruction_weights, br, 3_300);
@@ -57,7 +57,7 @@ fn heuristics_test() {
     check_weight_inbounds_interval!(instruction_weights, call_indirect, 22_100);
     check_weight_inbounds_interval!(instruction_weights, call_indirect_per_param, 2_000);
 
-    check_weight_inbounds_interval!(instruction_weights, local_get, 800);
+    check_weight_inbounds_interval!(instruction_weights, local_get, 600);
     check_weight_inbounds_interval!(instruction_weights, local_set, 1_900);
     check_weight_inbounds_interval!(instruction_weights, local_tee, 2_000);
     check_weight_inbounds_interval!(instruction_weights, global_get, 2_300);
@@ -71,62 +71,62 @@ fn heuristics_test() {
     check_weight_inbounds_interval!(instruction_weights, i64popcnt, 1_000);
     check_weight_inbounds_interval!(instruction_weights, i32popcnt, 1_000);
     check_weight_inbounds_interval!(instruction_weights, i64eqz, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i32eqz, 4_000);
+    check_weight_inbounds_interval!(instruction_weights, i32eqz, 2_400);
     check_weight_inbounds_interval!(instruction_weights, i64extendsi32, 800);
     check_weight_inbounds_interval!(instruction_weights, i64extendui32, 500);
     check_weight_inbounds_interval!(instruction_weights, i32wrapi64, 330);
     check_weight_inbounds_interval!(instruction_weights, i64eq, 4_200);
-    check_weight_inbounds_interval!(instruction_weights, i32eq, 4_200);
+    check_weight_inbounds_interval!(instruction_weights, i32eq, 2_200);
     check_weight_inbounds_interval!(instruction_weights, i64ne, 4_200);
-    check_weight_inbounds_interval!(instruction_weights, i32ne, 4_200);
+    check_weight_inbounds_interval!(instruction_weights, i32ne, 2_200);
 
     check_weight_inbounds_interval!(instruction_weights, i64lts, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i32lts, 4_000);
+    check_weight_inbounds_interval!(instruction_weights, i32lts, 2_000);
     check_weight_inbounds_interval!(instruction_weights, i64ltu, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i32ltu, 4_000);
+    check_weight_inbounds_interval!(instruction_weights, i32ltu, 2_000);
     check_weight_inbounds_interval!(instruction_weights, i64gts, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i32gts, 4_000);
+    check_weight_inbounds_interval!(instruction_weights, i32gts, 2_000);
     check_weight_inbounds_interval!(instruction_weights, i64gtu, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i32gtu, 4_000);
+    check_weight_inbounds_interval!(instruction_weights, i32gtu, 2_000);
     check_weight_inbounds_interval!(instruction_weights, i64les, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i32les, 4_000);
+    check_weight_inbounds_interval!(instruction_weights, i32les, 2_000);
     check_weight_inbounds_interval!(instruction_weights, i64leu, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i32leu, 4_000);
+    check_weight_inbounds_interval!(instruction_weights, i32leu, 2_000);
 
     check_weight_inbounds_interval!(instruction_weights, i64ges, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i32ges, 4_000);
+    check_weight_inbounds_interval!(instruction_weights, i32ges, 2_000);
     check_weight_inbounds_interval!(instruction_weights, i64geu, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i32geu, 4_000);
+    check_weight_inbounds_interval!(instruction_weights, i32geu, 2_000);
     check_weight_inbounds_interval!(instruction_weights, i64add, 2_500);
-    check_weight_inbounds_interval!(instruction_weights, i32add, 2_500);
+    check_weight_inbounds_interval!(instruction_weights, i32add, 1_500);
     check_weight_inbounds_interval!(instruction_weights, i64sub, 3_000);
-    check_weight_inbounds_interval!(instruction_weights, i32sub, 3_000);
+    check_weight_inbounds_interval!(instruction_weights, i32sub, 1_000);
     check_weight_inbounds_interval!(instruction_weights, i64mul, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i32mul, 4_000);
-    check_weight_inbounds_interval!(instruction_weights, i64divs, 3_800);
+    check_weight_inbounds_interval!(instruction_weights, i32mul, 2_300);
+    check_weight_inbounds_interval!(instruction_weights, i64divs, 4_800);
     check_weight_inbounds_interval!(instruction_weights, i32divs, 3_800);
 
-    check_weight_inbounds_interval!(instruction_weights, i64divu, 4_200);
+    check_weight_inbounds_interval!(instruction_weights, i64divu, 5_200);
     check_weight_inbounds_interval!(instruction_weights, i32divu, 4_200);
     check_weight_inbounds_interval!(instruction_weights, i64rems, 21_100);
-    check_weight_inbounds_interval!(instruction_weights, i32rems, 21_100);
+    check_weight_inbounds_interval!(instruction_weights, i32rems, 15_100);
     check_weight_inbounds_interval!(instruction_weights, i64remu, 4_300);
     check_weight_inbounds_interval!(instruction_weights, i32remu, 4_300);
     check_weight_inbounds_interval!(instruction_weights, i64and, 3_000);
-    check_weight_inbounds_interval!(instruction_weights, i32and, 3_000);
+    check_weight_inbounds_interval!(instruction_weights, i32and, 1_000);
     check_weight_inbounds_interval!(instruction_weights, i64or, 3_000);
-    check_weight_inbounds_interval!(instruction_weights, i32or, 3_000);
+    check_weight_inbounds_interval!(instruction_weights, i32or, 1_000);
     check_weight_inbounds_interval!(instruction_weights, i64xor, 3_000);
-    check_weight_inbounds_interval!(instruction_weights, i32xor, 3_000);
+    check_weight_inbounds_interval!(instruction_weights, i32xor, 1_000);
 
     check_weight_inbounds_interval!(instruction_weights, i64shl, 2_500);
-    check_weight_inbounds_interval!(instruction_weights, i32shl, 2_500);
+    check_weight_inbounds_interval!(instruction_weights, i32shl, 1_500);
     check_weight_inbounds_interval!(instruction_weights, i64shrs, 2_500);
-    check_weight_inbounds_interval!(instruction_weights, i32shrs, 2_500);
+    check_weight_inbounds_interval!(instruction_weights, i32shrs, 1_500);
     check_weight_inbounds_interval!(instruction_weights, i64shru, 2_500);
-    check_weight_inbounds_interval!(instruction_weights, i32shru, 2_500);
+    check_weight_inbounds_interval!(instruction_weights, i32shru, 1_500);
     check_weight_inbounds_interval!(instruction_weights, i64rotl, 2_500);
-    check_weight_inbounds_interval!(instruction_weights, i32rotl, 2_500);
+    check_weight_inbounds_interval!(instruction_weights, i32rotl, 1_500);
     check_weight_inbounds_interval!(instruction_weights, i64rotr, 2_500);
-    check_weight_inbounds_interval!(instruction_weights, i32rotr, 2_500);
+    check_weight_inbounds_interval!(instruction_weights, i32rotr, 1_500);
 }

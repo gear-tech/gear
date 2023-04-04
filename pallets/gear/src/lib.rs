@@ -50,7 +50,6 @@ pub use crate::{
 pub use weights::WeightInfo;
 
 use alloc::{format, string::String};
-use codec::{Decode, Encode};
 use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
     CodeStorage, GasPrice, GasProvider, GasTree, Origin, Program, ProgramState, ProgramStorage,
@@ -150,7 +149,7 @@ impl DebugInfo for () {
 
 /// The struct contains results of gas calculation required to process
 /// a message.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 pub struct GasInfo {
     /// Represents minimum gas limit required for execution.
