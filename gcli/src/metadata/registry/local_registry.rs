@@ -61,9 +61,9 @@ impl LocalRegistry for PortableRegistry {
     }
 
     fn derive_name(&self, ident: &str) -> Result<LocalType<'_, PortableForm>> {
-        for ty in self.types() {
-            let ty = ty.ty();
-            if ty.path().ident() == Some(ident.into()) {
+        for ty in &self.types {
+            let ty = &ty.ty;
+            if ty.path.ident() == Some(ident.into()) {
                 return Ok(LocalType { ty, registry: self });
             }
         }

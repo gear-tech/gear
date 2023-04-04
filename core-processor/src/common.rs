@@ -26,7 +26,6 @@ use alloc::{
     string::String,
     vec::Vec,
 };
-use codec::{Decode, Encode};
 use gear_backend_common::{
     SystemReservationContext, SystemTerminationReason, TrapExplanation, TrimmedString,
 };
@@ -41,7 +40,10 @@ use gear_core::{
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{MemoryError, SimpleExecutionError, SimpleSignalError};
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{self, Decode, Encode},
+    TypeInfo,
+};
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -432,6 +434,7 @@ pub struct ActorExecutionError {
 
 /// Reason of execution error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+#[codec(crate = scale)]
 pub enum ActorExecutionErrorReason {
     /// Not enough gas to perform an operation during precharge.
     #[display(fmt = "Not enough gas to {_0}")]
@@ -489,6 +492,7 @@ pub enum SystemExecutionError {
 
 /// Actor.
 #[derive(Clone, Debug, Decode, Encode)]
+#[codec(crate = scale)]
 pub struct Actor {
     /// Program value balance.
     pub balance: u128,
@@ -500,6 +504,7 @@ pub struct Actor {
 
 /// Executable actor data.
 #[derive(Clone, Debug, Decode, Encode)]
+#[codec(crate = scale)]
 pub struct ExecutableActorData {
     /// Set of dynamic wasm page numbers, which are allocated by the program.
     pub allocations: BTreeSet<WasmPage>,

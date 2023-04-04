@@ -19,8 +19,11 @@
 //! A list of the different weight modules for our runtime.
 
 use crate::Config;
-use codec::{Decode, Encode};
-use frame_support::{dispatch::DispatchInfo, traits::Contains};
+use frame_support::{
+    codec::{Decode, Encode},
+    dispatch::DispatchInfo,
+    traits::Contains,
+};
 use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{DispatchInfoOf, Dispatchable, SignedExtension},

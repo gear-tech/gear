@@ -6,20 +6,20 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-gear-core = { path = "../core" }
-gear-core-errors = { path = "../core-errors" }
-gear-backend-common = { path = "../core-backend/common" }
-gear-backend-wasmi = { path = "../core-backend/wasmi" }
-core-processor = { package = "gear-core-processor", path = "../core-processor" }
-gear-wasm-builder = { path = "../utils/wasm-builder" }
+gear-core.workspace = true
+gear-core-errors.workspace = true
+gear-backend-common.workspace = true
+gear-backend-wasmi = { workspace = true, features = [ "std" ] }
+core-processor.workspace = true
+gear-wasm-builder.workspace = true
 
-anyhow = "1.0.70"
-codec = { package = "parity-scale-codec", version = "3.4.0", features = ["derive"] }
-logger = { package = "log", version = "0.4.17" }
-hex = "0.4.3"
-colored = "2.0.0"
-derive_more = { version = "0.99.17", features = ["add", "add_assign", "display", "mul", "mul_assign"] }
-env_logger = "0.10.0"
-path-clean = "1.0.1"
-rand = "0.8.5"
-gear-wasm-instrument = { path = "../utils/wasm-instrument", default-features = false }
+anyhow.workspace = true
+codec = { workspace = true, features = ["derive"] }
+logger.workspace = true
+hex.workspace = true
+colored.workspace = true
+derive_more = { workspace = true, features = ["add", "add_assign", "display", "mul", "mul_assign"] }
+env_logger.workspace = true
+path-clean.workspace = true
+rand = { workspace = true, default-features = true }
+gear-wasm-instrument.workspace = true

@@ -49,6 +49,11 @@ exclude = [
     "binaries/*"
 ]
 
+[workspace.dependencies]
+galloc = { path = "../galloc" }
+gcore = { path = "../gcore" }
+gstd = { path = "../gstd" }
+
 [profile.release]
 lto = true
 opt-level = 's'

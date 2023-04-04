@@ -13,47 +13,48 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
-scale-info = { version = "2.3.1", default-features = false, features = ["derive"] }
-primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"] }
-log = { version = "0.4.17", default-features = false }
-impl-trait-for-tuples = "0.2.2"
-serde = { version = "1.0.158", features = ["derive"], optional = true }
+parity-scale-codec = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
+primitive-types = { workspace = true, features = ["scale-info"] }
+log.workspace = true
+impl-trait-for-tuples.workspace = true
+serde = { workspace = true, features = ["derive"], optional = true }
 
-frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false, optional = true }
-sp-std = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-pallet-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
-pallet-staking-reward-fn = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false }
+frame-support = { workspace = true, default-features = false }
+frame-system.workspace = true
+frame-benchmarking = { workspace = true, optional = true }
+sp-std.workspace = true
+sp-runtime.workspace = true
+pallet-balances.workspace = true
+pallet-staking.workspace = true
+pallet-staking-reward-fn.workspace = true
 
 [dev-dependencies]
-sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-treasury = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-session = { version = "4.0.0-dev", features = ["historical"], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-sudo = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-pallet-utility = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-frame-executive = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-env_logger = "0.10"
+sp-core.workspace = true
+sp-io.workspace = true
+sp-authority-discovery.workspace = true
+frame-election-provider-support.workspace = true
+pallet-treasury.workspace = true
+pallet-authorship.workspace = true
+pallet-timestamp.workspace = true
+pallet-session.workspace = true
+pallet-sudo.workspace = true
+pallet-bags-list.workspace = true
+pallet-utility.workspace = true
+frame-executive.workspace = true
+env_logger.workspace = true
 
 [features]
 default = ["std"]
 std = [
 	"frame-benchmarking?/std",
-	"codec/std",
 	"frame-support/std",
 	"frame-system/std",
 	"pallet-balances/std",
+  "pallet-bags-list/std",
 	"pallet-staking/std",
 	"pallet-staking-reward-fn/std",
+  "parity-scale-codec/std",
 	"scale-info/std",
 	"serde",
 	"sp-runtime/std",

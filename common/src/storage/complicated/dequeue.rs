@@ -29,9 +29,11 @@
 //! if they present.
 
 use crate::storage::{Callback, Counted, EmptyCallback, IterableMap, MapStorage, ValueStorage};
-use codec::{Decode, Encode};
 use core::marker::PhantomData;
-use scale_info::TypeInfo;
+use frame_support::{
+    codec::{self, Decode, Encode},
+    scale_info::{self, TypeInfo},
+};
 
 /// Represents dequeue implementation.
 pub trait Dequeue {
@@ -137,6 +139,8 @@ where
 ///
 /// Contains value and link to the next node.
 #[derive(Encode, Decode, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub struct LinkedNode<K, V> {
     /// Key of the next node of dequeue,
     /// if present.

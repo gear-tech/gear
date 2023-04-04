@@ -23,7 +23,6 @@ use crate::{
     prelude::{convert::AsRef, Vec},
     ActorId, Config, MessageId,
 };
-use codec::Decode;
 use core::{
     future::Future,
     marker::PhantomData,
@@ -31,6 +30,7 @@ use core::{
     task::{Context, Poll},
 };
 use futures::future::FusedFuture;
+use scale_info::scale::Decode;
 
 fn poll<F, R>(waiting_reply_to: MessageId, cx: &mut Context<'_>, f: F) -> Poll<Result<R>>
 where

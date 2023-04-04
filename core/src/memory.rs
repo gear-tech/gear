@@ -20,7 +20,6 @@
 
 use crate::buffer::LimitedVec;
 use alloc::{collections::BTreeSet, format};
-use codec::{Decode, Encode, EncodeLike, Input, Output};
 use core::{
     fmt,
     fmt::Debug,
@@ -29,7 +28,10 @@ use core::{
     ops::{Deref, DerefMut},
 };
 use gear_core_errors::MemoryError;
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{self, Decode, Encode, EncodeLike, Input, Output},
+    TypeInfo,
+};
 
 /// A WebAssembly page has a constant size of 64KiB.
 pub const WASM_PAGE_SIZE: usize = 0x10000;
@@ -103,7 +105,7 @@ impl Encode for PageBuf {
 
 impl Decode for PageBuf {
     #[inline]
-    fn decode<I: Input>(input: &mut I) -> Result<Self, codec::Error> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, scale::Error> {
         let mut buffer = PageBufInner::new_default();
         input.read(buffer.get_mut())?;
         Ok(Self(buffer))
