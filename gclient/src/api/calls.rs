@@ -1033,6 +1033,44 @@ impl GearApi {
         self.set_code(code).await
     }
 
+    /// Upgrade the runtime with the `code` containing the Wasm code of the new
+    /// runtime but **without** checks.
+    ///
+    /// Sends the
+    /// [`pallet_system::set_code_without_checks`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code_without_checks)
+    /// extrinsic.
+    pub async fn set_code_without_checks(&self, code: impl AsRef<[u8]>) -> Result<H256> {
+        let tx = self
+            .0
+            .sudo_unchecked_weight(
+                RuntimeCall::System(SystemCall::set_code_without_checks {
+                    code: code.as_ref().to_vec(),
+                }),
+                Weight {
+                    ref_time: 0,
+                    // # TODO
+                    //
+                    // Check this field
+                    proof_size: Default::default(),
+                },
+            )
+            .await?;
+
+        let events = tx.wait_for_success().await?;
+        self.check_for_sudid(&events)?;
+        Ok(events.block_hash())
+    }
+
+    /// Upgrade the runtime by reading the code from the file located at the
+    /// `path`.
+    ///
+    /// Same as [`set_code_without_checks`](Self::set_code_without_checks), but reads the runtime code from a
+    /// file instead of using a byte vector.
+    pub async fn set_code_without_checks_by_path(&self, path: impl AsRef<Path>) -> Result<H256> {
+        let code = utils::code_from_os(path)?;
+        self.set_code_without_checks(code).await
+    }
+
     /// Set the free and reserved balance of the `to` account to `new_free` and
     /// `new_reserved` respectively.
     ///

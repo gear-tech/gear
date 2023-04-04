@@ -108,6 +108,11 @@ impl GearApi {
         }
     }
 
+    /// Returns Web Socket address the node is listening to.
+    pub fn ws_address(&self) -> &WSAddress {
+        self.1.as_ref().unwrap().ws_address()
+    }
+
     /// Create and init a new `GearApi` instance that will be used with the
     /// public Gear testnet.
     pub async fn gear() -> Result<Self> {
