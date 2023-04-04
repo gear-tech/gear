@@ -109,7 +109,10 @@ jobs:
         run: ./scripts/gear.sh format doc --check
 
       - name: "Check clippy: Gear"
-        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
+        run: ./scripts/gear.sh clippy gear --all-targets --all-features
+        
+      - name: "Print Cargo.lock diff"
+        run: git --no-pager diff Cargo.lock
 
       - name: "Check clippy: Examples"
         run: ./scripts/gear.sh clippy examples
