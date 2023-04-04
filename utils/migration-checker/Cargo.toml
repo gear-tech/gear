@@ -6,12 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gclient = { path = "../../gclient" }
-anyhow = "1"
-tokio = { version = "1.26.0", features = ["full"] }
-env_logger = "0.10.0"
-log = "0.4"
-clap = { version = "4.1.13", features = ["derive"] }
+gclient = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+env_logger = { workspace = true }
+log = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
 
-frame-remote-externalities = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", default-features = false, version = "0.10.0-dev" }
-gear-runtime = { path = "../../runtime/gear" }
+frame-remote-externalities = { workspace = true }
+gear-runtime = { workspace = true }

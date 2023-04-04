@@ -6235,7 +6235,7 @@ name = "migration-checker"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.1.14",
+ "clap 4.2.1",
  "env_logger",
  "frame-remote-externalities",
  "gclient",
