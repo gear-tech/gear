@@ -64,7 +64,7 @@ use common::{
     storage::{Counter, *},
     CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
 };
-use core::{convert::TryInto, ops::Range};
+use core::convert::TryInto;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
