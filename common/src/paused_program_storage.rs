@@ -21,6 +21,8 @@ use crate::storage::MapStorage;
 use core::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 struct Item {
     allocations: BTreeSet<WasmPage>,
     memory_pages: BTreeMap<GearPage, PageBuf>,

@@ -55,7 +55,6 @@ use crate::{
     Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf,
     TaskPoolOf,
 };
-use codec::{Decode, Encode};
 use common::{
     event::*,
     scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
@@ -64,7 +63,10 @@ use common::{
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
-use frame_support::traits::Currency;
+use frame_support::{
+    codec::{Decode, Encode},
+    traits::Currency,
+};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
@@ -249,8 +251,8 @@ where
         program_id: ProgramId,
         code_info: &CodeInfo,
         message_id: MessageId,
-        block_number: <T as frame_system::Config>::BlockNumber,
-        interval: <T as frame_system::Config>::BlockNumber,
+        block_number: BlockNumberFor<T>,
+        interval: BlockNumberFor<T>,
     ) {
         // Program can be added to the storage only with code, which is done in
         // `submit_program` or `upload_code` extrinsic.

@@ -44,7 +44,6 @@ use crate::{
     GasHandlerOf, GasInfo, MailboxOf, PausedProgramStorageOf, ProgramStorageOf, RentFreePeriodOf,
     Schedule, TaskPoolOf, WaitlistOf,
 };
-use codec::{Decode, Encode};
 use common::{
     event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _,
     PausedProgramStorage, ProgramStorage,
@@ -56,6 +55,7 @@ use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BI
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 use frame_support::{
     assert_noop, assert_ok,
+    codec::{Decode, Encode},
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
     traits::{Currency, Randomness},
@@ -6012,7 +6012,7 @@ fn gas_spent_precalculated() {
 
         let call_cost = schedule.instruction_weights.call;
         let get_local_cost = schedule.instruction_weights.local_get;
-        let add_cost = schedule.instruction_weights.i64add;
+        let add_cost = schedule.instruction_weights.i32add;
         let module_instantiation = module_instantiation_per_byte * code.len() as u64;
 
         let total_cost = {
@@ -6783,7 +6783,8 @@ fn execution_over_blocks() {
     new_test_ext().execute_with(|| {
         use demo_calc_hash_in_one_block::{Package, WASM_BINARY};
 
-        let block_gas_limit = BlockGasLimitOf::<Test>::get();
+        // We suppose that gas limit is less than gas allowance
+        let block_gas_limit = BlockGasLimitOf::<Test>::get() - 10000;
 
         // Deploy demo-calc-hash-in-one-block.
         assert_ok!(Gear::upload_program(
@@ -6815,7 +6816,7 @@ fn execution_over_blocks() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             in_one_block,
-            Package::new(16_384, src).encode(),
+            Package::new(17_384, src).encode(),
             block_gas_limit,
             0,
         ));
@@ -8841,7 +8842,6 @@ mod utils {
         mock::{Balances, Gear, System},
         BalanceOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
     };
-    use codec::Decode;
     use common::{
         event::*,
         storage::{CountedByKey, Counter, IterableByKeyMap},
@@ -8850,6 +8850,7 @@ mod utils {
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReason;
     use frame_support::{
+        codec::Decode,
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
         traits::tokens::{currency::Currency, Balance},
     };

@@ -20,7 +20,7 @@
 
 use crate::{code::InstrumentedCode, ids::ProgramId, memory::WasmPage};
 use alloc::collections::BTreeSet;
-use codec::{Decode, Encode};
+use scale_info::scale::{Decode, Encode};
 
 /// Program.
 #[derive(Clone, Debug, Decode, Encode)]

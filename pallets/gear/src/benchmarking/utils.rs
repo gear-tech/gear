@@ -24,7 +24,6 @@ use crate::{
     Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, QueueOf,
 };
 use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin};
-use core::ops::Range;
 use core_processor::{
     configs::{BlockConfig, BlockInfo},
     ContextChargedForCode, ContextChargedForInstrumentation,
@@ -109,7 +108,6 @@ pub fn prepare_exec<T>(
     source: H256,
     kind: HandleKind,
     payload: Vec<u8>,
-    err_len_ptrs: Range<u32>,
     config: PrepareConfig,
 ) -> Result<Exec<T>, &'static str>
 where
@@ -295,8 +293,6 @@ where
         block_config,
         context: (context, code, balance, origin).into(),
         random_data: (vec![0u8; 32], 0),
-        // actor without pages data, because of lazy pages enabled
         memory_pages: Default::default(),
-        err_len_ptrs,
     })
 }

@@ -41,10 +41,16 @@ pub mod gas_provider;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
-use codec::{Decode, Encode};
 use core::fmt;
 use frame_support::{
+    codec::{self, Decode, Encode},
     dispatch::DispatchError,
+    scale_info::{self, TypeInfo},
+    sp_runtime::{
+        self,
+        generic::{CheckedExtrinsic, UncheckedExtrinsic},
+        traits::{Dispatchable, SignedExtension},
+    },
     traits::Get,
     weights::{ConstantMultiplier, Weight, WeightToFee},
 };
@@ -55,13 +61,8 @@ use gear_core::{
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
-use scale_info::TypeInfo;
 use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
 use sp_core::crypto::UncheckedFrom;
-use sp_runtime::{
-    generic::{CheckedExtrinsic, UncheckedExtrinsic},
-    traits::{Dispatchable, SignedExtension},
-};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
@@ -194,6 +195,8 @@ pub trait BlockLimiter {
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum Program {
     Active(ActiveProgram),
     Exited(ProgramId),
@@ -250,6 +253,8 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub struct ActiveProgram {
     /// Set of dynamic wasm page numbers, which are allocated by the program.
     pub allocations: BTreeSet<WasmPage>,
@@ -264,6 +269,8 @@ pub struct ActiveProgram {
 
 /// Enumeration contains variants for program state.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum ProgramState {
     /// `init` method of a program has not yet finished its execution so
     /// the program is not considered as initialized. All messages to such a
@@ -275,6 +282,8 @@ pub enum ProgramState {
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub struct CodeMetadata {
     pub author: H256,
     #[codec(compact)]

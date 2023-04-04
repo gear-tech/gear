@@ -19,7 +19,10 @@
 /// ! For instruction benchmarking we do no instantiate a full program but merely the
 /// ! sandbox to execute the wasm code. This is because we do not need the full
 /// ! environment that provides the seal interface as imported functions.
-use super::{code::WasmModule, Config};
+use super::{
+    code::{ModuleDefinition, WasmModule},
+    Config,
+};
 
 use common::Origin;
 use sp_sandbox::{
@@ -48,6 +51,26 @@ where
     /// Creates an instance from the supplied module and supplies as much memory
     /// to the instance as the module declares as imported.
     fn from(module: &WasmModule<T>) -> Self {
+        let mut env_builder = EnvironmentDefinitionBuilder::new();
+        let memory = module.add_memory(&mut env_builder);
+        let instance = Instance::new(&module.code, &env_builder, &mut ())
+            .expect("Failed to create benchmarking Sandbox instance");
+        Self {
+            instance,
+            _memory: memory,
+        }
+    }
+}
+
+impl Sandbox {
+    /// Creates an instance from the supplied module and supplies as much memory
+    /// to the instance as the module declares as imported.
+    pub fn from_module_def<T>(module: ModuleDefinition) -> Self
+    where
+        T: Config,
+        T::AccountId: Origin,
+    {
+        let module: WasmModule<T> = module.into();
         let mut env_builder = EnvironmentDefinitionBuilder::new();
         let memory = module.add_memory(&mut env_builder);
         let instance = Instance::new(&module.code, &env_builder, &mut ())

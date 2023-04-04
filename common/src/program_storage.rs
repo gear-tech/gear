@@ -39,6 +39,8 @@ pub trait Error {
 
 /// The entity specifies the structure of stored data.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub struct Item<BlockNumber> {
     pub program: Program,
     pub block_number: BlockNumber,

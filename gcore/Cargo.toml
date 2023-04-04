@@ -6,14 +6,14 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-gsys = { path = "../gsys" }
-gear-core-errors = { path = "../core-errors" }
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, optional = true }
-static_assertions = "1"
+gsys.workspace = true
+gear-core-errors.workspace = true
+codec = { workspace = true, optional = true }
+static_assertions.workspace = true
 
 [dev-dependencies]
-hex-literal = "0.3.4"
-galloc = { path = "../galloc" }
+hex-literal.workspace = true
+galloc.workspace = true
 
 [features]
 codec = ["dep:codec", "gear-core-errors/codec"]

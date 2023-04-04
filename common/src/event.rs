@@ -21,15 +21,19 @@
 //! This module contains components for depositing proper
 //! and extensive data about actions happen.
 
-use codec::{Decode, Encode};
+use frame_support::{
+    codec::{self, Decode, Encode},
+    scale_info::{self, TypeInfo},
+};
 use gear_core::{ids::MessageId, message::MessageWaitedType};
-use scale_info::TypeInfo;
 
 /// Programs entry for messages.
 ///
 /// Same as `gear_core::message::DispatchKind`,
 /// but with additional info about reply.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum MessageEntry {
     /// Init entry point.
     Init,
@@ -43,6 +47,8 @@ pub enum MessageEntry {
 
 /// Status of dispatch dequeue and execution.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum DispatchStatus {
     /// Dispatch was dequeued and succeed with execution.
     Success,
@@ -77,6 +83,8 @@ impl SystemReason for () {}
 
 /// Composite reason type for any action happened on chain.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum Reason<R: RuntimeReason, S: SystemReason> {
     /// Runtime reason variant.
     ///
@@ -92,6 +100,8 @@ pub enum Reason<R: RuntimeReason, S: SystemReason> {
 
 /// Runtime reason for messages waiting.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, RuntimeReason)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum MessageWaitedRuntimeReason {
     /// Program called `gr_wait` while executing message.
     WaitCalled,
@@ -118,6 +128,8 @@ impl From<MessageWaitedType> for MessageWaitedRuntimeReason {
 
 /// System reason for messages waiting.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, SystemReason)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum MessageWaitedSystemReason {
     /// Program hadn't finished initialization and can not
     /// process received message yet.
@@ -129,6 +141,8 @@ pub type MessageWaitedReason = Reason<MessageWaitedRuntimeReason, MessageWaitedS
 
 /// Runtime reason for messages waking.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, RuntimeReason)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum MessageWokenRuntimeReason {
     /// Program called `gr_wake` with corresponding message id.
     WakeCalled,
@@ -136,6 +150,8 @@ pub enum MessageWokenRuntimeReason {
 
 /// System reason for messages waking.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, SystemReason)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum MessageWokenSystemReason {
     /// Program had finished initialization.
     ///
@@ -153,6 +169,8 @@ pub type MessageWokenReason = Reason<MessageWokenRuntimeReason, MessageWokenSyst
 
 /// Type of changes applied to code in storage.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum CodeChangeKind<BlockNumber> {
     /// Code become active and ready for use.
     ///
@@ -172,6 +190,8 @@ pub enum CodeChangeKind<BlockNumber> {
 
 /// Runtime reason for messages reading from `Mailbox`.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, RuntimeReason)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum UserMessageReadRuntimeReason {
     /// Message was replied by user.
     MessageReplied,
@@ -181,6 +201,8 @@ pub enum UserMessageReadRuntimeReason {
 
 /// System reason for messages reading from `Mailbox`.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, SystemReason)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum UserMessageReadSystemReason {
     /// Message can no longer pay rent for holding in storage (see #646).
     OutOfRent,
@@ -191,6 +213,8 @@ pub type UserMessageReadReason = Reason<UserMessageReadRuntimeReason, UserMessag
 
 /// Type of changes applied to program in storage.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
 pub enum ProgramChangeKind<BlockNumber> {
     /// Occurs when new program has been added to storage.
     ///

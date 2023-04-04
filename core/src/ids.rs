@@ -49,9 +49,9 @@ macro_rules! declare_id {
             Ord,
             PartialEq,
             PartialOrd,
-            codec::Decode,
-            codec::Encode,
-            codec::MaxEncodedLen,
+            scale_info::scale::Decode,
+            scale_info::scale::Encode,
+            parity_scale_codec::MaxEncodedLen,
             derive_more::From,
             scale_info::TypeInfo,
         )]

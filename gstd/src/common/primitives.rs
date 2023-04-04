@@ -39,9 +39,11 @@ use crate::{
     errors::{ContractError, IntoContractResult, Result},
     prelude::{convert::TryFrom, String},
 };
-use codec::{Decode, Encode};
 use primitive_types::H256;
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{self, Decode, Encode},
+    TypeInfo,
+};
 
 const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 
@@ -56,6 +58,7 @@ const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 #[derive(
     Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
 )]
+#[codec(crate = scale)]
 pub struct ActorId([u8; 32]);
 
 impl ActorId {
@@ -170,6 +173,7 @@ impl TryFrom<&[u8]> for ActorId {
 #[derive(
     Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
 )]
+#[codec(crate = scale)]
 pub struct MessageId([u8; 32]);
 
 impl MessageId {
@@ -231,6 +235,7 @@ impl From<H256> for MessageId {
 #[derive(
     Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
 )]
+#[codec(crate = scale)]
 pub struct CodeId([u8; 32]);
 
 impl CodeId {
@@ -325,6 +330,7 @@ impl TryFrom<&[u8]> for CodeId {
 /// }
 /// ```
 #[derive(Clone, Copy, Debug, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
+#[codec(crate = scale)]
 pub struct ReservationId([u8; 32]);
 
 impl ReservationId {

@@ -23,8 +23,10 @@ use crate::{
         Value,
     },
 };
-use codec::{Decode, Encode};
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 use super::PayloadSizeError;
 

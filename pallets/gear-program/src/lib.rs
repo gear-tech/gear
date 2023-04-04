@@ -138,11 +138,12 @@ pub mod migration;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use codec::EncodeLike;
     use common::{storage::*, CodeMetadata, ProgramStorageItem};
     #[cfg(feature = "debug-mode")]
     use frame_support::storage::PrefixIterator;
-    use frame_support::{pallet_prelude::*, traits::StorageVersion, StoragePrefixedMap};
+    use frame_support::{
+        dispatch::EncodeLike, pallet_prelude::*, traits::StorageVersion, StoragePrefixedMap,
+    };
     use frame_system::pallet_prelude::*;
     use gear_core::{
         code::InstrumentedCode,
