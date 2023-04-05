@@ -160,7 +160,8 @@ where
 
                 self.clean_reservation_tasks(program_id, maybe_inactive);
 
-                ProgramStorageOf::<T>::update_program_if_active(program_id, |p| {
+                ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn, _hold_period| {
+                    *bn = Pallet::<T>::block_number();
                     *p = Program::Terminated(origin);
                 }).unwrap_or_else(|e| {
                     if !maybe_inactive {
@@ -228,7 +229,8 @@ where
         // Program can't be inactive, cause it was executed.
         self.clean_reservation_tasks(id_exited, false);
 
-        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p| {
+        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn, _hold_period| {
+            *bn = Pallet::<T>::block_number();
             *p = Program::Exited(value_destination);
         })
         .unwrap_or_else(|e| {
