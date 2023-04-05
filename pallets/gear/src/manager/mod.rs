@@ -252,7 +252,7 @@ where
         code_info: &CodeInfo,
         message_id: MessageId,
         block_number: BlockNumberFor<T>,
-        interval: BlockNumberFor<T>,
+        hold_period: BlockNumberFor<T>,
     ) {
         // Program can be added to the storage only with code, which is done in
         // `submit_program` or `upload_code` extrinsic.
@@ -274,7 +274,7 @@ where
             gas_reservation_map: Default::default(),
         };
 
-        ProgramStorageOf::<T>::add_program(program_id, program, block_number, interval)
+        ProgramStorageOf::<T>::add_program(program_id, program, block_number, hold_period)
             .expect("set_program shouldn't be called for the existing id");
     }
 

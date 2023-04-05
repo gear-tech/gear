@@ -73,8 +73,7 @@ pub trait PausedProgramStorage {
         block_number: Self::BlockNumber,
     ) -> Option<GasReservationMap> {
         Self::ProgramStorage::remove_active_program(program_id).map(|mut program| {
-            let gas_reservations = program.gas_reservation_map.clone();
-            program.gas_reservation_map.clear();
+            let gas_reservations = core::mem::take(&mut program.gas_reservation_map);
 
             let _messages = Self::ProgramStorage::waiting_init_take_messages(program_id);
             let memory_pages = Self::ProgramStorage::get_program_data_for_pages(

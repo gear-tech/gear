@@ -5162,8 +5162,8 @@ fn test_pausing_programs_works() {
         let program_item =
             ProgramStorageOf::<Test>::get_program(factory_id).expect("program should exist");
         let bn = program_item.block_number;
-        let expected_block = bn.saturating_add(program_item.interval);
-        assert_eq!(RentFreePeriodOf::<Test>::get(), program_item.interval);
+        let expected_block = bn.saturating_add(program_item.hold_period);
+        assert_eq!(RentFreePeriodOf::<Test>::get(), program_item.hold_period);
         assert!(TaskPoolOf::<Test>::contains(
             &expected_block,
             &ScheduledTask::PauseProgram(factory_id)
@@ -5180,8 +5180,8 @@ fn test_pausing_programs_works() {
         let program_item =
             ProgramStorageOf::<Test>::get_program(child_program_id).expect("program should exist");
         let bn = program_item.block_number;
-        let expected_block = bn.saturating_add(program_item.interval);
-        assert_eq!(RentFreePeriodOf::<Test>::get(), program_item.interval);
+        let expected_block = bn.saturating_add(program_item.hold_period);
+        assert_eq!(RentFreePeriodOf::<Test>::get(), program_item.hold_period);
         assert!(TaskPoolOf::<Test>::contains(
             &expected_block,
             &ScheduledTask::PauseProgram(child_program_id)

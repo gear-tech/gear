@@ -44,14 +44,14 @@ pub trait Error {
 pub struct Item<BlockNumber> {
     pub program: Program,
     pub block_number: BlockNumber,
-    pub interval: BlockNumber,
+    pub hold_period: BlockNumber,
 }
 
 /// Trait to work with program data in a storage.
 pub trait ProgramStorage {
     type InternalError: Error;
     type Error: From<Self::InternalError> + Debug;
-    type BlockNumber: Clone + Copy + sp_arithmetic::traits::Saturating;
+    type BlockNumber: Copy + sp_arithmetic::traits::Saturating;
 
     type ProgramMap: MapStorage<Key = ProgramId, Value = Item<Self::BlockNumber>>;
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;
@@ -69,7 +69,7 @@ pub trait ProgramStorage {
         program_id: ProgramId,
         program: ActiveProgram,
         block_number: Self::BlockNumber,
-        interval: Self::BlockNumber,
+        hold_period: Self::BlockNumber,
     ) -> Result<(), Self::Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
             if maybe.is_some() {
@@ -79,7 +79,7 @@ pub trait ProgramStorage {
             *maybe = Some(Item {
                 program: Program::Active(program),
                 block_number,
-                interval,
+                hold_period,
             });
             Ok(())
         })
@@ -139,7 +139,7 @@ pub trait ProgramStorage {
         let Item {
             mut program,
             block_number,
-            interval,
+            hold_period: interval,
         } = Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
         match program {
             Program::Active(_) => (),
@@ -152,7 +152,7 @@ pub trait ProgramStorage {
             Item {
                 program,
                 block_number,
-                interval,
+                hold_period: interval,
             },
         );
 
