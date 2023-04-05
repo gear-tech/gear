@@ -26,10 +26,7 @@ pub mod lazy_pages;
 
 mod utils;
 
-#[cfg(test)]
-pub(crate) mod mock;
-
-#[cfg(all(not(test), feature = "mock"))]
+#[cfg(any(feature = "mock", test))]
 pub mod mock;
 
 pub mod memory;

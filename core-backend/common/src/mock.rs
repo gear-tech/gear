@@ -20,17 +20,14 @@ use crate::{
     memory::ProcessAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason,
 };
-use alloc::collections::BTreeSet;
-use alloc::vec::Vec;
-use core::fmt;
-use core::fmt::Debug;
-use gear_core::memory::{PageU32Size, WASM_PAGE_SIZE};
+use alloc::{collections::BTreeSet, vec, vec::Vec};
+use core::{fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
     env::Ext,
     gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryInterval, WasmPage},
+    memory::{Memory, MemoryInterval, PageU32Size, WasmPage, WASM_PAGE_SIZE},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
 };
@@ -276,17 +273,16 @@ pub struct MockMemory {
 
 impl MockMemory {
     pub fn new(initial_pages: u32) -> Self {
-        let mut pages = Vec::with_capacity(initial_pages as usize * WASM_PAGE_SIZE);
-        unsafe {
-            pages.set_len(initial_pages as usize * WASM_PAGE_SIZE);
-        }
+        let size = initial_pages as usize * WASM_PAGE_SIZE;
+        let pages = vec![0; size];
+
         Self { pages }
     }
 
     fn page_index(&self, offset: u32) -> Option<usize> {
         let offset = offset as usize;
 
-        (offset < self.pages.len()).then(|| offset / WASM_PAGE_SIZE)
+        (offset < self.pages.len()).then_some(offset / WASM_PAGE_SIZE)
     }
 }
 
@@ -311,12 +307,12 @@ impl Memory for MockMemory {
             .ok_or(MemoryError::RuntimeAllocOutOfBounds)?;
         let page_offset = offset as usize % WASM_PAGE_SIZE;
 
-        if page_offset as usize + buffer.len() > WASM_PAGE_SIZE {
+        if page_offset + buffer.len() > WASM_PAGE_SIZE {
             return Err(MemoryError::RuntimeAllocOutOfBounds);
         }
 
         let page_start = page_index * WASM_PAGE_SIZE;
-        let start = page_start + page_offset as usize;
+        let start = page_start + page_offset;
 
         if start + buffer.len() > self.pages.len() {
             return Err(MemoryError::RuntimeAllocOutOfBounds);
