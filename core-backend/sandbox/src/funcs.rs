@@ -26,8 +26,8 @@ use codec::Encode;
 use core::{convert::TryInto, marker::PhantomData};
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendState,
-    TrapExplanation, PTR_SPECIAL,
+    syscall_trace, ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError,
+    BackendState, TrapExplanation, PTR_SPECIAL,
 };
 use gear_core::{
     buffer::RuntimeBuffer,
@@ -62,18 +62,6 @@ fn args_to_str(args: &[Value]) -> String {
     res
 }
 
-// TODO: use gear_core_backend::syscall_trace instead #2352
-/// We use this macros to avoid perf decrease because of log level comparing.
-/// By default `sys-trace` feature is disabled, so this macros does nothing.
-/// To see sys-calls tracing enable this feature and rebuild node.
-macro_rules! sys_trace {
-    (target: $target:expr, $($arg:tt)+) => (
-        // if cfg!(feature = "sys-trace") {
-            log::trace!(target: $target, $($arg)+)
-        // }
-    );
-}
-
 impl<E> FuncsHandler<E>
 where
     E: BackendExt + 'static,
@@ -96,7 +84,7 @@ where
 
     /// Fallible `gr_send` syscall.
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "send, args = {}", args_to_str(args));
+        syscall_trace!("send", args_to_str(args));
 
         let (pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
@@ -117,7 +105,7 @@ where
 
     /// Fallible `gr_send_wgas` syscall.
     pub fn send_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "send_wgas, args = {}", args_to_str(args));
+        syscall_trace!("send_wgas", args_to_str(args));
 
         let (pid_value_ptr, payload_ptr, len, gas_limit, delay, err_mid_ptr) =
             args.iter().read_6()?;
@@ -142,7 +130,7 @@ where
 
     /// Fallible `gr_send_commit` syscall.
     pub fn send_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "send_commit, args = {}", args_to_str(args));
+        syscall_trace!("send_commit", args_to_str(args));
 
         let (handle, pid_value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
@@ -165,7 +153,7 @@ where
 
     /// Fallible `gr_send_commit_wgas` syscall.
     pub fn send_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "send_commit_wgas, args = {}", args_to_str(args));
+        syscall_trace!("send_commit_wgas", args_to_str(args));
 
         let (handle, pid_value_ptr, gas_limit, delay, err_mid_ptr) = args.iter().read_5()?;
 
@@ -193,7 +181,7 @@ where
 
     /// Fallible `gr_send_init` syscall.
     pub fn send_init(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "send_init, args = {}", args_to_str(args));
+        syscall_trace!("send_init", args_to_str(args));
 
         let err_handle_ptr = args.iter().read()?;
 
@@ -204,7 +192,7 @@ where
 
     /// Fallible `gr_send_push` syscall.
     pub fn send_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "send_push, args = {}", args_to_str(args));
+        syscall_trace!("send_push", args_to_str(args));
 
         let (handle, payload_ptr, len, err_len_ptr) = args.iter().read_4()?;
 
@@ -218,7 +206,7 @@ where
 
     /// Fallible `gr_reservation_send` syscall.
     pub fn reservation_send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reservation_send, args = {}", args_to_str(args));
+        syscall_trace!("reservation_send", args_to_str(args));
 
         let (rid_pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
@@ -248,7 +236,7 @@ where
 
     /// Fallible `gr_reservation_send_commit` syscall.
     pub fn reservation_send_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reservation_send_commit, args = {}", args_to_str(args));
+        syscall_trace!("reservation_send_commit", args_to_str(args));
 
         let (handle, rid_pid_value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
@@ -277,7 +265,7 @@ where
 
     /// Fallible `gr_read` syscall.
     pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "read, args = {}", args_to_str(args));
+        syscall_trace!("read", args_to_str(args));
 
         let (at, len, buffer_ptr, err_len_ptr) = args.iter().read_4()?;
 
@@ -295,7 +283,7 @@ where
 
     /// Infallible `gr_size` syscall.
     pub fn size(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "size, args = {}", args_to_str(args));
+        syscall_trace!("size", args_to_str(args));
 
         let size_ptr = args.iter().read()?;
 
@@ -310,7 +298,7 @@ where
 
     /// Infallible `gr_exit` syscall.
     pub fn exit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "exit, args = {}", args_to_str(args));
+        syscall_trace!("exit", args_to_str(args));
 
         let inheritor_id_ptr = args.iter().read()?;
 
@@ -323,7 +311,7 @@ where
 
     /// Fallible `gr_status_code` syscall.
     pub fn status_code(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "status_code, args = {}", args_to_str(args));
+        syscall_trace!("status_code", args_to_str(args));
 
         let err_code_ptr = args.iter().read()?;
 
@@ -334,7 +322,7 @@ where
 
     /// Infallible `alloc` syscall.
     pub fn alloc(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "alloc, args = {}", args_to_str(args));
+        syscall_trace!("alloc", args_to_str(args));
 
         let pages = args.iter().read()?;
 
@@ -360,7 +348,7 @@ where
 
     /// Infallible `free` syscall.
     pub fn free(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "free, args = {}", args_to_str(args));
+        syscall_trace!("free", args_to_str(args));
 
         let page = WasmPage::new(args.iter().read()?).map_err(|_| HostError)?;
 
@@ -383,7 +371,7 @@ where
 
     /// Infallible `gr_block_height` syscall.
     pub fn block_height(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "block_height, args = {}", args_to_str(args));
+        syscall_trace!("block_height", args_to_str(args));
 
         let height_ptr = args.iter().read()?;
 
@@ -398,7 +386,7 @@ where
 
     /// Infallible `gr_block_timestamp` syscall.
     pub fn block_timestamp(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "block_timestamp, args = {}", args_to_str(args));
+        syscall_trace!("block_timestamp", args_to_str(args));
 
         let timestamp_ptr = args.iter().read()?;
 
@@ -413,7 +401,7 @@ where
 
     /// Infallible `gr_origin` syscall.
     pub fn origin(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "origin, args = {}", args_to_str(args));
+        syscall_trace!("origin", args_to_str(args));
 
         let origin_ptr = args.iter().read()?;
 
@@ -428,7 +416,7 @@ where
 
     /// Infallible `gr_random` syscall.
     pub fn random(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "random, args = {}", args_to_str(args));
+        syscall_trace!("random", args_to_str(args));
 
         let (subject_ptr, bn_random_ptr) = args.iter().read_2()?;
 
@@ -451,7 +439,7 @@ where
 
     /// Fallible `gr_reply` syscall.
     pub fn reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reply, args = {}", args_to_str(args));
+        syscall_trace!("reply", args_to_str(args));
 
         let (payload_ptr, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
@@ -468,7 +456,7 @@ where
 
     /// Fallible `gr_reply_wgas` syscall.
     pub fn reply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reply_wgas, args = {}", args_to_str(args));
+        syscall_trace!("reply_wgas", args_to_str(args));
 
         let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
@@ -485,7 +473,7 @@ where
 
     /// Fallible `gr_reply_commit` syscall.
     pub fn reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reply_commit, args = {}", args_to_str(args));
+        syscall_trace!("reply_commit", args_to_str(args));
 
         let (value_ptr, delay, err_mid_ptr) = args.iter().read_3()?;
 
@@ -500,7 +488,7 @@ where
 
     /// Fallible `gr_reply_commit_wgas` syscall.
     pub fn reply_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reply_commit_wgas, args = {}", args_to_str(args));
+        syscall_trace!("reply_commit_wgas", args_to_str(args));
 
         let (gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_4()?;
 
@@ -518,7 +506,7 @@ where
 
     /// Fallible `gr_reservation_reply` syscall.
     pub fn reservation_reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reservation_reply, args = {}", args_to_str(args));
+        syscall_trace!("reservation_reply", args_to_str(args));
 
         let (rid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
@@ -547,7 +535,7 @@ where
 
     /// Fallible `gr_reservation_reply_commit` syscall.
     pub fn reservation_reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reservation_reply_commit, args = {}", args_to_str(args));
+        syscall_trace!("reservation_reply_commit", args_to_str(args));
 
         let (rid_value_ptr, delay, err_mid_ptr) = args.iter().read_3()?;
 
@@ -574,7 +562,7 @@ where
 
     /// Fallible `gr_reply_to` syscall.
     pub fn reply_to(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reply_to, args = {}", args_to_str(args));
+        syscall_trace!("reply_to", args_to_str(args));
 
         let err_mid_ptr = args.iter().read()?;
 
@@ -585,7 +573,7 @@ where
 
     /// Fallible `gr_signal_from` syscall.
     pub fn signal_from(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "signal_from, args = {}", args_to_str(args));
+        syscall_trace!("signal_from", args_to_str(args));
 
         let err_mid_ptr = args.iter().read()?;
 
@@ -596,7 +584,7 @@ where
 
     /// Fallible `gr_reply_push` syscall.
     pub fn reply_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reply_push, args = {}", args_to_str(args));
+        syscall_trace!("reply_push", args_to_str(args));
 
         let (payload_ptr, len, err_len_ptr) = args.iter().read_3()?;
 
@@ -610,7 +598,7 @@ where
 
     /// Fallible `gr_reply_input` syscall.
     pub fn reply_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reply_input, args = {}", args_to_str(args));
+        syscall_trace!("reply_input", args_to_str(args));
 
         let (offset, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5()?;
 
@@ -629,7 +617,7 @@ where
 
     /// Fallible `gr_reply_push_input` syscall.
     pub fn reply_push_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reply_push_input, args = {}", args_to_str(args));
+        syscall_trace!("reply_push_input", args_to_str(args));
 
         let (offset, len, err_len_ptr) = args.iter().read_3()?;
 
@@ -640,7 +628,7 @@ where
 
     /// Fallible `gr_reply_input_wgas` syscall.
     pub fn reply_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reply_input_wgas, args = {}", args_to_str(args));
+        syscall_trace!("reply_input_wgas", args_to_str(args));
 
         let (offset, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6()?;
 
@@ -661,7 +649,7 @@ where
 
     /// Fallible `gr_send_input` syscall.
     pub fn send_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "send_input, args = {}", args_to_str(args));
+        syscall_trace!("send_input", args_to_str(args));
 
         let (pid_value_ptr, offset, len, delay, err_mid_ptr) = args.iter().read_5()?;
 
@@ -688,7 +676,7 @@ where
 
     /// Fallible `gr_send_push_input` syscall.
     pub fn send_push_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "send_push_input, args = {}", args_to_str(args));
+        syscall_trace!("send_push_input", args_to_str(args));
 
         let (handle, offset, len, err_len_ptr) = args.iter().read_4()?;
 
@@ -701,7 +689,7 @@ where
 
     /// Fallible `gr_send_push_input_wgas` syscall.
     pub fn send_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "send_input_wgas, args = {}", args_to_str(args));
+        syscall_trace!("send_input_wgas", args_to_str(args));
 
         let (pid_value_ptr, offset, len, gas_limit, delay, err_mid_ptr) = args.iter().read_6()?;
 
@@ -733,7 +721,7 @@ where
 
     /// Infallible `gr_debug` syscall.
     pub fn debug(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "debug, args = {}", args_to_str(args));
+        syscall_trace!("debug", args_to_str(args));
 
         let (data_ptr, data_len): (_, u32) = args.iter().read_2()?;
 
@@ -750,7 +738,7 @@ where
 
     /// Infallible `gr_panic` syscall.
     pub fn panic(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "panic, args = {}", args_to_str(args));
+        syscall_trace!("panic", args_to_str(args));
 
         let (data_ptr, data_len): (_, u32) = args.iter().read_2()?;
 
@@ -766,7 +754,7 @@ where
 
     /// Infallible `gr_oom_panic` syscall.
     pub fn oom_panic(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "oom panic, args = {}", args_to_str(args));
+        syscall_trace!("oom panic", args_to_str(args));
 
         ctx.run(RuntimeCosts::Null, |_ctx| {
             Err(ActorTerminationReason::Trap(TrapExplanation::ProgramAllocOutOfBounds).into())
@@ -775,7 +763,7 @@ where
 
     /// Fallible `gr_reserve_gas` syscall.
     pub fn reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "reserve_gas, args = {}", args_to_str(args));
+        syscall_trace!("reserve_gas", args_to_str(args));
 
         let (gas, duration, err_rid_ptr) = args.iter().read_3()?;
 
@@ -786,7 +774,7 @@ where
 
     /// Fallible `gr_unreserve_gas` syscall.
     pub fn unreserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "unreserve_gas, args = {}", args_to_str(args));
+        syscall_trace!("unreserve_gas", args_to_str(args));
 
         let (reservation_id_ptr, err_unreserved_ptr) = args.iter().read_2()?;
 
@@ -804,7 +792,7 @@ where
 
     /// Fallible `gr_system_reserve_gas` syscall.
     pub fn system_reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "system_reserve_gas, args = {}", args_to_str(args));
+        syscall_trace!("system_reserve_gas", args_to_str(args));
 
         let (gas, err_len_ptr) = args.iter().read_2()?;
 
@@ -815,7 +803,7 @@ where
 
     /// Infallible `gr_gas_available` syscall.
     pub fn gas_available(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "gas_available, args = {}", args_to_str(args));
+        syscall_trace!("gas_available", args_to_str(args));
 
         let gas_ptr = args.iter().read()?;
 
@@ -830,7 +818,7 @@ where
 
     /// Infallible `gr_message_id` syscall.
     pub fn message_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "message_id, args = {}", args_to_str(args));
+        syscall_trace!("message_id", args_to_str(args));
 
         let message_id_ptr = args.iter().read()?;
 
@@ -845,7 +833,7 @@ where
 
     /// Infallible `gr_program_id` syscall.
     pub fn program_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "program_id, args = {}", args_to_str(args));
+        syscall_trace!("program_id", args_to_str(args));
 
         let program_id_ptr = args.iter().read()?;
 
@@ -860,7 +848,7 @@ where
 
     /// Infallible `gr_source` syscall.
     pub fn source(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "source, args = {}", args_to_str(args));
+        syscall_trace!("source", args_to_str(args));
 
         let source_ptr = args.iter().read()?;
 
@@ -875,7 +863,7 @@ where
 
     /// Infallible `gr_value` syscall.
     pub fn value(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "value, args = {}", args_to_str(args));
+        syscall_trace!("value", args_to_str(args));
 
         let value_ptr = args.iter().read()?;
 
@@ -890,7 +878,7 @@ where
 
     /// Infallible `gr_value_available` syscall.
     pub fn value_available(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "value_available, args = {}", args_to_str(args));
+        syscall_trace!("value_available", args_to_str(args));
 
         let value_ptr = args.iter().read()?;
 
@@ -905,7 +893,7 @@ where
 
     /// Infallible `gr_leave` syscall.
     pub fn leave(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "leave");
+        syscall_trace!("leave");
 
         ctx.run(RuntimeCosts::Leave, |_ctx| {
             Err(ActorTerminationReason::Leave.into())
@@ -914,7 +902,7 @@ where
 
     /// Infallible `gr_wait` syscall.
     pub fn wait(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "wait");
+        syscall_trace!("wait");
 
         ctx.run(RuntimeCosts::Wait, |ctx| -> Result<(), _> {
             ctx.ext.wait()?;
@@ -924,7 +912,7 @@ where
 
     /// Infallible `gr_wait_for` syscall.
     pub fn wait_for(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "wait_for, args = {}", args_to_str(args));
+        syscall_trace!("wait_for", args_to_str(args));
 
         let duration = args.iter().read()?;
 
@@ -936,7 +924,7 @@ where
 
     /// Infallible `gr_wait_up_to` syscall.
     pub fn wait_up_to(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "wait_up_to, args = {}", args_to_str(args));
+        syscall_trace!("wait_up_to", args_to_str(args));
 
         let duration = args.iter().read()?;
 
@@ -952,7 +940,7 @@ where
 
     /// Fallible `gr_wake` syscall.
     pub fn wake(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "wake, args = {}", args_to_str(args));
+        syscall_trace!("wake", args_to_str(args));
 
         let (message_id_ptr, delay, err_len_ptr) = args.iter().read_3()?;
 
@@ -966,7 +954,7 @@ where
 
     /// Fallible `gr_create_program` syscall.
     pub fn create_program(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "create_program, args = {}", args_to_str(args));
+        syscall_trace!("create_program", args_to_str(args));
 
         let (cid_value_ptr, salt_ptr, salt_len, payload_ptr, payload_len, delay, err_mid_pid_ptr) =
             args.iter().read_7()?;
@@ -994,7 +982,7 @@ where
 
     /// Fallible `gr_create_program_wgas` syscall.
     pub fn create_program_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "create_program_wgas, args = {}", args_to_str(args));
+        syscall_trace!("create_program_wgas", args_to_str(args));
 
         let (
             cid_value_ptr,
@@ -1033,7 +1021,7 @@ where
 
     /// Fallible `gr_error` syscall.
     pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "error, args = {}", args_to_str(args));
+        syscall_trace!("error", args_to_str(args));
 
         // `error_bytes_ptr` is ptr for buffer of an error
         // `err_len_ptr` is ptr for len of the error occurred during this syscall
@@ -1056,7 +1044,7 @@ where
 
     /// Infallible `forbidden` syscall-placeholder.
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "forbidden");
+        syscall_trace!("forbidden");
 
         ctx.run(RuntimeCosts::Null, |_| {
             Err(ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into())
@@ -1065,7 +1053,7 @@ where
 
     /// Infallible `gr_out_of_gas` syscall.
     pub fn out_of_gas(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "out_of_gas");
+        syscall_trace!("out_of_gas");
 
         ctx.set_termination_reason(
             ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into(),
@@ -1076,7 +1064,7 @@ where
 
     /// Infallible `gr_out_of_allowance` syscall.
     pub fn out_of_allowance(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "out_of_allowance");
+        syscall_trace!("out_of_allowance");
 
         ctx.set_termination_reason(ActorTerminationReason::GasAllowanceExceeded.into());
 
