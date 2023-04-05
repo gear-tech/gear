@@ -254,7 +254,7 @@ impl GearApi {
             }
         })?;
 
-        let src_program = self
+        let (src_program, _, hold_period) = self
             .0
             .api()
             .gprog_at(src_program_id, src_block_hash)
@@ -366,6 +366,7 @@ impl GearApi {
                 dest_program_id,
                 src_program,
                 dest_node_api.last_block_number().await?,
+                hold_period,
             )
             .await?;
 

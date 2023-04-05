@@ -20,13 +20,16 @@
 use crate::{
     metadata::runtime_types::{
         frame_system::{AccountInfo, EventRecord},
-        gear_common::{storage::primitives::Interval, ActiveProgram, Program},
+        gear_common::{
+            program_storage::Item as ProgramStorageItem, storage::primitives::Interval,
+            ActiveProgram, Program,
+        },
         gear_core::{code::InstrumentedCode, message::stored::StoredMessage},
         gear_runtime::RuntimeEvent,
         pallet_balances::AccountData,
     },
     result::{Error, Result},
-    types, Api,
+    types, Api, BlockNumber,
 };
 use gear_core::ids::*;
 use hex::ToHex;
@@ -78,7 +81,8 @@ impl Api {
 
     /// Get program pages from program id.
     pub async fn program_pages(&self, pid: ProgramId) -> Result<types::GearPages> {
-        self.gpages(pid, &self.gprog(pid).await?).await
+        let (program, ..) = self.gprog(pid).await?;
+        self.gpages(pid, &program).await
     }
 }
 
@@ -208,7 +212,7 @@ impl Api {
     }
 
     /// Get gear block number.
-    pub async fn gear_block_number(&self, block_hash: Option<H256>) -> Result<u32> {
+    pub async fn gear_block_number(&self, block_hash: Option<H256>) -> Result<BlockNumber> {
         let addr = subxt::dynamic::storage_root("Gear", "BlockNumber");
         let thunk = self
             .storage()
@@ -218,7 +222,7 @@ impl Api {
             .await?
             .into_encoded();
 
-        Ok(u32::decode(&mut thunk.as_ref())?)
+        Ok(BlockNumber::decode(&mut thunk.as_ref())?)
     }
 }
 
@@ -263,7 +267,10 @@ impl Api {
     }
 
     /// Get active program from program id.
-    pub async fn gprog(&self, program_id: ProgramId) -> Result<ActiveProgram> {
+    pub async fn gprog(
+        &self,
+        program_id: ProgramId,
+    ) -> Result<(ActiveProgram, BlockNumber, BlockNumber)> {
         self.gprog_at(program_id, None).await
     }
 
@@ -272,20 +279,19 @@ impl Api {
         &self,
         program_id: ProgramId,
         block_hash: Option<H256>,
-    ) -> Result<ActiveProgram> {
+    ) -> Result<(ActiveProgram, BlockNumber, BlockNumber)> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "ProgramStorage",
             vec![Value::from_bytes(program_id)],
         );
 
-        let program = self
-            .fetch_storage_at::<_, (Program, u32)>(&addr, block_hash)
-            .await?
-            .0;
+        let item = self
+            .fetch_storage_at::<_, ProgramStorageItem<BlockNumber>>(&addr, block_hash)
+            .await?;
 
-        match program {
-            Program::Active(p) => Ok(p),
+        match item.program {
+            Program::Active(p) => Ok((p, item.block_number, item.hold_period)),
             _ => Err(Error::ProgramTerminated),
         }
     }

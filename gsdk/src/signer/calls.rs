@@ -21,14 +21,14 @@ use crate::{
     config::GearConfig,
     metadata::runtime_types::{
         frame_system::pallet::Call,
-        gear_common::{ActiveProgram, Program},
+        gear_common::{program_storage::Item, ActiveProgram, Program},
         gear_core::code::InstrumentedCode,
         gear_runtime::RuntimeCall,
         sp_weights::weight_v2::Weight,
     },
     signer::Signer,
     types::{self, InBlock, TxStatus},
-    Error,
+    BlockNumber, Error,
 };
 use anyhow::anyhow;
 use async_recursion::async_recursion;
@@ -314,15 +314,23 @@ impl Signer {
         &self,
         program_id: ProgramId,
         program: ActiveProgram,
-        block_number: u32,
+        block_number: BlockNumber,
+        hold_period: BlockNumber,
     ) -> InBlock {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "ProgramStorage",
             vec![Value::from_bytes(program_id)],
         );
-        self.set_storage(&[(addr, &(Program::Active(program), block_number))])
-            .await
+        self.set_storage(&[(
+            addr,
+            &Item {
+                program: Program::Active(program),
+                block_number,
+                hold_period,
+            },
+        )])
+        .await
     }
 }
 

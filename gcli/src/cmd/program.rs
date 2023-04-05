@@ -74,7 +74,7 @@ impl Program {
         } = self.action.clone();
 
         // Get program
-        let program = api.gprog(pid.0.into()).await?;
+        let (program, ..) = api.gprog(pid.0.into()).await?;
         let code_id = program.code_hash;
         let code = api.code_storage(code_id.0.into()).await?;
         let pages = api.gpages(pid.0.into(), &program).await?;

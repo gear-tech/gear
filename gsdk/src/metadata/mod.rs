@@ -585,15 +585,13 @@ pub mod runtime_types {
             )]
             pub enum ProgramChangeKind<_0> {
                 #[codec(index = 0)]
-                Active { expiration: _0 },
+                Added { expiration: _0 },
                 #[codec(index = 1)]
-                Inactive,
+                Active { expiration: _0 },
                 #[codec(index = 2)]
-                Paused {
-                    code_hash: ::subxt::utils::H256,
-                    memory_hash: ::subxt::utils::H256,
-                    waitlist_hash: ::subxt::utils::H256,
-                },
+                Inactive,
+                #[codec(index = 3)]
+                Paused,
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
@@ -680,6 +678,17 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     Reservation(_1),
                 }
+            }
+        }
+        pub mod program_storage {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+            )]
+            pub struct Item<_0> {
+                pub program: runtime_types::gear_common::Program,
+                pub block_number: _0,
+                pub hold_period: _0,
             }
         }
         pub mod scheduler {
