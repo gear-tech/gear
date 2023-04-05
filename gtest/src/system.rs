@@ -74,7 +74,7 @@ impl System {
     }
 
     pub fn send_dispatch(&self, dispatch: Dispatch) -> RunResult {
-        self.0.borrow_mut().run_dispatch(dispatch)
+        self.0.borrow_mut().validate_and_run_dispatch(dispatch)
     }
 
     pub fn spend_blocks(&self, amount: u32) -> Vec<RunResult> {
