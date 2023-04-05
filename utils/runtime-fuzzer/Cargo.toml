@@ -15,7 +15,6 @@ parking_lot.workspace = true
 rand = { workspace = true, features = ["small_rng"] }
 
 # Temporary deps for the reproducing crash script until #2313 is implemented
-
 clap = { workspace = true, features = ["derive"] }
 
 gear-call-gen.workspace = true

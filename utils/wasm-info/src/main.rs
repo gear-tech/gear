@@ -14,7 +14,7 @@ pub struct Info {
     pub size: bool,
 
     /// Strip custom sections
-    #[arg(short, long)]
+    #[arg(long)]
     pub strip_custom_sections: bool,
 
     /// Path or hex encoding of wasm binary

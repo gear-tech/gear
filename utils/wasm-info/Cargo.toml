@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+clap = { workspace = true, features = ["derive"] }
 hex = { workspace = true, features = ["std"]}
 parity-wasm.workspace = true
-clap = { workspace = true, features = ["derive"] }
