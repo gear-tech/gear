@@ -20,7 +20,7 @@ use super::*;
 use crate::mock::*;
 use common::{
     gas_provider::{GasNodeId, Imbalance, NegativeImbalance},
-    GasTree as _, LockableTree as _, Origin,
+    GasTree as _, LockIdentifier, LockableTree as _, Origin,
 };
 use frame_support::{assert_noop, assert_ok};
 use gear_core::ids::MessageId;
@@ -673,10 +673,17 @@ fn lock_works() {
         Gas::create(ALICE, external, 10_000).unwrap();
         assert_eq!(Gas::total_supply(), 10_000);
 
-        assert_ok!(Gas::lock(external, 700));
+        // Lock value for book a slot in waitlist
+        assert_ok!(Gas::lock(LockIdentifier::Waitlist, external, 700));
 
         assert_eq!(Gas::total_supply(), 10_000);
-        assert_ok!(Gas::get_lock(external), 700);
+        // Lock for the waitlist has value
+        assert_ok!(Gas::get_lock(LockIdentifier::Waitlist, external), 700);
+        // Other lock types are not used
+        assert_ok!(Gas::get_lock(LockIdentifier::Mailbox, external), 0);
+        assert_ok!(Gas::get_lock(LockIdentifier::Reservation, external), 0);
+        assert_ok!(Gas::get_lock(LockIdentifier::DispatchStash, external), 0);
+
         assert_ok!(Gas::get_limit(external), 9_300);
 
         // Creating specified by root and locking some value.
@@ -684,11 +691,12 @@ fn lock_works() {
 
         assert_eq!(Gas::total_supply(), 10_000);
         assert_ok!(Gas::get_limit(external), 6_300);
-
-        assert_ok!(Gas::lock(specified, 600));
+        // Lock gas for paying for mailbox
+        assert_ok!(Gas::lock(LockIdentifier::Mailbox, specified, 600));
 
         assert_eq!(Gas::total_supply(), 10_000);
-        assert_ok!(Gas::get_lock(specified), 600);
+        assert_ok!(Gas::get_lock(LockIdentifier::Mailbox, specified), 600);
+        assert_ok!(Gas::get_lock(LockIdentifier::Waitlist, specified), 0);
         assert_ok!(Gas::get_limit(specified), 2_400);
 
         // Creating reserved node from root and trying to lock some value there,
@@ -696,39 +704,50 @@ fn lock_works() {
         assert_ok!(Gas::cut(external, reserved, 1_000));
 
         assert_eq!(Gas::total_supply(), 10_000);
-        assert_ok!(Gas::get_lock(reserved), 0);
-        assert_ok!(Gas::lock(reserved, 500));
-        assert_ok!(Gas::get_lock(reserved), 500);
-        assert_ok!(Gas::lock(reserved, 300));
-        assert_ok!(Gas::get_lock(reserved), 800);
-        assert_ok!(Gas::unlock(reserved, 500));
-        assert_ok!(Gas::get_lock(reserved), 300);
-        assert_ok!(Gas::unlock(reserved, 300));
-        assert_ok!(Gas::get_lock(reserved), 0);
+        assert_ok!(Gas::get_lock(LockIdentifier::Reservation, reserved), 0);
+        assert_ok!(Gas::lock(LockIdentifier::Reservation, reserved, 500));
+        assert_ok!(Gas::get_lock(LockIdentifier::Reservation, reserved), 500);
+        assert_ok!(Gas::lock(LockIdentifier::Reservation, reserved, 300));
+        assert_ok!(Gas::get_lock(LockIdentifier::Reservation, reserved), 800);
+        assert_ok!(Gas::lock(LockIdentifier::Mailbox, reserved, 200));
+        assert_ok!(Gas::get_lock(LockIdentifier::Reservation, reserved), 800);
+        assert_ok!(Gas::unlock(LockIdentifier::Reservation, reserved, 500));
+        assert_ok!(Gas::get_lock(LockIdentifier::Reservation, reserved), 300);
+        assert_ok!(Gas::unlock(LockIdentifier::Reservation, reserved, 300));
+        assert_ok!(Gas::get_lock(LockIdentifier::Reservation, reserved), 0);
 
+        // `reserved` node still has a lock on it
+        assert_noop!(Gas::consume(reserved), Error::<Test>::ConsumedWithLock);
+        // release the remaining lock
+        assert_eq!(
+            Gas::unlock_all(LockIdentifier::Mailbox, reserved).unwrap(),
+            200
+        );
+
+        // Now the `reserved` node can be consumed
         let neg_imb = Gas::consume(reserved).unwrap().unwrap();
         assert_eq!(Gas::total_supply(), 9_000);
         assert_eq!(neg_imb.0.peek(), 1_000);
 
         // Unlocking part of locked value on specified node.
-        assert_ok!(Gas::unlock(specified, 500));
+        assert_ok!(Gas::unlock(LockIdentifier::Mailbox, specified, 500));
 
         assert_eq!(Gas::total_supply(), 9_000);
-        assert_ok!(Gas::get_lock(specified), 100);
+        assert_ok!(Gas::get_lock(LockIdentifier::Mailbox, specified), 100);
         assert_ok!(Gas::get_limit(specified), 2_900);
 
         // Creating unspecified node from specified one,
         // locking value there afterward.
         assert_ok!(Gas::split(specified, unspecified));
 
-        assert_ok!(Gas::get_lock(unspecified), 0);
+        assert_ok!(Gas::get_lock(LockIdentifier::Waitlist, unspecified), 0);
 
-        assert_ok!(Gas::lock(unspecified, 600));
+        assert_ok!(Gas::lock(LockIdentifier::Waitlist, unspecified, 600));
 
         assert_eq!(Gas::total_supply(), 9_000);
-        assert_ok!(Gas::get_lock(specified), 100);
+        assert_ok!(Gas::get_lock(LockIdentifier::Mailbox, specified), 100);
         assert_ok!(Gas::get_limit(specified), 2_300);
-        assert_ok!(Gas::get_lock(unspecified), 600);
+        assert_ok!(Gas::get_lock(LockIdentifier::Waitlist, unspecified), 600);
         assert_ok!(Gas::get_limit(unspecified), 2_300);
 
         // Trying to consume specified, while lock exists.
@@ -736,31 +755,37 @@ fn lock_works() {
 
         // Trying to unlock greater value than we have locked.
         assert_noop!(
-            Gas::unlock(specified, 101),
+            Gas::unlock(LockIdentifier::Mailbox, specified, 101),
             Error::<Test>::InsufficientBalance
         );
 
         // Success unlock for full and consuming of specified node
         // (unspecified from it still exists).
-        assert_ok!(Gas::unlock(specified, 100));
+        assert_ok!(Gas::unlock(LockIdentifier::Mailbox, specified, 100));
 
         assert_ok!(Gas::consume(specified), None);
 
-        assert_noop!(Gas::lock(specified, 1), Error::<Test>::NodeWasConsumed);
-        assert_noop!(Gas::unlock(specified, 1), Error::<Test>::NodeWasConsumed);
+        assert_noop!(
+            Gas::lock(LockIdentifier::Waitlist, specified, 1),
+            Error::<Test>::NodeWasConsumed
+        );
+        assert_noop!(
+            Gas::unlock(LockIdentifier::Waitlist, specified, 1),
+            Error::<Test>::NodeWasConsumed
+        );
 
         assert_eq!(Gas::total_supply(), 9_000);
-        assert_ok!(Gas::get_lock(specified), 0);
+        assert_ok!(Gas::get_lock(LockIdentifier::Mailbox, specified), 0);
         assert_ok!(Gas::get_limit(specified), 2_400);
-        assert_ok!(Gas::get_lock(unspecified), 600);
+        assert_ok!(Gas::get_lock(LockIdentifier::Waitlist, unspecified), 600);
         assert_ok!(Gas::get_limit(unspecified), 2_400);
 
         // Unlocking and consuming unspecified.
-        assert_ok!(Gas::unlock(unspecified, 600));
+        assert_ok!(Gas::unlock(LockIdentifier::Waitlist, unspecified, 600));
 
         assert_ok!(Gas::consume(unspecified), None);
 
-        assert_ok!(Gas::unlock(external, 700));
+        assert_ok!(Gas::unlock(LockIdentifier::Waitlist, external, 700));
 
         // Finally free all supply by consuming root.
         let neg_imb = Gas::consume(external).unwrap().unwrap();

@@ -24,18 +24,22 @@ use sp_std::marker::PhantomData;
 
 mod error;
 mod internal;
+mod lockable;
 mod negative_imbalance;
 mod node;
 mod positive_imbalance;
+mod reservable;
 
 #[cfg(test)]
 mod property_tests;
 
 pub use error::Error;
 pub use internal::TreeImpl;
+pub use lockable::{LockIdentifier, LockableTree};
 pub use negative_imbalance::NegativeImbalance;
 pub use node::{GasNode, GasNodeId};
 pub use positive_imbalance::PositiveImbalance;
+pub use reservable::ReservableTree;
 
 /// Simplified type for result of `GasTree::consume` call.
 pub type ConsumeResultOf<T> = Result<
@@ -56,7 +60,7 @@ pub trait Tree {
     type NodeId: Clone;
 
     /// Type representing a quantity of value.
-    type Balance;
+    type Balance: Clone;
 
     /// Types to denote a result of some unbalancing operation - that is
     /// operations that create inequality between the underlying value
@@ -191,71 +195,6 @@ pub trait Tree {
 
     /// Removes all values.
     fn clear();
-}
-
-pub trait ReservableTree: Tree {
-    /// Reserve some value from underlying balance.
-    ///
-    /// Used in gas reservation feature.
-    fn reserve(
-        key: impl Into<Self::NodeId>,
-        new_key: impl Into<Self::NodeId>,
-        amount: Self::Balance,
-    ) -> Result<(), Self::Error>;
-
-    /// Reserve some value from underlying balance.
-    ///
-    /// Used in gas reservation for system signal.
-    fn system_reserve(
-        key: impl Into<Self::NodeId>,
-        amount: Self::Balance,
-    ) -> Result<(), Self::Error>;
-
-    /// Unreserve some value from underlying balance.
-    ///
-    /// Used in gas reservation for system signal.
-    fn system_unreserve(key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error>;
-
-    /// Get system reserve value associated with given id.
-    ///
-    /// Returns errors in cases of absence associated with given key node,
-    /// or if such functionality is forbidden for specific node type:
-    /// for example, for `GasNode::ReservedLocal`.
-    fn get_system_reserve(key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error>;
-}
-
-pub trait LockableTree: Tree {
-    /// Locking some value from underlying balance.
-    ///
-    /// If `key` does not identify any value or the `amount` exceeds what's
-    /// locked under that key, an error is returned.
-    ///
-    /// This can't create imbalance as no value is burned or created.
-    fn lock(key: impl Into<Self::NodeId>, amount: Self::Balance) -> Result<(), Self::Error>;
-
-    /// Unlocking some value from node's locked balance.
-    ///
-    /// If `key` does not identify any value or the `amount` exceeds what's
-    /// locked under that key, an error is returned.
-    ///
-    /// This can't create imbalance as no value is burned or created.
-    fn unlock(key: impl Into<Self::NodeId>, amount: Self::Balance) -> Result<(), Self::Error>;
-
-    /// Unlocking all value from node's locked balance.
-    ///
-    /// See [`unlock`](Self::unlock) for details.
-    fn unlock_all(key: impl Into<Self::NodeId>) -> Result<(), Self::Error> {
-        let key = key.into();
-        let amount = Self::get_lock(key.clone())?;
-        Self::unlock(key, amount)
-    }
-
-    /// Get locked value associated with given id.
-    ///
-    /// Returns errors in cases of absence associated with given key node,
-    /// or if such functionality is forbidden for specific node type:
-    /// for example, for `GasNode::ReservedLocal`.
-    fn get_lock(key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error>;
 }
 
 /// Represents logic of centralized GasTree-algorithm.

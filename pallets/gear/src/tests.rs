@@ -44,8 +44,8 @@ use crate::{
     GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, LockableTree,
-    Origin as _, ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, LockIdentifier,
+    LockableTree, Origin as _, ProgramStorage, ReservableTree,
 };
 use core_processor::{common::ActorExecutionErrorReason, ActorPrepareMemoryError};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
@@ -487,7 +487,7 @@ fn delayed_user_replacement() {
 fn delayed_send_user_message_payment() {
     use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    // Testing that correct gas amount will be reserved and payed for holding.
+    // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: u64) {
         // Upload program that sends message to any user.
         assert_ok!(Gear::upload_program(
@@ -587,7 +587,7 @@ fn delayed_send_user_message_payment() {
 fn delayed_send_user_message_with_reservation() {
     use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    // Testing that correct gas amount will be reserved and payed for holding.
+    // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: u64) {
         let reservation_amount = 6_000_000_000u64;
 
@@ -693,7 +693,7 @@ fn delayed_send_user_message_with_reservation() {
 fn delayed_send_program_message_payment() {
     use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    // Testing that correct gas amount will be reserved and payed for holding.
+    // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: u64) {
         // Upload empty program that receive the message.
         assert_ok!(Gear::upload_program(
@@ -790,7 +790,7 @@ fn delayed_send_program_message_payment() {
 fn delayed_send_program_message_with_reservation() {
     use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    // Testing that correct gas amount will be reserved and payed for holding.
+    // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: u64) {
         // Upload empty program that receive the message.
         assert_ok!(Gear::upload_program(
@@ -859,7 +859,8 @@ fn delayed_send_program_message_with_reservation() {
         ));
 
         // Check that correct amount locked for dispatch stash
-        let gas_locked_in_gas_node = GasPrice::gas_price(Gas::get_lock(delayed_id).unwrap());
+        let gas_locked_in_gas_node =
+            GasPrice::gas_price(Gas::get_lock(LockIdentifier::DispatchStash, delayed_id).unwrap());
         assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
 
         // Gas should be reserved until message is holding.
@@ -897,7 +898,7 @@ fn delayed_send_program_message_with_reservation() {
 fn delayed_send_program_message_with_low_reservation() {
     use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    // Testing that correct gas amount will be reserved and payed for holding.
+    // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: u64) {
         // Upload empty program that receive the message.
         assert_ok!(Gear::upload_program(
@@ -966,7 +967,8 @@ fn delayed_send_program_message_with_low_reservation() {
         ));
 
         // Check that correct amount locked for dispatch stash
-        let gas_locked_in_gas_node = GasPrice::gas_price(Gas::get_lock(delayed_id).unwrap());
+        let gas_locked_in_gas_node =
+            GasPrice::gas_price(Gas::get_lock(LockIdentifier::DispatchStash, delayed_id).unwrap());
         assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
 
         // Gas should be reserved until message is holding.
@@ -6652,7 +6654,7 @@ fn free_storage_hold_on_scheduler_overwhelm() {
         run_to_block(hold_bound.deadline(), Some(0));
         assert!(!MailboxOf::<Test>::is_empty(&USER_2));
 
-        // Block which already can't be payed.
+        // Block which already can't be paid.
         run_to_next_block(None);
 
         let gas_totally_burned = GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send);

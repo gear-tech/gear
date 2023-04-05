@@ -59,8 +59,8 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
     storage::{Interval, Queue},
-    ActiveProgram, CodeStorage, GasTree, LockableTree, Origin, ProgramState, ProgramStorage,
-    ReservableTree,
+    ActiveProgram, CodeStorage, GasTree, LockIdentifier, LockableTree, Origin, ProgramState,
+    ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -322,7 +322,7 @@ where
             )
         });
 
-        GasHandlerOf::<T>::unlock_all(reservation_id)
+        let prepaid = GasHandlerOf::<T>::unlock_all(LockIdentifier::Reservation, reservation_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         let interval = Interval {
@@ -334,6 +334,7 @@ where
             reservation_id,
             interval,
             CostsPerBlockOf::<T>::reservation(),
+            Some(prepaid),
         );
 
         Pallet::<T>::consume_and_retrieve(reservation_id);

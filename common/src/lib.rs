@@ -66,7 +66,9 @@ use sp_std::{
 use storage::ValueStorage;
 extern crate alloc;
 
-pub use gas_provider::{LockableTree, Provider as GasProvider, ReservableTree, Tree as GasTree};
+pub use gas_provider::{
+    LockIdentifier, LockableTree, Provider as GasProvider, ReservableTree, Tree as GasTree,
+};
 
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;

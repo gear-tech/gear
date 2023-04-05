@@ -28,7 +28,7 @@ use common::{
     },
     scheduler::*,
     storage::*,
-    LockableTree, Origin,
+    LockIdentifier, LockableTree, Origin,
 };
 use core::convert::TryInto;
 use gear_core::{
@@ -145,7 +145,7 @@ where
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
 
         // Unlocking gas for delayed sending rent payment.
-        GasHandlerOf::<T>::unlock_all(dispatch.id())
+        let prepaid = GasHandlerOf::<T>::unlock_all(LockIdentifier::DispatchStash, dispatch.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Charging locked gas for holding in dispatch stash.
@@ -153,6 +153,7 @@ where
             dispatch.id(),
             hold_interval,
             CostsPerBlockOf::<T>::dispatch_stash(),
+            Some(prepaid),
         );
 
         QueueOf::<T>::queue(dispatch)
@@ -167,7 +168,7 @@ where
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
 
         // Unlocking gas for delayed sending rent payment.
-        GasHandlerOf::<T>::unlock_all(message.id())
+        let prepaid = GasHandlerOf::<T>::unlock_all(LockIdentifier::DispatchStash, message.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Charge gas for message save.
@@ -175,6 +176,7 @@ where
             message.id(),
             hold_interval,
             CostsPerBlockOf::<T>::dispatch_stash(),
+            Some(prepaid),
         );
 
         Pallet::<T>::send_user_message_after_delay(message, to_mailbox);

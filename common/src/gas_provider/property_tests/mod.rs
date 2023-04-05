@@ -558,7 +558,7 @@ proptest! {
                 GasTreeAction::Lock(from, amount) => {
                     let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
-                    if let Err(e) = Gas::lock(from, amount) {
+                    if let Err(e) = Gas::lock(LockIdentifier::Waitlist, from, amount) {
                         assertions::assert_not_invariant_error(e)
                     } else {
                         forest.tree_mut(from).locked += amount;
@@ -568,7 +568,7 @@ proptest! {
                 GasTreeAction::Unlock(from, amount) => {
                     let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
-                    if let Err(e) = Gas::unlock(from, amount) {
+                    if let Err(e) = Gas::unlock(LockIdentifier::Waitlist, from, amount) {
                         assertions::assert_not_invariant_error(e)
                     } else {
                         forest.tree_mut(from).locked -= amount;
@@ -652,7 +652,7 @@ proptest! {
             }
 
             // Check property: for all the nodes with lock currently existing in the tree...
-            if node.lock() != 0 {
+            if node.lock().iter().any(|x| *x != 0) {
                 // ...is not consumed
                 assert!(!node.is_consumed());
                 // ...can be with lock only after `lock`
@@ -669,7 +669,7 @@ proptest! {
             // Check property: for all the consumed nodes currently existing in the tree...
             if node.is_consumed() {
                 // ...have no locked value
-                assert!(matches!(node.lock(), 0));
+                assert!(node.lock().iter().all(|x| *x == 0));
                 // ..have no system reserved value
                 assert!(matches!(node.system_reserve(), Some(0) | None));
                 // ...existing consumed node can't have zero refs. Otherwise it must have been deleted from the storage

@@ -18,6 +18,7 @@
 
 use super::*;
 use crate::storage::MapStorage;
+use frame_support::ensure;
 
 /// Output of `TreeImpl::catch_value` call.
 #[derive(Debug, Clone, Copy)]
@@ -400,7 +401,7 @@ where
                 GasNode::Cut {
                     id,
                     value: amount,
-                    lock: Zero::zero(),
+                    lock: Default::default(),
                 }
             }
             NodeTypeWithValue::SpecifiedLocal => {
@@ -408,7 +409,7 @@ where
 
                 GasNode::SpecifiedLocal {
                     value: amount,
-                    lock: Zero::zero(),
+                    lock: Default::default(),
                     system_reserve: Zero::zero(),
                     parent: node_id,
                     refs: Default::default(),
@@ -420,7 +421,7 @@ where
                 GasNode::Reserved {
                     id,
                     value: amount,
-                    lock: Zero::zero(),
+                    lock: Default::default(),
                     refs: Default::default(),
                     consumed: false,
                 }
@@ -561,9 +562,11 @@ where
             return Err(InternalError::node_was_consumed().into());
         }
 
-        if !node.lock().is_zero() {
-            return Err(InternalError::consumed_with_lock().into());
-        }
+        // Check if at least one lock has not been released
+        ensure!(
+            node.lock().iter().all(|x| x.is_zero()),
+            InternalError::consumed_with_lock()
+        );
 
         if let Some(system_reserve) = node.system_reserve() {
             if !system_reserve.is_zero() {
@@ -698,7 +701,7 @@ where
 
         let new_node = GasNode::UnspecifiedLocal {
             parent: node_id,
-            lock: Zero::zero(),
+            lock: Default::default(),
             system_reserve: Zero::zero(),
         };
 

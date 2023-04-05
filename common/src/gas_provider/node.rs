@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use core::ops::{Index, IndexMut};
 use frame_support::{codec, dispatch::MaxEncodedLen, scale_info};
 use gear_core::ids::ReservationId;
 
@@ -70,6 +71,32 @@ impl<T> From<ReservationId> for GasNodeId<T, ReservationId> {
     }
 }
 
+pub type NodeLock<Balance> = [Balance; 4];
+
+impl<Balance> Index<LockIdentifier> for NodeLock<Balance> {
+    type Output = Balance;
+
+    fn index(&self, index: LockIdentifier) -> &Self::Output {
+        match index {
+            LockIdentifier::Mailbox => &self[0],
+            LockIdentifier::Waitlist => &self[1],
+            LockIdentifier::Reservation => &self[2],
+            LockIdentifier::DispatchStash => &self[3],
+        }
+    }
+}
+
+impl<Balance> IndexMut<LockIdentifier> for NodeLock<Balance> {
+    fn index_mut(&mut self, index: LockIdentifier) -> &mut Self::Output {
+        match index {
+            LockIdentifier::Mailbox => &mut self[0],
+            LockIdentifier::Waitlist => &mut self[1],
+            LockIdentifier::Reservation => &mut self[2],
+            LockIdentifier::DispatchStash => &mut self[3],
+        }
+    }
+}
+
 /// Node of the ['Tree'] gas tree
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 #[codec(crate = codec)]
@@ -81,7 +108,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     External {
         id: ExternalId,
         value: Balance,
-        lock: Balance,
+        lock: [Balance; 4],
         system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
@@ -94,7 +121,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     Cut {
         id: ExternalId,
         value: Balance,
-        lock: Balance,
+        lock: [Balance; 4],
     },
 
     /// A node used for gas reservation feature.
@@ -103,7 +130,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     Reserved {
         id: ExternalId,
         value: Balance,
-        lock: Balance,
+        lock: [Balance; 4],
         refs: ChildrenRefs,
         consumed: bool,
     },
@@ -119,7 +146,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     SpecifiedLocal {
         parent: Id,
         value: Balance,
-        lock: Balance,
+        lock: [Balance; 4],
         system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
@@ -131,7 +158,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// Such nodes don't have children references.
     UnspecifiedLocal {
         parent: Id,
-        lock: Balance,
+        lock: [Balance; 4],
         system_reserve: Balance,
     },
 }
@@ -145,7 +172,7 @@ pub struct ChildrenRefs {
     unspec_refs: u32,
 }
 
-impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
+impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy>
     GasNode<ExternalId, Id, Balance>
 {
     /// Creates a new `GasNode::External` root node for a new tree.
@@ -153,7 +180,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         Self::External {
             id: origin,
             value,
-            lock: Zero::zero(),
+            lock: Default::default(),
             system_reserve: Zero::zero(),
             refs: Default::default(),
             consumed: false,
@@ -250,18 +277,18 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     }
 
     /// Returns node's locked gas balance, if it can have any.
-    pub fn lock(&self) -> Balance {
+    pub fn lock(&self) -> &[Balance; 4] {
         match self {
             Self::External { lock, .. }
             | Self::UnspecifiedLocal { lock, .. }
             | Self::SpecifiedLocal { lock, .. }
             | Self::Reserved { lock, .. }
-            | Self::Cut { lock, .. } => *lock,
+            | Self::Cut { lock, .. } => lock,
         }
     }
 
     /// Get's a mutable access to node's locked gas balance, if it can have any.
-    pub fn lock_mut(&mut self) -> &mut Balance {
+    pub fn lock_mut(&mut self) -> &mut [Balance; 4] {
         match self {
             Self::External { ref mut lock, .. }
             | Self::UnspecifiedLocal { ref mut lock, .. }

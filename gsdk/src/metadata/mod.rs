@@ -640,7 +640,7 @@ pub mod runtime_types {
                     External {
                         id: _0,
                         value: _2,
-                        lock: _2,
+                        lock: [_2; 4],
                         system_reserve: _2,
                         refs: runtime_types::gear_common::gas_provider::node::ChildrenRefs,
                         consumed: ::core::primitive::bool,
@@ -651,7 +651,7 @@ pub mod runtime_types {
                     Reserved {
                         id: _0,
                         value: _2,
-                        lock: _2,
+                        lock: [_2; 4],
                         refs: runtime_types::gear_common::gas_provider::node::ChildrenRefs,
                         consumed: ::core::primitive::bool,
                     },
@@ -659,7 +659,7 @@ pub mod runtime_types {
                     SpecifiedLocal {
                         parent: _1,
                         value: _2,
-                        lock: _2,
+                        lock: [_2; 4],
                         system_reserve: _2,
                         refs: runtime_types::gear_common::gas_provider::node::ChildrenRefs,
                         consumed: ::core::primitive::bool,
@@ -667,7 +667,7 @@ pub mod runtime_types {
                     #[codec(index = 4)]
                     UnspecifiedLocal {
                         parent: _1,
-                        lock: _2,
+                        lock: [_2; 4],
                         system_reserve: _2,
                     },
                 }

@@ -33,7 +33,7 @@ use common::{
     gas_provider::{GasNodeId, Imbalance},
     scheduler::*,
     storage::*,
-    GasPrice, GasTree, LockableTree, Origin,
+    GasPrice, GasTree, LockIdentifier, LockableTree, Origin,
 };
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReason;
@@ -303,11 +303,21 @@ where
         }
     }
 
-    /// Charges for holding in some storage.
+    /// Charges for holding in some storage. In order to be placed into a holding storage
+    /// a message must lock some funds as a deposit to "book" the storage until some time
+    /// in the future. Regardless whether storing costs or the safety margin have changed
+    /// in the meantime (due to storage migration) a message can't be charged more than
+    /// deposited upfront.
+    ///
+    /// `id` - parameter convertible to the respective gas node id;
+    /// `hold_interval` - determines the time interval to charge rent for;
+    /// `cost` - rental cost per time unit (block);
+    /// `max_charge` - if set, contains the deposit locked at the time of starting storage rental.
     pub(crate) fn charge_for_hold(
         id: impl Into<GasNodeIdOf<T>>,
         hold_interval: Interval<BlockNumberFor<T>>,
         cost: SchedulingCostOf<T>,
+        max_charge: Option<SchedulingCostOf<T>>,
     ) {
         let id = id.into();
 
@@ -316,25 +326,31 @@ where
 
         // Deadline of the task.
         //
-        // NOTE: make sure to work around it, while doing db migrations,
-        // changing `ReserveFor` value.
+        // NOTE: the `ReserveFor` value may have changed due to storage migration thereby
+        // leading to a mismatch between the amount due and the amount deposited upfront.
         let deadline = hold_interval
             .finish
             .saturating_add(CostsPerBlockOf::<T>::reserve_for());
 
-        // The block number, which was the last payed for hold.
+        // The block number, which was the last paid for hold.
         //
-        // Outdated tasks can store for free, but this case is under
-        // control of correct `ReserveFor` constant set.
-        let payed_till = current.min(deadline);
+        // Outdated tasks can end up being store for free - this case has to be controlled by
+        // a correct selection of the `ReserveFor` constant.
+        let paid_until = current.min(deadline);
 
         // Holding duration.
-        let duration: u64 = payed_till
+        let duration: u64 = paid_until
             .saturating_sub(hold_interval.start)
             .unique_saturated_into();
 
         // Amount of gas to charge for holding.
-        let amount = duration.saturating_mul(cost);
+        let mut amount = duration.saturating_mul(cost);
+
+        // Ensure potential changes in `SchedulingCost` or `ReserveFor` safety margin
+        // don't lead to overcharging, that is we can't charge more than what had been locked
+        if let Some(deposited) = max_charge {
+            amount = amount.min(deposited);
+        }
 
         // Spending gas, if need.
         if !amount.is_zero() {
@@ -371,7 +387,7 @@ where
         }
 
         // Locking funds for holding.
-        GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
+        GasHandlerOf::<T>::lock(LockIdentifier::Waitlist, dispatch.id(), hold.lock())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying origin message id. Fails in cases of `GasTree` invalidations.
@@ -432,7 +448,7 @@ where
         let expected = hold_interval.finish;
 
         // Unlocking all funds, that were locked for storing.
-        GasHandlerOf::<T>::unlock_all(waitlisted.id())
+        let prepaid = GasHandlerOf::<T>::unlock_all(LockIdentifier::Waitlist, waitlisted.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Charging for holding.
@@ -440,6 +456,7 @@ where
             waitlisted.id(),
             hold_interval,
             CostsPerBlockOf::<T>::waitlist(),
+            Some(prepaid),
         );
 
         // Depositing appropriate event.
@@ -489,6 +506,7 @@ where
             mailboxed.id(),
             hold_interval,
             CostsPerBlockOf::<T>::mailbox(),
+            None,
         );
 
         // Determining if the reason is user action.
@@ -632,7 +650,7 @@ where
             let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
-            GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
+            GasHandlerOf::<T>::lock(LockIdentifier::DispatchStash, dispatch.id(), hold.lock())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if hold.expected_duration().is_zero() {
@@ -689,7 +707,7 @@ where
             let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
-            GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
+            GasHandlerOf::<T>::lock(LockIdentifier::DispatchStash, dispatch.id(), hold.lock())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if hold.expected_duration().is_zero() {
