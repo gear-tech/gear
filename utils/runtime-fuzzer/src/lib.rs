@@ -153,7 +153,7 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
 }
 
 fn update_context(context: &ContextMutex) {
-    log::info!("Starting updating context");
+    log::debug!("Starting updating context");
     let mut initialized_programs: Vec<_> = System::events()
         .into_iter()
         .filter_map(|v| {
@@ -169,8 +169,10 @@ fn update_context(context: &ContextMutex) {
         })
         .collect();
 
-    log::info!("Collected all the programs");
+    System::reset_events();
+
+    log::debug!("Collected all the programs");
 
     context.lock().programs.append(&mut initialized_programs);
-    log::info!("Context is stored");
+    log::debug!("Context is stored");
 }
