@@ -25,8 +25,7 @@ pub const FREE_PERIOD: u32 = 1_000;
 const VERSION_1: StorageVersion = StorageVersion::new(1);
 
 /// Wrapper for all migrations of this pallet, based on `StorageVersion`.
-pub fn migrate<T: Config>() -> Weight
-{
+pub fn migrate<T: Config>() -> Weight {
     let version = StorageVersion::get::<Pallet<T>>();
     let weight: Weight = Weight::zero();
 

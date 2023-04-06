@@ -287,8 +287,7 @@ pub mod pallet {
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn on_runtime_upgrade() -> Weight
-        {
+        fn on_runtime_upgrade() -> Weight {
             log::debug!(target: "gear::program", "⚙️ Runtime upgrade");
 
             migrate::<T>()
