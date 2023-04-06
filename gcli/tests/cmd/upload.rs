@@ -34,11 +34,13 @@ async fn test_command_upload_works() {
         .signer("//Alice", None)
         .expect("get signer failed");
 
-    let code_id = CodeId::generate(messager::WASM_BINARY);
+    let code_id = CodeId::generate(demo_new_meta::WASM_BINARY);
     assert!(signer.api().code_storage(code_id).await.is_err());
 
     let _ = node
-        .run(Args::new("upload").program(env::wasm_bin("demo_meta.opt.wasm")))
+        .run(Args::new("upload").program(env::wasm_bin("demo_new_meta.opt.wasm")))
         .expect("run command upload failed");
+
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
     assert!(signer.api().code_storage(code_id).await.is_ok());
 }

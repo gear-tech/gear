@@ -105,20 +105,20 @@ fn test_parse_metadata_works() {
 #[test]
 fn test_parse_metawasm_data_1_works() {
     use demo_new_meta::META_WASM_V1;
-    let meta = Meta::decode(&META_WASM_V1).unwrap();
+    let meta = Meta::decode_wasm(&META_WASM_V1).unwrap();
     assert_eq!(format!("{:#}", meta), META_WASM_V1_OUTPUT.trim());
 }
 
 #[test]
 fn test_parse_metawasm_data_2_works() {
     use demo_new_meta::META_WASM_V2;
-    let meta = Meta::decode(&META_WASM_V2).unwrap();
+    let meta = Meta::decode_wasm(&META_WASM_V2).unwrap();
     assert_eq!(format!("{:#}", meta), META_WASM_V2_OUTPUT.trim());
 }
 
 #[test]
 fn test_parse_metawasm_data_3_works() {
     use demo_new_meta::META_WASM_V3;
-    let meta = Meta::decode(&META_WASM_V3).unwrap();
+    let meta = Meta::decode_wasm(&META_WASM_V3).unwrap();
     assert_eq!(format!("{:#}", meta), META_WASM_V3_OUTPUT.trim());
 }

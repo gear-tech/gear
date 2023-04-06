@@ -238,12 +238,7 @@ impl GearApi {
         program_id: ProgramId,
         at: Option<H256>,
     ) -> Result<Vec<u8>> {
-        let response: String = self
-            .0
-            .api()
-            .read_state(H256(program_id.into()), at)
-            .await
-            .map_err(Into::into)?;
+        let response: String = self.0.api().read_state(H256(program_id.into()), at).await?;
         crate::utils::hex_to_vec(response).map_err(Into::into)
     }
 

@@ -17,88 +17,152 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `program`
-use crate::common::{self, env, logs, traits::Convert, Result};
-use demo_meta::{Id, MessageInitIn, Person, Wallet};
-use parity_scale_codec::Encode;
+use crate::common::{self, env, logs, traits::Convert, Args, Result};
+use demo_new_meta::{Id, MessageInitIn, Person, Wallet};
+use scale_info::scale::Encode;
 
-// ( issue #2367 )
-#[ignore]
 #[tokio::test]
-async fn test_command_state_works() -> Result<()> {
+async fn test_command_program_state_works() -> Result<()> {
     common::login_as_alice().expect("login failed");
 
-    // setup node
+    // Setup node.
     let mut node = common::Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    // get demo meta
-    let opt = env::wasm_bin("demo_meta.opt.wasm");
-    let meta = env::wasm_bin("demo_meta.meta.wasm");
-
-    // Deploy demo_meta
-    let deploy = common::gear(&[
-        "-e",
-        &node.ws(),
-        "upload-program",
-        &opt,
-        "",
-        &hex::encode(
-            MessageInitIn {
-                amount: 42,
-                currency: "GEAR".into(),
-            }
-            .encode(),
-        ),
-        "20000000000",
-    ])?;
-
-    assert!(deploy
-        .stderr
-        .convert()
-        .contains(logs::gear_program::EX_UPLOAD_PROGRAM));
-
-    // Get program id
-    let pid = common::program_id(demo_meta::WASM_BINARY, &[]);
+    // Deploy demo_new_meta.
+    let opt = env::wasm_bin("demo_new_meta.opt.wasm");
+    let _ = node.run(
+        Args::new("upload-program")
+            .program(opt)
+            .payload(hex::encode(
+                MessageInitIn {
+                    amount: 42,
+                    currency: "GEAR".into(),
+                }
+                .encode(),
+            )),
+    )?;
 
     // Query state of demo_meta
-    let state = common::gear(&[
-        "-e",
-        &node.ws(),
-        "program",
-        &hex::encode(pid),
-        "state",
-        &meta,
-        "--msg",
-        "0x00", // None
-    ])?;
+    let pid = common::program_id(demo_new_meta::WASM_BINARY, &[]);
+    let state = node.run(Args::new("program").action("state").program(pid))?;
 
-    let default_wallets = vec![
-        Wallet {
-            id: Id {
-                decimal: 1,
-                hex: vec![1u8],
-            },
-            person: Person {
-                surname: "SomeSurname".into(),
-                name: "SomeName".into(),
-            },
+    // Verify result
+    assert_eq!(
+        state.stdout.convert().trim_start_matches("0x").trim(),
+        hex::encode(Wallet::test_sequence().encode())
+    );
+    Ok(())
+}
+
+const DEMO_NEW_META_METADATA: &str = r#"
+Metadata {
+    init:  {
+        input: MessageInitIn {
+            amount: u8,
+            currency: String,
         },
-        Wallet {
-            id: Id {
-                decimal: 2,
-                hex: vec![2u8],
-            },
-            person: Person {
-                surname: "OtherName".into(),
-                name: "OtherSurname".into(),
-            },
+        output: MessageInitOut {
+            exchange_rate: Result<u8, u8>,
+            sum: u8,
         },
-    ];
+    },
+    handle:  {
+        input: MessageIn {
+            id: Id,
+        },
+        output: MessageOut {
+            res: Option<Wallet>,
+        },
+    },
+    reply:  {
+        input: str,
+        output: [u16],
+    },
+    others:  {
+        input: MessageAsyncIn {
+            empty: (),
+        },
+        output: Option<u8>,
+    },
+    signal: (),
+    state: [Wallet { id: Id, person: Person }],
+}
+"#;
 
-    assert!(state
-        .stdout
-        .convert()
-        .contains(&hex::encode(default_wallets.encode())));
+#[test]
+fn test_command_program_metadata_works() -> Result<()> {
+    let meta = env::example_path("new-meta/demo_new_meta.meta.txt");
+    let args = Args::new("program").action("meta").meta(meta);
+    let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
 
+    assert_eq!(
+        result.stdout.convert().trim(),
+        DEMO_NEW_META_METADATA.trim()
+    );
+    Ok(())
+}
+
+#[test]
+fn test_command_program_metadata_derive_works() -> Result<()> {
+    let meta = env::example_path("new-meta/demo_new_meta.meta.txt");
+    let args = Args::new("program")
+        .action("meta")
+        .meta(meta)
+        .flag("--derive")
+        .derive("Person");
+
+    let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+    assert_eq!(
+        result.stdout.convert().trim(),
+        "Person { surname: String, name: String }"
+    );
+    Ok(())
+}
+
+const META_WASM_V1_OUTPUT: &str = r#"
+Exports {
+    first_and_last_wallets:  {
+        input: (),
+        output: (
+            Option<Wallet>,
+            Option<Wallet>,
+        ),
+    },
+    first_wallet:  {
+        input: (),
+        output: Option<Wallet>,
+    },
+    last_wallet:  {
+        input: (),
+        output: Option<Wallet>,
+    },
+}
+"#;
+
+#[test]
+fn test_command_program_metawasm_works() -> Result<()> {
+    let meta = env::wasm_bin("demo_meta_state_v1.meta.wasm");
+    let args = Args::new("program").action("meta").meta(meta);
+    let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+
+    assert_eq!(result.stdout.convert().trim(), META_WASM_V1_OUTPUT.trim());
+    Ok(())
+}
+
+#[test]
+fn test_command_program_metawasm_derive_works() -> Result<()> {
+    let meta = env::wasm_bin("demo_meta_state_v1.meta.wasm");
+    let args = Args::new("program")
+        .action("meta")
+        .meta(meta)
+        .flag("--derive")
+        .derive("Person");
+
+    let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+    assert_eq!(
+        result.stdout.convert().trim(),
+        "Person { surname: String, name: String }"
+    );
     Ok(())
 }

@@ -20,8 +20,7 @@ mod claim;
 mod create;
 mod info;
 mod key;
-// mod meta; // issue #2367
-// mod program; // issue #2367
+mod program;
 mod reply;
 mod send;
 mod transfer;
