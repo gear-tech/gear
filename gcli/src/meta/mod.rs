@@ -3,7 +3,9 @@ mod registry;
 #[cfg(test)]
 mod tests;
 
-use crate::result::Result;
+use crate::result::{Error, Result};
+use core_processor::configs::BlockInfo;
+use gear_core::code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId};
 use gmeta::{MetadataRepr, MetawasmData, TypesRepr};
 use registry::LocalRegistry as _;
 use scale_info::{scale::Decode, PortableRegistry};
@@ -72,12 +74,44 @@ impl Meta {
         let registry =
             PortableRegistry::decode(&mut meta.registry.as_ref()).map_err(|_| fmt::Error)?;
 
-        let mut display = fmt.debug_struct("");
+        let mut display = fmt.debug_struct("Exports");
         for (name, io) in meta.funcs.iter() {
             display.field(&name, &Io::new(io, &registry));
         }
 
         display.finish()
+    }
+
+    /// Execute meta method.
+    fn execute(wasm: InstrumentedCode, method: &str) -> Result<Vec<u8>> {
+        core_processor::informational::execute_for_reply::<
+            gear_backend_wasmi::WasmiEnvironment<core_processor::Ext, String>,
+            String,
+        >(
+            method.into(),
+            wasm.clone(),
+            None,
+            None,
+            None,
+            Default::default(),
+            100_000_000,
+            BlockInfo::default(),
+        )
+        .map_err(Error::WasmExecution)
+    }
+
+    fn decode_wasm(wasm: &[u8]) -> Result<MetawasmData> {
+        let code = InstrumentedCodeAndId::from(CodeAndId::new(Code::new_raw(
+            wasm.to_vec(),
+            1,
+            None,
+            true,
+            false,
+        )?))
+        .into_parts()
+        .0;
+
+        MetawasmData::decode(&mut Self::execute(code, "metadata")?.as_ref()).map_err(Into::into)
     }
 
     /// Decode program meta.
@@ -86,7 +120,7 @@ impl Meta {
     pub fn decode(encoded: &[u8]) -> Result<Self> {
         MetadataRepr::decode(&mut encoded.as_ref())
             .map(Meta::Data)
-            .or_else(|_| MetawasmData::decode(&mut encoded.as_ref()).map(Meta::Wasm))
+            .or_else(|_| -> Result<Meta> { Self::decode_wasm(encoded).map(Meta::Wasm) })
             .map_err(Into::into)
     }
 }

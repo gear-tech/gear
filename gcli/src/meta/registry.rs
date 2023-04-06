@@ -18,7 +18,7 @@ impl<'t, T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Debug for LocalType<'t, T
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match &self.ty.type_def {
             TypeDef::Array(array) => fmt.write_str(&format!(
-                "[{:?}; {}]",
+                "[{}; {}]",
                 self.registry
                     .derive_id(array.type_param.id)
                     .map_err(|_| fmt::Error)?,
@@ -27,7 +27,7 @@ impl<'t, T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Debug for LocalType<'t, T
             TypeDef::BitSequence(bit_sequence) => {
                 write!(
                     fmt,
-                    "BitVec<{:?}, {:?}>",
+                    "BitVec<{}, {}>",
                     self.registry
                         .derive_id(bit_sequence.bit_store_type.id)
                         .map_err(|_| fmt::Error)?,
@@ -39,7 +39,7 @@ impl<'t, T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Debug for LocalType<'t, T
             TypeDef::Compact(compact) => {
                 write!(
                     fmt,
-                    "{:?}",
+                    "{}",
                     self.registry
                         .derive_id(compact.type_param.id)
                         .map_err(|_| fmt::Error)?
@@ -62,25 +62,42 @@ impl<'t, T: Form<Type = UntrackedSymbol<TypeId>>> fmt::Debug for LocalType<'t, T
             TypeDef::Sequence(sequence) => {
                 write!(
                     fmt,
-                    "[{:?}]",
+                    "[{}]",
                     self.registry
                         .derive_id(sequence.type_param.id)
                         .map_err(|_| fmt::Error)?,
                 )
             }
             TypeDef::Tuple(tuple) => {
-                let mut debug = fmt.debug_tuple(self.ty.path.ident().ok_or(fmt::Error)?.as_ref());
+                let mut debug = fmt.debug_tuple("");
                 for field in &tuple.fields {
                     debug.field(&format!(
-                        "{:?}",
+                        "{}",
                         self.registry.derive_id(field.id).map_err(|_| fmt::Error)?
                     ));
                 }
 
                 debug.finish()
             }
-            TypeDef::Variant(_) => {
-                write!(fmt, "{} ", self.ty.path.ident().ok_or(fmt::Error)?.as_ref())
+            TypeDef::Variant(var) => {
+                let ident = self.ty.path.ident().ok_or(fmt::Error)?;
+                if ident.as_ref() == "Option" {
+                    // parsing `Option`.
+                    let ty = self
+                        .registry
+                        .derive_id(var.variants[1].fields[0].ty.id)
+                        .map_err(|_| fmt::Error)?
+                        .ty;
+
+                    if let TypeDef::Primitive(primitive) = &ty.type_def {
+                        write!(fmt, "Option<{}>", format!("{primitive:?}").to_lowercase())
+                    } else {
+                        write!(fmt, "Option<{}>", ty.path.ident().ok_or(fmt::Error)?)
+                    }
+                } else {
+                    // Parsing `enum`.
+                    write!(fmt, "{} ", self.ty.path.ident().ok_or(fmt::Error)?.as_ref())
+                }
             }
         }
     }

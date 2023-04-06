@@ -1,7 +1,7 @@
 //! Tests for metadata
 use crate::meta::Meta;
 
-const METADATA: &str = r#"
+const WASM_METADATA_OUTPUT: &str = r#"
 Metadata {
     init:  {
         input: MessageInitIn {
@@ -29,10 +29,69 @@ Metadata {
         input: MessageAsyncIn {
             empty: "()",
         },
-        output: Option ,
+        output: Option<u8>,
     },
     signal: "()",
     state: [Wallet { id: "Id", person: "Person" }],
+}
+"#;
+
+const META_WASM_V1_OUTPUT: &str = r#"
+Exports {
+    first_and_last_wallets:  {
+        input: "()",
+        output: (
+            "Option<Wallet>",
+            "Option<Wallet>",
+        ),
+    },
+    first_wallet:  {
+        input: "()",
+        output: Option<Wallet>,
+    },
+    last_wallet:  {
+        input: "()",
+        output: Option<Wallet>,
+    },
+}
+"#;
+
+const META_WASM_V2_OUTPUT: &str = r#"
+Exports {
+    wallet_by_id:  {
+        input: Id {
+            decimal: "u64",
+            hex: "Vec<u8>",
+        },
+        output: Option<Wallet>,
+    },
+    wallet_by_name_and_surname:  {
+        input: (
+            "str",
+            "str",
+        ),
+        output: Option<Wallet>,
+    },
+    wallet_by_person:  {
+        input: Person {
+            surname: "String",
+            name: "String",
+        },
+        output: Option<Wallet>,
+    },
+}
+"#;
+
+const META_WASM_V3_OUTPUT: &str = r#"
+Exports {
+    block_number:  {
+        input: "()",
+        output: u32,
+    },
+    block_timestamp:  {
+        input: "()",
+        output: u64,
+    },
 }
 "#;
 
@@ -40,5 +99,26 @@ Metadata {
 fn test_parse_metadata_works() {
     use demo_new_meta::WASM_METADATA;
     let meta = Meta::decode(&WASM_METADATA).expect("Failed to decode wasm metadata");
-    assert_eq!(format!("{:#}", meta), METADATA.trim());
+    assert_eq!(format!("{:#}", meta), WASM_METADATA_OUTPUT.trim());
+}
+
+#[test]
+fn test_parse_metawasm_data_1_works() {
+    use demo_new_meta::META_WASM_V1;
+    let meta = Meta::decode(&META_WASM_V1).unwrap();
+    assert_eq!(format!("{:#}", meta), META_WASM_V1_OUTPUT.trim());
+}
+
+#[test]
+fn test_parse_metawasm_data_2_works() {
+    use demo_new_meta::META_WASM_V2;
+    let meta = Meta::decode(&META_WASM_V2).unwrap();
+    assert_eq!(format!("{:#}", meta), META_WASM_V2_OUTPUT.trim());
+}
+
+#[test]
+fn test_parse_metawasm_data_3_works() {
+    use demo_new_meta::META_WASM_V3;
+    let meta = Meta::decode(&META_WASM_V3).unwrap();
+    assert_eq!(format!("{:#}", meta), META_WASM_V3_OUTPUT.trim());
 }
