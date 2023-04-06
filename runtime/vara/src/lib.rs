@@ -627,7 +627,7 @@ parameter_types! {
 
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
-    pub RentFreePeriod: BlockNumber = pallet_gear_program::migration::FREE_PERIOD.into();
+    pub RentFreePeriod: BlockNumber = pallet_gear_program::migration::FREE_PERIOD;
     pub RentCostPerBlock: Balance = EXISTENTIAL_DEPOSIT;
 }
 
