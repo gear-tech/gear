@@ -122,7 +122,10 @@ fn accesses_pages(
             let mut offset = start;
             while offset <= end {
                 pages.insert(GearPageNumber::from_offset(ctx, offset));
-                offset += page_size;
+                offset = match offset.checked_add(page_size) {
+                    Some(next_offset) => next_offset,
+                    None => break,
+                }
             }
             Ok(())
         })?;

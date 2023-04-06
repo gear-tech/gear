@@ -27,6 +27,7 @@ use crate::{
 };
 use gear_backend_common::lazy_pages::Status;
 use gear_core::gas::GasLeft;
+use std::convert::TryFrom;
 
 pub(crate) trait UserSignalHandler {
     /// # Safety
@@ -72,7 +73,8 @@ unsafe fn user_signal_handler_internal(
         return Err(Error::OutOfWasmMemoryAccess);
     }
 
-    let offset = (native_addr - wasm_mem_addr) as u32;
+    let offset =
+        u32::try_from(native_addr - wasm_mem_addr).map_err(|_| Error::OutOfWasmMemoryAccess)?;
     let page = GearPageNumber::from_offset(ctx, offset);
 
     let gas_ctx = if let Some(globals_config) = ctx.globals_context.as_ref() {
