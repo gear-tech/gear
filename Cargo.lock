@@ -3484,7 +3484,6 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
- "wasmtime",
  "whoami",
 ]
 
@@ -4984,26 +4983,6 @@ name = "itoa"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "453ad9f582a441959e5f0d088b02ce04cfe8d51a8eaf077f12ac6d3e94164ca6"
-
-[[package]]
-name = "ittapi"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e648c437172ce7d3ac35ca11a068755072054826fa455a916b43524fa4a62a7"
-dependencies = [
- "anyhow",
- "ittapi-sys",
- "log",
-]
-
-[[package]]
-name = "ittapi-sys"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9b32a4d23f72548178dde54f3c12c6b6a08598e25575c0d0fa5bd861e0dc1a5"
-dependencies = [
- "cc",
-]
 
 [[package]]
 name = "jobserver"
@@ -13383,7 +13362,6 @@ version = "1.0.2"
 source = "git+https://github.com/gear-tech/wasmtime?rev=b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe#b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe"
 dependencies = [
  "anyhow",
- "async-trait",
  "bincode",
  "cfg-if",
  "indexmap",
@@ -13400,10 +13378,8 @@ dependencies = [
  "wasmtime-cache",
  "wasmtime-cranelift",
  "wasmtime-environ",
- "wasmtime-fiber",
  "wasmtime-jit",
  "wasmtime-runtime",
- "wat",
  "windows-sys 0.36.1",
 ]
 
@@ -13473,18 +13449,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasmtime-fiber"
-version = "1.0.2"
-source = "git+https://github.com/gear-tech/wasmtime?rev=b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe#b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe"
-dependencies = [
- "cc",
- "cfg-if",
- "rustix 0.35.13",
- "wasmtime-asm-macros",
- "windows-sys 0.36.1",
-]
-
-[[package]]
 name = "wasmtime-jit"
 version = "1.0.2"
 source = "git+https://github.com/gear-tech/wasmtime?rev=b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe#b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe"
@@ -13495,7 +13459,6 @@ dependencies = [
  "cfg-if",
  "cpp_demangle",
  "gimli 0.26.2",
- "ittapi",
  "log",
  "object 0.29.0",
  "rustc-demangle",
@@ -13539,7 +13502,6 @@ dependencies = [
  "thiserror",
  "wasmtime-asm-macros",
  "wasmtime-environ",
- "wasmtime-fiber",
  "wasmtime-jit-debug",
  "windows-sys 0.36.1",
 ]
