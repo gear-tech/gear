@@ -155,7 +155,7 @@ pub mod pallet {
     use sp_std::prelude::*;
 
     /// The current storage version.
-    const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {}

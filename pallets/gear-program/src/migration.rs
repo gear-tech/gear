@@ -16,19 +16,35 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Pallet};
-use common::Origin;
-use frame_support::weights::Weight;
+use crate::{Config, Pallet, ProgramStorage};
+use common::{Origin, Program};
+use frame_support::{traits::StorageVersion, weights::Weight};
+
+pub const FREE_PERIOD: u32 = 1_000;
+
+const VERSION_1: StorageVersion = StorageVersion::new(1);
 
 /// Wrapper for all migrations of this pallet, based on `StorageVersion`.
 pub fn migrate<T: Config>() -> Weight
 where
     <T as frame_system::Config>::AccountId: Origin,
 {
-    use frame_support::traits::StorageVersion;
-
-    let _version = StorageVersion::get::<Pallet<T>>();
+    let version = StorageVersion::get::<Pallet<T>>();
     let weight: Weight = Weight::zero();
+
+    if version == VERSION_1 {
+        ProgramStorage::<T>::translate_values(
+            |(program, block_number): (Program, <T as frame_system::Config>::BlockNumber)| {
+                Some(common::program_storage::Item {
+                    program,
+                    block_number,
+                    hold_period: FREE_PERIOD.into(),
+                })
+            },
+        );
+
+        super::pallet::PROGRAM_STORAGE_VERSION.put::<Pallet<T>>();
+    }
 
     weight
 }
