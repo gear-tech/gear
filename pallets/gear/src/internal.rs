@@ -23,7 +23,6 @@ use crate::{
     GasBalanceOf, GasHandlerOf, MailboxOf, Pallet, SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
 use alloc::collections::BTreeSet;
-use codec::{Decode, Encode};
 use common::{
     event::{
         MessageWaitedReason, MessageWaitedRuntimeReason::*,
@@ -37,7 +36,10 @@ use common::{
 };
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReason;
-use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency};
+use frame_support::{
+    codec::{Decode, Encode},
+    traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
+};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},

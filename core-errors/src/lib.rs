@@ -25,18 +25,19 @@ extern crate alloc;
 
 mod simple;
 
-#[cfg(feature = "codec")]
-use codec::{Decode, Encode};
 use core::fmt::Debug;
 #[cfg(feature = "codec")]
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{self, Decode, Encode},
+    TypeInfo,
+};
 
 pub use simple::*;
 
 /// Error using messages.
 #[allow(clippy::unnecessary_cast)]
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
 #[non_exhaustive]
 #[repr(u8)]
 pub enum MessageError {
@@ -155,7 +156,7 @@ pub enum MessageError {
 /// Error using waiting syscalls.
 #[allow(clippy::unnecessary_cast)]
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
 #[non_exhaustive]
 #[repr(u8)]
 pub enum WaitError {
@@ -170,7 +171,7 @@ pub enum WaitError {
 /// Memory error.
 #[allow(clippy::unnecessary_cast)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
 #[non_exhaustive]
 #[repr(u8)]
 pub enum MemoryError {
@@ -185,7 +186,7 @@ pub enum MemoryError {
 /// Reservation error.
 #[allow(clippy::unnecessary_cast)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
 #[non_exhaustive]
 #[repr(u8)]
 pub enum ReservationError {
@@ -212,7 +213,7 @@ pub enum ReservationError {
 /// Execution error.
 #[allow(clippy::unnecessary_cast)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::Display)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
 #[non_exhaustive]
 #[repr(u8)]
 pub enum ExecutionError {
@@ -226,7 +227,7 @@ pub enum ExecutionError {
 #[derive(
     Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::From,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
 #[non_exhaustive]
 #[repr(u8)]
 pub enum ExtError {

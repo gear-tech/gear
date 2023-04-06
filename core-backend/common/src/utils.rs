@@ -17,9 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::string::String;
-use codec::{Decode, Encode};
 use core::ops::Deref;
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{self, Decode, Encode},
+    TypeInfo,
+};
 
 #[macro_export]
 macro_rules! assert_ok {
@@ -49,6 +51,7 @@ pub const TRIMMED_MAX_LEN: usize = 1024;
 #[derive(
     Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
 )]
+#[codec(crate = scale)]
 pub struct TrimmedString(String);
 
 impl TrimmedString {

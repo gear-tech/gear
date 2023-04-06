@@ -16,47 +16,47 @@ name = "gear"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.2.1", features = ["derive"] }
-scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-log = { version = "0.4.17" }
-futures = "0.3.27"
+clap = { workspace = true, features = ["derive"] }
+scale-info.workspace = true
+log.workspace = true
+futures.workspace = true
 
 # Gear
-runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
-gear-runtime-test-cli = { path = "../../utils/gear-runtime-test-cli", optional = true }
-service = { package = "gear-service", path = "../service", default-features = false }
-pallet-gear-payment = { version = "0.1.0", path = "../../pallets/payment" }
-pallet-gear-staking-rewards = { version = "1.0.0", path = "../../pallets/staking-rewards" }
-
+runtime-primitives.workspace = true
+gear-runtime-test-cli = { workspace = true, optional = true }
+service.workspace = true
+pallet-gear-payment.workspace = true
+pallet-gear-staking-rewards = { workspace = true, features = ["std"] }
+ 
 # Gear Runtimes
-gear-runtime = { path = "../../runtime/gear", optional = true }
-vara-runtime = { path = "../../runtime/vara", optional = true }
+gear-runtime = { workspace = true, features = ["std"], optional = true }
+vara-runtime = { workspace = true, features = ["std"], optional = true }
 
 # Substrate client
-sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sc-cli.workspace = true
+sc-executor.workspace = true
+sc-service.workspace = true
+sc-client-api.workspace = true
 
 # Substrate primitives
-sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-keyring = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+sp-core.workspace = true
+sp-io.workspace = true
+sp-inherents.workspace = true
+sp-keyring.workspace = true
+sp-runtime.workspace = true
+sp-timestamp.workspace = true
 
 # Substrate other (benchmarking etc)
-frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
-frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", optional = true }
-try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38", optional = true }
+frame-system.workspace = true
+frame-benchmarking = { workspace = true, optional = true }
+frame-benchmarking-cli = { workspace = true, optional = true }
+try-runtime-cli = { workspace = true, optional = true }
 
 # Program CLI
-gcli = { path = "../../gcli", optional = true }
+gcli = { workspace = true, optional = true }
 
 [build-dependencies]
-substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.38" }
+substrate-build-script-utils.workspace = true
 
 [features]
 default = ["gear-native", "vara-native", "lazy-pages"]
@@ -78,7 +78,11 @@ lazy-pages = [
 ]
 runtime-benchmarks = [
 	"service/runtime-benchmarks",
+  "frame-benchmarking",
 	"frame-benchmarking-cli/runtime-benchmarks",
+]
+runtime-benchmarks-checkers = [
+	"service/runtime-benchmarks-checkers",
 ]
 debug-mode = [
 	"service/debug-mode",

@@ -24,7 +24,6 @@ use crate::{
     message::{DispatchKind, WasmEntry},
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use codec::{Decode, Encode};
 use core::ops::ControlFlow;
 use gear_wasm_instrument::{
     parity_wasm::{
@@ -37,7 +36,10 @@ use gear_wasm_instrument::{
     },
     STACK_END_EXPORT_NAME,
 };
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGE_COUNT: u16 = 512;

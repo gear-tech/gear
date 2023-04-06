@@ -28,7 +28,10 @@
 use crate::Config;
 use common::Origin;
 use frame_support::traits::Get;
-use gear_core::ids::CodeId;
+use gear_core::{
+    ids::CodeId,
+    memory::{PageU32Size, WasmPage},
+};
 use gear_wasm_instrument::{
     parity_wasm::{
         builder,
@@ -37,6 +40,7 @@ use gear_wasm_instrument::{
         },
     },
     syscalls::SysCallName,
+    STACK_END_EXPORT_NAME,
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory},
@@ -90,6 +94,9 @@ pub struct ModuleDefinition {
     /// benchmark the overhead of loading and storing codes of specified sizes. The dummy
     /// section only contributes to the size of the program but does not affect execution.
     pub dummy_section: u32,
+    /// Create global export [STACK_END_GLOBAL_NAME] with the given page offset addr.
+    /// If None, then all memory supposed to be stack memory, so stack end will be equal to memory size.
+    pub stack_end: Option<WasmPage>,
 }
 
 pub struct TableSegment {
@@ -107,7 +114,7 @@ pub struct DataSegment {
 #[derive(Clone)]
 pub struct ImportedMemory {
     // TODO: change to WasmPage (issue #2094)
-    pub min_pages: u32,
+    pub min_pages: WasmPage,
 }
 
 impl ImportedMemory {
@@ -116,12 +123,14 @@ impl ImportedMemory {
         T: Config,
     {
         Self {
-            min_pages: max_pages::<T>() as u32,
+            min_pages: max_pages::<T>().into(),
         }
     }
 
-    pub fn new_with_pages(min_pages: u32) -> Self {
-        Self { min_pages }
+    pub fn new(min_pages: u16) -> Self {
+        Self {
+            min_pages: min_pages.into(),
+        }
     }
 }
 
@@ -220,7 +229,7 @@ where
                 .module("env")
                 .field("memory")
                 .external()
-                .memory(memory.min_pages, None)
+                .memory(memory.min_pages.raw(), None)
                 .build();
         }
 
@@ -263,6 +272,25 @@ where
                     .build()
             }
         }
+
+        // Add stack end export
+        let stack_end = def.stack_end.unwrap_or(
+            def.memory
+                .as_ref()
+                .map(|memory| memory.min_pages)
+                .unwrap_or(0.into()),
+        );
+        program = program
+            .global()
+            .value_type()
+            .i32()
+            .init_expr(Instruction::I32Const(stack_end.offset() as i32))
+            .build()
+            .export()
+            .field(STACK_END_EXPORT_NAME)
+            .internal()
+            .global(def.num_globals)
+            .build();
 
         // Add function pointer table
         if let Some(table) = def.table {
@@ -354,7 +382,7 @@ where
         } else {
             return None;
         };
-        let memory = Memory::new(memory.min_pages, None).unwrap();
+        let memory = Memory::new(memory.min_pages.raw(), None).unwrap();
         env.add_memory("env", "memory", memory.clone());
         Some(memory)
     }
@@ -417,7 +445,16 @@ pub mod body {
     /// When generating contract code by repeating a wasm sequence, it's sometimes necessary
     /// to change those instructions on each repetition. The variants of this enum describe
     /// various ways in which this can happen.
+    #[derive(Debug, Clone)]
     pub enum DynInstr {
+        /// Insert `i32.const (self.0 as i32)` operation
+        InstrI32Const(u32),
+        /// Insert `i64.const (self.0 as i64)` operation
+        InstrI64Const(u64),
+        /// Insert `call self.0` operation
+        InstrCall(u32),
+        /// Insert `i32.load align=self.0, offset=self.1` operation
+        InstrI32Load(u32, u32),
         /// Insert the associated instruction.
         Regular(Instruction),
         /// Insert a I32Const with incrementing value for each insertion.
@@ -451,32 +488,6 @@ pub mod body {
         /// Insert a SetGlobal with a random offset in [low, high).
         /// (low, high)
         RandomSetGlobal(u32, u32),
-    }
-
-    pub fn plain(instructions: Vec<Instruction>) -> FuncBody {
-        FuncBody::new(Vec::new(), Instructions::new(instructions))
-    }
-
-    pub fn from_instructions(mut instructions: Vec<Instruction>) -> FuncBody {
-        instructions.push(Instruction::End);
-        FuncBody::new(Vec::new(), Instructions::new(instructions))
-    }
-
-    pub fn empty() -> FuncBody {
-        FuncBody::new(vec![], Instructions::empty())
-    }
-
-    pub fn repeated(repetitions: u32, instructions: &[Instruction]) -> FuncBody {
-        let instructions = Instructions::new(
-            instructions
-                .iter()
-                .cycle()
-                .take(instructions.len() * usize::try_from(repetitions).unwrap())
-                .cloned()
-                .chain(sp_std::iter::once(Instruction::End))
-                .collect(),
-        );
-        FuncBody::new(Vec::new(), instructions)
     }
 
     pub fn write_access_all_pages_instrs(
@@ -524,6 +535,12 @@ pub mod body {
             .cycle()
             .take(instructions.len() * usize::try_from(repetitions).unwrap())
             .flat_map(|idx| match &mut instructions[idx] {
+                DynInstr::InstrI32Const(c) => vec![Instruction::I32Const(*c as i32)],
+                DynInstr::InstrI64Const(c) => vec![Instruction::I64Const(*c as i64)],
+                DynInstr::InstrCall(c) => vec![Instruction::Call(*c)],
+                DynInstr::InstrI32Load(align, offset) => {
+                    vec![Instruction::I32Load(*align, *offset)]
+                }
                 DynInstr::Regular(instruction) => vec![instruction.clone()],
                 DynInstr::Counter(offset, increment_by) => {
                     let current = *offset;
@@ -570,36 +587,90 @@ pub mod body {
         head
     }
 
-    pub fn repeated_instr(
-        repetitions: u32,
-        instructions: Vec<Instruction>,
-        head: Vec<Instruction>,
-    ) -> Vec<Instruction> {
-        repeated_dyn_instr(
-            repetitions,
-            instructions.into_iter().map(DynInstr::Regular).collect(),
-            head,
-        )
+    pub fn to_dyn(instructions: &[Instruction]) -> Vec<DynInstr> {
+        instructions
+            .iter()
+            .cloned()
+            .map(DynInstr::Regular)
+            .collect()
     }
 
-    pub fn with_result_check(res_offset: u32, instrs: &[Instruction]) -> Vec<Instruction> {
-        let mut res = vec![Instruction::Block(BlockType::NoResult)];
-        res.extend_from_slice(instrs);
-        res.extend_from_slice(&[
-            Instruction::I32Const(res_offset as i32),
-            Instruction::I32Load(2, 0),
-            Instruction::I32Eqz,
-            Instruction::BrIf(0),
-            Instruction::Unreachable,
-            Instruction::End,
-        ]);
+    pub fn with_result_check_dyn(res_offset: DynInstr, instructions: &[DynInstr]) -> Vec<DynInstr> {
+        let mut res = vec![
+            DynInstr::Regular(Instruction::Block(BlockType::NoResult)),
+            res_offset,
+            DynInstr::InstrI32Load(2, 0),
+            DynInstr::Regular(Instruction::I32Eqz),
+            DynInstr::Regular(Instruction::BrIf(0)),
+            DynInstr::Regular(Instruction::Unreachable),
+            DynInstr::Regular(Instruction::End),
+        ];
+        res.splice(1..1, instructions.iter().cloned());
         res
+    }
+
+    pub fn fallible_syscall_instr(
+        repetitions: u32,
+        call_index: u32,
+        res_offset: DynInstr,
+        params: &[DynInstr],
+    ) -> Vec<Instruction> {
+        let mut instructions = params.to_vec();
+        instructions.extend([res_offset.clone(), DynInstr::InstrCall(call_index)]);
+        if cfg!(feature = "runtime-benchmarks-checkers") {
+            instructions = with_result_check_dyn(res_offset, &instructions);
+        }
+        repeated_dyn_instr(repetitions, instructions, vec![])
+    }
+
+    pub fn from_instructions(mut instructions: Vec<Instruction>) -> FuncBody {
+        instructions.push(Instruction::End);
+        FuncBody::new(vec![], Instructions::new(instructions))
+    }
+
+    pub fn empty() -> FuncBody {
+        FuncBody::new(vec![], Instructions::empty())
+    }
+
+    pub fn repeated(repetitions: u32, instructions: &[Instruction]) -> FuncBody {
+        let instructions = Instructions::new(
+            instructions
+                .iter()
+                .cycle()
+                .take(instructions.len() * usize::try_from(repetitions).unwrap())
+                .cloned()
+                .chain(sp_std::iter::once(Instruction::End))
+                .collect(),
+        );
+        FuncBody::new(vec![], instructions)
     }
 
     pub fn repeated_dyn(repetitions: u32, instructions: Vec<DynInstr>) -> FuncBody {
         let mut body = repeated_dyn_instr(repetitions, instructions, vec![]);
         body.push(Instruction::End);
-        FuncBody::new(Vec::new(), Instructions::new(body))
+        FuncBody::new(vec![], Instructions::new(body))
+    }
+
+    pub fn fallible_syscall(repetitions: u32, res_offset: u32, params: &[DynInstr]) -> FuncBody {
+        let mut instructions = params.to_vec();
+        instructions.extend([DynInstr::InstrI32Const(res_offset), DynInstr::InstrCall(0)]);
+        if cfg!(feature = "runtime-benchmarks-checkers") {
+            instructions =
+                with_result_check_dyn(DynInstr::InstrI32Const(res_offset), &instructions);
+        }
+        repeated_dyn(repetitions, instructions)
+    }
+
+    pub fn syscall(repetitions: u32, params: &[DynInstr]) -> FuncBody {
+        let mut instructions = params.to_vec();
+        instructions.push(DynInstr::InstrCall(0));
+        repeated_dyn(repetitions, instructions)
+    }
+
+    pub fn prepend(body: &mut FuncBody, instructions: Vec<Instruction>) {
+        body.code_mut()
+            .elements_mut()
+            .splice(0..0, instructions.iter().cloned());
     }
 
     /// Replace the locals of the supplied `body` with `num` i64 locals.

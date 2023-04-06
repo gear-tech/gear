@@ -23,8 +23,8 @@ use crate::{
     prelude::{convert::AsRef, ops::RangeBounds, vec, Vec},
     ActorId, MessageId, ReservationId,
 };
-use codec::{Decode, Output};
 use gstd_codegen::wait_for_reply;
+use scale_info::scale::{Decode, Output};
 
 /// Message handle.
 ///

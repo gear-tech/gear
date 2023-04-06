@@ -30,7 +30,6 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use codec::{Decode, Encode};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     ActorTerminationReason, BackendExt, BackendExtError, BackendReport, Environment,
@@ -49,7 +48,10 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::MemoryError;
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{self, Decode, Encode},
+    TypeInfo,
+};
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum PrepareMemoryError {
@@ -61,6 +63,7 @@ pub enum PrepareMemoryError {
 
 /// Prepare memory error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+#[codec(crate = scale)]
 pub enum ActorPrepareMemoryError {
     /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
     #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
