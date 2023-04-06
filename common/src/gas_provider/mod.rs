@@ -306,5 +306,13 @@ pub trait Imbalance {
     fn peek(&self) -> Self::Balance;
 
     /// Applies imbalance to some amount.
-    fn apply_to(&self, amount: &mut Option<Self::Balance>);
+    fn apply_to(&self, amount: &mut Option<Self::Balance>) -> Result<(), ImbalanceError>;
+}
+
+/// Represents errors returned by via the [Imbalance] trait.
+#[derive(Debug, PartialEq)]
+pub enum ImbalanceError {
+    /// Indicates the imbalance value causes amount value overflowing
+    /// when applied to the latter.
+    Overflow,
 }

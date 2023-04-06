@@ -37,18 +37,13 @@ impl<Balance: BalanceTrait> Imbalance for NegativeImbalance<Balance> {
         self.0
     }
 
-    fn apply_to(&self, amount: &mut Option<Balance>) {
-        let new_value = amount.unwrap_or_else(Zero::zero);
-        if self.0 > new_value {
-            log::debug!(
-                target: "essential",
-                "Unaccounted gas detected: burnt {:?}, known total supply was {:?}.",
-                self.0,
-                *amount
-            )
+    fn apply_to(&self, amount: &mut Option<Balance>) -> Result<(), ImbalanceError> {
+        let amount_value = amount.unwrap_or_else(Zero::zero);
+        if self.0 > amount_value {
+            return Err(ImbalanceError::Overflow);
         }
-
-        *amount = Some(new_value.saturating_sub(self.0));
+        *amount = Some(amount_value - self.0);
+        Ok(())
     }
 }
 
@@ -61,18 +56,20 @@ mod tests {
         let imbalance = NegativeImbalance::<u32>::new(100);
         let mut amount = Some(252);
 
-        imbalance.apply_to(&mut amount);
+        let result = imbalance.apply_to(&mut amount);
 
-        assert_eq!(amount.unwrap(), 152);
+        assert_eq!(Ok(()), result);
+        assert_eq!(Some(152), amount);
     }
 
     #[test]
-    fn amount_drops_to_zero_when_bigger_imbalance_applied() {
+    fn error_returned_when_overflowing_imbalance_applied() {
         let imbalance = NegativeImbalance::<u32>::new(100);
         let mut amount = Some(42);
 
-        imbalance.apply_to(&mut amount);
+        let result = imbalance.apply_to(&mut amount);
 
-        assert_eq!(amount.unwrap(), 0);
+        assert_eq!(Err(ImbalanceError::Overflow), result);
+        assert_eq!(Some(42), amount);
     }
 }
