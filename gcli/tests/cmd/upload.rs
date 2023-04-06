@@ -34,7 +34,7 @@ async fn test_command_upload_works() {
         .signer("//Alice", None)
         .expect("get signer failed");
 
-    let code_id = CodeId::generate(demo_meta::WASM_BINARY);
+    let code_id = CodeId::generate(messager::WASM_BINARY);
     assert!(signer.api().code_storage(code_id).await.is_err());
 
     let _ = node

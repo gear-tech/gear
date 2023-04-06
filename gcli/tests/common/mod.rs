@@ -39,7 +39,7 @@ pub mod traits;
 
 #[cfg(not(feature = "vara-testing"))]
 mod prelude {
-    pub use parity_scale_codec::Encode;
+    pub use scale_info::scale::Encode;
 
     pub const ALICE_SS58_ADDRESS: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
     pub const MESSAGER_SENT_VALUE: u128 = 5_000;

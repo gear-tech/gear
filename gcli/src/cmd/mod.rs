@@ -28,9 +28,9 @@ pub mod create;
 pub mod info;
 pub mod key;
 pub mod login;
-pub mod meta;
+// pub mod meta;
 pub mod new;
-pub mod program;
+// pub mod program;
 pub mod reply;
 pub mod send;
 pub mod transfer;
@@ -46,9 +46,9 @@ pub enum Command {
     Info(info::Info),
     Key(key::Key),
     Login(login::Login),
-    Meta(meta::Meta),
+    // Meta(meta::Meta),
     New(new::New),
-    Program(program::Program),
+    // Program(program::Program),
     Reply(reply::Reply),
     Send(send::Send),
     Upload(upload::Upload),
@@ -135,9 +135,9 @@ impl Opt {
         match &self.command {
             Command::Key(key) => key.exec(self.passwd.as_deref())?,
             Command::Login(login) => login.exec()?,
-            Command::Meta(meta) => meta.exec()?,
+            // Command::Meta(meta) => meta.exec()?,
             Command::New(new) => new.exec().await?,
-            Command::Program(program) => program.exec(self.api().await?).await?,
+            // Command::Program(program) => program.exec(self.api().await?).await?,
             Command::Update(update) => update.exec().await?,
             sub => {
                 let api = self.api().await?;

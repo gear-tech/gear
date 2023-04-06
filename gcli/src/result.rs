@@ -47,8 +47,6 @@ pub enum Error {
     Logger(#[from] log::SetLoggerError),
     #[error("No available account was found in keystore, please run `gear login` first.")]
     Logout,
-    #[error(transparent)]
-    Metadata(#[from] crate::metadata::Error),
     #[error("{0}")]
     Nacl(String),
     #[error("{0}")]
@@ -57,6 +55,10 @@ pub enum Error {
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
     SubxtPublic(#[from] gsdk::ext::sp_core::crypto::PublicError),
+    #[error("Type {0} not found in registry")]
+    TypeNotFound(String),
+    #[error(transparent)]
+    Codec(#[from] scale_info::scale::Error),
 }
 
 impl From<nacl::Error> for Error {

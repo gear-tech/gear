@@ -22,6 +22,7 @@ base64.workspace = true
 color-eyre.workspace = true
 dirs.workspace = true
 env_logger.workspace = true
+gmeta.workspace = true
 gear-core.workspace = true
 hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
@@ -30,8 +31,7 @@ lazy_static.workspace = true
 libp2p = { workspace = true, features = [ "identify" ], optional = true }
 log.workspace = true
 nacl.workspace = true
-parity-scale-codec = { workspace = true, features = ["std"] }
-scale-info = { workspace = true, features = ["std"] }
+scale-info.workspace = true
 schnorrkel.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -44,7 +44,7 @@ whoami.workspace = true
 [dev-dependencies]
 rand.workspace = true
 messager = { path = "./res/messager" }
-demo-meta.workspace = true
+demo-new-meta.workspace = true
 demo-waiter.workspace = true
 
 [features]
