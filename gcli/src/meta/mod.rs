@@ -44,7 +44,11 @@ impl<'d> fmt::Display for Io<'d> {
     }
 }
 
-/// Program metadata
+/// Program metadata.
+///
+/// TODO: refactor this type with decoded registry.
+/// doesn't necessary for now since everything in this crate
+/// is just for a one-time call from the command line.
 pub enum Meta {
     Data(MetadataRepr),
     Wasm(MetawasmData),
@@ -76,7 +80,7 @@ impl Meta {
 
         let mut display = fmt.debug_struct("Exports");
         for (name, io) in meta.funcs.iter() {
-            display.field(&name, &Io::new(io, &registry));
+            display.field(name, &Io::new(io, &registry));
         }
 
         display.finish()
@@ -89,7 +93,7 @@ impl Meta {
             String,
         >(
             method.into(),
-            wasm.clone(),
+            wasm,
             None,
             None,
             None,
@@ -100,7 +104,8 @@ impl Meta {
         .map_err(Error::WasmExecution)
     }
 
-    fn decode_wasm(wasm: &[u8]) -> Result<MetawasmData> {
+    /// Decode metawasm from wasm binary.
+    pub fn decode_wasm(wasm: &[u8]) -> Result<Self> {
         let code = InstrumentedCodeAndId::from(CodeAndId::new(Code::new_raw(
             wasm.to_vec(),
             1,
@@ -111,28 +116,49 @@ impl Meta {
         .into_parts()
         .0;
 
-        MetawasmData::decode(&mut Self::execute(code, "metadata")?.as_ref()).map_err(Into::into)
+        Ok(Self::Wasm(MetawasmData::decode(
+            &mut Self::execute(code, "metadata")?.as_ref(),
+        )?))
+    }
+
+    /// Decode matdata from hex bytes.
+    pub fn decode_hex(hex: &[u8]) -> Result<Self> {
+        Ok(Self::Data(MetadataRepr::decode(
+            &mut ::hex::decode(hex)?.as_ref(),
+        )?))
     }
 
     /// Decode program meta.
     ///
     /// Either program metadata or state reading functions.
-    pub fn decode(encoded: &[u8]) -> Result<Self> {
-        MetadataRepr::decode(&mut encoded.as_ref())
+    pub fn decode(mut encoded: &[u8]) -> Result<Self> {
+        MetadataRepr::decode(&mut encoded)
             .map(Meta::Data)
-            .or_else(|_| -> Result<Meta> { Self::decode_wasm(encoded).map(Meta::Wasm) })
+            .or_else(|_| -> Result<Meta> { Self::decode_wasm(encoded) })
             .map_err(Into::into)
+    }
+
+    /// Derive type by name.
+    pub fn derive(&self, name: &str) -> Result<String> {
+        let mut encoded_registry = match self {
+            Meta::Data(meta) => meta.registry.as_ref(),
+            Meta::Wasm(meta) => meta.registry.as_ref(),
+        };
+        let registry = PortableRegistry::decode(&mut encoded_registry)?;
+
+        Ok(format!("{}", registry.derive_name(name)?))
     }
 }
 
 impl fmt::Debug for Meta {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Meta::Data(meta) => Self::format_metadata(&meta, fmt),
-            Meta::Wasm(meta) => Self::format_metawasm(&meta, fmt),
+            Meta::Data(meta) => Self::format_metadata(meta, fmt),
+            Meta::Wasm(meta) => Self::format_metawasm(meta, fmt),
         }
     }
 }
+
 impl fmt::Display for Meta {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self, fmt)

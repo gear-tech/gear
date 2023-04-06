@@ -28,9 +28,8 @@ pub mod create;
 pub mod info;
 pub mod key;
 pub mod login;
-// pub mod meta;
 pub mod new;
-// pub mod program;
+pub mod program;
 pub mod reply;
 pub mod send;
 pub mod transfer;
@@ -46,9 +45,9 @@ pub enum Command {
     Info(info::Info),
     Key(key::Key),
     Login(login::Login),
-    // Meta(meta::Meta),
     New(new::New),
-    // Program(program::Program),
+    #[clap(subcommand)]
+    Program(program::Program),
     Reply(reply::Reply),
     Send(send::Send),
     Upload(upload::Upload),
@@ -82,7 +81,7 @@ impl Opt {
     /// setup logs
     fn setup_logs(&self) -> Result<()> {
         let mut builder = if self.verbose {
-            Builder::from_env(Env::default().default_filter_or("debug"))
+            Builder::from_env(Env::default().default_filter_or("gcli=debug"))
         } else {
             match &self.command {
                 Command::Claim(_)
@@ -135,9 +134,8 @@ impl Opt {
         match &self.command {
             Command::Key(key) => key.exec(self.passwd.as_deref())?,
             Command::Login(login) => login.exec()?,
-            // Command::Meta(meta) => meta.exec()?,
             Command::New(new) => new.exec().await?,
-            // Command::Program(program) => program.exec(self.api().await?).await?,
+            Command::Program(program) => program.exec(self.api().await?).await?,
             Command::Update(update) => update.exec().await?,
             sub => {
                 let api = self.api().await?;

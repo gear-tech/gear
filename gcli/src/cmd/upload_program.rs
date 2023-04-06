@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `upload_program`
-use crate::{result::Result, utils};
+use crate::{result::Result, utils::Hex};
 use clap::Parser;
 use gsdk::signer::Signer;
 use std::{fs, path::PathBuf};
@@ -47,7 +47,7 @@ impl UploadProgram {
     /// Exec command submit
     pub async fn exec(&self, signer: Signer) -> Result<()> {
         let code = fs::read(&self.code)?;
-        let payload = utils::hex_to_vec(&self.payload)?;
+        let payload = self.payload.to_vec()?;
 
         let gas = if self.gas_limit == 0 {
             signer
@@ -63,13 +63,7 @@ impl UploadProgram {
 
         // upload program
         signer
-            .upload_program(
-                code,
-                utils::hex_to_vec(&self.salt)?,
-                payload,
-                gas_limit,
-                self.value,
-            )
+            .upload_program(code, self.salt.to_vec()?, payload, gas_limit, self.value)
             .await?;
 
         Ok(())

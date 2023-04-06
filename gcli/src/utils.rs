@@ -33,19 +33,29 @@ pub fn home() -> PathBuf {
     home
 }
 
-pub fn hex_to_vec(string: impl AsRef<str>) -> Result<Vec<u8>> {
-    hex::decode(string.as_ref().trim_start_matches("0x")).map_err(Into::into)
+pub trait Hex {
+    fn to_vec(&self) -> Result<Vec<u8>>;
+    fn to_hash(&self) -> Result<[u8; 32]>;
 }
 
-pub fn hex_to_hash(string: impl AsRef<str>) -> Result<[u8; 32]> {
-    let hex = hex_to_vec(string)?;
-
-    if hex.len() != 32 {
-        return Err(anyhow!("Incorrect id length").into());
+impl<T> Hex for T
+where
+    T: AsRef<str>,
+{
+    fn to_vec(&self) -> Result<Vec<u8>> {
+        hex::decode(self.as_ref().trim_start_matches("0x")).map_err(Into::into)
     }
 
-    let mut arr = [0; 32];
-    arr.copy_from_slice(&hex);
+    fn to_hash(&self) -> Result<[u8; 32]> {
+        let hex = self.to_vec()?;
 
-    Ok(arr)
+        if hex.len() != 32 {
+            return Err(anyhow!("Incorrect id length").into());
+        }
+
+        let mut arr = [0; 32];
+        arr.copy_from_slice(&hex);
+
+        Ok(arr)
+    }
 }
