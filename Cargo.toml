@@ -355,7 +355,7 @@ errno = "0.3"                                                 # gear-lazy-pages
 impl-trait-for-tuples = "0.2.2"                               # pallets/staking-rewards
 indicatif = "*"                                               # utils/wasm-gen
 keyring = "1.2.1"                                             # gcli
-libp2p = "0.51.2"                                             # gcli
+libp2p = "=0.50.1"                                            # gcli (same version as sc-consensus)
 nacl = "0.5.3"                                                # gcli
 nix = "0.26.2"                                                # gear-lazy-pages
 nonempty = "0.8.1"                                            # utils/utils
