@@ -116,7 +116,7 @@ mod tests {
 
     use super::*;
     use gear_backend_common::{assert_err, assert_ok, mock::MockExt, ActorTerminationReason};
-    use gear_core::memory::{AllocError, AllocInfo, AllocationsContext, NoopGrowHandler};
+    use gear_core::memory::{AllocError, AllocationsContext, NoopGrowHandler};
     use wasmi::{Engine, Store};
 
     fn new_test_memory(
@@ -152,18 +152,12 @@ mod tests {
 
         assert_ok!(
             ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(())),
-            AllocInfo {
-                page: 16.into(),
-                not_grown: 0.into()
-            },
+            16.into()
         );
 
         assert_ok!(
             ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(())),
-            AllocInfo {
-                page: 16.into(),
-                not_grown: 0.into()
-            }
+            16.into()
         );
 
         // there is a space for 14 more
@@ -183,10 +177,7 @@ mod tests {
         // and now can allocate page that was freed
         assert_ok!(
             ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
-            AllocInfo {
-                page: 137.into(),
-                not_grown: 1.into()
-            },
+            137.into()
         );
 
         // if we have 2 in a row we can allocate even 2
@@ -195,10 +186,7 @@ mod tests {
 
         assert_ok!(
             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
-            AllocInfo {
-                page: 117.into(),
-                not_grown: 2.into()
-            },
+            117.into()
         );
 
         // but if 2 are not in a row, bad luck

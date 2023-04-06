@@ -549,15 +549,6 @@ pub enum AllocError {
     GasCharge(ChargeError),
 }
 
-/// Alloc method result.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AllocInfo {
-    /// Zero page of allocated interval.
-    pub page: WasmPage,
-    /// Number of pages, which has been allocated inside already existing memory.
-    pub not_grown: WasmPage,
-}
-
 impl AllocationsContext {
     /// New allocations context.
     ///
@@ -583,13 +574,14 @@ impl AllocationsContext {
         self.init_allocations.contains(&page)
     }
 
-    /// Alloc specific number of pages for the currently running program.
+    /// Allocates specified number of continuously going pages
+    /// and returns zero-based number of the first one.
     pub fn alloc<G: GrowHandler>(
         &mut self,
         pages: WasmPage,
         mem: &mut impl Memory,
         charge_gas_for_grow: impl FnOnce(WasmPage) -> Result<(), ChargeError>,
-    ) -> Result<AllocInfo, AllocError> {
+    ) -> Result<WasmPage, AllocError> {
         let mem_size = mem.size();
         let mut start = self.static_pages;
         let mut start_page = None;
@@ -604,8 +596,8 @@ impl AllocationsContext {
             start = end.inc().map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
         }
 
-        let (start, not_grown) = if let Some(start) = start_page {
-            (start, pages)
+        let start = if let Some(start) = start_page {
+            start
         } else {
             // If we cannot find interval between already allocated pages, then try to alloc new pages.
 
@@ -644,15 +636,7 @@ impl AllocationsContext {
                 .unwrap_or_else(|err| unreachable!("Failed to grow memory: {:?}", err));
             grow_handler.after_grow_action(mem);
 
-            // Panic is impossible, because of way `extra_grow` was calculated.
-            let not_grown = pages.sub(extra_grow).unwrap_or_else(|err| {
-                unreachable!(
-                    "`extra_grow` cannot be bigger than `pages`, but get {}",
-                    err
-                )
-            });
-
-            (start, not_grown)
+            start
         };
 
         // Panic is impossible, because we calculated `start` suitable for `pages`.
@@ -662,10 +646,7 @@ impl AllocationsContext {
 
         self.allocations.extend(new_allocations);
 
-        Ok(AllocInfo {
-            page: start,
-            not_grown,
-        })
+        Ok(start)
     }
 
     /// Free specific page.

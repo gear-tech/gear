@@ -36,7 +36,7 @@ use gear_core::{
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocError, AllocInfo, AllocationsContext, GearPage, GrowHandler, Memory, MemoryInterval,
+        AllocError, AllocationsContext, GearPage, GrowHandler, Memory, MemoryInterval,
         NoopGrowHandler, PageBuf, PageU32Size, WasmPage,
     },
     message::{
@@ -876,17 +876,16 @@ impl Ext {
         pages: WasmPage,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, ProcessorAllocError> {
-        let AllocInfo { page, .. } =
-            self.context
-                .allocations_context
-                .alloc::<G>(pages, mem, |pages| {
-                    Ext::charge_gas_if_enough(
-                        &mut self.context.gas_counter,
-                        &mut self.context.gas_allowance_counter,
-                        self.context.page_costs.mem_grow.calc(pages),
-                    )
-                })?;
-        Ok(page)
+        self.context
+            .allocations_context
+            .alloc::<G>(pages, mem, |pages| {
+                Ext::charge_gas_if_enough(
+                    &mut self.context.gas_counter,
+                    &mut self.context.gas_allowance_counter,
+                    self.context.page_costs.mem_grow.calc(pages),
+                )
+            })
+            .map_err(Into::into)
     }
 
     /// Into ext info inner impl.
