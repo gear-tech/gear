@@ -1,3 +1,21 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! Tests for metadata
 use crate::meta::Meta;
 
@@ -98,27 +116,27 @@ Exports {
 #[test]
 fn test_parse_metadata_works() {
     use demo_new_meta::WASM_METADATA;
-    let meta = Meta::decode(&WASM_METADATA).expect("Failed to decode wasm metadata");
+    let meta = Meta::decode(WASM_METADATA).expect("Failed to decode wasm metadata");
     assert_eq!(format!("{:#}", meta), WASM_METADATA_OUTPUT.trim());
 }
 
 #[test]
 fn test_parse_metawasm_data_1_works() {
     use demo_new_meta::META_WASM_V1;
-    let meta = Meta::decode_wasm(&META_WASM_V1).unwrap();
+    let meta = Meta::decode_wasm(META_WASM_V1).unwrap();
     assert_eq!(format!("{:#}", meta), META_WASM_V1_OUTPUT.trim());
 }
 
 #[test]
 fn test_parse_metawasm_data_2_works() {
     use demo_new_meta::META_WASM_V2;
-    let meta = Meta::decode_wasm(&META_WASM_V2).unwrap();
+    let meta = Meta::decode_wasm(META_WASM_V2).unwrap();
     assert_eq!(format!("{:#}", meta), META_WASM_V2_OUTPUT.trim());
 }
 
 #[test]
 fn test_parse_metawasm_data_3_works() {
     use demo_new_meta::META_WASM_V3;
-    let meta = Meta::decode_wasm(&META_WASM_V3).unwrap();
+    let meta = Meta::decode_wasm(META_WASM_V3).unwrap();
     assert_eq!(format!("{:#}", meta), META_WASM_V3_OUTPUT.trim());
 }

@@ -18,7 +18,7 @@
 
 //! Integration tests for command `program`
 use crate::common::{self, env, logs, traits::Convert, Args, Result};
-use demo_new_meta::{Id, MessageInitIn, Person, Wallet};
+use demo_new_meta::{MessageInitIn, Wallet};
 use scale_info::scale::Encode;
 
 #[tokio::test]
@@ -32,15 +32,13 @@ async fn test_command_program_state_works() -> Result<()> {
     // Deploy demo_new_meta.
     let opt = env::wasm_bin("demo_new_meta.opt.wasm");
     let _ = node.run(
-        Args::new("upload-program")
-            .program(opt)
-            .payload(hex::encode(
-                MessageInitIn {
-                    amount: 42,
-                    currency: "GEAR".into(),
-                }
-                .encode(),
-            )),
+        Args::new("upload").program(opt).payload(hex::encode(
+            MessageInitIn {
+                amount: 42,
+                currency: "GEAR".into(),
+            }
+            .encode(),
+        )),
     )?;
 
     // Query state of demo_meta
