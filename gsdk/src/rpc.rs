@@ -133,7 +133,7 @@ impl Api {
     /// gear_meta_hash
     pub async fn read_meta_hash(&self, pid: H256, at: Option<H256>) -> Result<H256> {
         self.rpc()
-            .request("gear_readMetaHash", rpc_params![H256(pid.into()), at])
+            .request("gear_readMetahash", rpc_params![H256(pid.into()), at])
             .await
             .map_err(Into::into)
     }

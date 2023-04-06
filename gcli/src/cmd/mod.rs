@@ -54,8 +54,15 @@ pub enum Command {
     Update(update::Update),
 }
 
-/// `gear` client cli.
+/// gear command-line tools
+///    ___     ___     _       ___  
+///   / __|   / __|   | |     |_ _|
+///  | (_ |  | (__    | |__    | |  
+///   \___|   \___|   |____|  |___|
+/// _|"""""|_|"""""|_|"""""|_|"""""|
+/// "`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'
 #[derive(Debug, Parser)]
+#[clap(author, version, verbatim_doc_comment)]
 #[command(name = "gcli")]
 pub struct Opt {
     /// Commands.
