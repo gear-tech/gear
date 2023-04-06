@@ -20,7 +20,6 @@
 
 pub mod json;
 pub mod key;
-pub mod node;
 
 use crate::{
     keystore::key::Key,
