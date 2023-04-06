@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Config, Pallet, ProgramStorage};
-use common::{Origin, Program};
+use common::Program;
 use frame_support::{traits::StorageVersion, weights::Weight};
 
 pub const FREE_PERIOD: u32 = 1_000;
@@ -26,8 +26,6 @@ const VERSION_1: StorageVersion = StorageVersion::new(1);
 
 /// Wrapper for all migrations of this pallet, based on `StorageVersion`.
 pub fn migrate<T: Config>() -> Weight
-where
-    <T as frame_system::Config>::AccountId: Origin,
 {
     let version = StorageVersion::get::<Pallet<T>>();
     let weight: Weight = Weight::zero();
