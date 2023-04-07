@@ -839,9 +839,9 @@ impl<T: Config> Default for HostFnWeights<T> {
         Self {
             alloc: to_weight!(cost_batched!(alloc)),
             free: to_weight!(cost_batched!(free)),
-            gr_reserve_gas: to_weight!(cost_batched!(gr_reserve_gas)),
+            gr_reserve_gas: to_weight!(cost!(gr_reserve_gas)),
             gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),
-            gr_unreserve_gas: to_weight!(cost_batched!(gr_unreserve_gas)),
+            gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
             gr_gas_available: to_weight!(cost_batched!(gr_gas_available)),
             gr_message_id: to_weight!(cost_batched!(gr_message_id)),
             gr_origin: to_weight!(cost_batched!(gr_origin)),

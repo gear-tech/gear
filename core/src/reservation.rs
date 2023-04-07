@@ -49,10 +49,15 @@ impl GasReserver {
         Self {
             message_id,
             nonce,
-            states: map
-                .into_iter()
-                .map(|(id, slot)| (id, slot.into()))
-                .collect(),
+            states: {
+                let mut states = if map.len() <= max_reservations as usize {
+                    HashMap::with_capacity(max_reservations as usize)
+                } else {
+                    HashMap::new()
+                };
+                states.extend(map.into_iter().map(|(id, slot)| (id, slot.into())));
+                states
+            },
             max_reservations,
         }
     }
