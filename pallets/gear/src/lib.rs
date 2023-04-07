@@ -429,6 +429,10 @@ pub mod pallet {
         MessagesStorageCorrupted,
         /// Message queue processing is disabled.
         MessageQueueProcessingDisabled,
+        /// Program with the specified id is not found.
+        ProgramNotFound,
+        /// Failed to determine the author of a block.
+        BlockAuthorNotFound,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -1230,6 +1234,12 @@ pub mod pallet {
         pub fn run_call() -> Call<T> {
             Call::run {}
         }
+
+        pub fn rent_fee_for(block_count: BlockNumberFor<T>) -> BalanceOf<T> {
+            let block_count: u64 = block_count.unique_saturated_into();
+
+            RentCostPerBlockOf::<T>::get() * block_count.unique_saturated_into()
+        }
     }
 
     #[pallet::call]
@@ -1676,6 +1686,55 @@ pub mod pallet {
             ExecuteInherent::<T>::put(value);
 
             Ok(())
+        }
+
+        /// Pay additional rent for the program.
+        #[pallet::call_index(8)]
+        #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
+        // #[pallet::weight(<T as Config>::WeightInfo::extend_rent_interval())]
+        pub fn pay_rent(
+            origin: OriginFor<T>,
+            program_id: ProgramId,
+            block_count: BlockNumberFor<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            ProgramStorageOf::<T>::update_program_if_active(
+                program_id,
+                |_program, block_number, hold_period| -> Result<(), Error<T>> {
+                    let block_author =
+                        Authorship::<T>::author().ok_or(Error::<T>::BlockAuthorNotFound)?;
+
+                    CurrencyOf::<T>::transfer(
+                        &who,
+                        &block_author,
+                        Self::rent_fee_for(block_count),
+                        ExistenceRequirement::AllowDeath,
+                    )
+                    .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
+
+                    let old_period = *hold_period;
+                    *hold_period = old_period.saturating_add(block_count);
+
+                    let task = ScheduledTask::PauseProgram(program_id);
+                    let r = TaskPoolOf::<T>::delete(
+                        old_period.saturating_add(*block_number),
+                        task.clone(),
+                    );
+                    log::debug!("TaskPool::delete result = {r:?}");
+
+                    let r = TaskPoolOf::<T>::add(hold_period.saturating_add(*block_number), task);
+                    log::debug!("TaskPool::add result = {r:?}");
+
+                    Ok(())
+                },
+            )
+            .map_err(|e| {
+                log::debug!("update_program_if_active failed: {e:?}");
+                Error::<T>::ProgramNotFound
+            })??;
+
+            Ok(().into())
         }
     }
 
