@@ -1274,6 +1274,11 @@ fn read_state_bn_and_timestamp_works() {
         ));
 
         let program_id = utils::get_last_program_id();
+        assert_ok!(Gear::pay_rent(
+            RuntimeOrigin::signed(USER_2),
+            program_id,
+            1_000
+        ));
 
         run_to_next_block(None);
         assert!(Gear::is_initialized(program_id));
@@ -1403,6 +1408,7 @@ fn mailbox_rent_out_of_rent() {
         ));
 
         let sender = utils::get_last_program_id();
+        assert_ok!(Gear::pay_rent(RuntimeOrigin::signed(USER_2), sender, 1_000));
 
         run_to_next_block(None);
 
@@ -1505,6 +1511,7 @@ fn mailbox_rent_claimed() {
         ));
 
         let sender = utils::get_last_program_id();
+        assert_ok!(Gear::pay_rent(RuntimeOrigin::signed(USER_2), sender, 1_000));
 
         run_to_next_block(None);
 
@@ -7133,6 +7140,8 @@ fn test_async_messages() {
         ));
 
         let pid = get_last_program_id();
+        assert_ok!(Gear::pay_rent(RuntimeOrigin::signed(USER_1), pid, 1_000));
+
         for kind in &[
             Kind::Reply,
             Kind::ReplyWithGas(DEFAULT_GAS_LIMIT),

@@ -151,7 +151,7 @@ parameter_types! {
     pub const BlockGasLimit: u64 = MAX_BLOCK;
     pub const OutgoingLimit: u32 = 1024;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
-    pub RentFreePeriod: BlockNumber = 1_000;
+    pub RentFreePeriod: BlockNumber = 10;
     pub RentCostPerBlock: Balance = 11;
     pub RentResumePeriod: BlockNumber = 100;
 }
