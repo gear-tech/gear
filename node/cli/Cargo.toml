@@ -17,6 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
+mimalloc = { workspace = true, default-features = false }
 scale-info.workspace = true
 log.workspace = true
 futures.workspace = true
@@ -27,7 +28,7 @@ gear-runtime-test-cli = { workspace = true, optional = true }
 service.workspace = true
 pallet-gear-payment.workspace = true
 pallet-gear-staking-rewards = { workspace = true, features = ["std"] }
- 
+
 # Gear Runtimes
 gear-runtime = { workspace = true, features = ["std"], optional = true }
 vara-runtime = { workspace = true, features = ["std"], optional = true }
