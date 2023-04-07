@@ -19,7 +19,7 @@ hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 log.workspace = true
 parity-scale-codec.workspace = true
-primitive-types = { workspace = true, default-features = false, features = ["codec", "scale-info", "serde"] }
+primitive-types = { workspace = true, features = ["codec", "scale-info", "serde"] }
 serde.workspace = true
 serde_json.workspace = true
 subxt.workspace = true
