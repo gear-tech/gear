@@ -16,7 +16,7 @@ use std::{
 };
 
 #[cfg(feature = "wasm-opt")]
-use wasm_opt::{Feature, OptimizationOptions, Pass};
+use wasm_opt::{OptimizationOptions, Pass};
 
 const OPTIMIZED_EXPORTS: [&str; 7] = [
     "handle",
