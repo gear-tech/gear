@@ -6936,7 +6936,9 @@ fn missing_functions_are_not_executed() {
     let wat = r#"
     (module
         (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
+
         (import "env" "memory" (memory 10))
+
         (export "handle" (func $handle))
         (func $handle
             i32.const 111 ;; addr

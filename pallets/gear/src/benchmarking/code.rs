@@ -625,6 +625,7 @@ pub mod body {
 
     pub fn from_instructions(mut instructions: Vec<Instruction>) -> FuncBody {
         instructions.push(Instruction::End);
+        log::trace!("from instructions = {instructions:?}");
         FuncBody::new(vec![], Instructions::new(instructions))
     }
 
@@ -633,22 +634,18 @@ pub mod body {
     }
 
     pub fn repeated(repetitions: u32, instructions: &[Instruction]) -> FuncBody {
-        let instructions = Instructions::new(
-            instructions
-                .iter()
-                .cycle()
-                .take(instructions.len() * usize::try_from(repetitions).unwrap())
-                .cloned()
-                .chain(sp_std::iter::once(Instruction::End))
-                .collect(),
-        );
-        FuncBody::new(vec![], instructions)
+        let instructions = instructions
+            .iter()
+            .cycle()
+            .take(instructions.len() * usize::try_from(repetitions).unwrap())
+            .cloned()
+            .collect();
+        from_instructions(instructions)
     }
 
     pub fn repeated_dyn(repetitions: u32, instructions: Vec<DynInstr>) -> FuncBody {
-        let mut body = repeated_dyn_instr(repetitions, instructions, vec![]);
-        body.push(Instruction::End);
-        FuncBody::new(vec![], Instructions::new(body))
+        let instructions = repeated_dyn_instr(repetitions, instructions, vec![]);
+        from_instructions(instructions)
     }
 
     pub fn fallible_syscall(repetitions: u32, res_offset: u32, params: &[DynInstr]) -> FuncBody {

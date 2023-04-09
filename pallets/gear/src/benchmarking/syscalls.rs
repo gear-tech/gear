@@ -82,6 +82,10 @@ const COMMON_PAYLOAD_LEN: u32 = 100;
 
 const MAX_REPETITIONS: u32 = API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE;
 
+fn kb_to_bytes(size_in_kb: u32) -> u32 {
+    size_in_kb.checked_mul(1024).unwrap()
+}
+
 pub(crate) struct Benches<T>
 where
     T: Config,
@@ -149,6 +153,23 @@ where
             Default::default(),
         )
     }
+
+    // fn prepare_wgas_if_need(
+    //     name: SysCallName,
+    //     mut params: Vec<DynInstr>,
+    //     gas_param_index: usize,
+    //     wgas: bool,
+    // ) -> (SysCallName, Vec<DynInstr>) {
+    //     if !wgas {
+    //         return (name, params);
+    //     }
+    //     let name = name
+    //         .to_wgas()
+    //         .expect("Expect syscall, which has wgas variant");
+    //     let signature_params = name.signature().params;
+    //     params.insert(gas_param_index, InstrI64Const(100_000_000));
+    //     (name, params)
+    // }
 
     // TODO: add check for alloc result #2498
     pub fn alloc(r: u32) -> Result<Exec<T>, &'static str> {
@@ -380,6 +401,47 @@ where
         Self::prepare_handle(module, 0)
     }
 
+    pub fn gr_send(
+        batches: u32,
+        payload_len_kb: Option<u32>,
+        wgas: bool,
+    ) -> Result<Exec<T>, &'static str> {
+        let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
+        let pid_value_offset = COMMON_OFFSET;
+        let payload_offset = pid_value_offset + PID_VALUE_SIZE;
+        let payload_len = payload_len_kb
+            .map(kb_to_bytes)
+            .unwrap_or(COMMON_PAYLOAD_LEN);
+        let res_offset = payload_offset + payload_len;
+
+        let mut params = vec![
+            // pid value offset
+            InstrI32Const(pid_value_offset),
+            // payload offset
+            InstrI32Const(payload_offset),
+            // payload len
+            InstrI32Const(payload_len),
+            // delay
+            InstrI32Const(10),
+        ];
+
+        let name = if wgas {
+            params.insert(3, InstrI64Const(100_000_000));
+            SysCallName::SendWGas
+        } else {
+            SysCallName::Send
+        };
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![name],
+            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &params)),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 10000000)
+    }
+
     pub fn gr_send_init(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         let res_offset = COMMON_OFFSET;
@@ -472,72 +534,55 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    // Benchmark the `gr_send_commit` call.
-    // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
-    pub fn gr_send_commit(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_send_commit(r: u32, wgas: bool) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        assert!(repetitions <= MAX_REPETITIONS);
+
         let pid_value_offset = COMMON_OFFSET;
-        let payload_offset = pid_value_offset + PID_VALUE_SIZE;
-        let payload_len = COMMON_PAYLOAD_LEN;
-        let res_offset = payload_offset + payload_len;
+        let res_offset = pid_value_offset + PID_VALUE_SIZE;
+        let err_handle_offset = res_offset + ERR_LEN_SIZE;
+
+        // Init messages
+        let mut instructions = body::fallible_syscall_instr(
+            MAX_REPETITIONS,
+            1,
+            Counter(err_handle_offset, ERR_HANDLE_SIZE),
+            &[],
+        );
+
+        let mut commit_params = vec![
+            // get handle from send init results
+            Counter(err_handle_offset + ERR_LEN_SIZE, ERR_HANDLE_SIZE),
+            InstrI32Load(2, 0),
+            // pid value offset
+            InstrI32Const(pid_value_offset),
+            // delay
+            InstrI32Const(10),
+        ];
+        let name = if wgas {
+            commit_params.insert(3, InstrI64Const(100_000_000));
+            SysCallName::SendCommitWGas
+        } else {
+            SysCallName::SendCommit
+        };
+
+        instructions.extend(body::fallible_syscall_instr(
+            repetitions,
+            0,
+            InstrI32Const(res_offset),
+            &commit_params,
+        ));
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::Send],
-            handle_body: Some(body::fallible_syscall(
-                repetitions,
-                res_offset,
-                &[
-                    // pid value offset
-                    InstrI32Const(pid_value_offset),
-                    // payload offset
-                    InstrI32Const(payload_offset),
-                    // payload len
-                    InstrI32Const(payload_len),
-                    // delay
-                    InstrI32Const(10),
-                ],
-            )),
+            imported_functions: vec![name, SysCallName::SendInit],
+            handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
 
         Self::prepare_handle(module, 10000000)
     }
 
-    // Benchmark the `gr_send_commit` call.
-    // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
-    pub fn gr_send_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = API_BENCHMARK_BATCH_SIZE;
-        let pid_value_offset = COMMON_OFFSET;
-        let payload_offset = pid_value_offset + PID_VALUE_SIZE;
-        let payload_len = n * 1024;
-        let res_offset = payload_offset + payload_len;
-
-        let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::Send],
-            handle_body: Some(body::fallible_syscall(
-                repetitions,
-                res_offset,
-                &[
-                    // pid value offset
-                    InstrI32Const(pid_value_offset),
-                    // payload offset
-                    InstrI32Const(payload_offset),
-                    // payload len
-                    InstrI32Const(payload_len),
-                    // delay
-                    InstrI32Const(10),
-                ],
-            )),
-            ..Default::default()
-        };
-
-        Self::prepare_handle(module, 10000000)
-    }
-
-    // Benchmark the `gr_reservation_send_commit` call.
-    // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     pub fn gr_reservation_send_commit(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         assert!(repetitions <= MAX_REPETITIONS);
@@ -551,132 +596,116 @@ where
             .collect();
 
         let rid_pid_value_offset = COMMON_OFFSET;
-        let payload_offset = rid_pid_value_offset + rid_pid_values.len() as u32;
-        let payload_len = COMMON_PAYLOAD_LEN;
-        let res_offset = payload_offset + payload_len;
+        let err_handle_offset = rid_pid_value_offset + rid_pid_values.len() as u32;
+        let res_offset = err_handle_offset + MAX_REPETITIONS * ERR_HANDLE_SIZE;
+
+        // Init messages
+        let mut instructions = body::fallible_syscall_instr(
+            MAX_REPETITIONS,
+            1,
+            Counter(err_handle_offset, ERR_HANDLE_SIZE),
+            &[],
+        );
+
+        instructions.extend(body::fallible_syscall_instr(
+            repetitions,
+            0,
+            InstrI32Const(res_offset),
+            &[
+                // get handle from send init results
+                Counter(err_handle_offset + ERR_LEN_SIZE, ERR_HANDLE_SIZE),
+                InstrI32Load(2, 0),
+                // rid pid value offset
+                Counter(rid_pid_value_offset, RID_PID_VALUE_SIZE),
+                // delay
+                InstrI32Const(10),
+            ],
+        ));
 
         let module = ModuleDefinition {
-            // One `SMALL_MEM_SIZE + 1` in order to fit data segments in memory
-            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE + 1)),
-            imported_functions: vec![SysCallName::ReservationSend],
+            // `SMALL_MEM_SIZE + 2` in order to fit data segments and err handle offsets.
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE + 2)),
+            imported_functions: vec![SysCallName::ReservationSendCommit, SysCallName::SendInit],
             data_segments: vec![DataSegment {
                 offset: rid_pid_value_offset,
                 value: rid_pid_values,
             }],
-            handle_body: Some(body::fallible_syscall(
-                repetitions,
-                res_offset,
-                &[
-                    // rid pid value offset
-                    Counter(rid_pid_value_offset, RID_PID_VALUE_SIZE),
-                    // payload offset
-                    InstrI32Const(payload_offset),
-                    // payload len
-                    InstrI32Const(payload_len),
-                    // delay
-                    InstrI32Const(10),
-                ],
-            )),
+            handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
 
         Self::prepare_handle_with_reservation_slots(module, repetitions)
     }
 
-    // Benchmark the `gr_send_commit` call.
-    // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
-    pub fn gr_reservation_send_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = API_BENCHMARK_BATCH_SIZE;
-
-        let rid_pid_values = (0..repetitions)
-            .flat_map(|i| {
-                let mut bytes = [0; RID_PID_VALUE_SIZE as usize];
-                bytes[..RID_SIZE as usize].copy_from_slice(ReservationId::from(i as u64).as_ref());
-                bytes
-            })
-            .collect::<Vec<_>>();
-
-        let rid_pid_value_offset = COMMON_OFFSET;
-        let payload_offset = rid_pid_value_offset + rid_pid_values.len() as u32;
-        let payload_len = n * 1024;
-        let res_offset = payload_offset + payload_len;
-
-        let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::ReservationSend],
-            data_segments: vec![DataSegment {
-                offset: rid_pid_value_offset,
-                value: rid_pid_values,
-            }],
-            handle_body: Some(body::fallible_syscall(
-                repetitions,
-                res_offset,
-                &[
-                    // rid pid value offset
-                    Counter(rid_pid_value_offset, RID_PID_VALUE_SIZE),
-                    // payload offset
-                    InstrI32Const(payload_offset),
-                    // payload len
-                    InstrI32Const(payload_len),
-                    // delay
-                    InstrI32Const(10),
-                ],
-            )),
-            ..Default::default()
-        };
-
-        Self::prepare_handle_with_reservation_slots(module, repetitions)
-    }
-
-    pub fn gr_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_reply(
+        r: u32,
+        payload_len_kb: Option<u32>,
+        wgas: bool,
+    ) -> Result<Exec<T>, &'static str> {
         let repetitions = r;
         assert!(repetitions <= 1);
 
-        let value_offset = COMMON_OFFSET;
+        let payload_offset = COMMON_OFFSET;
+        let payload_len = payload_len_kb
+            .map(kb_to_bytes)
+            .unwrap_or(COMMON_PAYLOAD_LEN);
+        let value_offset = payload_offset + payload_len;
         let res_offset = value_offset + VALUE_SIZE;
 
+        let mut params = vec![
+            // payload offset
+            InstrI32Const(payload_offset),
+            // payload len
+            InstrI32Const(payload_len),
+            // value offset
+            InstrI32Const(value_offset),
+            // delay
+            InstrI32Const(10),
+        ];
+
+        let name = match wgas {
+            true => {
+                params.insert(2, InstrI64Const(100_000_000));
+                SysCallName::ReplyWGas
+            }
+            false => SysCallName::Reply,
+        };
+
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::ReplyCommit],
-            handle_body: Some(body::fallible_syscall(
-                repetitions,
-                res_offset,
-                &[
-                    // value offset
-                    InstrI32Const(value_offset),
-                    // delay
-                    InstrI32Const(10),
-                ],
-            )),
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![name],
+            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &params)),
             ..Default::default()
         };
 
         Self::prepare_handle(module, 10000000)
     }
 
-    pub fn gr_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = 1;
-        let payload_offset = COMMON_OFFSET;
-        let payload_len = n * 1024;
-        let res_offset = payload_offset + payload_len;
+    pub fn gr_reply_commit(r: u32, wgas: bool) -> Result<Exec<T>, &'static str> {
+        let repetitions = r;
+        assert!(repetitions <= 1);
+        let value_offset = COMMON_OFFSET;
+        let res_offset = value_offset + VALUE_SIZE;
+
+        let mut params = vec![
+            // value offset
+            InstrI32Const(value_offset),
+            // delay
+            InstrI32Const(10),
+        ];
+
+        let name = match wgas {
+            true => {
+                params.insert(0, InstrI64Const(100_000_000));
+                SysCallName::ReplyCommitWGas
+            }
+            false => SysCallName::ReplyCommit,
+        };
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::Reply],
-            handle_body: Some(body::fallible_syscall(
-                repetitions,
-                res_offset,
-                &[
-                    // payload ptr
-                    InstrI32Const(payload_offset),
-                    // payload len
-                    InstrI32Const(payload_len),
-                    // value ptr
-                    InstrI32Const(payload_offset),
-                    // delay
-                    InstrI32Const(10),
-                ],
-            )),
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![name],
+            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &params)),
             ..Default::default()
         };
 
@@ -851,35 +880,55 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn gr_reply_push_input(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+    pub fn gr_reply_input(
+        repetitions: u32,
+        input_len_kb: Option<u32>,
+        wgas: bool,
+    ) -> Result<Exec<T>, &'static str> {
         let input_at = 0;
-        let input_len = COMMON_PAYLOAD_LEN;
-        let res_offset = COMMON_OFFSET;
+        let input_len = input_len_kb.map(kb_to_bytes).unwrap_or(COMMON_PAYLOAD_LEN);
+        let value_offset = COMMON_OFFSET;
+        let res_offset = value_offset + VALUE_SIZE;
+
+        assert!(repetitions <= 1);
+        assert!(input_len <= MAX_PAYLOAD_LEN);
+
+        let mut params = vec![
+            // input at
+            InstrI32Const(input_at),
+            // input len
+            InstrI32Const(input_len),
+            // value offset
+            InstrI32Const(value_offset),
+            // delay
+            InstrI32Const(10),
+        ];
+
+        let name = match wgas {
+            true => {
+                params.insert(2, InstrI64Const(100_000_000));
+                SysCallName::ReplyInputWGas
+            }
+            false => SysCallName::ReplyInput,
+        };
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::ReplyPushInput],
-            handle_body: Some(body::fallible_syscall(
-                repetitions,
-                res_offset,
-                &[
-                    // input at
-                    InstrI32Const(input_at),
-                    // input len
-                    InstrI32Const(input_len),
-                ],
-            )),
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![name],
+            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &params)),
             ..Default::default()
         };
 
         Self::prepare_handle_with_const_payload(module)
     }
 
-    pub fn gr_reply_push_input_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = 1;
+    pub fn gr_reply_push_input(
+        batches: u32,
+        input_len_kb: Option<u32>,
+    ) -> Result<Exec<T>, &'static str> {
+        let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
         let input_at = 0;
-        let input_len = n * 1024;
+        let input_len = input_len_kb.map(kb_to_bytes).unwrap_or(COMMON_PAYLOAD_LEN);
         let res_offset = COMMON_OFFSET;
 
         assert!(input_len <= MAX_PAYLOAD_LEN);
@@ -903,59 +952,60 @@ where
         Self::prepare_handle_with_const_payload(module)
     }
 
-    pub fn gr_send_push_input(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        assert!(repetitions <= MAX_REPETITIONS);
-
+    pub fn gr_send_input(
+        batches: u32,
+        input_len_kb: Option<u32>,
+        wgas: bool,
+    ) -> Result<Exec<T>, &'static str> {
+        let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
         let input_at = 0;
-        let input_len = COMMON_PAYLOAD_LEN;
-        let res_offset = COMMON_OFFSET;
-        let err_handle_offset = COMMON_OFFSET + ERR_LEN_SIZE;
+        let input_len = input_len_kb.map(kb_to_bytes).unwrap_or(COMMON_PAYLOAD_LEN);
+        let pid_value_offset = COMMON_OFFSET;
+        let res_offset = pid_value_offset + PID_VALUE_SIZE;
 
-        let mut instructions = body::fallible_syscall_instr(
-            MAX_REPETITIONS,
-            1,
-            Counter(err_handle_offset, ERR_HANDLE_SIZE),
-            &[],
-        );
+        assert!(repetitions <= MAX_REPETITIONS);
+        assert!(input_len <= MAX_PAYLOAD_LEN);
 
-        instructions.extend(
-            body::fallible_syscall_instr(
-                repetitions,
-                0,
-                InstrI32Const(res_offset),
-                &[
-                    // get handle from send init results
-                    Counter(err_handle_offset + ERR_LEN_SIZE, ERR_HANDLE_SIZE),
-                    InstrI32Load(2, 0),
-                    // input at
-                    InstrI32Const(input_at),
-                    // input len
-                    InstrI32Const(input_len),
-                ],
-            )
-            .into_iter(),
-        );
+        let mut params = vec![
+            // pid value offset
+            InstrI32Const(pid_value_offset),
+            // input at
+            InstrI32Const(input_at),
+            // input len
+            InstrI32Const(input_len),
+            // delay
+            InstrI32Const(10),
+        ];
+
+        let name = match wgas {
+            true => {
+                params.insert(3, InstrI64Const(100_000_000));
+                SysCallName::SendInputWGas
+            }
+            false => SysCallName::SendInput,
+        };
 
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::SendPushInput, SysCallName::SendInit],
-            handle_body: Some(body::from_instructions(instructions)),
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![name],
+            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &params)),
             ..Default::default()
         };
 
         Self::prepare_handle_with_const_payload(module)
     }
 
-    pub fn gr_send_push_input_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = API_BENCHMARK_BATCH_SIZE;
+    pub fn gr_send_push_input(r: u32, input_len_kb: Option<u32>) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        assert!(repetitions <= MAX_REPETITIONS);
+
         let input_at = 0;
-        let input_len = n * 1024;
+        let input_len = input_len_kb.map(kb_to_bytes).unwrap_or(COMMON_PAYLOAD_LEN);
         let res_offset = COMMON_OFFSET;
-        let err_handle_offset = res_offset + ERR_LEN_SIZE;
+        let err_handle_offset = COMMON_OFFSET + ERR_LEN_SIZE;
 
         let mut instructions = body::fallible_syscall_instr(
-            API_BENCHMARK_BATCH_SIZE,
+            MAX_REPETITIONS,
             1,
             Counter(err_handle_offset, ERR_HANDLE_SIZE),
             &[],
