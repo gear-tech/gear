@@ -125,6 +125,11 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
         self.0
     }
 
+    /// +_+_+
+    pub fn check_size(size: usize) -> Result<(), E> {
+        (size <= N).then_some(()).ok_or_else(E::default)
+    }
+
     /// Returns max len which this type of limited vector can have.
     pub const fn max_len() -> usize {
         N

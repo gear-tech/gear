@@ -20,7 +20,7 @@ use crate::{
     memory::ProcessAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason,
 };
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, vec::Vec};
 use core::fmt;
 use gear_core::{
     costs::RuntimeCosts,
@@ -262,6 +262,23 @@ impl BackendExt for MockExt {
         _writes: &[MemoryInterval],
         _gas_left: &mut GasLeft,
     ) -> Result<(), ProcessAccessError> {
-        Ok(())
+        unimplemented!()
+    }
+
+    fn access_memory_reads(
+        _memory: &impl Memory,
+        _reads: &[MemoryInterval],
+        _gas_left: &mut GasLeft,
+    ) -> Result<Vec<Vec<u8>>, ProcessAccessError> {
+        unimplemented!()
+    }
+
+    fn access_memory_with_writes(
+        _memory: &mut impl Memory,
+        _reads: &[MemoryInterval],
+        _writes: &[(MemoryInterval, &[u8])],
+        _gas_left: &mut GasLeft,
+    ) -> Result<Vec<Vec<u8>>, ProcessAccessError> {
+        unimplemented!()
     }
 }

@@ -58,7 +58,7 @@ use crate::{
 mod tests;
 
 pub use common::LazyPagesVersion;
-pub use host_func::pre_process_memory_accesses;
+pub use host_func::{pre_process_memory_accesses, process_memory_accesses};
 
 use mprotect::MprotectError;
 use signal::{DefaultUserSignalHandler, UserSignalHandler};

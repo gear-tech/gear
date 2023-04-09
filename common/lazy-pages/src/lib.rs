@@ -167,3 +167,56 @@ pub fn pre_process_memory_accesses(
     *gas_left = gas_left_new;
     res
 }
+
+pub fn access_memory(
+    reads: &[MemoryInterval],
+    writes: &[(MemoryInterval, &[u8])],
+    gas_left: &mut GasLeft,
+) -> Result<Vec<Vec<u8>>, ProcessAccessError> {
+    let reads_data = match (reads.len(), writes.len()) {
+        (0, 0) => {
+            log::error!("This is redundant function call");
+            vec![]
+        }
+        (_, 0) => {
+            let (gas_left_new, res) = gear_ri::memory_access_reads(&reads, (*gas_left,));
+            *gas_left = gas_left_new;
+            res?
+        }
+        (_, 1) => {
+            let (gas_left_new, res) = gear_ri::memory_access_reads_and_write(
+                &reads,
+                (writes[0].0,),
+                writes[0].1,
+                (*gas_left,),
+            );
+            *gas_left = gas_left_new;
+            res?
+        }
+        (_, m) => {
+            log::warn!("We don't have corresponding RI to handle this amount of writes {m}, so this will be done in not effective way");
+
+            // Handle reads and first write
+            let (gas_left_new, res) = gear_ri::memory_access_reads_and_write(
+                &reads,
+                (writes[0].0,),
+                writes[0].1,
+                (*gas_left,),
+            );
+            let reads_data = res?;
+            *gas_left = gas_left_new;
+
+            // Handle other writes one by one
+            writes.into_iter().skip(1).try_for_each(|(write, data)| {
+                let (gas_left_new, res) =
+                    gear_ri::memory_access_reads_and_write(&[], (*write,), *data, (*gas_left,));
+                *gas_left = gas_left_new;
+                res.map(|_| ())
+            })?;
+
+            reads_data
+        }
+    };
+
+    Ok(reads_data)
+}

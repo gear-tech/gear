@@ -20,7 +20,7 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 
-// until https://github.com/alexcrichton/dlmalloc-rs/pull/26 is merged
+// TODO: until https://github.com/alexcrichton/dlmalloc-rs/pull/26 is merged
 #[cfg(not(windows))]
 #[global_allocator]
 pub static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;

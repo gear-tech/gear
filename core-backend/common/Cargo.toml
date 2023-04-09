@@ -13,6 +13,7 @@ gear-wasm-instrument.workspace = true
 log.workspace = true
 derive_more.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
+static_assertions.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

@@ -81,10 +81,46 @@ impl PassBy for LazyPagesRuntimeContext {
     type PassBy = Codec<LazyPagesRuntimeContext>;
 }
 
+// type AccessMemoryInfo = (GasLeft, Result<(), ProcessAccessError>);
+
+// fn access_memory<const READS_AMOUNT: usize, const WRITES_AMOUNT: usize>(
+//     reads: [MemoryInterval; READS_AMOUNT],
+//     read_buffers: [&mut [u8]; READS_AMOUNT],
+//     writes: [MemoryInterval; WRITES_AMOUNT],
+//     writes_data: [&[u8]; WRITES_AMOUNT],
+//     gas_left: (GasLeft,),
+// ) -> AccessMemoryInfo {
+//     let mut gas_left = gas_left.0;
+//     let res = lazy_pages::pre_process_memory_accesses(&reads, &writes, &mut gas_left);
+//     lazy_pages::process_memory_accesses(reads, read_buffers, writes, writes_data);
+//     (gas_left, res)
+// }
+
 /// Runtime interface for gear node and runtime.
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
+    fn memory_access_reads(
+        reads: &[MemoryInterval],
+        gas_left: (GasLeft,),
+    ) -> (GasLeft, Result<Vec<Vec<u8>>, ProcessAccessError>) {
+        let mut gas_left = gas_left.0;
+        let res = lazy_pages::process_memory_accesses(reads, [], [], &mut gas_left);
+        (gas_left, res)
+    }
+
+    fn memory_access_reads_and_write(
+        reads: &[MemoryInterval],
+        write: (MemoryInterval,),
+        writes_data: &[u8],
+        gas_left: (GasLeft,),
+    ) -> (GasLeft, Result<Vec<Vec<u8>>, ProcessAccessError>) {
+        let mut gas_left = gas_left.0;
+        let res =
+            lazy_pages::process_memory_accesses(reads, [write.0], [writes_data], &mut gas_left);
+        (gas_left, res)
+    }
+
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],

@@ -59,7 +59,7 @@ where
         value_ptr: u32,
     ) -> Result<u128, MemoryAccessError> {
         if value_ptr != PTR_SPECIAL {
-            let read_value = ctx.register_read_decoded(value_ptr);
+            let read_value = ctx.register_read_decoded(value_ptr)?;
             return ctx.read_decoded(read_value);
         }
 
@@ -73,8 +73,8 @@ where
         syscall_trace!("send", pid_value_ptr, payload_ptr, len, delay, err_mid_ptr);
 
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Send(len), |ctx| {
-            let read_hash_val = ctx.register_read_as(pid_value_ptr);
-            let read_payload = ctx.register_read(payload_ptr, len);
+            let read_hash_val = ctx.register_read_as(pid_value_ptr)?;
+            let read_payload = ctx.register_read(payload_ptr, len)?;
             let HashWithValue {
                 hash: destination,
                 value,
@@ -102,8 +102,8 @@ where
         );
 
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendWGas(len), |ctx| {
-            let read_hash_val = ctx.register_read_as(pid_value_ptr);
-            let read_payload = ctx.register_read(payload_ptr, len);
+            let read_hash_val = ctx.register_read_as(pid_value_ptr)?;
+            let read_payload = ctx.register_read(payload_ptr, len)?;
             let HashWithValue {
                 hash: destination,
                 value,
@@ -126,7 +126,7 @@ where
         syscall_trace!("send_commit", handle, pid_value_ptr, delay, err_mid_ptr);
 
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendCommit, |ctx| {
-            let read_pid_value = ctx.register_read_as(pid_value_ptr);
+            let read_pid_value = ctx.register_read_as(pid_value_ptr)?;
             let HashWithValue {
                 hash: destination,
                 value,
@@ -156,7 +156,7 @@ where
         );
 
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendCommitWGas, |ctx| {
-            let read_pid_value = ctx.register_read_as(pid_value_ptr);
+            let read_pid_value = ctx.register_read_as(pid_value_ptr)?;
             let HashWithValue {
                 hash: destination,
                 value,
@@ -195,7 +195,7 @@ where
         syscall_trace!("send_push", handle, payload_ptr, len, err_len_ptr);
 
         ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::SendPush(len), |ctx| {
-            let read_payload = ctx.register_read(payload_ptr, len);
+            let read_payload = ctx.register_read(payload_ptr, len)?;
             let payload = ctx.read(read_payload)?;
 
             ctx.ext.send_push(handle, &payload).map_err(Into::into)
@@ -219,8 +219,8 @@ where
             err_mid_ptr,
             RuntimeCosts::ReservationSend(len),
             |ctx| {
-                let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
-                let read_payload = ctx.register_read(payload_ptr, len);
+                let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr)?;
+                let read_payload = ctx.register_read(payload_ptr, len)?;
                 let TwoHashesWithValue {
                     hash1: reservation_id,
                     hash2: destination,
@@ -255,7 +255,7 @@ where
             err_mid_ptr,
             RuntimeCosts::ReservationSendCommit,
             |ctx| {
-                let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
+                let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr)?;
                 let TwoHashesWithValue {
                     hash1: reservation_id,
                     hash2: destination,
@@ -284,9 +284,8 @@ where
             // Here `ctx.ext` is const borrowed, so we cannot use `ctx` mut methods.
             let (buffer, mut gas_left) = ctx.ext.read(at, len)?;
 
-            let write_buffer = ctx.memory_manager.register_write(buffer_ptr, len);
             ctx.memory_manager
-                .write(&mut ctx.memory, write_buffer, buffer, &mut gas_left)?;
+                .write(&mut ctx.memory, buffer_ptr, buffer, &mut gas_left)?;
             ctx.ext.set_gas_left(gas_left);
             Ok(())
         })
@@ -301,8 +300,7 @@ where
         ctx.run(RuntimeCosts::Size, |ctx| {
             let size = ctx.ext.size()? as u32;
 
-            let write_size = ctx.register_write_as(size_ptr);
-            ctx.write_as(write_size, size.to_le_bytes())
+            ctx.write_as(size_ptr, size.to_le_bytes())
                 .map_err(Into::into)
         })
     }
@@ -314,7 +312,7 @@ where
         syscall_trace!("exit", inheritor_id_ptr);
 
         ctx.run(RuntimeCosts::Exit, |ctx| -> Result<(), _> {
-            let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
+            let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr)?;
             let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
             Err(ActorTerminationReason::Exit(inheritor_id).into())
         })
@@ -389,8 +387,7 @@ where
         ctx.run(RuntimeCosts::BlockHeight, |ctx| {
             let height = ctx.ext.block_height()?;
 
-            let write_height = ctx.register_write_as(height_ptr);
-            ctx.write_as(write_height, height.to_le_bytes())
+            ctx.write_as(height_ptr, height.to_le_bytes())
                 .map_err(Into::into)
         })
     }
@@ -404,8 +401,7 @@ where
         ctx.run(RuntimeCosts::BlockTimestamp, |ctx| {
             let timestamp = ctx.ext.block_timestamp()?;
 
-            let write_timestamp = ctx.register_write_as(timestamp_ptr);
-            ctx.write_as(write_timestamp, timestamp.to_le_bytes())
+            ctx.write_as(timestamp_ptr, timestamp.to_le_bytes())
                 .map_err(Into::into)
         })
     }
@@ -419,8 +415,7 @@ where
         ctx.run(RuntimeCosts::Origin, |ctx| {
             let origin = ctx.ext.origin()?;
 
-            let write_origin = ctx.register_write_as(origin_ptr);
-            ctx.write_as(write_origin, origin.into_bytes())
+            ctx.write_as(origin_ptr, origin.into_bytes())
                 .map_err(Into::into)
         })
     }
@@ -432,9 +427,7 @@ where
         syscall_trace!("random", subject_ptr, bn_random_ptr);
 
         ctx.run(RuntimeCosts::Random, |ctx| {
-            let read_subject = ctx.register_read_decoded(subject_ptr);
-            let write_bn_random = ctx.register_write_as(bn_random_ptr);
-
+            let read_subject = ctx.register_read_decoded(subject_ptr)?;
             let raw_subject: Hash = ctx.read_decoded(read_subject)?;
 
             let (random, bn) = ctx.ext.random()?;
@@ -443,7 +436,7 @@ where
             let mut hash = [0; 32];
             hash.copy_from_slice(blake2b(32, &[], &subject).as_bytes());
 
-            ctx.write_as(write_bn_random, BlockNumberWithHash { bn, hash })
+            ctx.write_as(bn_random_ptr, BlockNumberWithHash { bn, hash })
                 .map_err(Into::into)
         })
     }
@@ -455,7 +448,7 @@ where
         syscall_trace!("reply", payload_ptr, len, value_ptr, delay, err_mid_ptr);
 
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply(len), |ctx| {
-            let read_payload = ctx.register_read(payload_ptr, len);
+            let read_payload = ctx.register_read(payload_ptr, len)?;
             let value = Self::register_and_read_value(ctx, value_ptr)?;
             let payload = ctx.read(read_payload)?.try_into()?;
 
@@ -480,7 +473,7 @@ where
         );
 
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyWGas(len), |ctx| {
-            let read_payload = ctx.register_read(payload_ptr, len);
+            let read_payload = ctx.register_read(payload_ptr, len)?;
             let value = Self::register_and_read_value(ctx, value_ptr)?;
             let payload = ctx.read(read_payload)?.try_into()?;
 
@@ -550,8 +543,8 @@ where
             err_mid_ptr,
             RuntimeCosts::ReservationReply(len),
             |ctx| {
-                let read_rid_value = ctx.register_read_as(rid_value_ptr);
-                let read_payload = ctx.register_read(payload_ptr, len);
+                let read_rid_value = ctx.register_read_as(rid_value_ptr)?;
+                let read_payload = ctx.register_read(payload_ptr, len)?;
                 let HashWithValue {
                     hash: reservation_id,
                     value,
@@ -584,7 +577,7 @@ where
             err_mid_ptr,
             RuntimeCosts::ReservationReplyCommit,
             |ctx| {
-                let read_rid_value = ctx.register_read_as(rid_value_ptr);
+                let read_rid_value = ctx.register_read_as(rid_value_ptr)?;
                 let HashWithValue {
                     hash: reservation_id,
                     value,
@@ -630,7 +623,7 @@ where
         syscall_trace!("reply_push", payload_ptr, len, err_len_ptr);
 
         ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::ReplyPush(len), |ctx| {
-            let read_payload = ctx.register_read(payload_ptr, len);
+            let read_payload = ctx.register_read(payload_ptr, len)?;
             let payload = ctx.read(read_payload)?;
 
             ctx.ext.reply_push(&payload).map_err(Into::into)
@@ -706,7 +699,7 @@ where
 
         // Charge for `len` inside `send_push_input`
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInput, |ctx| {
-            let read_pid_value = ctx.register_read_as(pid_value_ptr);
+            let read_pid_value = ctx.register_read_as(pid_value_ptr)?;
             let HashWithValue {
                 hash: destination,
                 value,
@@ -755,7 +748,7 @@ where
 
         // Charge for `len` inside `send_push_input`
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInputWGas, |ctx| {
-            let read_pid_value = ctx.register_read_as(pid_value_ptr);
+            let read_pid_value = ctx.register_read_as(pid_value_ptr)?;
             let HashWithValue {
                 hash: destination,
                 value,
@@ -787,7 +780,7 @@ where
         syscall_trace!("debug", data_ptr, data_len);
 
         ctx.run(RuntimeCosts::Debug(data_len), |ctx| {
-            let read_data = ctx.register_read(data_ptr, data_len);
+            let read_data = ctx.register_read(data_ptr, data_len)?;
             let data: RuntimeBuffer = ctx.read(read_data)?.try_into()?;
 
             let s = String::from_utf8(data.into_vec())?;
@@ -804,7 +797,7 @@ where
         syscall_trace!("panic", data_ptr, data_len);
 
         ctx.run(RuntimeCosts::Null, |ctx| {
-            let read_data = ctx.register_read(data_ptr, data_len);
+            let read_data = ctx.register_read(data_ptr, data_len)?;
             let data = ctx.read(read_data).unwrap_or_default();
 
             let s = String::from_utf8_lossy(&data).to_string();
@@ -843,7 +836,7 @@ where
             err_unreserved_ptr,
             RuntimeCosts::UnreserveGas,
             |ctx| {
-                let read_reservation_id = ctx.register_read_decoded(reservation_id_ptr);
+                let read_reservation_id = ctx.register_read_decoded(reservation_id_ptr)?;
                 let reservation_id = ctx.read_decoded(read_reservation_id)?;
 
                 ctx.ext.unreserve_gas(reservation_id).map_err(Into::into)
@@ -871,9 +864,7 @@ where
         ctx.run(RuntimeCosts::GasAvailable, |ctx| {
             let gas = ctx.ext.gas_available()?;
 
-            let write_gas = ctx.register_write_as(gas_ptr);
-            ctx.write_as(write_gas, gas.to_le_bytes())
-                .map_err(Into::into)
+            ctx.write_as(gas_ptr, gas.to_le_bytes()).map_err(Into::into)
         })
     }
 
@@ -886,8 +877,7 @@ where
         ctx.run(RuntimeCosts::MsgId, |ctx| {
             let message_id = ctx.ext.message_id()?;
 
-            let write_message_id = ctx.register_write_as(message_id_ptr);
-            ctx.write_as(write_message_id, message_id.into_bytes())
+            ctx.write_as(message_id_ptr, message_id.into_bytes())
                 .map_err(Into::into)
         })
     }
@@ -901,8 +891,7 @@ where
         ctx.run(RuntimeCosts::ProgramId, |ctx| {
             let program_id = ctx.ext.program_id()?;
 
-            let write_program_id = ctx.register_write_as(program_id_ptr);
-            ctx.write_as(write_program_id, program_id.into_bytes())
+            ctx.write_as(program_id_ptr, program_id.into_bytes())
                 .map_err(Into::into)
         })
     }
@@ -916,8 +905,7 @@ where
         ctx.run(RuntimeCosts::Source, |ctx| {
             let source = ctx.ext.source()?;
 
-            let write_source = ctx.register_write_as(source_ptr);
-            ctx.write_as(write_source, source.into_bytes())
+            ctx.write_as(source_ptr, source.into_bytes())
                 .map_err(Into::into)
         })
     }
@@ -931,8 +919,7 @@ where
         ctx.run(RuntimeCosts::Value, |ctx| {
             let value = ctx.ext.value()?;
 
-            let write_value = ctx.register_write_as(value_ptr);
-            ctx.write_as(write_value, value.to_le_bytes())
+            ctx.write_as(value_ptr, value.to_le_bytes())
                 .map_err(Into::into)
         })
     }
@@ -946,8 +933,7 @@ where
         ctx.run(RuntimeCosts::ValueAvailable, |ctx| {
             let value_available = ctx.ext.value_available()?;
 
-            let write_value = ctx.register_write_as(value_ptr);
-            ctx.write_as(write_value, value_available.to_le_bytes())
+            ctx.write_as(value_ptr, value_available.to_le_bytes())
                 .map_err(Into::into)
         })
     }
@@ -1006,7 +992,7 @@ where
         syscall_trace!("wake", message_id_ptr, delay, err_len_ptr);
 
         ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::Wake, |ctx| {
-            let read_message_id = ctx.register_read_decoded(message_id_ptr);
+            let read_message_id = ctx.register_read_decoded(message_id_ptr)?;
             let message_id = ctx.read_decoded(read_message_id)?;
 
             ctx.ext.wake(message_id, delay).map_err(Into::into)
@@ -1033,9 +1019,9 @@ where
             err_mid_pid_ptr,
             RuntimeCosts::CreateProgram(payload_len, payload_ptr),
             |ctx| {
-                let read_cid_value = ctx.register_read_as(cid_value_ptr);
-                let read_salt = ctx.register_read(salt_ptr, salt_len);
-                let read_payload = ctx.register_read(payload_ptr, payload_len);
+                let read_cid_value = ctx.register_read_as(cid_value_ptr)?;
+                let read_salt = ctx.register_read(salt_ptr, salt_len)?;
+                let read_payload = ctx.register_read(payload_ptr, payload_len)?;
                 let HashWithValue {
                     hash: code_id,
                     value,
@@ -1079,9 +1065,9 @@ where
             err_mid_pid_ptr,
             RuntimeCosts::CreateProgramWGas(payload_len, salt_len),
             |ctx| {
-                let read_cid_value = ctx.register_read_as(cid_value_ptr);
-                let read_salt = ctx.register_read(salt_ptr, salt_len);
-                let read_payload = ctx.register_read(payload_ptr, payload_len);
+                let read_cid_value = ctx.register_read_as(cid_value_ptr)?;
+                let read_salt = ctx.register_read(salt_ptr, salt_len)?;
+                let read_payload = ctx.register_read(payload_ptr, payload_len)?;
                 let HashWithValue {
                     hash: code_id,
                     value,
@@ -1110,8 +1096,7 @@ where
         ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::Error, |ctx| {
             if let Some(err) = ctx.fallible_syscall_error.as_ref() {
                 let err = err.encode();
-                let write_error_bytes = ctx.register_write(error_bytes_ptr, err.len() as u32);
-                ctx.write(write_error_bytes, err.as_ref())?;
+                ctx.write(error_bytes_ptr, err.as_ref())?;
                 Ok(())
             } else {
                 Err(

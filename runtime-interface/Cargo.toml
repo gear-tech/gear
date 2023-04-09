@@ -20,6 +20,7 @@ codec = { workspace = true }
 derive_more.workspace = true
 static_assertions.workspace = true
 region = { workspace = true, optional = true }
+paste.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["memoryapi"] }

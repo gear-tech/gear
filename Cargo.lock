@@ -3537,6 +3537,7 @@ dependencies = [
  "log",
  "rand 0.8.5",
  "scale-info",
+ "static_assertions",
 ]
 
 [[package]]
@@ -3889,6 +3890,7 @@ dependencies = [
  "libc",
  "log",
  "parity-scale-codec",
+ "paste",
  "region",
  "sp-runtime-interface",
  "sp-std 5.0.0",

@@ -23,8 +23,8 @@ use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
 use gear_backend_common::{
     memory::{
-        MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
-        WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
+        MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, ReadAsToken,
+        ReadDecodedToken, ReadToken,
     },
     BackendExt, BackendState, BackendTermination, TerminationReason,
 };
@@ -125,11 +125,7 @@ impl<E: BackendExt> Runtime<E> {
         self.run_any(cost, |ctx| {
             let res = f(ctx);
             let res = ctx.process_fallible_func_result(res)?;
-
-            // TODO: move above or make normal process memory access.
-            let write_res = ctx.memory_manager.register_write_as::<R>(res_ptr);
-
-            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+            ctx.write_as(res_ptr, R::from(res)).map_err(Into::into)
         })
         .map(|_| ReturnValue::Unit)
     }
@@ -157,61 +153,52 @@ impl<E: BackendExt> Runtime<E> {
 }
 
 impl<E: BackendExt> MemoryAccessRecorder for Runtime<E> {
-    fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
+    fn register_read(&mut self, ptr: u32, size: u32) -> Result<ReadToken, MemoryAccessError> {
         self.memory_manager.register_read(ptr, size)
     }
 
-    fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
+    fn register_read_as<T: Sized>(
+        &mut self,
+        ptr: u32,
+    ) -> Result<ReadAsToken<T>, MemoryAccessError> {
         self.memory_manager.register_read_as(ptr)
     }
 
     fn register_read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         ptr: u32,
-    ) -> WasmMemoryReadDecoded<T> {
+    ) -> Result<ReadDecodedToken<T>, MemoryAccessError> {
         self.memory_manager.register_read_decoded(ptr)
-    }
-
-    fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
-        self.memory_manager.register_write(ptr, size)
-    }
-
-    fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
-        self.memory_manager.register_write_as(ptr)
     }
 }
 
 impl<E: BackendExt> MemoryOwner for Runtime<E> {
-    fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
+    fn read(&mut self, read: ReadToken) -> Result<Vec<u8>, MemoryAccessError> {
         self.with_memory(move |manager, memory, gas_left| manager.read(memory, read, gas_left))
     }
 
-    fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
+    fn read_as<T: Sized>(&mut self, read: ReadAsToken<T>) -> Result<T, MemoryAccessError> {
         self.with_memory(move |manager, memory, gas_left| manager.read_as(memory, read, gas_left))
     }
 
     fn read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
-        read: WasmMemoryReadDecoded<T>,
+        read: ReadDecodedToken<T>,
     ) -> Result<T, MemoryAccessError> {
         self.with_memory(move |manager, memory, gas_left| {
             manager.read_decoded(memory, read, gas_left)
         })
     }
 
-    fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError> {
+    fn write(&mut self, offset: u32, data: &[u8]) -> Result<(), MemoryAccessError> {
         self.with_memory(move |manager, memory, gas_left| {
-            manager.write(memory, write, buff, gas_left)
+            manager.write(memory, offset, data, gas_left)
         })
     }
 
-    fn write_as<T: Sized>(
-        &mut self,
-        write: WasmMemoryWriteAs<T>,
-        obj: T,
-    ) -> Result<(), MemoryAccessError> {
+    fn write_as<T: Sized>(&mut self, offset: u32, obj: T) -> Result<(), MemoryAccessError> {
         self.with_memory(move |manager, memory, gas_left| {
-            manager.write_as(memory, write, obj, gas_left)
+            manager.write_as(memory, offset, obj, gas_left)
         })
     }
 }

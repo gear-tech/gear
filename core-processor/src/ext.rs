@@ -19,6 +19,7 @@
 use crate::configs::{BlockInfo, PageCosts};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
+    vec,
     vec::Vec,
 };
 use gear_backend_common::{
@@ -266,6 +267,53 @@ impl BackendExt for Ext {
         _gas_left: &mut GasLeft,
     ) -> Result<(), ProcessAccessError> {
         Ok(())
+    }
+
+    fn access_memory_reads(
+        memory: &impl Memory,
+        reads: &[MemoryInterval],
+        _gas_left: &mut GasLeft,
+    ) -> Result<Vec<Vec<u8>>, ProcessAccessError> {
+        let mut reads_data = vec![];
+        for read in reads {
+            let mut buffer = vec![0; read.size as usize];
+            memory
+                .read(read.offset, &mut buffer)
+                .map_err(|err| match err {
+                    MemoryError::AccessOutOfBounds => ProcessAccessError::OutOfBounds,
+                    _ => unreachable!("Cannot be returned from read"),
+                })?;
+            reads_data.push(buffer);
+        }
+        Ok(reads_data)
+    }
+
+    fn access_memory_with_writes(
+        memory: &mut impl Memory,
+        reads: &[MemoryInterval],
+        writes: &[(MemoryInterval, &[u8])],
+        _gas_left: &mut GasLeft,
+    ) -> Result<Vec<Vec<u8>>, ProcessAccessError> {
+        let mut reads_data = vec![];
+        for read in reads {
+            let mut buffer = vec![0; read.size as usize];
+            memory
+                .read(read.offset, &mut buffer)
+                .map_err(|err| match err {
+                    MemoryError::AccessOutOfBounds => ProcessAccessError::OutOfBounds,
+                    _ => unreachable!("Cannot be returned from read"),
+                })?;
+            reads_data.push(buffer);
+        }
+
+        for (write, data) in writes {
+            memory.write(write.offset, data).map_err(|err| match err {
+                MemoryError::AccessOutOfBounds => ProcessAccessError::OutOfBounds,
+                _ => unreachable!("Cannot be returned from write"),
+            })?;
+        }
+
+        Ok(reads_data)
     }
 }
 
