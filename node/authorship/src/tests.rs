@@ -266,7 +266,7 @@ fn proposed_storage_changes_match_execute_block_storage_changes() {
     assert_eq!(proposal.block.extrinsics().len(), 3);
 
     let api = client.runtime_api();
-    api.execute_block(&BlockId::number(0), proposal.block)
+    api.execute_block(genesis_hash.into(), proposal.block)
         .unwrap();
 
     let state = backend.state_at(genesis_hash.into()).unwrap();
@@ -291,6 +291,8 @@ fn proposed_storage_changes_match_execute_block_storage_changes() {
 #[test]
 #[ignore = "Unstable due time timestamp inconsistency"]
 fn queue_remains_intact_if_processing_fails() {
+    use sp_state_machine::IterArgs;
+
     let client_builder = TestClientBuilder::new()
         .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible);
     let backend = client_builder.backend();
@@ -392,8 +394,15 @@ fn queue_remains_intact_if_processing_fails() {
         pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
         "Dispatches".as_bytes(),
     );
+    let mut queue_entry_args = IterArgs::default();
+    queue_entry_args.prefix = Some(&queue_entry_prefix);
+
     let mut queue_len = 0_u32;
-    state.for_keys_with_prefix(&queue_entry_prefix, |_k| queue_len += 1);
+
+    state
+        .keys(queue_entry_args)
+        .unwrap()
+        .for_each(|_k| queue_len += 1);
     assert_eq!(queue_len, 5);
 
     let best_block_id = BlockId::Hash(best_hash);
@@ -461,6 +470,11 @@ fn queue_remains_intact_if_processing_fails() {
     let state = backend.state_at(best_hash).unwrap();
     // Ensure message queue has not been drained and has now 8 messages
     let mut queue_len = 0_u32;
-    state.for_keys_with_prefix(&queue_entry_prefix, |_k| queue_len += 1);
+    let mut queue_entry_args = IterArgs::default();
+    queue_entry_args.prefix = Some(&queue_entry_prefix);
+    state
+        .keys(queue_entry_args)
+        .unwrap()
+        .for_each(|_k| queue_len += 1);
     assert_eq!(queue_len, 8);
 }

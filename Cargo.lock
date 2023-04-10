@@ -3576,6 +3576,7 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-runtime",
+ "sp-state-machine",
  "sp-std 5.0.0",
  "sp-timestamp",
  "substrate-prometheus-endpoint",

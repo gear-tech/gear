@@ -76,7 +76,7 @@ where
     }
 
     pub fn create_terminal_extrinsic(&mut self) -> Result<Block::Extrinsic, Error> {
-        let block_hash = self.parent_hash.clone();
+        let block_hash = self.parent_hash;
         self.api
             .execute_in_transaction(move |api| {
                 TransactionOutcome::Rollback(api.gear_run_extrinsic_with_context(

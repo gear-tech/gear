@@ -53,6 +53,7 @@ pallet-sudo  = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
 pallet-gear-messenger  = { workspace = true, features = ["std"] }
+sp-state-machine = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.40" }
 testing.workspace = true
 vara-runtime  = { workspace = true, features = ["std"] }
 demo-mul-by-const.workspace = true
