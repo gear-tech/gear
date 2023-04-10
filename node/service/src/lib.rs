@@ -22,6 +22,8 @@ use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use sc_client_api::{Backend as BackendT, BlockBackend, UsageProvider};
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sc_network::NetworkService;
+use sc_network_common::sync::warp::WarpSyncParams;
+use sc_network_sync::SyncingService;
 use sc_service::{
     error::Error as ServiceError, ChainSpec, Configuration, PartialComponents, RpcHandlers,
     TaskManager,
@@ -346,6 +348,8 @@ where
     pub client: Arc<FullClient<RuntimeApi, ExecutorDispatch>>,
     /// The networking service of the node.
     pub network: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
+    /// The syncing service of the node.
+    pub sync: Arc<SyncingService<Block>>,
     /// The transaction pool of the node.
     pub transaction_pool: Arc<TransactionPool<RuntimeApi, ExecutorDispatch>>,
     /// The rpc handlers of the node.
@@ -374,14 +378,12 @@ where
         RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
     ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
-    let hwbench = if !disable_hardware_benchmarks {
-        config.database.path().map(|database_path| {
-            let _ = std::fs::create_dir_all(database_path);
+    let hwbench = (!disable_hardware_benchmarks)
+        .then_some(config.database.path().map(|database_path| {
+            let _ = std::fs::create_dir_all(&database_path);
             sc_sysinfo::gather_hwbench(Some(database_path))
-        })
-    } else {
-        None
-    };
+        }))
+        .flatten();
 
     let sc_service::PartialComponents {
         client,
@@ -416,7 +418,7 @@ where
         Vec::default(),
     ));
 
-    let (network, system_rpc_tx, tx_handler_controller, network_starter) =
+    let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
         sc_service::build_network(sc_service::BuildNetworkParams {
             config: &config,
             client: client.clone(),
@@ -424,7 +426,7 @@ where
             spawn_handle: task_manager.spawn_handle(),
             import_queue,
             block_announce_validator_builder: None,
-            warp_sync: Some(warp_sync),
+            warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
         })?;
 
     if config.offchain_worker.enabled {
@@ -455,6 +457,7 @@ where
         task_manager: &mut task_manager,
         system_rpc_tx,
         tx_handler_controller,
+        sync_service: sync_service.clone(),
         telemetry: telemetry.as_mut(),
     })?;
 
@@ -497,8 +500,8 @@ where
             select_chain,
             env: proposer,
             block_import,
-            sync_oracle: network.clone(),
-            justification_sync_link: network.clone(),
+            sync_oracle: sync_service.clone(),
+            justification_sync_link: sync_service.clone(),
             create_inherent_data_providers: move |parent, ()| {
                 let client_clone = client_clone.clone();
                 async move {
@@ -566,6 +569,7 @@ where
             config,
             link: grandpa_link,
             network: network.clone(),
+            sync: Arc::new(sync_service.clone()),
             telemetry: telemetry.as_ref().map(|x| x.handle()),
             voting_rule: sc_consensus_grandpa::VotingRulesBuilder::default().build(),
             prometheus_registry,
@@ -586,6 +590,7 @@ where
         task_manager,
         client,
         network,
+        sync: sync_service,
         transaction_pool,
         rpc_handlers,
     })
