@@ -1086,7 +1086,6 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-
     // We cannot call `gr_reservation_reply_commit` multiple times. Therefore our weight determination is not
     // as precise as with other APIs.
     gr_reservation_reply_commit {

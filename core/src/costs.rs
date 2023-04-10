@@ -20,6 +20,7 @@
 
 use crate::{gas::Token, memory::PageU32Size};
 use core::{fmt::Debug, marker::PhantomData};
+use paste::paste;
 use scale_info::scale::{Decode, Encode};
 
 /// Cost per one memory page.
@@ -141,6 +142,18 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_random`.
     pub gr_random: u64,
 
+    /// +_+_+
+    pub gr_send: u64,
+
+    /// +_+_+
+    pub gr_send_per_byte: u64,
+
+    /// +_+_+
+    pub gr_send_wgas: u64,
+
+    /// +_+_+
+    pub gr_send_wgas_per_byte: u64,
+
     /// Weight of calling `gr_send_init`.
     pub gr_send_init: u64,
 
@@ -153,26 +166,62 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_send_commit`.
     pub gr_send_commit: u64,
 
-    /// Weight per payload byte by `gr_send_commit`.
-    pub gr_send_commit_per_byte: u64,
+    /// Weight of calling `gr_send_commit_wgas`.
+    pub gr_send_commit_wgas: u64,
+
+    /// +_+_+
+    pub gr_reservation_send: u64,
+
+    /// +_+_+
+    pub gr_reservation_send_per_byte: u64,
 
     /// Weight of calling `gr_reservation_send_commit`.
     pub gr_reservation_send_commit: u64,
 
-    /// Weight per payload byte by `gr_reservation_send_commit`.
-    pub gr_reservation_send_commit_per_byte: u64,
+    /// +_+_+
+    pub gr_send_input: u64,
+
+    /// +_+_+
+    pub gr_send_input_per_byte: u64,
+
+    /// +_+_+
+    pub gr_send_input_wgas: u64,
+
+    /// +_+_+
+    pub gr_send_input_wgas_per_byte: u64,
+
+    /// Weight of calling `gr_send_push_input`.
+    pub gr_send_push_input: u64,
+
+    /// Weight per payload byte by `gr_send_push_input`.
+    pub gr_send_push_input_per_byte: u64,
+
+    /// +_+_+
+    pub gr_reply: u64,
+
+    /// +_+_+
+    pub gr_reply_per_byte: u64,
+
+    /// +_+_+
+    pub gr_reply_wgas: u64,
+
+    /// +_+_+
+    pub gr_reply_wgas_per_byte: u64,
 
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: u64,
 
-    /// Weight per payload byte by `gr_reply_commit`.
-    pub gr_reply_commit_per_byte: u64,
+    /// Weight of calling `gr_reply_commit_wgas`.
+    pub gr_reply_commit_wgas: u64,
+
+    /// +_+_+
+    pub gr_reservation_reply: u64,
+
+    /// +_+_+
+    pub gr_reservation_reply_per_byte: u64,
 
     /// Weight of calling `gr_reservation_reply_commit`.
     pub gr_reservation_reply_commit: u64,
-
-    /// Weight per payload byte by `gr_reservation_reply_commit`.
-    pub gr_reservation_reply_commit_per_byte: u64,
 
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: u64,
@@ -180,11 +229,17 @@ pub struct HostFnWeights {
     /// Weight per payload byte by `gr_reply_push`.
     pub gr_reply_push_per_byte: u64,
 
-    /// Weight of calling `gr_reply_to`.
-    pub gr_reply_to: u64,
+    /// +_+_+
+    pub gr_reply_input: u64,
 
-    /// Weight of calling `gr_signal_from`.
-    pub gr_signal_from: u64,
+    /// +_+_+
+    pub gr_reply_input_per_byte: u64,
+
+    /// +_+_+
+    pub gr_reply_input_wgas: u64,
+
+    /// +_+_+
+    pub gr_reply_input_wgas_per_byte: u64,
 
     /// Weight of calling `gr_reply_push_input`.
     pub gr_reply_push_input: u64,
@@ -192,11 +247,11 @@ pub struct HostFnWeights {
     /// Weight per payload byte by `gr_reply_push_input`.
     pub gr_reply_push_input_per_byte: u64,
 
-    /// Weight of calling `gr_send_push_input`.
-    pub gr_send_push_input: u64,
+    /// Weight of calling `gr_reply_to`.
+    pub gr_reply_to: u64,
 
-    /// Weight per payload byte by `gr_send_push_input`.
-    pub gr_send_push_input_per_byte: u64,
+    /// Weight of calling `gr_signal_from`.
+    pub gr_signal_from: u64,
 
     /// Weight of calling `gr_debug`.
     pub gr_debug: u64,
@@ -229,6 +284,15 @@ pub struct HostFnWeights {
     pub gr_wake: u64,
 
     /// Weight of calling `gr_create_program_wgas`.
+    pub gr_create_program: u64,
+
+    /// Weight per payload byte by `gr_create_program_wgas`.
+    pub gr_create_program_payload_per_byte: u64,
+
+    /// Weight per salt byte by `gr_create_program_wgas`.
+    pub gr_create_program_salt_per_byte: u64,
+
+    /// Weight of calling `gr_create_program_wgas`.
     pub gr_create_program_wgas: u64,
 
     /// Weight per payload byte by `gr_create_program_wgas`.
@@ -253,12 +317,6 @@ impl From<RuntimeToken> for u64 {
 impl Token for RuntimeToken {
     fn weight(&self) -> u64 {
         self.weight
-    }
-}
-
-impl RuntimeToken {
-    fn saturating_add(self, other: Self) -> u64 {
-        self.weight.saturating_add(other.weight)
     }
 }
 
@@ -305,24 +363,50 @@ pub enum RuntimeCosts {
     Random,
     /// Weight of calling `gr_send`.
     Send(u32),
+    /// Weight of calling `gr_send_wgas`.
+    SendWGas(u32),
     /// Weight of calling `gr_send_init`.
     SendInit,
     /// Weight of calling `gr_send_push`.
     SendPush(u32),
     /// Weight of calling `gr_send_commit`.
-    SendCommit(u32),
+    SendCommit,
+    /// Weight of calling `gr_send_commit_wgas`.
+    SendCommitWGas,
     /// Weight of calling `gr_reservation_send`.
     ReservationSend(u32),
     /// Weight of calling `gr_reservation_send_commit`.
-    ReservationSendCommit(u32),
+    ReservationSendCommit,
+    /// Weight of calling `gr_send_input`.
+    SendInput(u32),
+    /// Weight of calling `gr_send_input_wgas`.
+    SendInputWGas(u32),
+    /// Weight of calling `gr_send_push_input`.
+    SendPushInput,
+    /// Weight per buffer bytes number in sent input.
+    SendPushInputPerByte(u32),
     /// Weight of calling `gr_reply`.
     Reply(u32),
+    /// Weight of calling `gr_reply_wgas`.
+    ReplyWGas(u32),
+    /// Weight of calling `gr_reply_push`.
+    ReplyPush(u32),
     /// Weight of calling `gr_reply_commit`.
-    ReplyCommit(u32),
+    ReplyCommit,
+    /// Weight of calling `gr_reply_commit_wgas`.
+    ReplyCommitWGas,
     /// Weight of calling `gr_reservation_reply`.
     ReservationReply(u32),
     /// Weight of calling `gr_reservation_reply_commit`.
-    ReservationReplyCommit(u32),
+    ReservationReplyCommit,
+    /// Weight of calling `gr_reply_input`.
+    ReplyInput(u32),
+    /// Weight of calling `gr_reply_input_wgas`.
+    ReplyInputWGas(u32),
+    /// Weight of calling `gr_reply_push_input`.
+    ReplyPushInput,
+    /// Weight per buffer bytes number in reply input.
+    ReplyPushInputPerByte(u32),
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
     /// Weight of calling `gr_signal_from`.
@@ -345,28 +429,35 @@ pub enum RuntimeCosts {
     WaitUpTo,
     /// Weight of calling `gr_wake`.
     Wake,
-    /// Weight of calling `gr_create_program_wgas`.
+    /// Weight of calling `gr_create_program`.
     CreateProgram(u32, u32),
-    /// Weight of calling `gr_send_push_input`.
-    SendPushInput,
-    /// Weight per buffer bytes number in sent input.
-    SendPushInputPerByte(u32),
-    /// Weight of calling `gr_send_input`.
-    SendInput,
-    /// Weight of calling `gr_reply_push`.
-    ReplyPush(u32),
-    /// Weight of calling `gr_reply_push_input`.
-    ReplyPushInput,
-    /// Weight per buffer bytes number in reply input.
-    ReplyPushInputPerByte(u32),
-    /// Weight of calling `gr_reply_input`.
-    ReplyInput,
+    /// Weight of calling `gr_create_program_wgas`.
+    CreateProgramWGas(u32, u32),
 }
 
 impl RuntimeCosts {
     /// Returns a token with a weight given the parameters from `HostFnWeights`.
     pub fn token(&self, s: &HostFnWeights) -> RuntimeToken {
         use self::RuntimeCosts::*;
+
+        let cost_per_byte =
+            |weight_per_byte: u64, len: u32| weight_per_byte.saturating_mul(len.into());
+
+        let cost_with_two_weights_per_byte =
+            |weight_per_call: u64, weight1_per_byte, weight2_per_byte, len1, len2| {
+                weight_per_call
+                    .saturating_add(cost_per_byte(weight1_per_byte, len1))
+                    .saturating_add(cost_per_byte(weight2_per_byte, len2))
+            };
+
+        macro_rules! cost_with_weight_per_byte {
+            ($name:ident, $len:expr) => {
+                paste! {
+                    s.$name.saturating_add(cost_per_byte(s.[< $name _per_byte >], $len))
+                }
+            };
+        }
+
         let weight = match *self {
             Null => 0,
             Alloc => s.alloc,
@@ -383,42 +474,36 @@ impl RuntimeCosts {
             ValueAvailable => s.gr_value_available,
             Size => s.gr_size,
             Read => s.gr_read,
-            ReadPerByte(len) => s.gr_read_per_byte.saturating_mul(len.into()),
+            ReadPerByte(len) => cost_per_byte(s.gr_read_per_byte, len),
             BlockHeight => s.gr_block_height,
             BlockTimestamp => s.gr_block_timestamp,
             Random => s.gr_random,
-            Send(len) => SendInit.token(s).saturating_add(SendPush(len).token(s)),
+            Send(len) => cost_with_weight_per_byte!(gr_send, len),
+            SendWGas(len) => cost_with_weight_per_byte!(gr_send_wgas, len),
             SendInit => s.gr_send_init,
-            SendPush(len) => s
-                .gr_send_push
-                .saturating_add(s.gr_send_push_per_byte.saturating_mul(len.into())),
-            SendCommit(len) => s
-                .gr_send_commit
-                .saturating_add(s.gr_send_commit_per_byte.saturating_mul(len.into())),
-            ReservationSend(len) => SendInit
-                .token(s)
-                .saturating_add(ReservationSendCommit(len).token(s)),
-            ReservationSendCommit(len) => s.gr_reservation_send_commit.saturating_add(
-                s.gr_reservation_send_commit_per_byte
-                    .saturating_mul(len.into()),
-            ),
-            Reply(len) => ReplyCommit(len).token(s).weight,
-            ReplyCommit(len) => s
-                .gr_reply_commit
-                .saturating_add(s.gr_reply_commit_per_byte.saturating_mul(len.into())),
-            ReservationReply(len) => ReservationReplyCommit(len).token(s).weight,
-            ReservationReplyCommit(len) => s.gr_reservation_reply_commit.saturating_add(
-                s.gr_reservation_reply_commit_per_byte
-                    .saturating_mul(len.into()),
-            ),
-            ReplyPush(len) => s
-                .gr_reply_push
-                .saturating_add(s.gr_reply_push_per_byte.saturating_mul(len.into())),
+            SendPush(len) => cost_with_weight_per_byte!(gr_send_push, len),
+            SendCommit => s.gr_send_commit,
+            SendCommitWGas => s.gr_send_commit_wgas,
+            ReservationSend(len) => cost_with_weight_per_byte!(gr_reservation_send, len),
+            ReservationSendCommit => s.gr_reservation_send_commit,
+            SendInput(len) => cost_with_weight_per_byte!(gr_send_input, len),
+            SendInputWGas(len) => cost_with_weight_per_byte!(gr_send_input_wgas, len),
+            SendPushInput => s.gr_send_push_input,
+            SendPushInputPerByte(len) => cost_per_byte(s.gr_send_push_input_per_byte, len),
+            Reply(len) => cost_with_weight_per_byte!(gr_reply, len),
+            ReplyWGas(len) => cost_with_weight_per_byte!(gr_reply_wgas, len),
+            ReplyPush(len) => cost_with_weight_per_byte!(gr_reply_push, len),
+            ReplyCommit => s.gr_reply_commit,
+            ReplyCommitWGas => s.gr_reply_commit_wgas,
+            ReservationReply(len) => cost_with_weight_per_byte!(gr_reservation_reply, len),
+            ReservationReplyCommit => s.gr_reservation_reply_commit,
+            ReplyInput(len) => cost_with_weight_per_byte!(gr_reply_input, len),
+            ReplyInputWGas(len) => cost_with_weight_per_byte!(gr_reply_input_wgas, len),
+            ReplyPushInput => s.gr_reply_push_input,
+            ReplyPushInputPerByte(len) => cost_per_byte(s.gr_reply_push_input_per_byte, len),
             ReplyTo => s.gr_reply_to,
             SignalFrom => s.gr_signal_from,
-            Debug(len) => s
-                .gr_debug
-                .saturating_add(s.gr_debug_per_byte.saturating_mul(len.into())),
+            Debug(len) => cost_with_weight_per_byte!(gr_debug, len),
             Error => s.gr_error,
             StatusCode => s.gr_status_code,
             Exit => s.gr_exit,
@@ -427,28 +512,20 @@ impl RuntimeCosts {
             WaitFor => s.gr_wait_for,
             WaitUpTo => s.gr_wait_up_to,
             Wake => s.gr_wake,
-            CreateProgram(payload_len, salt_len) => s
-                .gr_create_program_wgas
-                .saturating_add(
-                    s.gr_create_program_wgas_payload_per_byte
-                        .saturating_mul(payload_len.into()),
-                )
-                .saturating_add(
-                    s.gr_create_program_wgas_salt_per_byte
-                        .saturating_mul(salt_len.into()),
-                ),
-            ReplyPushInput => s.gr_reply_push_input,
-            ReplyPushInputPerByte(len) => s.gr_reply_push_input_per_byte.saturating_mul(len.into()),
-            ReplyInput => ReplyPushInput
-                .token(s)
-                .saturating_add(ReplyCommit(0).token(s)),
-            SendPushInput => s.gr_send_push_input,
-            SendPushInputPerByte(len) => s.gr_send_push_input_per_byte.saturating_mul(len.into()),
-            SendInput => SendInit
-                .token(s)
-                .saturating_add(SendPushInput.token(s))
-                // TODO: replace with normal addition some time.
-                .saturating_add(SendCommit(0).token(s).weight()),
+            CreateProgram(payload_len, salt_len) => cost_with_two_weights_per_byte(
+                s.gr_create_program,
+                s.gr_create_program_payload_per_byte,
+                s.gr_create_program_salt_per_byte,
+                payload_len,
+                salt_len,
+            ),
+            CreateProgramWGas(payload_len, salt_len) => cost_with_two_weights_per_byte(
+                s.gr_create_program_wgas,
+                s.gr_create_program_wgas_payload_per_byte,
+                s.gr_create_program_wgas_salt_per_byte,
+                payload_len,
+                salt_len,
+            ),
         };
         RuntimeToken { weight }
     }

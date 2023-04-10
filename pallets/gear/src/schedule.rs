@@ -377,6 +377,11 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_random`.
     pub gr_random: Weight,
 
+    pub gr_send: Weight,
+    pub gr_send_per_byte: Weight,
+    pub gr_send_wgas: Weight,
+    pub gr_send_wgas_per_byte: Weight,
+
     /// Weight of calling `gr_value_available`.
     pub gr_send_init: Weight,
 
@@ -389,29 +394,29 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_send_commit`.
     pub gr_send_commit: Weight,
 
-    /// Weight per payload byte by `gr_send_commit`.
-    pub gr_send_commit_per_byte: Weight,
+    pub gr_send_commit_wgas: Weight,
+    pub gr_reservation_send: Weight,
+    pub gr_reservation_send_per_byte: Weight,
 
     /// Weight of calling `gr_reservation_send_commit`.
     pub gr_reservation_send_commit: Weight,
 
-    /// Weight per payload byte by `gr_reservation_send_commit`.
-    pub gr_reservation_send_commit_per_byte: Weight,
-
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: Weight,
-
-    /// Weight per payload byte by `gr_reply_commit`.
-    pub gr_reply_commit_per_byte: Weight,
+    pub gr_reply_commit_wgas: Weight,
+    pub gr_reservation_reply: Weight,
+    pub gr_reservation_reply_per_byte: Weight,
 
     /// Weight of calling `gr_reservation_reply_commit`.
     pub gr_reservation_reply_commit: Weight,
 
-    /// Weight per payload byte by `gr_reservation_reply_commit`.
-    pub gr_reservation_reply_commit_per_byte: Weight,
-
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: Weight,
+
+    pub gr_reply: Weight,
+    pub gr_reply_per_byte: Weight,
+    pub gr_reply_wgas: Weight,
+    pub gr_reply_wgas_per_byte: Weight,
 
     /// Weight per payload byte by `gr_reply_push`.
     pub gr_reply_push_per_byte: Weight,
@@ -422,11 +427,21 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_signal_from`.
     pub gr_signal_from: Weight,
 
+    pub gr_reply_input: Weight,
+    pub gr_reply_input_per_byte: Weight,
+    pub gr_reply_input_wgas: Weight,
+    pub gr_reply_input_wgas_per_byte: Weight,
+
     /// Weight of calling `gr_reply_push_input`.
     pub gr_reply_push_input: Weight,
 
     /// Weight per payload byte by `gr_reply_push_input`.
     pub gr_reply_push_input_per_byte: Weight,
+
+    pub gr_send_input: Weight,
+    pub gr_send_input_per_byte: Weight,
+    pub gr_send_input_wgas: Weight,
+    pub gr_send_input_wgas_per_byte: Weight,
 
     /// Weight of calling `gr_send_push_input`.
     pub gr_send_push_input: Weight,
@@ -463,6 +478,10 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight of calling `gr_wake`.
     pub gr_wake: Weight,
+
+    pub gr_create_program: Weight,
+    pub gr_create_program_payload_per_byte: Weight,
+    pub gr_create_program_salt_per_byte: Weight,
 
     /// Weight of calling `create_program_wgas`.
     pub gr_create_program_wgas: Weight,
@@ -790,23 +809,41 @@ impl<T: Config> HostFnWeights<T> {
             gr_block_height: self.gr_block_height.ref_time(),
             gr_block_timestamp: self.gr_block_timestamp.ref_time(),
             gr_random: self.gr_random.ref_time(),
+            gr_send: self.gr_send.ref_time(),
+            gr_send_per_byte: self.gr_send_per_byte.ref_time(),
+            gr_send_wgas: self.gr_send_wgas.ref_time(),
+            gr_send_wgas_per_byte: self.gr_send_wgas_per_byte.ref_time(),
             gr_send_init: self.gr_send_init.ref_time(),
             gr_send_push: self.gr_send_push.ref_time(),
             gr_send_push_per_byte: self.gr_send_push_per_byte.ref_time(),
             gr_send_commit: self.gr_send_commit.ref_time(),
-            gr_send_commit_per_byte: self.gr_send_commit_per_byte.ref_time(),
+            gr_send_commit_wgas: self.gr_send_commit_wgas.ref_time(),
+            gr_reservation_send: self.gr_reservation_send.ref_time(),
+            gr_reservation_send_per_byte: self.gr_reservation_send_per_byte.ref_time(),
             gr_reservation_send_commit: self.gr_reservation_send_commit.ref_time(),
-            gr_reservation_send_commit_per_byte: self
-                .gr_reservation_send_commit_per_byte
-                .ref_time(),
-            gr_reply_commit: self.gr_reply_commit.ref_time(),
-            gr_reply_commit_per_byte: self.gr_reply_commit_per_byte.ref_time(),
-            gr_reservation_reply_commit: self.gr_reservation_reply_commit.ref_time(),
-            gr_reservation_reply_commit_per_byte: self
-                .gr_reservation_reply_commit_per_byte
-                .ref_time(),
+            gr_send_input: self.gr_send_input.ref_time(),
+            gr_send_input_per_byte: self.gr_send_input_per_byte.ref_time(),
+            gr_send_input_wgas: self.gr_send_input_wgas.ref_time(),
+            gr_send_input_wgas_per_byte: self.gr_send_input_wgas_per_byte.ref_time(),
+            gr_send_push_input: self.gr_send_push_input.ref_time(),
+            gr_send_push_input_per_byte: self.gr_send_push_input_per_byte.ref_time(),
+            gr_reply: self.gr_reply.ref_time(),
+            gr_reply_per_byte: self.gr_reply_per_byte.ref_time(),
+            gr_reply_wgas: self.gr_reply_wgas.ref_time(),
+            gr_reply_wgas_per_byte: self.gr_reply_wgas_per_byte.ref_time(),
             gr_reply_push: self.gr_reply_push.ref_time(),
             gr_reply_push_per_byte: self.gr_reply_push_per_byte.ref_time(),
+            gr_reply_commit: self.gr_reply_commit.ref_time(),
+            gr_reply_commit_wgas: self.gr_reply_commit_wgas.ref_time(),
+            gr_reservation_reply: self.gr_reservation_reply.ref_time(),
+            gr_reservation_reply_per_byte: self.gr_reservation_reply_per_byte.ref_time(),
+            gr_reservation_reply_commit: self.gr_reservation_reply_commit.ref_time(),
+            gr_reply_input: self.gr_reply_input.ref_time(),
+            gr_reply_input_per_byte: self.gr_reply_input_per_byte.ref_time(),
+            gr_reply_input_wgas: self.gr_reply_input_wgas.ref_time(),
+            gr_reply_input_wgas_per_byte: self.gr_reply_input_wgas_per_byte.ref_time(),
+            gr_reply_push_input: self.gr_reply_push_input.ref_time(),
+            gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte.ref_time(),
             gr_debug: self.gr_debug.ref_time(),
             gr_debug_per_byte: self.gr_debug_per_byte.ref_time(),
             gr_error: self.gr_error.ref_time(),
@@ -819,6 +856,9 @@ impl<T: Config> HostFnWeights<T> {
             gr_wait_for: self.gr_wait_for.ref_time(),
             gr_wait_up_to: self.gr_wait_up_to.ref_time(),
             gr_wake: self.gr_wake.ref_time(),
+            gr_create_program: self.gr_create_program.ref_time(),
+            gr_create_program_payload_per_byte: self.gr_create_program_payload_per_byte.ref_time(),
+            gr_create_program_salt_per_byte: self.gr_create_program_salt_per_byte.ref_time(),
             gr_create_program_wgas: self.gr_create_program_wgas.ref_time(),
             gr_create_program_wgas_payload_per_byte: self
                 .gr_create_program_wgas_payload_per_byte
@@ -826,10 +866,6 @@ impl<T: Config> HostFnWeights<T> {
             gr_create_program_wgas_salt_per_byte: self
                 .gr_create_program_wgas_salt_per_byte
                 .ref_time(),
-            gr_send_push_input: self.gr_send_push_input.ref_time(),
-            gr_send_push_input_per_byte: self.gr_send_push_input_per_byte.ref_time(),
-            gr_reply_push_input: self.gr_reply_push_input.ref_time(),
-            gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte.ref_time(),
         }
     }
 }
@@ -859,22 +895,13 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_send_push: to_weight!(cost_batched!(gr_send_push)),
             gr_send_push_per_byte: to_weight!(cost_byte_batched!(gr_send_push_per_kb)),
             gr_send_commit: to_weight!(cost_batched!(gr_send_commit)),
-            gr_send_commit_per_byte: to_weight!(cost_byte_batched!(gr_send_commit_per_kb)),
             gr_reservation_send_commit: to_weight!(cost_batched!(gr_reservation_send_commit)),
-            gr_reservation_send_commit_per_byte: to_weight!(cost_byte_batched!(
-                gr_reservation_send_commit_per_kb
-            )),
             gr_reply_commit: to_weight!(cost!(gr_reply_commit)),
-            gr_reply_commit_per_byte: to_weight!(cost_byte!(gr_reply_commit_per_kb)),
             gr_reservation_reply_commit: to_weight!(cost!(gr_reservation_reply_commit)),
-            gr_reservation_reply_commit_per_byte: to_weight!(cost_byte!(
-                gr_reservation_reply_commit_per_kb
-            )),
             gr_reply_push: to_weight!(cost_batched!(gr_reply_push)),
             gr_reply_push_per_byte: to_weight!(cost_byte!(gr_reply_push_per_kb)),
             gr_debug: to_weight!(cost_batched!(gr_debug)),
             gr_debug_per_byte: to_weight!(cost_byte_batched!(gr_debug_per_kb)),
-            // TODO: https://github.com/gear-tech/gear/issues/1846
             gr_error: to_weight!(cost_batched!(gr_error)),
             gr_reply_to: to_weight!(cost_batched!(gr_reply_to)),
             gr_signal_from: to_weight!(cost_batched!(gr_signal_from)),
@@ -901,6 +928,31 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
             gr_reply_push_input_per_byte: to_weight!(cost_byte!(gr_reply_push_input_per_kb)),
             _phantom: PhantomData,
+            gr_send: Default::default(),
+            gr_send_per_byte: Default::default(),
+            gr_send_wgas: Default::default(),
+            gr_send_wgas_per_byte: Default::default(),
+            gr_send_commit_wgas: Default::default(),
+            gr_reservation_send: Default::default(),
+            gr_reservation_send_per_byte: Default::default(),
+            gr_reply_commit_wgas: Default::default(),
+            gr_reservation_reply: Default::default(),
+            gr_reservation_reply_per_byte: Default::default(),
+            gr_reply: Default::default(),
+            gr_reply_per_byte: Default::default(),
+            gr_reply_wgas: Default::default(),
+            gr_reply_wgas_per_byte: Default::default(),
+            gr_reply_input: Default::default(),
+            gr_reply_input_per_byte: Default::default(),
+            gr_reply_input_wgas: Default::default(),
+            gr_reply_input_wgas_per_byte: Default::default(),
+            gr_send_input: Default::default(),
+            gr_send_input_per_byte: Default::default(),
+            gr_send_input_wgas: Default::default(),
+            gr_send_input_wgas_per_byte: Default::default(),
+            gr_create_program: Default::default(),
+            gr_create_program_payload_per_byte: Default::default(),
+            gr_create_program_salt_per_byte: Default::default(),
         }
     }
 }
