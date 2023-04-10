@@ -352,13 +352,13 @@ demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
 cfg-if = "1.0.0"                                              # gear-lazy-pages
-cargo_metadata = "0.15.3"                                     # utils/wasm-builder
+cargo_metadata = "0.15.4"                                     # utils/wasm-builder
 errno = "0.3"                                                 # gear-lazy-pages
 impl-trait-for-tuples = "0.2.2"                               # pallets/staking-rewards
 indicatif = "*"                                               # utils/wasm-gen
 keyring = "1.2.1"                                             # gcli
 libp2p = "0.51.2"                                             # gcli
-mimalloc = { version = "0.1.34", default-features = false }   # node/cli
+mimalloc = { version = "0.1.36", default-features = false }   # node/cli
 nacl = "0.5.3"                                                # gcli
 nix = "0.26.2"                                                # gear-lazy-pages
 nonempty = "0.8.1"                                            # utils/utils
