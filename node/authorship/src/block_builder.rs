@@ -22,7 +22,7 @@ use sc_client_api::backend;
 use sp_api::{ApiExt, ApiRef, ProvideRuntimeApi, TransactionOutcome};
 use sp_blockchain::Error;
 use sp_core::ExecutionContext;
-use sp_runtime::{generic::BlockId, traits::Block as BlockT};
+use sp_runtime::traits::Block as BlockT;
 
 pub struct BlockBuilderExt<'a, Block: BlockT, A: ProvideRuntimeApi<Block>, B> {
     block_builder: BlockBuilder<'a, Block, A, B>,
@@ -76,11 +76,11 @@ where
     }
 
     pub fn create_terminal_extrinsic(&mut self) -> Result<Block::Extrinsic, Error> {
-        let block_id = BlockId::Hash(self.parent_hash);
+        let block_hash = self.parent_hash.clone();
         self.api
             .execute_in_transaction(move |api| {
                 TransactionOutcome::Rollback(api.gear_run_extrinsic_with_context(
-                    &block_id,
+                    block_hash,
                     ExecutionContext::BlockConstruction,
                 ))
             })
