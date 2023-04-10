@@ -24,8 +24,8 @@ use gear_runtime::{
 use hex_literal::hex;
 use sc_service::ChainType;
 use sp_consensus_babe::AuthorityId as BabeId;
+use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, sr25519};
-use sp_finality_grandpa::AuthorityId as GrandpaId;
 
 // The URL for the telemetry server.
 // const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";

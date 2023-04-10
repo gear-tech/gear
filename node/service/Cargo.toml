@@ -51,8 +51,8 @@ sc-consensus.workspace = true
 sc-consensus-epochs.workspace = true
 sc-consensus-babe.workspace = true
 sc-consensus-babe-rpc.workspace = true
-sc-finality-grandpa.workspace = true
-sc-finality-grandpa-rpc.workspace = true
+sc-consensus-grandpa.workspace = true
+sc-consensus-grandpa-rpc.workspace = true
 sc-client-api.workspace = true
 sc-rpc.workspace = true
 sc-rpc-spec-v2.workspace = true
@@ -67,7 +67,7 @@ sp-consensus.workspace = true
 sp-consensus-babe = { workspace = true, features = ["std"] }
 sp-transaction-pool = { workspace = true, features = ["std"] }
 sp-transaction-storage-proof = { workspace = true, features = ["std"] }
-sp-finality-grandpa = { workspace = true, features = ["std"] }
+sp-consensus-grandpa = { workspace = true, features = ["std"] }
 sp-runtime = { workspace = true, features = ["std"] }
 sp-timestamp = { workspace = true, features = ["std"] }
 sp-blockchain.workspace = true
