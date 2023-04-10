@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+// (issue #2531)
+#![allow(deprecated)]
 
 use common::{storage::*, ExtractCall};
 use frame_support::{

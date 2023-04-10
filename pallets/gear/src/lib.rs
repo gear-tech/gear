@@ -18,6 +18,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "512")]
+// (issue #2531)
+#![allow(deprecated)]
 
 extern crate alloc;
 
