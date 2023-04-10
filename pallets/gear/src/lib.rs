@@ -263,7 +263,6 @@ pub mod pallet {
     #[pallet::pallet]
     #[pallet::storage_version(GEAR_STORAGE_VERSION)]
     #[pallet::without_storage_info]
-    #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::event]
