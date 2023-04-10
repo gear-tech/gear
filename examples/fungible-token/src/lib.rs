@@ -2,6 +2,7 @@
 // Implementation based on https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/ERC20.sol
 
 #![no_std]
+#![allow(deprecated)]
 
 use codec::{Decode, Encode};
 use gstd::{debug, msg, prelude::*, ActorId};
@@ -225,6 +226,8 @@ enum Event {
     Approval(ApproveData),
 }
 
+// NOTE: this macro has been deprecated, see
+// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
 gstd::metadata! {
     title: "FungibleToken",
         init:
