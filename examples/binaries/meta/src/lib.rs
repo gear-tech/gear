@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 #![no_std]
+#![allow(deprecated)]
 
 use codec::{Decode, Encode};
 use gstd::{String, ToString, Vec};
@@ -127,6 +128,8 @@ pub struct MessageHandleAsyncOut {
     pub empty: (),
 }
 
+// NOTE: this macro has been deprecated, see
+// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
 gstd::metadata! {
     title: "Example program with metadata",
     init:

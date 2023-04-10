@@ -1,7 +1,10 @@
 #![no_std]
+#![allow(deprecated)]
 
 use gstd::{debug, msg, prelude::*, ActorId};
 
+// NOTE: this macro has been deprecated, see
+// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
 gstd::metadata! {
     title: "Gear Workshop Contract Example",
     init:
