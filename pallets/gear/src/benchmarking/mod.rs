@@ -1296,10 +1296,35 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_create_program {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_create_program(r, None, None, false)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_create_program_per_kb {
+        let p in 0 .. MAX_PAYLOAD_LEN_KB;
+        // salt cannot be zero because we cannot execute batch of sys-calls
+        // as salt will be the same and we will get `ProgramAlreadyExists` error
+        let s in 1 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_create_program(1, Some(p), Some(s), false)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_create_program_wgas {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_create_program_wgas(r)?;
+        let exec = Benches::<T>::gr_create_program(r, None, None, true)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1313,7 +1338,7 @@ benchmarks! {
         // as salt will be the same and we will get `ProgramAlreadyExists` error
         let s in 1 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
-        let exec = Benches::<T>::gr_create_program_wgas_per_kb(p, s)?;
+        let exec = Benches::<T>::gr_create_program(1, Some(p), Some(s), true)?;
     }: {
         res.replace(run_process(exec));
     }
