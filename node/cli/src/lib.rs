@@ -28,3 +28,8 @@ pub use benchmarking::*;
 pub use cli::*;
 pub use command::*;
 pub use sc_cli::{Error, Result};
+
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;

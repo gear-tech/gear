@@ -21,5 +21,5 @@ colored.workspace = true
 derive_more = { workspace = true, features = ["add", "add_assign", "display", "mul", "mul_assign"] }
 env_logger.workspace = true
 path-clean.workspace = true
-rand = { workspace = true, default-features = true }
+rand = { workspace = true, features = ["std", "std_rng"] }
 gear-wasm-instrument.workspace = true

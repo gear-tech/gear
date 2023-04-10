@@ -16,7 +16,7 @@ libc.workspace = true
 sp-runtime-interface.workspace = true
 sp-std.workspace = true
 gear-lazy-pages = { workspace = true, optional = true }
-codec = { workspace = true, default-features = false }
+codec = { workspace = true }
 derive_more.workspace = true
 static_assertions.workspace = true
 region = { workspace = true, optional = true }
