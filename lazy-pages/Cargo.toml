@@ -34,5 +34,15 @@ errno.workspace = true
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["excpt", "memoryapi"] }
 
+
+[features]
+default = ["std"]
+std = [
+    "sp-io/std",
+    "sp-std/std",
+    "sp-wasm-interface/std",
+    "log/std",
+]
+
 [dev-dependencies]
 env_logger.workspace = true

@@ -24,7 +24,7 @@ serde = { workspace = true, features = ["derive"] }
 pallet-gear-rpc.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
-gear-runtime-interface = { workspace = true, features = [ "std" ] }
+gear-runtime-interface.workspace = true
 authorship.workspace = true
 
 # Gear Runtimes
@@ -99,6 +99,39 @@ try-runtime-cli = { workspace = true, optional = true }
 substrate-build-script-utils.workspace = true
 
 [features]
+default = ["std"]
+std = [
+    "authorship/std",
+    "common/std",
+    "gear-runtime?/std",
+    "vara-runtime?/std",
+    "gear-runtime-common/std",
+    "gear-runtime-interface/std",
+    "pallet-gear-rpc-runtime-api/std",
+    "runtime-primitives/std",
+    "sp-authority-discovery/std",
+    "sp-api/std",
+    "sp-core/std",
+    "sp-consensus-babe/std",
+    "sp-transaction-pool/std",
+    "sp-transaction-storage-proof/std",
+    "sp-finality-grandpa/std",
+    "sp-runtime/std",
+    "sp-timestamp/std",
+    "sp-block-builder/std",
+    "sp-keystore/std",
+    "sp-trie/std",
+    "sp-storage/std",
+    "sp-offchain/std",
+    "sp-session/std",
+    "pallet-transaction-payment/std",
+    "pallet-transaction-payment-rpc-runtime-api/std",
+    "pallet-staking?/std",
+    "pallet-im-online?/std",
+    "frame-benchmarking/std",
+    "frame-support/std",
+    "frame-system/std",
+]
 gear-native = [
 	"gear-runtime",
 ]

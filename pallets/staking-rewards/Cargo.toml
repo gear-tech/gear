@@ -30,18 +30,18 @@ pallet-staking.workspace = true
 pallet-staking-reward-fn.workspace = true
 
 [dev-dependencies]
-sp-core.workspace = true
-sp-io.workspace = true
-sp-authority-discovery.workspace = true
-frame-election-provider-support.workspace = true
-pallet-treasury.workspace = true
-pallet-authorship.workspace = true
-pallet-timestamp.workspace = true
-pallet-session.workspace = true
-pallet-sudo.workspace = true
-pallet-bags-list.workspace = true
-pallet-utility.workspace = true
-frame-executive.workspace = true
+sp-core = { workspace = true, features = ["std"] }
+sp-io = { workspace = true, features = ["std"] }
+sp-authority-discovery = { workspace = true, features = ["std"] }
+frame-election-provider-support = { workspace = true, features = ["std"] }
+pallet-treasury = { workspace = true, features = ["std"] }
+pallet-authorship = { workspace = true, features = ["std"] }
+pallet-timestamp = { workspace = true, features = ["std"] }
+pallet-session = { workspace = true, features = ["std"] }
+pallet-sudo = { workspace = true, features = ["std"] }
+pallet-bags-list = { workspace = true, features = ["std"] }
+pallet-utility = { workspace = true, features = ["std"] }
+frame-executive = { workspace = true, features = ["std"] }
 env_logger.workspace = true
 
 [features]

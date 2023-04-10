@@ -44,15 +44,28 @@ prometheus-endpoint.workspace = true
 
 [dev-dependencies]
 sc-transaction-pool.workspace = true
-frame-support.workspace = true
-sp-io.workspace = true
-sp-std.workspace = true
-sp-timestamp.workspace = true
-sp-consensus-babe.workspace = true
-pallet-sudo.workspace = true
-pallet-timestamp.workspace = true
-pallet-gear.workspace = true
-pallet-gear-messenger.workspace = true
+frame-support = { workspace = true, features = ["std"] }
+sp-io = { workspace = true, features = ["std"] }
+sp-std = { workspace = true, features = ["std"] }
+sp-timestamp = { workspace = true, features = ["std"] }
+sp-consensus-babe = { workspace = true, features = ["std"] }
+pallet-sudo  = { workspace = true, features = ["std"] }
+pallet-timestamp = { workspace = true, features = ["std"] }
+pallet-gear = { workspace = true, features = ["std"] }
+pallet-gear-messenger  = { workspace = true, features = ["std"] }
 testing.workspace = true
-vara-runtime.workspace = true
+vara-runtime  = { workspace = true, features = ["std"] }
 demo-mul-by-const.workspace = true
+
+[features]
+default = ["std"]
+std = [
+    "runtime-primitives/std",
+    "common/std",
+    "pallet-gear-rpc-runtime-api/std",
+    "sp-core/std",
+    "sp-api/std",
+    "sp-runtime/std",
+    "sp-inherents/std",
+    "frame-system/std",
+]

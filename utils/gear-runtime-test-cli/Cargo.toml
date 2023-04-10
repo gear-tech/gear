@@ -35,8 +35,8 @@ pallet-im-online = { workspace = true, optional = true }
 runtime-primitives.workspace = true
 gear-common.workspace = true
 gear-core.workspace = true
-gear-runtime = { workspace = true, optional = true, features = ["debug-mode"] }
-vara-runtime = { workspace = true, optional = true, features = ["debug-mode"] }
+gear-runtime = { workspace = true, optional = true, features = ["debug-mode", "std"] }
+vara-runtime = { workspace = true, optional = true, features = ["debug-mode", "std"] }
 gear-test.workspace = true
 pallet-gear.workspace = true
 pallet-gear-gas.workspace = true
