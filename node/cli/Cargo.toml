@@ -19,19 +19,19 @@ path = "src/main.rs"
 clap = { workspace = true, features = ["derive"] }
 mimalloc = { workspace = true, default-features = false }
 scale-info.workspace = true
-log.workspace = true
+log = { workspace = true, features = ["std"] }
 futures.workspace = true
 
 # Gear
 runtime-primitives.workspace = true
 gear-runtime-test-cli = { workspace = true, optional = true }
 service.workspace = true
-pallet-gear-payment.workspace = true
-pallet-gear-staking-rewards.workspace = true
+pallet-gear-payment = { workspace = true, features = ["std"] }
+pallet-gear-staking-rewards = { workspace = true, optional = true, features = ["std"] }
 
 # Gear Runtimes
-gear-runtime = { workspace = true, optional = true }
-vara-runtime = { workspace = true, optional = true }
+gear-runtime = { workspace = true, optional = true, features = ["std"] }
+vara-runtime = { workspace = true, optional = true, features = ["std"] }
 
 # Substrate client
 sc-cli.workspace = true
@@ -40,16 +40,16 @@ sc-service.workspace = true
 sc-client-api.workspace = true
 
 # Substrate primitives
-sp-core.workspace = true
-sp-io.workspace = true
-sp-inherents.workspace = true
+sp-core = { workspace = true, features = ["std"] }
+sp-io = { workspace = true, features = ["std"] }
+sp-inherents = { workspace = true, features = ["std"] }
 sp-keyring.workspace = true
-sp-runtime.workspace = true
-sp-timestamp.workspace = true
+sp-runtime = { workspace = true, features = ["std"] }
+sp-timestamp = { workspace = true, features = ["std"] }
 
 # Substrate other (benchmarking etc)
-frame-system.workspace = true
-frame-benchmarking = { workspace = true, optional = true }
+frame-system = { workspace = true, features = ["std"] }
+frame-benchmarking = { workspace = true, optional = true, features = ["std"] }
 frame-benchmarking-cli = { workspace = true, optional = true }
 try-runtime-cli = { workspace = true, optional = true }
 
@@ -60,20 +60,7 @@ gcli = { workspace = true, optional = true }
 substrate-build-script-utils.workspace = true
 
 [features]
-default = ["std", "gear-native", "vara-native", "lazy-pages"]
-std = [
-    "gear-runtime?/std",
-    "vara-runtime?/std",
-    "pallet-gear-payment/std",
-    "pallet-gear-staking-rewards/std",
-    "sp-core/std",
-    "sp-io/std",
-    "sp-runtime/std",
-    "sp-inherents/std",
-    "sp-timestamp/std",
-    "frame-system/std",
-    "frame-benchmarking/std",
-]
+default = ["gear-native", "lazy-pages"]
 gear-native = [
 	"service/gear-native",
 	"gear-runtime-test-cli?/gear-native",
@@ -83,6 +70,7 @@ vara-native = [
 	"service/vara-native",
 	"gear-runtime-test-cli?/vara-native",
 	"vara-runtime",
+	"pallet-gear-staking-rewards",
 ]
 lazy-pages = [
 	"service/lazy-pages",

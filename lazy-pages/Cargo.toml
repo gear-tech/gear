@@ -9,10 +9,10 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
-log.workspace = true
-sp-io.workspace = true
-sp-std.workspace = true
-sp-wasm-interface.workspace = true
+log = { workspace = true, features = ["std"] }
+sp-io = { workspace = true, features = ["std"] }
+sp-std = { workspace = true, features = ["std"] }
+sp-wasm-interface = { workspace = true, features = ["std"] }
 sc-executor-common.workspace = true
 cfg-if.workspace = true
 region.workspace = true
@@ -33,16 +33,6 @@ errno.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["excpt", "memoryapi"] }
-
-
-[features]
-default = ["std"]
-std = [
-    "sp-io/std",
-    "sp-std/std",
-    "sp-wasm-interface/std",
-    "log/std",
-]
 
 [dev-dependencies]
 env_logger.workspace = true
