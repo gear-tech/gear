@@ -380,6 +380,31 @@ pub fn origin() -> ActorId {
     origin
 }
 
+/// Pay program rent for the specified amount of blocks.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, ActorId};
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     exec::pay_rent(exec::program_id(), 100).expect("Unable to pay rent");
+/// }
+/// ```
+pub fn pay_rent(program_id: ActorId, block_count: u32) -> Result<()> {
+    let bn_pid = BlockNumberWithHash {
+        bn: block_count,
+        hash: program_id.0,
+    };
+
+    let mut len = 0u32;
+
+    unsafe { gsys::gr_pay_rent(&bn_pid, &mut len) }
+
+    SyscallError(len).into_result()
+}
+
 /// Get the random seed, along with the block number from which it is
 /// determinable by chain observers.
 ///

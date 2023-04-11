@@ -71,6 +71,7 @@ use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
+use test_syscalls::WASM_BINARY as TEST_SYSCALLS_BINARY;
 pub use utils::init_logger;
 use utils::*;
 
@@ -5395,6 +5396,44 @@ fn uninitialized_program_terminates_on_pause() {
                 pallet_gear_program::Error::<Test>::CannotFindDataForPage
             );
         }
+    });
+}
+
+#[test]
+fn test_pay_rent_syscall_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pay_rent_id = generate_program_id(TEST_SYSCALLS_BINARY, DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            TEST_SYSCALLS_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            pay_rent_id.into_bytes().to_vec(),
+            20_000_000_000,
+            10_000_000,
+        ));
+
+        run_to_block(2, None);
+
+        let program =
+            ProgramStorageOf::<Test>::get_program(pay_rent_id).expect("program should exist");
+        let old_block = program.block_number;
+
+        let block_count = 2_000;
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            pay_rent_id,
+            test_syscalls::Kind::PayRent(pay_rent_id.into_origin().into(), block_count).encode(),
+            20_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let program =
+            ProgramStorageOf::<Test>::get_program(pay_rent_id).expect("program should exist");
+        assert_eq!(old_block + u64::from(block_count), program.block_number);
     });
 }
 

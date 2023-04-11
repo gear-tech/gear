@@ -90,6 +90,22 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
     gcore::exec::wake_delayed(message_id.into(), delay).map_err(Into::into)
 }
 
+/// Pay program rent for the specified amount of blocks.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, ActorId};
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     exec::pay_rent(exec::program_id(), 100).expect("Unable to pay rent");
+/// }
+/// ```
+pub fn pay_rent(program_id: ActorId, block_count: u32) -> Result<()> {
+    Ok(gcore::exec::pay_rent(program_id.into(), block_count)?)
+}
+
 /// Return the identifier of the current program.
 ///
 /// # Examples

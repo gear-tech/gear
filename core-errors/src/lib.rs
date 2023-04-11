@@ -220,6 +220,19 @@ pub enum ExecutionError {
     /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
     #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
     InvalidDebugString = 0,
+
+    /// The error occurs when program's balance is less than rent it tries to pay.
+    #[display(fmt = "Existing value {value_left} is not enough to pay rent {rent}")]
+    NotEnoughValue {
+        /// Rent cost.
+        rent: u128,
+        /// Amount of available value.
+        value_left: u128,
+    } = 1,
+
+    /// An error occurs in attempt to pay rent for 0 block count.
+    #[display(fmt = "Provided incorrect argument for pay_rent")]
+    InvalidArgument = 2,
 }
 
 /// An error occurred in API.

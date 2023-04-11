@@ -97,6 +97,7 @@ demo-signal-entry.workspace = true
 demo-async-signal-entry.workspace = true
 demo-async-custom-entry.workspace = true
 demo-out-of-memory.workspace = true
+test-syscalls.workspace = true
 page_size.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }

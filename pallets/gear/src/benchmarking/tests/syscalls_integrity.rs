@@ -98,6 +98,7 @@ where
             SysCallName::ReservationReply => check_gr_reservation_reply::<T>(),
             SysCallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
             SysCallName::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
+            SysCallName::PayRent => todo!(),
         }
     });
 }

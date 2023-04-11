@@ -154,6 +154,8 @@ pub struct ExecutionSettings {
     /// Most recently determined random seed, along with the time in the past since when it was determinable by chain observers.
     // TODO: find a way to put a random seed inside block config.
     pub random_data: (Vec<u8>, u32),
+    /// Rent cost per block.
+    pub rent_cost: u128,
 }
 
 /// Stable parameters for the whole block across processing runs.
@@ -199,4 +201,6 @@ pub struct BlockConfig {
     pub code_instrumentation_cost: u64,
     /// WASM code instrumentation per-byte cost.
     pub code_instrumentation_byte_cost: u64,
+    /// Rent cost per block.
+    pub rent_cost: u128,
 }

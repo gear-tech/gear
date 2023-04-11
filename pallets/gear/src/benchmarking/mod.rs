@@ -179,6 +179,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         origin: Default::default(),
         program_id: Default::default(),
         program_candidates_data: Default::default(),
+        program_rents: Default::default(),
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold: 0,
@@ -187,6 +188,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         reserve_for: 0,
         reservation: 0,
         random_data: ([0u8; 32].to_vec(), 0),
+        rent_cost: 0,
     }
 }
 

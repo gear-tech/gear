@@ -55,6 +55,8 @@ pub enum Kind {
     Size(u32),
     // Expected(message id)
     MessageId(MessageId),
+    // Params(program id, block count)
+    PayRent(ActorId, u32),
     // Expected(program id)
     ProgramId(ActorId),
     // Expected(message sender)
@@ -235,6 +237,9 @@ mod wasm {
             Kind::MessageId(expected_mid) => {
                 let actual_mid: [u8; 32] = msg::id().into();
                 assert_eq!(expected_mid, actual_mid, "Kind::MessageId: mid test failed");
+            }
+            Kind::PayRent(program_id, block_count) => {
+                exec::pay_rent(program_id.into(), block_count).expect("Not enough value");
             }
             Kind::ProgramId(expected_pid) => {
                 let actual_pid: [u8; 32] = exec::program_id().into();

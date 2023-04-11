@@ -1282,6 +1282,31 @@ where
         Func::wrap(store, func)
     }
 
+    pub fn pay_rent(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
+        let func =
+            move |caller: Caller<'_, HostState<E>>, bn_pid_ptr: u32, err_ptr: u32| -> EmptyOutput {
+                syscall_trace!("pay_rent", bn_pid_ptr, err_ptr);
+                let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
+
+                ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::PayRent, |ctx| {
+                    let read_bn_pid = ctx.register_read_as(bn_pid_ptr);
+
+                    let BlockNumberWithHash {
+                        hash: program_id,
+                        bn: block_count,
+                    } = ctx.read_as(read_bn_pid)?;
+
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .pay_rent(program_id.into(), block_count)
+                        .map_err(Into::into)
+                })
+            };
+
+        Func::wrap(store, func)
+    }
+
     pub fn program_id(
         store: &mut Store<HostState<E>>,
         forbidden: bool,

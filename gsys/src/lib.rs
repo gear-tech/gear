@@ -92,17 +92,6 @@ impl LengthWithCode {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
     }
-
-    pub fn from(result: Result<StatusCode, Length>) -> Self {
-        let mut res: Self = Default::default();
-
-        match result {
-            Ok(code) => res.code = code,
-            Err(length) => res.length = length,
-        }
-
-        res
-    }
 }
 
 impl From<Result<StatusCode, Length>> for LengthWithCode {
@@ -391,6 +380,13 @@ extern "C" {
     /// Arguments type:
     /// - `program_id`: `const ptr` for program id.
     pub fn gr_origin(program_id: *mut Hash);
+
+    /// Fallible `gr_pay_rent` syscall.
+    ///
+    /// Arguments type:
+    /// - `bn_pid`: `const ptr` for program id and block number count.
+    /// - `err`: `mut ptr` for `u32` error length.
+    pub fn gr_pay_rent(bn_pid: *const BlockNumberWithHash, err: *mut Length);
 
     /// Infallible `gr_program_id` get syscall.
     ///

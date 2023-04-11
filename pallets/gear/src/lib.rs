@@ -1023,6 +1023,7 @@ pub mod pallet {
                 max_reservations: T::ReservationsLimit::get(),
                 code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
+                rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
             }
         }
 
@@ -1701,7 +1702,7 @@ pub mod pallet {
 
             ProgramStorageOf::<T>::update_program_if_active(
                 program_id,
-                |_program, block_number, hold_period| -> Result<(), Error<T>> {
+                |_program, block_number| -> Result<(), Error<T>> {
                     let block_author =
                         Authorship::<T>::author().ok_or(Error::<T>::BlockAuthorNotFound)?;
 
@@ -1713,17 +1714,17 @@ pub mod pallet {
                     )
                     .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
-                    let old_period = *hold_period;
-                    *hold_period = old_period.saturating_add(block_count);
+                    let old_block = *block_number;
+                    *block_number = old_block.saturating_add(block_count);
 
                     let task = ScheduledTask::PauseProgram(program_id);
                     let r = TaskPoolOf::<T>::delete(
-                        old_period.saturating_add(*block_number),
+                        old_block,
                         task.clone(),
                     );
                     log::debug!("TaskPool::delete result = {r:?}");
 
-                    let r = TaskPoolOf::<T>::add(hold_period.saturating_add(*block_number), task);
+                    let r = TaskPoolOf::<T>::add(*block_number, task);
                     log::debug!("TaskPool::add result = {r:?}");
 
                     Ok(())

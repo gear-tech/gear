@@ -19,8 +19,9 @@
 use crate::{
     internal::HoldBound,
     manager::{CodeInfo, ExtManager},
-    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, Pallet,
-    ProgramStorageOf, QueueOf, RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
+    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf,
+    GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, RentCostPerBlockOf, RentFreePeriodOf, SentOf,
+    TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -42,7 +43,7 @@ use gear_core::{
 };
 use gear_core_errors::SimpleSignalError;
 use sp_core::Get as _;
-use sp_runtime::traits::{UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{UniqueSaturatedFrom, UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
@@ -618,5 +619,43 @@ where
         err: SimpleSignalError,
     ) {
         ExtManager::send_signal(self, message_id, destination, err)
+    }
+
+    fn pay_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32) {
+        // Querying actual block author to reward.
+        let block_author = Authorship::<T>::author()
+            .unwrap_or_else(|| unreachable!("Failed to find block author!"));
+
+        let from = <T::AccountId as Origin>::from_origin(payer.into_origin());
+        let value =
+            RentCostPerBlockOf::<T>::get() * BalanceOf::<T>::unique_saturated_from(block_count);
+
+        CurrencyOf::<T>::transfer(
+            &from,
+            &block_author,
+            value,
+            ExistenceRequirement::AllowDeath,
+        )
+        .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+
+        ProgramStorageOf::<T>::update_program_if_active(
+            program_id,
+            |_p, block_number| {
+                let old_block = *block_number;
+                let block_count = block_count.unique_saturated_into();
+                *block_number = old_block.saturating_add(block_count);
+
+                let task = ScheduledTask::PauseProgram(program_id);
+                let r =
+                    TaskPoolOf::<T>::delete(old_block, task.clone());
+                log::debug!("TaskPool::delete result = {r:?}");
+
+                let r = TaskPoolOf::<T>::add(*block_number, task);
+                log::debug!("TaskPool::add result = {r:?}");
+            },
+        )
+        .unwrap_or_else(|e| {
+            unreachable!("Hold period may only be set for active program {:?}", e);
+        });
     }
 }

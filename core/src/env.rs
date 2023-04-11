@@ -162,6 +162,9 @@ pub trait Ext {
     /// Get the id of the message currently being handled.
     fn message_id(&mut self) -> Result<MessageId, Self::Error>;
 
+    /// Pay rent for the specified program.
+    fn pay_rent(&mut self, program_id: ProgramId, block_count: u32) -> Result<(), Self::Error>;
+
     /// Get the id of program itself
     fn program_id(&mut self) -> Result<ProgramId, Self::Error>;
 
