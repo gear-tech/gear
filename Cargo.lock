@@ -12933,7 +12933,7 @@ dependencies = [
 [[package]]
 name = "wasm-instrument"
 version = "0.2.1"
-source = "git+https://github.com/gear-tech/wasm-instrument.git?branch=v0.2.1-sign-ext#b232224ec01ab24290ef7d02f787b36fcfbf749c"
+source = "git+https://github.com/gear-tech/wasm-instrument.git?branch=gear-stable#756a8b92dab5a5fa841226eebbaf215812262e3b"
 dependencies = [
  "parity-wasm 0.45.0",
 ]

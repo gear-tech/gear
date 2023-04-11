@@ -6,7 +6,7 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-wasm-instrument.workspace = true
+wasm-instrument = { workspace = true, features = ["sign_ext"] }
 enum-iterator.workspace = true
 
 [dev-dependencies]
