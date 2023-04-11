@@ -18,7 +18,7 @@
 
 use super::*;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum LockIdentifier {
     Mailbox,
     Waitlist,
@@ -60,7 +60,7 @@ pub trait LockableTree: Tree {
         key: impl Into<Self::NodeId>,
     ) -> Result<Self::Balance, Self::Error> {
         let key = key.into();
-        let amount = Self::get_lock(id.clone(), key.clone())?;
+        let amount = Self::get_lock(id, key.clone())?;
         Self::unlock(id, key, amount.clone()).map(|_| amount)
     }
 

@@ -415,6 +415,13 @@ proptest! {
         let mut forest = TestForest::create(root_node, max_balance);
         node_ids.push(root_node.into());
 
+        let lock_ids = vec![
+            LockIdentifier::Mailbox,
+            LockIdentifier::Waitlist,
+            LockIdentifier::Reservation,
+            LockIdentifier::DispatchStash,
+        ];
+
         // Only root has a max balance
         Gas::create(external, root_node, max_balance).expect("Failed to create gas tree");
         assert_eq!(Gas::total_supply(), max_balance);
@@ -556,9 +563,10 @@ proptest! {
                     }
                 }
                 GasTreeAction::Lock(from, amount) => {
+                    let &lock_id = NonEmpty::from_slice(&lock_ids).expect("non-empty vector; qed").ring_get(from);
                     let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
-                    if let Err(e) = Gas::lock(LockIdentifier::Waitlist, from, amount) {
+                    if let Err(e) = Gas::lock(lock_id, from, amount) {
                         assertions::assert_not_invariant_error(e)
                     } else {
                         forest.tree_mut(from).locked += amount;
@@ -566,9 +574,10 @@ proptest! {
                     }
                 }
                 GasTreeAction::Unlock(from, amount) => {
+                    let &lock_id = NonEmpty::from_slice(&lock_ids).expect("non-empty vector; qed").ring_get(from);
                     let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
-                    if let Err(e) = Gas::unlock(LockIdentifier::Waitlist, from, amount) {
+                    if let Err(e) = Gas::unlock(lock_id, from, amount) {
                         assertions::assert_not_invariant_error(e)
                     } else {
                         forest.tree_mut(from).locked -= amount;
