@@ -19,7 +19,7 @@
 use anyhow::ensure;
 use clap::{ArgGroup, Parser};
 use frame_remote_externalities::{Mode, OnlineConfig, SnapshotConfig, Transport};
-use gclient::GearApi;
+use gclient::{GearApi, WSAddress};
 use gear_runtime::Block;
 use std::path::PathBuf;
 use tokio::process::Command;
@@ -60,7 +60,7 @@ impl TakeSnapshotCmd {
         } else {
             let uri = self.uri.unwrap();
             if uri == "gear-testnet" {
-                "wss://rpc-node.gear-tech.io:443".to_string()
+                WSAddress::gear().url()
             } else {
                 uri
             }
