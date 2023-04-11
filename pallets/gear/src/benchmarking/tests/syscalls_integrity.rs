@@ -67,6 +67,7 @@ where
             SysCallName::ReplyInputWGas => check_reply_input::<T>(Some(25_000_000_000)),
             SysCallName::CreateProgram => check_create_program::<T>(None),
             SysCallName::CreateProgramWGas => check_create_program::<T>(Some(25_000_000_000)),
+            SysCallName::CreateProvision => { } // TODO (breathx): add test,
             SysCallName::Read => {/* checked in all the calls internally */},
             SysCallName::Size => check_gr_size::<T>(),
             SysCallName::StatusCode => {/* checked in reply_to */},

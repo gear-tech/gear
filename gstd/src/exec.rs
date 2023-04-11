@@ -28,6 +28,11 @@ pub use gcore::exec::{
     value_available, wait, wait_for, wait_up_to,
 };
 
+/// TODO (breathx): add docs
+pub fn create_provision(message_id: MessageId, amount: u64) -> Result<()> {
+    gcore::exec::create_provision(message_id.into(), amount).map_err(Into::into)
+}
+
 /// Terminate the execution of a program.
 ///
 /// The program and all corresponding data are removed from the storage. It may

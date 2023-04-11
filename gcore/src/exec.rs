@@ -81,6 +81,13 @@ pub fn block_timestamp() -> u64 {
     timestamp
 }
 
+/// TODO (breathx): add docs
+pub fn create_provision(message_id: MessageId, amount: u64) -> Result<()> {
+    let mut len = 0u32;
+    unsafe { gsys::gr_create_provision(message_id.as_ptr(), amount, &mut len as *mut u32) };
+    SyscallError(len).into_result()
+}
+
 /// Terminate the execution of a program.
 ///
 /// The program and all corresponding data are removed from the storage. It may

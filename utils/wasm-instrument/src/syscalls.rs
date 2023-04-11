@@ -96,6 +96,7 @@ pub enum SysCallName {
     OutOfAllowance,
 
     // Miscellaneous
+    CreateProvision,
     Debug,
     Error,
     Random,
@@ -113,6 +114,7 @@ impl SysCallName {
             SysCallName::BlockTimestamp => "gr_block_timestamp",
             SysCallName::CreateProgram => "gr_create_program",
             SysCallName::CreateProgramWGas => "gr_create_program_wgas",
+            SysCallName::CreateProvision => "gr_create_provision",
             SysCallName::Debug => "gr_debug",
             SysCallName::Panic => "gr_panic",
             SysCallName::OomPanic => "gr_oom_panic",
@@ -228,6 +230,7 @@ impl SysCallName {
             Self::Value,
             Self::CreateProgram,
             Self::CreateProgramWGas,
+            Self::CreateProvision,
             Self::ReserveGas,
             Self::UnreserveGas,
             Self::Random,
@@ -292,6 +295,7 @@ impl SysCallName {
             Self::CreateProgramWGas => {
                 SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Gas, Delay, Ptr])
             }
+            Self::CreateProvision => SysCallSignature::gr([Ptr, Gas, Ptr]),
             Self::ReserveGas => SysCallSignature::gr([Gas, Duration, Ptr]),
             Self::UnreserveGas => SysCallSignature::gr([Ptr, Ptr]),
             Self::SystemReserveGas => SysCallSignature::gr([Gas, Ptr]),

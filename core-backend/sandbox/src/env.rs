@@ -147,6 +147,7 @@ where
         builder.add_func(BlockTimestamp, Funcs::block_timestamp);
         builder.add_func(CreateProgram, Funcs::create_program);
         builder.add_func(CreateProgramWGas, Funcs::create_program_wgas);
+        builder.add_func(CreateProvision, Funcs::create_provision);
         builder.add_func(Debug, Funcs::debug);
         builder.add_func(Panic, Funcs::panic);
         builder.add_func(OomPanic, Funcs::oom_panic);

@@ -352,6 +352,9 @@ extern "C" {
         err_mid_pid: *mut LengthWithTwoHashes,
     );
 
+    /// TODO (breathx): add docs
+    pub fn gr_create_provision(message_id: *const Hash, gas: Gas, err: *mut Length);
+
     /// Infallible `gr_debug` info syscall.
     ///
     /// Arguments type:
