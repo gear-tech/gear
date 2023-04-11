@@ -382,6 +382,8 @@ wasm-opt = "0.111.0"                                          # utils/wasm-build
 wasmprinter = "0.2"                                           # utils/wasm-gen
 whoami = "1.4.0"                                              # gcli
 which = "4.4.0"                                               # utils/wasm-builder
+# mutagen = { path = "/media/sabaun/4C71BE7650587C7D/documents/mutagen/mutagen" }
+mutagen = { git = "https://github.com/llogiq/mutagen" }
 
 [profile.release]
 panic = "unwind"
