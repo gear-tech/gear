@@ -29,7 +29,7 @@ use crate::{
         pallet_balances::AccountData,
     },
     result::{Error, Result},
-    types, Api, BlockNumber,
+    types, Api, BlockNumber, Program as GProgram,
 };
 use gear_core::ids::*;
 use hex::ToHex;
@@ -81,7 +81,7 @@ impl Api {
 
     /// Get program pages from program id.
     pub async fn program_pages(&self, pid: ProgramId) -> Result<types::GearPages> {
-        let (program, ..) = self.gprog(pid).await?;
+        let GProgram { program, .. } = self.gprog(pid).await?;
         self.gpages(pid, &program).await
     }
 }
@@ -267,10 +267,7 @@ impl Api {
     }
 
     /// Get active program from program id.
-    pub async fn gprog(
-        &self,
-        program_id: ProgramId,
-    ) -> Result<(ActiveProgram, BlockNumber, BlockNumber)> {
+    pub async fn gprog(&self, program_id: ProgramId) -> Result<GProgram> {
         self.gprog_at(program_id, None).await
     }
 
@@ -279,7 +276,7 @@ impl Api {
         &self,
         program_id: ProgramId,
         block_hash: Option<H256>,
-    ) -> Result<(ActiveProgram, BlockNumber, BlockNumber)> {
+    ) -> Result<GProgram> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "ProgramStorage",
@@ -291,7 +288,11 @@ impl Api {
             .await?;
 
         match item.program {
-            Program::Active(p) => Ok((p, item.block_number, item.hold_period)),
+            Program::Active(p) => Ok(GProgram {
+                program: p,
+                bn: item.block_number,
+                hold_period: item.hold_period,
+            }),
             _ => Err(Error::ProgramTerminated),
         }
     }

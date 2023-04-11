@@ -254,7 +254,11 @@ impl GearApi {
             }
         })?;
 
-        let (src_program, _, hold_period) = self
+        let gsdk::Program {
+            program: src_program,
+            hold_period,
+            ..
+        } = self
             .0
             .api()
             .gprog_at(src_program_id, src_block_hash)

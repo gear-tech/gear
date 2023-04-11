@@ -940,4 +940,16 @@ where
 
         inheritor
     }
+
+    pub(crate) fn schedule_pausing(
+        program_id: ProgramId,
+        block_number: BlockNumberFor<T>,
+        expiration_block: BlockNumberFor<T>,
+    ) {
+        if expiration_block > block_number {
+            let task = ScheduledTask::PauseProgram(program_id);
+            TaskPoolOf::<T>::add(expiration_block, task)
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+        }
+    }
 }

@@ -331,8 +331,6 @@ parameter_types! {
 
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
-    pub RentFreePeriod: BlockNumber = pallet_gear_program::migration::FREE_PERIOD;
-    pub RentCostPerBlock: Balance = EXISTENTIAL_DEPOSIT;
 }
 
 pub struct ProgramRentConfig;
@@ -341,8 +339,8 @@ impl common::ProgramRentConfig for ProgramRentConfig {
     type BlockNumber = BlockNumber;
     type Balance = Balance;
 
-    type FreePeriod = RentFreePeriod;
-    type CostPerBlock = RentCostPerBlock;
+    type FreePeriod = ConstU32<RENT_FREE_PERIOD>;
+    type CostPerBlock = ConstU128<EXISTENTIAL_DEPOSIT>;
 }
 
 impl pallet_gear::Config for Runtime {

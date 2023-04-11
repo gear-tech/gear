@@ -260,11 +260,10 @@ where
             Some(item) => item.program,
             None => {
                 // When an actor sends messages, which is intended to be added to the queue
-                // it's destination existence is always checked. The only case this doesn't
-                // happen is when program tries to submit another program with non-existing
-                // code hash. That's the only known case for reaching that branch.
-                //
-                // However there is another case with pausing program, but this API is unstable currently.
+                // it's destination existence is always checked. There are two cases this
+                // doesn't happen:
+                // 1. program tries to submit another program with non-existing code hash;
+                // 2. program was being paused after message enqueued.
                 return ActorResult::Data(None);
             }
         };

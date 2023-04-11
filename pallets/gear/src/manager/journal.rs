@@ -467,12 +467,7 @@ where
                     );
 
                     let expiration_block = block_number.saturating_add(interval);
-                    if expiration_block > block_number {
-                        let task = ScheduledTask::PauseProgram(candidate_id);
-                        TaskPoolOf::<T>::add(expiration_block, task).unwrap_or_else(|e| {
-                            unreachable!("Scheduling logic invalidated! {:?}", e)
-                        });
-                    }
+                    Pallet::<T>::schedule_pausing(candidate_id, block_number, expiration_block);
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }

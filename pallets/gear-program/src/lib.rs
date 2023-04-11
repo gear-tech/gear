@@ -316,7 +316,7 @@ pub mod pallet {
     }
 
     impl<T: Config> common::PausedProgramStorage for pallet::Pallet<T> {
-        type BlockNumber = BlockNumberFor<T>;
+        type BlockNumber = T::BlockNumber;
 
         type PausedProgramMap = PausedProgramStorageWrap<T>;
 
