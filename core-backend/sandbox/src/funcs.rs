@@ -923,8 +923,7 @@ where
                 bn: block_count,
             } = ctx.read_as(read_bn_pid)?;
 
-            ctx
-                .ext
+            ctx.ext
                 .pay_rent(program_id.into(), block_count)
                 .map_err(Into::into)
         })

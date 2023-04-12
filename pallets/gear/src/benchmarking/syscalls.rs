@@ -60,6 +60,8 @@ const PID_SIZE: u32 = size_of::<ProgramId>() as u32;
 const MID_SIZE: u32 = size_of::<MessageId>() as u32;
 /// Random subject size
 const RANDOM_SUBJECT_SIZE: u32 = 32;
+/// Size of block number.
+const BLOCK_NUMBER_SIZE: u32 = size_of::<gsys::BlockNumber>() as u32;
 
 /// Size of struct with fields: error len and handle
 const ERR_HANDLE_SIZE: u32 = ERR_LEN_SIZE + HANDLE_SIZE;
@@ -1419,6 +1421,27 @@ where
         };
 
         Self::prepare_handle(module, 0)
+    }
+
+    pub fn gr_pay_rent(r: u32) -> Result<Exec<T>, &'static str> {
+        let bn_pid_offset = COMMON_OFFSET;
+        let res_offset = bn_pid_offset + PID_SIZE + BLOCK_NUMBER_SIZE;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SysCallName::PayRent],
+            handle_body: Some(body::fallible_syscall(
+                r,
+                res_offset,
+                &[
+                    // block_number & program_id offset
+                    InstrI32Const(bn_pid_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 10_000_000)
     }
 
     pub fn lazy_pages_signal_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {

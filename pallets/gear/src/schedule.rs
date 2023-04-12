@@ -948,8 +948,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_gas_available: to_weight!(cost_batched!(gr_gas_available)),
             gr_message_id: to_weight!(cost_batched!(gr_message_id)),
             gr_origin: to_weight!(cost_batched!(gr_origin)),
-            // TODO:
-            gr_pay_rent: Default::default(),
+            gr_pay_rent: to_weight!(cost_batched!(gr_pay_rent)),
             gr_program_id: to_weight!(cost_batched!(gr_program_id)),
             gr_source: to_weight!(cost_batched!(gr_source)),
             gr_value: to_weight!(cost_batched!(gr_value)),
