@@ -626,7 +626,7 @@ impl ExtManager {
                 }
 
                 if let Some(payload) = reply {
-                    let id = MessageId::generate_reply(message_id, 0);
+                    let id = MessageId::generate_reply(message_id);
                     let packet = ReplyPacket::new(payload.try_into().unwrap(), 0);
                     let reply_message = ReplyMessage::from_packet(id, packet);
 
@@ -665,7 +665,7 @@ impl ExtManager {
                 }
 
                 if !dispatch.kind().is_signal() {
-                    let id = MessageId::generate_reply(message_id, 1);
+                    let id = MessageId::generate_reply(message_id);
                     let packet = ReplyPacket::new(Default::default(), 1);
                     let reply_message = ReplyMessage::from_packet(id, packet);
 

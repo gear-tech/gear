@@ -107,6 +107,7 @@ fn gasfull_after_gasless() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -242,6 +243,7 @@ fn waited_with_zero_gas() {
             HandleKind::Init(code.clone()),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
             true,
         )
         .expect("calculate_gas_info failed");
@@ -397,7 +399,7 @@ fn delayed_user_replacement() {
             DEFAULT_SALT.to_vec(),
             InputArgs {
                 destination: <[u8; 32]>::from(future_program_address).into(),
-                delay: 1,
+                delay: 2,
             }
             .encode(),
             DEFAULT_GAS_LIMIT * 100,
@@ -422,15 +424,6 @@ fn delayed_user_replacement() {
 
         run_to_block(3, None);
 
-        // Message sending delayed.
-        assert!(TaskPoolOf::<Test>::contains(
-            &4,
-            &ScheduledTask::SendUserMessage {
-                message_id: delayed_id,
-                to_mailbox
-            }
-        ));
-
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             code,
@@ -442,12 +435,25 @@ fn delayed_user_replacement() {
 
         assert_eq!(future_program_address, utils::get_last_program_id());
 
+        run_to_block(4, None);
+
+        // Message sending delayed.
+        assert!(TaskPoolOf::<Test>::contains(
+            &5,
+            &ScheduledTask::SendUserMessage {
+                message_id: delayed_id,
+                to_mailbox
+            }
+        ));
+
+        System::reset_events();
+
         run_to_next_block(None);
         assert!(Gear::is_initialized(future_program_address));
 
         // Delayed message sent.
         assert!(!TaskPoolOf::<Test>::contains(
-            &4,
+            &5,
             &ScheduledTask::SendUserMessage {
                 message_id: delayed_id,
                 to_mailbox
@@ -1123,6 +1129,7 @@ fn unstoppable_block_execution_works() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -1668,6 +1675,7 @@ fn mailbox_sending_instant_transfer() {
                 HandleKind::Handle(sender),
                 payload.clone().encode(),
                 0,
+                true,
                 true,
             )
             .expect("calculate_gas_info failed");
@@ -2714,6 +2722,7 @@ fn block_gas_limit_works() {
                 EMPTY_PAYLOAD.to_vec(),
                 0,
                 true,
+                true,
             )
             .expect("calculate_gas_info failed");
 
@@ -2725,6 +2734,7 @@ fn block_gas_limit_works() {
                 HandleKind::Handle(pid2),
                 EMPTY_PAYLOAD.to_vec(),
                 0,
+                true,
                 true,
             )
             .expect("calculate_gas_info failed");
@@ -3296,6 +3306,7 @@ fn claim_value_works() {
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
             true,
         )
         .expect("calculate_gas_info failed");
@@ -3879,6 +3890,7 @@ fn test_different_waits_success() {
             payload.clone(),
             value,
             false,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -3910,6 +3922,7 @@ fn test_different_waits_success() {
             payload.clone(),
             value,
             false,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -3944,6 +3957,7 @@ fn test_different_waits_success() {
             payload.clone(),
             value,
             false,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -4002,6 +4016,7 @@ fn test_different_waits_fail() {
             payload.clone(),
             value,
             false,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -4037,6 +4052,7 @@ fn test_different_waits_fail() {
             payload.clone(),
             value,
             false,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -4072,6 +4088,7 @@ fn test_different_waits_fail() {
             payload.clone(),
             value,
             false,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -4108,6 +4125,7 @@ fn test_different_waits_fail() {
             Command::WaitFor(1).encode(),
             value,
             false,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -4144,6 +4162,7 @@ fn test_different_waits_fail() {
             Command::WaitUpTo(1).encode(),
             value,
             false,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -4694,6 +4713,7 @@ fn terminated_locking_funds() {
             USER_3.into_origin().encode(),
             5_000,
             true,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -4792,6 +4812,7 @@ fn terminated_locking_funds() {
             HandleKind::Reply(message_to_reply, 0),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
             true,
         )
         .expect("calculate_gas_info failed");
@@ -5098,7 +5119,7 @@ fn test_create_program_simple() {
 
         // First extrinsic call with successful program creation dequeues and executes init and dispatch messages
         // Second extrinsic is failing one, for each message it generates replies, which are executed (4 dequeued, 2 dispatched)
-        assert_total_dequeued(6 + 3); // +3 for extrinsics
+        assert_total_dequeued(6 + 3 + 4); // +3 for extrinsics +4 for auto generated replies
         assert_init_success(1 + 1); // +1 for submitting factory
 
         System::reset_events();
@@ -5131,7 +5152,7 @@ fn test_create_program_simple() {
         ));
         run_to_block(6, None);
 
-        assert_total_dequeued(12 + 2); // +2 for extrinsics
+        assert_total_dequeued(12 + 2 + 8); // +2 for extrinsics +8 for auto generated replies
         assert_init_success(2);
     })
 }
@@ -5184,7 +5205,7 @@ fn test_create_program_duplicate() {
         // When duplicate try happens, init is not executed, a reply is generated and executed (+2 dequeued, +1 dispatched)
         // Concerning dispatch message, it is executed, because destination exists (+1 dispatched, +1 dequeued)
         assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
-        assert_total_dequeued(3 + 3); // +3 from extrinsics (2 upload_program, 1 send_message)
+        assert_total_dequeued(3 + 3 + 2); // +3 from extrinsics (2 upload_program, 1 send_message) +2 for auto generated replies
         assert_init_success(2); // +2 from extrinsics (2 upload_program)
 
         System::reset_events();
@@ -5216,7 +5237,7 @@ fn test_create_program_duplicate() {
         // Second call will not cause init message execution, but a reply will be generated (+2 dequeued, +1 dispatched)
         // Handle message from the second call will be executed (addressed for existing destination) (+1 dequeued, +1 dispatched)
         assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
-        assert_total_dequeued(5 + 2); // +2 from extrinsics (send_message)
+        assert_total_dequeued(5 + 2 + 6); // +2 from extrinsics (send_message) +6 for auto generated replies
         assert_init_success(1);
 
         assert_noop!(
@@ -5290,7 +5311,7 @@ fn test_create_program_duplicate_in_one_execution() {
 
         run_to_block(4, None);
 
-        assert_total_dequeued(2 + 1); // 1 for extrinsics
+        assert_total_dequeued(2 + 1 + 4); // 1 for extrinsics +4 for auto generated replies
         assert_init_success(1);
     });
 }
@@ -5390,7 +5411,7 @@ fn test_create_program_miscellaneous() {
 
         run_to_block(5, None);
 
-        assert_total_dequeued(18 + 4); // +4 for 3 send_message calls and 1 upload_program call
+        assert_total_dequeued(18 + 4 + 12); // +4 for 3 send_message calls and 1 upload_program call +12 for auto generated replies
         assert_init_success(3 + 1); // +1 for submitting factory
     });
 }
@@ -5482,6 +5503,7 @@ fn no_redundant_gas_value_after_exiting() {
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
             true,
         )
         .expect("calculate_gas_info failed");
@@ -5707,6 +5729,7 @@ fn calculate_init_gas() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            true,
         )
         .unwrap()
     });
@@ -5724,6 +5747,7 @@ fn calculate_init_gas() {
             HandleKind::InitByHash(code_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
             true,
         )
         .unwrap();
@@ -5795,6 +5819,7 @@ fn gas_spent_vs_balance() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            true,
         )
         .unwrap();
 
@@ -5817,6 +5842,7 @@ fn gas_spent_vs_balance() {
             HandleKind::Handle(prog_id),
             request,
             0,
+            true,
             true,
         )
         .unwrap();
@@ -5908,7 +5934,7 @@ fn gas_spent_precalculated() {
             HandleKind::Init(ProgramCodeKind::Custom(wat_init).to_bytes()),
             EMPTY_PAYLOAD.to_vec(),
             0,
-            true,
+            true, true,
         )
         .unwrap();
 
@@ -5920,7 +5946,7 @@ fn gas_spent_precalculated() {
             HandleKind::Init(ProgramCodeKind::Custom(wat_no_counter).to_bytes()),
             EMPTY_PAYLOAD.to_vec(),
             0,
-            true,
+            true, true,
         )
         .unwrap();
 
@@ -5946,7 +5972,7 @@ fn gas_spent_precalculated() {
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
-            true,
+            true, true,
         )
         .unwrap();
 
@@ -5987,7 +6013,7 @@ fn gas_spent_precalculated() {
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
-            true,
+            true, true,
         )
         .expect("calculate_gas_info failed");
 
@@ -6127,7 +6153,7 @@ fn test_create_program_with_value_lt_ed() {
         run_to_block(2, None);
 
         // init messages sent by user and by program
-        assert_total_dequeued(2);
+        assert_total_dequeued(2 + 2);
         // programs deployed by user and by program
         assert_init_success(2);
 
@@ -6288,7 +6314,7 @@ fn test_create_program_without_gas_works() {
 
         run_to_block(2, None);
 
-        assert_total_dequeued(2);
+        assert_total_dequeued(2 + 2);
         assert_init_success(2);
     })
 }
@@ -6312,7 +6338,7 @@ fn test_reply_to_terminated_program() {
 
         let mail_id = {
             let original_message_id = get_last_message_id();
-            MessageId::generate_reply(original_message_id, 0)
+            MessageId::generate_reply(original_message_id)
         };
 
         run_to_block(2, None);
@@ -6357,6 +6383,7 @@ fn calculate_gas_info_for_wait_dispatch_works() {
             HandleKind::Init(demo_init_wait::WASM_BINARY.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
             true,
         )
         .unwrap();
@@ -6504,6 +6531,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             HandleKind::Handle(wrapper_id),
             payload.clone(),
             value,
+            true,
             true,
         )
         .expect("Failed to get gas spent");
@@ -6690,6 +6718,7 @@ fn execution_over_blocks() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            true,
         )
         .expect("Failed to get gas spent");
 
@@ -6713,6 +6742,7 @@ fn execution_over_blocks() {
             HandleKind::Handle(in_one_block),
             pkg.encode(),
             0,
+            true,
             true,
         )
         .expect("Failed to get gas spent");
@@ -6804,7 +6834,13 @@ fn execution_over_blocks() {
         run_to_next_block(None);
 
         let mut count = 0;
-        while maybe_last_message(USER_1).is_none() {
+        loop {
+            let lm = maybe_last_message(USER_1);
+
+            if !(lm.is_none() || lm.unwrap().payload().is_empty()) {
+                break;
+            }
+
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 over_blocks,
@@ -6847,6 +6883,7 @@ fn call_forbidden_function() {
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
             true,
         );
 
@@ -6975,6 +7012,7 @@ fn missing_functions_are_not_executed() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -7022,6 +7060,7 @@ fn missing_functions_are_not_executed() {
             HandleKind::Reply(reply_to_id, 0),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
             true,
         )
         .expect("calculate_gas_info failed");
@@ -7597,7 +7636,7 @@ fn signal_during_precharge() {
                     )
                 })
                 .count(),
-            2 // reply from program + reply to user because of panic
+            2 + 1 // reply from program + reply to user because of panic +1 for auto generated replies
         );
     });
 }
@@ -7666,7 +7705,7 @@ fn signal_during_prepare() {
                     )
                 })
                 .count(),
-            2 // reply from program + reply to user because of panic
+            2 + 1 // reply from program + reply to user because of panic +1 for auto generated replies
         );
     });
 }
@@ -7701,6 +7740,7 @@ fn signal_async_wait_works() {
             HandleKind::Handle(pid),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
             true,
         )
         .expect("calculate_gas_info failed");
@@ -7810,6 +7850,7 @@ fn system_reservation_unreserve_works() {
             HandleKind::Handle(pid),
             HandleAction::Simple.encode(),
             0,
+            true,
             true,
         )
         .expect("calculate_gas_info failed");
@@ -8288,6 +8329,7 @@ fn gas_reservation_works() {
             HandleAction::Unreserve.encode(),
             0,
             true,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -8635,6 +8677,7 @@ fn system_reservation_gas_allowance_rollbacks() {
             HandleAction::Simple.encode(),
             0,
             true,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -8851,6 +8894,7 @@ mod utils {
             HandleKind::Handle(destination),
             payload.clone(),
             value,
+            true,
             true,
         )
         .expect("calculate_gas_info failed");
@@ -9809,6 +9853,7 @@ fn relay_messages() {
         },
     ]);
 
+    // TODO (breathx): check why changed order.
     let expected = vec![
         Expected {
             user: USER_2,
@@ -9820,11 +9865,11 @@ fn relay_messages() {
         },
         Expected {
             user: USER_3,
-            payload: payload[12..].to_vec(),
+            payload: vec![],
         },
         Expected {
             user: USER_3,
-            payload: vec![],
+            payload: payload[12..].to_vec(),
         },
         Expected {
             user: USER_3,

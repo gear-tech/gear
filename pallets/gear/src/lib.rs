@@ -704,6 +704,7 @@ pub mod pallet {
                 payload,
                 value,
                 allow_other_panics,
+                false,
             )
         }
 
@@ -714,6 +715,7 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
             allow_other_panics: bool,
+            allow_skip_zero_replies: bool,
         ) -> Result<GasInfo, String> {
             log::debug!("\n===== CALCULATE GAS INFO =====\n");
             log::debug!("\n--- FIRST TRY ---\n");
@@ -729,6 +731,7 @@ pub mod pallet {
                     payload.clone(),
                     value,
                     allow_other_panics,
+                    allow_skip_zero_replies,
                 )
                 .map_err(|e| {
                     String::from_utf8(e)
@@ -746,6 +749,7 @@ pub mod pallet {
                     payload,
                     value,
                     allow_other_panics,
+                    allow_skip_zero_replies,
                 )
                 .map(
                     |GasInfo {
@@ -1534,7 +1538,7 @@ pub mod pallet {
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
-                MessageId::generate_reply(mailboxed.id(), 0),
+                MessageId::generate_reply(mailboxed.id()),
                 ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into()),
             );
 

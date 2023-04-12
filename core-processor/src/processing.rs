@@ -356,6 +356,26 @@ pub fn process_success(
         });
     }
 
+    // Sending auto-generated reply about success execution.
+    if matches!(kind, SuccessfulDispatchResultKind::Success)
+        && !context_store.reply_sent()
+        && !dispatch.is_reply()
+        && dispatch.kind() != DispatchKind::Signal
+    {
+        let dispatch = ReplyMessage::auto(dispatch.id()).into_dispatch(
+            program_id,
+            dispatch.source(),
+            dispatch.id(),
+        );
+
+        journal.push(JournalNote::SendDispatch {
+            message_id,
+            dispatch,
+            delay: 0,
+            reservation: None,
+        })
+    }
+
     for (dispatch, delay, reservation) in generated_dispatches {
         journal.push(JournalNote::SendDispatch {
             message_id,
