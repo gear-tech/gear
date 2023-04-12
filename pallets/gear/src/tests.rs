@@ -5434,6 +5434,22 @@ fn test_pay_rent_syscall_works() {
         let program =
             ProgramStorageOf::<Test>::get_program(pay_rent_id).expect("program should exist");
         assert_eq!(old_block + u64::from(block_count), program.block_number);
+
+        // attempt to pay rent for not existing program
+        let pay_rent_account_id = AccountId::from_origin(pay_rent_id.into_origin());
+        let balance_before = Balances::free_balance(pay_rent_account_id);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            pay_rent_id,
+            test_syscalls::Kind::PayRent([0u8; 32], block_count).encode(),
+            20_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert_eq!(balance_before, Balances::free_balance(pay_rent_account_id));
     });
 }
 

@@ -19,9 +19,8 @@
 use crate::{
     internal::HoldBound,
     manager::{CodeInfo, ExtManager},
-    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf,
-    GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, RentCostPerBlockOf, RentFreePeriodOf, SentOf,
-    TaskPoolOf, WaitlistOf,
+    Authorship, Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, Pallet,
+    ProgramStorageOf, QueueOf, RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -43,7 +42,7 @@ use gear_core::{
 };
 use gear_core_errors::SimpleSignalError;
 use sp_core::Get as _;
-use sp_runtime::traits::{UniqueSaturatedFrom, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
@@ -627,20 +626,20 @@ where
             .unwrap_or_else(|| unreachable!("Failed to find block author!"));
 
         let from = <T::AccountId as Origin>::from_origin(payer.into_origin());
-        let value =
-            RentCostPerBlockOf::<T>::get() * BalanceOf::<T>::unique_saturated_from(block_count);
-
-        CurrencyOf::<T>::transfer(
-            &from,
-            &block_author,
-            value,
-            ExistenceRequirement::AllowDeath,
-        )
-        .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+        let block_count = block_count.unique_saturated_into();
+        let value = Pallet::<T>::rent_fee_for(block_count);
 
         ProgramStorageOf::<T>::update_program_if_active(
             program_id,
             |_p, block_number| {
+                CurrencyOf::<T>::transfer(
+                    &from,
+                    &block_author,
+                    value,
+                    ExistenceRequirement::AllowDeath,
+                )
+                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+
                 let old_block = *block_number;
                 let block_count = block_count.unique_saturated_into();
                 *block_number = old_block.saturating_add(block_count);
@@ -655,7 +654,7 @@ where
             },
         )
         .unwrap_or_else(|e| {
-            unreachable!("Hold period may only be set for active program {:?}", e);
+            log::debug!("Hold period may only be set for active program {e:?}");
         });
     }
 }
