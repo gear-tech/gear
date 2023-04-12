@@ -909,6 +909,27 @@ where
         })
     }
 
+    /// Fallible `gr_pay_rent` syscall.
+    pub fn pay_rent(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        sys_trace!(target: "syscalls", "pay_rent, args = {}", args_to_str(args));
+
+        let (bn_pid_ptr, err_ptr) = args.iter().read_2()?;
+
+        ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::PayRent, |ctx| {
+            let read_bn_pid = ctx.register_read_as(bn_pid_ptr);
+
+            let BlockNumberWithHash {
+                hash: program_id,
+                bn: block_count,
+            } = ctx.read_as(read_bn_pid)?;
+
+            ctx
+                .ext
+                .pay_rent(program_id.into(), block_count)
+                .map_err(Into::into)
+        })
+    }
+
     /// Infallible `gr_source` syscall.
     pub fn source(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let source_ptr = args.iter().read();

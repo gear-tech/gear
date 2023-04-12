@@ -159,6 +159,7 @@ where
         builder.add_func(Leave, Funcs::leave);
         builder.add_func(MessageId, Funcs::message_id);
         builder.add_func(Origin, Funcs::origin);
+        builder.add_func(PayRent, Funcs::pay_rent);
         builder.add_func(ProgramId, Funcs::program_id);
         builder.add_func(Random, Funcs::random);
         builder.add_func(Read, Funcs::read);
