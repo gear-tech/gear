@@ -416,9 +416,6 @@ inherits = "release"
 debug = true
 
 [patch.crates-io]
-# TODO: remove after Substrate update
-wasmtime-runtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }
-wasmtime = { git = "https://github.com/gear-tech/wasmtime", rev = "b16cc8eaf40f95b3b1eec2869c08ccd61bdf65fe" }
 parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }
 wasm-instrument = { version = "0.3.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.3.0-sign-ext" }
