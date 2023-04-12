@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(deprecated)]
 
 use codec::{Decode, Encode};
 use gstd::{msg, prelude::*};
@@ -16,6 +17,8 @@ pub struct MessageIn {
     msg: String,
 }
 
+// NOTE: this macro has been deprecated, see
+// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
 gstd::metadata! {
     title: "Guestbook",
     handle:
