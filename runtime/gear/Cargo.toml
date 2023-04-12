@@ -2,7 +2,7 @@
 name = "gear-runtime"
 version = "0.1.0"
 authors = ["Gear Technologies"]
-edition = "2018"
+edition = "2021"
 build = "build.rs"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
