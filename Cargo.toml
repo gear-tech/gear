@@ -357,7 +357,7 @@ errno = "0.3"                                                 # gear-lazy-pages
 impl-trait-for-tuples = "0.2.2"                               # pallets/staking-rewards
 indicatif = "*"                                               # utils/wasm-gen
 keyring = "1.2.1"                                             # gcli
-libp2p = "0.51.2"                                             # gcli
+libp2p = "=0.50.1"                                            # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.34", default-features = false }   # node/cli
 nacl = "0.5.3"                                                # gcli
 nix = "0.26.2"                                                # gear-lazy-pages
@@ -377,7 +377,6 @@ tracing = "0.1.37"                                            # utils/node-loder
 tracing-appender = "0.2"                                      # utils/node-loder
 tracing-subscriber = "0.3.16"                                 # utils/node-loder
 trybuild = "1"                                                # gstd/codegen
-wasmtime = "1"                                                # gcli
 wasm-opt = "0.111.0"                                          # utils/wasm-builder
 wasmprinter = "0.2"                                           # utils/wasm-gen
 whoami = "1.4.0"                                              # gcli

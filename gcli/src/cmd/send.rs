@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `send`
-use crate::{result::Result, utils};
+use crate::{result::Result, utils::Hex};
 use clap::Parser;
 use gsdk::signer::Signer;
 
@@ -57,8 +57,8 @@ impl Send {
     pub async fn exec(&self, signer: Signer) -> Result<()> {
         signer
             .send_message(
-                utils::hex_to_hash(&self.destination)?.into(),
-                utils::hex_to_vec(&self.payload)?,
+                self.destination.to_hash()?.into(),
+                self.payload.to_vec()?,
                 self.gas_limit,
                 self.value,
             )

@@ -174,7 +174,6 @@ where
                 .define("env", name.to_str(), function)
                 .map_err(|e| System(Linking(e)))?;
         }
-
         let module = Module::new(store.engine(), binary)
             .map_err(|e| Actor(ext.gas_amount(), e.to_string()))?;
 

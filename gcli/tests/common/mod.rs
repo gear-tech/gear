@@ -39,7 +39,7 @@ pub mod traits;
 
 #[cfg(not(feature = "vara-testing"))]
 mod prelude {
-    pub use parity_scale_codec::Encode;
+    pub use scale_info::scale::Encode;
 
     pub const ALICE_SS58_ADDRESS: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
     pub const MESSAGER_SENT_VALUE: u128 = 5_000;
@@ -97,7 +97,7 @@ pub async fn create_messager() -> Result<Node> {
     let mut node = Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let args = Args::new("upload-program").program(env::wasm_bin("messager.opt.wasm"));
+    let args = Args::new("upload").program(env::wasm_bin("messager.opt.wasm"));
     #[cfg(not(feature = "vara-testing"))]
     let args = args
         .payload("0x".to_owned() + &hex::encode(MESSAGER_SENT_VALUE.encode()))

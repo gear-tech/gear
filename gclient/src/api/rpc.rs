@@ -19,13 +19,9 @@
 
 use crate::{api::Result, GearApi};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
-use gsdk::{
-    ext::{sp_core::H256, sp_runtime::DeserializeOwned},
-    types::GasInfo,
-};
+use gsdk::{ext::sp_core::H256, types::GasInfo};
 use parity_scale_codec::{Decode, Encode};
 use std::path::Path;
-use subxt::rpc::{rpc_params, RpcParams};
 
 use crate::utils;
 
@@ -242,9 +238,7 @@ impl GearApi {
         program_id: ProgramId,
         at: Option<H256>,
     ) -> Result<Vec<u8>> {
-        let response: String = self
-            .rpc_request("gear_readState", rpc_params![H256(program_id.into()), at])
-            .await?;
+        let response: String = self.0.api().read_state(H256(program_id.into()), at).await?;
         crate::utils::hex_to_vec(response).map_err(Into::into)
     }
 
@@ -286,16 +280,9 @@ impl GearApi {
         at: Option<H256>,
     ) -> Result<Vec<u8>> {
         let response: String = self
-            .rpc_request(
-                "gear_readStateUsingWasm",
-                rpc_params![
-                    H256(program_id.into()),
-                    hex::encode(fn_name),
-                    hex::encode(wasm),
-                    argument.map(hex::encode),
-                    at
-                ],
-            )
+            .0
+            .api()
+            .read_state_using_wasm(H256(program_id.into()), fn_name, wasm, argument, at)
             .await?;
         crate::utils::hex_to_vec(response).map_err(Into::into)
     }
@@ -410,14 +397,23 @@ impl GearApi {
     /// Same as [`read_metahash`](Self::read_metahash), but read the program's
     /// metahash at the block identified by its hash.
     pub async fn read_metahash_at(&self, program_id: ProgramId, at: Option<H256>) -> Result<H256> {
-        self.rpc_request(
-            "gear_readMetahash",
-            rpc_params![H256(program_id.into()), at],
-        )
-        .await
+        self.0
+            .api()
+            .read_meta_hash(H256(program_id.into()), at)
+            .await
+            .map_err(Into::into)
     }
 
-    async fn rpc_request<T: DeserializeOwned>(&self, method: &str, params: RpcParams) -> Result<T> {
+    // Reserved for development usages.
+    //
+    // NOTE: Please gather the low-level rpc requests in `[gsdk::rpc]` module.
+    #[cfg(test)]
+    #[allow(unused)]
+    async fn rpc_request<T: gsdk::ext::sp_runtime::DeserializeOwned>(
+        &self,
+        method: &str,
+        params: subxt::rpc::RpcParams,
+    ) -> Result<T> {
         self.0
             .api()
             .rpc()
