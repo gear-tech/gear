@@ -9,10 +9,10 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
-log.workspace = true
-sp-io.workspace = true
-sp-std.workspace = true
-sp-wasm-interface.workspace = true
+log = { workspace = true, features = ["std"] }
+sp-io = { workspace = true, features = ["std"] }
+sp-std = { workspace = true, features = ["std"] }
+sp-wasm-interface = { workspace = true, features = ["std"] }
 sc-executor-common.workspace = true
 cfg-if.workspace = true
 region.workspace = true
