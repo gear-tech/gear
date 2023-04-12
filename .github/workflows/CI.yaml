@@ -219,8 +219,11 @@ jobs:
       - name: "Build: WAT examples"
         run: ./scripts/gear.sh build wat-examples
 
-      - name: Check runtime imports
-        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.wasm
+      - name: "Check: Gear runtime imports"
+        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm
+
+      - name: "Check: Vara runtime imports"
+        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
