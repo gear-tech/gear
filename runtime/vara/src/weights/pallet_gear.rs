@@ -41,6 +41,7 @@ pub trait WeightInfo {
     fn db_read_per_kb(c: u32, ) -> Weight;
     fn instantiate_module_per_kb(c: u32, ) -> Weight;
     fn claim_value() -> Weight;
+    fn pay_rent() -> Weight;
     fn upload_code(c: u32, ) -> Weight;
     fn create_program(s: u32, ) -> Weight;
     fn upload_program(c: u32, s: u32, ) -> Weight;
@@ -268,6 +269,15 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Estimated: `22733`
         // Minimum execution time: 59_572_000 picoseconds.
         Weight::from_parts(61_124_000, 22733)
+            .saturating_add(T::DbWeight::get().reads(7_u64))
+            .saturating_add(T::DbWeight::get().writes(5_u64))
+    }
+    fn pay_rent() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `679`
+        //  Estimated: `15019`
+        // Minimum execution time: 60_915 nanoseconds.
+        Weight::from_parts(71_195_000, 15019)
             .saturating_add(T::DbWeight::get().reads(7_u64))
             .saturating_add(T::DbWeight::get().writes(5_u64))
     }
@@ -2009,6 +2019,15 @@ impl WeightInfo for () {
         //  Estimated: `22733`
         // Minimum execution time: 59_572_000 picoseconds.
         Weight::from_parts(61_124_000, 22733)
+            .saturating_add(RocksDbWeight::get().reads(7_u64))
+            .saturating_add(RocksDbWeight::get().writes(5_u64))
+    }
+    fn pay_rent() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `679`
+        //  Estimated: `15019`
+        // Minimum execution time: 60_915 nanoseconds.
+        Weight::from_parts(71_195_000, 15019)
             .saturating_add(RocksDbWeight::get().reads(7_u64))
             .saturating_add(RocksDbWeight::get().writes(5_u64))
     }

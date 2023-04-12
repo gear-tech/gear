@@ -1691,8 +1691,7 @@ pub mod pallet {
 
         /// Pay additional rent for the program.
         #[pallet::call_index(8)]
-        #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
-        // #[pallet::weight(<T as Config>::WeightInfo::extend_rent_interval())]
+        #[pallet::weight(<T as Config>::WeightInfo::pay_rent())]
         pub fn pay_rent(
             origin: OriginFor<T>,
             program_id: ProgramId,

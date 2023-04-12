@@ -62,7 +62,7 @@ use ::alloc::vec;
 use common::{
     self, benchmarking,
     storage::{Counter, *},
-    CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
+    CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, ProgramStorage,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -419,6 +419,24 @@ benchmarks! {
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
         assert!(MailboxOf::<T>::is_empty(&caller));
+    }
+
+    pay_rent {
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
+
+        let hold_period = 1_000u32.into();
+
+        init_block::<T>(None);
+    }: _(RawOrigin::Signed(caller.clone()), program_id, hold_period)
+    verify {
+        let item = <T as pallet::Config>::ProgramStorage::get_program(program_id)
+            .expect("program should exist");
+        assert_eq!(item.hold_period, hold_period);
     }
 
     // This constructs a program that is maximal expensive to instrument.
