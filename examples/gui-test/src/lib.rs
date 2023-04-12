@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(deprecated)]
 
 use codec::{Decode, Encode};
 use core::convert::TryInto;
@@ -23,6 +24,8 @@ struct CustomStruct<T: Decode + Encode + TypeInfo> {
     field: T,
 }
 
+// NOTE: this macro has been deprecated, see
+// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
 gstd::metadata! {
     title: "GUI test program",
     init:

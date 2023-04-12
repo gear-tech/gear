@@ -20,7 +20,7 @@ log.workspace = true
 impl-trait-for-tuples.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
 
-frame-support = { workspace = true, default-features = false }
+frame-support = { workspace = true }
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 sp-std.workspace = true

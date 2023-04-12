@@ -81,7 +81,7 @@ where
         write_per_byte_cost: schedule.db_write_per_byte.ref_time(),
         read_per_byte_cost: schedule.db_read_per_byte.ref_time(),
         module_instantiation_byte_cost: schedule.module_instantiation_per_byte.ref_time(),
-        max_reservations: u64::MAX,
+        max_reservations: T::ReservationsLimit::get(),
         code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
         code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
     }

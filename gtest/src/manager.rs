@@ -356,8 +356,12 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
+    pub(crate) fn validate_and_run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
         self.validate_dispatch(&dispatch);
+        self.run_dispatch(dispatch)
+    }
+
+    pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
         self.prepare_for(&dispatch);
 
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());

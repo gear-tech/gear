@@ -28,7 +28,7 @@ jobs:
         run: cargo upgrade --exclude scale-info,parity-scale-codec --verbose
 
       - name: "Create Pull Request"
-        uses: peter-evans/create-pull-request@v4
+        uses: peter-evans/create-pull-request@v5
         with:
           title: "deps: upgrade dependencies"
           body: |

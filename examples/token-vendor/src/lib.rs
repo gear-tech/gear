@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(deprecated)]
 
 extern crate alloc;
 
@@ -118,6 +119,8 @@ static mut STATE: State = State {
     members: BTreeSet::new(),
 };
 
+// NOTE: this macro has been deprecated, see
+// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
 gstd::metadata! {
     title: "Workshop token vendor contract",
     init:
