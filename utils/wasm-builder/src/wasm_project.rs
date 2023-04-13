@@ -145,7 +145,6 @@ impl WasmProject {
         let mut release_profile = Table::new();
         release_profile.insert("lto".into(), true.into());
         release_profile.insert("opt-level".into(), "s".into());
-        release_profile.insert("strip".into(), "debuginfo".into());
 
         let mut production_profile = Table::new();
         production_profile.insert("inherits".into(), "release".into());
