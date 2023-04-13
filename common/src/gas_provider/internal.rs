@@ -520,7 +520,12 @@ where
         let positive_imbalance = PositiveImbalance::new(amount);
 
         // Update Total in storage
-        TotalValue::mutate(|total| positive_imbalance.apply_to(total));
+        TotalValue::mutate(|total| {
+            positive_imbalance.apply_to(total).map_err(|_| {
+                *total = None;
+                InternalError::total_value_is_overflowed()
+            })
+        })?;
 
         Ok(positive_imbalance)
     }
@@ -652,7 +657,12 @@ where
 
         // Update Total in storage
         if let Some((negative_imbalance, _)) = res.as_ref() {
-            TotalValue::mutate(|total| negative_imbalance.apply_to(total));
+            TotalValue::mutate(|total| {
+                negative_imbalance.apply_to(total).map_err(|_| {
+                    *total = None;
+                    InternalError::total_value_is_underflowed()
+                })
+            })?;
         }
 
         Ok(res)
@@ -694,7 +704,12 @@ where
         let negative_imbalance = NegativeImbalance::new(amount);
 
         // Update Total in storage
-        TotalValue::mutate(|total| negative_imbalance.apply_to(total));
+        TotalValue::mutate(|total| {
+            negative_imbalance.apply_to(total).map_err(|_| {
+                *total = None;
+                InternalError::total_value_is_underflowed()
+            })
+        })?;
 
         Ok(negative_imbalance)
     }

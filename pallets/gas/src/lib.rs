@@ -196,6 +196,14 @@ pub mod pallet {
 
         /// `GasTree::consume` called on node, which has some system reservation.
         ConsumedWithSystemReservation,
+
+        /// `GasTree::create` called with some value amount leading to
+        /// the total value overflow.
+        TotalValueIsOverflowed,
+
+        /// Either `GasTree::consume` or `GasTree::spent` called on a node creating
+        /// negative imbalance which leads to the total value drop below 0.
+        TotalValueIsUnderflowed,
     }
 
     impl<T: Config> GasError for Error<T> {
@@ -253,6 +261,14 @@ pub mod pallet {
 
         fn consumed_with_system_reservation() -> Self {
             Self::ConsumedWithSystemReservation
+        }
+
+        fn total_value_is_overflowed() -> Self {
+            Self::TotalValueIsOverflowed
+        }
+
+        fn total_value_is_underflowed() -> Self {
+            Self::TotalValueIsUnderflowed
         }
     }
 

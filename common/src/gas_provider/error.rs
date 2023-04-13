@@ -76,4 +76,12 @@ pub trait Error {
 
     /// `GasTree::consume` called on node, which has some system reservation.
     fn consumed_with_system_reservation() -> Self;
+
+    /// `GasTree::create` called with some value amount leading to
+    /// the total value overflow.
+    fn total_value_is_overflowed() -> Self;
+
+    /// Either `GasTree::consume` or `GasTree::spent` called on a node creating
+    /// negative imbalance which leads to the total value drop below 0.
+    fn total_value_is_underflowed() -> Self;
 }
