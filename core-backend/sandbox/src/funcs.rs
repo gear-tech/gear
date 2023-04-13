@@ -1322,9 +1322,7 @@ trait WasmCompatible: Sized {
 }
 
 impl WasmCompatible for () {
-    fn from(_arg: Value) -> Self {
-        ()
-    }
+    fn from(_arg: Value) -> Self {}
 
     fn throw_back(self) -> ReturnValue {
         ReturnValue::Unit
