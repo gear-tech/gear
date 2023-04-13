@@ -153,3 +153,4 @@ lazy-pages = [
 	"pallet-gear-payment/lazy-pages",
 	"pallet-gear-debug?/lazy-pages",
 ]
+fuzz = ["pallet-gear/fuzz", "common/fuzz"]

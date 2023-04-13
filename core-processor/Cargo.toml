@@ -16,14 +16,10 @@ log.workspace = true
 derive_more.workspace = true
 static_assertions.workspace = true
 
-mutagen = { workspace = true, optional = true }
-
 [dev-dependencies]
 proptest.workspace = true
 env_logger.workspace = true
 enum-iterator.workspace = true
 
 [features]
-default = ["std"]
-std = ["mutagen"]
 strict = []

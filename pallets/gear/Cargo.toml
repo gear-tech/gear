@@ -139,7 +139,6 @@ std = [
 	"sp-consensus-babe/std",
 	"test-syscalls?/std",
 	"demo-proxy?/std",
-	"core-processor/std"
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -160,3 +159,4 @@ runtime-benchmarks = [
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
 lazy-pages = ["gear-lazy-pages-common"]
+fuzz = ["std", "common/fuzz"]

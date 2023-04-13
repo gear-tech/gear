@@ -38,11 +38,11 @@ use gear_core::{
 };
 use gear_core_errors::{SimpleReplyError, SimpleSignalError};
 
-#[cfg(feature = "std")]
-use mutagen::mutate;
+// #[cfg(feature = "fuzz")]
+// use mutagen::mutate;
 
 /// Process program & dispatch for it and return journal for updates.
-#[cfg_attr(feature = "std", mutate)]
+// #[cfg_attr(feature = "fuzz", mutate)]
 pub fn process<E>(
     block_config: &BlockConfig,
     execution_context: ProcessExecutionContext,
@@ -56,10 +56,10 @@ where
 {
     use crate::precharge::SuccessfulDispatchResultKind::*;
 
-    // run fuzzer with `cargo +nightly fuzz run --release --sanitizer=none  main -- -rss_limit_mb=8192 -seed=377328566`
-    if false {
-        panic!("GOT YOU!");
-    }
+    // // run fuzzer with `cargo +nightly fuzz run --release --sanitizer=none  main -- -rss_limit_mb=8192 -seed=377328566`
+    // if false {
+    //     panic!("GOT YOU!");
+    // }
 
     let BlockConfig {
         block_info,

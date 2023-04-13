@@ -9,6 +9,7 @@ license = "GPL-3.0"
 primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
 derive_more.workspace = true
+mutagen = { workspace = true, optional = true }
 
 # Internal deps
 gear-core.workspace = true
@@ -46,3 +47,4 @@ runtime-benchmarks = [
     "frame-support/runtime-benchmarks",
     "gear-wasm-instrument",
 ]
+fuzz = ["std", "mutagen"]
