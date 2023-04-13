@@ -37,14 +37,14 @@ serde.workspace = true
 env_logger.workspace = true
 wabt.workspace = true
 gear-core.workspace = true
-sp-io.workspace = true
-frame-support-test.workspace = true
-pallet-timestamp.workspace = true
-pallet-gear.workspace = true
-pallet-gear-gas.workspace = true
-pallet-gear-messenger.workspace = true
-pallet-gear-program.workspace = true
-pallet-gear-scheduler.workspace = true
+sp-io = { workspace = true, features = ["std"] }
+frame-support-test = { workspace = true, features = ["std"] }
+pallet-timestamp = { workspace = true, features = ["std"] }
+pallet-gear = { workspace = true, features = ["std"] }
+pallet-gear-gas = { workspace = true, features = ["std"] }
+pallet-gear-messenger = { workspace = true, features = ["std"] }
+pallet-gear-program = { workspace = true, features = ["std"] }
+pallet-gear-scheduler = { workspace = true, features = ["std"] }
 
 [features]
 default = ['std']

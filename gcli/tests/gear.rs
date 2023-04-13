@@ -37,9 +37,8 @@ fn paths() {
     [
         env::bin("gear"),
         env::bin("gcli"),
-        // ( issue #2367 )
-        // env::wasm_bin("demo_meta.opt.wasm"),
-        // env::wasm_bin("demo_meta.meta.wasm"),
+        env::wasm_bin("demo_new_meta.opt.wasm"),
+        env::example_path("new-meta/demo_new_meta.meta.txt"),
     ]
     .into_iter()
     .for_each(|path| {

@@ -28,7 +28,6 @@ pub mod create;
 pub mod info;
 pub mod key;
 pub mod login;
-pub mod meta;
 pub mod new;
 pub mod program;
 pub mod reply;
@@ -36,7 +35,6 @@ pub mod send;
 pub mod transfer;
 pub mod update;
 pub mod upload;
-pub mod upload_program;
 
 /// Commands of cli `gear`
 #[derive(Debug, Parser)]
@@ -46,19 +44,25 @@ pub enum Command {
     Info(info::Info),
     Key(key::Key),
     Login(login::Login),
-    Meta(meta::Meta),
     New(new::New),
+    #[clap(subcommand)]
     Program(program::Program),
     Reply(reply::Reply),
     Send(send::Send),
     Upload(upload::Upload),
-    UploadProgram(upload_program::UploadProgram),
     Transfer(transfer::Transfer),
     Update(update::Update),
 }
 
-/// `gear` client cli.
+/// gear command-line tools
+///    ___     ___     _       ___  
+///   / __|   / __|   | |     |_ _|
+///  | (_ |  | (__    | |__    | |  
+///   \___|   \___|   |____|  |___|
+/// _|"""""|_|"""""|_|"""""|_|"""""|
+/// "`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'
 #[derive(Debug, Parser)]
+#[clap(author, version, verbatim_doc_comment)]
 #[command(name = "gcli")]
 pub struct Opt {
     /// Commands.
@@ -82,7 +86,7 @@ impl Opt {
     /// setup logs
     fn setup_logs(&self) -> Result<()> {
         let mut builder = if self.verbose {
-            Builder::from_env(Env::default().default_filter_or("debug"))
+            Builder::from_env(Env::default().default_filter_or("gcli=debug"))
         } else {
             match &self.command {
                 Command::Claim(_)
@@ -90,7 +94,6 @@ impl Opt {
                 | Command::Reply(_)
                 | Command::Send(_)
                 | Command::Upload(_)
-                | Command::UploadProgram(_)
                 | Command::Transfer(_) => {
                     let mut builder = Builder::from_env(Env::default().default_filter_or("info"));
                     builder
@@ -135,7 +138,6 @@ impl Opt {
         match &self.command {
             Command::Key(key) => key.exec(self.passwd.as_deref())?,
             Command::Login(login) => login.exec()?,
-            Command::Meta(meta) => meta.exec()?,
             Command::New(new) => new.exec().await?,
             Command::Program(program) => program.exec(self.api().await?).await?,
             Command::Update(update) => update.exec().await?,
@@ -154,7 +156,6 @@ impl Opt {
                     Command::Info(info) => info.exec(signer).await?,
                     Command::Send(send) => send.exec(signer).await?,
                     Command::Upload(upload) => upload.exec(signer).await?,
-                    Command::UploadProgram(upload) => upload.exec(signer).await?,
                     Command::Transfer(transfer) => transfer.exec(signer).await?,
                     Command::Reply(reply) => reply.exec(signer).await?,
                     _ => unreachable!("Already matched"),

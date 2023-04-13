@@ -36,8 +36,8 @@ serde.workspace = true
 env_logger.workspace = true
 wabt.workspace = true
 gear-core.workspace = true
-sp-io.workspace = true
-pallet-timestamp.workspace = true
+sp-io = { workspace = true, features = ["std"] }
+pallet-timestamp = { workspace = true, features = ["std"] }
 
 [features]
 default = ['std']

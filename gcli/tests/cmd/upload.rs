@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `upload`
-use crate::common::{self, env, logs, Args};
+use crate::common::{self, env, logs, traits::Convert, Args, Result};
 use gear_core::ids::CodeId;
 use gsdk::Api;
 
@@ -34,11 +34,35 @@ async fn test_command_upload_works() {
         .signer("//Alice", None)
         .expect("get signer failed");
 
-    let code_id = CodeId::generate(demo_meta::WASM_BINARY);
+    let code_id = CodeId::generate(demo_new_meta::WASM_BINARY);
     assert!(signer.api().code_storage(code_id).await.is_err());
 
-    let _ = node
-        .run(Args::new("upload").program(env::wasm_bin("demo_meta.opt.wasm")))
+    let output = node
+        .run(Args::new("upload").program(env::wasm_bin("demo_new_meta.opt.wasm")))
         .expect("run command upload failed");
+
+    assert!(output
+        .stderr
+        .convert()
+        .contains(logs::gear_program::EX_UPLOAD_PROGRAM));
     assert!(signer.api().code_storage(code_id).await.is_ok());
+}
+
+#[tokio::test]
+async fn test_command_upload_program_works() -> Result<()> {
+    common::login_as_alice().expect("login failed");
+    let mut node = common::Node::dev()?;
+    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+
+    let output = node.run(
+        Args::new("upload")
+            .flag("--code-only")
+            .program(env::wasm_bin("demo_meta.opt.wasm")),
+    )?;
+
+    assert!(output
+        .stderr
+        .convert()
+        .contains(logs::gear_program::EX_UPLOAD_CODE));
+    Ok(())
 }
