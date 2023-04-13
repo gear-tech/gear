@@ -27,7 +27,7 @@ sp-runtime = { workspace = true, features = ["std"] }
 pallet-balances = { workspace = true, features = ["std"] }
 sp-consensus-slots = { workspace = true, features = ["std"] }
 sp-consensus-babe = { workspace = true, features = ["std"] }
-sp-finality-grandpa = { workspace = true, features = ["std"] }
+sp-consensus-grandpa = { workspace = true, features = ["std"] }
 pallet-authorship = { workspace = true, features = ["std"] }
 pallet-im-online = { workspace = true, optional = true, features = ["std"]  }
 
