@@ -68,10 +68,7 @@ where
 
     /// Fallible `gr_send` syscall.
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args
-            .iter()
-            .read_5()
-            .expect("There are 5 arguments expected");
+        let (pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5();
 
         syscall_trace!("send", pid_value_ptr, payload_ptr, len, delay, err_mid_ptr);
 
@@ -92,10 +89,7 @@ where
 
     /// Fallible `gr_send_wgas` syscall.
     pub fn send_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (pid_value_ptr, payload_ptr, len, gas_limit, delay, err_mid_ptr) = args
-            .iter()
-            .read_6()
-            .expect("There are 6 arguments expected");
+        let (pid_value_ptr, payload_ptr, len, gas_limit, delay, err_mid_ptr) = args.iter().read_6();
 
         syscall_trace!(
             "send_wgas",
@@ -127,10 +121,7 @@ where
 
     /// Fallible `gr_send_commit` syscall.
     pub fn send_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (handle, pid_value_ptr, delay, err_mid_ptr) = args
-            .iter()
-            .read_4()
-            .expect("There are 4 arguments expected");
+        let (handle, pid_value_ptr, delay, err_mid_ptr) = args.iter().read_4();
 
         syscall_trace!("send_commit", handle, pid_value_ptr, delay, err_mid_ptr);
 
@@ -153,10 +144,7 @@ where
 
     /// Fallible `gr_send_commit_wgas` syscall.
     pub fn send_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (handle, pid_value_ptr, gas_limit, delay, err_mid_ptr) = args
-            .iter()
-            .read_5()
-            .expect("There are 5 arguments expected");
+        let (handle, pid_value_ptr, gas_limit, delay, err_mid_ptr) = args.iter().read_5();
 
         syscall_trace!(
             "send_commit_wgas",
@@ -191,7 +179,7 @@ where
 
     /// Fallible `gr_send_init` syscall.
     pub fn send_init(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let err_handle_ptr = args.iter().read().expect("There is 1 argument expected");
+        let err_handle_ptr = args.iter().read();
 
         syscall_trace!("send_init", err_handle_ptr);
 
@@ -202,8 +190,7 @@ where
 
     /// Fallible `gr_send_push` syscall.
     pub fn send_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (handle, payload_ptr, len, err_len_ptr) =
-            args.iter().read_4().expect("There 4 arguments expected");
+        let (handle, payload_ptr, len, err_len_ptr) = args.iter().read_4();
 
         syscall_trace!("send_push", handle, payload_ptr, len, err_len_ptr);
 
@@ -217,10 +204,7 @@ where
 
     /// Fallible `gr_reservation_send` syscall.
     pub fn reservation_send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (rid_pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args
-            .iter()
-            .read_5()
-            .expect("There are 5 arguments expected");
+        let (rid_pid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5();
 
         syscall_trace!(
             "reservation_send",
@@ -257,10 +241,7 @@ where
 
     /// Fallible `gr_reservation_send_commit` syscall.
     pub fn reservation_send_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (handle, rid_pid_value_ptr, delay, err_mid_ptr) = args
-            .iter()
-            .read_4()
-            .expect("There are 4 arguments expected");
+        let (handle, rid_pid_value_ptr, delay, err_mid_ptr) = args.iter().read_4();
 
         syscall_trace!(
             "reservation_send_commit",
@@ -295,10 +276,7 @@ where
 
     /// Fallible `gr_read` syscall.
     pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (at, len, buffer_ptr, err_len_ptr) = args
-            .iter()
-            .read_4()
-            .expect("There are 4 arguments expected");
+        let (at, len, buffer_ptr, err_len_ptr) = args.iter().read_4();
 
         syscall_trace!("read", at, len, buffer_ptr, err_len_ptr);
 
@@ -316,7 +294,7 @@ where
 
     /// Infallible `gr_size` syscall.
     pub fn size(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let size_ptr = args.iter().read().expect("There is 1 argument expected");
+        let size_ptr = args.iter().read();
 
         syscall_trace!("size", size_ptr);
 
@@ -331,7 +309,7 @@ where
 
     /// Infallible `gr_exit` syscall.
     pub fn exit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let inheritor_id_ptr = args.iter().read().expect("There is 1 argument expected");
+        let inheritor_id_ptr = args.iter().read();
 
         syscall_trace!("exit", inheritor_id_ptr);
 
@@ -344,7 +322,7 @@ where
 
     /// Fallible `gr_status_code` syscall.
     pub fn status_code(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let err_code_ptr = args.iter().read().expect("There is 1 argument expected");
+        let err_code_ptr = args.iter().read();
 
         syscall_trace!("status_code", err_code_ptr);
 
@@ -355,7 +333,7 @@ where
 
     /// Infallible `alloc` syscall.
     pub fn alloc(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let pages = args.iter().read().expect("There is 1 argument expected");
+        let pages = args.iter().read();
 
         syscall_trace!("alloc", pages);
 
@@ -381,7 +359,7 @@ where
 
     /// Infallible `free` syscall.
     pub fn free(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let page_no = args.iter().read().expect("There is 1 argument expected");
+        let page_no = args.iter().read();
 
         syscall_trace!("free", page_no);
 
@@ -406,7 +384,7 @@ where
 
     /// Infallible `gr_block_height` syscall.
     pub fn block_height(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let height_ptr = args.iter().read().expect("There is 1 argument expected");
+        let height_ptr = args.iter().read();
 
         syscall_trace!("block_height", height_ptr);
 
@@ -421,7 +399,7 @@ where
 
     /// Infallible `gr_block_timestamp` syscall.
     pub fn block_timestamp(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let timestamp_ptr = args.iter().read().expect("There is 1 argument expected");
+        let timestamp_ptr = args.iter().read();
 
         syscall_trace!("block_timestamp", timestamp_ptr);
 
@@ -436,7 +414,7 @@ where
 
     /// Infallible `gr_origin` syscall.
     pub fn origin(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let origin_ptr = args.iter().read().expect("There is 1 argument expected");
+        let origin_ptr = args.iter().read();
 
         syscall_trace!("origin", origin_ptr);
 
@@ -451,10 +429,7 @@ where
 
     /// Infallible `gr_random` syscall.
     pub fn random(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (subject_ptr, bn_random_ptr) = args
-            .iter()
-            .read_2()
-            .expect("There are 2 arguments expected");
+        let (subject_ptr, bn_random_ptr) = args.iter().read_2();
 
         syscall_trace!("random", subject_ptr, bn_random_ptr);
 
@@ -477,10 +452,7 @@ where
 
     /// Fallible `gr_reply` syscall.
     pub fn reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (payload_ptr, len, value_ptr, delay, err_mid_ptr) = args
-            .iter()
-            .read_5()
-            .expect("There are 5 arguments expected");
+        let (payload_ptr, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5();
 
         syscall_trace!("reply", payload_ptr, len, value_ptr, delay, err_mid_ptr);
 
@@ -497,10 +469,7 @@ where
 
     /// Fallible `gr_reply_wgas` syscall.
     pub fn reply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) = args
-            .iter()
-            .read_6()
-            .expect("There are 6 arguments expected");
+        let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6();
 
         syscall_trace!(
             "reply_wgas",
@@ -525,10 +494,7 @@ where
 
     /// Fallible `gr_reply_commit` syscall.
     pub fn reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (value_ptr, delay, err_mid_ptr) = args
-            .iter()
-            .read_3()
-            .expect("There are 3 arguments expected");
+        let (value_ptr, delay, err_mid_ptr) = args.iter().read_3();
 
         syscall_trace!("reply_commit", value_ptr, delay, err_mid_ptr);
 
@@ -543,8 +509,7 @@ where
 
     /// Fallible `gr_reply_commit_wgas` syscall.
     pub fn reply_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (gas_limit, value_ptr, delay, err_mid_ptr) =
-            args.iter().read_4().expect("There 4 arguments expected");
+        let (gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_4();
 
         syscall_trace!(
             "reply_commit_wgas",
@@ -568,10 +533,7 @@ where
 
     /// Fallible `gr_reservation_reply` syscall.
     pub fn reservation_reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (rid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args
-            .iter()
-            .read_5()
-            .expect("There are 5 arguments expected");
+        let (rid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5();
 
         syscall_trace!(
             "reservation_reply",
@@ -607,10 +569,7 @@ where
 
     /// Fallible `gr_reservation_reply_commit` syscall.
     pub fn reservation_reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (rid_value_ptr, delay, err_mid_ptr) = args
-            .iter()
-            .read_3()
-            .expect("There are 3 arguments expected");
+        let (rid_value_ptr, delay, err_mid_ptr) = args.iter().read_3();
 
         syscall_trace!(
             "reservation_reply_commit",
@@ -642,7 +601,7 @@ where
 
     /// Fallible `gr_reply_to` syscall.
     pub fn reply_to(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let err_mid_ptr = args.iter().read().expect("There is 1 argument expected");
+        let err_mid_ptr = args.iter().read();
 
         syscall_trace!("reply_to", err_mid_ptr);
 
@@ -653,7 +612,7 @@ where
 
     /// Fallible `gr_signal_from` syscall.
     pub fn signal_from(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let err_mid_ptr = args.iter().read().expect("There is 1 argument expected");
+        let err_mid_ptr = args.iter().read();
 
         syscall_trace!("signal_from", err_mid_ptr);
 
@@ -664,10 +623,7 @@ where
 
     /// Fallible `gr_reply_push` syscall.
     pub fn reply_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (payload_ptr, len, err_len_ptr) = args
-            .iter()
-            .read_3()
-            .expect("There are 3 arguments expected");
+        let (payload_ptr, len, err_len_ptr) = args.iter().read_3();
 
         syscall_trace!("reply_push", payload_ptr, len, err_len_ptr);
 
@@ -681,10 +637,7 @@ where
 
     /// Fallible `gr_reply_input` syscall.
     pub fn reply_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (offset, len, value_ptr, delay, err_mid_ptr) = args
-            .iter()
-            .read_5()
-            .expect("There are 5 arguments expected");
+        let (offset, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5();
 
         syscall_trace!("reply_input", offset, len, value_ptr, delay, err_mid_ptr);
 
@@ -703,10 +656,7 @@ where
 
     /// Fallible `gr_reply_push_input` syscall.
     pub fn reply_push_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (offset, len, err_len_ptr) = args
-            .iter()
-            .read_3()
-            .expect("There are 3 arguments expected");
+        let (offset, len, err_len_ptr) = args.iter().read_3();
 
         syscall_trace!("reply_push_input", offset, len, err_len_ptr);
 
@@ -717,10 +667,7 @@ where
 
     /// Fallible `gr_reply_input_wgas` syscall.
     pub fn reply_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (offset, len, gas_limit, value_ptr, delay, err_mid_ptr) = args
-            .iter()
-            .read_6()
-            .expect("There are 6 arguments expected");
+        let (offset, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6();
 
         syscall_trace!(
             "reply_input_wgas",
@@ -749,10 +696,7 @@ where
 
     /// Fallible `gr_send_input` syscall.
     pub fn send_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (pid_value_ptr, offset, len, delay, err_mid_ptr) = args
-            .iter()
-            .read_5()
-            .expect("There are 5 arguments expected");
+        let (pid_value_ptr, offset, len, delay, err_mid_ptr) = args.iter().read_5();
 
         syscall_trace!("send_input", pid_value_ptr, offset, len, delay, err_mid_ptr);
 
@@ -779,8 +723,7 @@ where
 
     /// Fallible `gr_send_push_input` syscall.
     pub fn send_push_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (handle, offset, len, err_len_ptr) =
-            args.iter().read_4().expect("There 4 arguments expected");
+        let (handle, offset, len, err_len_ptr) = args.iter().read_4();
 
         syscall_trace!("send_push_input", handle, offset, len, err_len_ptr);
 
@@ -793,10 +736,7 @@ where
 
     /// Fallible `gr_send_push_input_wgas` syscall.
     pub fn send_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (pid_value_ptr, offset, len, gas_limit, delay, err_mid_ptr) = args
-            .iter()
-            .read_6()
-            .expect("There are 6 arguments expected");
+        let (pid_value_ptr, offset, len, gas_limit, delay, err_mid_ptr) = args.iter().read_6();
 
         syscall_trace!(
             "send_input_wgas",
@@ -836,10 +776,7 @@ where
 
     /// Infallible `gr_debug` syscall.
     pub fn debug(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (data_ptr, data_len): (_, u32) = args
-            .iter()
-            .read_2()
-            .expect("There are 2 arguments expected");
+        let (data_ptr, data_len): (_, u32) = args.iter().read_2();
 
         syscall_trace!("debug", data_ptr, data_len);
 
@@ -856,10 +793,7 @@ where
 
     /// Infallible `gr_panic` syscall.
     pub fn panic(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (data_ptr, data_len): (_, u32) = args
-            .iter()
-            .read_2()
-            .expect("There are 2 arguments expected");
+        let (data_ptr, data_len): (_, u32) = args.iter().read_2();
 
         syscall_trace!("panic", data_ptr, data_len);
 
@@ -884,10 +818,7 @@ where
 
     /// Fallible `gr_reserve_gas` syscall.
     pub fn reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (gas, duration, err_rid_ptr) = args
-            .iter()
-            .read_3()
-            .expect("There are 3 arguments expected");
+        let (gas, duration, err_rid_ptr) = args.iter().read_3();
 
         syscall_trace!("reserve_gas", gas, duration, err_rid_ptr);
 
@@ -898,10 +829,7 @@ where
 
     /// Fallible `gr_unreserve_gas` syscall.
     pub fn unreserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (reservation_id_ptr, err_unreserved_ptr) = args
-            .iter()
-            .read_2()
-            .expect("There are 2 arguments expected");
+        let (reservation_id_ptr, err_unreserved_ptr) = args.iter().read_2();
 
         syscall_trace!("unreserve_gas", reservation_id_ptr, err_unreserved_ptr);
 
@@ -919,10 +847,7 @@ where
 
     /// Fallible `gr_system_reserve_gas` syscall.
     pub fn system_reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (gas, err_len_ptr) = args
-            .iter()
-            .read_2()
-            .expect("There are 2 arguments expected");
+        let (gas, err_len_ptr) = args.iter().read_2();
 
         syscall_trace!("system_reserve_gas", gas, err_len_ptr);
 
@@ -933,7 +858,7 @@ where
 
     /// Infallible `gr_gas_available` syscall.
     pub fn gas_available(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let gas_ptr = args.iter().read().expect("There is 1 argument expected");
+        let gas_ptr = args.iter().read();
 
         syscall_trace!("gas_available", gas_ptr);
 
@@ -948,7 +873,7 @@ where
 
     /// Infallible `gr_message_id` syscall.
     pub fn message_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let message_id_ptr = args.iter().read().expect("There is 1 argument expected");
+        let message_id_ptr = args.iter().read();
 
         syscall_trace!("message_id", message_id_ptr);
 
@@ -963,7 +888,7 @@ where
 
     /// Infallible `gr_program_id` syscall.
     pub fn program_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let program_id_ptr = args.iter().read().expect("There is 1 argument expected");
+        let program_id_ptr = args.iter().read();
 
         syscall_trace!("program_id", program_id_ptr);
 
@@ -978,7 +903,7 @@ where
 
     /// Infallible `gr_source` syscall.
     pub fn source(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let source_ptr = args.iter().read().expect("There is 1 argument expected");
+        let source_ptr = args.iter().read();
 
         syscall_trace!("source", source_ptr);
 
@@ -993,7 +918,7 @@ where
 
     /// Infallible `gr_value` syscall.
     pub fn value(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let value_ptr = args.iter().read().expect("There is 1 argument expected");
+        let value_ptr = args.iter().read();
 
         syscall_trace!("value", value_ptr);
 
@@ -1008,7 +933,7 @@ where
 
     /// Infallible `gr_value_available` syscall.
     pub fn value_available(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let value_ptr = args.iter().read().expect("There is 1 argument expected");
+        let value_ptr = args.iter().read();
 
         syscall_trace!("value_available", value_ptr);
 
@@ -1042,7 +967,7 @@ where
 
     /// Infallible `gr_wait_for` syscall.
     pub fn wait_for(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let duration = args.iter().read().expect("There is 1 argument expected");
+        let duration = args.iter().read();
 
         syscall_trace!("wait_for", duration);
 
@@ -1054,7 +979,7 @@ where
 
     /// Infallible `gr_wait_up_to` syscall.
     pub fn wait_up_to(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let duration = args.iter().read().expect("There is 1 argument expected");
+        let duration = args.iter().read();
 
         syscall_trace!("wait_up_to", duration);
 
@@ -1070,10 +995,7 @@ where
 
     /// Fallible `gr_wake` syscall.
     pub fn wake(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (message_id_ptr, delay, err_len_ptr) = args
-            .iter()
-            .read_3()
-            .expect("There are 3 arguments expected");
+        let (message_id_ptr, delay, err_len_ptr) = args.iter().read_3();
 
         syscall_trace!("wake", message_id_ptr, delay, err_len_ptr);
 
@@ -1088,9 +1010,7 @@ where
     /// Fallible `gr_create_program` syscall.
     pub fn create_program(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let (cid_value_ptr, salt_ptr, salt_len, payload_ptr, payload_len, delay, err_mid_pid_ptr) =
-            args.iter()
-                .read_7()
-                .expect("There are 7 arguments expected");
+            args.iter().read_7();
 
         syscall_trace!(
             "create_program",
@@ -1135,10 +1055,7 @@ where
             gas_limit,
             delay,
             err_mid_pid_ptr,
-        ) = args
-            .iter()
-            .read_8()
-            .expect("There are 8 arguments expected");
+        ) = args.iter().read_8();
 
         syscall_trace!(
             "create_program_wgas",
@@ -1180,10 +1097,7 @@ where
     pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         // `error_bytes_ptr` is ptr for buffer of an error
         // `err_len_ptr` is ptr for len of the error occurred during this syscall
-        let (error_bytes_ptr, err_len_ptr) = args
-            .iter()
-            .read_2()
-            .expect("There are 2 arguments expected");
+        let (error_bytes_ptr, err_len_ptr) = args.iter().read_2();
 
         syscall_trace!("error", error_bytes_ptr, err_len_ptr);
 
@@ -1234,22 +1148,22 @@ where
 
 #[allow(clippy::type_complexity)]
 trait WasmCompatibleIterator {
-    fn read<T: WasmCompatible>(&mut self) -> Result<T, HostError>;
+    fn read<T: WasmCompatible>(&mut self) -> T;
 
-    fn read_2<T1: WasmCompatible, T2: WasmCompatible>(&mut self) -> Result<(T1, T2), HostError> {
-        Ok((self.read()?, self.read()?))
+    fn read_2<T1: WasmCompatible, T2: WasmCompatible>(&mut self) -> (T1, T2) {
+        (self.read(), self.read())
     }
 
     fn read_3<T1: WasmCompatible, T2: WasmCompatible, T3: WasmCompatible>(
         &mut self,
-    ) -> Result<(T1, T2, T3), HostError> {
-        Ok((self.read()?, self.read()?, self.read()?))
+    ) -> (T1, T2, T3) {
+        (self.read(), self.read(), self.read())
     }
 
     fn read_4<T1: WasmCompatible, T2: WasmCompatible, T3: WasmCompatible, T4: WasmCompatible>(
         &mut self,
-    ) -> Result<(T1, T2, T3, T4), HostError> {
-        Ok((self.read()?, self.read()?, self.read()?, self.read()?))
+    ) -> (T1, T2, T3, T4) {
+        (self.read(), self.read(), self.read(), self.read())
     }
 
     fn read_5<
@@ -1260,14 +1174,14 @@ trait WasmCompatibleIterator {
         T5: WasmCompatible,
     >(
         &mut self,
-    ) -> Result<(T1, T2, T3, T4, T5), HostError> {
-        Ok((
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-        ))
+    ) -> (T1, T2, T3, T4, T5) {
+        (
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+        )
     }
 
     fn read_6<
@@ -1279,15 +1193,15 @@ trait WasmCompatibleIterator {
         T6: WasmCompatible,
     >(
         &mut self,
-    ) -> Result<(T1, T2, T3, T4, T5, T6), HostError> {
-        Ok((
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-        ))
+    ) -> (T1, T2, T3, T4, T5, T6) {
+        (
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+        )
     }
 
     fn read_7<
@@ -1300,16 +1214,16 @@ trait WasmCompatibleIterator {
         T7: WasmCompatible,
     >(
         &mut self,
-    ) -> Result<(T1, T2, T3, T4, T5, T6, T7), HostError> {
-        Ok((
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-        ))
+    ) -> (T1, T2, T3, T4, T5, T6, T7) {
+        (
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+        )
     }
 
     fn read_8<
@@ -1323,17 +1237,17 @@ trait WasmCompatibleIterator {
         T8: WasmCompatible,
     >(
         &mut self,
-    ) -> Result<(T1, T2, T3, T4, T5, T6, T7, T8), HostError> {
-        Ok((
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-        ))
+    ) -> (T1, T2, T3, T4, T5, T6, T7, T8) {
+        (
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+        )
     }
 
     fn read_9<
@@ -1348,18 +1262,18 @@ trait WasmCompatibleIterator {
         T9: WasmCompatible,
     >(
         &mut self,
-    ) -> Result<(T1, T2, T3, T4, T5, T6, T7, T8, T9), HostError> {
-        Ok((
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-        ))
+    ) -> (T1, T2, T3, T4, T5, T6, T7, T8, T9) {
+        (
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+        )
     }
 
     fn read_10<
@@ -1375,37 +1289,41 @@ trait WasmCompatibleIterator {
         T10: WasmCompatible,
     >(
         &mut self,
-    ) -> Result<(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10), HostError> {
-        Ok((
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-            self.read()?,
-        ))
+    ) -> (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10) {
+        (
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+            self.read(),
+        )
     }
 }
 
 impl<'a, I: Iterator<Item = &'a Value> + 'a> WasmCompatibleIterator for I {
-    fn read<T: WasmCompatible>(&mut self) -> Result<T, HostError> {
-        T::from(*self.next().ok_or(HostError)?)
+    fn read<T: WasmCompatible>(&mut self) -> T {
+        T::from(
+            *self
+                .next()
+                .unwrap_or_else(|| unreachable!("Unable to get iterator next value")),
+        )
     }
 }
 
 trait WasmCompatible: Sized {
-    fn from(arg: Value) -> Result<Self, HostError>;
+    fn from(arg: Value) -> Self;
 
     fn throw_back(self) -> ReturnValue;
 }
 
 impl WasmCompatible for () {
-    fn from(_arg: Value) -> Result<Self, HostError> {
-        Ok(())
+    fn from(_arg: Value) -> Self {
+        ()
     }
 
     fn throw_back(self) -> ReturnValue {
@@ -1414,12 +1332,12 @@ impl WasmCompatible for () {
 }
 
 impl WasmCompatible for i32 {
-    fn from(arg: Value) -> Result<Self, HostError> {
+    fn from(arg: Value) -> Self {
         if let Value::I32(val) = arg {
-            return Ok(val);
+            val
+        } else {
+            unreachable!("Expected I32 value type")
         }
-
-        Err(HostError)
     }
 
     fn throw_back(self) -> ReturnValue {
@@ -1428,8 +1346,8 @@ impl WasmCompatible for i32 {
 }
 
 impl WasmCompatible for u32 {
-    fn from(arg: Value) -> Result<Self, HostError> {
-        <i32 as WasmCompatible>::from(arg).map(|v| v as u32)
+    fn from(arg: Value) -> Self {
+        <i32 as WasmCompatible>::from(arg) as u32
     }
 
     fn throw_back(self) -> ReturnValue {
@@ -1438,12 +1356,12 @@ impl WasmCompatible for u32 {
 }
 
 impl WasmCompatible for i64 {
-    fn from(arg: Value) -> Result<Self, HostError> {
+    fn from(arg: Value) -> Self {
         if let Value::I64(val) = arg {
-            return Ok(val);
+            val
+        } else {
+            unreachable!("Expected I64 value type")
         }
-
-        Err(HostError)
     }
 
     fn throw_back(self) -> ReturnValue {
@@ -1452,8 +1370,8 @@ impl WasmCompatible for i64 {
 }
 
 impl WasmCompatible for u64 {
-    fn from(arg: Value) -> Result<Self, HostError> {
-        <i64 as WasmCompatible>::from(arg).map(|v| v as u64)
+    fn from(arg: Value) -> Self {
+        <i64 as WasmCompatible>::from(arg) as u64
     }
 
     fn throw_back(self) -> ReturnValue {
