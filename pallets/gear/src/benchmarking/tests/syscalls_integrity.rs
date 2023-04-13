@@ -98,8 +98,28 @@ where
             SysCallName::ReservationReply => check_gr_reservation_reply::<T>(),
             SysCallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
             SysCallName::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
-            SysCallName::PayRent => todo!(),
+            SysCallName::PayRent => check_gr_pay_rent::<T>(),
         }
+    });
+}
+
+fn check_gr_pay_rent<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
+        let default_account = utils::default_account();
+        <T as pallet::Config>::Currency::deposit_creating(
+            &default_account,
+            100_000_000_000_000_u128.unique_saturated_into(),
+        );
+
+        let mp =
+            MessageParamsBuilder::new(Kind::PayRent(tester_pid.into_origin().into(), 100).encode())
+                .with_value(10_000_000);
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
 }
 
