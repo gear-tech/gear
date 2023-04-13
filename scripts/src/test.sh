@@ -101,7 +101,7 @@ pallet_test() {
 }
 
 client_tests() {
-  RUST_TEST_THREADS=1 $CARGO test -p gclient
+  RUST_TEST_THREADS=1 $CARGO test --release -p gclient
 }
 
 validators() {
@@ -130,5 +130,5 @@ doc_test() {
   MANIFEST="$1"
   shift
 
-  cargo test --doc --workspace --manifest-path="$MANIFEST" -- "$@"
+  cargo test --release --doc --workspace --manifest-path="$MANIFEST" -- "$@"
 }
