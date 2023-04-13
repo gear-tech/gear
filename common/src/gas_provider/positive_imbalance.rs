@@ -39,11 +39,17 @@ impl<Balance: BalanceTrait> Imbalance for PositiveImbalance<Balance> {
 
     fn apply_to(&self, amount: &mut Option<Balance>) -> Result<(), ImbalanceError> {
         let amount_value = amount.unwrap_or_else(Zero::zero);
-        if self.0 > Balance::max_value() - amount_value {
-            return Err(ImbalanceError::Overflow);
+        if let Some(amount_value) = amount_value.checked_add(&self.0) {
+            *amount = Some(amount_value);
+            Ok(())
+        } else {
+            Err(ImbalanceError)
         }
-        *amount = Some(amount_value + self.0);
-        Ok(())
+        // if self.0 > Balance::max_value() - amount_value {
+        //     return Err(ImbalanceError::Overflow);
+        // }
+        // *amount = Some(amount_value + self.0);
+        // Ok(())
     }
 }
 
@@ -69,7 +75,7 @@ mod tests {
 
         let result = imbalance.apply_to(&mut amount);
 
-        assert_eq!(Err(ImbalanceError::Overflow), result);
+        assert_eq!(Err(ImbalanceError), result);
         assert_eq!(Some(u32::MAX - 100), amount);
     }
 }

@@ -310,9 +310,7 @@ pub trait Imbalance {
 }
 
 /// Represents errors returned by via the [Imbalance] trait.
+/// Indicates the imbalance value causes amount value overflowing
+/// when applied to the latter.
 #[derive(Debug, PartialEq)]
-pub enum ImbalanceError {
-    /// Indicates the imbalance value causes amount value overflowing
-    /// when applied to the latter.
-    Overflow,
-}
+pub struct ImbalanceError;
