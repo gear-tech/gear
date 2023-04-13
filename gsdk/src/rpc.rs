@@ -129,4 +129,44 @@ impl Api {
             .await
             .map_err(Into::into)
     }
+
+    /// gear_meta_hash
+    pub async fn read_meta_hash(&self, pid: H256, at: Option<H256>) -> Result<H256> {
+        self.rpc()
+            .request("gear_readMetahash", rpc_params![H256(pid.into()), at])
+            .await
+            .map_err(Into::into)
+    }
+
+    /// gear_readState
+    pub async fn read_state(&self, pid: H256, at: Option<H256>) -> Result<String> {
+        self.rpc()
+            .request("gear_readState", rpc_params![H256(pid.into()), at])
+            .await
+            .map_err(Into::into)
+    }
+
+    /// gear_readStateUsingWasm
+    pub async fn read_state_using_wasm(
+        &self,
+        pid: H256,
+        method: &str,
+        wasm: Vec<u8>,
+        args: Option<Vec<u8>>,
+        at: Option<H256>,
+    ) -> Result<String> {
+        self.rpc()
+            .request(
+                "gear_readStateUsingWasm",
+                rpc_params![
+                    pid,
+                    hex::encode(method),
+                    hex::encode(wasm),
+                    args.map(hex::encode),
+                    at
+                ],
+            )
+            .await
+            .map_err(Into::into)
+    }
 }

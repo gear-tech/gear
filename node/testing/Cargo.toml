@@ -3,7 +3,7 @@ name = "gear-node-testing"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 description = "Gear Node"
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
@@ -55,6 +55,23 @@ frame-support.workspace = true
 frame-benchmarking.workspace = true
 
 [features]
-default = ["vara-native"]
+default = ["std", "vara-native"]
+std = [
+    "runtime-primitives/std",
+    "common/std",
+    "pallet-gear-rpc-runtime-api/std",
+    "gear-runtime-interface/std",
+    "sp-core/std",
+    "sp-api/std",
+    "sp-runtime/std",
+    "sp-inherents/std",
+    "sp-io/std",
+    "sp-std/std",
+    "frame-system/std",
+    "frame-support/std",
+    "frame-benchmarking/std",
+    "gear-runtime?/std",
+    "vara-runtime?/std",
+]
 gear-native = ["gear-runtime"]
 vara-native = ["vara-runtime"]

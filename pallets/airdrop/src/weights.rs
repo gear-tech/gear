@@ -42,6 +42,9 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
+// (issue #2531)
+#![allow(deprecated)]
+
 use frame_support::{traits::Get, weights::{constants::RocksDbWeight, Weight}};
 use sp_std::marker::PhantomData;
 

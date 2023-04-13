@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(deprecated)]
 
 use core::num::ParseIntError;
 use gstd::{msg, prelude::*, ActorId};
@@ -7,6 +8,8 @@ static mut DEST_0: ActorId = ActorId::new([0u8; 32]);
 static mut DEST_1: ActorId = ActorId::new([0u8; 32]);
 static mut DEST_2: ActorId = ActorId::new([0u8; 32]);
 
+// NOTE: this macro has been deprecated, see
+// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
 gstd::metadata! {
     title: "demo async",
     init:

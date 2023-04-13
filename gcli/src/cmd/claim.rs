@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `claim`
-use crate::{result::Result, utils};
+use crate::{result::Result, utils::Hex};
 use clap::Parser;
 use gsdk::signer::Signer;
 
@@ -30,7 +30,7 @@ pub struct Claim {
 
 impl Claim {
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let message_id = utils::hex_to_hash(&self.message_id)?.into();
+        let message_id = self.message_id.to_hash()?.into();
 
         signer.claim_value(message_id).await?;
 

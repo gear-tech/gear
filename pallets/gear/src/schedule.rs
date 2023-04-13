@@ -20,6 +20,8 @@
 //! sane default schedule from a `WeightInfo` implementation.
 
 #![allow(unused_parens)]
+// (issue #2531)
+#![allow(deprecated)]
 
 use crate::{weights::WeightInfo, Config};
 use core_processor::configs::PageCosts;
@@ -980,7 +982,7 @@ impl<T: Config> Schedule<T> {
 
 impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
     fn instruction_cost(&self, instruction: &elements::Instruction) -> Option<u32> {
-        use self::elements::Instruction::*;
+        use self::elements::{Instruction::*, SignExtInstruction::*};
         let w = &self.schedule.instruction_weights;
         let max_params = self.schedule.limits.parameters;
 
@@ -1078,6 +1080,14 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
             I32Rotr => w.i32rotr,
             I64Rotr => w.i64rotr,
 
+            // TODO: Correct weights for sign extension instructions. (#2523)
+            SignExt(ref s) => match s {
+                I32Extend8S => w.i64extendsi32,
+                I32Extend16S => w.i64extendsi32,
+                I64Extend8S => w.i64extendsi32,
+                I64Extend16S => w.i64extendsi32,
+                I64Extend32S => w.i64extendsi32,
+            },
             // Returning None makes the gas instrumentation fail which we intend for
             // unsupported or unknown instructions.
             _ => return None,

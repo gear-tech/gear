@@ -162,6 +162,17 @@ impl Api {
 
 // pallet-gas
 impl Api {
+    /// Get value of gas total issuance.
+    pub async fn total_issuance(&self) -> Result<u64> {
+        self.total_issuance_at(None).await
+    }
+
+    /// Get value of gas total issuance at specified block.
+    pub async fn total_issuance_at(&self, block_hash: Option<H256>) -> Result<u64> {
+        let addr = subxt::dynamic::storage_root("GearGas", "TotalIssuance");
+        self.fetch_storage_at(&addr, block_hash).await
+    }
+
     /// Get Gear gas nodes by their ids.
     pub async fn gas_nodes(
         &self,

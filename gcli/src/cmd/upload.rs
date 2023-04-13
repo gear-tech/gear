@@ -16,37 +16,58 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Command `upload`
-use crate::result::Result;
+//! command `upload_program`
+use crate::{result::Result, utils::Hex};
 use clap::Parser;
 use gsdk::signer::Signer;
 use std::{fs, path::PathBuf};
 
-/// Saves program `code` in storage.
-///
-/// The extrinsic was created to provide _deploy program from program_ functionality.
-/// Anyone who wants to define a "factory" logic in program should first store the code and metadata for the "child"
-/// program in storage. So the code for the child will be initialized by program initialization request only if it exists in storage.
-///
-/// More precisely, the code and its metadata are actually saved in the storage under the hash of the `code`. The code hash is computed
-/// as Blake256 hash. At the time of the call the `code` hash should not be in the storage. If it was stored previously, call will end up
-/// with an `CodeAlreadyExists` error. In this case user can be sure, that he can actually use the hash of his program's code bytes to define
-/// "program factory" logic in his program.
-///
-/// Parameters
-/// - `code`: wasm code of a program as a byte vector.
-///
-/// Emits the following events:
-/// - `SavedCode(H256)` - when the code is saved in storage.
+/// Deploy program to gear node or save program `code` in storage.
 #[derive(Parser, Debug)]
 pub struct Upload {
     /// gear program code <*.wasm>
     code: PathBuf,
+    /// Save program `code` in storage only.
+    #[arg(short, long)]
+    code_only: bool,
+    /// Randomness term (a seed) to allow programs with identical code to be created independently.
+    #[arg(short, long, default_value = "0x")]
+    salt: String,
+    /// Encoded parameters of the wasm module `init` function.
+    #[arg(short, long, default_value = "0x")]
+    payload: String,
+    /// Maximum amount of gas the program can spend before it is halted.
+    #[arg(short, long, default_value = "0")]
+    gas_limit: u64,
+    /// Balance to be transferred to the program once it's been created.
+    #[arg(short, long, default_value = "0")]
+    value: u128,
 }
 
 impl Upload {
+    /// Exec command submit
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        signer.upload_code(fs::read(&self.code)?).await?;
+        let code = fs::read(&self.code)?;
+        if self.code_only {
+            signer.upload_code(code).await?;
+            return Ok(());
+        }
+
+        let payload = self.payload.to_vec()?;
+        let gas = if self.gas_limit == 0 {
+            signer
+                .calculate_upload_gas(None, code.clone(), payload.clone(), self.value, false, None)
+                .await?
+                .min_limit
+        } else {
+            self.gas_limit
+        };
+
+        // Estimate gas and upload program.
+        let gas_limit = signer.api().cmp_gas_limit(gas)?;
+        signer
+            .upload_program(code, self.salt.to_vec()?, payload, gas_limit, self.value)
+            .await?;
 
         Ok(())
     }

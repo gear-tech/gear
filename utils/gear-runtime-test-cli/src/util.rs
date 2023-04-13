@@ -34,9 +34,9 @@ use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     AuthorityId as BabeId, BABE_ENGINE_ID,
 };
+use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_consensus_slots::Slot;
 use sp_core::{sr25519, Pair, Public};
-use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::{
     app_crypto::UncheckedFrom, traits::IdentifyAccount, AccountId32, Digest, DigestItem,
 };
