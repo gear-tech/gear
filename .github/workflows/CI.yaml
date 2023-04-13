@@ -109,7 +109,7 @@ jobs:
         run: ./scripts/gear.sh format doc --check
 
       - name: "Check clippy: Gear"
-        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
+        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked --release
 
       - name: "Check clippy: Examples"
         run: ./scripts/gear.sh clippy examples
