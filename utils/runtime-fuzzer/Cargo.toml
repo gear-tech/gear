@@ -34,5 +34,5 @@ sp-runtime.workspace = true
 pallet-balances.workspace = true
 sp-consensus-slots = { workspace = true}
 sp-consensus-babe.workspace = true
-sp-finality-grandpa.workspace = true
+sp-consensus-grandpa.workspace = true
 pallet-authorship.workspace = true

@@ -118,7 +118,7 @@ impl<'a> MessageReplier<'a> {
 
         self.manager
             .borrow_mut()
-            .run_dispatch(Dispatch::new(DispatchKind::Reply, message))
+            .validate_and_run_dispatch(Dispatch::new(DispatchKind::Reply, message))
     }
 }
 

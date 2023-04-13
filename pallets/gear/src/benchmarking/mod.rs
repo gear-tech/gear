@@ -613,7 +613,7 @@ benchmarks! {
     }
 
     gr_reserve_gas {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. T::ReservationsLimit::get() as u32;
         let mut res = None;
         let exec = Benches::<T>::gr_reserve_gas(r)?;
     }: {
@@ -624,7 +624,7 @@ benchmarks! {
     }
 
     gr_unreserve_gas {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. T::ReservationsLimit::get() as u32;
         let mut res = None;
         let exec = Benches::<T>::gr_unreserve_gas(r)?;
     }: {
