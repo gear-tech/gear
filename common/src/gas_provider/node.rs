@@ -17,9 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use core::ops::{Index, IndexMut};
+use core::{
+    ops::{Add, Index, IndexMut},
+    slice::Iter,
+};
 use frame_support::{codec, dispatch::MaxEncodedLen, scale_info};
 use gear_core::ids::ReservationId;
+use sp_runtime::traits::Zero;
 
 /// ID of the [`GasNode`].
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
@@ -71,17 +75,26 @@ impl<T> From<ReservationId> for GasNodeId<T, ReservationId> {
     }
 }
 
-pub type NodeLock<Balance> = [Balance; 4];
+#[derive(Clone, Copy, Decode, Encode, Debug, Default, PartialEq, Eq, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub struct NodeLock<Balance>([Balance; 4]);
+
+impl<'a, Balance> NodeLock<Balance> {
+    pub fn iter(&'a self) -> Iter<'a, Balance> {
+        self.0.iter()
+    }
+}
 
 impl<Balance> Index<LockIdentifier> for NodeLock<Balance> {
     type Output = Balance;
 
     fn index(&self, index: LockIdentifier) -> &Self::Output {
         match index {
-            LockIdentifier::Mailbox => &self[0],
-            LockIdentifier::Waitlist => &self[1],
-            LockIdentifier::Reservation => &self[2],
-            LockIdentifier::DispatchStash => &self[3],
+            LockIdentifier::Mailbox => &self.0[0],
+            LockIdentifier::Waitlist => &self.0[1],
+            LockIdentifier::Reservation => &self.0[2],
+            LockIdentifier::DispatchStash => &self.0[3],
         }
     }
 }
@@ -89,11 +102,42 @@ impl<Balance> Index<LockIdentifier> for NodeLock<Balance> {
 impl<Balance> IndexMut<LockIdentifier> for NodeLock<Balance> {
     fn index_mut(&mut self, index: LockIdentifier) -> &mut Self::Output {
         match index {
-            LockIdentifier::Mailbox => &mut self[0],
-            LockIdentifier::Waitlist => &mut self[1],
-            LockIdentifier::Reservation => &mut self[2],
-            LockIdentifier::DispatchStash => &mut self[3],
+            LockIdentifier::Mailbox => &mut self.0[0],
+            LockIdentifier::Waitlist => &mut self.0[1],
+            LockIdentifier::Reservation => &mut self.0[2],
+            LockIdentifier::DispatchStash => &mut self.0[3],
         }
+    }
+}
+
+impl<Balance: Zero + Copy> Zero for NodeLock<Balance> {
+    fn zero() -> Self {
+        Self([Balance::zero(); 4])
+    }
+
+    fn set_zero(&mut self) {
+        self.0.iter_mut().for_each(|x| x.set_zero());
+    }
+
+    fn is_zero(&self) -> bool {
+        self.0.iter().all(|x| x.is_zero())
+    }
+}
+
+impl<Balance: Add + Zero + Copy> Add<Self> for NodeLock<Balance> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        let sum_as_vec = self
+            .0
+            .iter()
+            .zip(other.0.iter())
+            .map(|(&x, &y)| x + y)
+            .collect::<Vec<_>>();
+
+        let mut inner = [Balance::zero(); 4];
+        inner.copy_from_slice(&sum_as_vec[..4]);
+        Self(inner)
     }
 }
 
@@ -108,7 +152,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     External {
         id: ExternalId,
         value: Balance,
-        lock: [Balance; 4],
+        lock: NodeLock<Balance>,
         system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
@@ -121,7 +165,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     Cut {
         id: ExternalId,
         value: Balance,
-        lock: [Balance; 4],
+        lock: NodeLock<Balance>,
     },
 
     /// A node used for gas reservation feature.
@@ -130,7 +174,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     Reserved {
         id: ExternalId,
         value: Balance,
-        lock: [Balance; 4],
+        lock: NodeLock<Balance>,
         refs: ChildrenRefs,
         consumed: bool,
     },
@@ -146,7 +190,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     SpecifiedLocal {
         parent: Id,
         value: Balance,
-        lock: [Balance; 4],
+        lock: NodeLock<Balance>,
         system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
@@ -158,7 +202,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// Such nodes don't have children references.
     UnspecifiedLocal {
         parent: Id,
-        lock: [Balance; 4],
+        lock: NodeLock<Balance>,
         system_reserve: Balance,
     },
 }
@@ -180,7 +224,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
         Self::External {
             id: origin,
             value,
-            lock: Default::default(),
+            lock: Zero::zero(),
             system_reserve: Zero::zero(),
             refs: Default::default(),
             consumed: false,
@@ -277,7 +321,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
     }
 
     /// Returns node's locked gas balance, if it can have any.
-    pub fn lock(&self) -> &[Balance; 4] {
+    pub fn lock(&self) -> &NodeLock<Balance> {
         match self {
             Self::External { lock, .. }
             | Self::UnspecifiedLocal { lock, .. }
@@ -288,7 +332,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
     }
 
     /// Get's a mutable access to node's locked gas balance, if it can have any.
-    pub fn lock_mut(&mut self) -> &mut [Balance; 4] {
+    pub fn lock_mut(&mut self) -> &mut NodeLock<Balance> {
         match self {
             Self::External { ref mut lock, .. }
             | Self::UnspecifiedLocal { ref mut lock, .. }

@@ -401,7 +401,7 @@ where
                 GasNode::Cut {
                     id,
                     value: amount,
-                    lock: Default::default(),
+                    lock: Zero::zero(),
                 }
             }
             NodeTypeWithValue::SpecifiedLocal => {
@@ -409,7 +409,7 @@ where
 
                 GasNode::SpecifiedLocal {
                     value: amount,
-                    lock: Default::default(),
+                    lock: Zero::zero(),
                     system_reserve: Zero::zero(),
                     parent: node_id,
                     refs: Default::default(),
@@ -421,7 +421,7 @@ where
                 GasNode::Reserved {
                     id,
                     value: amount,
-                    lock: Default::default(),
+                    lock: Zero::zero(),
                     refs: Default::default(),
                     consumed: false,
                 }
@@ -716,7 +716,7 @@ where
 
         let new_node = GasNode::UnspecifiedLocal {
             parent: node_id,
-            lock: Default::default(),
+            lock: Zero::zero(),
             system_reserve: Zero::zero(),
         };
 
