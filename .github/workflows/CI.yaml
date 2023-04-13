@@ -115,7 +115,7 @@ jobs:
         run: ./scripts/gear.sh clippy examples
 
       - name: "Test: Doc tests"
-        run: ./scripts/gear.sh test doc
+        run: ./scripts/gear.sh test doc --release
 
       - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
