@@ -22,4 +22,3 @@ blake2-rfc.workspace = true
 [features]
 default = ["std"]
 std = ["sp-sandbox/std", "gear-wasm-instrument/std", "log/std"]
-sys-trace = []
