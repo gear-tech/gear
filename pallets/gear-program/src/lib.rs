@@ -129,18 +129,20 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::convert::TryInto;
+use common::{scheduler::*, storage::*, CodeMetadata, ProgramStorageItem};
+use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, prelude::*};
 
 pub use pallet::*;
 
 pub mod migration;
+
+pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
 
 #[frame_support::pallet]
 pub mod pallet {
     use crate::migration::migrate;
 
     use super::*;
-    use common::{storage::*, CodeMetadata, ProgramStorageItem};
     #[cfg(feature = "debug-mode")]
     use frame_support::storage::PrefixIterator;
     use frame_support::{
@@ -154,13 +156,20 @@ pub mod pallet {
     };
     use primitive_types::H256;
     use sp_runtime::DispatchError;
-    use sp_std::prelude::*;
 
     /// The current storage version.
     pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {}
+    pub trait Config: frame_system::Config {
+        /// Scheduler.
+        type Scheduler: Scheduler<
+            BlockNumber = Self::BlockNumber,
+            Cost = u64,
+            Task = ScheduledTask<Self::AccountId>,
+            MissedBlocksCollection = BTreeSet<Self::BlockNumber>,
+        >;
+    }
 
     #[pallet::pallet]
     #[pallet::storage_version(PROGRAM_STORAGE_VERSION)]

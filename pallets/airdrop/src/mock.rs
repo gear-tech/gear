@@ -134,7 +134,9 @@ impl pallet_gear_messenger::Config for Test {
     type CurrentBlockNumber = Gear;
 }
 
-impl pallet_gear_program::Config for Test {}
+impl pallet_gear_program::Config for Test {
+    type Scheduler = GearScheduler;
+}
 
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {

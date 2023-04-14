@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Pallet, ProgramStorage};
-use common::Program;
+use crate::{Config, Pallet, ProgramStorage, TaskPoolOf};
+use common::{scheduler::*, Program};
 use frame_support::{traits::StorageVersion, weights::Weight};
 use sp_runtime::Saturating;
 
-pub const FREE_PERIOD: u32 = 1_000;
+pub const FREE_PERIOD: u32 = 3_000_000;
 
 const VERSION_1: StorageVersion = StorageVersion::new(1);
 
@@ -31,11 +31,19 @@ pub fn migrate<T: Config>() -> Weight {
     let weight: Weight = Weight::zero();
 
     if version == VERSION_1 {
-        ProgramStorage::<T>::translate_values(
-            |(program, block_number): (Program, <T as frame_system::Config>::BlockNumber)| {
+        ProgramStorage::<T>::translate(
+            |program_id, (program, _bn): (Program, <T as frame_system::Config>::BlockNumber)| {
+                let block_number = frame_system::Pallet::<T>::block_number();
+                let expiration_block = block_number.saturating_add(FREE_PERIOD.into());
+                if expiration_block > block_number {
+                    let task = ScheduledTask::PauseProgram(program_id);
+                    TaskPoolOf::<T>::add(expiration_block, task)
+                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+                }
+
                 Some(common::program_storage::Item {
                     program,
-                    block_number: block_number.saturating_add(FREE_PERIOD.into()),
+                    block_number: expiration_block,
                 })
             },
         );

@@ -203,7 +203,9 @@ impl pallet_gear::Config for Test {
     type ProgramRentConfig = ProgramRentConfig;
 }
 
-impl pallet_gear_program::Config for Test {}
+impl pallet_gear_program::Config for Test {
+    type Scheduler = GearScheduler;
+}
 
 impl pallet_gear_gas::Config for Test {
     type BlockGasLimit = BlockGasLimit;

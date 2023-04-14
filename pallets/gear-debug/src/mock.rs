@@ -134,7 +134,9 @@ impl common::GasPrice for GasConverter {
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
-impl pallet_gear_program::Config for Test {}
+impl pallet_gear_program::Config for Test {
+    type Scheduler = GearScheduler;
+}
 
 parameter_types! {
     pub RentFreePeriod: BlockNumber = 10;
