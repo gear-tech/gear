@@ -316,8 +316,7 @@ where
     pub(crate) fn charge_for_hold(
         id: impl Into<GasNodeIdOf<T>>,
         hold_interval: Interval<BlockNumberFor<T>>,
-        cost: SchedulingCostOf<T>,
-        max_charge: Option<SchedulingCostOf<T>>,
+        lock_id: LockIdentifier,
     ) {
         let id = id.into();
 
@@ -343,14 +342,29 @@ where
             .saturating_sub(hold_interval.start)
             .unique_saturated_into();
 
-        // Amount of gas to charge for holding.
-        let mut amount = duration.saturating_mul(cost);
+        // Cost per block based on the storage used for holding (identifiable by `lock_id`)
+        let cost = match lock_id {
+            LockIdentifier::Mailbox => CostsPerBlockOf::<T>::mailbox(),
+            LockIdentifier::Waitlist => CostsPerBlockOf::<T>::waitlist(),
+            LockIdentifier::Reservation => CostsPerBlockOf::<T>::reservation(),
+            _ => CostsPerBlockOf::<T>::dispatch_stash(),
+        };
 
-        // Ensure potential changes in `SchedulingCost` or `ReserveFor` safety margin
-        // don't lead to overcharging, that is we can't charge more than what had been locked
-        if let Some(deposited) = max_charge {
-            amount = amount.min(deposited);
+        // Unlocking all funds that have been locked for using the respective storage
+        let mut prepaid = GasHandlerOf::<T>::unlock_all(lock_id, id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        // In case of `mailbox` gas may not have been locked at the time of the gas node creation.
+        // In this case set the `prepaid` to maximum possible value.
+        // TODO: implement proper locking of all gas in `Cut` nodes to avoid insufficient funds.
+        if prepaid.is_zero() {
+            prepaid = CostsPerBlockOf::<T>::max_cost();
         }
+
+        // Amount of gas to charge for holding.
+        // Note: the amount being charged is capped with the `prepaid` to handle potential
+        // changes in storage cost or `ReserveFor` safety margin while using storage.
+        let amount = prepaid.min(duration.saturating_mul(cost));
 
         // Spending gas, if need.
         if !amount.is_zero() {
@@ -447,17 +461,8 @@ where
         // Expected block number to finish task.
         let expected = hold_interval.finish;
 
-        // Unlocking all funds, that were locked for storing.
-        let prepaid = GasHandlerOf::<T>::unlock_all(LockIdentifier::Waitlist, waitlisted.id())
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
         // Charging for holding.
-        Self::charge_for_hold(
-            waitlisted.id(),
-            hold_interval,
-            CostsPerBlockOf::<T>::waitlist(),
-            Some(prepaid),
-        );
+        Self::charge_for_hold(waitlisted.id(), hold_interval, LockIdentifier::Waitlist);
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::MessageWoken {
@@ -502,12 +507,7 @@ where
         let expected = hold_interval.finish;
 
         // Charging for holding.
-        Self::charge_for_hold(
-            mailboxed.id(),
-            hold_interval,
-            CostsPerBlockOf::<T>::mailbox(),
-            None,
-        );
+        Self::charge_for_hold(mailboxed.id(), hold_interval, LockIdentifier::Mailbox);
 
         // Determining if the reason is user action.
         let user_queries = matches!(reason, Reason::Runtime(MessageClaimed | MessageReplied));

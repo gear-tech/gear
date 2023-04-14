@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    manager::ExtManager, Config, CostsPerBlockOf, DispatchStashOf, Event, GasHandlerOf, Pallet,
-    QueueOf,
-};
+use crate::{manager::ExtManager, Config, DispatchStashOf, Event, Pallet, QueueOf};
 use alloc::string::ToString;
 use common::{
     event::{
@@ -28,7 +25,7 @@ use common::{
     },
     scheduler::*,
     storage::*,
-    LockIdentifier, LockableTree, Origin,
+    LockIdentifier, Origin,
 };
 use core::convert::TryInto;
 use gear_core::{
@@ -144,17 +141,8 @@ where
         let (dispatch, hold_interval) = DispatchStashOf::<T>::take(stashed_message_id)
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
 
-        // Unlocking gas for delayed sending rent payment.
-        let prepaid = GasHandlerOf::<T>::unlock_all(LockIdentifier::DispatchStash, dispatch.id())
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
         // Charging locked gas for holding in dispatch stash.
-        Pallet::<T>::charge_for_hold(
-            dispatch.id(),
-            hold_interval,
-            CostsPerBlockOf::<T>::dispatch_stash(),
-            Some(prepaid),
-        );
+        Pallet::<T>::charge_for_hold(dispatch.id(), hold_interval, LockIdentifier::DispatchStash);
 
         QueueOf::<T>::queue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
@@ -167,17 +155,8 @@ where
             .map(|(dispatch, interval)| (dispatch.into_parts().1, interval))
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
 
-        // Unlocking gas for delayed sending rent payment.
-        let prepaid = GasHandlerOf::<T>::unlock_all(LockIdentifier::DispatchStash, message.id())
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
         // Charge gas for message save.
-        Pallet::<T>::charge_for_hold(
-            message.id(),
-            hold_interval,
-            CostsPerBlockOf::<T>::dispatch_stash(),
-            Some(prepaid),
-        );
+        Pallet::<T>::charge_for_hold(message.id(), hold_interval, LockIdentifier::DispatchStash);
 
         Pallet::<T>::send_user_message_after_delay(message, to_mailbox);
     }

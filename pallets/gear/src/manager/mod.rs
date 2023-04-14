@@ -51,16 +51,13 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{
-    Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf,
-    TaskPoolOf,
-};
+use crate::{Config, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf};
 use common::{
     event::*,
-    scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
+    scheduler::{ScheduledTask, TaskHandler, TaskPool},
     storage::{Interval, Queue},
-    ActiveProgram, CodeStorage, GasTree, LockIdentifier, LockableTree, Origin, ProgramState,
-    ProgramStorage, ReservableTree,
+    ActiveProgram, CodeStorage, GasTree, LockIdentifier, Origin, ProgramState, ProgramStorage,
+    ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -322,20 +319,12 @@ where
             )
         });
 
-        let prepaid = GasHandlerOf::<T>::unlock_all(LockIdentifier::Reservation, reservation_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
         let interval = Interval {
             start: BlockNumberFor::<T>::from(slot.start),
             finish: BlockNumberFor::<T>::from(slot.finish),
         };
 
-        Pallet::<T>::charge_for_hold(
-            reservation_id,
-            interval,
-            CostsPerBlockOf::<T>::reservation(),
-            Some(prepaid),
-        );
+        Pallet::<T>::charge_for_hold(reservation_id, interval, LockIdentifier::Reservation);
 
         Pallet::<T>::consume_and_retrieve(reservation_id);
 

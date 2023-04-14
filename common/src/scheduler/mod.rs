@@ -102,4 +102,7 @@ pub trait SchedulingCostsPerBlock {
     /// Cost for storing message in dispatch stash.
     /// Everything sent delayed goes into dispatch stash.
     fn dispatch_stash() -> Self::Cost;
+
+    /// Maximum value for the `Self::Cost` type
+    fn max_cost() -> Self::Cost;
 }
