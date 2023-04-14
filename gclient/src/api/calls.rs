@@ -286,7 +286,7 @@ impl GearApi {
             } = &gas_node.1
             {
                 accounts_with_reserved_funds.insert(id);
-                src_program_reserved_gas_total += value + lock;
+                src_program_reserved_gas_total += value + lock[2]; // index 2 corresponds to LockIdentifier::Reservation
             } else {
                 unreachable!("Unexpected gas node type");
             }
