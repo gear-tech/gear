@@ -44,7 +44,6 @@ pub trait Error {
 pub struct Item<BlockNumber> {
     pub program: Program,
     pub block_number: BlockNumber,
-    pub hold_period: BlockNumber,
 }
 
 /// Trait to work with program data in a storage.
@@ -69,7 +68,6 @@ pub trait ProgramStorage {
         program_id: ProgramId,
         program: ActiveProgram,
         block_number: Self::BlockNumber,
-        hold_period: Self::BlockNumber,
     ) -> Result<(), Self::Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
             if maybe.is_some() {
@@ -79,7 +77,6 @@ pub trait ProgramStorage {
             *maybe = Some(Item {
                 program: Program::Active(program),
                 block_number,
-                hold_period,
             });
             Ok(())
         })
@@ -121,11 +118,9 @@ pub trait ProgramStorage {
     where
         F: FnOnce(&mut ActiveProgram) -> ReturnType,
     {
-        Self::update_program_if_active(program_id, |program, _block_number, _hold_period| {
-            match program {
-                Program::Active(active_program) => update_action(active_program),
-                _ => unreachable!("invariant kept by update_program_if_active"),
-            }
+        Self::update_program_if_active(program_id, |program, _block_number| match program {
+            Program::Active(active_program) => update_action(active_program),
+            _ => unreachable!("invariant kept by update_program_if_active"),
         })
     }
 
@@ -136,25 +131,23 @@ pub trait ProgramStorage {
         update_action: F,
     ) -> Result<ReturnType, Self::Error>
     where
-        F: FnOnce(&mut Program, &mut Self::BlockNumber, &mut Self::BlockNumber) -> ReturnType,
+        F: FnOnce(&mut Program, &mut Self::BlockNumber) -> ReturnType,
     {
         let Item {
             mut program,
             mut block_number,
-            mut hold_period,
         } = Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
         match program {
             Program::Active(_) => (),
             _ => return Err(Self::InternalError::not_active_program().into()),
         }
 
-        let result = update_action(&mut program, &mut block_number, &mut hold_period);
+        let result = update_action(&mut program, &mut block_number);
         Self::ProgramMap::insert(
             program_id,
             Item {
                 program,
                 block_number,
-                hold_period,
             },
         );
 

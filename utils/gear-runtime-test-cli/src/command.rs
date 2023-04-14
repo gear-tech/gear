@@ -254,8 +254,7 @@ macro_rules! command {
                 ProgramStorageOf::<Runtime>::add_program(
                     ProgramId::from_origin(*id),
                     program,
-                    DEFAULT_BLOCK_NUMBER.into(),
-                    DEFAULT_INTERVAL.into(),
+                    DEFAULT_BLOCK_NUMBER.saturating_add(DEFAULT_INTERVAL).into(),
                 );
             }
 
@@ -466,11 +465,12 @@ macro_rules! command {
 
                             let memory = info.persistent_pages.clone();
                             let gas_reservation_map = {
-                                let item = ProgramStorageOf::<Runtime>::get_program(*pid).unwrap();
+                                let program =
+                                    ProgramStorageOf::<Runtime>::get_program(*pid).unwrap();
                                 if let gear_common::Program::Active(gear_common::ActiveProgram {
                                     gas_reservation_map,
                                     ..
-                                }) = item.program
+                                }) = program.program
                                 {
                                     gas_reservation_map
                                 } else {

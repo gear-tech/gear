@@ -19,6 +19,7 @@
 use crate::{Config, Pallet, ProgramStorage};
 use common::Program;
 use frame_support::{traits::StorageVersion, weights::Weight};
+use sp_runtime::Saturating;
 
 pub const FREE_PERIOD: u32 = 1_000;
 
@@ -34,8 +35,7 @@ pub fn migrate<T: Config>() -> Weight {
             |(program, block_number): (Program, <T as frame_system::Config>::BlockNumber)| {
                 Some(common::program_storage::Item {
                     program,
-                    block_number,
-                    hold_period: FREE_PERIOD.into(),
+                    block_number: block_number.saturating_add(FREE_PERIOD.into()),
                 })
             },
         );

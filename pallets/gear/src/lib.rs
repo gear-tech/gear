@@ -605,14 +605,13 @@ pub mod pallet {
             }
 
             let message_id = Self::next_message_id(origin);
-            let block_number = Self::block_number().unique_saturated_into();
+            let block_number = Self::block_number();
 
             ExtManager::<T>::default().set_program(
                 program_id,
                 &code_info,
                 message_id,
-                block_number,
-                RentFreePeriodOf::<T>::get(),
+                block_number.saturating_add(RentFreePeriodOf::<T>::get()),
             );
 
             // # Safety
@@ -806,42 +805,42 @@ pub mod pallet {
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|item| item.program.is_initialized())
+                .map(|program| program.program.is_initialized())
                 .unwrap_or(false)
         }
 
         /// Returns true if id is a program and the program has active status.
         pub fn is_active(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|item| item.program.is_active())
+                .map(|program| program.program.is_active())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has terminated status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|item| item.program.is_terminated())
+                .map(|program| program.program.is_terminated())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has exited status.
         pub fn is_exited(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|item| item.program.is_exited())
+                .map(|program| program.program.is_exited())
                 .unwrap_or_default()
         }
 
         pub fn get_block_number(program_id: ProgramId) -> <T as frame_system::Config>::BlockNumber {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|item| item.block_number)
+                .map(|program| program.block_number)
                 .unwrap_or_default()
         }
 
         /// Returns exit argument of an exited program.
         pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|item| {
-                    if let Program::Exited(inheritor) = item.program {
+                .map(|program| {
+                    if let Program::Exited(inheritor) = program.program {
                         Some(inheritor)
                     } else {
                         None
@@ -853,8 +852,8 @@ pub mod pallet {
         /// Returns inheritor of terminated (failed it's init) program.
         pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|item| {
-                    if let Program::Terminated(inheritor) = item.program {
+                .map(|program| {
+                    if let Program::Terminated(inheritor) = program.program {
                         Some(inheritor)
                     } else {
                         None
@@ -1183,18 +1182,17 @@ pub mod pallet {
             let origin = who.clone().into_origin();
 
             let message_id = Self::next_message_id(origin);
-            let block_number = Self::block_number().unique_saturated_into();
+            let block_number = Self::block_number();
+            let expiration_block = block_number.saturating_add(RentFreePeriodOf::<T>::get());
 
             ExtManager::<T>::default().set_program(
                 packet.destination(),
                 &code_info,
                 message_id,
-                block_number,
-                RentFreePeriodOf::<T>::get(),
+                expiration_block,
             );
 
             let program_id = packet.destination();
-            let expiration_block = block_number.saturating_add(RentFreePeriodOf::<T>::get());
             let program_event = Event::ProgramChanged {
                 id: program_id,
                 change: ProgramChangeKind::Added {
@@ -1226,7 +1224,7 @@ pub mod pallet {
 
             QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
-            Self::schedule_pausing(program_id, block_number, expiration_block);
+            Self::schedule_program_pausing(program_id, block_number, expiration_block);
 
             Self::deposit_event(program_event);
             Self::deposit_event(event);

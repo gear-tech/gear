@@ -49,7 +49,6 @@ pub type BlockNumber = u32;
 pub struct Program {
     pub program: metadata::runtime_types::gear_common::ActiveProgram,
     pub bn: BlockNumber,
-    pub hold_period: BlockNumber,
 }
 
 /// Gear api wrapper.

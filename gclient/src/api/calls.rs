@@ -256,7 +256,6 @@ impl GearApi {
 
         let gsdk::Program {
             program: src_program,
-            hold_period,
             ..
         } = self
             .0
@@ -370,7 +369,6 @@ impl GearApi {
                 dest_program_id,
                 src_program,
                 dest_node_api.last_block_number().await?,
-                hold_period,
             )
             .await?;
 

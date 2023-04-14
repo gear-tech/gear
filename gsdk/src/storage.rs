@@ -283,15 +283,14 @@ impl Api {
             vec![Value::from_bytes(program_id)],
         );
 
-        let item = self
+        let program = self
             .fetch_storage_at::<_, ProgramStorageItem<BlockNumber>>(&addr, block_hash)
             .await?;
 
-        match item.program {
+        match program.program {
             Program::Active(p) => Ok(GProgram {
                 program: p,
-                bn: item.block_number,
-                hold_period: item.hold_period,
+                bn: program.block_number,
             }),
             _ => Err(Error::ProgramTerminated),
         }

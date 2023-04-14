@@ -160,7 +160,7 @@ where
 
                 self.clean_reservation_tasks(program_id, maybe_inactive);
 
-                ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn, _hold_period| {
+                ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
                     *bn = Pallet::<T>::block_number();
                     *p = Program::Terminated(origin);
                 }).unwrap_or_else(|e| {
@@ -229,7 +229,7 @@ where
         // Program can't be inactive, cause it was executed.
         self.clean_reservation_tasks(id_exited, false);
 
-        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn, _hold_period| {
+        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn| {
             *bn = Pallet::<T>::block_number();
             *p = Program::Exited(value_destination);
         })
@@ -457,17 +457,15 @@ where
             for (init_message, candidate_id) in candidates {
                 if !ProgramStorageOf::<T>::program_exists(candidate_id) {
                     let block_number = Pallet::<T>::block_number();
-                    let interval = RentFreePeriodOf::<T>::get();
-                    self.set_program(
-                        candidate_id,
-                        &code_info,
-                        init_message,
-                        block_number,
-                        interval,
-                    );
+                    let expiration_block =
+                        block_number.saturating_add(RentFreePeriodOf::<T>::get());
+                    self.set_program(candidate_id, &code_info, init_message, expiration_block);
 
-                    let expiration_block = block_number.saturating_add(interval);
-                    Pallet::<T>::schedule_pausing(candidate_id, block_number, expiration_block);
+                    Pallet::<T>::schedule_program_pausing(
+                        candidate_id,
+                        block_number,
+                        expiration_block,
+                    );
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }

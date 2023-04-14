@@ -315,7 +315,6 @@ impl Signer {
         program_id: ProgramId,
         program: ActiveProgram,
         block_number: BlockNumber,
-        hold_period: BlockNumber,
     ) -> InBlock {
         let addr = subxt::dynamic::storage(
             "GearProgram",
@@ -327,7 +326,6 @@ impl Signer {
             &Item {
                 program: Program::Active(program),
                 block_number,
-                hold_period,
             },
         )])
         .await

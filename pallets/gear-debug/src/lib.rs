@@ -201,8 +201,8 @@ pub mod pallet {
                 .collect();
 
             let programs = T::ProgramStorage::iter()
-                .map(|(id, item)| {
-                    let active = match item.program {
+                .map(|(id, program)| {
+                    let active = match program.program {
                         Program::Active(active) => active,
                         _ => {
                             return ProgramDetails {

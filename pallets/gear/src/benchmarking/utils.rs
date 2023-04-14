@@ -149,8 +149,7 @@ where
                 program_id,
                 &code_info,
                 root_message_id,
-                DEFAULT_BLOCK_NUMBER.into(),
-                DEFAULT_INTERVAL.into(),
+                DEFAULT_BLOCK_NUMBER.saturating_add(DEFAULT_INTERVAL).into(),
             );
 
             Dispatch::new(
@@ -176,8 +175,7 @@ where
                 program_id,
                 &code_info,
                 root_message_id,
-                DEFAULT_BLOCK_NUMBER.into(),
-                DEFAULT_INTERVAL.into(),
+                DEFAULT_BLOCK_NUMBER.saturating_add(DEFAULT_INTERVAL).into(),
             );
 
             Dispatch::new(

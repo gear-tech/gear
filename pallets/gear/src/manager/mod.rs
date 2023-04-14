@@ -251,8 +251,7 @@ where
         program_id: ProgramId,
         code_info: &CodeInfo,
         message_id: MessageId,
-        block_number: BlockNumberFor<T>,
-        hold_period: BlockNumberFor<T>,
+        expiration_block: BlockNumberFor<T>,
     ) {
         // Program can be added to the storage only with code, which is done in
         // `submit_program` or `upload_code` extrinsic.
@@ -274,13 +273,13 @@ where
             gas_reservation_map: Default::default(),
         };
 
-        ProgramStorageOf::<T>::add_program(program_id, program, block_number, hold_period)
+        ProgramStorageOf::<T>::add_program(program_id, program, expiration_block)
             .expect("set_program shouldn't be called for the existing id");
     }
 
     fn clean_reservation_tasks(&mut self, program_id: ProgramId, maybe_inactive: bool) {
         let maybe_active_program = ProgramStorageOf::<T>::get_program(program_id)
-            .and_then(|item| ActiveProgram::try_from(item.program).ok());
+            .and_then(|program| ActiveProgram::try_from(program.program).ok());
 
         if maybe_active_program.is_none() && maybe_inactive {
             return;

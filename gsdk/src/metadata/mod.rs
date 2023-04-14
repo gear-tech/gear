@@ -688,7 +688,6 @@ pub mod runtime_types {
             pub struct Item<_0> {
                 pub program: runtime_types::gear_common::Program,
                 pub block_number: _0,
-                pub hold_period: _0,
             }
         }
         pub mod scheduler {

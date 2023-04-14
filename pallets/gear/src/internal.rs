@@ -941,7 +941,7 @@ where
         inheritor
     }
 
-    pub(crate) fn schedule_pausing(
+    pub(crate) fn schedule_program_pausing(
         program_id: ProgramId,
         block_number: BlockNumberFor<T>,
         expiration_block: BlockNumberFor<T>,
