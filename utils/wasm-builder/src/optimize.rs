@@ -16,7 +16,7 @@ use std::{
 };
 
 #[cfg(feature = "wasm-opt")]
-use wasm_opt::{Feature, OptimizationOptions, Pass};
+use wasm_opt::{OptimizationOptions, Pass};
 
 const OPTIMIZED_EXPORTS: [&str; 7] = [
     "handle",
@@ -207,7 +207,6 @@ pub fn do_optimization(
         .arg(format!("-O{optimization_level}"))
         .arg("-o")
         .arg(dest_optimized)
-        .arg("--disable-sign-ext")
         // the memory in our module is imported, `wasm-opt` needs to be told that
         // the memory is initialized to zeroes, otherwise it won't run the
         // memory-packing pre-pass.
@@ -260,7 +259,6 @@ pub fn do_optimization(
         "z" => OptimizationOptions::new_optimize_for_size_aggressively(),
         _ => panic!("Invalid optimization level {}", optimization_level),
     }
-    .disable_feature(Feature::SignExt)
     .add_pass(Pass::Dae)
     .add_pass(Pass::Vacuum)
     // the memory in our module is imported, `wasm-opt` needs to be told that

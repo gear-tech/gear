@@ -19,7 +19,7 @@
 //! Integration tests for command `send`
 use crate::common::{self, Args, Result};
 use gsdk::Api;
-use parity_scale_codec::Encode;
+use scale_info::scale::Encode;
 
 #[tokio::test]
 async fn test_command_send_works() -> Result<()> {

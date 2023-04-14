@@ -3,7 +3,7 @@ name = "gear-authorship"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 description = "Gear Node"
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
@@ -18,9 +18,9 @@ futures-timer.workspace = true
 log.workspace = true
 
 # Gear
-runtime-primitives.workspace = true
-common.workspace = true
-pallet-gear-rpc-runtime-api.workspace = true
+runtime-primitives = { workspace = true, features = ["std"] }
+common = { workspace = true, features = ["std"] }
+pallet-gear-rpc-runtime-api = { workspace = true, features = ["std"] }
 
 # Substrate Client
 sc-block-builder.workspace = true
@@ -31,28 +31,29 @@ sc-client-api.workspace = true
 sc-proposer-metrics.workspace = true
 
 # Substrate Primitives
-sp-core.workspace = true
-sp-api.workspace = true
+sp-core = { workspace = true, features = ["std"] }
+sp-api = { workspace = true, features = ["std"] }
 sp-consensus.workspace = true
-sp-runtime.workspace = true
+sp-runtime = { workspace = true, features = ["std"] }
 sp-blockchain.workspace = true
-sp-inherents.workspace = true
+sp-inherents = { workspace = true, features = ["std"] }
 
 # Substrate Other
-frame-system.workspace = true
+frame-system = { workspace = true, features = ["std"] }
 prometheus-endpoint.workspace = true
 
 [dev-dependencies]
 sc-transaction-pool.workspace = true
-frame-support.workspace = true
-sp-io.workspace = true
-sp-std.workspace = true
-sp-timestamp.workspace = true
-sp-consensus-babe.workspace = true
-pallet-sudo.workspace = true
-pallet-timestamp.workspace = true
-pallet-gear.workspace = true
-pallet-gear-messenger.workspace = true
+frame-support = { workspace = true, features = ["std"] }
+sp-io = { workspace = true, features = ["std"] }
+sp-std = { workspace = true, features = ["std"] }
+sp-timestamp = { workspace = true, features = ["std"] }
+sp-consensus-babe = { workspace = true, features = ["std"] }
+pallet-sudo  = { workspace = true, features = ["std"] }
+pallet-timestamp = { workspace = true, features = ["std"] }
+pallet-gear = { workspace = true, features = ["std"] }
+pallet-gear-messenger  = { workspace = true, features = ["std"] }
+sp-state-machine = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41" }
 testing.workspace = true
-vara-runtime.workspace = true
+vara-runtime  = { workspace = true, features = ["std"] }
 demo-mul-by-const.workspace = true

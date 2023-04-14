@@ -244,6 +244,12 @@ impl Signer {
 
 // pallet-gas
 impl Signer {
+    /// Writes gas total issuance into storage.
+    pub async fn set_total_issuance(&self, value: u64) -> InBlock {
+        let addr = subxt::dynamic::storage_root("GearGas", "TotalIssuance");
+        self.set_storage(&[(addr, value)]).await
+    }
+
     /// Writes Gear gas nodes into storage at their ids.
     pub async fn set_gas_nodes(
         &self,

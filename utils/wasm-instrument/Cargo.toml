@@ -2,12 +2,12 @@
 name = "gear-wasm-instrument"
 version = "0.1.0"
 authors = ["Gear Technologies"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
-enum-iterator = "1.4.0"
+wasm-instrument = { workspace = true, features = ["sign_ext"] }
+enum-iterator.workspace = true
 
 [dev-dependencies]
 wasmparser.workspace = true
@@ -20,4 +20,5 @@ gear-core.workspace = true
 default = ["std"]
 std = [
     "wasm-instrument/std",
+    "wasm-instrument/sign_ext",
 ]

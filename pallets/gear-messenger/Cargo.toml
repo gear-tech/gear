@@ -26,15 +26,15 @@ gear-core.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
-sp-std = { workspace = true, default-features = false }
+sp-std = { workspace = true }
 sp-io.workspace = true
 
 [dev-dependencies]
-pallet-gear-gas.workspace = true
-sp-runtime.workspace = true
-pallet-balances.workspace = true
-pallet-authorship.workspace = true
-pallet-timestamp.workspace = true
+pallet-gear-gas = { workspace = true, features = ["std"] }
+sp-runtime = { workspace = true, features = ["std"] }
+pallet-balances = { workspace = true, features = ["std"] }
+pallet-authorship = { workspace = true, features = ["std"] }
+pallet-timestamp = { workspace = true, features = ["std"] }
 env_logger.workspace = true
 
 [features]

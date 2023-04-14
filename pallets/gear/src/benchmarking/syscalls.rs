@@ -199,7 +199,7 @@ where
     }
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         let res_offset = COMMON_OFFSET;
 
         // It is not allowed to reserve less than mailbox threshold
@@ -225,7 +225,7 @@ where
     }
 
     pub fn gr_unreserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let repetitions = r;
         assert!(repetitions <= MAX_REPETITIONS);
 
         // Store max repetitions for any `r` to exclude data segments size contribution.

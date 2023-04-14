@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(deprecated)]
 
 /* The program demonstrates asyncronous execution and
  * how to use macros `gstd::async_init`/`gstd::async_main`.
@@ -27,6 +28,8 @@ pub struct InputArgs {
     pub approver_third: ActorId,
 }
 
+// NOTE: this macro has been deprecated, see
+// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
 gstd::metadata! {
     title: "demo async init",
     init:

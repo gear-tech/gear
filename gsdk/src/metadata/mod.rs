@@ -153,7 +153,7 @@ pub mod gear_debug {
 
 pub mod runtime_types {
     use super::runtime_types;
-    pub mod finality_grandpa {
+    pub mod consensus_grandpa {
         use super::runtime_types;
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
         pub struct Equivocation<_0, _1, _2> {
@@ -1985,7 +1985,7 @@ pub mod runtime_types {
                 #[codec(index = 0)]
                 report_equivocation {
                     equivocation_proof: ::std::boxed::Box<
-                        runtime_types::sp_finality_grandpa::EquivocationProof<
+                        runtime_types::sp_consensus_grandpa::EquivocationProof<
                             ::subxt::utils::H256,
                             ::core::primitive::u32,
                         >,
@@ -1995,7 +1995,7 @@ pub mod runtime_types {
                 #[codec(index = 1)]
                 report_equivocation_unsigned {
                     equivocation_proof: ::std::boxed::Box<
-                        runtime_types::sp_finality_grandpa::EquivocationProof<
+                        runtime_types::sp_consensus_grandpa::EquivocationProof<
                             ::subxt::utils::H256,
                             ::core::primitive::u32,
                         >,
@@ -2036,7 +2036,7 @@ pub mod runtime_types {
                 #[codec(index = 0)]
                 NewAuthorities {
                     authority_set: ::std::vec::Vec<(
-                        runtime_types::sp_finality_grandpa::app::Public,
+                        runtime_types::sp_consensus_grandpa::app::Public,
                         ::core::primitive::u64,
                     )>,
                 },
@@ -2052,7 +2052,7 @@ pub mod runtime_types {
             pub delay: _0,
             pub next_authorities:
                 runtime_types::sp_core::bounded::weak_bounded_vec::WeakBoundedVec<(
-                    runtime_types::sp_finality_grandpa::app::Public,
+                    runtime_types::sp_consensus_grandpa::app::Public,
                     ::core::primitive::u64,
                 )>,
             pub forced: ::core::option::Option<_0>,
@@ -4246,7 +4246,7 @@ pub mod runtime_types {
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
         pub enum Void {}
     }
-    pub mod sp_finality_grandpa {
+    pub mod sp_consensus_grandpa {
         use super::runtime_types;
         pub mod app {
             use super::runtime_types;
@@ -4263,25 +4263,25 @@ pub mod runtime_types {
         pub enum Equivocation<_0, _1> {
             #[codec(index = 0)]
             Prevote(
-                runtime_types::finality_grandpa::Equivocation<
-                    runtime_types::sp_finality_grandpa::app::Public,
-                    runtime_types::finality_grandpa::Prevote<_0, _1>,
-                    runtime_types::sp_finality_grandpa::app::Signature,
+                runtime_types::consensus_grandpa::Equivocation<
+                    runtime_types::sp_consensus_grandpa::app::Public,
+                    runtime_types::consensus_grandpa::Prevote<_0, _1>,
+                    runtime_types::sp_consensus_grandpa::app::Signature,
                 >,
             ),
             #[codec(index = 1)]
             Precommit(
-                runtime_types::finality_grandpa::Equivocation<
-                    runtime_types::sp_finality_grandpa::app::Public,
-                    runtime_types::finality_grandpa::Precommit<_0, _1>,
-                    runtime_types::sp_finality_grandpa::app::Signature,
+                runtime_types::consensus_grandpa::Equivocation<
+                    runtime_types::sp_consensus_grandpa::app::Public,
+                    runtime_types::consensus_grandpa::Precommit<_0, _1>,
+                    runtime_types::sp_consensus_grandpa::app::Signature,
                 >,
             ),
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
         pub struct EquivocationProof<_0, _1> {
             pub set_id: ::core::primitive::u64,
-            pub equivocation: runtime_types::sp_finality_grandpa::Equivocation<_0, _1>,
+            pub equivocation: runtime_types::sp_consensus_grandpa::Equivocation<_0, _1>,
         }
     }
     pub mod sp_runtime {
@@ -5159,7 +5159,7 @@ pub mod runtime_types {
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
         pub struct SessionKeys {
             pub babe: runtime_types::sp_consensus_babe::app::Public,
-            pub grandpa: runtime_types::sp_finality_grandpa::app::Public,
+            pub grandpa: runtime_types::sp_consensus_grandpa::app::Public,
             pub im_online: runtime_types::pallet_im_online::sr25519::app_sr25519::Public,
             pub authority_discovery: runtime_types::sp_authority_discovery::app::Public,
         }

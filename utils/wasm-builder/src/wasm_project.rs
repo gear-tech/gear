@@ -142,6 +142,9 @@ impl WasmProject {
         lib.insert("name".into(), crate_info.snake_case_name.into());
         lib.insert("crate-type".into(), vec!["cdylib".to_string()].into());
 
+        let mut dev_profile = Table::new();
+        dev_profile.insert("opt-level".into(), "s".into());
+
         let mut release_profile = Table::new();
         release_profile.insert("lto".into(), true.into());
         release_profile.insert("opt-level".into(), "s".into());
@@ -150,7 +153,7 @@ impl WasmProject {
         production_profile.insert("inherits".into(), "release".into());
 
         let mut profile = Table::new();
-        profile.insert("dev".into(), release_profile.clone().into());
+        profile.insert("dev".into(), dev_profile.clone().into());
         profile.insert("release".into(), release_profile.into());
         profile.insert("production".into(), production_profile.into());
 
