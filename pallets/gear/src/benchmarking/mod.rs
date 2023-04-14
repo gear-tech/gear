@@ -843,32 +843,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_send_input_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
-        let mut res = None;
-        let exec = Benches::<T>::gr_send_input(1, Some(n), false)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
     gr_send_input_wgas {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = Benches::<T>::gr_send_input(r, None, true)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
-    gr_send_input_wgas_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
-        let mut res = None;
-        let exec = Benches::<T>::gr_send_input(1, Some(n), true)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -924,6 +902,28 @@ benchmarks! {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = Benches::<T>::gr_send_commit(r, true)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_send {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_send(r, None)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_send_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_send(1, Some(n))?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1051,17 +1051,6 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_reply_input_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
-        let mut res = None;
-        let exec = Benches::<T>::gr_reply_input(1, Some(n), false)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
     // We cannot call `gr_reply_input_wgas` multiple times. Therefore our weight determination is not
     // as precise as with other APIs.
     gr_reply_input_wgas {
@@ -1075,10 +1064,23 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_reply_input_wgas_per_kb {
+    // We cannot call `gr_reservation_reply` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_reservation_reply {
+        let r in 0 .. 1;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_reply(r, None)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_reply_per_kb {
         let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
-        let exec = Benches::<T>::gr_reply_input(1, Some(n), true)?;
+        let exec = Benches::<T>::gr_reservation_reply(1, Some(n))?;
     }: {
         res.replace(run_process(exec));
     }

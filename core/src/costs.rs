@@ -378,9 +378,9 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_reservation_send_commit`.
     ReservationSendCommit,
     /// Weight of calling `gr_send_input`.
-    SendInput(u32),
+    SendInput,
     /// Weight of calling `gr_send_input_wgas`.
-    SendInputWGas(u32),
+    SendInputWGas,
     /// Weight of calling `gr_send_push_input`.
     SendPushInput,
     /// Weight per buffer bytes number in sent input.
@@ -400,9 +400,9 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_reservation_reply_commit`.
     ReservationReplyCommit,
     /// Weight of calling `gr_reply_input`.
-    ReplyInput(u32),
+    ReplyInput,
     /// Weight of calling `gr_reply_input_wgas`.
-    ReplyInputWGas(u32),
+    ReplyInputWGas,
     /// Weight of calling `gr_reply_push_input`.
     ReplyPushInput,
     /// Weight per buffer bytes number in reply input.
@@ -486,8 +486,8 @@ impl RuntimeCosts {
             SendCommitWGas => s.gr_send_commit_wgas,
             ReservationSend(len) => cost_with_weight_per_byte!(gr_reservation_send, len),
             ReservationSendCommit => s.gr_reservation_send_commit,
-            SendInput(len) => cost_with_weight_per_byte!(gr_send_input, len),
-            SendInputWGas(len) => cost_with_weight_per_byte!(gr_send_input_wgas, len),
+            SendInput => s.gr_send_input,
+            SendInputWGas => s.gr_send_input_wgas,
             SendPushInput => s.gr_send_push_input,
             SendPushInputPerByte(len) => cost_per_byte(s.gr_send_push_input_per_byte, len),
             Reply(len) => cost_with_weight_per_byte!(gr_reply, len),
@@ -497,8 +497,8 @@ impl RuntimeCosts {
             ReplyCommitWGas => s.gr_reply_commit_wgas,
             ReservationReply(len) => cost_with_weight_per_byte!(gr_reservation_reply, len),
             ReservationReplyCommit => s.gr_reservation_reply_commit,
-            ReplyInput(len) => cost_with_weight_per_byte!(gr_reply_input, len),
-            ReplyInputWGas(len) => cost_with_weight_per_byte!(gr_reply_input_wgas, len),
+            ReplyInput => s.gr_reply_input,
+            ReplyInputWGas => s.gr_reply_input_wgas,
             ReplyPushInput => s.gr_reply_push_input,
             ReplyPushInputPerByte(len) => cost_per_byte(s.gr_reply_push_input_per_byte, len),
             ReplyTo => s.gr_reply_to,

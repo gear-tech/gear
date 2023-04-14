@@ -154,23 +154,6 @@ where
         )
     }
 
-    // fn prepare_wgas_if_need(
-    //     name: SysCallName,
-    //     mut params: Vec<DynInstr>,
-    //     gas_param_index: usize,
-    //     wgas: bool,
-    // ) -> (SysCallName, Vec<DynInstr>) {
-    //     if !wgas {
-    //         return (name, params);
-    //     }
-    //     let name = name
-    //         .to_wgas()
-    //         .expect("Expect syscall, which has wgas variant");
-    //     let signature_params = name.signature().params;
-    //     params.insert(gas_param_index, InstrI64Const(100_000_000));
-    //     (name, params)
-    // }
-
     // TODO: add check for alloc result #2498
     pub fn alloc(r: u32) -> Result<Exec<T>, &'static str> {
         let module = ModuleDefinition {
@@ -204,6 +187,7 @@ where
             for page in 0..r {
                 instructions.push(I32Const(page as i32));
                 instructions.push(Call(1));
+                // if !returned 0  => unreachable
                 instructions.push(Drop);
             }
         }
@@ -583,6 +567,55 @@ where
         Self::prepare_handle(module, 10000000)
     }
 
+    pub fn gr_reservation_send(
+        batches: u32,
+        payload_len_kb: Option<u32>,
+    ) -> Result<Exec<T>, &'static str> {
+        let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
+        assert!(repetitions <= MAX_REPETITIONS);
+
+        let rid_pid_values: Vec<u8> = (0..MAX_REPETITIONS)
+            .flat_map(|i| {
+                let mut bytes = [0; RID_PID_VALUE_SIZE as usize];
+                bytes[..RID_SIZE as usize].copy_from_slice(ReservationId::from(i as u64).as_ref());
+                bytes
+            })
+            .collect();
+
+        let rid_pid_value_offset = COMMON_OFFSET;
+        let payload_offset = rid_pid_value_offset + rid_pid_values.len() as u32;
+        let payload_len = payload_len_kb
+            .map(kb_to_bytes)
+            .unwrap_or(COMMON_PAYLOAD_LEN);
+        let res_offset = payload_offset + payload_len;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::ReservationSend],
+            data_segments: vec![DataSegment {
+                offset: rid_pid_value_offset,
+                value: rid_pid_values,
+            }],
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // rid pid value offset
+                    Counter(rid_pid_value_offset, RID_PID_VALUE_SIZE),
+                    // payload offset
+                    InstrI32Const(payload_offset),
+                    // payload len
+                    InstrI32Const(payload_len),
+                    // delay
+                    InstrI32Const(10),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle_with_reservation_slots(module, repetitions)
+    }
+
     pub fn gr_reservation_send_commit(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         assert!(repetitions <= MAX_REPETITIONS);
@@ -760,6 +793,56 @@ where
         };
 
         Self::prepare_handle(module, 10000000)
+    }
+
+    pub fn gr_reservation_reply(
+        batches: u32,
+        payload_len_kb: Option<u32>,
+    ) -> Result<Exec<T>, &'static str> {
+        let repetitions = batches;
+        let max_repetitions = 1;
+        assert!(repetitions <= max_repetitions);
+
+        let rid_values: Vec<_> = (0..max_repetitions)
+            .flat_map(|i| {
+                let mut bytes = [0; RID_VALUE_SIZE as usize];
+                bytes[..RID_SIZE as usize].copy_from_slice(ReservationId::from(i as u64).as_ref());
+                bytes.to_vec()
+            })
+            .collect();
+
+        let rid_value_offset = COMMON_OFFSET;
+        let payload_offset = rid_value_offset + rid_values.len() as u32;
+        let payload_len = payload_len_kb
+            .map(kb_to_bytes)
+            .unwrap_or(COMMON_PAYLOAD_LEN);
+        let res_offset = payload_offset + payload_len;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::ReservationReply],
+            data_segments: vec![DataSegment {
+                offset: rid_value_offset,
+                value: rid_values,
+            }],
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // rid value offset
+                    Counter(rid_value_offset, RID_VALUE_SIZE),
+                    // payload offset
+                    InstrI32Const(payload_offset),
+                    // payload len
+                    InstrI32Const(payload_len),
+                    // delay
+                    InstrI32Const(10),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle_with_reservation_slots(module, repetitions)
     }
 
     pub fn gr_reservation_reply_commit(r: u32) -> Result<Exec<T>, &'static str> {

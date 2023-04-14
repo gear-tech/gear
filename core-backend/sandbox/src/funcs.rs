@@ -645,21 +645,18 @@ where
 
         syscall_trace!("reply_input", offset, len, value_ptr, delay, err_mid_ptr);
 
-        ctx.run_fallible::<_, _, LengthWithHash>(
-            err_mid_ptr,
-            RuntimeCosts::ReplyInput(len),
-            |ctx| {
-                let value = Self::register_and_read_value(ctx, value_ptr)?;
+        // Charge for `len` inside `reply_push_input`
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyInput, |ctx| {
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
 
-                let mut f = || {
-                    ctx.ext.reply_push_input(offset, len)?;
-                    ctx.ext
-                        .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-                };
+            let mut f = || {
+                ctx.ext.reply_push_input(offset, len)?;
+                ctx.ext
+                    .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+            };
 
-                f().map_err(Into::into)
-            },
-        )
+            f().map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_reply_push_input` syscall.
@@ -687,23 +684,20 @@ where
             err_mid_ptr
         );
 
-        ctx.run_fallible::<_, _, LengthWithHash>(
-            err_mid_ptr,
-            RuntimeCosts::ReplyInputWGas(len),
-            |ctx| {
-                let value = Self::register_and_read_value(ctx, value_ptr)?;
+        // Charge for `len` inside `reply_push_input`
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyInputWGas, |ctx| {
+            let value = Self::register_and_read_value(ctx, value_ptr)?;
 
-                let mut f = || {
-                    ctx.ext.reply_push_input(offset, len)?;
-                    ctx.ext.reply_commit(
-                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                        delay,
-                    )
-                };
+            let mut f = || {
+                ctx.ext.reply_push_input(offset, len)?;
+                ctx.ext.reply_commit(
+                    ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                    delay,
+                )
+            };
 
-                f().map_err(Into::into)
-            },
-        )
+            f().map_err(Into::into)
+        })
     }
 
     /// Fallible `gr_send_input` syscall.
@@ -712,7 +706,8 @@ where
 
         syscall_trace!("send_input", pid_value_ptr, offset, len, delay, err_mid_ptr);
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInput(len), |ctx| {
+        // Charge for `len` inside `send_push_input`
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInput, |ctx| {
             let read_pid_value = ctx.register_read_as(pid_value_ptr);
             let HashWithValue {
                 hash: destination,
@@ -760,34 +755,31 @@ where
             err_mid_ptr
         );
 
-        ctx.run_fallible::<_, _, LengthWithHash>(
-            err_mid_ptr,
-            RuntimeCosts::SendInputWGas(len),
-            |ctx| {
-                let read_pid_value = ctx.register_read_as(pid_value_ptr);
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_pid_value)?;
+        // Charge for `len` inside `send_push_input`
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInputWGas, |ctx| {
+            let read_pid_value = ctx.register_read_as(pid_value_ptr);
+            let HashWithValue {
+                hash: destination,
+                value,
+            } = ctx.read_as(read_pid_value)?;
 
-                let mut f = || {
-                    let handle = ctx.ext.send_init()?;
-                    ctx.ext.send_push_input(handle, offset, len)?;
-                    ctx.ext.send_commit(
-                        handle,
-                        HandlePacket::new_with_gas(
-                            destination.into(),
-                            Default::default(),
-                            gas_limit,
-                            value,
-                        ),
-                        delay,
-                    )
-                };
+            let mut f = || {
+                let handle = ctx.ext.send_init()?;
+                ctx.ext.send_push_input(handle, offset, len)?;
+                ctx.ext.send_commit(
+                    handle,
+                    HandlePacket::new_with_gas(
+                        destination.into(),
+                        Default::default(),
+                        gas_limit,
+                        value,
+                    ),
+                    delay,
+                )
+            };
 
-                f().map_err(Into::into)
-            },
-        )
+            f().map_err(Into::into)
+        })
     }
 
     /// Infallible `gr_debug` syscall.

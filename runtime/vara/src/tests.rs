@@ -19,7 +19,7 @@
 use super::*;
 use pallet_gear::InstructionWeights;
 
-const INTERVAL_ERROR_DIVIDER: u32 = 3; // 66% match interval
+const INTERVAL_ERROR_DIVIDER: u32 = 2; // ±50% match interval
 
 macro_rules! check_weight_inbounds_interval {
     ($weights:expr, $instruction:ident, $interval_mid: expr) => {
