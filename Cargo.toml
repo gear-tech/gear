@@ -347,6 +347,7 @@ demo-signal-entry = { path = "examples/binaries/signal-entry" }
 demo-value-sender = { path = "examples/binaries/value-sender" }
 demo-waiter = { path = "examples/binaries/waiter" }
 demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
+demo-wait-wake = { path = "examples/binaries/wait_wake" }
 demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
 
 # Dependencies that only used in one package

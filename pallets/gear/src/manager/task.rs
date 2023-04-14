@@ -18,7 +18,7 @@
 
 use crate::{
     manager::ExtManager, Config, CostsPerBlockOf, DispatchStashOf, Event, GasHandlerOf, Pallet,
-    PausedProgramStorageOf, QueueOf,
+    PausedProgramStorageOf, QueueOf, WaitlistOf,
 };
 use alloc::string::ToString;
 use common::{
@@ -48,6 +48,14 @@ where
             log::debug!("pause_program; not found or is not active");
             return;
         };
+
+        let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
+        WaitlistOf::<T>::drain_key(program_id).for_each(|entry| {
+            let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
+
+            QueueOf::<T>::queue(message)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        });
 
         Self::remove_gas_reservation_map(program_id, gas_reservation_map);
         Pallet::<T>::deposit_event(Event::ProgramChanged {

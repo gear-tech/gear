@@ -5195,6 +5195,42 @@ fn test_pausing_programs_works() {
 }
 
 #[test]
+fn test_no_messages_to_paused_program() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = demo_wait_wake::WASM_BINARY;
+        let program_id = generate_program_id(code, DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        ));
+        run_to_next_block(None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            demo_wait_wake::Request::EchoWait(10).encode(),
+            50_000_000_000,
+            0,
+        ));
+        run_to_next_block(None);
+
+        let program =
+            ProgramStorageOf::<Test>::get_program(program_id).expect("program should exist");
+        let expected_block = program.block_number;
+
+        run_to_block(expected_block + 1, None);
+
+        assert!(WaitlistOf::<Test>::iter_key(program_id).next().is_none());
+    })
+}
+
+#[test]
 fn test_create_program_duplicate() {
     init_logger();
     new_test_ext().execute_with(|| {
