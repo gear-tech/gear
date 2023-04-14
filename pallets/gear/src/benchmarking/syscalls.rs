@@ -523,8 +523,8 @@ where
         assert!(repetitions <= MAX_REPETITIONS);
 
         let pid_value_offset = COMMON_OFFSET;
-        let res_offset = pid_value_offset + PID_VALUE_SIZE;
-        let err_handle_offset = res_offset + ERR_LEN_SIZE;
+        let err_handle_offset = pid_value_offset + PID_VALUE_SIZE;
+        let res_offset = err_handle_offset + MAX_REPETITIONS * ERR_HANDLE_SIZE;
 
         // Init messages
         let mut instructions = body::fallible_syscall_instr(
@@ -1006,10 +1006,13 @@ where
     }
 
     pub fn gr_reply_push_input(
-        batches: u32,
+        batches: Option<u32>,
         input_len_kb: Option<u32>,
     ) -> Result<Exec<T>, &'static str> {
-        let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
+        // We cannot use batches, when big payloads
+        assert!(batches.is_some() != input_len_kb.is_some());
+
+        let repetitions = batches.map(|batches| batches * API_BENCHMARK_BATCH_SIZE).unwrap_or(1);
         let input_at = 0;
         let input_len = input_len_kb.map(kb_to_bytes).unwrap_or(COMMON_PAYLOAD_LEN);
         let res_offset = COMMON_OFFSET;

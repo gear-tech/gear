@@ -1137,7 +1137,7 @@ benchmarks! {
     gr_reply_push_input {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_reply_push_input(r, None)?;
+        let exec = Benches::<T>::gr_reply_push_input(Some(r), None)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1148,7 +1148,7 @@ benchmarks! {
     gr_reply_push_input_per_kb {
         let n in 0 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
-        let exec = Benches::<T>::gr_reply_push_input(1, Some(n))?;
+        let exec = Benches::<T>::gr_reply_push_input(None, Some(n))?;
     }: {
         res.replace(run_process(exec));
     }
