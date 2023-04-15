@@ -251,10 +251,6 @@ pub mod pallet {
         fn dispatch_stash() -> Self::Cost {
             T::DispatchHoldCost::get()
         }
-
-        fn max_cost() -> Self::Cost {
-            Cost::MAX
-        }
     }
 
     // Below goes final `Scheduler` implementation for

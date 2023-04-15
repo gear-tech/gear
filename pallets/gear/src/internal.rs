@@ -354,11 +354,10 @@ where
         let mut prepaid = GasHandlerOf::<T>::unlock_all(lock_id, id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        // In case of `mailbox` gas may not have been locked at the time of the gas node creation.
-        // In this case set the `prepaid` to maximum possible value.
-        // TODO: implement proper locking of all gas in `Cut` nodes to avoid insufficient funds.
+        // In case gas hasn't been locked before putting a message in storage (for whatever reason)
+        // set the `prepaid` to the maximum possible value.
         if prepaid.is_zero() {
-            prepaid = CostsPerBlockOf::<T>::max_cost();
+            prepaid = <CostsPerBlockOf<T> as SchedulingCostsPerBlock>::Cost::MAX;
         }
 
         // Amount of gas to charge for holding.
@@ -831,6 +830,10 @@ where
             CurrencyOf::<T>::reserve(&from, value)
                 .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
 
+            // Lock the entire `gas_limit` since the only purpose of it is payment for storage.
+            GasHandlerOf::<T>::lock(LockIdentifier::Mailbox, message.id(), gas_limit)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
             // Inserting message in mailbox.
             MailboxOf::<T>::insert(message.clone(), hold.expected())
                 .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
@@ -900,6 +903,10 @@ where
             if hold.expected_duration().is_zero() {
                 unreachable!("Threshold for mailbox invalidated")
             }
+
+            // Lock the entire `gas_limit` since the only purpose of it is payment for storage.
+            GasHandlerOf::<T>::lock(LockIdentifier::Mailbox, message.id(), gas_limit)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Inserting message in mailbox.
             MailboxOf::<T>::insert(message.clone(), hold.expected())
