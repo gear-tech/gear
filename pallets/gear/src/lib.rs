@@ -1590,12 +1590,40 @@ pub mod pallet {
             origin: OriginFor<T>,
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
+            // Validating origin.
+            let origin = ensure_signed(origin)?;
+
             // Reason for reading from mailbox.
             let reason = UserMessageReadRuntimeReason::MessageClaimed.into_reason();
 
             // Reading message, if found, or failing extrinsic.
-            Self::read_message(ensure_signed(origin)?, message_id, reason)
+            let mailboxed = Self::read_message(origin.clone(), message_id, reason)
                 .ok_or(Error::<T>::MessageNotFound)?;
+
+            if Self::is_active(mailboxed.source()) {
+                // Creating reply message.
+                let message = ReplyMessage::auto(mailboxed.id());
+
+                // Creating `GasNode` for the reply.
+                //
+                // # Safety
+                //
+                //  The error is unreachable since the `message_id` is new generated
+                //  from the checked `original_message`."
+                GasHandlerOf::<T>::create(origin.clone(), message.id(), 0)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+                // Converting reply message into appropriate type for queueing.
+                let dispatch = message.into_stored_dispatch(
+                    ProgramId::from_origin(origin.into_origin()),
+                    mailboxed.source(),
+                    mailboxed.id(),
+                );
+
+                // Queueing dispatch.
+                QueueOf::<T>::queue(dispatch)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            };
 
             Ok(().into())
         }
