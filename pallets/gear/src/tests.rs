@@ -4858,8 +4858,14 @@ fn terminated_locking_funds() {
         );
 
         assert_balance(program_id, 0u128, 0u128);
-        assert_eq!(Balances::free_balance(USER_3), user_3_balance + prog_reserve);
-        assert_eq!(Balances::free_balance(USER_1), user_1_balance + extra_gas_to_mb);
+        assert_eq!(
+            Balances::free_balance(USER_3),
+            user_3_balance + prog_reserve
+        );
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user_1_balance + extra_gas_to_mb
+        );
     });
 }
 
