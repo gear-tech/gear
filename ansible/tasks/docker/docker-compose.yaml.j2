@@ -36,6 +36,10 @@ services:
           - labels:
               block_time:
               block_hash:
+          - regex:
+              expression: '(.*Local node identity is: (?P<node_id>(.*)))'
+          - labels:
+              node_id:
 {% endif %}
 volumes:
   gear-data:

@@ -233,6 +233,8 @@ enum Error {
     ValueIsNotBlocked,
     ConsumedWithLock,
     ConsumedWithSystemReservation,
+    TotalValueIsOverflowed,
+    TotalValueIsUnderflowed,
 }
 
 impl super::Error for Error {
@@ -290,6 +292,14 @@ impl super::Error for Error {
 
     fn consumed_with_system_reservation() -> Self {
         Self::ConsumedWithSystemReservation
+    }
+
+    fn total_value_is_overflowed() -> Self {
+        Self::TotalValueIsOverflowed
+    }
+
+    fn total_value_is_underflowed() -> Self {
+        Self::TotalValueIsUnderflowed
     }
 }
 

@@ -20,6 +20,8 @@
 //! sane default schedule from a `WeightInfo` implementation.
 
 #![allow(unused_parens)]
+// (issue #2531)
+#![allow(deprecated)]
 
 use crate::{weights::WeightInfo, Config};
 use core_processor::configs::PageCosts;
