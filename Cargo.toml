@@ -381,7 +381,7 @@ wasm-opt = "0.111.0"                                          # utils/wasm-build
 wasmprinter = "0.2"                                           # utils/wasm-gen
 whoami = "1.4.0"                                              # gcli
 which = "4.4.0"                                               # utils/wasm-builder
-mutagen = { git = "https://github.com/llogiq/mutagen" }
+mutagen = { git = "https://github.com/llogiq/mutagen" } # TODO state concrete commit
 
 [profile.release]
 panic = "unwind"
