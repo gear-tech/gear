@@ -26,8 +26,8 @@ use alloc::collections::BTreeSet;
 use common::{
     event::{
         MessageWaitedReason, MessageWaitedRuntimeReason::*,
-        MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, Reason, Reason::*,
-        UserMessageReadReason, UserMessageReadRuntimeReason,
+        MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, Reason::*,
+        UserMessageReadReason,
     },
     gas_provider::{GasNodeId, GasNodeIdOf, Imbalance},
     scheduler::*,
@@ -459,7 +459,7 @@ where
     /// Removes message from mailbox, permanently charged for hold with
     /// appropriate event depositing, if found.
     ///
-    /// Note: message auto-consumes, if reason is claim or reply.
+    /// Note: message consumes automatically.
     pub(crate) fn read_message(
         user_id: T::AccountId,
         message_id: MessageId,

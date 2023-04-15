@@ -1435,7 +1435,7 @@ fn mailbox_rent_out_of_rent() {
         // For both cases value moves back to program.
         let cases = [
             // Gasful message.
-            TestData::gasful(20_000, 1_000),
+            TestData::gasful(<Test as Config>::MailboxThreshold::get() * 2, 1_000),
             // Gasless message.
             TestData::gasless(3_000, <Test as Config>::MailboxThreshold::get()),
         ];
@@ -1504,8 +1504,8 @@ fn mailbox_rent_out_of_rent() {
                 user_1_balance - GasPrice::gas_price(gas_totally_burned),
                 0u128,
             );
-            utils::assert_balance(USER_2, user_2_balance, 0u128);
-            utils::assert_balance(sender, prog_balance, 0u128);
+            utils::assert_balance(USER_2, user_2_balance + data.value, 0u128);
+            utils::assert_balance(sender, prog_balance - data.value, 0u128);
             assert!(MailboxOf::<Test>::is_empty(&USER_2));
         }
     });
@@ -4828,6 +4828,7 @@ fn terminated_locking_funds() {
         let reply_id = get_last_message_id();
 
         let user_1_balance = Balances::free_balance(USER_1);
+        let user_3_balance = Balances::free_balance(USER_3);
 
         run_to_next_block(None);
 
@@ -4856,10 +4857,9 @@ fn terminated_locking_funds() {
             CostsPerBlockOf::<Test>::mailbox() * CostsPerBlockOf::<Test>::reserve_for(),
         );
 
-        let expected_balance = user_1_balance + prog_reserve + extra_gas_to_mb;
-
         assert_balance(program_id, 0u128, 0u128);
-        assert_eq!(Balances::free_balance(USER_1), expected_balance);
+        assert_eq!(Balances::free_balance(USER_3), user_3_balance + prog_reserve);
+        assert_eq!(Balances::free_balance(USER_1), user_1_balance + extra_gas_to_mb);
     });
 }
 
