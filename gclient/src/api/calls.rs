@@ -20,7 +20,6 @@ use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
 use gear_core::ids::*;
 use gsdk::{
-    config::GearConfig,
     ext::{
         sp_core::H256,
         sp_runtime::{AccountId32, MultiAddress},
@@ -36,7 +35,6 @@ use gsdk::{
             pallet_gear::pallet::Call as GearCall,
             sp_weights::weight_v2::Weight,
         },
-        sudo::Event as SudoEvent,
         utility::Event as UtilityEvent,
         Event,
     },
@@ -48,7 +46,6 @@ use std::{
     collections::{BTreeMap, HashSet},
     path::Path,
 };
-use subxt::blocks::ExtrinsicEvents;
 
 impl GearApi {
     /// Transfer `value` to `destination`'s account.
@@ -1002,20 +999,6 @@ impl GearApi {
             .await
     }
 
-    fn check_for_sudid(&self, events: &ExtrinsicEvents<GearConfig>) -> Result<()> {
-        for event in events.iter() {
-            let event = event?.as_root_event::<Event>()?;
-            if let Event::Sudo(SudoEvent::Sudid {
-                sudo_result: Err(err),
-            }) = event
-            {
-                return Err(self.0.api().decode_error(err).into());
-            }
-        }
-
-        Ok(())
-    }
-
     /// Upgrade the runtime with the `code` containing the Wasm code of the new
     /// runtime.
     ///
@@ -1023,7 +1006,7 @@ impl GearApi {
     /// [`pallet_system::set_code`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code)
     /// extrinsic.
     pub async fn set_code(&self, code: impl AsRef<[u8]>) -> Result<H256> {
-        let tx = self
+        let events = self
             .0
             .sudo_unchecked_weight(
                 RuntimeCall::System(SystemCall::set_code {
@@ -1038,9 +1021,6 @@ impl GearApi {
                 },
             )
             .await?;
-
-        let events = tx.wait_for_success().await?;
-        self.check_for_sudid(&events)?;
         Ok(events.block_hash())
     }
 
@@ -1061,7 +1041,7 @@ impl GearApi {
     /// [`pallet_system::set_code_without_checks`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code_without_checks)
     /// extrinsic.
     pub async fn set_code_without_checks(&self, code: impl AsRef<[u8]>) -> Result<H256> {
-        let tx = self
+        let events = self
             .0
             .sudo_unchecked_weight(
                 RuntimeCall::System(SystemCall::set_code_without_checks {
@@ -1076,9 +1056,6 @@ impl GearApi {
                 },
             )
             .await?;
-
-        let events = tx.wait_for_success().await?;
-        self.check_for_sudid(&events)?;
         Ok(events.block_hash())
     }
 
@@ -1102,7 +1079,7 @@ impl GearApi {
         new_free: u128,
         new_reserved: u128,
     ) -> Result<H256> {
-        let tx = self
+        let events = self
             .0
             .sudo_unchecked_weight(
                 RuntimeCall::Balances(BalancesCall::set_balance {
@@ -1119,8 +1096,6 @@ impl GearApi {
                 },
             )
             .await?;
-        let events = tx.wait_for_success().await?;
-        self.check_for_sudid(&events)?;
         Ok(events.block_hash())
     }
 }
