@@ -53,11 +53,34 @@ where
         // Read reason.
         let reason = UserMessageReadSystemReason::OutOfRent.into_reason();
 
+        // Creating reply message.
+        let message = ReplyMessage::auto(message_id);
+
+        // Creating `GasNode` for the reply.
+        //
+        // # Safety
+        //
+        //  The error is unreachable since the `message_id` is new generated
+        //  from the checked `original_message`."
+        GasHandlerOf::<T>::create(user_id.clone(), message.id(), 0)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
         // Reading message from mailbox.
         let mailboxed = Pallet::<T>::read_message(user_id, message_id, reason)
             .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
 
-        // TODO breathx add reply
+        // assert_eq!(mailboxed.id(), message_id);
+
+        // Converting reply message into appropriate type for queueing.
+        let dispatch = message.into_stored_dispatch(
+            mailboxed.destination(),
+            mailboxed.source(),
+            mailboxed.id(),
+        );
+
+        // Queueing dispatch.
+        QueueOf::<T>::queue(dispatch)
+            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }
 
     fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) {
