@@ -1869,7 +1869,12 @@ fn mailbox_threshold_works() {
                 // * message has been inserted into the mailbox.
                 // * the ValueNode has been created.
                 assert!(MailboxOf::<Test>::contains(&mailbox_key, &message_id));
-                assert_ok!(GasHandlerOf::<Test>::get_limit(message_id), rent);
+                // All gas in the gas node has been locked
+                assert_ok!(GasHandlerOf::<Test>::get_limit(message_id), 0);
+                assert_ok!(
+                    GasHandlerOf::<Test>::get_lock(LockIdentifier::Mailbox, message_id),
+                    rent
+                );
             } else {
                 // * message has not been inserted into the mailbox.
                 // * the ValueNode has not been created.
