@@ -10,7 +10,7 @@ repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
 gear-core.workspace = true
-gear-backend-common = { workspace =true }
+gear-backend-common = { workspace = true }
 log = { workspace = true, optional = true }
 libc.workspace = true
 sp-runtime-interface.workspace = true
@@ -29,6 +29,7 @@ default = ["std"]
 std = [
 	"sp-runtime-interface/std",
 	"sp-std/std",
+	"codec/std",
 	"log",
 	"gear-lazy-pages",
 	"region",

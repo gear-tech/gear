@@ -281,10 +281,15 @@ impl GearApi {
             .gas_nodes_at(&src_program_reserved_gas_node_ids, src_block_hash)
             .await?;
 
+        let mut src_program_reserved_gas_total = 0u64;
         let mut accounts_with_reserved_funds = HashSet::new();
         for gas_node in &src_program_reserved_gas_nodes {
-            if let types::GearGasNode::Reserved { id, .. } = &gas_node.1 {
+            if let types::GearGasNode::Reserved {
+                id, value, lock, ..
+            } = &gas_node.1
+            {
                 accounts_with_reserved_funds.insert(id);
+                src_program_reserved_gas_total += value + lock;
             } else {
                 unreachable!("Unexpected gas node type");
             }
@@ -357,6 +362,22 @@ impl GearApi {
                 )
                 .await?;
         }
+
+        let dest_gas_total_issuance =
+            dest_node_api.0.api().total_issuance().await.or_else(|e| {
+                if let GsdkError::StorageNotFound = e {
+                    Ok(0)
+                } else {
+                    Err(e)
+                }
+            })?;
+
+        dest_node_api
+            .0
+            .set_total_issuance(
+                dest_gas_total_issuance.saturating_add(src_program_reserved_gas_total),
+            )
+            .await?;
 
         dest_node_api
             .0

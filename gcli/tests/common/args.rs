@@ -90,5 +90,15 @@ macro_rules! impl_args {
 
 impl_args!(
     [payload, gas_limit, value],
-    [program, message_id, address, action, destination, amount]
+    [
+        program,
+        message_id,
+        address,
+        action,
+        destination,
+        amount,
+        meta,
+        flag,
+        derive
+    ]
 );
