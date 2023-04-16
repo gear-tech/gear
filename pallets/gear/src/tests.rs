@@ -76,6 +76,73 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+fn auto_reply_sent() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        // Init fn doesn't exist.
+        // Handle function exists.
+        let program_id = {
+            let res = upload_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(program_id));
+        assert!(maybe_last_message(USER_1).is_some());
+        System::reset_events();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            10_000,
+        ));
+
+        run_to_next_block(None);
+
+        // asserting auto_reply
+        assert!(System::events().into_iter().any(|e| {
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                if message.destination().into_origin() == USER_1.into_origin() {
+                    message
+                        .details()
+                        .and_then(|d| d.to_reply_details().map(|d| d.status_code() == 0))
+                        .unwrap_or(false)
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }));
+
+        // auto reply goes first (may be changed in future),
+        // so atm we're allowed to get other message that way
+        let id_to_reply = maybe_last_message(USER_1).unwrap().id();
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            id_to_reply,
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        System::reset_events();
+        run_to_next_block(None);
+
+        // reply dequeued
+        assert_last_dequeued(1);
+        // no auto reply sent
+        assert!(maybe_any_last_message().is_none());
+    })
+}
+
+#[test]
 fn gasfull_after_gasless() {
     init_logger();
 
@@ -9444,6 +9511,8 @@ mod utils {
                     )"#
                 }
                 ProgramCodeKind::OutgoingWithValueInHandle => {
+                    // Handle function must exist, while init must not for auto-replies tests.
+                    //
                     // Sending message to USER_1 is hardcoded!
                     // Program sends message in handle which sets gas limit to 10_000_000 and value to 1000.
                     // [warning] - program payload data is inaccurate, don't make assumptions about it!
@@ -9452,7 +9521,6 @@ mod utils {
                         (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
                         (import "env" "memory" (memory 1))
                         (export "handle" (func $handle))
-                        (export "init" (func $init))
                         (export "handle_reply" (func $handle_reply))
                         (func $handle
                             i32.const 111 ;; addr
@@ -9473,7 +9541,6 @@ mod utils {
                             )
                         )
                         (func $handle_reply)
-                        (func $init)
                     )"#
                 }
                 ProgramCodeKind::Custom(code) => code,
