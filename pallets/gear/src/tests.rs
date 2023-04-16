@@ -9826,64 +9826,83 @@ fn relay_messages() {
     };
 
     let payload = b"Hi, USER_2! Ping USER_3.";
-    let relay_call = RelayCall::ResendPush(vec![
-        // "Hi, USER_2!"
-        ResendPushData {
-            destination: USER_2.into(),
-            start: None,
-            end: Some((10, true)),
-        },
-        // the same but end index specified in another way
-        ResendPushData {
-            destination: USER_2.into(),
-            start: None,
-            end: Some((11, false)),
-        },
-        // "Ping USER_3."
-        ResendPushData {
-            destination: USER_3.into(),
-            start: Some(12),
-            end: None,
-        },
-        // invalid range
-        ResendPushData {
-            destination: USER_3.into(),
-            start: Some(2),
-            end: Some((0, true)),
-        },
-        // invalid range
-        ResendPushData {
-            destination: USER_3.into(),
-            start: Some(payload.len() as u32),
-            end: Some((0, false)),
-        },
-    ]);
 
-    // TODO (breathx): check why changed order.
-    let expected = vec![
-        Expected {
-            user: USER_2,
-            payload: payload[..11].to_vec(),
-        },
-        Expected {
-            user: USER_2,
-            payload: payload[..11].to_vec(),
-        },
-        Expected {
-            user: USER_3,
-            payload: vec![],
-        },
-        Expected {
-            user: USER_3,
-            payload: payload[12..].to_vec(),
-        },
-        Expected {
-            user: USER_3,
-            payload: vec![],
-        },
+    let pairs = vec![
+        (
+            RelayCall::ResendPush(vec![
+                // "Hi, USER_2!"
+                ResendPushData {
+                    destination: USER_2.into(),
+                    start: None,
+                    end: Some((10, true)),
+                },
+            ]),
+            Expected {
+                user: USER_2,
+                payload: payload[..11].to_vec(),
+            },
+        ),
+        (
+            RelayCall::ResendPush(vec![
+                // the same but end index specified in another way
+                ResendPushData {
+                    destination: USER_2.into(),
+                    start: None,
+                    end: Some((11, false)),
+                },
+            ]),
+            Expected {
+                user: USER_2,
+                payload: payload[..11].to_vec(),
+            },
+        ),
+        (
+            RelayCall::ResendPush(vec![
+                // "Ping USER_3."
+                ResendPushData {
+                    destination: USER_3.into(),
+                    start: Some(12),
+                    end: None,
+                },
+            ]),
+            Expected {
+                user: USER_3,
+                payload: payload[12..].to_vec(),
+            },
+        ),
+        (
+            RelayCall::ResendPush(vec![
+                // invalid range
+                ResendPushData {
+                    destination: USER_3.into(),
+                    start: Some(2),
+                    end: Some((0, true)),
+                },
+            ]),
+            Expected {
+                user: USER_3,
+                payload: vec![],
+            },
+        ),
+        (
+            RelayCall::ResendPush(vec![
+                // invalid range
+                ResendPushData {
+                    destination: USER_3.into(),
+                    start: Some(payload.len() as u32),
+                    end: Some((0, false)),
+                },
+            ]),
+            Expected {
+                user: USER_3,
+                payload: vec![],
+            },
+        ),
     ];
 
-    test(relay_call, payload, expected);
+    for (call, expectation) in pairs {
+        test(call, payload, vec![expectation]);
+    }
 
     test(
         RelayCall::Resend(USER_3.into()),
