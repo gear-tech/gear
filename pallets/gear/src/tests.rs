@@ -3270,7 +3270,7 @@ fn send_reply_value_claiming_works() {
 
 // user 1 sends to prog msg
 // prog send to user 1 msg to mailbox
-// user 1 claims it from mailbox
+// user 1 claims it from mailbox -> goes auto-reply
 #[test]
 fn claim_value_works() {
     init_logger();
@@ -3360,6 +3360,11 @@ fn claim_value_works() {
             }
             .into(),
         );
+
+        run_to_next_block(None);
+
+        // Init + handle + auto-reply on claim
+        assert_total_dequeued(3);
     })
 }
 
