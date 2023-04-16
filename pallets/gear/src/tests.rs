@@ -1507,6 +1507,11 @@ fn mailbox_rent_out_of_rent() {
             utils::assert_balance(USER_2, user_2_balance + data.value, 0u128);
             utils::assert_balance(sender, prog_balance - data.value, 0u128);
             assert!(MailboxOf::<Test>::is_empty(&USER_2));
+
+            run_to_next_block(None);
+
+            // auto generated reply on out of rent from mailbox
+            assert_last_dequeued(1);
         }
     });
 }
