@@ -56,13 +56,6 @@ impl<Balance: BalanceTrait> CatchValueOutput<Balance> {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub(crate) enum NodeTypeWithValue {
-    Cut,
-    SpecifiedLocal,
-    Reserved,
-}
-
 pub struct TreeImpl<TotalValue, InternalError, Error, ExternalId, NodeId, StorageMap>(
     PhantomData<(
         TotalValue,
@@ -361,27 +354,31 @@ where
     }
 
     /// Create ValueNode from node key with value
-    pub(super) fn create_from_with_value(
+    fn create_from_with_value(
         key: impl Into<NodeId>,
         new_node_key: impl Into<NodeId>,
         amount: Balance,
-        node_type: NodeTypeWithValue,
+        constructor: impl FnOnce(
+            NodeId,
+            Balance,
+            &mut GasNode<ExternalId, NodeId, Balance>,
+            NodeId,
+        ) -> Result<GasNode<ExternalId, NodeId, Balance>, Error>,
     ) -> Result<(), Error> {
         let key = key.into();
         let new_node_key = new_node_key.into();
 
+        // Check if there is no node with such key yet first.
+        // This also checks if key == new_node_key.
+        if StorageMap::contains_key(&new_node_key) {
+            return Err(InternalError::node_already_exists().into());
+        }
+
         let (mut node, node_id) =
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
-        let node_id = node_id.unwrap_or(key);
-
         // Check if the parent node is cut
         if node.is_cut() {
             return Err(InternalError::forbidden().into());
-        }
-
-        // This also checks if key == new_node_key
-        if StorageMap::contains_key(&new_node_key) {
-            return Err(InternalError::node_already_exists().into());
         }
 
         // A `node` is guaranteed to have inner_value here, because
@@ -394,39 +391,9 @@ where
             return Err(InternalError::insufficient_balance().into());
         }
 
-        // Detect inner from `reserve`.
-        let new_node = match node_type {
-            NodeTypeWithValue::Cut => {
-                let id = Self::get_external(key)?;
-                GasNode::Cut {
-                    id,
-                    value: amount,
-                    lock: Zero::zero(),
-                }
-            }
-            NodeTypeWithValue::SpecifiedLocal => {
-                node.increase_spec_refs();
+        let node_id = node_id.unwrap_or(key);
 
-                GasNode::SpecifiedLocal {
-                    value: amount,
-                    lock: Zero::zero(),
-                    system_reserve: Zero::zero(),
-                    parent: node_id,
-                    refs: Default::default(),
-                    consumed: false,
-                }
-            }
-            NodeTypeWithValue::Reserved => {
-                let id = Self::get_external(key)?;
-                GasNode::Reserved {
-                    id,
-                    value: amount,
-                    lock: Zero::zero(),
-                    refs: Default::default(),
-                    consumed: false,
-                }
-            }
-        };
+        let new_node = constructor(key, amount, &mut node, node_id)?;
 
         // Save new node
         StorageMap::insert(new_node_key, new_node);
@@ -688,7 +655,23 @@ where
         new_key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<(), Self::Error> {
-        Self::create_from_with_value(key, new_key, amount, NodeTypeWithValue::SpecifiedLocal)
+        Self::create_from_with_value(
+            key,
+            new_key,
+            amount,
+            |_key, value, parent_node, parent_id| {
+                parent_node.increase_spec_refs();
+
+                Ok(GasNode::SpecifiedLocal {
+                    value,
+                    lock: Zero::zero(),
+                    system_reserve: Zero::zero(),
+                    parent: parent_id,
+                    refs: Default::default(),
+                    consumed: false,
+                })
+            },
+        )
     }
 
     fn split(
@@ -733,7 +716,19 @@ where
         new_key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<(), Self::Error> {
-        Self::create_from_with_value(key, new_key, amount, NodeTypeWithValue::Cut)
+        Self::create_from_with_value(
+            key,
+            new_key,
+            amount,
+            |key, value, _parent_node, _parend_id| {
+                let id = Self::get_external(key)?;
+                Ok(GasNode::Cut {
+                    id,
+                    value,
+                    lock: Zero::zero(),
+                })
+            },
+        )
     }
 
     fn exists(key: impl Into<Self::NodeId>) -> bool {
@@ -903,7 +898,21 @@ where
         new_key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<(), Self::Error> {
-        Self::create_from_with_value(key, new_key, amount, NodeTypeWithValue::Reserved)
+        Self::create_from_with_value(
+            key,
+            new_key,
+            amount,
+            |key, value, _parent_node, _parend_id| {
+                let id = Self::get_external(key)?;
+                Ok(GasNode::Reserved {
+                    id,
+                    value,
+                    lock: Zero::zero(),
+                    refs: Default::default(),
+                    consumed: false,
+                })
+            },
+        )
     }
 
     fn system_reserve(
