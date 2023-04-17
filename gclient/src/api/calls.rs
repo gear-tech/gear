@@ -1014,10 +1014,7 @@ impl GearApi {
                 }),
                 Weight {
                     ref_time: 0,
-                    // # TODO
-                    //
-                    // Check this field
-                    proof_size: Default::default(),
+                    proof_size: 0,
                 },
             )
             .await?;
@@ -1049,10 +1046,7 @@ impl GearApi {
                 }),
                 Weight {
                     ref_time: 0,
-                    // # TODO
-                    //
-                    // Check this field
-                    proof_size: Default::default(),
+                    proof_size: 0,
                 },
             )
             .await?;
