@@ -16,8 +16,7 @@ rand = { workspace = true, features = ["small_rng"] }
 
 # Temporary deps for the reproducing crash script until #2313 is implemented
 #
-# TODO: use clap instead
-structopt = "0.3.26"
+clap = { workspace = true, features = ["derive"] }
 
 gear-call-gen.workspace = true
 runtime-primitives.workspace = true
@@ -34,7 +33,7 @@ sp-io.workspace = true
 sp-keyring.workspace = true
 sp-runtime.workspace = true
 pallet-balances.workspace = true
-sp-consensus-slots = { workspace = true}
+sp-consensus-slots = { workspace = true }
 sp-consensus-babe.workspace = true
 sp-consensus-grandpa.workspace = true
 pallet-authorship.workspace = true

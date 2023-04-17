@@ -25,24 +25,24 @@
 //! Just simply run `cargo run -- -p <path_to_fuzz_seeds>`.
 
 use anyhow::Result;
+use clap::Parser;
 use std::{
     fs::File,
     io::{BufRead, BufReader},
     path::PathBuf,
 };
-use structopt::StructOpt;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Params {
     /// Path to the file, which contains seeds from previously run fuzzer.
-    #[structopt(short = "p", long, parse(from_os_str))]
+    #[arg(short = "p", long, parse(from_os_str))]
     pub path: PathBuf,
 }
 
 fn main() -> Result<()> {
     gear_utils::init_default_logger();
 
-    let file_reader = create_file_reader(Params::from_args().path)?;
+    let file_reader = create_file_reader(Params::parse().path)?;
 
     // Read seeds and run test against all of them.
     for line in file_reader.lines() {
