@@ -161,6 +161,11 @@ where
                 self.clean_reservation_tasks(program_id, maybe_inactive);
 
                 ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
+                    let _ = TaskPoolOf::<T>::delete(
+                        *bn,
+                        ScheduledTask::PauseProgram(program_id),
+                    );
+
                     *bn = Pallet::<T>::block_number();
                     *p = Program::Terminated(origin);
                 }).unwrap_or_else(|e| {
@@ -230,6 +235,11 @@ where
         self.clean_reservation_tasks(id_exited, false);
 
         ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn| {
+            let _ = TaskPoolOf::<T>::delete(
+                *bn,
+                ScheduledTask::PauseProgram(id_exited),
+            );
+
             *bn = Pallet::<T>::block_number();
             *p = Program::Exited(value_destination);
         })

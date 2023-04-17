@@ -4851,11 +4851,23 @@ fn exit_init() {
 
         let program_id = utils::get_last_program_id();
 
+        let program =
+            ProgramStorageOf::<Test>::get_program(program_id).expect("program should exist");
+        let expected_block = program.block_number;
+        assert!(TaskPoolOf::<Test>::contains(
+            &expected_block,
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
         run_to_block(2, None);
 
         assert!(!Gear::is_active(program_id));
         assert!(!Gear::is_initialized(program_id));
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &expected_block,
+            &ScheduledTask::PauseProgram(program_id)
+        ));
 
         // Program is not removed and can't be submitted again
         assert_noop!(
