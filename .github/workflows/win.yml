@@ -42,7 +42,6 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
-          override: true
           target: x86_64-pc-windows-msvc
 
       - name: Workaround with libclang.dll
