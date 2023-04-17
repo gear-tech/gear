@@ -192,7 +192,7 @@ where
             true
         } else if self.users.contains(id) {
             false
-        } else if ProgramStorageOf::<T>::program_exists(*id) {
+        } else if Pallet::<T>::program_exists(*id) {
             self.programs.insert(*id);
             true
         } else {

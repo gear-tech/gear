@@ -580,7 +580,7 @@ pub mod pallet {
             let program_id = packet.destination();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !ProgramStorageOf::<T>::program_exists(program_id),
+                !Self::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -829,6 +829,12 @@ pub mod pallet {
             ProgramStorageOf::<T>::get_program(program_id)
                 .map(|program| program.program.is_exited())
                 .unwrap_or_default()
+        }
+
+        /// Returns true if there is a program with the specified id (it may be paused).
+        pub fn program_exists(program_id: ProgramId) -> bool {
+            ProgramStorageOf::<T>::program_exists(program_id)
+                || PausedProgramStorageOf::<T>::paused_program_exists(&program_id)
         }
 
         pub fn get_block_number(program_id: ProgramId) -> <T as frame_system::Config>::BlockNumber {
@@ -1161,7 +1167,7 @@ pub mod pallet {
             let program_id = packet.destination();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !ProgramStorageOf::<T>::program_exists(program_id),
+                !Self::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -1450,7 +1456,7 @@ pub mod pallet {
                 ),
             );
 
-            if ProgramStorageOf::<T>::program_exists(destination) {
+            if Self::program_exists(destination) {
                 ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
