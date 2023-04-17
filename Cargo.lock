@@ -4121,7 +4121,6 @@ dependencies = [
  "env_logger",
  "gear-backend-common",
  "gear-backend-wasmi",
- "gear-common",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
