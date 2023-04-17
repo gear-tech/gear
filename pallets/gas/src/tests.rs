@@ -249,6 +249,7 @@ fn value_tree_known_errors() {
         let origin = ALICE;
         let split_1 = random_node_id();
         let split_2 = random_node_id();
+        let split_3 = random_node_id();
         let cut = random_node_id();
         let cut_1 = random_node_id();
 
@@ -290,7 +291,7 @@ fn value_tree_known_errors() {
 
         // Try to split the reserved node with value
         assert_noop!(
-            Gas::split_with_value(cut, split_1, 50),
+            Gas::split_with_value(cut, split_3, 50),
             Error::<Test>::Forbidden
         );
 
