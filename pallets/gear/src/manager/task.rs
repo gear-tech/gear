@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, Config, CostsPerBlockOf, DispatchStashOf, Event, GasHandlerOf, Pallet,
-    PausedProgramStorageOf, QueueOf, WaitlistOf,
+    manager::ExtManager, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, GasHandlerOf,
+    Pallet, PausedProgramStorageOf, ProgramStorageOf, QueueOf, WaitlistOf,
 };
 use alloc::string::ToString;
 use common::{
@@ -28,14 +28,16 @@ use common::{
     },
     scheduler::*,
     storage::*,
-    GasTree, Origin, PausedProgramStorage,
+    GasTree, Origin, PausedProgramStorage, Program, ProgramStorage,
 };
 use core::convert::TryInto;
+use frame_support::traits::{Currency, ExistenceRequirement};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::ReplyMessage,
 };
 use gear_core_errors::{SimpleReplyError, SimpleSignalError};
+use sp_runtime::traits::Zero;
 
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
@@ -44,24 +46,99 @@ where
     fn pause_program(&mut self, program_id: ProgramId) {
         log::debug!("pause_program; id = {:?}", program_id);
 
-        let Some(gas_reservation_map) = PausedProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number()) else {
-            log::debug!("pause_program; not found or is not active");
+        let Some(program) = ProgramStorageOf::<T>::get_program(program_id) else {
+            log::debug!("pause_program; not found");
             return;
         };
 
+        let Some(init_message_id) = program.program.is_uninitialized() else {
+            // pause initialized program
+            let Some(gas_reservation_map) = PausedProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number()) else {
+                log::debug!("pause_program; not active");
+                return;
+            };
+
+            let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
+            WaitlistOf::<T>::drain_key(program_id).for_each(|entry| {
+                let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
+
+                QueueOf::<T>::queue(message)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            });
+
+            Self::remove_gas_reservation_map(program_id, gas_reservation_map);
+            Pallet::<T>::deposit_event(Event::ProgramChanged {
+                id: program_id,
+                change: ProgramChangeKind::Paused,
+            });
+
+            return;
+        };
+
+        // terminate uninitialized program
         let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
-        WaitlistOf::<T>::drain_key(program_id).for_each(|entry| {
+        let Some(origin) = WaitlistOf::<T>::drain_key(program_id).fold(None, |maybe_origin, entry| {
             let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
+            let result = match maybe_origin {
+                Some(_) => maybe_origin,
+                None if init_message_id == message.message().id() => Some(message.message().source()),
+                _ => None
+            };
 
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-        });
 
-        Self::remove_gas_reservation_map(program_id, gas_reservation_map);
-        Pallet::<T>::deposit_event(Event::ProgramChanged {
+            result
+        }) else {
+            log::debug!("pause_program; init message not found");
+            return;
+        };
+
+        let gas_reservations =
+            ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
+                *bn = Pallet::<T>::block_number();
+
+                let gas_reservations = match p {
+                    Program::Active(program) => core::mem::take(&mut program.gas_reservation_map),
+                    _ => unreachable!("Action executed only for active program"),
+                };
+
+                *p = Program::Terminated(origin);
+
+                gas_reservations
+            })
+            .unwrap_or_else(|e| {
+                unreachable!(
+                    "Program terminated status may only be set to an existing active program: {:?}",
+                    e,
+                );
+            });
+
+        Self::remove_gas_reservation_map(program_id, gas_reservations);
+        ProgramStorageOf::<T>::remove_program_pages(program_id);
+
+        let event = Event::ProgramChanged {
             id: program_id,
-            change: ProgramChangeKind::Paused,
-        });
+            change: ProgramChangeKind::Terminated,
+        };
+
+        let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
+
+        let balance = CurrencyOf::<T>::free_balance(&program_id);
+        let destination = Pallet::<T>::inheritor_for(origin);
+        let destination = <T::AccountId as Origin>::from_origin(destination.into_origin());
+
+        if !balance.is_zero() {
+            CurrencyOf::<T>::transfer(
+                &program_id,
+                &destination,
+                balance,
+                ExistenceRequirement::AllowDeath,
+            )
+            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+        }
+
+        Pallet::<T>::deposit_event(event);
     }
 
     fn remove_code(&mut self, _code_id: CodeId) {

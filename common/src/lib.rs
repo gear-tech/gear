@@ -232,14 +232,15 @@ impl Program {
         )
     }
 
-    pub fn is_uninitialized(&self) -> bool {
-        matches!(
-            self,
-            Program::Active(ActiveProgram {
-                state: ProgramState::Uninitialized { .. },
-                ..
-            })
-        )
+    pub fn is_uninitialized(&self) -> Option<MessageId> {
+        let Program::Active(p) = self else {
+            return None;
+        };
+
+        match p.state {
+            ProgramState::Initialized => None,
+            ProgramState::Uninitialized { message_id } => Some(message_id),
+        }
     }
 }
 
