@@ -35,7 +35,7 @@ use std::{
 #[derive(Debug, Parser)]
 pub struct Params {
     /// Path to the file, which contains seeds from previously run fuzzer.
-    #[arg(short = "p", long, parse(from_os_str))]
+    #[arg(long)]
     pub path: PathBuf,
 }
 
