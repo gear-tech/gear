@@ -27,7 +27,6 @@ struct Item {
     allocations: BTreeSet<WasmPage>,
     memory_pages: BTreeMap<GearPage, PageBuf>,
     code_hash: H256,
-    state: ProgramState,
 }
 
 impl From<(ActiveProgram, BTreeMap<GearPage, PageBuf>)> for Item {
@@ -36,7 +35,6 @@ impl From<(ActiveProgram, BTreeMap<GearPage, PageBuf>)> for Item {
             allocations: program.allocations,
             memory_pages,
             code_hash: program.code_hash,
-            state: program.state,
         }
     }
 }
