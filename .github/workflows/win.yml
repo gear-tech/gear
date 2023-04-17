@@ -15,10 +15,10 @@ jobs:
         uses: actions/checkout@v3
 
       - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
 
       - name: "Install: Show specific nightly version"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
@@ -26,10 +26,10 @@ jobs:
 
       - name: "Install: Specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
           components: llvm-tools-preview
 
       - name: "Install: Pin to specific nightly toolchain"
@@ -39,7 +39,7 @@ jobs:
           mv $env:USERPROFILE\.rustup\toolchains\nightly-$env:NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
 
       - name: Setup Rust for Win
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
           override: true
@@ -52,7 +52,6 @@ jobs:
         run: choco install llvm -y
 
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p gear-cli --release --target x86_64-pc-windows-msvc
+        run: |
+          cargo build
+          -p gear-cli --release --target x86_64-pc-windows-msvc
