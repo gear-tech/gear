@@ -585,12 +585,14 @@ pub mod runtime_types {
             )]
             pub enum ProgramChangeKind<_0> {
                 #[codec(index = 0)]
-                Added { expiration: _0 },
+                ExpirationChanged { expiration: _0 },
                 #[codec(index = 1)]
-                Active { expiration: _0 },
+                Active,
                 #[codec(index = 2)]
                 Inactive,
                 #[codec(index = 3)]
+                Terminated,
+                #[codec(index = 4)]
                 Paused,
             }
             #[derive(
