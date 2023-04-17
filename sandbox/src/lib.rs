@@ -64,25 +64,25 @@ const TARGET: &str = "runtime::sandbox";
 /// Error that can occur while using this crate.
 #[derive(RuntimeDebug)]
 pub enum Error {
-	/// Module is not valid, couldn't be instantiated.
-	Module,
+    /// Module is not valid, couldn't be instantiated.
+    Module,
 
-	/// Access to a memory or table was made with an address or an index which is out of bounds.
-	///
-	/// Note that if wasm module makes an out-of-bounds access then trap will occur.
-	OutOfBounds,
+    /// Access to a memory or table was made with an address or an index which is out of bounds.
+    ///
+    /// Note that if wasm module makes an out-of-bounds access then trap will occur.
+    OutOfBounds,
 
-	/// Trying to grow memory by more than maximum limit.
-	MemoryGrow,
+    /// Trying to grow memory by more than maximum limit.
+    MemoryGrow,
 
-	/// Failed to invoke the start function or an exported function for some reason.
-	Execution,
+    /// Failed to invoke the start function or an exported function for some reason.
+    Execution,
 }
 
 impl From<Error> for HostError {
-	fn from(_e: Error) -> HostError {
-		HostError
-	}
+    fn from(_e: Error) -> HostError {
+        HostError
+    }
 }
 
 /// Function pointer for specifying functions by the
@@ -97,40 +97,42 @@ pub type HostFuncType<T> = fn(&mut T, &[Value]) -> Result<ReturnValue, HostError
 /// The memory can't be directly accessed by supervisor, but only
 /// through designated functions [`get`](SandboxMemory::get) and [`set`](SandboxMemory::set).
 pub trait SandboxMemory: Sized + Clone {
-	/// Construct a new linear memory instance.
-	///
-	/// The memory allocated with initial number of pages specified by `initial`.
-	/// Minimal possible value for `initial` is 0 and maximum possible is `65536`.
-	/// (Since maximum addressable memory is 2<sup>32</sup> = 4GiB = 65536 * 64KiB).
-	///
-	/// It is possible to limit maximum number of pages this memory instance can have by specifying
-	/// `maximum`. If not specified, this memory instance would be able to allocate up to 4GiB.
-	///
-	/// Allocated memory is always zeroed.
-	fn new(initial: u32, maximum: Option<u32>) -> Result<Self, Error>;
+    /// Construct a new linear memory instance.
+    ///
+    /// The memory allocated with initial number of pages specified by `initial`.
+    /// Minimal possible value for `initial` is 0 and maximum possible is `65536`.
+    /// (Since maximum addressable memory is 2<sup>32</sup> = 4GiB = 65536 * 64KiB).
+    ///
+    /// It is possible to limit maximum number of pages this memory instance can have by specifying
+    /// `maximum`. If not specified, this memory instance would be able to allocate up to 4GiB.
+    ///
+    /// Allocated memory is always zeroed.
+    fn new(initial: u32, maximum: Option<u32>) -> Result<Self, Error>;
 
-	/// Read a memory area at the address `ptr` with the size of the provided slice `buf`.
-	///
-	/// Returns `Err` if the range is out-of-bounds.
-	fn get(&self, ptr: u32, buf: &mut [u8]) -> Result<(), Error>;
+    /// Read a memory area at the address `ptr` with the size of the provided slice `buf`.
+    ///
+    /// Returns `Err` if the range is out-of-bounds.
+    fn get(&self, ptr: u32, buf: &mut [u8]) -> Result<(), Error>;
 
-	/// Write a memory area at the address `ptr` with contents of the provided slice `buf`.
-	///
-	/// Returns `Err` if the range is out-of-bounds.
-	fn set(&self, ptr: u32, value: &[u8]) -> Result<(), Error>;
+    /// Write a memory area at the address `ptr` with contents of the provided slice `buf`.
+    ///
+    /// Returns `Err` if the range is out-of-bounds.
+    fn set(&self, ptr: u32, value: &[u8]) -> Result<(), Error>;
 
-	/// Grow memory with provided number of pages.
-	///
-	/// Returns `Err` if attempted to allocate more memory than permitted by the limit.
-	fn grow(&self, pages: u32) -> Result<u32, Error>;
+    /// Grow memory with provided number of pages.
+    ///
+    /// Returns `Err` if attempted to allocate more memory than permitted by the limit.
+    fn grow(&self, pages: u32) -> Result<u32, Error>;
 
-	/// Returns current memory size.
-	///
-	/// Maximum memory size cannot exceed 65536 pages or 4GiB.
-	fn size(&self) -> u32;
+    /// Returns current memory size.
+    ///
+    /// Maximum memory size cannot exceed 65536 pages or 4GiB.
+    fn size(&self) -> u32;
 
-	/// Returns pointer to the begin of wasm mem buffer
-	unsafe fn get_buff(&self) -> HostPointer;
+    /// Returns pointer to the begin of wasm mem buffer
+    /// # Safety
+    /// Pointer is intended to use by `mprotect` function.
+    unsafe fn get_buff(&self) -> HostPointer;
 }
 
 /// Struct that can be used for defining an environment for a sandboxed module.
@@ -138,104 +140,103 @@ pub trait SandboxMemory: Sized + Clone {
 /// The sandboxed module can access only the entities which were defined and passed
 /// to the module at the instantiation time.
 pub trait SandboxEnvironmentBuilder<State, Memory>: Sized {
-	/// Construct a new `EnvironmentDefinitionBuilder`.
-	fn new() -> Self;
+    /// Construct a new `EnvironmentDefinitionBuilder`.
+    fn new() -> Self;
 
-	/// Register a host function in this environment definition.
-	///
-	/// NOTE that there is no constraints on type of this function. An instance
-	/// can import function passed here with any signature it wants. It can even import
-	/// the same function (i.e. with same `module` and `field`) several times. It's up to
-	/// the user code to check or constrain the types of signatures.
-	fn add_host_func<N1, N2>(&mut self, module: N1, field: N2, f: HostFuncType<State>)
-	where
-		N1: Into<Vec<u8>>,
-		N2: Into<Vec<u8>>;
+    /// Register a host function in this environment definition.
+    ///
+    /// NOTE that there is no constraints on type of this function. An instance
+    /// can import function passed here with any signature it wants. It can even import
+    /// the same function (i.e. with same `module` and `field`) several times. It's up to
+    /// the user code to check or constrain the types of signatures.
+    fn add_host_func<N1, N2>(&mut self, module: N1, field: N2, f: HostFuncType<State>)
+    where
+        N1: Into<Vec<u8>>,
+        N2: Into<Vec<u8>>;
 
-	/// Register a memory in this environment definition.
-	fn add_memory<N1, N2>(&mut self, module: N1, field: N2, mem: Memory)
-	where
-		N1: Into<Vec<u8>>,
-		N2: Into<Vec<u8>>;
+    /// Register a memory in this environment definition.
+    fn add_memory<N1, N2>(&mut self, module: N1, field: N2, mem: Memory)
+    where
+        N1: Into<Vec<u8>>,
+        N2: Into<Vec<u8>>;
 }
 
 /// Sandboxed instance of a wasm module.
 ///
 /// This instance can be used for invoking exported functions.
 pub trait SandboxInstance<State>: Sized {
-	/// The memory type used for this sandbox.
-	type Memory: SandboxMemory;
+    /// The memory type used for this sandbox.
+    type Memory: SandboxMemory;
 
-	/// The environment builder used to construct this sandbox.
-	type EnvironmentBuilder: SandboxEnvironmentBuilder<State, Self::Memory>;
+    /// The environment builder used to construct this sandbox.
+    type EnvironmentBuilder: SandboxEnvironmentBuilder<State, Self::Memory>;
 
-	/// The globals type used for this sandbox to change globals.
-	type InstanceGlobals: InstanceGlobals;
+    /// The globals type used for this sandbox to change globals.
+    type InstanceGlobals: InstanceGlobals;
 
-	/// Instantiate a module with the given [`EnvironmentDefinitionBuilder`]. It will
-	/// run the `start` function (if it is present in the module) with the given `state`.
-	///
-	/// Returns `Err(Error::Module)` if this module can't be instantiated with the given
-	/// environment. If execution of `start` function generated a trap, then `Err(Error::Execution)`
-	/// will be returned.
-	///
-	/// [`EnvironmentDefinitionBuilder`]: struct.EnvironmentDefinitionBuilder.html
-	fn new(
-		code: &[u8],
-		env_def_builder: &Self::EnvironmentBuilder,
-		state: &mut State,
-	) -> Result<Self, Error>;
+    /// Instantiate a module with the given [`EnvironmentDefinitionBuilder`]. It will
+    /// run the `start` function (if it is present in the module) with the given `state`.
+    ///
+    /// Returns `Err(Error::Module)` if this module can't be instantiated with the given
+    /// environment. If execution of `start` function generated a trap, then `Err(Error::Execution)`
+    /// will be returned.
+    ///
+    /// [`EnvironmentDefinitionBuilder`]: struct.EnvironmentDefinitionBuilder.html
+    fn new(
+        code: &[u8],
+        env_def_builder: &Self::EnvironmentBuilder,
+        state: &mut State,
+    ) -> Result<Self, Error>;
 
-	/// Invoke an exported function with the given name.
-	///
-	/// # Errors
-	///
-	/// Returns `Err(Error::Execution)` if:
-	///
-	/// - An export function name isn't a proper utf8 byte sequence,
-	/// - This module doesn't have an exported function with the given name,
-	/// - If types of the arguments passed to the function doesn't match function signature then
-	///   trap occurs (as if the exported function was called via call_indirect),
-	/// - Trap occurred at the execution time.
-	fn invoke(
-		&mut self,
-		name: &str,
-		args: &[Value],
-		state: &mut State,
-	) -> Result<ReturnValue, Error>;
+    /// Invoke an exported function with the given name.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(Error::Execution)` if:
+    ///
+    /// - An export function name isn't a proper utf8 byte sequence,
+    /// - This module doesn't have an exported function with the given name,
+    /// - If types of the arguments passed to the function doesn't match function signature then
+    ///   trap occurs (as if the exported function was called via call_indirect),
+    /// - Trap occurred at the execution time.
+    fn invoke(
+        &mut self,
+        name: &str,
+        args: &[Value],
+        state: &mut State,
+    ) -> Result<ReturnValue, Error>;
 
-	/// Get the value from a global with the given `name`.
-	///
-	/// Returns `Some(_)` if the global could be found.
-	fn get_global_val(&self, name: &str) -> Option<Value>;
+    /// Get the value from a global with the given `name`.
+    ///
+    /// Returns `Some(_)` if the global could be found.
+    fn get_global_val(&self, name: &str) -> Option<Value>;
 
-	/// Get the instance providing access to exported globals.
-	///
-	/// Returns `None` if the executor doesn't support the interface.
-	fn instance_globals(&self) -> Option<Self::InstanceGlobals>;
+    /// Get the instance providing access to exported globals.
+    ///
+    /// Returns `None` if the executor doesn't support the interface.
+    fn instance_globals(&self) -> Option<Self::InstanceGlobals>;
 
-	/// Get raw pointer to the executor host sandbox instance.
-	fn get_instance_ptr(&self) -> HostPointer;
+    /// Get raw pointer to the executor host sandbox instance.
+    fn get_instance_ptr(&self) -> HostPointer;
 }
 
 /// Error that can occur while using this crate.
 #[derive(RuntimeDebug)]
 pub enum GlobalsSetError {
-	/// A global variable is not found.
-	NotFound,
+    /// A global variable is not found.
+    NotFound,
 
-	/// A global variable is immutable or has a different type.
-	Other,
+    /// A global variable is immutable or has a different type.
+    Other,
 }
 
 /// This instance can be used for changing exported globals.
 pub trait InstanceGlobals: Sized + Clone {
+    /// Get the value from a global with the given `name`.
+    ///
+    /// Returns `Some(_)` if the global could be found.
+    fn get_global_val(&self, name: &str) -> Option<Value>;
 
-	/// Get the value from a global with the given `name`.
-	///
-	/// Returns `Some(_)` if the global could be found.
-	fn get_global_val(&self, name: &str) -> Option<Value>;
-
-	/// Set the value of a global with the given `name`.
-	fn set_global_val(&self, name: &str, value: Value) -> Result<(), GlobalsSetError>;
- }
+    /// Set the value of a global with the given `name`.
+    fn set_global_val(&self, name: &str, value: Value) -> Result<(), GlobalsSetError>;
+}

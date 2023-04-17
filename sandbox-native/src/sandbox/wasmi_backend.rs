@@ -24,17 +24,17 @@ use codec::{Decode, Encode};
 use gear_sandbox_env::HostError;
 use sp_wasm_interface::{Pointer, ReturnValue, Value, WordSize};
 use wasmi::{
-	memory_units::Pages, ImportResolver, MemoryInstance, Module, ModuleInstance, RuntimeArgs,
-	RuntimeValue, Trap,
+    memory_units::Pages, ImportResolver, MemoryInstance, Module, ModuleInstance, RuntimeArgs,
+    RuntimeValue, Trap,
 };
 
 use crate::{
-	error::{self, Error},
-	sandbox::{
-		BackendInstance, GuestEnvironment, GuestExternals, GuestFuncIndex, Imports,
-		InstantiationError, Memory, SandboxContext, SandboxInstance,
-	},
-	util::{checked_range, MemoryTransfer},
+    error::{self, Error},
+    sandbox::{
+        BackendInstance, GuestEnvironment, GuestExternals, GuestFuncIndex, Imports,
+        InstantiationError, Memory, SandboxContext, SandboxInstance,
+    },
+    util::{checked_range, MemoryTransfer},
 };
 
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
@@ -43,84 +43,95 @@ environmental::environmental!(SandboxContextStore: trait SandboxContext);
 struct CustomHostError(String);
 
 impl fmt::Display for CustomHostError {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "HostError: {}", self.0)
-	}
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "HostError: {}", self.0)
+    }
 }
 
 impl wasmi::HostError for CustomHostError {}
 
 /// Construct trap error from specified message
 fn trap(msg: &'static str) -> Trap {
-	Trap::host(CustomHostError(msg.into()))
+    Trap::host(CustomHostError(msg.into()))
 }
 
 impl ImportResolver for Imports {
-	fn resolve_func(
-		&self,
-		module_name: &str,
-		field_name: &str,
-		signature: &wasmi::Signature,
-	) -> std::result::Result<wasmi::FuncRef, wasmi::Error> {
-		let idx = self.func_by_name(module_name, field_name).ok_or_else(|| {
-			wasmi::Error::Instantiation(format!("Export {}:{} not found", module_name, field_name))
-		})?;
+    fn resolve_func(
+        &self,
+        module_name: &str,
+        field_name: &str,
+        signature: &wasmi::Signature,
+    ) -> std::result::Result<wasmi::FuncRef, wasmi::Error> {
+        let idx = self.func_by_name(module_name, field_name).ok_or_else(|| {
+            wasmi::Error::Instantiation(format!("Export {}:{} not found", module_name, field_name))
+        })?;
 
-		Ok(wasmi::FuncInstance::alloc_host(signature.clone(), idx.0))
-	}
+        Ok(wasmi::FuncInstance::alloc_host(signature.clone(), idx.0))
+    }
 
-	fn resolve_memory(
-		&self,
-		module_name: &str,
-		field_name: &str,
-		_memory_type: &wasmi::MemoryDescriptor,
-	) -> std::result::Result<wasmi::MemoryRef, wasmi::Error> {
-		let mem = self.memory_by_name(module_name, field_name).ok_or_else(|| {
-			wasmi::Error::Instantiation(format!("Export {}:{} not found", module_name, field_name))
-		})?;
+    fn resolve_memory(
+        &self,
+        module_name: &str,
+        field_name: &str,
+        _memory_type: &wasmi::MemoryDescriptor,
+    ) -> std::result::Result<wasmi::MemoryRef, wasmi::Error> {
+        let mem = self
+            .memory_by_name(module_name, field_name)
+            .ok_or_else(|| {
+                wasmi::Error::Instantiation(format!(
+                    "Export {}:{} not found",
+                    module_name, field_name
+                ))
+            })?;
 
-		let wrapper = mem.as_wasmi().ok_or_else(|| {
-			wasmi::Error::Instantiation(format!(
-				"Unsupported non-wasmi export {}:{}",
-				module_name, field_name
-			))
-		})?;
+        let wrapper = mem.as_wasmi().ok_or_else(|| {
+            wasmi::Error::Instantiation(format!(
+                "Unsupported non-wasmi export {}:{}",
+                module_name, field_name
+            ))
+        })?;
 
-		// Here we use inner memory reference only to resolve the imports
-		// without accessing the memory contents. All subsequent memory accesses
-		// should happen through the wrapper, that enforces the memory access protocol.
-		let mem = wrapper.0;
+        // Here we use inner memory reference only to resolve the imports
+        // without accessing the memory contents. All subsequent memory accesses
+        // should happen through the wrapper, that enforces the memory access protocol.
+        let mem = wrapper.0;
 
-		Ok(mem)
-	}
+        Ok(mem)
+    }
 
-	fn resolve_global(
-		&self,
-		module_name: &str,
-		field_name: &str,
-		_global_type: &wasmi::GlobalDescriptor,
-	) -> std::result::Result<wasmi::GlobalRef, wasmi::Error> {
-		Err(wasmi::Error::Instantiation(format!("Export {}:{} not found", module_name, field_name)))
-	}
+    fn resolve_global(
+        &self,
+        module_name: &str,
+        field_name: &str,
+        _global_type: &wasmi::GlobalDescriptor,
+    ) -> std::result::Result<wasmi::GlobalRef, wasmi::Error> {
+        Err(wasmi::Error::Instantiation(format!(
+            "Export {}:{} not found",
+            module_name, field_name
+        )))
+    }
 
-	fn resolve_table(
-		&self,
-		module_name: &str,
-		field_name: &str,
-		_table_type: &wasmi::TableDescriptor,
-	) -> std::result::Result<wasmi::TableRef, wasmi::Error> {
-		Err(wasmi::Error::Instantiation(format!("Export {}:{} not found", module_name, field_name)))
-	}
+    fn resolve_table(
+        &self,
+        module_name: &str,
+        field_name: &str,
+        _table_type: &wasmi::TableDescriptor,
+    ) -> std::result::Result<wasmi::TableRef, wasmi::Error> {
+        Err(wasmi::Error::Instantiation(format!(
+            "Export {}:{} not found",
+            module_name, field_name
+        )))
+    }
 }
 
 /// Allocate new memory region
 pub fn new_memory(initial: u32, maximum: Option<u32>) -> crate::error::Result<Memory> {
-	let memory = Memory::Wasmi(MemoryWrapper::new(
-		MemoryInstance::alloc(Pages(initial as usize), maximum.map(|m| Pages(m as usize)))
-			.map_err(|error| Error::Sandbox(error.to_string()))?,
-	));
+    let memory = Memory::Wasmi(MemoryWrapper::new(
+        MemoryInstance::alloc(Pages(initial as usize), maximum.map(|m| Pages(m as usize)))
+            .map_err(|error| Error::Sandbox(error.to_string()))?,
+    ));
 
-	Ok(memory)
+    Ok(memory)
 }
 
 /// Wasmi provides direct access to its memory using slices.
@@ -130,65 +141,70 @@ pub fn new_memory(initial: u32, maximum: Option<u32>) -> crate::error::Result<Me
 pub struct MemoryWrapper(wasmi::MemoryRef);
 
 impl MemoryWrapper {
-	/// Take ownership of the memory region and return a wrapper object
-	fn new(memory: wasmi::MemoryRef) -> Self {
-		Self(memory)
-	}
+    /// Take ownership of the memory region and return a wrapper object
+    fn new(memory: wasmi::MemoryRef) -> Self {
+        Self(memory)
+    }
 }
 
 impl MemoryTransfer for MemoryWrapper {
-	fn read(&self, source_addr: Pointer<u8>, size: usize) -> error::Result<Vec<u8>> {
-		self.0.with_direct_access(|source| {
-			let range = checked_range(source_addr.into(), size, source.len())
-				.ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
+    fn read(&self, source_addr: Pointer<u8>, size: usize) -> error::Result<Vec<u8>> {
+        self.0.with_direct_access(|source| {
+            let range = checked_range(source_addr.into(), size, source.len())
+                .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
 
-			Ok(Vec::from(&source[range]))
-		})
-	}
+            Ok(Vec::from(&source[range]))
+        })
+    }
 
-	fn read_into(&self, source_addr: Pointer<u8>, destination: &mut [u8]) -> error::Result<()> {
-		self.0.with_direct_access(|source| {
-			let range = checked_range(source_addr.into(), destination.len(), source.len())
-				.ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
+    fn read_into(&self, source_addr: Pointer<u8>, destination: &mut [u8]) -> error::Result<()> {
+        self.0.with_direct_access(|source| {
+            let range = checked_range(source_addr.into(), destination.len(), source.len())
+                .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
 
-			destination.copy_from_slice(&source[range]);
-			Ok(())
-		})
-	}
+            destination.copy_from_slice(&source[range]);
+            Ok(())
+        })
+    }
 
-	fn write_from(&self, dest_addr: Pointer<u8>, source: &[u8]) -> error::Result<()> {
-		self.0.with_direct_access_mut(|destination| {
-			let range = checked_range(dest_addr.into(), source.len(), destination.len())
-				.ok_or_else(|| error::Error::Other("memory write is out of bounds".into()))?;
+    fn write_from(&self, dest_addr: Pointer<u8>, source: &[u8]) -> error::Result<()> {
+        self.0.with_direct_access_mut(|destination| {
+            let range = checked_range(dest_addr.into(), source.len(), destination.len())
+                .ok_or_else(|| error::Error::Other("memory write is out of bounds".into()))?;
 
-			destination[range].copy_from_slice(source);
-			Ok(())
-		})
-	}
+            destination[range].copy_from_slice(source);
+            Ok(())
+        })
+    }
 
-	fn memory_grow(&mut self, pages: u32) -> error::Result<u32> {
-		self.0
-			.grow(Pages(pages as usize))
-			.map_err(|e| Error::Sandbox(format!("Cannot grow memory in masmi sandbox executor: {}", e)))
-			.map(|p| p.0 as u32)
-	}
+    fn memory_grow(&mut self, pages: u32) -> error::Result<u32> {
+        self.0
+            .grow(Pages(pages as usize))
+            .map_err(|e| {
+                Error::Sandbox(format!(
+                    "Cannot grow memory in masmi sandbox executor: {}",
+                    e
+                ))
+            })
+            .map(|p| p.0 as u32)
+    }
 
-	fn memory_size(&mut self) -> u32 {
-		self.0.current_size().0 as u32
-	}
+    fn memory_size(&mut self) -> u32 {
+        self.0.current_size().0 as u32
+    }
 
-	fn get_buff(&mut self) -> *mut u8 {
-		self.0.direct_access_mut().as_mut().as_mut_ptr()
-	}
+    fn get_buff(&mut self) -> *mut u8 {
+        self.0.direct_access_mut().as_mut().as_mut_ptr()
+    }
 }
 
 impl<'a> wasmi::Externals for GuestExternals<'a> {
-	fn invoke_index(
-		&mut self,
-		index: usize,
-		args: RuntimeArgs,
-	) -> std::result::Result<Option<RuntimeValue>, Trap> {
-		SandboxContextStore::with(|sandbox_context| {
+    fn invoke_index(
+        &mut self,
+        index: usize,
+        args: RuntimeArgs,
+    ) -> std::result::Result<Option<RuntimeValue>, Trap> {
+        SandboxContextStore::with(|sandbox_context| {
 			// Make `index` typesafe again.
 			let index = GuestFuncIndex(index);
 
@@ -253,7 +269,7 @@ impl<'a> wasmi::Externals for GuestExternals<'a> {
 			let (serialized_result_val_ptr, serialized_result_val_len) = {
 				// Cast to u64 to use zero-extension.
 				let v = result as u64;
-				let ptr = (v as u64 >> 32) as u32;
+				let ptr = (v >> 32) as u32;
 				let len = (v & 0xFFFFFFFF) as u32;
 				(Pointer::new(ptr), len)
 			};
@@ -281,84 +297,90 @@ impl<'a> wasmi::Externals for GuestExternals<'a> {
 				}
 			})
 		}).expect("SandboxContextStore is set when invoking sandboxed functions; qed")
-	}
+    }
 }
 
 fn with_guest_externals<R, F>(sandbox_instance: &SandboxInstance, f: F) -> R
 where
-	F: FnOnce(&mut GuestExternals) -> R,
+    F: FnOnce(&mut GuestExternals) -> R,
 {
-	f(&mut GuestExternals { sandbox_instance })
+    f(&mut GuestExternals { sandbox_instance })
 }
 
 /// Instantiate a module within a sandbox context
 pub fn instantiate(
-	wasm: &[u8],
-	guest_env: GuestEnvironment,
-	sandbox_context: &mut dyn SandboxContext,
+    wasm: &[u8],
+    guest_env: GuestEnvironment,
+    sandbox_context: &mut dyn SandboxContext,
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
-	let wasmi_module = Module::from_buffer(wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
-	let wasmi_instance = ModuleInstance::new(&wasmi_module, &guest_env.imports)
-		.map_err(|_| InstantiationError::Instantiation)?;
+    let wasmi_module = Module::from_buffer(wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
+    let wasmi_instance = ModuleInstance::new(&wasmi_module, &guest_env.imports)
+        .map_err(|_| InstantiationError::Instantiation)?;
 
-	let sandbox_instance = SandboxInstance {
-		// In general, it's not a very good idea to use `.not_started_instance()` for
-		// anything but for extracting memory and tables. But in this particular case, we
-		// are extracting for the purpose of running `start` function which should be ok.
-		backend_instance: BackendInstance::Wasmi(wasmi_instance.not_started_instance().clone()),
-		guest_to_supervisor_mapping: guest_env.guest_to_supervisor_mapping,
-	};
+    let sandbox_instance = SandboxInstance {
+        // In general, it's not a very good idea to use `.not_started_instance()` for
+        // anything but for extracting memory and tables. But in this particular case, we
+        // are extracting for the purpose of running `start` function which should be ok.
+        backend_instance: BackendInstance::Wasmi(wasmi_instance.not_started_instance().clone()),
+        guest_to_supervisor_mapping: guest_env.guest_to_supervisor_mapping,
+    };
 
-	with_guest_externals(&sandbox_instance, |guest_externals| {
-		SandboxContextStore::using(sandbox_context, || {
-			wasmi_instance
-				.run_start(guest_externals)
-				.map_err(|_| InstantiationError::StartTrapped)
-		})
-	})?;
+    with_guest_externals(&sandbox_instance, |guest_externals| {
+        SandboxContextStore::using(sandbox_context, || {
+            wasmi_instance
+                .run_start(guest_externals)
+                .map_err(|_| InstantiationError::StartTrapped)
+        })
+    })?;
 
-	Ok(sandbox_instance)
+    Ok(sandbox_instance)
 }
 
 /// Invoke a function within a sandboxed module
 pub fn invoke(
-	instance: &SandboxInstance,
-	module: &wasmi::ModuleRef,
-	export_name: &str,
-	args: &[Value],
-	sandbox_context: &mut dyn SandboxContext,
+    instance: &SandboxInstance,
+    module: &wasmi::ModuleRef,
+    export_name: &str,
+    args: &[Value],
+    sandbox_context: &mut dyn SandboxContext,
 ) -> std::result::Result<Option<Value>, error::Error> {
-	with_guest_externals(instance, |guest_externals| {
-		SandboxContextStore::using(sandbox_context, || {
-			let args = args.iter().cloned().map(From::from).collect::<Vec<_>>();
+    with_guest_externals(instance, |guest_externals| {
+        SandboxContextStore::using(sandbox_context, || {
+            let args = args.iter().cloned().map(From::from).collect::<Vec<_>>();
 
-			module
-				.invoke_export(export_name, &args, guest_externals)
-				.map(|result| result.map(Into::into))
-				.map_err(|error| error::Error::Sandbox(error.to_string()))
-		})
-	})
+            module
+                .invoke_export(export_name, &args, guest_externals)
+                .map(|result| result.map(Into::into))
+                .map_err(|error| error::Error::Sandbox(error.to_string()))
+        })
+    })
 }
 
 /// Get global value by name
 pub fn get_global(instance: &wasmi::ModuleRef, name: &str) -> Option<Value> {
-	Some(Into::into(instance.export_by_name(name)?.as_global()?.get()))
+    Some(Into::into(
+        instance.export_by_name(name)?.as_global()?.get(),
+    ))
 }
 
 /// Set global value by name
-pub fn set_global(instance: &wasmi::ModuleRef, name: &str, value: Value) -> std::result::Result<Option<()>, error::Error> {
-	let export = match instance.export_by_name(name) {
-		Some(e) => e,
-		None => return Ok(None),
-	};
+pub fn set_global(
+    instance: &wasmi::ModuleRef,
+    name: &str,
+    value: Value,
+) -> std::result::Result<Option<()>, error::Error> {
+    let export = match instance.export_by_name(name) {
+        Some(e) => e,
+        None => return Ok(None),
+    };
 
-	let global = match export.as_global() {
-		Some(g) => g,
-		None => return Ok(None),
-	};
+    let global = match export.as_global() {
+        Some(g) => g,
+        None => return Ok(None),
+    };
 
-	global
-		.set(From::from(value))
-		.map(|_| Some(()))
-		.map_err(error::Error::Wasmi)
+    global
+        .set(From::from(value))
+        .map(|_| Some(()))
+        .map_err(error::Error::Wasmi)
 }

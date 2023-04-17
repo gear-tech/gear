@@ -30,8 +30,8 @@ use gear_backend_common::{
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft};
 use gear_core_errors::ExtError;
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gear_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {

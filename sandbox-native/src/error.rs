@@ -27,170 +27,170 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 #[allow(missing_docs)]
 pub enum Error {
-	#[error(transparent)]
-	Wasmi(#[from] wasmi::Error),
+    #[error(transparent)]
+    Wasmi(#[from] wasmi::Error),
 
-	#[error("Sandbox error: {0}")]
-	Sandbox(String),
+    #[error("Sandbox error: {0}")]
+    Sandbox(String),
 
-	#[error("Error calling api function: {0}")]
-	ApiError(Box<dyn std::error::Error + Send + Sync>),
+    #[error("Error calling api function: {0}")]
+    ApiError(Box<dyn std::error::Error + Send + Sync>),
 
-	#[error("Method not found: '{0}'")]
-	MethodNotFound(String),
+    #[error("Method not found: '{0}'")]
+    MethodNotFound(String),
 
-	#[error("On-chain runtime does not specify version")]
-	VersionInvalid,
+    #[error("On-chain runtime does not specify version")]
+    VersionInvalid,
 
-	#[error("Externalities error")]
-	Externalities,
+    #[error("Externalities error")]
+    Externalities,
 
-	#[error("Invalid index provided")]
-	InvalidIndex,
+    #[error("Invalid index provided")]
+    InvalidIndex,
 
-	#[error("Invalid type returned (should be u64)")]
-	InvalidReturn,
+    #[error("Invalid type returned (should be u64)")]
+    InvalidReturn,
 
-	#[error("Runtime error")]
-	Runtime,
+    #[error("Runtime error")]
+    Runtime,
 
-	#[error("Runtime panicked: {0}")]
-	RuntimePanicked(String),
+    #[error("Runtime panicked: {0}")]
+    RuntimePanicked(String),
 
-	#[error("Invalid memory reference")]
-	InvalidMemoryReference,
+    #[error("Invalid memory reference")]
+    InvalidMemoryReference,
 
-	#[error("The runtime doesn't provide a global named `__heap_base` of type `i32`")]
-	HeapBaseNotFoundOrInvalid,
+    #[error("The runtime doesn't provide a global named `__heap_base` of type `i32`")]
+    HeapBaseNotFoundOrInvalid,
 
-	#[error("The runtime must not have the `start` function defined")]
-	RuntimeHasStartFn,
+    #[error("The runtime must not have the `start` function defined")]
+    RuntimeHasStartFn,
 
-	#[error("Other: {0}")]
-	Other(String),
+    #[error("Other: {0}")]
+    Other(String),
 
-	#[error(transparent)]
-	Allocator(#[from] sp_allocator::Error),
+    #[error(transparent)]
+    Allocator(#[from] sp_allocator::Error),
 
-	#[error("Host function {0} execution failed with: {1}")]
-	FunctionExecution(String, String),
+    #[error("Host function {0} execution failed with: {1}")]
+    FunctionExecution(String, String),
 
-	#[error("No table exported by wasm blob")]
-	NoTable,
+    #[error("No table exported by wasm blob")]
+    NoTable,
 
-	#[error("No table entry with index {0} in wasm blob exported table")]
-	NoTableEntryWithIndex(u32),
+    #[error("No table entry with index {0} in wasm blob exported table")]
+    NoTableEntryWithIndex(u32),
 
-	#[error("Table element with index {0} is not a function in wasm blob exported table")]
-	TableElementIsNotAFunction(u32),
+    #[error("Table element with index {0} is not a function in wasm blob exported table")]
+    TableElementIsNotAFunction(u32),
 
-	#[error("Table entry with index {0} in wasm blob is null")]
-	FunctionRefIsNull(u32),
+    #[error("Table entry with index {0} in wasm blob is null")]
+    FunctionRefIsNull(u32),
 
-	#[error(transparent)]
-	RuntimeConstruction(#[from] WasmError),
+    #[error(transparent)]
+    RuntimeConstruction(#[from] WasmError),
 
-	#[error("Shared memory is not supported")]
-	SharedMemUnsupported,
+    #[error("Shared memory is not supported")]
+    SharedMemUnsupported,
 
-	#[error("Imported globals are not supported yet")]
-	ImportedGlobalsUnsupported,
+    #[error("Imported globals are not supported yet")]
+    ImportedGlobalsUnsupported,
 
-	#[error("initializer expression can have only up to 2 expressions in wasm 1.0")]
-	InitializerHasTooManyExpressions,
+    #[error("initializer expression can have only up to 2 expressions in wasm 1.0")]
+    InitializerHasTooManyExpressions,
 
-	#[error("Invalid initializer expression provided {0}")]
-	InvalidInitializerExpression(String),
+    #[error("Invalid initializer expression provided {0}")]
+    InvalidInitializerExpression(String),
 
-	#[error("Execution aborted due to panic: {0}")]
-	AbortedDueToPanic(MessageWithBacktrace),
+    #[error("Execution aborted due to panic: {0}")]
+    AbortedDueToPanic(MessageWithBacktrace),
 
-	#[error("Execution aborted due to trap: {0}")]
-	AbortedDueToTrap(MessageWithBacktrace),
+    #[error("Execution aborted due to trap: {0}")]
+    AbortedDueToTrap(MessageWithBacktrace),
 }
 
 impl wasmi::HostError for Error {}
 
 impl From<&'static str> for Error {
-	fn from(err: &'static str) -> Error {
-		Error::Other(err.into())
-	}
+    fn from(err: &'static str) -> Error {
+        Error::Other(err.into())
+    }
 }
 
 impl From<String> for Error {
-	fn from(err: String) -> Error {
-		Error::Other(err)
-	}
+    fn from(err: String) -> Error {
+        Error::Other(err)
+    }
 }
 
 /// Type for errors occurring during Wasm runtime construction.
 #[derive(Debug, thiserror::Error)]
 #[allow(missing_docs)]
 pub enum WasmError {
-	#[error("Code could not be read from the state.")]
-	CodeNotFound,
+    #[error("Code could not be read from the state.")]
+    CodeNotFound,
 
-	#[error("Failure to reinitialize runtime instance from snapshot.")]
-	ApplySnapshotFailed,
+    #[error("Failure to reinitialize runtime instance from snapshot.")]
+    ApplySnapshotFailed,
 
-	/// Failure to erase the wasm memory.
-	///
-	/// Depending on the implementation might mean failure of allocating memory.
-	#[error("Failure to erase the wasm memory: {0}")]
-	ErasingFailed(String),
+    /// Failure to erase the wasm memory.
+    ///
+    /// Depending on the implementation might mean failure of allocating memory.
+    #[error("Failure to erase the wasm memory: {0}")]
+    ErasingFailed(String),
 
-	#[error("Wasm code failed validation.")]
-	InvalidModule,
+    #[error("Wasm code failed validation.")]
+    InvalidModule,
 
-	#[error("Wasm code could not be deserialized.")]
-	CantDeserializeWasm,
+    #[error("Wasm code could not be deserialized.")]
+    CantDeserializeWasm,
 
-	#[error("The module does not export a linear memory named `memory`.")]
-	InvalidMemory,
+    #[error("The module does not export a linear memory named `memory`.")]
+    InvalidMemory,
 
-	#[error("The number of heap pages requested is disallowed by the module.")]
-	InvalidHeapPages,
+    #[error("The number of heap pages requested is disallowed by the module.")]
+    InvalidHeapPages,
 
-	/// Instantiation error.
-	#[error("{0}")]
-	Instantiation(String),
+    /// Instantiation error.
+    #[error("{0}")]
+    Instantiation(String),
 
-	/// Other error happenend.
-	#[error("{0}")]
-	Other(String),
+    /// Other error happenend.
+    #[error("{0}")]
+    Other(String),
 }
 
 /// An error message with an attached backtrace.
 #[derive(Debug)]
 pub struct MessageWithBacktrace {
-	/// The error message.
-	pub message: String,
+    /// The error message.
+    pub message: String,
 
-	/// The backtrace associated with the error message.
-	pub backtrace: Option<Backtrace>,
+    /// The backtrace associated with the error message.
+    pub backtrace: Option<Backtrace>,
 }
 
 impl std::fmt::Display for MessageWithBacktrace {
-	fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-		fmt.write_str(&self.message)?;
-		if let Some(ref backtrace) = self.backtrace {
-			fmt.write_str("\nWASM backtrace:\n")?;
-			backtrace.backtrace_string.fmt(fmt)?;
-		}
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.write_str(&self.message)?;
+        if let Some(ref backtrace) = self.backtrace {
+            fmt.write_str("\nWASM backtrace:\n")?;
+            backtrace.backtrace_string.fmt(fmt)?;
+        }
 
-		Ok(())
-	}
+        Ok(())
+    }
 }
 
 /// A WASM backtrace.
 #[derive(Debug)]
 pub struct Backtrace {
-	/// The string containing the backtrace.
-	pub backtrace_string: String,
+    /// The string containing the backtrace.
+    pub backtrace_string: String,
 }
 
 impl std::fmt::Display for Backtrace {
-	fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-		fmt.write_str(&self.backtrace_string)
-	}
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.write_str(&self.backtrace_string)
+    }
 }

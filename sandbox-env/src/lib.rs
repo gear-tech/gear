@@ -34,15 +34,15 @@ pub struct HostError;
 #[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
 #[codec(crate = codec)]
 pub enum ExternEntity {
-	/// Function that is specified by an index in a default table of
-	/// a module that creates the sandbox.
-	#[codec(index = 1)]
-	Function(u32),
+    /// Function that is specified by an index in a default table of
+    /// a module that creates the sandbox.
+    #[codec(index = 1)]
+    Function(u32),
 
-	/// Linear memory that is specified by some identifier returned by sandbox
-	/// module upon creation new sandboxed memory.
-	#[codec(index = 2)]
-	Memory(u32),
+    /// Linear memory that is specified by some identifier returned by sandbox
+    /// module upon creation new sandboxed memory.
+    #[codec(index = 2)]
+    Memory(u32),
 }
 
 /// An entry in a environment definition table.
@@ -52,20 +52,20 @@ pub enum ExternEntity {
 #[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
 #[codec(crate = codec)]
 pub struct Entry {
-	/// Module name of which corresponding entity being defined.
-	pub module_name: Vec<u8>,
-	/// Field name in which corresponding entity being defined.
-	pub field_name: Vec<u8>,
-	/// External entity being defined.
-	pub entity: ExternEntity,
+    /// Module name of which corresponding entity being defined.
+    pub module_name: Vec<u8>,
+    /// Field name in which corresponding entity being defined.
+    pub field_name: Vec<u8>,
+    /// External entity being defined.
+    pub entity: ExternEntity,
 }
 
 /// Definition of runtime that could be used by sandboxed code.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
 #[codec(crate = codec)]
 pub struct EnvironmentDefinition {
-	/// Vector of all entries in the environment definition.
-	pub entries: Vec<Entry>,
+    /// Vector of all entries in the environment definition.
+    pub entries: Vec<Entry>,
 }
 
 /// Constant for specifying no limit when creating a sandboxed
@@ -110,33 +110,33 @@ pub const ERROR_GLOBALS_OTHER: u32 = u32::MAX - 1;
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-	use codec::Codec;
-	use std::fmt;
+    use super::*;
+    use codec::Codec;
+    use std::fmt;
 
-	fn roundtrip<S: Codec + PartialEq + fmt::Debug>(s: S) {
-		let encoded = s.encode();
-		assert_eq!(S::decode(&mut &encoded[..]).unwrap(), s);
-	}
+    fn roundtrip<S: Codec + PartialEq + fmt::Debug>(s: S) {
+        let encoded = s.encode();
+        assert_eq!(S::decode(&mut &encoded[..]).unwrap(), s);
+    }
 
-	#[test]
-	fn env_def_roundtrip() {
-		roundtrip(EnvironmentDefinition { entries: vec![] });
+    #[test]
+    fn env_def_roundtrip() {
+        roundtrip(EnvironmentDefinition { entries: vec![] });
 
-		roundtrip(EnvironmentDefinition {
-			entries: vec![Entry {
-				module_name: b"kernel"[..].into(),
-				field_name: b"memory"[..].into(),
-				entity: ExternEntity::Memory(1337),
-			}],
-		});
+        roundtrip(EnvironmentDefinition {
+            entries: vec![Entry {
+                module_name: b"kernel"[..].into(),
+                field_name: b"memory"[..].into(),
+                entity: ExternEntity::Memory(1337),
+            }],
+        });
 
-		roundtrip(EnvironmentDefinition {
-			entries: vec![Entry {
-				module_name: b"env"[..].into(),
-				field_name: b"abort"[..].into(),
-				entity: ExternEntity::Function(228),
-			}],
-		});
-	}
+        roundtrip(EnvironmentDefinition {
+            entries: vec![Entry {
+                module_name: b"env"[..].into(),
+                field_name: b"abort"[..].into(),
+                entity: ExternEntity::Function(228),
+            }],
+        });
+    }
 }

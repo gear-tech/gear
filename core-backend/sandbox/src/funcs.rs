@@ -34,11 +34,11 @@ use gear_core::{
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
 use gear_core_errors::ExtError;
+use gear_sandbox::{HostError, ReturnValue, Value};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
     LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
 };
-use gear_sandbox::{HostError, ReturnValue, Value};
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
 

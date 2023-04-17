@@ -3876,6 +3876,7 @@ dependencies = [
  "gear-runtime",
  "gear-runtime-interface",
  "gear-runtime-primitives",
+ "gear-sandbox-runtime-interface",
  "log",
  "pallet-gear-rpc-runtime-api",
  "parity-scale-codec",

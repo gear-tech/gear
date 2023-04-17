@@ -35,14 +35,14 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
 };
-use gear_wasm_instrument::{
-    syscalls::SysCallName::{self, *},
-    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
-};
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
     SandboxMemory, Value,
+};
+use gear_wasm_instrument::{
+    syscalls::SysCallName::{self, *},
+    GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
 };
 
 #[derive(Debug, derive_more::Display)]
