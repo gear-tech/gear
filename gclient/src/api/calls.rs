@@ -20,6 +20,7 @@ use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
 use gear_core::ids::*;
 use gsdk::{
+    config::GearConfig,
     ext::{
         sp_core::H256,
         sp_runtime::{AccountId32, MultiAddress},
@@ -35,6 +36,7 @@ use gsdk::{
             pallet_gear::pallet::Call as GearCall,
             sp_weights::weight_v2::Weight,
         },
+        system::Event as SystemEvent,
         utility::Event as UtilityEvent,
         Event,
     },
@@ -46,6 +48,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     path::Path,
 };
+use subxt::blocks::ExtrinsicEvents;
 
 impl GearApi {
     /// Transfer `value` to `destination`'s account.
@@ -999,6 +1002,17 @@ impl GearApi {
             .await
     }
 
+    fn process_set_code(&self, events: &ExtrinsicEvents<GearConfig>) -> Result<H256> {
+        for event in events.iter() {
+            let event = event?.as_root_event::<Event>()?;
+            if let Event::System(SystemEvent::CodeUpdated) = event {
+                return Ok(events.block_hash());
+            }
+        }
+
+        Err(Error::EventNotFound)
+    }
+
     /// Upgrade the runtime with the `code` containing the Wasm code of the new
     /// runtime.
     ///
@@ -1018,7 +1032,7 @@ impl GearApi {
                 },
             )
             .await?;
-        Ok(events.block_hash())
+        self.process_set_code(&events)
     }
 
     /// Upgrade the runtime by reading the code from the file located at the
@@ -1050,7 +1064,7 @@ impl GearApi {
                 },
             )
             .await?;
-        Ok(events.block_hash())
+        self.process_set_code(&events)
     }
 
     /// Upgrade the runtime by reading the code from the file located at the

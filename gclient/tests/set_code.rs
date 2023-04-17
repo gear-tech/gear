@@ -20,6 +20,17 @@ use gclient::GearApi;
 use subxt::error::{DispatchError, ModuleError};
 
 #[tokio::test]
+async fn set_code_succeed() {
+    let api = GearApi::dev_from_path("../target/release/gear")
+        .await
+        .unwrap();
+    let _block_hash = api
+        .set_code_without_checks_by_path("../target/release/wbuild/gear-runtime/gear_runtime.wasm")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn set_code_failed() {
     let api = GearApi::dev_from_path("../target/release/gear")
         .await
