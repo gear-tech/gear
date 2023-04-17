@@ -51,7 +51,7 @@ enum WakeState {
 
 #[derive(Debug, Encode, Decode)]
 pub enum InitAction {
-    Normal,
+    Normal(Vec<(u64, u32)>),
     Wait,
     CheckArgs { mailbox_threshold: u64 },
 }
@@ -76,13 +76,10 @@ extern "C" fn init() {
     let action: InitAction = msg::load().unwrap();
 
     match action {
-        InitAction::Normal => {
-            // will be removed automatically
-            let _orphan_reservation =
-                ReservationId::reserve(50_000, 3).expect("orphan reservation");
-
-            // must be cleared during `gr_exit`
-            let _exit_reservation = ReservationId::reserve(25_000, 5).expect("exit reservation");
+        InitAction::Normal(ref reservations) => {
+            for (amount, duration) in reservations {
+                let _ = ReservationId::reserve(*amount, *duration).expect("reservation");
+            }
 
             // no actual reservation and unreservation is occurred
             let noop_reservation = ReservationId::reserve(50_000, 10).expect("noop reservation");
@@ -195,7 +192,12 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let res = program.send(0, InitAction::Normal);
+        let res = program.send(0, InitAction::Normal(vec![
+            // orphan reservation; will be removed automatically
+            (50_000, 3),
+            // must be cleared during `gr_exit`
+            (25_000, 5),
+        ]));
         assert!(!res.main_failed());
     }
 }

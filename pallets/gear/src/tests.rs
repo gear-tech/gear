@@ -5243,6 +5243,46 @@ fn test_no_messages_to_paused_program() {
 }
 
 #[test]
+fn reservations_cleaned_in_paused_program() {
+    use demo_reserve_gas::InitAction;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let expiration_block = RentFreePeriodOf::<Test>::get() + 10;
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitAction::Normal(vec![
+                (50_000, expiration_block as u32),
+                (25_000, expiration_block as u32),
+            ]).encode(),
+            50_000_000_000,
+            0,
+        ));
+
+        let program_id = get_last_program_id();
+        let map = get_reservation_map(program_id).unwrap();
+
+        for (rid, slot) in &map {
+            assert!(TaskPoolOf::<Test>::contains(&u64::from(slot.finish), &ScheduledTask::RemoveGasReservation(program_id, *rid)));
+            assert!(GasHandlerOf::<Test>::get_limit_node(*rid).is_ok());
+        }
+
+        let program =
+            ProgramStorageOf::<Test>::get_program(program_id).expect("program should exist");
+        let expected_block = program.block_number;
+
+        run_to_block(expected_block + 1, None);
+
+        for (rid, slot) in &map {
+            assert!(!TaskPoolOf::<Test>::contains(&u64::from(slot.finish), &ScheduledTask::RemoveGasReservation(program_id, *rid)));
+            frame_support::assert_err!(GasHandlerOf::<Test>::get_limit_node(*rid), pallet_gear_gas::Error::<Test>::NodeNotFound);
+        }
+    });
+}
+
+#[test]
 fn test_create_program_duplicate() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8370,7 +8410,12 @@ fn gas_reservation_works() {
             RuntimeOrigin::signed(USER_1),
             demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            InitAction::Normal.encode(),
+            InitAction::Normal(vec![
+                // orphan reservation; will be removed automatically
+                (50_000, 3),
+                // must be cleared during `gr_exit`
+                (25_000, 5),
+            ]).encode(),
             10_000_000_000,
             0,
         ));
