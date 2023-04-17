@@ -122,14 +122,9 @@ where
                     );
                 });
 
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
                 Pallet::<T>::deposit_event(Event::ProgramChanged {
                     id: program_id,
-                    change: ProgramChangeKind::Active {
-                        expiration: T::BlockNumber::zero(),
-                    },
+                    change: ProgramChangeKind::Active,
                 });
 
                 DispatchStatus::Success
@@ -179,6 +174,11 @@ where
 
                 ProgramStorageOf::<T>::remove_program_pages(program_id);
 
+                let event = Event::ProgramChanged {
+                    id: program_id,
+                    change: ProgramChangeKind::Terminated,
+                };
+
                 let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
 
                 let balance = CurrencyOf::<T>::free_balance(&program_id);
@@ -194,6 +194,8 @@ where
                     )
                     .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
                 }
+
+                Pallet::<T>::deposit_event(event);
 
                 DispatchStatus::Failed
             }
