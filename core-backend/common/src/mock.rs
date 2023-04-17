@@ -20,14 +20,14 @@ use crate::{
     memory::ProcessAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason,
 };
-use alloc::collections::BTreeSet;
-use core::fmt;
+use alloc::{collections::BTreeSet, vec, vec::Vec};
+use core::{fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
     env::Ext,
     gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryInterval, WasmPage},
+    memory::{Memory, MemoryInterval, PageU32Size, WasmPage, WASM_PAGE_SIZE},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
 };
@@ -263,5 +263,91 @@ impl BackendExt for MockExt {
         _gas_left: &mut GasLeft,
     ) -> Result<(), ProcessAccessError> {
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct MockMemory {
+    pages: Vec<u8>,
+}
+
+impl MockMemory {
+    pub fn new(initial_pages: u32) -> Self {
+        let size = initial_pages as usize * WASM_PAGE_SIZE;
+        let pages = vec![0; size];
+
+        Self { pages }
+    }
+
+    fn page_index(&self, offset: u32) -> Option<usize> {
+        let offset = offset as usize;
+
+        (offset < self.pages.len()).then_some(offset / WASM_PAGE_SIZE)
+    }
+}
+
+impl Memory for MockMemory {
+    type GrowError = ();
+
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
+        let new_size = self.pages.len() + (pages.raw() as usize) * WASM_PAGE_SIZE;
+
+        self.pages.resize(new_size, 0);
+
+        Ok(())
+    }
+
+    fn size(&self) -> WasmPage {
+        WasmPage::new((self.pages.len() / WASM_PAGE_SIZE) as u32).unwrap_or_default()
+    }
+
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+        let page_index = self
+            .page_index(offset)
+            .ok_or(MemoryError::RuntimeAllocOutOfBounds)?;
+        let page_offset = offset as usize % WASM_PAGE_SIZE;
+
+        if page_offset + buffer.len() > WASM_PAGE_SIZE {
+            return Err(MemoryError::RuntimeAllocOutOfBounds);
+        }
+
+        let page_start = page_index * WASM_PAGE_SIZE;
+        let start = page_start + page_offset;
+
+        if start + buffer.len() > self.pages.len() {
+            return Err(MemoryError::RuntimeAllocOutOfBounds);
+        }
+
+        let dest = &mut self.pages[start..(start + buffer.len())];
+        dest.copy_from_slice(buffer);
+
+        Ok(())
+    }
+
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
+        let page_index = self
+            .page_index(offset)
+            .ok_or(MemoryError::AccessOutOfBounds)?;
+        let page_offset = offset as usize % WASM_PAGE_SIZE;
+
+        if page_offset + buffer.len() > WASM_PAGE_SIZE {
+            return Err(MemoryError::AccessOutOfBounds);
+        }
+
+        let page_start = page_index * WASM_PAGE_SIZE;
+        let start = page_start + page_offset;
+
+        if start + buffer.len() > self.pages.len() {
+            return Err(MemoryError::AccessOutOfBounds);
+        }
+
+        let src = &self.pages[start..(start + buffer.len())];
+        buffer.copy_from_slice(src);
+
+        Ok(())
+    }
+
+    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> u64 {
+        unimplemented!();
     }
 }
