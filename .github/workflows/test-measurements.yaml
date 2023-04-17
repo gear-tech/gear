@@ -74,7 +74,7 @@ jobs:
           tar -xf /root/cache/check_cargo_registry_${{ github.ref_name }}.tar -C /
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --release --locked --features=runtime-test,runtime-benchmarks,lazy-pages
+        run: ./scripts/gear.sh build gear --release --locked --features=runtime-benchmarks,lazy-pages
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
@@ -94,21 +94,6 @@ jobs:
           ./target/release/regression-analysis convert
           --data-folder-path ./target/analysis/tests/
           --output-file ./target/action-pallet-output.json
-
-      - name: "Collect: Node runtime tests"
-        run: |
-          rm -rf ./target/analysis/
-          mkdir -p ./target/analysis/tests/
-          mkdir -p ./target/analysis/output/
-          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test rtest gear > ./target/analysis/output/$i 2>&1 ; mv ./target/runtime-test-junit.xml ./target/analysis/tests/$i; done
-          ./target/release/regression-analysis collect-data --disable-filter --data-folder-path ./target/analysis/tests/ --output-path ./target/runtime-tests.json
-
-      - name: "Generate report: Node runtime tests"
-        run: >-
-          ./target/release/regression-analysis convert
-          --disable-filter
-          --data-folder-path ./target/analysis/tests/
-          --output-file ./target/action-runtime-output.json
 
       - name: "Collect: pallet-gear benches"
         run: >-
@@ -134,14 +119,6 @@ jobs:
         with:
           name: Gear workspace tests
           file: ./target/action-pallet-output.json
-          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: "Deploy: Node runtime tests"
-        uses: ./.github/actions/deploy-benchmark
-        with:
-          name: Node runtime tests
-          file: ./target/action-runtime-output.json
           ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -172,4 +149,3 @@ jobs:
       - name: "Cache: collected data"
         run: |
           mv ./target/pallet-tests.json /root/cache/
-          mv ./target/runtime-tests.json /root/cache/

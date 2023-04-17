@@ -319,10 +319,6 @@ case "$COMMAND" in
         header "Checking validators"
         validators "$ROOT_DIR" "$@"; ;;
 
-      rtest)
-        header "Running node runtime testsuite"
-        rtest "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
-
       pallet)
         header "Running pallet-gear tests"
         pallet_test "$@"; ;;
@@ -359,10 +355,6 @@ case "$COMMAND" in
       gtest)
         header "Running gear-test (spec testing)"
         gtest_debug "$ROOT_DIR" "$@"; ;;
-
-      rtest)
-        header "Running node runtime testsuite"
-        rtest_debug "$ROOT_DIR"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"

@@ -249,16 +249,6 @@ jobs:
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client
 
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
-
-      - name: "Test: runtime spec tests no lazy pages"
-        run: |
-          cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
-          ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
-
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
           cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
@@ -474,11 +464,6 @@ jobs:
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client
 
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
-
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
         with:
@@ -643,13 +628,6 @@ jobs:
       #    ./scripts/gear.sh test client
       #  env:
       #    CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo xwin build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
-        env:
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
