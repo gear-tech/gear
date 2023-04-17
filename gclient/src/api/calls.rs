@@ -1005,6 +1005,7 @@ impl GearApi {
     fn check_for_sudid(&self, events: &ExtrinsicEvents<GearConfig>) -> Result<()> {
         for event in events.iter() {
             let event = event?.as_root_event::<Event>()?;
+            eprintln!("EVENT: {:?}", event);
             if let Event::Sudo(SudoEvent::Sudid {
                 sudo_result: Err(err),
             }) = event
