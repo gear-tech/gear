@@ -17,14 +17,24 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gclient::GearApi;
+use subxt::error::{DispatchError, ModuleError};
 
 #[tokio::test]
 async fn set_code_failed() {
     let api = GearApi::dev_from_path("../target/release/gear")
         .await
         .unwrap();
-    let _err = api
+    let err = api
         .set_code_by_path("../target/release/wbuild/gear-runtime/gear_runtime.wasm")
         .await
         .unwrap_err();
+    if let gclient::Error::GearSDK(gsdk::Error::Subxt(subxt::Error::Runtime(
+        DispatchError::Module(ModuleError { pallet, error, .. }),
+    ))) = err
+    {
+        assert_eq!(pallet, "System");
+        assert_eq!(error, "SpecVersionNeedsToIncrease");
+    } else {
+        panic!("Unexpected error: {:?}", err);
+    }
 }
