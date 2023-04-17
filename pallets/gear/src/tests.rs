@@ -143,6 +143,84 @@ fn auto_reply_sent() {
 }
 
 #[test]
+fn auto_reply_out_of_rent_waitlist() {
+    use demo_proxy::{InputArgs as ProxyInputArgs, WASM_BINARY as PROXY_WASM_BINARY};
+    use demo_waiter::{Command as WaiterCommand, WASM_BINARY as WAITER_WASM_BINARY};
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0,
+        ));
+        let waiter_id = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PROXY_WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ProxyInputArgs {
+                destination: waiter_id.into(),
+            }
+            .encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+        let proxy_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(waiter_id));
+        assert!(Gear::is_active(proxy_id));
+        assert_total_dequeued(2); // 2 init messages
+        assert_eq!(
+            // 2 auto replies into USER_1 events
+            System::events()
+                .iter()
+                .filter_map(|r| {
+                    if let MockRuntimeEvent::Gear(Event::UserMessageSent {
+                        message,
+                        expiration: None,
+                    }) = &r.event
+                    {
+                        (message.destination().into_origin() == USER_1.into_origin()).then_some(())
+                    } else {
+                        None
+                    }
+                })
+                .count(),
+            2
+        );
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy_id,
+            WaiterCommand::Wait.encode(),
+            DEFAULT_GAS_LIMIT * 10,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert_last_dequeued(2); // message to proxy program and its message to waiter
+        let (_msg_waited, expiration) = get_last_message_waited();
+
+        // Hack to fast spend blocks till expiration.
+        System::set_block_number(expiration - 1);
+        Gear::set_block_number((expiration - 1).try_into().unwrap());
+
+        run_to_next_block(None);
+        assert_last_dequeued(2); // Signal for waiter program since it has system reservation
+                                 // + auto error reply to proxy contract
+    });
+}
+
+#[test]
 fn gasfull_after_gasless() {
     init_logger();
 
