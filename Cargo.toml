@@ -72,7 +72,6 @@ members = [
     "runtime/vara",
     "utils/bags-thresholds",
     "utils/call-gen",
-    "utils/gear-runtime-test-cli",
     "utils/runtime-fuzzer",
     "utils/runtime-fuzzer/fuzz",
     "utils/junit-common",
