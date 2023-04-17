@@ -192,12 +192,15 @@ mod tests {
 
         let program = Program::current(&system);
 
-        let res = program.send(0, InitAction::Normal(vec![
-            // orphan reservation; will be removed automatically
-            (50_000, 3),
-            // must be cleared during `gr_exit`
-            (25_000, 5),
-        ]));
+        let res = program.send(
+            0,
+            InitAction::Normal(vec![
+                // orphan reservation; will be removed automatically
+                (50_000, 3),
+                // must be cleared during `gr_exit`
+                (25_000, 5),
+            ]),
+        );
         assert!(!res.main_failed());
     }
 }

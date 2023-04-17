@@ -5256,7 +5256,8 @@ fn reservations_cleaned_in_paused_program() {
             InitAction::Normal(vec![
                 (50_000, expiration_block as u32),
                 (25_000, expiration_block as u32),
-            ]).encode(),
+            ])
+            .encode(),
             50_000_000_000,
             0,
         ));
@@ -5265,7 +5266,10 @@ fn reservations_cleaned_in_paused_program() {
         let map = get_reservation_map(program_id).unwrap();
 
         for (rid, slot) in &map {
-            assert!(TaskPoolOf::<Test>::contains(&u64::from(slot.finish), &ScheduledTask::RemoveGasReservation(program_id, *rid)));
+            assert!(TaskPoolOf::<Test>::contains(
+                &u64::from(slot.finish),
+                &ScheduledTask::RemoveGasReservation(program_id, *rid)
+            ));
             assert!(GasHandlerOf::<Test>::get_limit_node(*rid).is_ok());
         }
 
@@ -5276,8 +5280,14 @@ fn reservations_cleaned_in_paused_program() {
         run_to_block(expected_block + 1, None);
 
         for (rid, slot) in &map {
-            assert!(!TaskPoolOf::<Test>::contains(&u64::from(slot.finish), &ScheduledTask::RemoveGasReservation(program_id, *rid)));
-            frame_support::assert_err!(GasHandlerOf::<Test>::get_limit_node(*rid), pallet_gear_gas::Error::<Test>::NodeNotFound);
+            assert!(!TaskPoolOf::<Test>::contains(
+                &u64::from(slot.finish),
+                &ScheduledTask::RemoveGasReservation(program_id, *rid)
+            ));
+            frame_support::assert_err!(
+                GasHandlerOf::<Test>::get_limit_node(*rid),
+                pallet_gear_gas::Error::<Test>::NodeNotFound
+            );
         }
     });
 }
@@ -8415,7 +8425,8 @@ fn gas_reservation_works() {
                 (50_000, 3),
                 // must be cleared during `gr_exit`
                 (25_000, 5),
-            ]).encode(),
+            ])
+            .encode(),
             10_000_000_000,
             0,
         ));

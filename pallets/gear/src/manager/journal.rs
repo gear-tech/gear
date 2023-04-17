@@ -237,10 +237,7 @@ where
         self.clean_reservation_tasks(id_exited, false);
 
         ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn| {
-            let _ = TaskPoolOf::<T>::delete(
-                *bn,
-                ScheduledTask::PauseProgram(id_exited),
-            );
+            let _ = TaskPoolOf::<T>::delete(*bn, ScheduledTask::PauseProgram(id_exited));
 
             *bn = Pallet::<T>::block_number();
             *p = Program::Exited(value_destination);
