@@ -796,54 +796,54 @@ jobs:
           fail_on_unmatched_files: true
           files: artifact/*
 
-  # check-fuzzer:
-  #   # if: github.event_name == 'push' && github.ref_name == 'master'
-  #   runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
-  #   # needs: build
-  #   steps:
-  #     - name: Cancel Previous Runs
-  #       if: ${{ github.event_name == 'pull_request' }}
-  #       uses: styfle/cancel-workflow-action@0.11.0
-  #       with:
-  #       access_token: ${{ github.token }}
+  check-fuzzer:
+    # if: github.event_name == 'push' && github.ref_name == 'master' TODO uncomment
+    runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
+    # needs: build TODO uncomment
+    steps:
+      - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+        access_token: ${{ github.token }}
 
-  #     - name: "ACTIONS: Checkout"
-  #       uses: actions/checkout@v3
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v3
 
-  #     - name: "Install: Set cargo path"
-  #       run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-  #     - name: "Install: Nightly toolchain"
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: nightly
-  #         target: wasm32-unknown-unknown
-  #         components: llvm-tools-preview
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+          components: llvm-tools-preview
 
-  #     - name: "Install: Show specific nightly version"
-  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-  #       run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+      - name: "Install: Show specific nightly version"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
 
-  #     - name: "Install: Specific nightly toolchain"
-  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-  #         target: wasm32-unknown-unknown
-  #         components: llvm-tools-preview
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+          target: wasm32-unknown-unknown
+          components: llvm-tools-preview
 
-  #     - name: "Install: Pin to specific nightly toolchain"
-  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-  #       run: |
-  #         rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-  #         ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: |
+          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
 
-  #     - name: "Install: Build deps"
-  #       run: |
-  #         sudo apt update
-  #         sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2 jq
-  #         sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-  #         sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+      - name: "Install: Build deps"
+        run: |
+          sudo apt update
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2 jq
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
 
-  #     - name: "Check fuzzer with mutation test"
-  #       run: ./scripts/check-fuzzer.sh
+      - name: "Check fuzzer with mutation test"
+        run: ./scripts/check-fuzzer.sh
