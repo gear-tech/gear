@@ -588,6 +588,7 @@ where
     /// during the execution of the original message went to message queue
     /// and was successfully executed.
     #[cfg_attr(feature = "std", mutagen::mutate)]
+    #[cfg_attr(feature = "std", allow(clippy::blocks_in_if_conditions))]
     fn consume(key: impl Into<GasNodeIdOf<Self>>) -> ConsumeResultOf<Self> {
         let key = key.into();
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
