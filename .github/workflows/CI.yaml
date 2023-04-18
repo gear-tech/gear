@@ -846,4 +846,6 @@ jobs:
           sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
 
       - name: "Check fuzzer with mutation test"
-        run: ./scripts/check-fuzzer.sh
+        run: |
+          chmod +x ./scripts/check-fuzzer.sh
+          ./scripts/check-fuzzer.sh
