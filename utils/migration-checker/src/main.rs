@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{ensure, Context};
+use anyhow::ensure;
 use clap::{ArgGroup, Parser};
 use frame_remote_externalities::{Mode, OnlineConfig, SnapshotConfig, Transport};
 use gclient::{GearApi, WSAddress};
@@ -29,7 +29,6 @@ use tokio::process::Command;
 enum Cli {
     TakeSnapshot(TakeSnapshotCmd),
     RuntimeUpgrade(RuntimeUpgradeCmd),
-    Test(TestCmd),
 }
 
 /// Take snapshot of the node
@@ -113,41 +112,6 @@ impl RuntimeUpgradeCmd {
     }
 }
 
-#[derive(Parser)]
-struct TestCmd {
-    /// Node executable
-    #[arg(long, default_value = "target/release/gear")]
-    node: PathBuf,
-    /// Old runtime WASM executable
-    #[arg(long)]
-    old_runtime: PathBuf,
-    #[arg(
-        long,
-        default_value = "target/release/wbuild/gear-runtime/gear_runtime.wasm"
-    )]
-    new_runtime: PathBuf,
-}
-
-impl TestCmd {
-    async fn run(self) -> anyhow::Result<()> {
-        let mut api = GearApi::dev().await?;
-
-        api.set_code_by_path(self.old_runtime)
-            .await
-            .context("Failed to set old runtime")?;
-
-        log::info!("Old runtime set");
-
-        api.set_code_by_path(self.new_runtime)
-            .await
-            .context("Failed to set new runtime")?;
-
-        log::info!("New runtime set");
-
-        Ok(())
-    }
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
@@ -156,7 +120,6 @@ async fn main() -> anyhow::Result<()> {
     match args {
         Cli::TakeSnapshot(cmd) => cmd.run().await?,
         Cli::RuntimeUpgrade(cmd) => cmd.run().await?,
-        Cli::Test(cmd) => cmd.run().await?,
     }
 
     Ok(())
