@@ -17,7 +17,6 @@ test_usage() {
 
     gear           run workspace tests
     gcli           run gcli package tests
-    js             run metadata js tests
     gtest          run gear-test testing tool,
                    you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
     pallet         run pallet-gear tests
@@ -39,11 +38,6 @@ workspace_test() {
 gcli_test() {
   cargo +nightly nextest run -p gcli "$@" --profile ci --no-fail-fast
   cargo +nightly nextest run -p gcli "$@" --features vara-testing --profile ci --no-fail-fast
-}
-
-# $1 - ROOT DIR
-js_test() {
-  node "$1"/utils/wasm-proc/metadata-js/test.js
 }
 
 # $1 - ROOT DIR

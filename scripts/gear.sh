@@ -32,16 +32,6 @@ fi
 . "$SCRIPTS"/run.sh
 . "$SCRIPTS"/test.sh
 
-show() {
-  rustup show
-
-  bold && printf "node.js\n-------\n\n" && normal
-  node -v
-
-  bold && printf "\nnpm\n---\n\n" && normal
-  npm -v
-}
-
 check_extensions() {
   if [ -z "$(cargo --list | awk '{print $1}' | grep "^$CARGO_HACK$")" ] || [ -z "$(cargo --list | awk '{print $1}' | grep "^$CARGO_NEXTEST$")" ]
     then
@@ -100,7 +90,7 @@ case "$COMMAND" in
 
   show)
     header "Showing installed tools"
-    show
+    rustup show
     exit; ;;
 
   build)
@@ -250,14 +240,6 @@ case "$COMMAND" in
         header "Initializing WASM environment"
         wasm_init; ;;
 
-      js)
-        header "Syncing JS packages"
-        js_init "$ROOT_DIR"; ;;
-
-      update-js)
-        header "Updating JS packages"
-        js_update "$ROOT_DIR"; ;;
-
       cargo)
         header "Installing cargo extensions '$CARGO_HACK' and(/or) '$CARGO_NEXTEST'"
         cargo_init; ;;
@@ -306,10 +288,6 @@ case "$COMMAND" in
       gcli)
         header "Running gcli tests"
         gcli_test "$@"; ;;
-
-      js)
-        header "Running js tests"
-        js_test "$ROOT_DIR"; ;;
 
       gtest)
         header "Running gear-test (spec testing)"
