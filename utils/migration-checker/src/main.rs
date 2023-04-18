@@ -56,7 +56,7 @@ impl TakeSnapshotCmd {
         let api;
         let uri = if let Some(path) = self.run_node {
             api = GearApi::dev_from_path(path).await?;
-            api.ws_address().url()
+            api.node_ws_address().url()
         } else {
             let uri = self.uri.unwrap();
             if uri == "gear-testnet" {

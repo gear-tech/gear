@@ -99,6 +99,11 @@ impl GearApi {
         Ok(Self(api.0, Some(Arc::new(node))))
     }
 
+    /// Returns Web Socket address the node is listening to.
+    pub fn node_ws_address(&self) -> Option<&WSAddress> {
+        self.1.as_ref().map(|node| node.ws_address())
+    }
+
     /// Print node logs.
     pub fn print_node_logs(&mut self) {
         if let Some(node) = self.1.as_mut() {
@@ -106,11 +111,6 @@ impl GearApi {
                 .expect("Unable to mutate `Node`")
                 .print_logs();
         }
-    }
-
-    /// Returns Web Socket address the node is listening to.
-    pub fn ws_address(&self) -> &WSAddress {
-        self.1.as_ref().unwrap().ws_address()
     }
 
     /// Create and init a new `GearApi` instance that will be used with the
