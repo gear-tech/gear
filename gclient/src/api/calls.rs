@@ -20,6 +20,7 @@ use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
 use gear_core::ids::*;
 use gsdk::{
+    config::GearConfig,
     ext::{
         sp_core::H256,
         sp_runtime::{AccountId32, MultiAddress},
@@ -35,6 +36,7 @@ use gsdk::{
             pallet_gear::pallet::Call as GearCall,
             sp_weights::weight_v2::Weight,
         },
+        system::Event as SystemEvent,
         utility::Event as UtilityEvent,
         Event,
     },
@@ -46,6 +48,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     path::Path,
 };
+use subxt::blocks::ExtrinsicEvents;
 
 impl GearApi {
     /// Transfer `value` to `destination`'s account.
@@ -278,10 +281,15 @@ impl GearApi {
             .gas_nodes_at(&src_program_reserved_gas_node_ids, src_block_hash)
             .await?;
 
+        let mut src_program_reserved_gas_total = 0u64;
         let mut accounts_with_reserved_funds = HashSet::new();
         for gas_node in &src_program_reserved_gas_nodes {
-            if let types::GearGasNode::Reserved { id, .. } = &gas_node.1 {
+            if let types::GearGasNode::Reserved {
+                id, value, lock, ..
+            } = &gas_node.1
+            {
                 accounts_with_reserved_funds.insert(id);
+                src_program_reserved_gas_total += value + lock;
             } else {
                 unreachable!("Unexpected gas node type");
             }
@@ -354,6 +362,22 @@ impl GearApi {
                 )
                 .await?;
         }
+
+        let dest_gas_total_issuance =
+            dest_node_api.0.api().total_issuance().await.or_else(|e| {
+                if let GsdkError::StorageNotFound = e {
+                    Ok(0)
+                } else {
+                    Err(e)
+                }
+            })?;
+
+        dest_node_api
+            .0
+            .set_total_issuance(
+                dest_gas_total_issuance.saturating_add(src_program_reserved_gas_total),
+            )
+            .await?;
 
         dest_node_api
             .0
@@ -978,6 +1002,17 @@ impl GearApi {
             .await
     }
 
+    fn process_set_code(&self, events: &ExtrinsicEvents<GearConfig>) -> Result<H256> {
+        for event in events.iter() {
+            let event = event?.as_root_event::<Event>()?;
+            if let Event::System(SystemEvent::CodeUpdated) = event {
+                return Ok(events.block_hash());
+            }
+        }
+
+        Err(Error::EventNotFound)
+    }
+
     /// Upgrade the runtime with the `code` containing the Wasm code of the new
     /// runtime.
     ///
@@ -985,7 +1020,7 @@ impl GearApi {
     /// [`pallet_system::set_code`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code)
     /// extrinsic.
     pub async fn set_code(&self, code: impl AsRef<[u8]>) -> Result<H256> {
-        let tx = self
+        let events = self
             .0
             .sudo_unchecked_weight(
                 RuntimeCall::System(SystemCall::set_code {
@@ -993,14 +1028,11 @@ impl GearApi {
                 }),
                 Weight {
                     ref_time: 0,
-                    // # TODO
-                    //
-                    // Check this field
-                    proof_size: Default::default(),
+                    proof_size: 0,
                 },
             )
             .await?;
-        Ok(tx.wait_for_success().await?.block_hash())
+        self.process_set_code(&events)
     }
 
     /// Upgrade the runtime by reading the code from the file located at the
@@ -1013,6 +1045,38 @@ impl GearApi {
         self.set_code(code).await
     }
 
+    /// Upgrade the runtime with the `code` containing the Wasm code of the new
+    /// runtime but **without** checks.
+    ///
+    /// Sends the
+    /// [`pallet_system::set_code_without_checks`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code_without_checks)
+    /// extrinsic.
+    pub async fn set_code_without_checks(&self, code: impl AsRef<[u8]>) -> Result<H256> {
+        let events = self
+            .0
+            .sudo_unchecked_weight(
+                RuntimeCall::System(SystemCall::set_code_without_checks {
+                    code: code.as_ref().to_vec(),
+                }),
+                Weight {
+                    ref_time: 0,
+                    proof_size: 0,
+                },
+            )
+            .await?;
+        self.process_set_code(&events)
+    }
+
+    /// Upgrade the runtime by reading the code from the file located at the
+    /// `path`.
+    ///
+    /// Same as [`set_code_without_checks`](Self::set_code_without_checks), but
+    /// reads the runtime code from a file instead of using a byte vector.
+    pub async fn set_code_without_checks_by_path(&self, path: impl AsRef<Path>) -> Result<H256> {
+        let code = utils::code_from_os(path)?;
+        self.set_code_without_checks(code).await
+    }
+
     /// Set the free and reserved balance of the `to` account to `new_free` and
     /// `new_reserved` respectively.
     ///
@@ -1023,7 +1087,7 @@ impl GearApi {
         new_free: u128,
         new_reserved: u128,
     ) -> Result<H256> {
-        let tx = self
+        let events = self
             .0
             .sudo_unchecked_weight(
                 RuntimeCall::Balances(BalancesCall::set_balance {
@@ -1040,6 +1104,6 @@ impl GearApi {
                 },
             )
             .await?;
-        Ok(tx.wait_for_success().await?.block_hash())
+        Ok(events.block_hash())
     }
 }

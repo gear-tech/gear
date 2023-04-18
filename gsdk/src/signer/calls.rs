@@ -19,12 +19,16 @@
 //! gear api calls
 use crate::{
     config::GearConfig,
-    metadata::runtime_types::{
-        frame_system::pallet::Call,
-        gear_common::{ActiveProgram, Program},
-        gear_core::code::InstrumentedCode,
-        gear_runtime::RuntimeCall,
-        sp_weights::weight_v2::Weight,
+    metadata::{
+        runtime_types::{
+            frame_system::pallet::Call,
+            gear_common::{ActiveProgram, Program},
+            gear_core::code::InstrumentedCode,
+            gear_runtime::RuntimeCall,
+            sp_weights::weight_v2::Weight,
+        },
+        sudo::Event as SudoEvent,
+        Event,
     },
     signer::Signer,
     types::{self, InBlock, TxStatus},
@@ -40,6 +44,7 @@ use hex::ToHex;
 use parity_scale_codec::Encode;
 use sp_runtime::AccountId32;
 use subxt::{
+    blocks::ExtrinsicEvents,
     dynamic::Value,
     metadata::EncodeWithMetadata,
     storage::StorageAddress,
@@ -48,6 +53,7 @@ use subxt::{
 };
 
 type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
+type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
 const ERRORS_REQUIRE_RETRYING: [&str; 2] = ["Connection reset by peer", "Connection refused"];
 
@@ -191,8 +197,24 @@ impl Signer {
 
 // pallet-sudo
 impl Signer {
+    async fn process_sudo(&self, tx: DynamicTxPayload<'_>) -> EventsResult {
+        let tx = self.process(tx).await?;
+        let events = tx.wait_for_success().await?;
+        for event in events.iter() {
+            let event = event?.as_root_event::<Event>()?;
+            if let Event::Sudo(SudoEvent::Sudid {
+                sudo_result: Err(err),
+            }) = event
+            {
+                return Err(self.api().decode_error(err).into());
+            }
+        }
+
+        Ok(events)
+    }
+
     /// `pallet_sudo::sudo_unchecked_weight`
-    pub async fn sudo_unchecked_weight(&self, call: RuntimeCall, weight: Weight) -> InBlock {
+    pub async fn sudo_unchecked_weight(&self, call: RuntimeCall, weight: Weight) -> EventsResult {
         let tx = subxt::dynamic::tx(
             "Sudo",
             "sudo_unchecked_weight",
@@ -205,22 +227,21 @@ impl Signer {
                 ]),
             ],
         );
-
-        self.process(tx).await
+        self.process_sudo(tx).await
     }
 
     /// `pallet_sudo::sudo`
-    pub async fn sudo(&self, call: RuntimeCall) -> InBlock {
+    pub async fn sudo(&self, call: RuntimeCall) -> EventsResult {
         let tx = subxt::dynamic::tx("Sudo", "sudo", vec![Value::from(call)]);
 
-        self.process(tx).await
+        self.process_sudo(tx).await
     }
 }
 
 // pallet-system
 impl Signer {
     /// Sets storage values via calling sudo pallet
-    pub async fn set_storage(&self, items: &[(impl StorageAddress, impl Encode)]) -> InBlock {
+    pub async fn set_storage(&self, items: &[(impl StorageAddress, impl Encode)]) -> EventsResult {
         let metadata = self.api().metadata();
         let mut items_to_set = Vec::with_capacity(items.len());
         for item in items {
@@ -244,11 +265,17 @@ impl Signer {
 
 // pallet-gas
 impl Signer {
+    /// Writes gas total issuance into storage.
+    pub async fn set_total_issuance(&self, value: u64) -> EventsResult {
+        let addr = subxt::dynamic::storage_root("GearGas", "TotalIssuance");
+        self.set_storage(&[(addr, value)]).await
+    }
+
     /// Writes Gear gas nodes into storage at their ids.
     pub async fn set_gas_nodes(
         &self,
         gas_nodes: &impl AsRef<[(types::GearGasNodeId, types::GearGasNode)]>,
-    ) -> InBlock {
+    ) -> EventsResult {
         let gas_nodes = gas_nodes.as_ref();
         let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
         for gas_node in gas_nodes {
@@ -266,7 +293,7 @@ impl Signer {
 // pallet-gear-program
 impl Signer {
     /// Writes `InstrumentedCode` length into storage at `CodeId`
-    pub async fn set_code_len_storage(&self, code_id: CodeId, code_len: u32) -> InBlock {
+    pub async fn set_code_len_storage(&self, code_id: CodeId, code_len: u32) -> EventsResult {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeLenStorage",
@@ -276,7 +303,7 @@ impl Signer {
     }
 
     /// Writes `InstrumentedCode` into storage at `CodeId`
-    pub async fn set_code_storage(&self, code_id: CodeId, code: &InstrumentedCode) -> InBlock {
+    pub async fn set_code_storage(&self, code_id: CodeId, code: &InstrumentedCode) -> EventsResult {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "CodeStorage",
@@ -290,7 +317,7 @@ impl Signer {
         &self,
         program_id: ProgramId,
         program_pages: &types::GearPages,
-    ) -> InBlock {
+    ) -> EventsResult {
         let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
         for program_page in program_pages {
             let addr = subxt::dynamic::storage(
@@ -315,7 +342,7 @@ impl Signer {
         program_id: ProgramId,
         program: ActiveProgram,
         block_number: u32,
-    ) -> InBlock {
+    ) -> EventsResult {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "ProgramStorage",

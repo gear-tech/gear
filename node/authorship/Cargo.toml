@@ -3,7 +3,7 @@ name = "gear-authorship"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 description = "Gear Node"
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
@@ -49,6 +49,7 @@ sp-io = { workspace = true, features = ["std"] }
 sp-std = { workspace = true, features = ["std"] }
 sp-timestamp = { workspace = true, features = ["std"] }
 sp-consensus-babe = { workspace = true, features = ["std"] }
+sp-state-machine = { workspace = true, features = ["std"] }
 pallet-sudo  = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
