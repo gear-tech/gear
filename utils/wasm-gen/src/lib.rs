@@ -27,7 +27,7 @@ use gear_wasm_instrument::{
             Section, Type, ValueType,
         },
     },
-    syscalls::SysCallName,
+    syscalls::{ParamType, SysCallName, SysCallSignature},
     STACK_END_EXPORT_NAME,
 };
 pub use gsys;
@@ -446,6 +446,7 @@ enum GearStackEndExportSeed {
     GenerateValue(u32),
 }
 
+#[derive(Debug)]
 struct SyscallData {
     info: SysCallInfo,
     sys_call_amount: usize,
@@ -839,6 +840,75 @@ impl<'a> WasmGen<'a> {
         (module_builder.build(), syscall_data)
     }
 
+    fn gen_send_from_reservation(
+        &mut self,
+        module: Module,
+        syscall_data: &BTreeMap<SysCallName, SyscallData>,
+    ) -> (Module, Option<SyscallData>) {
+        let reserve_gas_call_data = syscall_data.get(&SysCallName::ReserveGas);
+        let reservation_send_call_data = syscall_data.get(&SysCallName::ReservationSend);
+        let (_reserve_gas_call_data, reservation_send_call_data) =
+            if let (Some(reserve_gas_call_data), Some(reservation_send_call_data)) =
+                (reserve_gas_call_data, reservation_send_call_data)
+            {
+                (reserve_gas_call_data, reservation_send_call_data)
+            } else {
+                return (module, None);
+            };
+        let send_from_reservation_signature = SysCallSignature {
+            params: vec![
+                ParamType::Ptr,
+                ParamType::Ptr,
+                ParamType::Size,
+                ParamType::Delay,
+                ParamType::Gas,
+                ParamType::Duration,
+            ],
+            results: Default::default(),
+        };
+        let send_from_reservation_call_info = SysCallInfo::new(
+            &self.config,
+            send_from_reservation_signature,
+            self.config.sys_call_freq,
+            false,
+        );
+
+        let func_type = send_from_reservation_call_info.func_type();
+
+        let func_signature = builder::signature()
+            .with_params(func_type.params().iter().map(|func_param| *func_param))
+            .with_results(func_type.results().iter().map(|func_result| *func_result))
+            .build_sig();
+
+        let func_instructions = Instructions::new(vec![Instruction::End]);
+
+        let mut module_builder = builder::from_module(module);
+
+        let func_idx = module_builder
+            .push_function(
+                builder::function()
+                    .with_signature(func_signature)
+                    .body()
+                    .with_instructions(func_instructions)
+                    .build()
+                    .build(),
+            )
+            .signature;
+
+        let call_idx = self.calls_indexes.len() as u32;
+
+        self.calls_indexes.push(FuncIdx::Func(func_idx));
+
+        (
+            module_builder.build(),
+            Some(SyscallData {
+                info: send_from_reservation_call_info,
+                sys_call_amount: reservation_send_call_data.sys_call_amount, // Could be generated from Unstructured based on code size
+                call_index: call_idx,
+            }),
+        )
+    }
+
     fn build_call_instructions<I: Clone + Iterator<Item = u32>>(
         &mut self,
         name: &SysCallName,
@@ -1065,6 +1135,14 @@ pub fn gen_gear_program_module<'a>(
     let (module, _has_handle_reply) = gen.gen_handle_reply(module);
 
     let (module, syscall_data) = gen.gen_syscall_imports(module);
+
+    let (module, send_from_reservation_call_data) =
+        gen.gen_send_from_reservation(module, &syscall_data);
+
+    println!(
+        "send_from_reservation: {:?}",
+        send_from_reservation_call_data
+    );
 
     let module = gen.insert_sys_calls(
         ModuleBuilderWithData::new(addresses, module, memory_pages),
