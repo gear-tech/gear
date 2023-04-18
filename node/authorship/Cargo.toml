@@ -49,11 +49,11 @@ sp-io = { workspace = true, features = ["std"] }
 sp-std = { workspace = true, features = ["std"] }
 sp-timestamp = { workspace = true, features = ["std"] }
 sp-consensus-babe = { workspace = true, features = ["std"] }
+sp-state-machine = { workspace = true, features = ["std"] }
 pallet-sudo  = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
 pallet-gear-messenger  = { workspace = true, features = ["std"] }
-sp-state-machine = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41" }
 testing.workspace = true
 vara-runtime  = { workspace = true, features = ["std"] }
 demo-mul-by-const.workspace = true

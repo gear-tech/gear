@@ -297,6 +297,7 @@ sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.
 sp-runtime-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41", default-features = false }
 sp-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41", default-features = false }
 sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41", default-features = false }
+sp-state-machine = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41", default-features = false }
 sp-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41", default-features = false }
 sp-storage = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41", default-features = false }
 sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gshep/polkadot-v0.9.41", default-features = false }
