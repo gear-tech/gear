@@ -52,8 +52,8 @@ pub trait WeightInfo {
     fn enable_debug_mode() -> Weight;
 }
 
-pub struct GearSupportWeight<T>(PhantomData<T>);
-impl<T: frame_system::Config> WeightInfo for GearSupportWeight<T> {
+pub struct SubstrateWeight<T>(PhantomData<T>);
+impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     fn enable_debug_mode() -> Weight {
         Weight::zero().saturating_add(T::DbWeight::get().writes(1_u64))
     }

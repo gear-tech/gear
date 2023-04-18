@@ -18,7 +18,6 @@
 
 use super::*;
 use crate::mock::*;
-use common::{self, Origin as _};
 use frame_support::assert_ok;
 #[cfg(feature = "lazy-pages")]
 use gear_core::memory::GearPage;
@@ -29,7 +28,6 @@ use gear_core::{
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pallet_gear::{DebugInfo, Pallet as PalletGear};
-use sp_core::H256;
 use sp_std::collections::btree_map::BTreeMap;
 
 pub(crate) fn init_logger() {
@@ -50,10 +48,6 @@ fn parse_wat(source: &str) -> Vec<u8> {
 
 fn generate_program_id(code: &[u8]) -> ProgramId {
     ProgramId::generate(CodeId::generate(code), b"salt")
-}
-
-fn generate_code_hash(code: &[u8]) -> H256 {
-    CodeId::generate(code).into_origin()
 }
 
 #[test]
@@ -106,17 +100,14 @@ fn debug_mode_works() {
 
         GearDebug::do_snapshot();
 
-        let static_pages = 16.into();
-
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
                 programs: vec![crate::ProgramDetails {
                     id: program_id_1,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
-                        static_pages,
                         persistent_pages: Default::default(),
-                        code_hash: generate_code_hash(&code_1),
+                        code_id: CodeId::generate(&code_1),
                     }),
                 }],
             })
@@ -144,17 +135,15 @@ fn debug_mode_works() {
                     crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: generate_code_hash(&code_2),
+                            code_id: CodeId::generate(&code_2),
                         }),
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: generate_code_hash(&code_1),
+                            code_id: CodeId::generate(&code_1),
                         }),
                     },
                 ],
@@ -220,17 +209,15 @@ fn debug_mode_works() {
                     crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: generate_code_hash(&code_2),
+                            code_id: CodeId::generate(&code_2),
                         }),
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: generate_code_hash(&code_1),
+                            code_id: CodeId::generate(&code_1),
                         }),
                     },
                 ],
@@ -249,17 +236,15 @@ fn debug_mode_works() {
                     crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: generate_code_hash(&code_2),
+                            code_id: CodeId::generate(&code_2),
                         }),
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: generate_code_hash(&code_1),
+                            code_id: CodeId::generate(&code_1),
                         }),
                     },
                 ],
@@ -444,9 +429,8 @@ fn check_not_allocated_pages() {
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
-                        static_pages: 0.into(),
                         persistent_pages: persistent_pages.clone(),
-                        code_hash: generate_code_hash(&code),
+                        code_id: CodeId::generate(&code),
                     }),
                 }],
             })
@@ -474,9 +458,8 @@ fn check_not_allocated_pages() {
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
-                        static_pages: 0.into(),
                         persistent_pages: persistent_pages.clone(),
-                        code_hash: generate_code_hash(&code),
+                        code_id: CodeId::generate(&code),
                     }),
                 }],
             })
@@ -630,7 +613,6 @@ fn check_changed_pages_in_storage() {
         let origin = RuntimeOrigin::signed(1);
 
         // Code info. Must be in consensus with wasm code.
-        let static_pages = 8.into();
         let page1_accessed_addr = 0x10000;
         let page3_accessed_addr = 0x3fffd;
         let page4_accessed_addr = 0x40000;
@@ -677,9 +659,8 @@ fn check_changed_pages_in_storage() {
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
-                        static_pages,
                         persistent_pages: persistent_pages.clone(),
-                        code_hash: generate_code_hash(&code),
+                        code_id: CodeId::generate(&code),
                     }),
                 }],
             })
@@ -713,9 +694,8 @@ fn check_changed_pages_in_storage() {
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
-                        static_pages,
                         persistent_pages,
-                        code_hash: generate_code_hash(&code),
+                        code_id: CodeId::generate(&code),
                     }),
                 }],
             })
@@ -804,9 +784,8 @@ fn check_gear_stack_end() {
                 programs: vec![crate::ProgramDetails {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
-                        static_pages: 4.into(),
                         persistent_pages,
-                        code_hash: generate_code_hash(&code),
+                        code_id: CodeId::generate(&code),
                     }),
                 }],
             })

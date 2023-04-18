@@ -32,16 +32,15 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, storage::*, CodeStorage, Origin, Program, ProgramStorage};
+    use common::{self, storage::*, Origin, Program, ProgramStorage};
     use core::fmt;
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::{CodeId, ProgramId},
-        memory::{GearPage, PageBuf, PageU32Size, WasmPage},
-        message::{StoredDispatch, StoredMessage},
+        memory::{GearPage, PageBuf},
+        message::StoredDispatch,
     };
-    use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
@@ -54,15 +53,14 @@ pub mod pallet {
             + IsType<<Self as frame_system::Config>::RuntimeEvent>
             + TryInto<Event<Self>>;
 
-        /// Weight information for extrinsics in this pallet.
-        type WeightInfo: WeightInfo;
-
-        /// Storage with codes for programs.
-        type CodeStorage: CodeStorage;
-
+        /// Storage with messages.
         type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
 
+        /// Storage with programs data.
         type ProgramStorage: ProgramStorage + IterableMap<(ProgramId, (Program, Self::BlockNumber))>;
+
+        /// Weight information for extrinsics in this pallet.
+        type WeightInfo: WeightInfo;
     }
 
     #[pallet::pallet]
@@ -72,27 +70,23 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
+        /// Event showing state of debug mode on its change.
         DebugMode(bool),
-        /// A snapshot of the debug data: programs and message queue ('debug mode' only)
+        /// A snapshot of the debug data with debug mode turned on.
         DebugDataSnapshot(DebugData),
     }
-
-    // GearSupport pallet error.
-    #[pallet::error]
-    pub enum Error<T> {}
 
     /// Program debug info.
     #[derive(Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct ProgramInfo {
-        pub static_pages: WasmPage,
+        pub code_id: CodeId,
         pub persistent_pages: BTreeMap<GearPage, PageBuf>,
-        pub code_hash: H256,
     }
 
     impl fmt::Debug for ProgramInfo {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             f.debug_struct("ProgramInfo")
-                .field("static_pages", &self.static_pages)
+                .field("code_id", &self.code_id)
                 .field(
                     "persistent_pages",
                     &self
@@ -101,16 +95,15 @@ pub mod pallet {
                         .map(|(page, data)|
                         // Prints only bytes which is not zero
                         (
-                            *page,
+                            page,
                             data.iter()
                                 .enumerate()
-                                .filter(|(_, val)| **val != 0)
-                                .map(|(idx, val)| (idx, *val))
+                                .filter(|(_, &val)| val != 0)
+                                .map(|(idx, val)| (idx, val))
                                 .collect::<BTreeMap<_, _>>(),
                         ))
                         .collect::<BTreeMap<_, _>>(),
                 )
-                .field("code_hash", &self.code_hash)
                 .finish()
         }
     }
@@ -118,7 +111,7 @@ pub mod pallet {
     #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, Debug)]
     pub enum ProgramState {
         Active(ProgramInfo),
-        Terminated,
+        Inactive,
     }
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, Debug)]
@@ -137,61 +130,6 @@ pub mod pallet {
     #[pallet::getter(fn debug_mode)]
     pub type DebugMode<T> = StorageValue<_, bool, ValueQuery>;
 
-    #[pallet::storage]
-    #[pallet::getter(fn remap_program_id)]
-    pub type RemapId<T> = StorageValue<_, bool, ValueQuery>;
-
-    #[pallet::storage]
-    #[pallet::getter(fn programs_map)]
-    pub type ProgramsMap<T> = StorageValue<_, BTreeMap<H256, H256>, ValueQuery>;
-
-    #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        /// Initialization
-        fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
-            Weight::zero()
-        }
-
-        /// Finalization
-        fn on_finalize(_bn: BlockNumberFor<T>) {}
-    }
-
-    #[derive(Decode, Encode)]
-    struct Node {
-        value: StoredDispatch,
-        next: Option<H256>,
-    }
-
-    fn remap_with(dispatch: StoredDispatch, progs: &BTreeMap<H256, H256>) -> StoredDispatch {
-        let (kind, msg, context) = dispatch.into_parts();
-        let mut source = msg.source().into_origin();
-        let mut destination = msg.destination().into_origin();
-
-        for (k, v) in progs.iter() {
-            let k = *k;
-            let v = *v;
-
-            if k == destination {
-                destination = v;
-            }
-
-            if v == source {
-                source = k;
-            }
-        }
-
-        let message = StoredMessage::new(
-            msg.id(),
-            ProgramId::from_origin(source),
-            ProgramId::from_origin(destination),
-            (*msg.payload()).to_vec().try_into().unwrap(),
-            msg.value(),
-            msg.details(),
-        );
-
-        StoredDispatch::new(kind, message, context)
-    }
-
     impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
             let dispatch_queue = QueueOf::<T>::iter()
@@ -200,35 +138,26 @@ pub mod pallet {
 
             let programs = T::ProgramStorage::iter()
                 .map(|(id, (prog, _bn))| {
-                    let active = match prog {
-                        Program::Active(active) => active,
-                        _ => {
-                            return ProgramDetails {
-                                id,
-                                state: ProgramState::Terminated,
-                            }
+                    let Program::Active(program) = prog else {
+                        return ProgramDetails {
+                            id,
+                            state: ProgramState::Inactive,
                         }
                     };
-                    let code_id = CodeId::from_origin(active.code_hash);
-                    let static_pages = match T::CodeStorage::get_code(code_id) {
-                        Some(code) => code.static_pages(),
-                        None => WasmPage::zero(),
-                    };
+
+                    let code_id = CodeId::from_origin(program.code_hash);
                     let persistent_pages = T::ProgramStorage::get_program_data_for_pages(
                         id,
-                        active.pages_with_data.iter(),
+                        program.pages_with_data.iter(),
                     )
-                    .unwrap();
+                    .unwrap_or_else(|e| unreachable!("Program storage corrupted! {:?}", e));
 
                     ProgramDetails {
                         id,
-                        state: {
-                            ProgramState::Active(ProgramInfo {
-                                static_pages,
-                                persistent_pages,
-                                code_hash: active.code_hash,
-                            })
-                        },
+                        state: ProgramState::Active(ProgramInfo {
+                            code_id,
+                            persistent_pages,
+                        }),
                     }
                 })
                 .collect();
@@ -241,16 +170,6 @@ pub mod pallet {
 
         fn is_enabled() -> bool {
             Self::debug_mode()
-        }
-
-        fn is_remap_id_enabled() -> bool {
-            Self::remap_program_id()
-        }
-
-        fn remap_id() {
-            let programs_map = ProgramsMap::<T>::get();
-
-            QueueOf::<T>::mutate_values(|d| remap_with(d, &programs_map));
         }
     }
 

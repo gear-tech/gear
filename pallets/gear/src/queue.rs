@@ -31,10 +31,6 @@ where
     pub(crate) fn process_queue(mut ext_manager: ExtManager<T>) {
         let block_config = Self::block_config();
 
-        if T::DebugInfo::is_remap_id_enabled() {
-            T::DebugInfo::remap_id();
-        }
-
         #[cfg(feature = "lazy-pages")]
         let lazy_pages_enabled = {
             let prefix = ProgramStorageOf::<T>::pages_final_prefix();
@@ -72,13 +68,7 @@ where
             );
 
             let _guard = scopeguard::guard((), |_| {
-                if T::DebugInfo::is_enabled() {
-                    T::DebugInfo::do_snapshot();
-                }
-
-                if T::DebugInfo::is_remap_id_enabled() {
-                    T::DebugInfo::remap_id();
-                }
+                T::DebugInfo::is_enabled().then(T::DebugInfo::do_snapshot);
             });
 
             let program_id = dispatch.destination();

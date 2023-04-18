@@ -338,10 +338,9 @@ impl pallet_gear::Config for Runtime {
 #[cfg(feature = "debug-mode")]
 impl pallet_gear_debug::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
-    type CodeStorage = GearProgram;
-    type ProgramStorage = GearProgram;
     type Messenger = GearMessenger;
+    type ProgramStorage = GearProgram;
+    type WeightInfo = pallet_gear_debug::weights::SubstrateWeight<Runtime>;
 }
 
 impl pallet_gear_scheduler::Config for Runtime {

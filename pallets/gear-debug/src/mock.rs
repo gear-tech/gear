@@ -89,10 +89,9 @@ impl system::Config for Test {
 
 impl pallet_gear_debug::Config for Test {
     type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = ();
-    type CodeStorage = GearProgram;
-    type ProgramStorage = GearProgram;
     type Messenger = GearMessenger;
+    type ProgramStorage = GearProgram;
+    type WeightInfo = ();
 }
 
 pub struct FixedBlockAuthor;

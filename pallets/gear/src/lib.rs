@@ -132,17 +132,11 @@ pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 pub trait DebugInfo {
-    fn is_remap_id_enabled() -> bool;
-    fn remap_id();
     fn do_snapshot();
     fn is_enabled() -> bool;
 }
 
 impl DebugInfo for () {
-    fn is_remap_id_enabled() -> bool {
-        false
-    }
-    fn remap_id() {}
     fn do_snapshot() {}
     fn is_enabled() -> bool {
         false
