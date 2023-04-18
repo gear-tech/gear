@@ -1089,8 +1089,6 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
             I64Rotl => w.i64rotl,
             I32Rotr => w.i32rotr,
             I64Rotr => w.i64rotr,
-
-            // TODO: Correct weights for sign extension instructions. (#2523)
             SignExt(ref s) => match s {
                 I32Extend8S => w.i32extend8s,
                 I32Extend16S => w.i32extend16s,

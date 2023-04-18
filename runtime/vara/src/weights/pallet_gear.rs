@@ -134,6 +134,11 @@ pub trait WeightInfo {
     fn instr_i32popcnt(r: u32, ) -> Weight;
     fn instr_i64eqz(r: u32, ) -> Weight;
     fn instr_i32eqz(r: u32, ) -> Weight;
+    fn instr_i32extend8s(r: u32, ) -> Weight;
+    fn instr_i32extend16s(r: u32, ) -> Weight;
+    fn instr_i64extend8s(r: u32, ) -> Weight;
+    fn instr_i64extend16s(r: u32, ) -> Weight;
+    fn instr_i64extend32s(r: u32, ) -> Weight;
     fn instr_i64extendsi32(r: u32, ) -> Weight;
     fn instr_i64extendui32(r: u32, ) -> Weight;
     fn instr_i32wrapi64(r: u32, ) -> Weight;
@@ -1222,6 +1227,61 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         Weight::from_ref_time(2_013_000)
             // Standard Error: 8_787
             .saturating_add(Weight::from_ref_time(1_153_841).saturating_mul(r.into()))
+    }
+    // FIXME: use the result of `instr_i64extendsi32` now
+    // waiting for the next generation.
+    fn instr_i32extend8s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_900 nanoseconds.
+        Weight::from_ref_time(1_701_470)
+            // Standard Error: 2_591
+            .saturating_add(Weight::from_ref_time(312_279).saturating_mul(r.into()))
+    }
+    // FIXME: use the result of `instr_i64extendsi32` now
+    // waiting for the next generation.
+    fn instr_i32extend16s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_900 nanoseconds.
+        Weight::from_ref_time(1_701_470)
+            // Standard Error: 2_591
+            .saturating_add(Weight::from_ref_time(312_279).saturating_mul(r.into()))
+    }
+    // FIXME: use the result of `instr_i64extendsi32` now
+    // waiting for the next generation.
+    fn instr_i64extend8s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_900 nanoseconds.
+        Weight::from_ref_time(1_701_470)
+            // Standard Error: 2_591
+            .saturating_add(Weight::from_ref_time(312_279).saturating_mul(r.into()))
+    }
+    // FIXME: use the result of `instr_i64extendsi32` now
+    // waiting for the next generation.
+    fn instr_i64extend16s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_900 nanoseconds.
+        Weight::from_ref_time(1_701_470)
+            // Standard Error: 2_591
+            .saturating_add(Weight::from_ref_time(312_279).saturating_mul(r.into()))
+    }
+    // FIXME: use the result of `instr_i64extendsi32` now
+    // waiting for the next generation.
+    fn instr_i64extend32s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_900 nanoseconds.
+        Weight::from_ref_time(1_701_470)
+            // Standard Error: 2_591
+            .saturating_add(Weight::from_ref_time(312_279).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64extendsi32(r: u32, ) -> Weight {
@@ -2782,6 +2842,61 @@ impl WeightInfo for () {
         Weight::from_ref_time(2_013_000)
             // Standard Error: 8_787
             .saturating_add(Weight::from_ref_time(1_153_841).saturating_mul(r.into()))
+    }
+    // FIXME: use the result of `instr_i64extendsi32` now
+    // waiting for the next generation.
+    fn instr_i32extend8s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_900 nanoseconds.
+        Weight::from_ref_time(1_701_470)
+            // Standard Error: 2_591
+            .saturating_add(Weight::from_ref_time(312_279).saturating_mul(r.into()))
+    }
+    // FIXME: use the result of `instr_i64extendsi32` now
+    // waiting for the next generation.
+    fn instr_i32extend16s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_900 nanoseconds.
+        Weight::from_ref_time(1_701_470)
+            // Standard Error: 2_591
+            .saturating_add(Weight::from_ref_time(312_279).saturating_mul(r.into()))
+    }
+    // FIXME: use the result of `instr_i64extendsi32` now
+    // waiting for the next generation.
+    fn instr_i64extend8s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_900 nanoseconds.
+        Weight::from_ref_time(1_701_470)
+            // Standard Error: 2_591
+            .saturating_add(Weight::from_ref_time(312_279).saturating_mul(r.into()))
+    }
+    // FIXME: use the result of `instr_i64extendsi32` now
+    // waiting for the next generation.
+    fn instr_i64extend16s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_900 nanoseconds.
+        Weight::from_ref_time(1_701_470)
+            // Standard Error: 2_591
+            .saturating_add(Weight::from_ref_time(312_279).saturating_mul(r.into()))
+    }
+    // FIXME: use the result of `instr_i64extendsi32` now
+    // waiting for the next generation.
+    fn instr_i64extend32s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_900 nanoseconds.
+        Weight::from_ref_time(1_701_470)
+            // Standard Error: 2_591
+            .saturating_add(Weight::from_ref_time(312_279).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64extendsi32(r: u32, ) -> Weight {
