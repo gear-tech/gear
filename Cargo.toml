@@ -57,7 +57,6 @@ members = [
     "gcli",
     "gclient",
     "gcore",
-    "gear-test",
     "gmeta",
     "gsdk",
     "gstd",
@@ -175,7 +174,6 @@ gear-runtime = { path = "runtime/gear" }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
 gear-service = { path = "node/service", default-features = false }
-gear-test = { path = "gear-test" }
 gear-utils = { path = "utils/utils" }
 gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
 gear-wasm-gen = { path = "utils/wasm-gen" }
@@ -389,9 +387,6 @@ panic = "unwind"
 opt-level = "s"
 
 [profile.release.package.gstd]
-opt-level = "s"
-
-[profile.release.package.gear-test]
 opt-level = "s"
 
 [profile.release.package.galloc]
