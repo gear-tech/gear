@@ -18,6 +18,7 @@ clean:
 .PHONY: clean-examples
 clean-examples:
 	@ rm -rf ./target/wasm32-unknown-unknown
+	@ rm -rf ./target/wat-examples
 	@ rm -rvf target/release/build/demo-*
 	@ cargo clean --manifest-path=./examples/Cargo.toml
 
@@ -41,7 +42,7 @@ examples: build-examples proc-examples
 
 .PHONY: build-examples
 build-examples:
-	@ ./scripts/gear.sh build examples yamls="$(yamls)"
+	@ ./scripts/gear.sh build examples
 
 .PHONY: wasm-proc
 wasm-proc:
@@ -202,13 +203,13 @@ test-doc:
 test-release: test-gear-release
 
 .PHONY: test-gear
-test-gear: examples # \
+test-gear: # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
 	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
-test-gear-release: examples # \
+test-gear-release: # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
 	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages

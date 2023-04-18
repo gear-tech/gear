@@ -1,7 +1,5 @@
 #!/usr/bin/env sh
 
-. $(dirname "$SELF")/src/common.sh
-
 build_usage() {
   cat << EOF
 
@@ -16,9 +14,7 @@ build_usage() {
     help           show help message and exit
 
     gear           build gear workspace
-    examples       build gear program examples,
-                   you can specify yaml list to build coresponding examples
-                   using yamls="path/to/yaml1 path/to/yaml2 ..." argument
+    examples       build gear program examples
     wasm-proc      build wasm-proc util
     examples-proc  process built examples via wasm-proc
     node           build node
@@ -50,31 +46,11 @@ examples_build() {
   shift
   shift
 
-  YAMLS=$(parse_yamls_list "$1")
-
-  is_yamls_arg=$(echo "$1" | grep "yamls=" || true)
-  if [ -n "$is_yamls_arg" ]
-  then
-    shift
-  fi
-
-  if [ -z "$YAMLS" ]
-  then
-    cd "$ROOT_DIR"
-    cargo +nightly build --release -p "demo-*" "$@"
-    cd "$ROOT_DIR"/examples
-    CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release --workspace "$@"
-    cd "$ROOT_DIR"
-  else
-    # If there is specified yaml list, then parses yaml files and build
-    # all examples which is used as deps inside yamls.
-    for path in $(get_demo_list $ROOT_DIR $YAMLS)
-    do
-      cd $path
-      CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release "$@"
-      cd -
-    done
-  fi
+  cd "$ROOT_DIR"
+  cargo +nightly build --release -p "demo-*" "$@"
+  cd "$ROOT_DIR"/examples
+  CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release --workspace "$@"
+  cd "$ROOT_DIR"
 }
 
 wat_examples_build() {
