@@ -844,6 +844,17 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2 jq
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+          sudo cp sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl/sccache /usr/bin/
+          sudo chmod +x /usr/bin/sccache
+          mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
+      
+      # - name: "Cache: Unpack"
+      #   if: ${{ github.event_name == 'pull_request' }}
+      #   continue-on-error: true
+      #   run: |
+      #     [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; }
+      #     [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; }
       
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
@@ -853,3 +864,19 @@ jobs:
           pwd
           chmod +x ./scripts/check-fuzzer.sh
           ./scripts/check-fuzzer.sh
+
+      # - name: "Cache: Pack"
+      #   if: ${{ github.event_name == 'push' }}
+      #   continue-on-error: true
+      #   run: |
+      #     tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/sccache
+      #     tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+      #     mv /tmp/*.tar /root/cache/
+
+      # - name: "Cache: Pack to temp"
+      #   if: ${{ github.event_name == 'pull_request' }}
+      #   continue-on-error: true
+      #   run: |
+      #     tar -cf /tmp/build_cache.tar /tmp/sccache
+      #     tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+      #     mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
