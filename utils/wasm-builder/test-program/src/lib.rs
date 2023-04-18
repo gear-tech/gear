@@ -42,6 +42,18 @@ mod gtest_tests {
 }
 
 #[cfg(test)]
+mod gclient_tests {
+    use gclient::WSAddress;
+
+    // Test has wrote this way to make sure rust doesn't optimize dependencies
+    // compilation and gclient got compiled.
+    #[test]
+    fn gclient_compiles() {
+        let _ws_addr = WSAddress::dev();
+    }
+}
+
+#[cfg(test)]
 mod tests {
     extern crate std;
     use std::fs;
