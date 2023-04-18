@@ -6312,7 +6312,7 @@ dependencies = [
 [[package]]
 name = "mutagen"
 version = "0.2.0"
-source = "git+https://github.com/llogiq/mutagen#a6377c4c3f360afeb7a287c1c17e4b69456d5f53"
+source = "git+https://github.com/llogiq/mutagen?rev=a6377c4c#a6377c4c3f360afeb7a287c1c17e4b69456d5f53"
 dependencies = [
  "mutagen-core",
  "mutagen-transform",
@@ -6321,7 +6321,7 @@ dependencies = [
 [[package]]
 name = "mutagen-core"
 version = "0.2.0"
-source = "git+https://github.com/llogiq/mutagen#a6377c4c3f360afeb7a287c1c17e4b69456d5f53"
+source = "git+https://github.com/llogiq/mutagen?rev=a6377c4c#a6377c4c3f360afeb7a287c1c17e4b69456d5f53"
 dependencies = [
  "anyhow",
  "json",
@@ -6336,7 +6336,7 @@ dependencies = [
 [[package]]
 name = "mutagen-transform"
 version = "0.2.0"
-source = "git+https://github.com/llogiq/mutagen#a6377c4c3f360afeb7a287c1c17e4b69456d5f53"
+source = "git+https://github.com/llogiq/mutagen?rev=a6377c4c#a6377c4c3f360afeb7a287c1c17e4b69456d5f53"
 dependencies = [
  "mutagen-core",
  "proc-macro2",
