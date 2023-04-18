@@ -69,7 +69,8 @@ cfg_if! {
             const EXCEPTION_CLASS_SHIFT: u32 = u32::BITS - 6;
             const EXCEPTION_CLASS: u32 = 0b10_0100; // Data Abort from a lower Exception Level
 
-            let mcontext = (*ucontext).uc_mcontext;
+            let ucontext = ucontext.as_mut()?;
+            let mcontext = ucontext.uc_mcontext;
             let exception_state = (*mcontext).__es;
             let esr = exception_state.__esr;
 
