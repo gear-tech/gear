@@ -25,7 +25,6 @@ fi
 . "$SCRIPTS"/build.sh
 . "$SCRIPTS"/check.sh
 . "$SCRIPTS"/clippy.sh
-. "$SCRIPTS"/coverage.sh
 . "$SCRIPTS"/docker.sh
 . "$SCRIPTS"/format.sh
 . "$SCRIPTS"/init.sh
@@ -61,7 +60,6 @@ gear_usage() {
     init           initializes and updates packages and toolchains
     run            run gear node
     test           test tool
-    coverage       coverage utilities
 
   Try ./gear.sh <COMMAND> -h (or --help) to learn more about each command.
 
@@ -102,10 +100,6 @@ case "$COMMAND" in
       gear)
         header "Building gear workspace"
         gear_build "$@"; ;;
-
-      gear-test)
-        header "Building gear test"
-        gear_test_build "$@"; ;;
 
       examples)
         check_extensions
@@ -289,10 +283,6 @@ case "$COMMAND" in
         header "Running gcli tests"
         gcli_test "$@"; ;;
 
-      gtest)
-        header "Running gear-test (spec testing)"
-        gtest "$ROOT_DIR" "$@"; ;;
-
       validators)
         header "Checking validators"
         validators "$ROOT_DIR" "$@"; ;;
@@ -321,22 +311,6 @@ case "$COMMAND" in
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         test_usage
-        exit 1; ;;
-    esac;;
-
-  coverage)
-    case "$SUBCOMMAND" in
-      -h | --help | help)
-        coverage_usage
-        exit; ;;
-
-      gtest)
-        header "Running gear-test (spec testing)"
-        gtest_debug "$ROOT_DIR" "$@"; ;;
-
-      *)
-        header  "Unknown option: '$SUBCOMMAND'"
-        coverage_usage
         exit 1; ;;
     esac;;
 

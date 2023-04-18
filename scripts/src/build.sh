@@ -16,7 +16,6 @@ build_usage() {
     help           show help message and exit
 
     gear           build gear workspace
-    gear-test      build gear-test binary
     examples       build gear program examples,
                    you can specify yaml list to build coresponding examples
                    using yamls="path/to/yaml1 path/to/yaml2 ..." argument
@@ -29,10 +28,6 @@ EOF
 
 gear_build() {
   $CARGO build --workspace "$@"
-}
-
-gear_test_build() {
-  $CARGO build -p gear-test "$@"
 }
 
 node_build() {

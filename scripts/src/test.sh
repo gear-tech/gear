@@ -1,7 +1,5 @@
 #!/usr/bin/env sh
 
-. $(dirname "$SELF")/src/common.sh
-
 test_usage() {
   cat << EOF
 
@@ -17,8 +15,6 @@ test_usage() {
 
     gear           run workspace tests
     gcli           run gcli package tests
-    gtest          run gear-test testing tool,
-                   you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
     pallet         run pallet-gear tests
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
@@ -38,28 +34,6 @@ workspace_test() {
 gcli_test() {
   cargo +nightly nextest run -p gcli "$@" --profile ci --no-fail-fast
   cargo +nightly nextest run -p gcli "$@" --features vara-testing --profile ci --no-fail-fast
-}
-
-# $1 - ROOT DIR
-# $2 - yamls list (optional)
-gtest() {
-  ROOT_DIR="$1"
-  shift
-
-  YAMLS=$(parse_yamls_list "$1")
-
-  is_yamls_arg=$(echo "$1" | grep "yamls=" || true)
-  if [ -n "$is_yamls_arg" ]
-  then
-    shift
-  fi
-
-  if [ -z "$YAMLS" ]
-  then
-    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_runtime/*.yaml"
-  fi
-
-  $ROOT_DIR/target/release/gear-test $YAMLS "$@"
 }
 
 pallet_test() {
