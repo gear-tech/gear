@@ -102,6 +102,7 @@ impl RuntimeUpgradeCmd {
             .arg("--runtime")
             .arg(self.runtime)
             .arg("on-runtime-upgrade")
+            .arg("--checks")
             .arg("snap")
             .arg("-s")
             .arg(self.snapshot_path)
