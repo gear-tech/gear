@@ -862,8 +862,8 @@ jobs:
       - name: "Check fuzzer with mutation test"
         run: |
           pwd
-          chmod +x ./scripts/check-fuzzer.sh
-          ./scripts/check-fuzzer.sh
+          chmod +x ./scripts/gear.sh
+          ./scripts/gear.sh test fuzz
 
       # - name: "Cache: Pack"
       #   if: ${{ github.event_name == 'push' }}
