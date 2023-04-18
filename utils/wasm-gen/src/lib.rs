@@ -728,25 +728,61 @@ impl<'a> WasmGen<'a> {
     pub fn insert_sys_calls(
         &mut self,
         builder: ModuleBuilderWithData,
+        syscall_data: &BTreeMap<SysCallName, SyscallData>,
         memory_pages: WasmPageCount,
     ) -> ModuleWithDebug {
-        if builder.code_size == 0 {
-            return builder.into();
-        }
-
         let ModuleBuilderWithData {
-            module_builder: mut builder,
+            module_builder: builder,
             offsets,
             last_offset,
-            import_count,
-            code_size,
+            ..
         } = builder;
 
-        let mut source_call_index = None;
-        let mut debug_call_index = None;
+        let mut module = builder.build();
 
-        // generate corresponding import entries for syscalls
+        let source_call_index = syscall_data
+            .get(&SysCallName::Source)
+            .map(|value| value.call_index);
+        let debug_call_index = syscall_data
+            .get(&SysCallName::Debug)
+            .map(|value| value.call_index);
+
+        let mut offsets = offsets.into_iter().cycle();
+
+        // generate call instructions for syscalls and insert them somewhere into the code
+        for (name, data) in syscall_data {
+            let instructions = self.build_call_instructions(
+                name,
+                &data,
+                memory_pages,
+                source_call_index,
+                &mut offsets,
+            );
+            for _ in 0..data.sys_call_amount {
+                module = self.insert_instructions_in_random_place(module, &instructions);
+            }
+        }
+
+        (module, debug_call_index, last_offset).into()
+    }
+
+    fn gen_syscall_imports(
+        &mut self,
+        module: Module,
+    ) -> (Module, BTreeMap<SysCallName, SyscallData>) {
+        let code_size = module.code_section().map_or(0, |code_section| {
+            code_section
+                .bodies()
+                .iter()
+                .map(|b| b.code().elements().len())
+                .sum()
+        });
         let mut syscall_data = BTreeMap::default();
+        if code_size == 0 {
+            return (module, syscall_data);
+        }
+        let import_count = module.import_count(ImportCountType::Function);
+        let mut module_builder = builder::from_module(module);
         let sys_calls_table = sys_calls_table(&self.config);
         for (i, (name, info, sys_call_amount)) in sys_calls_table
             .into_iter()
@@ -774,11 +810,11 @@ impl<'a> WasmGen<'a> {
                     signature_builder = signature_builder.with_result(*result);
                 }
 
-                builder.push_signature(signature_builder.build_sig())
+                module_builder.push_signature(signature_builder.build_sig())
             };
 
             // make import
-            builder.push_import(
+            module_builder.push_import(
                 builder::import()
                     .module("env")
                     .external()
@@ -788,13 +824,6 @@ impl<'a> WasmGen<'a> {
             );
 
             let call_index = self.calls_indexes.len() as u32;
-            if name == SysCallName::Source {
-                source_call_index = Some(call_index);
-            }
-
-            if name == SysCallName::Debug {
-                debug_call_index = Some(call_index);
-            }
 
             self.calls_indexes
                 .push(FuncIdx::Import((import_count + i) as u32));
@@ -807,30 +836,12 @@ impl<'a> WasmGen<'a> {
                 },
             );
         }
-
-        let mut module = builder.build();
-        let mut offsets = offsets.into_iter().cycle();
-
-        // generate call instructions for syscalls and insert them somewhere into the code
-        for (name, data) in syscall_data {
-            let instructions = self.build_call_instructions(
-                name,
-                &data,
-                memory_pages,
-                source_call_index,
-                &mut offsets,
-            );
-            for _ in 0..data.sys_call_amount {
-                module = self.insert_instructions_in_random_place(module, &instructions);
-            }
-        }
-
-        (module, debug_call_index, last_offset).into()
+        (module_builder.build(), syscall_data)
     }
 
     fn build_call_instructions<I: Clone + Iterator<Item = u32>>(
         &mut self,
-        name: SysCallName,
+        name: &SysCallName,
         data: &SyscallData,
         memory_pages: WasmPageCount,
         source_call_index: Option<u32>,
@@ -1050,10 +1061,17 @@ pub fn gen_gear_program_module<'a>(
     }
 
     let (module, _has_handle) = gen.gen_handle(module);
+
     let (module, _has_handle_reply) = gen.gen_handle_reply(module);
 
-    let builder = ModuleBuilderWithData::new(addresses, module, memory_pages);
-    let module = gen.insert_sys_calls(builder, memory_pages);
+    let (module, syscall_data) = gen.gen_syscall_imports(module);
+
+    let module = gen.insert_sys_calls(
+        ModuleBuilderWithData::new(addresses, module, memory_pages),
+        &syscall_data,
+        memory_pages,
+    );
+
     let module = gen.make_print_test_info(module);
 
     gen.resolves_calls_indexes(module)
