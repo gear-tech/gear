@@ -38,763 +38,763 @@ jobs:
   #       if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
   #       run: ./scripts/check-spec.sh
 
-  check:
-    # needs: spec_version
-    runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
-
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          components: clippy, rustfmt
-          target: wasm32-unknown-unknown
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
-          sudo wget -c https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
-          sudo cp sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl/sccache /usr/bin/
-          sudo chmod +x /usr/bin/sccache
-          mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
-
-      - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' }}
-        continue-on-error: true
-        run: |
-          tar -xf /root/cache/check_cache_${{ github.base_ref }}.tar -C /
-          tar -xf /root/cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
-
-      - name: "Check formatting: Gear"
-        run: ./scripts/gear.sh format gear --check
-
-      - name: "Check formatting: Examples"
-        run: ./scripts/gear.sh format examples --check
-
-      - name: "Check formatting: Doc"
-        run: ./scripts/gear.sh format doc --check
-
-      - name: "Check clippy: Gear"
-        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
-
-      - name: "Check clippy: Examples"
-        run: ./scripts/gear.sh clippy examples
-
-      - name: "Test: Doc tests"
-        run: ./scripts/gear.sh test doc
-
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/sccache
-          tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
-
-  build:
-    # needs: spec_version
-    runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
-    env:
-      LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
-      RUSTUP_HOME: /tmp/rustup_home
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
-
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          target: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
-
-      - name: "Show: Versioning"
-        run: ./scripts/gear.sh show
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
-
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
-          sudo wget -c https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
-          sudo cp sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl/sccache /usr/bin/
-          sudo chmod +x /usr/bin/sccache
-          mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
-
-      - name: "Install: grcov"
-        run: curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
-
-      - name: "Install: rust-covfix"
-        run: |
-          curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
-          mv rust-covfix-linux-x86_64/rust-covfix ./
-
-      - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' }}
-        continue-on-error: true
-        run: |
-          [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; }
-          [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; }
-
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
-      - name: "ACTIONS: Setup environment variable"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
-
-      - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --locked --release
-
-      - name: "Build: WAT examples"
-        run: ./scripts/gear.sh build wat-examples
-
-      - name: "Check: Gear runtime imports"
-        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.compact.wasm
-
-      - name: "Check: Vara runtime imports"
-        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
-
-      - name: "Test: Gear pallet tests with lazy pages"
-        run: |
-          cargo test -p pallet-gear --features=lazy-pages --release --locked
-          cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
-          cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
-
-      - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
-
-      - name: "Test: `gcli`"
-        run: ./scripts/gear.sh test gcli --release --locked
-
-      - name: "Test: JS metadata"
-        run: ./scripts/gear.sh test js
-
-      - name: "Test: Process gear-test"
-        run: ./scripts/gear.sh test gtest
-
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client
-
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
-
-      - name: "Test: runtime spec tests no lazy pages"
-        run: |
-          cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
-          ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
-
-      - name: "Test: Runtime benchmarks and benchmark tests work"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
-          # check that perf benchmarks works. `--steps=20` need to test, that benchmarks works for different input number.
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --steps=20 --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
-          # check that check/test benchmarks works
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
-          # check also lazy-pages benchmarks tests for native runtime
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
-
-      - name: "Test: Sys-calls Wasmi integrity"
-        run: ./scripts/gear.sh test syscalls --release
-
-      - name: "Coverage: Aggregate"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        run: >-
-          ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
-          --ignore "/*"
-          --ignore "examples/*"
-          --ignore "utils/*"
-          --ignore "target/*"
-          --ignore "gear-test/*"
-          --ignore "node/*"
-          --ignore "program/*"
-          --ignore "pallets/gear/src/migration.rs"
-          --ignore "pallets/gear/src/weights.rs"
-          --ignore "pallets/gear-debug/src/weights.rs"
-          --ignore "pallets/gear-messenger/src/migration.rs"
-          --ignore "pallets/gear-program/src/migration.rs"
-          --ignore "pallets/gear-program/src/weights/*"
-          --ignore "pallets/usage/src/weights.rs"
-          --ignore "pallets/usage/src/migration.rs"
-          --ignore "runtime/*"
-          --ignore "gcore/*"
-          --ignore "gstd/*"
-          --ignore "galloc/*"
-          --ignore "gtest/*"
-          --ignore "gclient/*"
-          -o ./lcov.info
-
-      - name: "Coverage: Fix report"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        run: ./rust-covfix -o lcov.info lcov.info
-
-      - name: "Coverage: Publish"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        uses: codecov/codecov-action@v1
-        with:
-          file: ./lcov.info
-
-      - name: "Build: Production binaries"
-        if: github.event_name == 'push'
-        run: cargo build -p gear-cli -F cli --profile production
-
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/sccache
-          tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
-
-      - name: "Cache: Pack to temp"
-        if: ${{ github.event_name == 'pull_request' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/build_cache.tar /tmp/sccache
-          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
-
-      - name: Prepare artifacts
-        if: github.event_name == 'push'
-        run: |
-          mkdir -p artifact
-          cd target/wasm32-unknown-unknown/release
-          tar czvf ../../../artifact/examples.tar.gz *.wasm
-          cd ../../..
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
-          cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
-          cp target/production/gear artifact/
-          cp target/release/gear-test artifact/
-          cp target/release/wasm-proc artifact/
-          strip artifact/gear || true
-          strip artifact/gear-test || true
-          strip artifact/wasm-proc || true
-
-      - name: Upload artifacts
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@v3
-        with:
-          path: artifact
-
-  build-win-native:
-    if: github.ref == 'refs/heads/master'
-    needs: build
-    runs-on: ci-win
-    defaults:
-      run:
-        shell: msys2 {0}
-    env:
-      RUSTC_WRAPPER: "cachepot"
-      CARGO_INCREMENTAL: 0
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
-
-      - name: "Install: Setup MSYS2 environment"
-        uses: msys2/setup-msys2@v2
-        with:
-          path-type: inherit
-          install: >-
-            procps
-            mingw-w64-x86_64-protobuf
-
-      - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          target: wasm32-unknown-unknown
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -r $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
-          mv $env:USERPROFILE\.rustup\toolchains\nightly-$env:NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
-        shell: powershell
-
-      - name: "Install: cargo-nextest"
-        run: |
-          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
-          Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
-          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
-          $tmp | Expand-Archive -DestinationPath $outputDir -Force
-          $tmp | Remove-Item
-        shell: powershell
-
-      - name: "Install: cargo-hack"
-        run: |
-          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
-          Invoke-WebRequest -OutFile $tmp https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-x86_64-pc-windows-msvc.tar.gz
-          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { Resolve-Path "~/.cargo/bin" }
-          tar zxf $tmp -C $outputDir
-          $tmp | Remove-Item
-        shell: powershell
-
-      - name: "Install: binaryen"
-        run: |
-          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
-          Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-windows.tar.gz
-          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
-          tar zxf $tmp
-          cp ./binaryen-version_111/bin/* $outputDir
-          Remove-Item -Recurse ./binaryen-version_111
-          $tmp | Remove-Item
-        shell: powershell
-
-      - name: "Install: wabt"
-        run: |
-          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
-          Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/wabt/releases/download/1.0.29/wabt-1.0.29-windows.tar.gz
-          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
-          tar zxf $tmp
-          cp ./wabt-1.0.29/bin/* $outputDir
-          Remove-Item -Recurse ./wabt-1.0.29
-          $tmp | Remove-Item
-        shell: powershell
-
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
-
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
-
-      - name: "Build: WAT examples"
-        run: ./scripts/gear.sh build wat-examples
-
-      - name: "Build: wasm-proc"
-        run: ./scripts/gear.sh build wasm-proc --locked
-
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
-
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client
-
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
-
-      - name: "Test: Lazy pages"
-        uses: actions-rs/cargo@v1
-        with:
-          command: nextest
-          args: >-
-            run
-            -p pallet-gear
-            -p pallet-gear-debug
-            -p pallet-gear-payment
-            -p gear-lazy-pages
-            -p gear-runtime-interface
-            --features=lazy-pages
-            --release
-
-  build-win-cross:
-    runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
-    env:
-      XWIN_ARCH: x86_64
-      RUSTUP_HOME: /tmp/rustup_home
-      RUSTC_WRAPPER: "sccache"
-      WINEDEBUG: fixme-all
-      CARGO_INCREMENTAL: 0
-      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
-
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          target: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-
-      - name: "Install: MSVC target"
-        run: rustup target add x86_64-pc-windows-msvc --toolchain nightly
-
-      - name: "Install: cargo config"
-        run: cp ./.github/build-win-cross/config.toml ${CARGO_HOME:-~/.cargo}/config.toml
-
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v3
-        with:
-          node-version: "16"
-
-      - name: "Show: Versioning"
-        run: ./scripts/gear.sh show
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
-
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git curl libssl-dev libudev-dev cmake wabt protobuf-compiler wget bzip2 ninja-build
-
-      - name: "Install: Wine"
-        run: |
-          sudo dpkg --add-architecture i386
-          sudo mkdir -pm755 /etc/apt/keyrings
-          sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-          sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/focal/winehq-focal.sources
-          sudo apt update
-          sudo apt install --install-recommends -y winehq-stable winetricks
-          wineboot
-          winetricks win10
-
-      - name: "Install: Node.js in Wine"
-        run: |
-          wget http://barnyard.syr.edu/~vefatica/ftpfiles/setenv.exe
-          wget https://nodejs.org/download/release/v16.19.1/node-v16.19.1-win-x64.zip
-          unzip node-v16.19.1-win-x64.zip
-          node_js=$(winepath -w $(pwd)/node-v16.19.1-win-x64)
-          wine cmd /c ./setenv.exe -m PATH "%PATH%;${node_js}"
-        env:
-          WINEDEBUG: "-all"
-
-      - name: "Install: LLVM"
-        run: |
-          sudo apt install -y clang-12 clang-tools-12 llvm-12
-          sudo ./.github/build-win-cross/update-alternatives-clang.sh 12 100
-
-      - name: "Install: binaryen"
-        run: |
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
-
-      - name: "Install: sccache"
-        run: |
-          curl -L https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz | tar zxf -
-          mv ./sccache-*-x86_64-unknown-linux-musl/sccache ${CARGO_HOME:-~/.cargo}/bin/sccache
-
-      - name: "Install: grcov"
-        run: curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
-
-      - name: "Install: rust-covfix"
-        run: |
-          curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
-          mv rust-covfix-linux-x86_64/rust-covfix ./
-
-      - name: "Install: cargo-xwin"
-        run: |
-          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.14.0/cargo-xwin-v0.14.0.x86_64-unknown-linux-musl.tar.gz | tar zxf -
-          mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
-
-      - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' }}
-        continue-on-error: true
-        run: |
-          [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_cargo_registry.tar -C /; }
-          [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_win_cross_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /; }
-
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
-        env:
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      - name: "Build: wasm-proc"
-        run: ./scripts/gear.sh build wasm-proc --locked
-
-      - name: "Build: WAT examples"
-        run: ./scripts/gear.sh build wat-examples
-
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
-
-      # These tests randomly stops responding
-
-      #- name: "Test: Client tests"
-      #  run: |
-      #    cp ./target/x86_64-pc-windows-msvc/release/gear.exe ./target/release/
-      #    ./scripts/gear.sh test client
-      #  env:
-      #    CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      - name: "Test: Process node runtime spec tests"
-        run: |
-          cargo xwin build -p gear-cli --release --features=runtime-test
-          ./scripts/gear.sh test rtest gear
-        env:
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      - name: "Test: Lazy pages"
-        uses: actions-rs/cargo@v1
-        with:
-          command: xwin
-          args: >-
-            test
-            -p pallet-gear
-            -p pallet-gear-debug
-            -p pallet-gear-payment
-            -p gear-lazy-pages
-            -p gear-runtime-interface
-            --features=lazy-pages
-            --release
-        env:
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      - name: "Cache: Pack"
-        if: ${{ github.event_name == 'push' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/build_win_cross_cache_${{ github.ref_name }}.tar /tmp/sccache
-          tar -cf /tmp/build_win_cross_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
-
-      - name: "Cache: Pack to temp"
-        if: ${{ github.event_name == 'pull_request' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/build_win_cross_cache.tar /tmp/sccache
-          tar -cf /tmp/build_win_cross_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
-
-  build-macos-x86:
-    if: ${{ always() && (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')) }}
-    needs: build
-    runs-on: macos-latest
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v3
-
-      - name: "ACTIONS: Setup caching"
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: "Install: protobuf"
-        run: brew install protobuf
-
-      - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          target: wasm32-unknown-unknown
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-apple-darwin
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-apple-darwin $RUSTUP_HOME/toolchains/nightly-x86_64-apple-darwin
-
-      - name: "Install: cargo-nextest"
-        run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: "Build: Node"
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p gear-cli --features=lazy-pages
-
-      - name: "Test: Lazy pages"
-        uses: actions-rs/cargo@v1
-        with:
-          command: nextest
-          args: >-
-            run
-            -p pallet-gear
-            -p pallet-gear-debug
-            -p pallet-gear-payment
-            -p gear-lazy-pages
-            -p gear-runtime-interface
-            --features=lazy-pages
-
-  upload:
-    if: github.event_name == 'push' && github.ref_name == 'master'
-    runs-on: self-hosted
-    needs: build
-    steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          access_token: ${{ github.token }}
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-
-      - name: Delete previous release
-        uses: dev-drprasad/delete-tag-and-release@v0.2.1
-        with:
-          delete_release: true
-          tag_name: build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Sleep
-        run: sleep 10
-
-      - name: Upload
-        uses: softprops/action-gh-release@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          prerelease: true
-          tag_name: build
-          draft: false
-          fail_on_unmatched_files: true
-          files: artifact/*
+  # check:
+  #   # needs: spec_version
+  #   runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
+  #   env:
+  #     RUSTUP_HOME: /tmp/rustup_home
+  #   steps:
+  #     - name: Cancel Previous Runs
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       uses: styfle/cancel-workflow-action@0.11.0
+  #       with:
+  #         access_token: ${{ github.token }}
+
+  #     - name: "ACTIONS: Checkout"
+  #       uses: actions/checkout@v3
+
+  #     - name: "Install: Set cargo path"
+  #       run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+  #     - name: "Install: Nightly toolchain"
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly
+  #         components: clippy, rustfmt
+  #         target: wasm32-unknown-unknown
+
+  #     - name: "Install: Show specific nightly version"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+
+  #     - name: "Install: Specific nightly toolchain"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+  #         target: wasm32-unknown-unknown
+  #         components: llvm-tools-preview
+
+  #     - name: "Install: Pin to specific nightly toolchain"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       run: |
+  #         rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+  #         ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+
+  #     - name: "Install: Build deps"
+  #       run: |
+  #         sudo apt update
+  #         sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
+  #         sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+  #         sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+  #         sudo wget -c https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+  #         sudo cp sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl/sccache /usr/bin/
+  #         sudo chmod +x /usr/bin/sccache
+  #         mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
+
+  #     - name: "Cache: Unpack"
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       continue-on-error: true
+  #       run: |
+  #         tar -xf /root/cache/check_cache_${{ github.base_ref }}.tar -C /
+  #         tar -xf /root/cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
+
+  #     - name: "Check formatting: Gear"
+  #       run: ./scripts/gear.sh format gear --check
+
+  #     - name: "Check formatting: Examples"
+  #       run: ./scripts/gear.sh format examples --check
+
+  #     - name: "Check formatting: Doc"
+  #       run: ./scripts/gear.sh format doc --check
+
+  #     - name: "Check clippy: Gear"
+  #       run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
+
+  #     - name: "Check clippy: Examples"
+  #       run: ./scripts/gear.sh clippy examples
+
+  #     - name: "Test: Doc tests"
+  #       run: ./scripts/gear.sh test doc
+
+  #     - name: "Cache: Pack"
+  #       if: ${{ github.event_name == 'push' }}
+  #       continue-on-error: true
+  #       run: |
+  #         tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/sccache
+  #         tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+  #         mv /tmp/*.tar /root/cache/
+
+  # build:
+  #   # needs: spec_version
+  #   runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
+  #   env:
+  #     LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
+  #     RUSTUP_HOME: /tmp/rustup_home
+  #   steps:
+  #     - name: Cancel Previous Runs
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       uses: styfle/cancel-workflow-action@0.11.0
+  #       with:
+  #         access_token: ${{ github.token }}
+
+  #     - name: "ACTIONS: Checkout"
+  #       uses: actions/checkout@v3
+
+  #     - name: "Install: Set cargo path"
+  #       run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+  #     - name: "Install: Nightly toolchain"
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly
+  #         target: wasm32-unknown-unknown
+  #         components: llvm-tools-preview
+
+  #     - name: "Install: Show specific nightly version"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+
+  #     - name: "Install: Specific nightly toolchain"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+  #         target: wasm32-unknown-unknown
+  #         components: llvm-tools-preview
+
+  #     - name: "Install: Pin to specific nightly toolchain"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       run: |
+  #         rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+  #         ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+
+  #     - name: "Install: Node.js"
+  #       uses: actions/setup-node@v3
+  #       with:
+  #         node-version: "16"
+
+  #     - name: "Show: Versioning"
+  #       run: ./scripts/gear.sh show
+
+  #     - name: "Install: Node.js packages"
+  #       run: ./scripts/gear.sh init js
+
+  #     - name: "Install: Build deps"
+  #       run: |
+  #         sudo apt update
+  #         sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
+  #         sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+  #         sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+  #         sudo wget -c https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
+  #         sudo cp sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl/sccache /usr/bin/
+  #         sudo chmod +x /usr/bin/sccache
+  #         mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
+
+  #     - name: "Install: grcov"
+  #       run: curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
+
+  #     - name: "Install: rust-covfix"
+  #       run: |
+  #         curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
+  #         mv rust-covfix-linux-x86_64/rust-covfix ./
+
+  #     - name: "Cache: Unpack"
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       continue-on-error: true
+  #       run: |
+  #         [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; }
+  #         [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; }
+
+  #     - name: "Build: Examples (WASM)"
+  #       run: ./scripts/gear.sh build examples --locked
+
+  #     - name: "ACTIONS: Setup environment variable"
+  #       if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+  #       run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
+
+  #     - name: "Build: Gear"
+  #       run: ./scripts/gear.sh build gear --locked --release
+
+  #     - name: "Build: WAT examples"
+  #       run: ./scripts/gear.sh build wat-examples
+
+  #     - name: "Check: Gear runtime imports"
+  #       run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.compact.wasm
+
+  #     - name: "Check: Vara runtime imports"
+  #       run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
+
+  #     - name: "Build: Split examples by .opt and .meta"
+  #       run: ./scripts/gear.sh build examples-proc
+
+  #     - name: "Test: Gear pallet tests with lazy pages"
+  #       run: |
+  #         cargo test -p pallet-gear --features=lazy-pages --release --locked
+  #         cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
+  #         cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
+
+  #     - name: "Test: Gear workspace"
+  #       run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
+
+  #     - name: "Test: `gcli`"
+  #       run: ./scripts/gear.sh test gcli --release --locked
+
+  #     - name: "Test: JS metadata"
+  #       run: ./scripts/gear.sh test js
+
+  #     - name: "Test: Process gear-test"
+  #       run: ./scripts/gear.sh test gtest
+
+  #     - name: "Test: Client tests"
+  #       run: ./scripts/gear.sh test client
+
+  #     - name: "Test: Process node runtime spec tests"
+  #       run: |
+  #         cargo build -p gear-cli --release --features=runtime-test
+  #         ./scripts/gear.sh test rtest gear
+
+  #     - name: "Test: runtime spec tests no lazy pages"
+  #       run: |
+  #         cargo build -p gear-cli --release --no-default-features --features=runtime-test,gear-native --out-dir target-no-lazy -Z unstable-options
+  #         ./target-no-lazy/gear runtime-spec-tests ./gear-test/spec/* --runtime gear
+
+  #     - name: "Test: Runtime benchmarks and benchmark tests work"
+  #       run: |
+  #         cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
+  #         # check that perf benchmarks works. `--steps=20` need to test, that benchmarks works for different input number.
+  #         ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --steps=20 --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+  #         # check that check/test benchmarks works
+  #         ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
+  #         # check also lazy-pages benchmarks tests for native runtime
+  #         ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
+
+  #     - name: "Test: Sys-calls Wasmi integrity"
+  #       run: ./scripts/gear.sh test syscalls --release
+
+  #     - name: "Coverage: Aggregate"
+  #       if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+  #       run: >-
+  #         ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
+  #         --ignore "/*"
+  #         --ignore "examples/*"
+  #         --ignore "utils/*"
+  #         --ignore "target/*"
+  #         --ignore "gear-test/*"
+  #         --ignore "node/*"
+  #         --ignore "program/*"
+  #         --ignore "pallets/gear/src/migration.rs"
+  #         --ignore "pallets/gear/src/weights.rs"
+  #         --ignore "pallets/gear-debug/src/weights.rs"
+  #         --ignore "pallets/gear-messenger/src/migration.rs"
+  #         --ignore "pallets/gear-program/src/migration.rs"
+  #         --ignore "pallets/gear-program/src/weights/*"
+  #         --ignore "pallets/usage/src/weights.rs"
+  #         --ignore "pallets/usage/src/migration.rs"
+  #         --ignore "runtime/*"
+  #         --ignore "gcore/*"
+  #         --ignore "gstd/*"
+  #         --ignore "galloc/*"
+  #         --ignore "gtest/*"
+  #         --ignore "gclient/*"
+  #         -o ./lcov.info
+
+  #     - name: "Coverage: Fix report"
+  #       if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+  #       run: ./rust-covfix -o lcov.info lcov.info
+
+  #     - name: "Coverage: Publish"
+  #       if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+  #       uses: codecov/codecov-action@v1
+  #       with:
+  #         file: ./lcov.info
+
+  #     - name: "Build: Production binaries"
+  #       if: github.event_name == 'push'
+  #       run: cargo build -p gear-cli -F cli --profile production
+
+  #     - name: "Cache: Pack"
+  #       if: ${{ github.event_name == 'push' }}
+  #       continue-on-error: true
+  #       run: |
+  #         tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/sccache
+  #         tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+  #         mv /tmp/*.tar /root/cache/
+
+  #     - name: "Cache: Pack to temp"
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       continue-on-error: true
+  #       run: |
+  #         tar -cf /tmp/build_cache.tar /tmp/sccache
+  #         tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+  #         mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
+
+  #     - name: Prepare artifacts
+  #       if: github.event_name == 'push'
+  #       run: |
+  #         mkdir -p artifact
+  #         cd target/wasm32-unknown-unknown/release
+  #         tar czvf ../../../artifact/examples.tar.gz *.wasm
+  #         cd ../../..
+  #         cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
+  #         cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
+  #         cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
+  #         cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
+  #         cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
+  #         cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
+  #         cp target/production/gear artifact/
+  #         cp target/release/gear-test artifact/
+  #         cp target/release/wasm-proc artifact/
+  #         strip artifact/gear || true
+  #         strip artifact/gear-test || true
+  #         strip artifact/wasm-proc || true
+
+  #     - name: Upload artifacts
+  #       if: github.event_name == 'push'
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         path: artifact
+
+  # build-win-native:
+  #   if: github.ref == 'refs/heads/master'
+  #   needs: build
+  #   runs-on: ci-win
+  #   defaults:
+  #     run:
+  #       shell: msys2 {0}
+  #   env:
+  #     RUSTC_WRAPPER: "cachepot"
+  #     CARGO_INCREMENTAL: 0
+  #   steps:
+  #     - name: Cancel Previous Runs
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       uses: styfle/cancel-workflow-action@0.11.0
+  #       with:
+  #         access_token: ${{ github.token }}
+
+  #     - name: "ACTIONS: Checkout"
+  #       uses: actions/checkout@v3
+
+  #     - name: "Install: Setup MSYS2 environment"
+  #       uses: msys2/setup-msys2@v2
+  #       with:
+  #         path-type: inherit
+  #         install: >-
+  #           procps
+  #           mingw-w64-x86_64-protobuf
+
+  #     - name: "Install: Nightly toolchain"
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly
+  #         target: wasm32-unknown-unknown
+
+  #     - name: "Install: Show specific nightly version"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+
+  #     - name: "Install: Specific nightly toolchain"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+  #         target: wasm32-unknown-unknown
+  #         components: llvm-tools-preview
+
+  #     - name: "Install: Pin to specific nightly toolchain"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       run: |
+  #         rm -r $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
+  #         mv $env:USERPROFILE\.rustup\toolchains\nightly-$env:NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
+  #       shell: powershell
+
+  #     - name: "Install: cargo-nextest"
+  #       run: |
+  #         $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
+  #         Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
+  #         $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+  #         $tmp | Expand-Archive -DestinationPath $outputDir -Force
+  #         $tmp | Remove-Item
+  #       shell: powershell
+
+  #     - name: "Install: cargo-hack"
+  #       run: |
+  #         $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+  #         Invoke-WebRequest -OutFile $tmp https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-x86_64-pc-windows-msvc.tar.gz
+  #         $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { Resolve-Path "~/.cargo/bin" }
+  #         tar zxf $tmp -C $outputDir
+  #         $tmp | Remove-Item
+  #       shell: powershell
+
+  #     - name: "Install: binaryen"
+  #       run: |
+  #         $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+  #         Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-windows.tar.gz
+  #         $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+  #         tar zxf $tmp
+  #         cp ./binaryen-version_111/bin/* $outputDir
+  #         Remove-Item -Recurse ./binaryen-version_111
+  #         $tmp | Remove-Item
+  #       shell: powershell
+
+  #     - name: "Install: wabt"
+  #       run: |
+  #         $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
+  #         Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/wabt/releases/download/1.0.29/wabt-1.0.29-windows.tar.gz
+  #         $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+  #         tar zxf $tmp
+  #         cp ./wabt-1.0.29/bin/* $outputDir
+  #         Remove-Item -Recurse ./wabt-1.0.29
+  #         $tmp | Remove-Item
+  #       shell: powershell
+
+  #     - name: "Install: Node.js"
+  #       uses: actions/setup-node@v3
+  #       with:
+  #         node-version: "16"
+
+  #     - name: "Install: Node.js packages"
+  #       run: ./scripts/gear.sh init js
+
+  #     - name: "Build: Node"
+  #       run: ./scripts/gear.sh build node --release --locked
+
+  #     - name: "Build: WAT examples"
+  #       run: ./scripts/gear.sh build wat-examples
+
+  #     - name: "Build: wasm-proc"
+  #       run: ./scripts/gear.sh build wasm-proc --locked
+
+  #     - name: "Build: Examples (WASM)"
+  #       run: ./scripts/gear.sh build examples --locked
+
+  #     - name: "Build: Split examples by .opt and .meta"
+  #       run: ./scripts/gear.sh build examples-proc
+
+  #     - name: "Test: Client tests"
+  #       run: ./scripts/gear.sh test client
+
+  #     - name: "Test: Process node runtime spec tests"
+  #       run: |
+  #         cargo build -p gear-cli --release --features=runtime-test
+  #         ./scripts/gear.sh test rtest gear
+
+  #     - name: "Test: Lazy pages"
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: nextest
+  #         args: >-
+  #           run
+  #           -p pallet-gear
+  #           -p pallet-gear-debug
+  #           -p pallet-gear-payment
+  #           -p gear-lazy-pages
+  #           -p gear-runtime-interface
+  #           --features=lazy-pages
+  #           --release
+
+  # build-win-cross:
+  #   runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
+  #   env:
+  #     XWIN_ARCH: x86_64
+  #     RUSTUP_HOME: /tmp/rustup_home
+  #     RUSTC_WRAPPER: "sccache"
+  #     WINEDEBUG: fixme-all
+  #     CARGO_INCREMENTAL: 0
+  #     CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  #   steps:
+  #     - name: Cancel Previous Runs
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       uses: styfle/cancel-workflow-action@0.11.0
+  #       with:
+  #         access_token: ${{ github.token }}
+
+  #     - name: "ACTIONS: Checkout"
+  #       uses: actions/checkout@v3
+
+  #     - name: "Install: Set cargo path"
+  #       run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+  #     - name: "Install: Nightly toolchain"
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly
+  #         target: wasm32-unknown-unknown
+  #         components: llvm-tools-preview
+
+  #     - name: "Install: Show specific nightly version"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+
+  #     - name: "Install: Specific nightly toolchain"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+  #         target: wasm32-unknown-unknown
+  #         components: llvm-tools-preview
+
+  #     - name: "Install: Pin to specific nightly toolchain"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       run: |
+  #         rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+  #         ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+
+  #     - name: "Install: MSVC target"
+  #       run: rustup target add x86_64-pc-windows-msvc --toolchain nightly
+
+  #     - name: "Install: cargo config"
+  #       run: cp ./.github/build-win-cross/config.toml ${CARGO_HOME:-~/.cargo}/config.toml
+
+  #     - name: "Install: Node.js"
+  #       uses: actions/setup-node@v3
+  #       with:
+  #         node-version: "16"
+
+  #     - name: "Show: Versioning"
+  #       run: ./scripts/gear.sh show
+
+  #     - name: "Install: Node.js packages"
+  #       run: ./scripts/gear.sh init js
+
+  #     - name: "Install: Build deps"
+  #       run: |
+  #         sudo apt update
+  #         sudo apt install -y git curl libssl-dev libudev-dev cmake wabt protobuf-compiler wget bzip2 ninja-build
+
+  #     - name: "Install: Wine"
+  #       run: |
+  #         sudo dpkg --add-architecture i386
+  #         sudo mkdir -pm755 /etc/apt/keyrings
+  #         sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+  #         sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/focal/winehq-focal.sources
+  #         sudo apt update
+  #         sudo apt install --install-recommends -y winehq-stable winetricks
+  #         wineboot
+  #         winetricks win10
+
+  #     - name: "Install: Node.js in Wine"
+  #       run: |
+  #         wget http://barnyard.syr.edu/~vefatica/ftpfiles/setenv.exe
+  #         wget https://nodejs.org/download/release/v16.19.1/node-v16.19.1-win-x64.zip
+  #         unzip node-v16.19.1-win-x64.zip
+  #         node_js=$(winepath -w $(pwd)/node-v16.19.1-win-x64)
+  #         wine cmd /c ./setenv.exe -m PATH "%PATH%;${node_js}"
+  #       env:
+  #         WINEDEBUG: "-all"
+
+  #     - name: "Install: LLVM"
+  #       run: |
+  #         sudo apt install -y clang-12 clang-tools-12 llvm-12
+  #         sudo ./.github/build-win-cross/update-alternatives-clang.sh 12 100
+
+  #     - name: "Install: binaryen"
+  #       run: |
+  #         sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+  #         sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+
+  #     - name: "Install: sccache"
+  #       run: |
+  #         curl -L https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz | tar zxf -
+  #         mv ./sccache-*-x86_64-unknown-linux-musl/sccache ${CARGO_HOME:-~/.cargo}/bin/sccache
+
+  #     - name: "Install: grcov"
+  #       run: curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
+
+  #     - name: "Install: rust-covfix"
+  #       run: |
+  #         curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
+  #         mv rust-covfix-linux-x86_64/rust-covfix ./
+
+  #     - name: "Install: cargo-xwin"
+  #       run: |
+  #         curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.14.0/cargo-xwin-v0.14.0.x86_64-unknown-linux-musl.tar.gz | tar zxf -
+  #         mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
+
+  #     - name: "Cache: Unpack"
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       continue-on-error: true
+  #       run: |
+  #         [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_win_cross_cargo_registry.tar -C /; }
+  #         [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_win_cross_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /; }
+
+  #     - name: "Build: Node"
+  #       run: ./scripts/gear.sh build node --release --locked
+  #       env:
+  #         CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+
+  #     - name: "Build: wasm-proc"
+  #       run: ./scripts/gear.sh build wasm-proc --locked
+
+  #     - name: "Build: WAT examples"
+  #       run: ./scripts/gear.sh build wat-examples
+
+  #     - name: "Build: Examples (WASM)"
+  #       run: ./scripts/gear.sh build examples --locked
+
+  #     - name: "Build: Split examples by .opt and .meta"
+  #       run: ./scripts/gear.sh build examples-proc
+
+  #     # These tests randomly stops responding
+
+  #     #- name: "Test: Client tests"
+  #     #  run: |
+  #     #    cp ./target/x86_64-pc-windows-msvc/release/gear.exe ./target/release/
+  #     #    ./scripts/gear.sh test client
+  #     #  env:
+  #     #    CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+
+  #     - name: "Test: Process node runtime spec tests"
+  #       run: |
+  #         cargo xwin build -p gear-cli --release --features=runtime-test
+  #         ./scripts/gear.sh test rtest gear
+  #       env:
+  #         CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+
+  #     - name: "Test: Lazy pages"
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: xwin
+  #         args: >-
+  #           test
+  #           -p pallet-gear
+  #           -p pallet-gear-debug
+  #           -p pallet-gear-payment
+  #           -p gear-lazy-pages
+  #           -p gear-runtime-interface
+  #           --features=lazy-pages
+  #           --release
+  #       env:
+  #         CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+
+  #     - name: "Cache: Pack"
+  #       if: ${{ github.event_name == 'push' }}
+  #       continue-on-error: true
+  #       run: |
+  #         tar -cf /tmp/build_win_cross_cache_${{ github.ref_name }}.tar /tmp/sccache
+  #         tar -cf /tmp/build_win_cross_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+  #         mv /tmp/*.tar /root/cache/
+
+  #     - name: "Cache: Pack to temp"
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       continue-on-error: true
+  #       run: |
+  #         tar -cf /tmp/build_win_cross_cache.tar /tmp/sccache
+  #         tar -cf /tmp/build_win_cross_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+  #         mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
+
+  # build-macos-x86:
+  #   if: ${{ always() && (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')) }}
+  #   needs: build
+  #   runs-on: macos-latest
+  #   env:
+  #     RUSTUP_HOME: /tmp/rustup_home
+  #   steps:
+  #     - name: Cancel Previous Runs
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       uses: styfle/cancel-workflow-action@0.11.0
+  #       with:
+  #         access_token: ${{ github.token }}
+
+  #     - name: "ACTIONS: Checkout"
+  #       uses: actions/checkout@v3
+
+  #     - name: "ACTIONS: Setup caching"
+  #       uses: actions/cache@v3
+  #       with:
+  #         path: |
+  #           ~/.cargo/bin/
+  #           ~/.cargo/registry/index/
+  #           ~/.cargo/registry/cache/
+  #           ~/.cargo/git/db/
+  #           target/
+  #         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-cargo-
+
+  #     - name: "Install: protobuf"
+  #       run: brew install protobuf
+
+  #     - name: "Install: Nightly toolchain"
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly
+  #         target: wasm32-unknown-unknown
+
+  #     - name: "Install: Show specific nightly version"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+
+  #     - name: "Install: Specific nightly toolchain"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+  #         target: wasm32-unknown-unknown
+  #         components: llvm-tools-preview
+
+  #     - name: "Install: Pin to specific nightly toolchain"
+  #       if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+  #       run: |
+  #         rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-apple-darwin
+  #         ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-apple-darwin $RUSTUP_HOME/toolchains/nightly-x86_64-apple-darwin
+
+  #     - name: "Install: cargo-nextest"
+  #       run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+  #     - name: "Build: Node"
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: build
+  #         args: -p gear-cli --features=lazy-pages
+
+  #     - name: "Test: Lazy pages"
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: nextest
+  #         args: >-
+  #           run
+  #           -p pallet-gear
+  #           -p pallet-gear-debug
+  #           -p pallet-gear-payment
+  #           -p gear-lazy-pages
+  #           -p gear-runtime-interface
+  #           --features=lazy-pages
+
+  # upload:
+  #   if: github.event_name == 'push' && github.ref_name == 'master'
+  #   runs-on: self-hosted
+  #   needs: build
+  #   steps:
+  #     - name: Cancel Previous Runs
+  #       if: ${{ github.event_name == 'pull_request' }}
+  #       uses: styfle/cancel-workflow-action@0.11.0
+  #       with:
+  #         access_token: ${{ github.token }}
+
+  #     - name: Download artifacts
+  #       uses: actions/download-artifact@v3
+
+  #     - name: Delete previous release
+  #       uses: dev-drprasad/delete-tag-and-release@v0.2.1
+  #       with:
+  #         delete_release: true
+  #         tag_name: build
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  #     - name: Sleep
+  #       run: sleep 10
+
+  #     - name: Upload
+  #       uses: softprops/action-gh-release@v1
+  #       with:
+  #         token: ${{ secrets.GITHUB_TOKEN }}
+  #         prerelease: true
+  #         tag_name: build
+  #         draft: false
+  #         fail_on_unmatched_files: true
+  #         files: artifact/*
 
   check-fuzzer:
     # if: github.event_name == 'push' && github.ref_name == 'master' TODO uncomment
@@ -844,8 +844,12 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2 jq
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+      
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
 
       - name: "Check fuzzer with mutation test"
         run: |
+          pwd
           chmod +x ./scripts/check-fuzzer.sh
           ./scripts/check-fuzzer.sh
