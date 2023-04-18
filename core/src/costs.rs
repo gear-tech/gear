@@ -142,16 +142,16 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_random`.
     pub gr_random: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_send`
     pub gr_send: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_send` per one payload byte.
     pub gr_send_per_byte: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_send_wgas`.
     pub gr_send_wgas: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_send_wgas` per one payload byte.
     pub gr_send_wgas_per_byte: u64,
 
     /// Weight of calling `gr_send_init`.
@@ -169,26 +169,20 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_send_commit_wgas`.
     pub gr_send_commit_wgas: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_reservation_send`.
     pub gr_reservation_send: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_reservation_send` per one payload byte.
     pub gr_reservation_send_per_byte: u64,
 
     /// Weight of calling `gr_reservation_send_commit`.
     pub gr_reservation_send_commit: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_send_init`.
     pub gr_send_input: u64,
 
-    /// +_+_+
-    pub gr_send_input_per_byte: u64,
-
-    /// +_+_+
+    /// Weight of calling `gr_send_init_wgas`.
     pub gr_send_input_wgas: u64,
-
-    /// +_+_+
-    pub gr_send_input_wgas_per_byte: u64,
 
     /// Weight of calling `gr_send_push_input`.
     pub gr_send_push_input: u64,
@@ -196,16 +190,16 @@ pub struct HostFnWeights {
     /// Weight per payload byte by `gr_send_push_input`.
     pub gr_send_push_input_per_byte: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_reply`.
     pub gr_reply: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_reply` per one payload byte.
     pub gr_reply_per_byte: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_reply_wgas`.
     pub gr_reply_wgas: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_reply_wgas` per one payload byte.
     pub gr_reply_wgas_per_byte: u64,
 
     /// Weight of calling `gr_reply_commit`.
@@ -214,10 +208,10 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reply_commit_wgas`.
     pub gr_reply_commit_wgas: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_reservation_reply`.
     pub gr_reservation_reply: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_reservation_reply` per one payload byte.
     pub gr_reservation_reply_per_byte: u64,
 
     /// Weight of calling `gr_reservation_reply_commit`.
@@ -229,17 +223,11 @@ pub struct HostFnWeights {
     /// Weight per payload byte by `gr_reply_push`.
     pub gr_reply_push_per_byte: u64,
 
-    /// +_+_+
+    /// Weight of calling `gr_reply_input`.
     pub gr_reply_input: u64,
 
-    /// +_+_+
-    pub gr_reply_input_per_byte: u64,
-
-    /// +_+_+
+    /// Weight of calling `gr_reply_input_wgas`.
     pub gr_reply_input_wgas: u64,
-
-    /// +_+_+
-    pub gr_reply_input_wgas_per_byte: u64,
 
     /// Weight of calling `gr_reply_push_input`.
     pub gr_reply_push_input: u64,

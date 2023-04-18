@@ -428,9 +428,7 @@ pub struct HostFnWeights<T: Config> {
     pub gr_signal_from: Weight,
 
     pub gr_reply_input: Weight,
-    pub gr_reply_input_per_byte: Weight,
     pub gr_reply_input_wgas: Weight,
-    pub gr_reply_input_wgas_per_byte: Weight,
 
     /// Weight of calling `gr_reply_push_input`.
     pub gr_reply_push_input: Weight,
@@ -439,9 +437,7 @@ pub struct HostFnWeights<T: Config> {
     pub gr_reply_push_input_per_byte: Weight,
 
     pub gr_send_input: Weight,
-    pub gr_send_input_per_byte: Weight,
     pub gr_send_input_wgas: Weight,
-    pub gr_send_input_wgas_per_byte: Weight,
 
     /// Weight of calling `gr_send_push_input`.
     pub gr_send_push_input: Weight,
@@ -822,9 +818,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_reservation_send_per_byte: self.gr_reservation_send_per_byte.ref_time(),
             gr_reservation_send_commit: self.gr_reservation_send_commit.ref_time(),
             gr_send_input: self.gr_send_input.ref_time(),
-            gr_send_input_per_byte: self.gr_send_input_per_byte.ref_time(),
             gr_send_input_wgas: self.gr_send_input_wgas.ref_time(),
-            gr_send_input_wgas_per_byte: self.gr_send_input_wgas_per_byte.ref_time(),
             gr_send_push_input: self.gr_send_push_input.ref_time(),
             gr_send_push_input_per_byte: self.gr_send_push_input_per_byte.ref_time(),
             gr_reply: self.gr_reply.ref_time(),
@@ -839,9 +833,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_reservation_reply_per_byte: self.gr_reservation_reply_per_byte.ref_time(),
             gr_reservation_reply_commit: self.gr_reservation_reply_commit.ref_time(),
             gr_reply_input: self.gr_reply_input.ref_time(),
-            gr_reply_input_per_byte: self.gr_reply_input_per_byte.ref_time(),
             gr_reply_input_wgas: self.gr_reply_input_wgas.ref_time(),
-            gr_reply_input_wgas_per_byte: self.gr_reply_input_wgas_per_byte.ref_time(),
             gr_reply_push_input: self.gr_reply_push_input.ref_time(),
             gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte.ref_time(),
             gr_debug: self.gr_debug.ref_time(),
@@ -888,9 +880,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             )),
             gr_reservation_send_commit: to_weight!(cost_batched!(gr_reservation_send_commit)),
             gr_send_input: to_weight!(cost_batched!(gr_send_input)),
-            gr_send_input_per_byte: to_weight!(cost_byte_batched!(gr_send_input_per_kb)),
             gr_send_input_wgas: to_weight!(cost_batched!(gr_send_input_wgas)),
-            gr_send_input_wgas_per_byte: to_weight!(cost_byte_batched!(gr_send_input_wgas_per_kb)),
             gr_send_push_input: to_weight!(cost_batched!(gr_send_push_input)),
             gr_send_push_input_per_byte: to_weight!(cost_byte_batched!(gr_send_push_input_per_kb)),
 
@@ -906,9 +896,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_reservation_reply_per_byte: to_weight!(cost!(gr_reservation_reply_per_kb)),
             gr_reservation_reply_commit: to_weight!(cost!(gr_reservation_reply_commit)),
             gr_reply_input: to_weight!(cost!(gr_reply_input)),
-            gr_reply_input_per_byte: to_weight!(cost_byte!(gr_reply_input_per_kb)),
             gr_reply_input_wgas: to_weight!(cost!(gr_reply_input_wgas)),
-            gr_reply_input_wgas_per_byte: to_weight!(cost_byte!(gr_reply_input_wgas_per_kb)),
             gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
             gr_reply_push_input_per_byte: to_weight!(cost_byte!(gr_reply_push_input_per_kb)),
 

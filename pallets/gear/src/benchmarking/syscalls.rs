@@ -1012,7 +1012,9 @@ where
         // We cannot use batches, when big payloads
         assert!(batches.is_some() != input_len_kb.is_some());
 
-        let repetitions = batches.map(|batches| batches * API_BENCHMARK_BATCH_SIZE).unwrap_or(1);
+        let repetitions = batches
+            .map(|batches| batches * API_BENCHMARK_BATCH_SIZE)
+            .unwrap_or(1);
         let input_at = 0;
         let input_len = input_len_kb.map(kb_to_bytes).unwrap_or(COMMON_PAYLOAD_LEN);
         let res_offset = COMMON_OFFSET;
