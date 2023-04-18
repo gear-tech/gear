@@ -161,7 +161,10 @@ where
                     // Alloc 0 pages take almost the same amount of resources as another amount.
                     Instruction::I32Const(0),
                     Instruction::Call(0),
-                    Instruction::Drop,
+                    Instruction::I32Const(i32::MAX),
+                    Instruction::I32Ne,
+                    Instruction::BrIf(0),
+                    Instruction::Unreachable,
                 ],
             )),
             ..Default::default()
@@ -179,10 +182,18 @@ where
         for _ in 0..API_BENCHMARK_BATCH_SIZE {
             instructions.push(I32Const(r as i32));
             instructions.push(Call(0));
+            instructions.push(Instruction::I32Const(0));
+            instructions.push(Instruction::I32Eq);
+            instructions.push(Instruction::BrIf(0));
+            instructions.push(Instruction::Unreachable);
             instructions.push(Drop);
             for page in 0..r {
                 instructions.push(I32Const(page as i32));
                 instructions.push(Call(1));
+                instructions.push(Instruction::I32Const(0));
+                instructions.push(Instruction::I32Eq);
+                instructions.push(Instruction::BrIf(0));
+                instructions.push(Instruction::Unreachable);
                 instructions.push(Drop);
             }
         }
