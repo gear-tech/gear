@@ -15,7 +15,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec.workspace = true
 log.workspace = true
-wasmi = { version = "0.13", default-features = false }
+wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false }
 sp-core.workspace = true
 sp-std.workspace = true
 sp-wasm-interface.workspace = true
