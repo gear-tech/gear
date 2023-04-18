@@ -625,7 +625,6 @@ pub mod body {
 
     pub fn from_instructions(mut instructions: Vec<Instruction>) -> FuncBody {
         instructions.push(Instruction::End);
-        log::trace!("from instructions = {instructions:?}");
         FuncBody::new(vec![], Instructions::new(instructions))
     }
 

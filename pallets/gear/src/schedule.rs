@@ -377,9 +377,16 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_random`.
     pub gr_random: Weight,
 
+    /// Weight of calling `gr_send`.
     pub gr_send: Weight,
+
+    /// Weight per payload byte in `gr_send`.
     pub gr_send_per_byte: Weight,
+
+    /// Weight of calling `gr_send_wgas`.
     pub gr_send_wgas: Weight,
+
+    /// Weight per payload byte in `gr_send_wgas`.
     pub gr_send_wgas_per_byte: Weight,
 
     /// Weight of calling `gr_value_available`.
@@ -394,8 +401,13 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_send_commit`.
     pub gr_send_commit: Weight,
 
+    /// Weight of calling `gr_send_commit_wgas`.
     pub gr_send_commit_wgas: Weight,
+
+    /// Weight of calling `gr_reservation_send`.
     pub gr_reservation_send: Weight,
+
+    /// Weight per payload byte in `gr_reservation_send`.
     pub gr_reservation_send_per_byte: Weight,
 
     /// Weight of calling `gr_reservation_send_commit`.
@@ -403,8 +415,14 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: Weight,
+
+    /// Weight of calling `gr_reply_commit_wgas`.
     pub gr_reply_commit_wgas: Weight,
+
+    /// Weight of calling `gr_reservation_reply`.
     pub gr_reservation_reply: Weight,
+
+    /// Weight of calling `gr_reservation_reply` per one payload byte.
     pub gr_reservation_reply_per_byte: Weight,
 
     /// Weight of calling `gr_reservation_reply_commit`.
@@ -413,9 +431,16 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: Weight,
 
+    /// Weight of calling `gr_reply`.
     pub gr_reply: Weight,
+
+    /// Weight of calling `gr_reply` per one payload byte.
     pub gr_reply_per_byte: Weight,
+
+    /// Weight of calling `gr_reply_wgas`.
     pub gr_reply_wgas: Weight,
+
+    /// Weight of calling `gr_reply_wgas` per one payload byte.
     pub gr_reply_wgas_per_byte: Weight,
 
     /// Weight per payload byte by `gr_reply_push`.
@@ -427,7 +452,10 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_signal_from`.
     pub gr_signal_from: Weight,
 
+    /// Weight of calling `gr_reply_input`.
     pub gr_reply_input: Weight,
+
+    /// Weight of calling `gr_reply_input_wgas`.
     pub gr_reply_input_wgas: Weight,
 
     /// Weight of calling `gr_reply_push_input`.
@@ -436,7 +464,10 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per payload byte by `gr_reply_push_input`.
     pub gr_reply_push_input_per_byte: Weight,
 
+    /// Weight of calling `gr_send_input`.
     pub gr_send_input: Weight,
+
+    /// Weight of calling `gr_send_input_wgas`.
     pub gr_send_input_wgas: Weight,
 
     /// Weight of calling `gr_send_push_input`.
@@ -475,8 +506,13 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_wake`.
     pub gr_wake: Weight,
 
+    /// Weight of calling `gr_create_program`.
     pub gr_create_program: Weight,
+
+    /// Weight per payload byte in `gr_create_program`.
     pub gr_create_program_payload_per_byte: Weight,
+
+    /// Weight per salt byte in `gr_create_program`
     pub gr_create_program_salt_per_byte: Weight,
 
     /// Weight of calling `create_program_wgas`.

@@ -115,7 +115,7 @@ where
             );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Send(len), |ctx| {
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendWGas(len), |ctx| {
                 let read_hash_val = ctx.register_read_as(pid_value_ptr);
                 let read_payload = ctx.register_read(payload_ptr, len);
 
@@ -199,7 +199,7 @@ where
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendCommit, |ctx| {
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendCommitWGas, |ctx| {
                 let read_pid_value = ctx.register_read_as(pid_value_ptr);
 
                 let HashWithValue {
@@ -631,7 +631,7 @@ where
             );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply(len), |ctx| {
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyWGas(len), |ctx| {
                 let read_payload = ctx.register_read(payload_ptr, len);
                 let value = ctx.register_and_read_value(value_ptr)?;
                 let payload = ctx.read(read_payload)?.try_into()?;
@@ -700,7 +700,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithHash>(
                 err_mid_ptr,
-                RuntimeCosts::ReplyCommit,
+                RuntimeCosts::ReplyCommitWGas,
                 |ctx| {
                     let value = ctx.register_and_read_value(value_ptr)?;
 
@@ -951,7 +951,7 @@ where
             );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyInput, |ctx| {
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyInputWGas, |ctx| {
                 let value = ctx.register_and_read_value(value_ptr)?;
 
                 let state = ctx.host_state_mut();
@@ -1061,7 +1061,7 @@ where
             );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInput, |ctx| {
+            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInputWGas, |ctx| {
                 let read_pid_value = ctx.register_read_as(pid_value_ptr);
 
                 let HashWithValue {
@@ -1532,7 +1532,7 @@ where
 
             ctx.run_fallible::<_, _, LengthWithTwoHashes>(
                 err_mid_pid_ptr,
-                RuntimeCosts::CreateProgram(payload_len, salt_len),
+                RuntimeCosts::CreateProgramWGas(payload_len, salt_len),
                 |ctx| {
                     let read_cid_value = ctx.register_read_as(cid_value_ptr);
                     let read_salt = ctx.register_read(salt_ptr, salt_len);
