@@ -115,25 +115,34 @@ where
             );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendWGas(len), |ctx| {
-                let read_hash_val = ctx.register_read_as(pid_value_ptr);
-                let read_payload = ctx.register_read(payload_ptr, len);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::SendWGas(len),
+                |ctx| {
+                    let read_hash_val = ctx.register_read_as(pid_value_ptr);
+                    let read_payload = ctx.register_read(payload_ptr, len);
 
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_hash_val)?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+                    let HashWithValue {
+                        hash: destination,
+                        value,
+                    } = ctx.read_as(read_hash_val)?;
+                    let payload = ctx.read(read_payload)?.try_into()?;
 
-                let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .send(
-                        HandlePacket::new_with_gas(destination.into(), payload, gas_limit, value),
-                        delay,
-                    )
-                    .map_err(Into::into)
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .send(
+                            HandlePacket::new_with_gas(
+                                destination.into(),
+                                payload,
+                                gas_limit,
+                                value,
+                            ),
+                            delay,
+                        )
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -199,29 +208,33 @@ where
 
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendCommitWGas, |ctx| {
-                let read_pid_value = ctx.register_read_as(pid_value_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::SendCommitWGas,
+                |ctx| {
+                    let read_pid_value = ctx.register_read_as(pid_value_ptr);
 
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_pid_value)?;
+                    let HashWithValue {
+                        hash: destination,
+                        value,
+                    } = ctx.read_as(read_pid_value)?;
 
-                let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .send_commit(
-                        handle,
-                        HandlePacket::new_with_gas(
-                            destination.into(),
-                            Default::default(),
-                            gas_limit,
-                            value,
-                        ),
-                        delay,
-                    )
-                    .map_err(Into::into)
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .send_commit(
+                            handle,
+                            HandlePacket::new_with_gas(
+                                destination.into(),
+                                Default::default(),
+                                gas_limit,
+                                value,
+                            ),
+                            delay,
+                        )
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -631,17 +644,21 @@ where
             );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyWGas(len), |ctx| {
-                let read_payload = ctx.register_read(payload_ptr, len);
-                let value = ctx.register_and_read_value(value_ptr)?;
-                let payload = ctx.read(read_payload)?.try_into()?;
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::ReplyWGas(len),
+                |ctx| {
+                    let read_payload = ctx.register_read(payload_ptr, len);
+                    let value = ctx.register_and_read_value(value_ptr)?;
+                    let payload = ctx.read(read_payload)?.try_into()?;
 
-                let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
-                    .map_err(Into::into)
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -951,20 +968,24 @@ where
             );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyInputWGas, |ctx| {
-                let value = ctx.register_and_read_value(value_ptr)?;
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::ReplyInputWGas,
+                |ctx| {
+                    let value = ctx.register_and_read_value(value_ptr)?;
 
-                let state = ctx.host_state_mut();
-                let mut f = || {
-                    state.ext.reply_push_input(offset, len)?;
-                    state.ext.reply_commit(
-                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                        delay,
-                    )
-                };
+                    let state = ctx.host_state_mut();
+                    let mut f = || {
+                        state.ext.reply_push_input(offset, len)?;
+                        state.ext.reply_commit(
+                            ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                            delay,
+                        )
+                    };
 
-                f().map_err(Into::into)
-            })
+                    f().map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
@@ -1061,32 +1082,36 @@ where
             );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInputWGas, |ctx| {
-                let read_pid_value = ctx.register_read_as(pid_value_ptr);
+            ctx.run_fallible::<_, _, LengthWithHash>(
+                err_mid_ptr,
+                RuntimeCosts::SendInputWGas,
+                |ctx| {
+                    let read_pid_value = ctx.register_read_as(pid_value_ptr);
 
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_pid_value)?;
+                    let HashWithValue {
+                        hash: destination,
+                        value,
+                    } = ctx.read_as(read_pid_value)?;
 
-                let state = ctx.host_state_mut();
-                let mut f = || {
-                    let handle = state.ext.send_init()?;
-                    state.ext.send_push_input(handle, offset, len)?;
-                    state.ext.send_commit(
-                        handle,
-                        HandlePacket::new_with_gas(
-                            destination.into(),
-                            Default::default(),
-                            gas_limit,
-                            value,
-                        ),
-                        delay,
-                    )
-                };
+                    let state = ctx.host_state_mut();
+                    let mut f = || {
+                        let handle = state.ext.send_init()?;
+                        state.ext.send_push_input(handle, offset, len)?;
+                        state.ext.send_commit(
+                            handle,
+                            HandlePacket::new_with_gas(
+                                destination.into(),
+                                Default::default(),
+                                gas_limit,
+                                value,
+                            ),
+                            delay,
+                        )
+                    };
 
-                f().map_err(Into::into)
-            })
+                    f().map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)
