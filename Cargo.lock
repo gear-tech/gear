@@ -3947,6 +3947,7 @@ dependencies = [
  "sp-std 5.0.0",
  "sp-transaction-pool",
  "sp-version",
+ "substrate-validator-set",
  "substrate-wasm-builder",
 ]
 
@@ -11593,6 +11594,26 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "sp-state-machine",
+]
+
+[[package]]
+name = "substrate-validator-set"
+version = "0.9.41"
+source = "git+https://github.com/gear-tech/substrate-validator-set.git?branch=gear-polkadot-v0.9.41-sign-ext#7c6b4bfde1a68f1f9b61ca85e62b28fd56ff34bd"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-session",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std 5.0.0",
+ "syn 1.0.109",
 ]
 
 [[package]]
