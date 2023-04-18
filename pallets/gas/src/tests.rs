@@ -161,7 +161,8 @@ fn can_cut_nodes() {
 
 #[test]
 fn value_tree_with_all_kinds_of_nodes() {
-    env_logger::init();
+    let _ = env_logger::try_init();
+
     new_test_ext().execute_with(|| {
         let total_supply = 1000;
         let cut_value = 300;
