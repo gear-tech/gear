@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -36,7 +36,7 @@ mod impl_ {
     use once_cell::unsync::Lazy;
     use sp_wasm_interface::{
         wasmtime::{self, AsContext, AsContextMut, Func, Val},
-        Caller, HostState, Pointer, StoreData, WordSize,
+        Caller, HostState, MemoryWrapper, Pointer, StoreData, WordSize,
     };
 
     // The sandbox store is inside of a Option<Box<..>>> so that we can temporarily borrow it.
@@ -167,7 +167,7 @@ mod impl_ {
 
             // We can not return on error early, as we need to store back allocator.
             let res = allocator
-                .allocate(&mut MemoryWrapper(&memory, &mut self.caller), size)
+                .allocate(&mut MemoryWrapper::from((&memory, &mut self.caller)), size)
                 .map_err(|e| e.to_string());
 
             self.host_state_mut().allocator = Some(allocator);
@@ -185,48 +185,12 @@ mod impl_ {
 
             // We can not return on error early, as we need to store back allocator.
             let res = allocator
-                .deallocate(&mut MemoryWrapper(&memory, &mut self.caller), ptr)
+                .deallocate(&mut MemoryWrapper::from((&memory, &mut self.caller)), ptr)
                 .map_err(|e| e.to_string());
 
             self.host_state_mut().allocator = Some(allocator);
 
             res
-        }
-    }
-
-    // TODO: temporary copy-pasta
-    // Wrapper around [`Memory`] that implements [`sp_allocator::Memory`].
-    pub(crate) struct MemoryWrapper<'a, C>(pub &'a wasmtime::Memory, pub &'a mut C);
-
-    impl<C: AsContextMut> sp_allocator::Memory for MemoryWrapper<'_, C> {
-        fn with_access<R>(&self, run: impl FnOnce(&[u8]) -> R) -> R {
-            run(self.0.data(&self.1))
-        }
-
-        fn with_access_mut<R>(&mut self, run: impl FnOnce(&mut [u8]) -> R) -> R {
-            run(self.0.data_mut(&mut self.1))
-        }
-
-        fn grow(&mut self, additional: u32) -> std::result::Result<(), ()> {
-            self.0
-                .grow(&mut self.1, additional as u64)
-                .map_err(|e| {
-                    log::error!(
-                        target: "wasm-executor",
-                        "Failed to grow memory by {} pages: {}",
-                        additional,
-                        e,
-                    )
-                })
-                .map(drop)
-        }
-
-        fn pages(&self) -> u32 {
-            self.0.size(&self.1) as u32
-        }
-
-        fn max_pages(&self) -> Option<u32> {
-            self.0.ty(&self.1).maximum().map(|p| p as _)
         }
     }
 
