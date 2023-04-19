@@ -11599,7 +11599,7 @@ dependencies = [
 [[package]]
 name = "substrate-validator-set"
 version = "0.9.41"
-source = "git+https://github.com/gear-tech/substrate-validator-set.git?branch=gear-polkadot-v0.9.41-sign-ext#7c6b4bfde1a68f1f9b61ca85e62b28fd56ff34bd"
+source = "git+https://github.com/gear-tech/substrate-validator-set.git?branch=gear-polkadot-v0.9.41-sign-ext#82ac0b50baab4b195a949665d0dd694e38bdb0f4"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -13258,7 +13258,7 @@ dependencies = [
 [[package]]
 name = "wasmi-validation"
 version = "0.5.0"
-source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#d230c9bba8e763d03b390038750cee07ee937416"
+source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
 dependencies = [
  "parity-wasm 0.45.0",
 ]
