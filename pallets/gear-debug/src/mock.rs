@@ -230,7 +230,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
                 <<Test as frame_system::Config>::BlockWeights as Get<BlockWeights>>::get()
                     .max_block;
             System::register_extra_weight_unchecked(
-                max_block_weight.saturating_sub(Weight::from_ref_time(remaining_weight)),
+                max_block_weight.saturating_sub(Weight::from_parts(remaining_weight, 0)),
                 frame_support::dispatch::DispatchClass::Normal,
             );
         }

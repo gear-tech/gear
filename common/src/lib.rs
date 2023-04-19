@@ -149,7 +149,7 @@ pub trait GasPrice {
     /// In general case, this doesn't necessarily has to be constant.
     fn gas_price(gas: u64) -> Self::Balance {
         ConstantMultiplier::<Self::Balance, Self::GasToBalanceMultiplier>::weight_to_fee(
-            &Weight::from_ref_time(gas),
+            &Weight::from_parts(gas, 0),
         )
     }
 }

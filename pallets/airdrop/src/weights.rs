@@ -57,7 +57,7 @@ pub trait WeightInfo {
 pub struct AirdropWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for AirdropWeight<T> {
 	fn transfer() -> Weight {
-		(Weight::from_ref_time(18_000_000))
+		(Weight::from_parts(18_000_000, 0))
 			.saturating_add(T::DbWeight::get().reads(2_u64))
 			.saturating_add(T::DbWeight::get().writes(2_u64))
 	}

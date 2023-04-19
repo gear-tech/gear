@@ -163,11 +163,12 @@ where
             let multiplier = TransactionPayment::<T>::next_fee_multiplier();
             if multiplier > Multiplier::saturating_from_integer(1) {
                 let mut info: DispatchInfo = *info;
-                info.weight = Weight::from_ref_time(
+                info.weight = Weight::from_parts(
                     multiplier
                         .reciprocal() // take inverse
                         .unwrap_or_else(Multiplier::max_value)
                         .saturating_mul_int(info.weight.ref_time()),
+                    0,
                 );
                 Cow::Owned(info)
             } else {
@@ -239,11 +240,12 @@ impl<T: Config> Pallet<T> {
                 <Extrinsic as ExtractCall<CallOf<T>>>::extract_call(&unchecked_extrinsic);
             // If call is exempted from weight multiplication pre-divide it with the fee multiplier
             let adjusted_weight = if !T::ExtraFeeCallFilter::contains(&call) {
-                Weight::from_ref_time(
+                Weight::from_parts(
                     TransactionPayment::<T>::next_fee_multiplier()
                         .reciprocal()
                         .unwrap_or_else(Multiplier::max_value)
                         .saturating_mul_int(weight.ref_time()),
+                    0,
                 )
             } else {
                 weight
@@ -292,11 +294,12 @@ impl<T: Config> Pallet<T> {
             let call: CallOf<T> =
                 <Extrinsic as ExtractCall<CallOf<T>>>::extract_call(&unchecked_extrinsic);
             let adjusted_weight = if !T::ExtraFeeCallFilter::contains(&call) {
-                Weight::from_ref_time(
+                Weight::from_parts(
                     TransactionPayment::<T>::next_fee_multiplier()
                         .reciprocal()
                         .unwrap_or_else(Multiplier::max_value)
                         .saturating_mul_int(weight.ref_time()),
+                    0,
                 )
             } else {
                 weight

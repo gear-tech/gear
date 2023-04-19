@@ -42,7 +42,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Weights borrowed from `vara_runtime::weights::pallet_balances::SubstrateWeight::transfer()`
 	// Added another DB write for depositing an event
 	fn refill() -> Weight {
-		Weight::from_ref_time(55_241_000_u64)
+		Weight::from_parts(55_241_000_u64, 0)
             .saturating_add(T::DbWeight::get().reads(1_u64))
             .saturating_add(T::DbWeight::get().writes(2_u64))
 	}
@@ -50,14 +50,14 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	fn force_refill() -> Weight {
 		// Same as `vara_runtime::weights::pallet_balances::SubstrateWeight::force_transfer()`
 		// except for an additional DB write for depositing event
-		Weight::from_ref_time(54_529_000_u64)
+		Weight::from_parts(54_529_000_u64, 0)
             .saturating_add(T::DbWeight::get().reads(2_u64))
             .saturating_add(T::DbWeight::get().writes(3_u64))
 	}
 
 	fn withdraw() -> Weight {
 		// Same as `force_refill()`
-		Weight::from_ref_time(54_529_000_u64)
+		Weight::from_parts(54_529_000_u64, 0)
             .saturating_add(T::DbWeight::get().reads(2_u64))
             .saturating_add(T::DbWeight::get().writes(3_u64))
 	}
@@ -66,19 +66,19 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 // For backwards compatibility and tests
 impl WeightInfo for () {
 	fn refill() -> Weight {
-		Weight::from_ref_time(55_241_000_u64)
+		Weight::from_parts(55_241_000_u64, 0)
             .saturating_add(RocksDbWeight::get().reads(1_u64))
             .saturating_add(RocksDbWeight::get().writes(2_u64))
 	}
 
 	fn force_refill() -> Weight {
-		Weight::from_ref_time(54_529_000_u64)
+		Weight::from_parts(54_529_000_u64, 0)
             .saturating_add(RocksDbWeight::get().reads(2_u64))
             .saturating_add(RocksDbWeight::get().writes(3_u64))
 	}
 
 	fn withdraw() -> Weight {
-		Weight::from_ref_time(54_529_000_u64)
+		Weight::from_parts(54_529_000_u64, 0)
             .saturating_add(RocksDbWeight::get().reads(2_u64))
             .saturating_add(RocksDbWeight::get().writes(3_u64))
 	}

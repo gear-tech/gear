@@ -1638,7 +1638,7 @@ pub mod pallet {
 
             Ok(PostDispatchInfo {
                 actual_weight: Some(
-                    Weight::from_ref_time(actual_weight)
+                    Weight::from_parts(actual_weight, 0)
                         .saturating_add(T::DbWeight::get().writes(1)),
                 ),
                 pays_fee: Pays::No,
