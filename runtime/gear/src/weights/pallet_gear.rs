@@ -232,7 +232,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 1_587
             .saturating_add(Weight::from_parts(691_791, 0).saturating_mul(c.into()))
             .saturating_add(T::DbWeight::get().reads(1_u64))
-            .saturating_add(Weight::from_proof_size(1024).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(0, 1024).saturating_mul(c.into()))
     }
     /// The range of component `c` is `[0, 512]`.
     fn instantiate_module_per_kb(c: u32, ) -> Weight {
@@ -351,7 +351,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(51_482_330, 0).saturating_mul(c.into()))
             .saturating_add(T::DbWeight::get().reads(1_u64))
             .saturating_add(T::DbWeight::get().writes(2_u64))
-            .saturating_add(Weight::from_proof_size(2150).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(0, 2150).saturating_mul(c.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn alloc(r: u32, ) -> Weight {
@@ -856,7 +856,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 8_097
             .saturating_add(Weight::from_parts(11_697_667, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9900).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9900).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_signal_write(p: u32, ) -> Weight {
@@ -868,7 +868,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 44_559
             .saturating_add(Weight::from_parts(36_153_847, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9900).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9900).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_signal_write_after_read(p: u32, ) -> Weight {
@@ -891,7 +891,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 37_631
             .saturating_add(Weight::from_parts(45_958_696, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(75606).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 75606).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 32]`.
     fn lazy_pages_host_func_read(p: u32, ) -> Weight {
@@ -903,7 +903,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 74_142
             .saturating_add(Weight::from_parts(37_638_856, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9883).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9883).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 32]`.
     fn lazy_pages_host_func_write(p: u32, ) -> Weight {
@@ -915,7 +915,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 324_620
             .saturating_add(Weight::from_parts(46_953_221, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9883).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9883).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 32]`.
     fn lazy_pages_host_func_write_after_read(p: u32, ) -> Weight {
@@ -1792,7 +1792,7 @@ impl WeightInfo for () {
             // Standard Error: 1_587
             .saturating_add(Weight::from_parts(691_791, 0).saturating_mul(c.into()))
             .saturating_add(RocksDbWeight::get().reads(1_u64))
-            .saturating_add(Weight::from_proof_size(1024).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(0, 1024).saturating_mul(c.into()))
     }
     /// The range of component `c` is `[0, 512]`.
     fn instantiate_module_per_kb(c: u32, ) -> Weight {
@@ -1911,7 +1911,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(51_482_330, 0).saturating_mul(c.into()))
             .saturating_add(RocksDbWeight::get().reads(1_u64))
             .saturating_add(RocksDbWeight::get().writes(2_u64))
-            .saturating_add(Weight::from_proof_size(2150).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(0, 2150).saturating_mul(c.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn alloc(r: u32, ) -> Weight {
@@ -2416,7 +2416,7 @@ impl WeightInfo for () {
             // Standard Error: 8_097
             .saturating_add(Weight::from_parts(11_697_667, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9900).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9900).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_signal_write(p: u32, ) -> Weight {
@@ -2428,7 +2428,7 @@ impl WeightInfo for () {
             // Standard Error: 44_559
             .saturating_add(Weight::from_parts(36_153_847, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9900).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9900).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_signal_write_after_read(p: u32, ) -> Weight {
@@ -2451,7 +2451,7 @@ impl WeightInfo for () {
             // Standard Error: 37_631
             .saturating_add(Weight::from_parts(45_958_696, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(75606).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 75606).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 32]`.
     fn lazy_pages_host_func_read(p: u32, ) -> Weight {
@@ -2463,7 +2463,7 @@ impl WeightInfo for () {
             // Standard Error: 74_142
             .saturating_add(Weight::from_parts(37_638_856, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9883).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9883).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 32]`.
     fn lazy_pages_host_func_write(p: u32, ) -> Weight {
@@ -2475,7 +2475,7 @@ impl WeightInfo for () {
             // Standard Error: 324_620
             .saturating_add(Weight::from_parts(46_953_221, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9883).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9883).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 32]`.
     fn lazy_pages_host_func_write_after_read(p: u32, ) -> Weight {
