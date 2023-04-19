@@ -1232,7 +1232,7 @@ mod tests {
                 for action in actions {
                     match action {
                         Action::Alloc { pages } => {
-                            if let Err(err) = ext.alloc(pages, &mut mem) {
+                            if let Err(err) = ext.alloc(pages.raw(), &mut mem) {
                                 assert_alloc_error(err);
                             }
                         }

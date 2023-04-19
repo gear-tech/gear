@@ -479,9 +479,6 @@ where
             ctx.run_state_taken(RuntimeCosts::Alloc, |ctx, state| {
                 let mut mem = CallerWrap::memory(&mut ctx.caller, ctx.memory);
 
-                // TODO: we must return u32::MAX here #2353
-                let pages = WasmPage::new(pages).map_err(|_| TrapExplanation::Unknown)?;
-
                 let res = state.ext.alloc(pages, &mut mem);
                 let res = state.process_alloc_func_result(res)?;
                 let page = match res {
