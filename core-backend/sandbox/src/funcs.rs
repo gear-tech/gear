@@ -28,7 +28,6 @@ use gear_backend_common::{
 };
 use gear_core::{
     buffer::RuntimeBuffer,
-    code::MAX_WASM_PAGE_COUNT,
     costs::RuntimeCosts,
     env::Ext,
     memory::{PageU32Size, WasmPage},
@@ -339,14 +338,9 @@ where
         syscall_trace!("alloc", pages);
 
         ctx.run_any(RuntimeCosts::Alloc, |ctx| {
-            if pages > MAX_WASM_PAGE_COUNT as u32 {
-                return Ok(ReturnValue::Value(Value::I32(i32::MAX)));
-            }
-
-            let pages = WasmPage::new(pages).map_err(|_| TrapExplanation::Unknown)?;
-
             let res = ctx.ext.alloc(pages, &mut ctx.memory);
             let res = ctx.process_alloc_func_result(res)?;
+
             let page = match res {
                 Ok(page) => {
                     log::trace!("Alloc {pages:?} pages at {page:?}");

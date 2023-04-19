@@ -487,7 +487,7 @@ impl EnvExt for Ext {
 
     fn alloc(
         &mut self,
-        pages_num: WasmPage,
+        pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
         self.alloc_inner::<NoopGrowHandler>(pages_num, mem)
@@ -873,12 +873,12 @@ impl Ext {
     /// Inner alloc realization.
     pub fn alloc_inner<G: GrowHandler>(
         &mut self,
-        pages: WasmPage,
+        pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, ProcessorAllocError> {
         self.context
             .allocations_context
-            .alloc::<G>(pages, mem, |pages| {
+            .alloc::<G>(pages_num, mem, |pages| {
                 Ext::charge_gas_if_enough(
                     &mut self.context.gas_counter,
                     &mut self.context.gas_allowance_counter,
