@@ -217,9 +217,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 761 nanoseconds.
-        Weight::from_ref_time(794_000)
+        Weight::from_parts(794_000, 0)
             // Standard Error: 960
-            .saturating_add(Weight::from_ref_time(212_224).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(212_224, 0).saturating_mul(c.into()))
             .saturating_add(T::DbWeight::get().writes(1_u64))
     }
     /// The range of component `c` is `[0, 512]`.
@@ -230,9 +230,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 3_067 nanoseconds.
         Weight::from_parts(3_132_000, 2617)
             // Standard Error: 2_641
-            .saturating_add(Weight::from_ref_time(696_372).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(696_372, 0).saturating_mul(c.into()))
             .saturating_add(T::DbWeight::get().reads(1_u64))
-            .saturating_add(Weight::from_proof_size(1024).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(0, 1024).saturating_mul(c.into()))
     }
     /// The range of component `c` is `[0, 512]`.
     fn instantiate_module_per_kb(c: u32, ) -> Weight {
@@ -240,9 +240,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 48_163 nanoseconds.
-        Weight::from_ref_time(102_637_811)
+        Weight::from_parts(102_637_811, 0)
             // Standard Error: 7_418
-            .saturating_add(Weight::from_ref_time(2_284_334).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(2_284_334, 0).saturating_mul(c.into()))
     }
     fn claim_value() -> Weight {
         // Proof Size summary in bytes:
@@ -261,7 +261,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 57_788 nanoseconds.
         Weight::from_parts(31_642_282, 3290)
             // Standard Error: 47_873
-            .saturating_add(Weight::from_ref_time(53_067_634).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(53_067_634, 0).saturating_mul(c.into()))
             .saturating_add(T::DbWeight::get().reads(2_u64))
             .saturating_add(T::DbWeight::get().writes(4_u64))
     }
@@ -273,7 +273,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 47_046 nanoseconds.
         Weight::from_parts(65_865_510, 18282)
             // Standard Error: 0
-            .saturating_add(Weight::from_ref_time(2_272).saturating_mul(s.into()))
+            .saturating_add(Weight::from_parts(2_272, 0).saturating_mul(s.into()))
             .saturating_add(T::DbWeight::get().reads(10_u64))
             .saturating_add(T::DbWeight::get().writes(8_u64))
     }
@@ -286,9 +286,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 9_629_458 nanoseconds.
         Weight::from_parts(128_023_124, 14142)
             // Standard Error: 164_368
-            .saturating_add(Weight::from_ref_time(54_589_020).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(54_589_020, 0).saturating_mul(c.into()))
             // Standard Error: 9
-            .saturating_add(Weight::from_ref_time(2_268).saturating_mul(s.into()))
+            .saturating_add(Weight::from_parts(2_268, 0).saturating_mul(s.into()))
             .saturating_add(T::DbWeight::get().reads(10_u64))
             .saturating_add(T::DbWeight::get().writes(12_u64))
     }
@@ -300,7 +300,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 48_557 nanoseconds.
         Weight::from_parts(28_383_814, 14765)
             // Standard Error: 1
-            .saturating_add(Weight::from_ref_time(1_134).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(1_134, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads(9_u64))
             .saturating_add(T::DbWeight::get().writes(8_u64))
     }
@@ -312,7 +312,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 72_760 nanoseconds.
         Weight::from_parts(61_055_469, 31447)
             // Standard Error: 1
-            .saturating_add(Weight::from_ref_time(1_145).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(1_145, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads(13_u64))
             .saturating_add(T::DbWeight::get().writes(10_u64))
     }
@@ -324,7 +324,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 278_465 nanoseconds.
         Weight::from_parts(289_144_814, 49130)
             // Standard Error: 930
-            .saturating_add(Weight::from_ref_time(3_745).saturating_mul(q.into()))
+            .saturating_add(Weight::from_parts(3_745, 0).saturating_mul(q.into()))
             .saturating_add(T::DbWeight::get().reads(26_u64))
             .saturating_add(T::DbWeight::get().writes(22_u64))
     }
@@ -336,7 +336,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 289_940 nanoseconds.
         Weight::from_parts(301_064_878, 49018)
             // Standard Error: 1_069
-            .saturating_add(Weight::from_ref_time(4_413).saturating_mul(q.into()))
+            .saturating_add(Weight::from_parts(4_413, 0).saturating_mul(q.into()))
             .saturating_add(T::DbWeight::get().reads(26_u64))
             .saturating_add(T::DbWeight::get().writes(22_u64))
     }
@@ -348,10 +348,10 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 41_220 nanoseconds.
         Weight::from_parts(41_558_000, 2973)
             // Standard Error: 43_154
-            .saturating_add(Weight::from_ref_time(51_043_357).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(51_043_357, 0).saturating_mul(c.into()))
             .saturating_add(T::DbWeight::get().reads(1_u64))
             .saturating_add(T::DbWeight::get().writes(2_u64))
-            .saturating_add(Weight::from_proof_size(2150).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(0, 2150).saturating_mul(c.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn alloc(r: u32, ) -> Weight {
@@ -359,9 +359,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 83_620 nanoseconds.
-        Weight::from_ref_time(85_723_324)
+        Weight::from_parts(85_723_324, 0)
             // Standard Error: 302_409
-            .saturating_add(Weight::from_ref_time(129_670_159).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(129_670_159, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn free(r: u32, ) -> Weight {
@@ -369,9 +369,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 198_883 nanoseconds.
-        Weight::from_ref_time(180_549_249)
+        Weight::from_parts(180_549_249, 0)
             // Standard Error: 279_283
-            .saturating_add(Weight::from_ref_time(127_604_915).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(127_604_915, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
@@ -379,9 +379,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 84_282 nanoseconds.
-        Weight::from_ref_time(85_230_381)
+        Weight::from_parts(85_230_381, 0)
             // Standard Error: 9_033
-            .saturating_add(Weight::from_ref_time(3_509_899).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_509_899, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_unreserve_gas(r: u32, ) -> Weight {
@@ -389,9 +389,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 131_615 nanoseconds.
-        Weight::from_ref_time(168_307_579)
+        Weight::from_parts(168_307_579, 0)
             // Standard Error: 20_410
-            .saturating_add(Weight::from_ref_time(3_513_779).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_513_779, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_system_reserve_gas(r: u32, ) -> Weight {
@@ -399,9 +399,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_244 nanoseconds.
-        Weight::from_ref_time(133_381_524)
+        Weight::from_parts(133_381_524, 0)
             // Standard Error: 364_215
-            .saturating_add(Weight::from_ref_time(175_263_065).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_263_065, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_message_id(r: u32, ) -> Weight {
@@ -409,9 +409,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 80_871 nanoseconds.
-        Weight::from_ref_time(83_728_178)
+        Weight::from_parts(83_728_178, 0)
             // Standard Error: 237_530
-            .saturating_add(Weight::from_ref_time(175_396_894).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_396_894, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_origin(r: u32, ) -> Weight {
@@ -419,9 +419,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_344 nanoseconds.
-        Weight::from_ref_time(80_814_311)
+        Weight::from_parts(80_814_311, 0)
             // Standard Error: 242_865
-            .saturating_add(Weight::from_ref_time(176_183_080).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(176_183_080, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_program_id(r: u32, ) -> Weight {
@@ -429,9 +429,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_550 nanoseconds.
-        Weight::from_ref_time(86_713_676)
+        Weight::from_parts(86_713_676, 0)
             // Standard Error: 238_659
-            .saturating_add(Weight::from_ref_time(174_365_605).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(174_365_605, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_source(r: u32, ) -> Weight {
@@ -439,9 +439,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_212 nanoseconds.
-        Weight::from_ref_time(81_118_155)
+        Weight::from_parts(81_118_155, 0)
             // Standard Error: 247_291
-            .saturating_add(Weight::from_ref_time(175_847_363).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_847_363, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_value(r: u32, ) -> Weight {
@@ -449,9 +449,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_148 nanoseconds.
-        Weight::from_ref_time(83_939_496)
+        Weight::from_parts(83_939_496, 0)
             // Standard Error: 280_041
-            .saturating_add(Weight::from_ref_time(175_400_021).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_400_021, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_value_available(r: u32, ) -> Weight {
@@ -459,9 +459,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_682 nanoseconds.
-        Weight::from_ref_time(85_424_687)
+        Weight::from_parts(85_424_687, 0)
             // Standard Error: 255_412
-            .saturating_add(Weight::from_ref_time(174_010_282).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(174_010_282, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_gas_available(r: u32, ) -> Weight {
@@ -469,9 +469,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 83_825 nanoseconds.
-        Weight::from_ref_time(86_478_699)
+        Weight::from_parts(86_478_699, 0)
             // Standard Error: 252_429
-            .saturating_add(Weight::from_ref_time(177_432_143).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(177_432_143, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_size(r: u32, ) -> Weight {
@@ -479,9 +479,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_170 nanoseconds.
-        Weight::from_ref_time(84_210_822)
+        Weight::from_parts(84_210_822, 0)
             // Standard Error: 251_283
-            .saturating_add(Weight::from_ref_time(180_568_190).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(180_568_190, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_read(r: u32, ) -> Weight {
@@ -489,9 +489,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 557_635 nanoseconds.
-        Weight::from_ref_time(634_644_194)
+        Weight::from_parts(634_644_194, 0)
             // Standard Error: 400_411
-            .saturating_add(Weight::from_ref_time(239_352_408).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(239_352_408, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_read_per_kb(n: u32, ) -> Weight {
@@ -499,9 +499,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 828_353 nanoseconds.
-        Weight::from_ref_time(837_715_000)
+        Weight::from_parts(837_715_000, 0)
             // Standard Error: 60_739
-            .saturating_add(Weight::from_ref_time(14_146_957).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(14_146_957, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_block_height(r: u32, ) -> Weight {
@@ -509,9 +509,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 83_842 nanoseconds.
-        Weight::from_ref_time(78_011_099)
+        Weight::from_parts(78_011_099, 0)
             // Standard Error: 304_537
-            .saturating_add(Weight::from_ref_time(174_648_210).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(174_648_210, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_block_timestamp(r: u32, ) -> Weight {
@@ -519,9 +519,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 83_383 nanoseconds.
-        Weight::from_ref_time(85_071_672)
+        Weight::from_parts(85_071_672, 0)
             // Standard Error: 277_230
-            .saturating_add(Weight::from_ref_time(175_739_698).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_739_698, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 20]`.
     fn gr_random(n: u32, ) -> Weight {
@@ -529,9 +529,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 83_759 nanoseconds.
-        Weight::from_ref_time(97_315_812)
+        Weight::from_parts(97_315_812, 0)
             // Standard Error: 238_252
-            .saturating_add(Weight::from_ref_time(238_074_206).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(238_074_206, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_init(r: u32, ) -> Weight {
@@ -539,9 +539,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 84_613 nanoseconds.
-        Weight::from_ref_time(73_884_051)
+        Weight::from_parts(73_884_051, 0)
             // Standard Error: 231_926
-            .saturating_add(Weight::from_ref_time(188_042_953).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(188_042_953, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_push(r: u32, ) -> Weight {
@@ -549,9 +549,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 3_706_952 nanoseconds.
-        Weight::from_ref_time(3_841_642_964)
+        Weight::from_parts(3_841_642_964, 0)
             // Standard Error: 288_960
-            .saturating_add(Weight::from_ref_time(247_877_210).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(247_877_210, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_send_push_per_kb(n: u32, ) -> Weight {
@@ -559,9 +559,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 520_139 nanoseconds.
-        Weight::from_ref_time(523_195_000)
+        Weight::from_parts(523_195_000, 0)
             // Standard Error: 61_816
-            .saturating_add(Weight::from_ref_time(29_665_714).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(29_665_714, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_commit(r: u32, ) -> Weight {
@@ -569,9 +569,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 84_478 nanoseconds.
-        Weight::from_ref_time(131_497_693)
+        Weight::from_parts(131_497_693, 0)
             // Standard Error: 299_463
-            .saturating_add(Weight::from_ref_time(352_624_503).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(352_624_503, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_send_commit_per_kb(n: u32, ) -> Weight {
@@ -579,9 +579,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 437_137 nanoseconds.
-        Weight::from_ref_time(440_652_000)
+        Weight::from_parts(440_652_000, 0)
             // Standard Error: 59_951
-            .saturating_add(Weight::from_ref_time(21_224_751).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(21_224_751, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reservation_send_commit(r: u32, ) -> Weight {
@@ -589,9 +589,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 242_701 nanoseconds.
-        Weight::from_ref_time(305_043_647)
+        Weight::from_parts(305_043_647, 0)
             // Standard Error: 244_718
-            .saturating_add(Weight::from_ref_time(369_921_323).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(369_921_323, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_reservation_send_commit_per_kb(n: u32, ) -> Weight {
@@ -599,9 +599,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 471_909 nanoseconds.
-        Weight::from_ref_time(481_316_000)
+        Weight::from_parts(481_316_000, 0)
             // Standard Error: 51_289
-            .saturating_add(Weight::from_ref_time(21_001_799).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(21_001_799, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_reply_commit(r: u32, ) -> Weight {
@@ -609,9 +609,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_287 nanoseconds.
-        Weight::from_ref_time(84_806_134)
+        Weight::from_parts(84_806_134, 0)
             // Standard Error: 250_891
-            .saturating_add(Weight::from_ref_time(17_607_365).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(17_607_365, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_reply_commit_per_kb(n: u32, ) -> Weight {
@@ -619,9 +619,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 100_681 nanoseconds.
-        Weight::from_ref_time(86_530_601)
+        Weight::from_parts(86_530_601, 0)
             // Standard Error: 774
-            .saturating_add(Weight::from_ref_time(423_018).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(423_018, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_push(r: u32, ) -> Weight {
@@ -629,9 +629,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_835 nanoseconds.
-        Weight::from_ref_time(137_479_664)
+        Weight::from_parts(137_479_664, 0)
             // Standard Error: 331_995
-            .saturating_add(Weight::from_ref_time(243_721_746).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(243_721_746, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 8192]`.
     fn gr_reply_push_per_kb(n: u32, ) -> Weight {
@@ -639,9 +639,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 97_910 nanoseconds.
-        Weight::from_ref_time(99_515_000)
+        Weight::from_parts(99_515_000, 0)
             // Standard Error: 2_501
-            .saturating_add(Weight::from_ref_time(605_467).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(605_467, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_reservation_reply_commit(r: u32, ) -> Weight {
@@ -649,9 +649,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 88_365 nanoseconds.
-        Weight::from_ref_time(91_586_508)
+        Weight::from_parts(91_586_508, 0)
             // Standard Error: 253_416
-            .saturating_add(Weight::from_ref_time(11_330_891).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(11_330_891, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_reservation_reply_commit_per_kb(n: u32, ) -> Weight {
@@ -659,9 +659,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 101_342 nanoseconds.
-        Weight::from_ref_time(86_985_218)
+        Weight::from_parts(86_985_218, 0)
             // Standard Error: 729
-            .saturating_add(Weight::from_ref_time(420_626).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(420_626, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_to(r: u32, ) -> Weight {
@@ -669,9 +669,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_176 nanoseconds.
-        Weight::from_ref_time(85_895_984)
+        Weight::from_parts(85_895_984, 0)
             // Standard Error: 315_843
-            .saturating_add(Weight::from_ref_time(175_959_029).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_959_029, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_signal_from(r: u32, ) -> Weight {
@@ -679,9 +679,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 84_180 nanoseconds.
-        Weight::from_ref_time(87_329_873)
+        Weight::from_parts(87_329_873, 0)
             // Standard Error: 255_146
-            .saturating_add(Weight::from_ref_time(175_210_834).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_210_834, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_push_input(r: u32, ) -> Weight {
@@ -689,9 +689,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 553_563 nanoseconds.
-        Weight::from_ref_time(609_509_128)
+        Weight::from_parts(609_509_128, 0)
             // Standard Error: 401_197
-            .saturating_add(Weight::from_ref_time(187_924_542).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(187_924_542, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_reply_push_input_per_kb(n: u32, ) -> Weight {
@@ -699,9 +699,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 574_867 nanoseconds.
-        Weight::from_ref_time(587_172_863)
+        Weight::from_parts(587_172_863, 0)
             // Standard Error: 954
-            .saturating_add(Weight::from_ref_time(121_260).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(121_260, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_push_input(r: u32, ) -> Weight {
@@ -709,9 +709,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 4_153_438 nanoseconds.
-        Weight::from_ref_time(4_303_178_639)
+        Weight::from_parts(4_303_178_639, 0)
             // Standard Error: 265_183
-            .saturating_add(Weight::from_ref_time(192_266_698).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(192_266_698, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_send_push_input_per_kb(n: u32, ) -> Weight {
@@ -719,9 +719,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 939_474 nanoseconds.
-        Weight::from_ref_time(836_256_075)
+        Weight::from_parts(836_256_075, 0)
             // Standard Error: 10_783
-            .saturating_add(Weight::from_ref_time(12_584_153).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(12_584_153, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_debug(r: u32, ) -> Weight {
@@ -729,9 +729,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_912 nanoseconds.
-        Weight::from_ref_time(107_702_879)
+        Weight::from_parts(107_702_879, 0)
             // Standard Error: 316_515
-            .saturating_add(Weight::from_ref_time(187_518_617).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(187_518_617, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_debug_per_kb(n: u32, ) -> Weight {
@@ -739,9 +739,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 260_251 nanoseconds.
-        Weight::from_ref_time(265_607_000)
+        Weight::from_parts(265_607_000, 0)
             // Standard Error: 47_176
-            .saturating_add(Weight::from_ref_time(25_735_678).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(25_735_678, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_error(r: u32, ) -> Weight {
@@ -749,9 +749,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 96_526 nanoseconds.
-        Weight::from_ref_time(103_383_863)
+        Weight::from_parts(103_383_863, 0)
             // Standard Error: 281_743
-            .saturating_add(Weight::from_ref_time(229_630_385).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(229_630_385, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_status_code(r: u32, ) -> Weight {
@@ -759,9 +759,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 83_646 nanoseconds.
-        Weight::from_ref_time(77_387_247)
+        Weight::from_parts(77_387_247, 0)
             // Standard Error: 240_622
-            .saturating_add(Weight::from_ref_time(177_210_179).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(177_210_179, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_exit(r: u32, ) -> Weight {
@@ -769,9 +769,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_732 nanoseconds.
-        Weight::from_ref_time(86_746_559)
+        Weight::from_parts(86_746_559, 0)
             // Standard Error: 276_411
-            .saturating_add(Weight::from_ref_time(24_364_740).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(24_364_740, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_leave(r: u32, ) -> Weight {
@@ -779,9 +779,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_768 nanoseconds.
-        Weight::from_ref_time(86_254_018)
+        Weight::from_parts(86_254_018, 0)
             // Standard Error: 270_944
-            .saturating_add(Weight::from_ref_time(13_674_081).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(13_674_081, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_wait(r: u32, ) -> Weight {
@@ -789,9 +789,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_973 nanoseconds.
-        Weight::from_ref_time(86_357_653)
+        Weight::from_parts(86_357_653, 0)
             // Standard Error: 275_003
-            .saturating_add(Weight::from_ref_time(14_931_046).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(14_931_046, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_wait_for(r: u32, ) -> Weight {
@@ -799,9 +799,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_826 nanoseconds.
-        Weight::from_ref_time(86_467_016)
+        Weight::from_parts(86_467_016, 0)
             // Standard Error: 264_613
-            .saturating_add(Weight::from_ref_time(14_260_583).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(14_260_583, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_wait_up_to(r: u32, ) -> Weight {
@@ -809,9 +809,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_605 nanoseconds.
-        Weight::from_ref_time(86_532_340)
+        Weight::from_parts(86_532_340, 0)
             // Standard Error: 278_759
-            .saturating_add(Weight::from_ref_time(14_028_659).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(14_028_659, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_wake(r: u32, ) -> Weight {
@@ -819,9 +819,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 132_543 nanoseconds.
-        Weight::from_ref_time(192_378_038)
+        Weight::from_parts(192_378_038, 0)
             // Standard Error: 249_057
-            .saturating_add(Weight::from_ref_time(254_777_085).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(254_777_085, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_create_program_wgas(r: u32, ) -> Weight {
@@ -829,9 +829,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 92_114 nanoseconds.
-        Weight::from_ref_time(156_606_434)
+        Weight::from_parts(156_606_434, 0)
             // Standard Error: 295_787
-            .saturating_add(Weight::from_ref_time(425_470_652).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(425_470_652, 0).saturating_mul(r.into()))
     }
     /// The range of component `p` is `[0, 2048]`.
     /// The range of component `s` is `[1, 2048]`.
@@ -840,11 +840,11 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 43_256_334 nanoseconds.
-        Weight::from_ref_time(43_465_935_000)
+        Weight::from_parts(43_465_935_000, 0)
             // Standard Error: 263_063
-            .saturating_add(Weight::from_ref_time(7_902_649).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(7_902_649, 0).saturating_mul(p.into()))
             // Standard Error: 263_050
-            .saturating_add(Weight::from_ref_time(152_656_694).saturating_mul(s.into()))
+            .saturating_add(Weight::from_parts(152_656_694, 0).saturating_mul(s.into()))
     }
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_signal_read(p: u32, ) -> Weight {
@@ -854,9 +854,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 81_807 nanoseconds.
         Weight::from_parts(121_821_266, 141)
             // Standard Error: 7_125
-            .saturating_add(Weight::from_ref_time(11_656_827).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(11_656_827, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9900).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9900).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_signal_write(p: u32, ) -> Weight {
@@ -866,9 +866,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 83_262 nanoseconds.
         Weight::from_parts(84_399_000, 141)
             // Standard Error: 36_484
-            .saturating_add(Weight::from_ref_time(34_711_742).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(34_711_742, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9900).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9900).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_signal_write_after_read(p: u32, ) -> Weight {
@@ -878,7 +878,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 6_028_492 nanoseconds.
         Weight::from_parts(5_810_695_816, 5068941)
             // Standard Error: 54_356
-            .saturating_add(Weight::from_ref_time(36_889_507).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(36_889_507, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads(2048_u64))
     }
     /// The range of component `p` is `[0, 512]`.
@@ -889,9 +889,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 84_317 nanoseconds.
         Weight::from_parts(85_299_000, 949)
             // Standard Error: 33_523
-            .saturating_add(Weight::from_ref_time(43_951_462).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(43_951_462, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(75606).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 75606).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 32]`.
     fn lazy_pages_host_func_read(p: u32, ) -> Weight {
@@ -901,9 +901,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 95_734 nanoseconds.
         Weight::from_parts(99_957_245, 506)
             // Standard Error: 59_825
-            .saturating_add(Weight::from_ref_time(35_208_171).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(35_208_171, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9883).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9883).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 32]`.
     fn lazy_pages_host_func_write(p: u32, ) -> Weight {
@@ -913,9 +913,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 586_697 nanoseconds.
         Weight::from_parts(579_394_810, 506)
             // Standard Error: 182_196
-            .saturating_add(Weight::from_ref_time(42_500_948).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(42_500_948, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9883).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9883).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 32]`.
     fn lazy_pages_host_func_write_after_read(p: u32, ) -> Weight {
@@ -925,7 +925,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 983_916 nanoseconds.
         Weight::from_parts(1_010_515_733, 316941)
             // Standard Error: 143_944
-            .saturating_add(Weight::from_ref_time(42_508_767).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(42_508_767, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads(128_u64))
     }
     /// The range of component `r` is `[50, 500]`.
@@ -934,9 +934,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 4_226_275 nanoseconds.
-        Weight::from_ref_time(4_225_648_608)
+        Weight::from_parts(4_225_648_608, 0)
             // Standard Error: 10_161
-            .saturating_add(Weight::from_ref_time(3_355_980).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_355_980, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[50, 500]`.
     fn instr_i32load(r: u32, ) -> Weight {
@@ -944,9 +944,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 4_228_938 nanoseconds.
-        Weight::from_ref_time(4_228_073_783)
+        Weight::from_parts(4_228_073_783, 0)
             // Standard Error: 10_035
-            .saturating_add(Weight::from_ref_time(3_370_264).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_370_264, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[50, 500]`.
     fn instr_i64store(r: u32, ) -> Weight {
@@ -954,9 +954,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 9_719_113 nanoseconds.
-        Weight::from_ref_time(9_865_862_677)
+        Weight::from_parts(9_865_862_677, 0)
             // Standard Error: 186_470
-            .saturating_add(Weight::from_ref_time(16_510_034).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(16_510_034, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[50, 500]`.
     fn instr_i32store(r: u32, ) -> Weight {
@@ -964,9 +964,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 9_539_429 nanoseconds.
-        Weight::from_ref_time(8_971_089_150)
+        Weight::from_parts(8_971_089_150, 0)
             // Standard Error: 149_624
-            .saturating_add(Weight::from_ref_time(16_140_559).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(16_140_559, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_select(r: u32, ) -> Weight {
@@ -974,9 +974,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_017 nanoseconds.
-        Weight::from_ref_time(2_162_000)
+        Weight::from_parts(2_162_000, 0)
             // Standard Error: 8_150
-            .saturating_add(Weight::from_ref_time(3_810_640).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_810_640, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_if(r: u32, ) -> Weight {
@@ -984,9 +984,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_005 nanoseconds.
-        Weight::from_ref_time(2_091_000)
+        Weight::from_parts(2_091_000, 0)
             // Standard Error: 7_804
-            .saturating_add(Weight::from_ref_time(3_085_440).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_085_440, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_br(r: u32, ) -> Weight {
@@ -994,9 +994,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_948 nanoseconds.
-        Weight::from_ref_time(3_039_323)
+        Weight::from_parts(3_039_323, 0)
             // Standard Error: 916
-            .saturating_add(Weight::from_ref_time(1_573_630).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_573_630, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_br_if(r: u32, ) -> Weight {
@@ -1004,9 +1004,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_945 nanoseconds.
-        Weight::from_ref_time(2_017_000)
+        Weight::from_parts(2_017_000, 0)
             // Standard Error: 9_300
-            .saturating_add(Weight::from_ref_time(2_940_862).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_940_862, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_br_table(r: u32, ) -> Weight {
@@ -1014,9 +1014,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_039 nanoseconds.
-        Weight::from_ref_time(7_505_360)
+        Weight::from_parts(7_505_360, 0)
             // Standard Error: 27_099
-            .saturating_add(Weight::from_ref_time(4_937_410).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(4_937_410, 0).saturating_mul(r.into()))
     }
     /// The range of component `e` is `[1, 256]`.
     fn instr_br_table_per_entry(e: u32, ) -> Weight {
@@ -1024,9 +1024,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 6_690 nanoseconds.
-        Weight::from_ref_time(4_745_487)
+        Weight::from_parts(4_745_487, 0)
             // Standard Error: 1_598
-            .saturating_add(Weight::from_ref_time(190_014).saturating_mul(e.into()))
+            .saturating_add(Weight::from_parts(190_014, 0).saturating_mul(e.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_call_const(r: u32, ) -> Weight {
@@ -1034,14 +1034,14 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_128 nanoseconds.
-        Weight::from_ref_time(5_580_087)
+        Weight::from_parts(5_580_087, 0)
             // Standard Error: 8_909
-            .saturating_add(Weight::from_ref_time(2_581_842).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_581_842, 0).saturating_mul(r.into()))
     }
     fn instr_i64const(r: u32, ) -> Weight {
-        Weight::from_ref_time(0)
-            .saturating_add(Weight::from_ref_time(2_581_842 -
-            2_429_530).saturating_mul(r.into()))
+        Weight::from_parts(0, 0)
+            .saturating_add(Weight::from_parts(2_581_842 -
+            2_429_530, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_call(r: u32, ) -> Weight {
@@ -1049,9 +1049,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_108 nanoseconds.
-        Weight::from_ref_time(5_054_933)
+        Weight::from_parts(5_054_933, 0)
             // Standard Error: 12_863
-            .saturating_add(Weight::from_ref_time(2_429_530).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_429_530, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_call_indirect(r: u32, ) -> Weight {
@@ -1059,9 +1059,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_370 nanoseconds.
-        Weight::from_ref_time(18_616_562)
+        Weight::from_parts(18_616_562, 0)
             // Standard Error: 29_254
-            .saturating_add(Weight::from_ref_time(10_375_535).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(10_375_535, 0).saturating_mul(r.into()))
     }
     /// The range of component `p` is `[0, 128]`.
     fn instr_call_indirect_per_param(p: u32, ) -> Weight {
@@ -1069,9 +1069,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 12_168 nanoseconds.
-        Weight::from_ref_time(3_775_924)
+        Weight::from_parts(3_775_924, 0)
             // Standard Error: 6_558
-            .saturating_add(Weight::from_ref_time(1_321_364).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(1_321_364, 0).saturating_mul(p.into()))
     }
     /// The range of component `l` is `[0, 1024]`.
     fn instr_call_per_local(l: u32, ) -> Weight {
@@ -1079,9 +1079,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 5_006 nanoseconds.
-        Weight::from_ref_time(5_256_467)
+        Weight::from_parts(5_256_467, 0)
             // Standard Error: 12
-            .saturating_add(Weight::from_ref_time(57).saturating_mul(l.into()))
+            .saturating_add(Weight::from_parts(57, 0).saturating_mul(l.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_local_get(r: u32, ) -> Weight {
@@ -1089,9 +1089,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_019 nanoseconds.
-        Weight::from_ref_time(1_408_120)
+        Weight::from_parts(1_408_120, 0)
             // Standard Error: 3_519
-            .saturating_add(Weight::from_ref_time(298_892).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(298_892, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_local_set(r: u32, ) -> Weight {
@@ -1099,9 +1099,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_058 nanoseconds.
-        Weight::from_ref_time(2_092_000)
+        Weight::from_parts(2_092_000, 0)
             // Standard Error: 7_004
-            .saturating_add(Weight::from_ref_time(892_803).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(892_803, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_local_tee(r: u32, ) -> Weight {
@@ -1109,9 +1109,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_976 nanoseconds.
-        Weight::from_ref_time(2_078_000)
+        Weight::from_parts(2_078_000, 0)
             // Standard Error: 6_769
-            .saturating_add(Weight::from_ref_time(930_108).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(930_108, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_global_get(r: u32, ) -> Weight {
@@ -1119,9 +1119,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 5_803 nanoseconds.
-        Weight::from_ref_time(1_190_711)
+        Weight::from_parts(1_190_711, 0)
             // Standard Error: 9_230
-            .saturating_add(Weight::from_ref_time(936_198).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(936_198, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_global_set(r: u32, ) -> Weight {
@@ -1129,9 +1129,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 5_683 nanoseconds.
-        Weight::from_ref_time(5_732_000)
+        Weight::from_parts(5_732_000, 0)
             // Standard Error: 8_615
-            .saturating_add(Weight::from_ref_time(1_560_589).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_560_589, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_memory_current(r: u32, ) -> Weight {
@@ -1139,9 +1139,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 6_114 nanoseconds.
-        Weight::from_ref_time(2_722_110)
+        Weight::from_parts(2_722_110, 0)
             // Standard Error: 11_589
-            .saturating_add(Weight::from_ref_time(7_043_740).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(7_043_740, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64clz(r: u32, ) -> Weight {
@@ -1149,9 +1149,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_052 nanoseconds.
-        Weight::from_ref_time(2_116_000)
+        Weight::from_parts(2_116_000, 0)
             // Standard Error: 6_212
-            .saturating_add(Weight::from_ref_time(3_598_868).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_598_868, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32clz(r: u32, ) -> Weight {
@@ -1159,9 +1159,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_998 nanoseconds.
-        Weight::from_ref_time(2_072_000)
+        Weight::from_parts(2_072_000, 0)
             // Standard Error: 5_918
-            .saturating_add(Weight::from_ref_time(3_311_778).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_311_778, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64ctz(r: u32, ) -> Weight {
@@ -1169,9 +1169,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_050 nanoseconds.
-        Weight::from_ref_time(2_099_000)
+        Weight::from_parts(2_099_000, 0)
             // Standard Error: 5_716
-            .saturating_add(Weight::from_ref_time(3_268_202).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_268_202, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32ctz(r: u32, ) -> Weight {
@@ -1179,9 +1179,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_011 nanoseconds.
-        Weight::from_ref_time(2_050_000)
+        Weight::from_parts(2_050_000, 0)
             // Standard Error: 5_135
-            .saturating_add(Weight::from_ref_time(2_811_963).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_811_963, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64popcnt(r: u32, ) -> Weight {
@@ -1189,9 +1189,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_009 nanoseconds.
-        Weight::from_ref_time(2_124_000)
+        Weight::from_parts(2_124_000, 0)
             // Standard Error: 3_335
-            .saturating_add(Weight::from_ref_time(599_710).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(599_710, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32popcnt(r: u32, ) -> Weight {
@@ -1199,9 +1199,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_989 nanoseconds.
-        Weight::from_ref_time(1_302_632)
+        Weight::from_parts(1_302_632, 0)
             // Standard Error: 3_398
-            .saturating_add(Weight::from_ref_time(415_577).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(415_577, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64eqz(r: u32, ) -> Weight {
@@ -1209,9 +1209,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_982 nanoseconds.
-        Weight::from_ref_time(2_046_000)
+        Weight::from_parts(2_046_000, 0)
             // Standard Error: 12_618
-            .saturating_add(Weight::from_ref_time(1_899_867).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_899_867, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32eqz(r: u32, ) -> Weight {
@@ -1219,9 +1219,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_965 nanoseconds.
-        Weight::from_ref_time(2_013_000)
+        Weight::from_parts(2_013_000, 0)
             // Standard Error: 8_787
-            .saturating_add(Weight::from_ref_time(1_153_841).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_153_841, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64extendsi32(r: u32, ) -> Weight {
@@ -1229,9 +1229,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_995 nanoseconds.
-        Weight::from_ref_time(1_453_796)
+        Weight::from_parts(1_453_796, 0)
             // Standard Error: 3_114
-            .saturating_add(Weight::from_ref_time(327_471).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(327_471, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64extendui32(r: u32, ) -> Weight {
@@ -1239,9 +1239,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_999 nanoseconds.
-        Weight::from_ref_time(2_357_081)
+        Weight::from_parts(2_357_081, 0)
             // Standard Error: 2_303
-            .saturating_add(Weight::from_ref_time(189_759).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(189_759, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32wrapi64(r: u32, ) -> Weight {
@@ -1249,9 +1249,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_943 nanoseconds.
-        Weight::from_ref_time(2_328_805)
+        Weight::from_parts(2_328_805, 0)
             // Standard Error: 1_980
-            .saturating_add(Weight::from_ref_time(196_714).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(196_714, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64eq(r: u32, ) -> Weight {
@@ -1259,9 +1259,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_016 nanoseconds.
-        Weight::from_ref_time(2_044_000)
+        Weight::from_parts(2_044_000, 0)
             // Standard Error: 12_976
-            .saturating_add(Weight::from_ref_time(1_999_087).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_999_087, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32eq(r: u32, ) -> Weight {
@@ -1269,9 +1269,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_010 nanoseconds.
-        Weight::from_ref_time(2_050_000)
+        Weight::from_parts(2_050_000, 0)
             // Standard Error: 8_186
-            .saturating_add(Weight::from_ref_time(1_216_597).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_216_597, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64ne(r: u32, ) -> Weight {
@@ -1279,9 +1279,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_018 nanoseconds.
-        Weight::from_ref_time(2_085_000)
+        Weight::from_parts(2_085_000, 0)
             // Standard Error: 11_416
-            .saturating_add(Weight::from_ref_time(1_983_732).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_983_732, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32ne(r: u32, ) -> Weight {
@@ -1289,9 +1289,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_976 nanoseconds.
-        Weight::from_ref_time(2_051_000)
+        Weight::from_parts(2_051_000, 0)
             // Standard Error: 8_062
-            .saturating_add(Weight::from_ref_time(1_242_110).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_242_110, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64lts(r: u32, ) -> Weight {
@@ -1299,9 +1299,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_998 nanoseconds.
-        Weight::from_ref_time(2_044_000)
+        Weight::from_parts(2_044_000, 0)
             // Standard Error: 10_495
-            .saturating_add(Weight::from_ref_time(1_932_653).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_932_653, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32lts(r: u32, ) -> Weight {
@@ -1309,9 +1309,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_043 nanoseconds.
-        Weight::from_ref_time(2_081_000)
+        Weight::from_parts(2_081_000, 0)
             // Standard Error: 7_512
-            .saturating_add(Weight::from_ref_time(1_186_900).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_186_900, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64ltu(r: u32, ) -> Weight {
@@ -1319,9 +1319,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_026 nanoseconds.
-        Weight::from_ref_time(2_083_000)
+        Weight::from_parts(2_083_000, 0)
             // Standard Error: 10_425
-            .saturating_add(Weight::from_ref_time(1_898_222).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_898_222, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32ltu(r: u32, ) -> Weight {
@@ -1329,9 +1329,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_010 nanoseconds.
-        Weight::from_ref_time(2_117_000)
+        Weight::from_parts(2_117_000, 0)
             // Standard Error: 6_972
-            .saturating_add(Weight::from_ref_time(1_160_775).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_160_775, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64gts(r: u32, ) -> Weight {
@@ -1339,9 +1339,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_990 nanoseconds.
-        Weight::from_ref_time(2_047_000)
+        Weight::from_parts(2_047_000, 0)
             // Standard Error: 12_802
-            .saturating_add(Weight::from_ref_time(1_934_073).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_934_073, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32gts(r: u32, ) -> Weight {
@@ -1349,9 +1349,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_994 nanoseconds.
-        Weight::from_ref_time(2_051_000)
+        Weight::from_parts(2_051_000, 0)
             // Standard Error: 8_950
-            .saturating_add(Weight::from_ref_time(1_150_032).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_150_032, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64gtu(r: u32, ) -> Weight {
@@ -1359,9 +1359,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_033 nanoseconds.
-        Weight::from_ref_time(2_064_000)
+        Weight::from_parts(2_064_000, 0)
             // Standard Error: 10_982
-            .saturating_add(Weight::from_ref_time(1_860_562).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_860_562, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32gtu(r: u32, ) -> Weight {
@@ -1369,9 +1369,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_952 nanoseconds.
-        Weight::from_ref_time(2_017_000)
+        Weight::from_parts(2_017_000, 0)
             // Standard Error: 7_830
-            .saturating_add(Weight::from_ref_time(1_142_371).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_142_371, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64les(r: u32, ) -> Weight {
@@ -1379,9 +1379,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_967 nanoseconds.
-        Weight::from_ref_time(2_043_000)
+        Weight::from_parts(2_043_000, 0)
             // Standard Error: 13_663
-            .saturating_add(Weight::from_ref_time(1_916_603).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_916_603, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32les(r: u32, ) -> Weight {
@@ -1389,9 +1389,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_997 nanoseconds.
-        Weight::from_ref_time(2_106_000)
+        Weight::from_parts(2_106_000, 0)
             // Standard Error: 8_319
-            .saturating_add(Weight::from_ref_time(1_134_347).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_134_347, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64leu(r: u32, ) -> Weight {
@@ -1399,9 +1399,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_023 nanoseconds.
-        Weight::from_ref_time(2_081_000)
+        Weight::from_parts(2_081_000, 0)
             // Standard Error: 11_442
-            .saturating_add(Weight::from_ref_time(1_911_437).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_911_437, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32leu(r: u32, ) -> Weight {
@@ -1409,9 +1409,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_057 nanoseconds.
-        Weight::from_ref_time(2_094_000)
+        Weight::from_parts(2_094_000, 0)
             // Standard Error: 9_220
-            .saturating_add(Weight::from_ref_time(1_180_260).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_180_260, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64ges(r: u32, ) -> Weight {
@@ -1419,9 +1419,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_975 nanoseconds.
-        Weight::from_ref_time(2_048_000)
+        Weight::from_parts(2_048_000, 0)
             // Standard Error: 12_117
-            .saturating_add(Weight::from_ref_time(1_976_120).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_976_120, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32ges(r: u32, ) -> Weight {
@@ -1429,9 +1429,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_928 nanoseconds.
-        Weight::from_ref_time(2_011_000)
+        Weight::from_parts(2_011_000, 0)
             // Standard Error: 6_776
-            .saturating_add(Weight::from_ref_time(1_194_751).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_194_751, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64geu(r: u32, ) -> Weight {
@@ -1439,9 +1439,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_004 nanoseconds.
-        Weight::from_ref_time(2_045_000)
+        Weight::from_parts(2_045_000, 0)
             // Standard Error: 10_428
-            .saturating_add(Weight::from_ref_time(1_856_349).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_856_349, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32geu(r: u32, ) -> Weight {
@@ -1449,9 +1449,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_992 nanoseconds.
-        Weight::from_ref_time(2_064_000)
+        Weight::from_parts(2_064_000, 0)
             // Standard Error: 7_849
-            .saturating_add(Weight::from_ref_time(1_153_509).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_153_509, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64add(r: u32, ) -> Weight {
@@ -1459,9 +1459,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_956 nanoseconds.
-        Weight::from_ref_time(2_030_000)
+        Weight::from_parts(2_030_000, 0)
             // Standard Error: 8_433
-            .saturating_add(Weight::from_ref_time(1_268_864).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_268_864, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32add(r: u32, ) -> Weight {
@@ -1469,9 +1469,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_947 nanoseconds.
-        Weight::from_ref_time(2_018_000)
+        Weight::from_parts(2_018_000, 0)
             // Standard Error: 4_547
-            .saturating_add(Weight::from_ref_time(645_032).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(645_032, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64sub(r: u32, ) -> Weight {
@@ -1479,9 +1479,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_032 nanoseconds.
-        Weight::from_ref_time(2_064_000)
+        Weight::from_parts(2_064_000, 0)
             // Standard Error: 8_005
-            .saturating_add(Weight::from_ref_time(1_289_651).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_289_651, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32sub(r: u32, ) -> Weight {
@@ -1489,9 +1489,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_986 nanoseconds.
-        Weight::from_ref_time(2_028_000)
+        Weight::from_parts(2_028_000, 0)
             // Standard Error: 5_600
-            .saturating_add(Weight::from_ref_time(678_797).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(678_797, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64mul(r: u32, ) -> Weight {
@@ -1499,9 +1499,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_994 nanoseconds.
-        Weight::from_ref_time(2_039_000)
+        Weight::from_parts(2_039_000, 0)
             // Standard Error: 10_526
-            .saturating_add(Weight::from_ref_time(1_973_986).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_973_986, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32mul(r: u32, ) -> Weight {
@@ -1509,9 +1509,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_984 nanoseconds.
-        Weight::from_ref_time(2_043_000)
+        Weight::from_parts(2_043_000, 0)
             // Standard Error: 7_034
-            .saturating_add(Weight::from_ref_time(1_215_647).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_215_647, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64divs(r: u32, ) -> Weight {
@@ -1519,9 +1519,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_988 nanoseconds.
-        Weight::from_ref_time(2_050_000)
+        Weight::from_parts(2_050_000, 0)
             // Standard Error: 7_212
-            .saturating_add(Weight::from_ref_time(2_771_771).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_771_771, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32divs(r: u32, ) -> Weight {
@@ -1529,9 +1529,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_981 nanoseconds.
-        Weight::from_ref_time(2_076_000)
+        Weight::from_parts(2_076_000, 0)
             // Standard Error: 7_088
-            .saturating_add(Weight::from_ref_time(2_419_686).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_419_686, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64divu(r: u32, ) -> Weight {
@@ -1539,9 +1539,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_036 nanoseconds.
-        Weight::from_ref_time(2_083_000)
+        Weight::from_parts(2_083_000, 0)
             // Standard Error: 9_570
-            .saturating_add(Weight::from_ref_time(2_981_619).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_981_619, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32divu(r: u32, ) -> Weight {
@@ -1549,9 +1549,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_027 nanoseconds.
-        Weight::from_ref_time(191_713)
+        Weight::from_parts(191_713, 0)
             // Standard Error: 16_475
-            .saturating_add(Weight::from_ref_time(2_611_675).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_611_675, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64rems(r: u32, ) -> Weight {
@@ -1559,9 +1559,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_028 nanoseconds.
-        Weight::from_ref_time(2_100_000)
+        Weight::from_parts(2_100_000, 0)
             // Standard Error: 13_977
-            .saturating_add(Weight::from_ref_time(9_909_370).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(9_909_370, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32rems(r: u32, ) -> Weight {
@@ -1569,9 +1569,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_980 nanoseconds.
-        Weight::from_ref_time(2_054_000)
+        Weight::from_parts(2_054_000, 0)
             // Standard Error: 26_367
-            .saturating_add(Weight::from_ref_time(7_874_905).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(7_874_905, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64remu(r: u32, ) -> Weight {
@@ -1579,9 +1579,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_997 nanoseconds.
-        Weight::from_ref_time(2_043_000)
+        Weight::from_parts(2_043_000, 0)
             // Standard Error: 9_661
-            .saturating_add(Weight::from_ref_time(3_029_452).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_029_452, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32remu(r: u32, ) -> Weight {
@@ -1589,9 +1589,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_040 nanoseconds.
-        Weight::from_ref_time(2_145_000)
+        Weight::from_parts(2_145_000, 0)
             // Standard Error: 12_480
-            .saturating_add(Weight::from_ref_time(2_537_714).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_537_714, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64and(r: u32, ) -> Weight {
@@ -1599,9 +1599,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_991 nanoseconds.
-        Weight::from_ref_time(2_043_000)
+        Weight::from_parts(2_043_000, 0)
             // Standard Error: 8_986
-            .saturating_add(Weight::from_ref_time(1_297_956).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_297_956, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32and(r: u32, ) -> Weight {
@@ -1609,9 +1609,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_917 nanoseconds.
-        Weight::from_ref_time(1_991_000)
+        Weight::from_parts(1_991_000, 0)
             // Standard Error: 4_526
-            .saturating_add(Weight::from_ref_time(662_435).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(662_435, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64or(r: u32, ) -> Weight {
@@ -1619,9 +1619,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_021 nanoseconds.
-        Weight::from_ref_time(2_069_000)
+        Weight::from_parts(2_069_000, 0)
             // Standard Error: 8_324
-            .saturating_add(Weight::from_ref_time(1_327_872).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_327_872, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32or(r: u32, ) -> Weight {
@@ -1629,9 +1629,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_026 nanoseconds.
-        Weight::from_ref_time(2_070_000)
+        Weight::from_parts(2_070_000, 0)
             // Standard Error: 4_898
-            .saturating_add(Weight::from_ref_time(684_578).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(684_578, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64xor(r: u32, ) -> Weight {
@@ -1639,9 +1639,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_989 nanoseconds.
-        Weight::from_ref_time(2_057_000)
+        Weight::from_parts(2_057_000, 0)
             // Standard Error: 9_116
-            .saturating_add(Weight::from_ref_time(1_341_076).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_341_076, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32xor(r: u32, ) -> Weight {
@@ -1649,9 +1649,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_960 nanoseconds.
-        Weight::from_ref_time(2_004_000)
+        Weight::from_parts(2_004_000, 0)
             // Standard Error: 5_064
-            .saturating_add(Weight::from_ref_time(664_619).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(664_619, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64shl(r: u32, ) -> Weight {
@@ -1659,9 +1659,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_024 nanoseconds.
-        Weight::from_ref_time(2_072_000)
+        Weight::from_parts(2_072_000, 0)
             // Standard Error: 7_079
-            .saturating_add(Weight::from_ref_time(1_109_813).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_109_813, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32shl(r: u32, ) -> Weight {
@@ -1669,9 +1669,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_022 nanoseconds.
-        Weight::from_ref_time(2_110_000)
+        Weight::from_parts(2_110_000, 0)
             // Standard Error: 4_499
-            .saturating_add(Weight::from_ref_time(596_565).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(596_565, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64shrs(r: u32, ) -> Weight {
@@ -1679,9 +1679,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_945 nanoseconds.
-        Weight::from_ref_time(2_043_000)
+        Weight::from_parts(2_043_000, 0)
             // Standard Error: 7_388
-            .saturating_add(Weight::from_ref_time(1_102_019).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_102_019, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32shrs(r: u32, ) -> Weight {
@@ -1689,9 +1689,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_053 nanoseconds.
-        Weight::from_ref_time(2_103_000)
+        Weight::from_parts(2_103_000, 0)
             // Standard Error: 4_340
-            .saturating_add(Weight::from_ref_time(589_998).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(589_998, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64shru(r: u32, ) -> Weight {
@@ -1699,9 +1699,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_017 nanoseconds.
-        Weight::from_ref_time(2_099_000)
+        Weight::from_parts(2_099_000, 0)
             // Standard Error: 7_859
-            .saturating_add(Weight::from_ref_time(1_089_304).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_089_304, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32shru(r: u32, ) -> Weight {
@@ -1709,9 +1709,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_034 nanoseconds.
-        Weight::from_ref_time(2_083_000)
+        Weight::from_parts(2_083_000, 0)
             // Standard Error: 4_304
-            .saturating_add(Weight::from_ref_time(598_598).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(598_598, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64rotl(r: u32, ) -> Weight {
@@ -1719,9 +1719,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_023 nanoseconds.
-        Weight::from_ref_time(2_097_000)
+        Weight::from_parts(2_097_000, 0)
             // Standard Error: 7_539
-            .saturating_add(Weight::from_ref_time(1_121_707).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_121_707, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32rotl(r: u32, ) -> Weight {
@@ -1729,9 +1729,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_063 nanoseconds.
-        Weight::from_ref_time(2_117_000)
+        Weight::from_parts(2_117_000, 0)
             // Standard Error: 4_365
-            .saturating_add(Weight::from_ref_time(566_368).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(566_368, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64rotr(r: u32, ) -> Weight {
@@ -1739,9 +1739,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_995 nanoseconds.
-        Weight::from_ref_time(2_062_000)
+        Weight::from_parts(2_062_000, 0)
             // Standard Error: 8_936
-            .saturating_add(Weight::from_ref_time(1_092_338).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_092_338, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32rotr(r: u32, ) -> Weight {
@@ -1749,9 +1749,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_039 nanoseconds.
-        Weight::from_ref_time(2_094_000)
+        Weight::from_parts(2_094_000, 0)
             // Standard Error: 4_196
-            .saturating_add(Weight::from_ref_time(603_336).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(603_336, 0).saturating_mul(r.into()))
     }
 }
 
@@ -1777,9 +1777,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 761 nanoseconds.
-        Weight::from_ref_time(794_000)
+        Weight::from_parts(794_000, 0)
             // Standard Error: 960
-            .saturating_add(Weight::from_ref_time(212_224).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(212_224, 0).saturating_mul(c.into()))
             .saturating_add(RocksDbWeight::get().writes(1_u64))
     }
     /// The range of component `c` is `[0, 512]`.
@@ -1790,9 +1790,9 @@ impl WeightInfo for () {
         // Minimum execution time: 3_067 nanoseconds.
         Weight::from_parts(3_132_000, 2617)
             // Standard Error: 2_641
-            .saturating_add(Weight::from_ref_time(696_372).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(696_372, 0).saturating_mul(c.into()))
             .saturating_add(RocksDbWeight::get().reads(1_u64))
-            .saturating_add(Weight::from_proof_size(1024).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(0, 1024).saturating_mul(c.into()))
     }
     /// The range of component `c` is `[0, 512]`.
     fn instantiate_module_per_kb(c: u32, ) -> Weight {
@@ -1800,9 +1800,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 48_163 nanoseconds.
-        Weight::from_ref_time(102_637_811)
+        Weight::from_parts(102_637_811, 0)
             // Standard Error: 7_418
-            .saturating_add(Weight::from_ref_time(2_284_334).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(2_284_334, 0).saturating_mul(c.into()))
     }
     fn claim_value() -> Weight {
         // Proof Size summary in bytes:
@@ -1821,7 +1821,7 @@ impl WeightInfo for () {
         // Minimum execution time: 57_788 nanoseconds.
         Weight::from_parts(31_642_282, 3290)
             // Standard Error: 47_873
-            .saturating_add(Weight::from_ref_time(53_067_634).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(53_067_634, 0).saturating_mul(c.into()))
             .saturating_add(RocksDbWeight::get().reads(2_u64))
             .saturating_add(RocksDbWeight::get().writes(4_u64))
     }
@@ -1833,7 +1833,7 @@ impl WeightInfo for () {
         // Minimum execution time: 47_046 nanoseconds.
         Weight::from_parts(65_865_510, 18282)
             // Standard Error: 0
-            .saturating_add(Weight::from_ref_time(2_272).saturating_mul(s.into()))
+            .saturating_add(Weight::from_parts(2_272, 0).saturating_mul(s.into()))
             .saturating_add(RocksDbWeight::get().reads(10_u64))
             .saturating_add(RocksDbWeight::get().writes(8_u64))
     }
@@ -1846,9 +1846,9 @@ impl WeightInfo for () {
         // Minimum execution time: 9_629_458 nanoseconds.
         Weight::from_parts(128_023_124, 14142)
             // Standard Error: 164_368
-            .saturating_add(Weight::from_ref_time(54_589_020).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(54_589_020, 0).saturating_mul(c.into()))
             // Standard Error: 9
-            .saturating_add(Weight::from_ref_time(2_268).saturating_mul(s.into()))
+            .saturating_add(Weight::from_parts(2_268, 0).saturating_mul(s.into()))
             .saturating_add(RocksDbWeight::get().reads(10_u64))
             .saturating_add(RocksDbWeight::get().writes(12_u64))
     }
@@ -1860,7 +1860,7 @@ impl WeightInfo for () {
         // Minimum execution time: 48_557 nanoseconds.
         Weight::from_parts(28_383_814, 14765)
             // Standard Error: 1
-            .saturating_add(Weight::from_ref_time(1_134).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(1_134, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads(9_u64))
             .saturating_add(RocksDbWeight::get().writes(8_u64))
     }
@@ -1872,7 +1872,7 @@ impl WeightInfo for () {
         // Minimum execution time: 72_760 nanoseconds.
         Weight::from_parts(61_055_469, 31447)
             // Standard Error: 1
-            .saturating_add(Weight::from_ref_time(1_145).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(1_145, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads(13_u64))
             .saturating_add(RocksDbWeight::get().writes(10_u64))
     }
@@ -1884,7 +1884,7 @@ impl WeightInfo for () {
         // Minimum execution time: 278_465 nanoseconds.
         Weight::from_parts(289_144_814, 49130)
             // Standard Error: 930
-            .saturating_add(Weight::from_ref_time(3_745).saturating_mul(q.into()))
+            .saturating_add(Weight::from_parts(3_745, 0).saturating_mul(q.into()))
             .saturating_add(RocksDbWeight::get().reads(26_u64))
             .saturating_add(RocksDbWeight::get().writes(22_u64))
     }
@@ -1896,7 +1896,7 @@ impl WeightInfo for () {
         // Minimum execution time: 289_940 nanoseconds.
         Weight::from_parts(301_064_878, 49018)
             // Standard Error: 1_069
-            .saturating_add(Weight::from_ref_time(4_413).saturating_mul(q.into()))
+            .saturating_add(Weight::from_parts(4_413, 0).saturating_mul(q.into()))
             .saturating_add(RocksDbWeight::get().reads(26_u64))
             .saturating_add(RocksDbWeight::get().writes(22_u64))
     }
@@ -1908,10 +1908,10 @@ impl WeightInfo for () {
         // Minimum execution time: 41_220 nanoseconds.
         Weight::from_parts(41_558_000, 2973)
             // Standard Error: 43_154
-            .saturating_add(Weight::from_ref_time(51_043_357).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(51_043_357, 0).saturating_mul(c.into()))
             .saturating_add(RocksDbWeight::get().reads(1_u64))
             .saturating_add(RocksDbWeight::get().writes(2_u64))
-            .saturating_add(Weight::from_proof_size(2150).saturating_mul(c.into()))
+            .saturating_add(Weight::from_parts(0, 2150).saturating_mul(c.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn alloc(r: u32, ) -> Weight {
@@ -1919,9 +1919,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 83_620 nanoseconds.
-        Weight::from_ref_time(85_723_324)
+        Weight::from_parts(85_723_324, 0)
             // Standard Error: 302_409
-            .saturating_add(Weight::from_ref_time(129_670_159).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(129_670_159, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn free(r: u32, ) -> Weight {
@@ -1929,9 +1929,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 198_883 nanoseconds.
-        Weight::from_ref_time(180_549_249)
+        Weight::from_parts(180_549_249, 0)
             // Standard Error: 279_283
-            .saturating_add(Weight::from_ref_time(127_604_915).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(127_604_915, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
@@ -1939,9 +1939,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 84_282 nanoseconds.
-        Weight::from_ref_time(85_230_381)
+        Weight::from_parts(85_230_381, 0)
             // Standard Error: 9_033
-            .saturating_add(Weight::from_ref_time(3_509_899).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_509_899, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_unreserve_gas(r: u32, ) -> Weight {
@@ -1949,9 +1949,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 131_615 nanoseconds.
-        Weight::from_ref_time(168_307_579)
+        Weight::from_parts(168_307_579, 0)
             // Standard Error: 20_410
-            .saturating_add(Weight::from_ref_time(3_513_779).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_513_779, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_system_reserve_gas(r: u32, ) -> Weight {
@@ -1959,9 +1959,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_244 nanoseconds.
-        Weight::from_ref_time(133_381_524)
+        Weight::from_parts(133_381_524, 0)
             // Standard Error: 364_215
-            .saturating_add(Weight::from_ref_time(175_263_065).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_263_065, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_message_id(r: u32, ) -> Weight {
@@ -1969,9 +1969,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 80_871 nanoseconds.
-        Weight::from_ref_time(83_728_178)
+        Weight::from_parts(83_728_178, 0)
             // Standard Error: 237_530
-            .saturating_add(Weight::from_ref_time(175_396_894).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_396_894, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_origin(r: u32, ) -> Weight {
@@ -1979,9 +1979,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_344 nanoseconds.
-        Weight::from_ref_time(80_814_311)
+        Weight::from_parts(80_814_311, 0)
             // Standard Error: 242_865
-            .saturating_add(Weight::from_ref_time(176_183_080).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(176_183_080, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_program_id(r: u32, ) -> Weight {
@@ -1989,9 +1989,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_550 nanoseconds.
-        Weight::from_ref_time(86_713_676)
+        Weight::from_parts(86_713_676, 0)
             // Standard Error: 238_659
-            .saturating_add(Weight::from_ref_time(174_365_605).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(174_365_605, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_source(r: u32, ) -> Weight {
@@ -1999,9 +1999,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_212 nanoseconds.
-        Weight::from_ref_time(81_118_155)
+        Weight::from_parts(81_118_155, 0)
             // Standard Error: 247_291
-            .saturating_add(Weight::from_ref_time(175_847_363).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_847_363, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_value(r: u32, ) -> Weight {
@@ -2009,9 +2009,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_148 nanoseconds.
-        Weight::from_ref_time(83_939_496)
+        Weight::from_parts(83_939_496, 0)
             // Standard Error: 280_041
-            .saturating_add(Weight::from_ref_time(175_400_021).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_400_021, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_value_available(r: u32, ) -> Weight {
@@ -2019,9 +2019,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_682 nanoseconds.
-        Weight::from_ref_time(85_424_687)
+        Weight::from_parts(85_424_687, 0)
             // Standard Error: 255_412
-            .saturating_add(Weight::from_ref_time(174_010_282).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(174_010_282, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_gas_available(r: u32, ) -> Weight {
@@ -2029,9 +2029,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 83_825 nanoseconds.
-        Weight::from_ref_time(86_478_699)
+        Weight::from_parts(86_478_699, 0)
             // Standard Error: 252_429
-            .saturating_add(Weight::from_ref_time(177_432_143).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(177_432_143, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_size(r: u32, ) -> Weight {
@@ -2039,9 +2039,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_170 nanoseconds.
-        Weight::from_ref_time(84_210_822)
+        Weight::from_parts(84_210_822, 0)
             // Standard Error: 251_283
-            .saturating_add(Weight::from_ref_time(180_568_190).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(180_568_190, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_read(r: u32, ) -> Weight {
@@ -2049,9 +2049,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 557_635 nanoseconds.
-        Weight::from_ref_time(634_644_194)
+        Weight::from_parts(634_644_194, 0)
             // Standard Error: 400_411
-            .saturating_add(Weight::from_ref_time(239_352_408).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(239_352_408, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_read_per_kb(n: u32, ) -> Weight {
@@ -2059,9 +2059,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 828_353 nanoseconds.
-        Weight::from_ref_time(837_715_000)
+        Weight::from_parts(837_715_000, 0)
             // Standard Error: 60_739
-            .saturating_add(Weight::from_ref_time(14_146_957).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(14_146_957, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_block_height(r: u32, ) -> Weight {
@@ -2069,9 +2069,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 83_842 nanoseconds.
-        Weight::from_ref_time(78_011_099)
+        Weight::from_parts(78_011_099, 0)
             // Standard Error: 304_537
-            .saturating_add(Weight::from_ref_time(174_648_210).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(174_648_210, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_block_timestamp(r: u32, ) -> Weight {
@@ -2079,9 +2079,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 83_383 nanoseconds.
-        Weight::from_ref_time(85_071_672)
+        Weight::from_parts(85_071_672, 0)
             // Standard Error: 277_230
-            .saturating_add(Weight::from_ref_time(175_739_698).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_739_698, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 20]`.
     fn gr_random(n: u32, ) -> Weight {
@@ -2089,9 +2089,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 83_759 nanoseconds.
-        Weight::from_ref_time(97_315_812)
+        Weight::from_parts(97_315_812, 0)
             // Standard Error: 238_252
-            .saturating_add(Weight::from_ref_time(238_074_206).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(238_074_206, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_init(r: u32, ) -> Weight {
@@ -2099,9 +2099,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 84_613 nanoseconds.
-        Weight::from_ref_time(73_884_051)
+        Weight::from_parts(73_884_051, 0)
             // Standard Error: 231_926
-            .saturating_add(Weight::from_ref_time(188_042_953).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(188_042_953, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_push(r: u32, ) -> Weight {
@@ -2109,9 +2109,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 3_706_952 nanoseconds.
-        Weight::from_ref_time(3_841_642_964)
+        Weight::from_parts(3_841_642_964, 0)
             // Standard Error: 288_960
-            .saturating_add(Weight::from_ref_time(247_877_210).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(247_877_210, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_send_push_per_kb(n: u32, ) -> Weight {
@@ -2119,9 +2119,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 520_139 nanoseconds.
-        Weight::from_ref_time(523_195_000)
+        Weight::from_parts(523_195_000, 0)
             // Standard Error: 61_816
-            .saturating_add(Weight::from_ref_time(29_665_714).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(29_665_714, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_commit(r: u32, ) -> Weight {
@@ -2129,9 +2129,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 84_478 nanoseconds.
-        Weight::from_ref_time(131_497_693)
+        Weight::from_parts(131_497_693, 0)
             // Standard Error: 299_463
-            .saturating_add(Weight::from_ref_time(352_624_503).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(352_624_503, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_send_commit_per_kb(n: u32, ) -> Weight {
@@ -2139,9 +2139,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 437_137 nanoseconds.
-        Weight::from_ref_time(440_652_000)
+        Weight::from_parts(440_652_000, 0)
             // Standard Error: 59_951
-            .saturating_add(Weight::from_ref_time(21_224_751).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(21_224_751, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reservation_send_commit(r: u32, ) -> Weight {
@@ -2149,9 +2149,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 242_701 nanoseconds.
-        Weight::from_ref_time(305_043_647)
+        Weight::from_parts(305_043_647, 0)
             // Standard Error: 244_718
-            .saturating_add(Weight::from_ref_time(369_921_323).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(369_921_323, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_reservation_send_commit_per_kb(n: u32, ) -> Weight {
@@ -2159,9 +2159,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 471_909 nanoseconds.
-        Weight::from_ref_time(481_316_000)
+        Weight::from_parts(481_316_000, 0)
             // Standard Error: 51_289
-            .saturating_add(Weight::from_ref_time(21_001_799).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(21_001_799, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_reply_commit(r: u32, ) -> Weight {
@@ -2169,9 +2169,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_287 nanoseconds.
-        Weight::from_ref_time(84_806_134)
+        Weight::from_parts(84_806_134, 0)
             // Standard Error: 250_891
-            .saturating_add(Weight::from_ref_time(17_607_365).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(17_607_365, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_reply_commit_per_kb(n: u32, ) -> Weight {
@@ -2179,9 +2179,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 100_681 nanoseconds.
-        Weight::from_ref_time(86_530_601)
+        Weight::from_parts(86_530_601, 0)
             // Standard Error: 774
-            .saturating_add(Weight::from_ref_time(423_018).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(423_018, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_push(r: u32, ) -> Weight {
@@ -2189,9 +2189,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_835 nanoseconds.
-        Weight::from_ref_time(137_479_664)
+        Weight::from_parts(137_479_664, 0)
             // Standard Error: 331_995
-            .saturating_add(Weight::from_ref_time(243_721_746).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(243_721_746, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 8192]`.
     fn gr_reply_push_per_kb(n: u32, ) -> Weight {
@@ -2199,9 +2199,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 97_910 nanoseconds.
-        Weight::from_ref_time(99_515_000)
+        Weight::from_parts(99_515_000, 0)
             // Standard Error: 2_501
-            .saturating_add(Weight::from_ref_time(605_467).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(605_467, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_reservation_reply_commit(r: u32, ) -> Weight {
@@ -2209,9 +2209,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 88_365 nanoseconds.
-        Weight::from_ref_time(91_586_508)
+        Weight::from_parts(91_586_508, 0)
             // Standard Error: 253_416
-            .saturating_add(Weight::from_ref_time(11_330_891).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(11_330_891, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_reservation_reply_commit_per_kb(n: u32, ) -> Weight {
@@ -2219,9 +2219,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 101_342 nanoseconds.
-        Weight::from_ref_time(86_985_218)
+        Weight::from_parts(86_985_218, 0)
             // Standard Error: 729
-            .saturating_add(Weight::from_ref_time(420_626).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(420_626, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_to(r: u32, ) -> Weight {
@@ -2229,9 +2229,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_176 nanoseconds.
-        Weight::from_ref_time(85_895_984)
+        Weight::from_parts(85_895_984, 0)
             // Standard Error: 315_843
-            .saturating_add(Weight::from_ref_time(175_959_029).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_959_029, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_signal_from(r: u32, ) -> Weight {
@@ -2239,9 +2239,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 84_180 nanoseconds.
-        Weight::from_ref_time(87_329_873)
+        Weight::from_parts(87_329_873, 0)
             // Standard Error: 255_146
-            .saturating_add(Weight::from_ref_time(175_210_834).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(175_210_834, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_push_input(r: u32, ) -> Weight {
@@ -2249,9 +2249,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 553_563 nanoseconds.
-        Weight::from_ref_time(609_509_128)
+        Weight::from_parts(609_509_128, 0)
             // Standard Error: 401_197
-            .saturating_add(Weight::from_ref_time(187_924_542).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(187_924_542, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_reply_push_input_per_kb(n: u32, ) -> Weight {
@@ -2259,9 +2259,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 574_867 nanoseconds.
-        Weight::from_ref_time(587_172_863)
+        Weight::from_parts(587_172_863, 0)
             // Standard Error: 954
-            .saturating_add(Weight::from_ref_time(121_260).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(121_260, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send_push_input(r: u32, ) -> Weight {
@@ -2269,9 +2269,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 4_153_438 nanoseconds.
-        Weight::from_ref_time(4_303_178_639)
+        Weight::from_parts(4_303_178_639, 0)
             // Standard Error: 265_183
-            .saturating_add(Weight::from_ref_time(192_266_698).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(192_266_698, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_send_push_input_per_kb(n: u32, ) -> Weight {
@@ -2279,9 +2279,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 939_474 nanoseconds.
-        Weight::from_ref_time(836_256_075)
+        Weight::from_parts(836_256_075, 0)
             // Standard Error: 10_783
-            .saturating_add(Weight::from_ref_time(12_584_153).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(12_584_153, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_debug(r: u32, ) -> Weight {
@@ -2289,9 +2289,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 81_912 nanoseconds.
-        Weight::from_ref_time(107_702_879)
+        Weight::from_parts(107_702_879, 0)
             // Standard Error: 316_515
-            .saturating_add(Weight::from_ref_time(187_518_617).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(187_518_617, 0).saturating_mul(r.into()))
     }
     /// The range of component `n` is `[0, 2048]`.
     fn gr_debug_per_kb(n: u32, ) -> Weight {
@@ -2299,9 +2299,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 260_251 nanoseconds.
-        Weight::from_ref_time(265_607_000)
+        Weight::from_parts(265_607_000, 0)
             // Standard Error: 47_176
-            .saturating_add(Weight::from_ref_time(25_735_678).saturating_mul(n.into()))
+            .saturating_add(Weight::from_parts(25_735_678, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_error(r: u32, ) -> Weight {
@@ -2309,9 +2309,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 96_526 nanoseconds.
-        Weight::from_ref_time(103_383_863)
+        Weight::from_parts(103_383_863, 0)
             // Standard Error: 281_743
-            .saturating_add(Weight::from_ref_time(229_630_385).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(229_630_385, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_status_code(r: u32, ) -> Weight {
@@ -2319,9 +2319,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 83_646 nanoseconds.
-        Weight::from_ref_time(77_387_247)
+        Weight::from_parts(77_387_247, 0)
             // Standard Error: 240_622
-            .saturating_add(Weight::from_ref_time(177_210_179).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(177_210_179, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_exit(r: u32, ) -> Weight {
@@ -2329,9 +2329,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_732 nanoseconds.
-        Weight::from_ref_time(86_746_559)
+        Weight::from_parts(86_746_559, 0)
             // Standard Error: 276_411
-            .saturating_add(Weight::from_ref_time(24_364_740).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(24_364_740, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_leave(r: u32, ) -> Weight {
@@ -2339,9 +2339,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_768 nanoseconds.
-        Weight::from_ref_time(86_254_018)
+        Weight::from_parts(86_254_018, 0)
             // Standard Error: 270_944
-            .saturating_add(Weight::from_ref_time(13_674_081).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(13_674_081, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_wait(r: u32, ) -> Weight {
@@ -2349,9 +2349,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_973 nanoseconds.
-        Weight::from_ref_time(86_357_653)
+        Weight::from_parts(86_357_653, 0)
             // Standard Error: 275_003
-            .saturating_add(Weight::from_ref_time(14_931_046).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(14_931_046, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_wait_for(r: u32, ) -> Weight {
@@ -2359,9 +2359,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_826 nanoseconds.
-        Weight::from_ref_time(86_467_016)
+        Weight::from_parts(86_467_016, 0)
             // Standard Error: 264_613
-            .saturating_add(Weight::from_ref_time(14_260_583).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(14_260_583, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 1]`.
     fn gr_wait_up_to(r: u32, ) -> Weight {
@@ -2369,9 +2369,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 82_605 nanoseconds.
-        Weight::from_ref_time(86_532_340)
+        Weight::from_parts(86_532_340, 0)
             // Standard Error: 278_759
-            .saturating_add(Weight::from_ref_time(14_028_659).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(14_028_659, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_wake(r: u32, ) -> Weight {
@@ -2379,9 +2379,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 132_543 nanoseconds.
-        Weight::from_ref_time(192_378_038)
+        Weight::from_parts(192_378_038, 0)
             // Standard Error: 249_057
-            .saturating_add(Weight::from_ref_time(254_777_085).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(254_777_085, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_create_program_wgas(r: u32, ) -> Weight {
@@ -2389,9 +2389,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 92_114 nanoseconds.
-        Weight::from_ref_time(156_606_434)
+        Weight::from_parts(156_606_434, 0)
             // Standard Error: 295_787
-            .saturating_add(Weight::from_ref_time(425_470_652).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(425_470_652, 0).saturating_mul(r.into()))
     }
     /// The range of component `p` is `[0, 2048]`.
     /// The range of component `s` is `[1, 2048]`.
@@ -2400,11 +2400,11 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 43_256_334 nanoseconds.
-        Weight::from_ref_time(43_465_935_000)
+        Weight::from_parts(43_465_935_000, 0)
             // Standard Error: 263_063
-            .saturating_add(Weight::from_ref_time(7_902_649).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(7_902_649, 0).saturating_mul(p.into()))
             // Standard Error: 263_050
-            .saturating_add(Weight::from_ref_time(152_656_694).saturating_mul(s.into()))
+            .saturating_add(Weight::from_parts(152_656_694, 0).saturating_mul(s.into()))
     }
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_signal_read(p: u32, ) -> Weight {
@@ -2414,9 +2414,9 @@ impl WeightInfo for () {
         // Minimum execution time: 81_807 nanoseconds.
         Weight::from_parts(121_821_266, 141)
             // Standard Error: 7_125
-            .saturating_add(Weight::from_ref_time(11_656_827).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(11_656_827, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9900).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9900).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_signal_write(p: u32, ) -> Weight {
@@ -2426,9 +2426,9 @@ impl WeightInfo for () {
         // Minimum execution time: 83_262 nanoseconds.
         Weight::from_parts(84_399_000, 141)
             // Standard Error: 36_484
-            .saturating_add(Weight::from_ref_time(34_711_742).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(34_711_742, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9900).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9900).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 512]`.
     fn lazy_pages_signal_write_after_read(p: u32, ) -> Weight {
@@ -2438,7 +2438,7 @@ impl WeightInfo for () {
         // Minimum execution time: 6_028_492 nanoseconds.
         Weight::from_parts(5_810_695_816, 5068941)
             // Standard Error: 54_356
-            .saturating_add(Weight::from_ref_time(36_889_507).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(36_889_507, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads(2048_u64))
     }
     /// The range of component `p` is `[0, 512]`.
@@ -2449,9 +2449,9 @@ impl WeightInfo for () {
         // Minimum execution time: 84_317 nanoseconds.
         Weight::from_parts(85_299_000, 949)
             // Standard Error: 33_523
-            .saturating_add(Weight::from_ref_time(43_951_462).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(43_951_462, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(75606).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 75606).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 32]`.
     fn lazy_pages_host_func_read(p: u32, ) -> Weight {
@@ -2461,9 +2461,9 @@ impl WeightInfo for () {
         // Minimum execution time: 95_734 nanoseconds.
         Weight::from_parts(99_957_245, 506)
             // Standard Error: 59_825
-            .saturating_add(Weight::from_ref_time(35_208_171).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(35_208_171, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9883).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9883).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 32]`.
     fn lazy_pages_host_func_write(p: u32, ) -> Weight {
@@ -2473,9 +2473,9 @@ impl WeightInfo for () {
         // Minimum execution time: 586_697 nanoseconds.
         Weight::from_parts(579_394_810, 506)
             // Standard Error: 182_196
-            .saturating_add(Weight::from_ref_time(42_500_948).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(42_500_948, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads((4_u64).saturating_mul(p.into())))
-            .saturating_add(Weight::from_proof_size(9883).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(0, 9883).saturating_mul(p.into()))
     }
     /// The range of component `p` is `[0, 32]`.
     fn lazy_pages_host_func_write_after_read(p: u32, ) -> Weight {
@@ -2485,7 +2485,7 @@ impl WeightInfo for () {
         // Minimum execution time: 983_916 nanoseconds.
         Weight::from_parts(1_010_515_733, 316941)
             // Standard Error: 143_944
-            .saturating_add(Weight::from_ref_time(42_508_767).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(42_508_767, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads(128_u64))
     }
     /// The range of component `r` is `[50, 500]`.
@@ -2494,9 +2494,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 4_226_275 nanoseconds.
-        Weight::from_ref_time(4_225_648_608)
+        Weight::from_parts(4_225_648_608, 0)
             // Standard Error: 10_161
-            .saturating_add(Weight::from_ref_time(3_355_980).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_355_980, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[50, 500]`.
     fn instr_i32load(r: u32, ) -> Weight {
@@ -2504,9 +2504,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 4_228_938 nanoseconds.
-        Weight::from_ref_time(4_228_073_783)
+        Weight::from_parts(4_228_073_783, 0)
             // Standard Error: 10_035
-            .saturating_add(Weight::from_ref_time(3_370_264).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_370_264, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[50, 500]`.
     fn instr_i64store(r: u32, ) -> Weight {
@@ -2514,9 +2514,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 9_719_113 nanoseconds.
-        Weight::from_ref_time(9_865_862_677)
+        Weight::from_parts(9_865_862_677, 0)
             // Standard Error: 186_470
-            .saturating_add(Weight::from_ref_time(16_510_034).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(16_510_034, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[50, 500]`.
     fn instr_i32store(r: u32, ) -> Weight {
@@ -2524,9 +2524,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 9_539_429 nanoseconds.
-        Weight::from_ref_time(8_971_089_150)
+        Weight::from_parts(8_971_089_150, 0)
             // Standard Error: 149_624
-            .saturating_add(Weight::from_ref_time(16_140_559).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(16_140_559, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_select(r: u32, ) -> Weight {
@@ -2534,9 +2534,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_017 nanoseconds.
-        Weight::from_ref_time(2_162_000)
+        Weight::from_parts(2_162_000, 0)
             // Standard Error: 8_150
-            .saturating_add(Weight::from_ref_time(3_810_640).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_810_640, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_if(r: u32, ) -> Weight {
@@ -2544,9 +2544,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_005 nanoseconds.
-        Weight::from_ref_time(2_091_000)
+        Weight::from_parts(2_091_000, 0)
             // Standard Error: 7_804
-            .saturating_add(Weight::from_ref_time(3_085_440).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_085_440, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_br(r: u32, ) -> Weight {
@@ -2554,9 +2554,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_948 nanoseconds.
-        Weight::from_ref_time(3_039_323)
+        Weight::from_parts(3_039_323, 0)
             // Standard Error: 916
-            .saturating_add(Weight::from_ref_time(1_573_630).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_573_630, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_br_if(r: u32, ) -> Weight {
@@ -2564,9 +2564,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_945 nanoseconds.
-        Weight::from_ref_time(2_017_000)
+        Weight::from_parts(2_017_000, 0)
             // Standard Error: 9_300
-            .saturating_add(Weight::from_ref_time(2_940_862).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_940_862, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_br_table(r: u32, ) -> Weight {
@@ -2574,9 +2574,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_039 nanoseconds.
-        Weight::from_ref_time(7_505_360)
+        Weight::from_parts(7_505_360, 0)
             // Standard Error: 27_099
-            .saturating_add(Weight::from_ref_time(4_937_410).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(4_937_410, 0).saturating_mul(r.into()))
     }
     /// The range of component `e` is `[1, 256]`.
     fn instr_br_table_per_entry(e: u32, ) -> Weight {
@@ -2584,9 +2584,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 6_690 nanoseconds.
-        Weight::from_ref_time(4_745_487)
+        Weight::from_parts(4_745_487, 0)
             // Standard Error: 1_598
-            .saturating_add(Weight::from_ref_time(190_014).saturating_mul(e.into()))
+            .saturating_add(Weight::from_parts(190_014, 0).saturating_mul(e.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_call_const(r: u32, ) -> Weight {
@@ -2594,14 +2594,14 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_128 nanoseconds.
-        Weight::from_ref_time(5_580_087)
+        Weight::from_parts(5_580_087, 0)
             // Standard Error: 8_909
-            .saturating_add(Weight::from_ref_time(2_581_842).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_581_842, 0).saturating_mul(r.into()))
     }
     fn instr_i64const(r: u32, ) -> Weight {
-        Weight::from_ref_time(0)
-            .saturating_add(Weight::from_ref_time(2_581_842 -
-            2_429_530).saturating_mul(r.into()))
+        Weight::from_parts(0, 0)
+            .saturating_add(Weight::from_parts(2_581_842 -
+            2_429_530, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_call(r: u32, ) -> Weight {
@@ -2609,9 +2609,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_108 nanoseconds.
-        Weight::from_ref_time(5_054_933)
+        Weight::from_parts(5_054_933, 0)
             // Standard Error: 12_863
-            .saturating_add(Weight::from_ref_time(2_429_530).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_429_530, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_call_indirect(r: u32, ) -> Weight {
@@ -2619,9 +2619,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_370 nanoseconds.
-        Weight::from_ref_time(18_616_562)
+        Weight::from_parts(18_616_562, 0)
             // Standard Error: 29_254
-            .saturating_add(Weight::from_ref_time(10_375_535).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(10_375_535, 0).saturating_mul(r.into()))
     }
     /// The range of component `p` is `[0, 128]`.
     fn instr_call_indirect_per_param(p: u32, ) -> Weight {
@@ -2629,9 +2629,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 12_168 nanoseconds.
-        Weight::from_ref_time(3_775_924)
+        Weight::from_parts(3_775_924, 0)
             // Standard Error: 6_558
-            .saturating_add(Weight::from_ref_time(1_321_364).saturating_mul(p.into()))
+            .saturating_add(Weight::from_parts(1_321_364, 0).saturating_mul(p.into()))
     }
     /// The range of component `l` is `[0, 1024]`.
     fn instr_call_per_local(l: u32, ) -> Weight {
@@ -2639,9 +2639,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 5_006 nanoseconds.
-        Weight::from_ref_time(5_256_467)
+        Weight::from_parts(5_256_467, 0)
             // Standard Error: 12
-            .saturating_add(Weight::from_ref_time(57).saturating_mul(l.into()))
+            .saturating_add(Weight::from_parts(57, 0).saturating_mul(l.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_local_get(r: u32, ) -> Weight {
@@ -2649,9 +2649,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_019 nanoseconds.
-        Weight::from_ref_time(1_408_120)
+        Weight::from_parts(1_408_120, 0)
             // Standard Error: 3_519
-            .saturating_add(Weight::from_ref_time(298_892).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(298_892, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_local_set(r: u32, ) -> Weight {
@@ -2659,9 +2659,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_058 nanoseconds.
-        Weight::from_ref_time(2_092_000)
+        Weight::from_parts(2_092_000, 0)
             // Standard Error: 7_004
-            .saturating_add(Weight::from_ref_time(892_803).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(892_803, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_local_tee(r: u32, ) -> Weight {
@@ -2669,9 +2669,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_976 nanoseconds.
-        Weight::from_ref_time(2_078_000)
+        Weight::from_parts(2_078_000, 0)
             // Standard Error: 6_769
-            .saturating_add(Weight::from_ref_time(930_108).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(930_108, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_global_get(r: u32, ) -> Weight {
@@ -2679,9 +2679,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 5_803 nanoseconds.
-        Weight::from_ref_time(1_190_711)
+        Weight::from_parts(1_190_711, 0)
             // Standard Error: 9_230
-            .saturating_add(Weight::from_ref_time(936_198).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(936_198, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_global_set(r: u32, ) -> Weight {
@@ -2689,9 +2689,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 5_683 nanoseconds.
-        Weight::from_ref_time(5_732_000)
+        Weight::from_parts(5_732_000, 0)
             // Standard Error: 8_615
-            .saturating_add(Weight::from_ref_time(1_560_589).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_560_589, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_memory_current(r: u32, ) -> Weight {
@@ -2699,9 +2699,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 6_114 nanoseconds.
-        Weight::from_ref_time(2_722_110)
+        Weight::from_parts(2_722_110, 0)
             // Standard Error: 11_589
-            .saturating_add(Weight::from_ref_time(7_043_740).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(7_043_740, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64clz(r: u32, ) -> Weight {
@@ -2709,9 +2709,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_052 nanoseconds.
-        Weight::from_ref_time(2_116_000)
+        Weight::from_parts(2_116_000, 0)
             // Standard Error: 6_212
-            .saturating_add(Weight::from_ref_time(3_598_868).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_598_868, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32clz(r: u32, ) -> Weight {
@@ -2719,9 +2719,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_998 nanoseconds.
-        Weight::from_ref_time(2_072_000)
+        Weight::from_parts(2_072_000, 0)
             // Standard Error: 5_918
-            .saturating_add(Weight::from_ref_time(3_311_778).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_311_778, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64ctz(r: u32, ) -> Weight {
@@ -2729,9 +2729,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_050 nanoseconds.
-        Weight::from_ref_time(2_099_000)
+        Weight::from_parts(2_099_000, 0)
             // Standard Error: 5_716
-            .saturating_add(Weight::from_ref_time(3_268_202).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_268_202, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32ctz(r: u32, ) -> Weight {
@@ -2739,9 +2739,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_011 nanoseconds.
-        Weight::from_ref_time(2_050_000)
+        Weight::from_parts(2_050_000, 0)
             // Standard Error: 5_135
-            .saturating_add(Weight::from_ref_time(2_811_963).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_811_963, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64popcnt(r: u32, ) -> Weight {
@@ -2749,9 +2749,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_009 nanoseconds.
-        Weight::from_ref_time(2_124_000)
+        Weight::from_parts(2_124_000, 0)
             // Standard Error: 3_335
-            .saturating_add(Weight::from_ref_time(599_710).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(599_710, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32popcnt(r: u32, ) -> Weight {
@@ -2759,9 +2759,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_989 nanoseconds.
-        Weight::from_ref_time(1_302_632)
+        Weight::from_parts(1_302_632, 0)
             // Standard Error: 3_398
-            .saturating_add(Weight::from_ref_time(415_577).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(415_577, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64eqz(r: u32, ) -> Weight {
@@ -2769,9 +2769,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_982 nanoseconds.
-        Weight::from_ref_time(2_046_000)
+        Weight::from_parts(2_046_000, 0)
             // Standard Error: 12_618
-            .saturating_add(Weight::from_ref_time(1_899_867).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_899_867, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32eqz(r: u32, ) -> Weight {
@@ -2779,9 +2779,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_965 nanoseconds.
-        Weight::from_ref_time(2_013_000)
+        Weight::from_parts(2_013_000, 0)
             // Standard Error: 8_787
-            .saturating_add(Weight::from_ref_time(1_153_841).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_153_841, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64extendsi32(r: u32, ) -> Weight {
@@ -2789,9 +2789,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_995 nanoseconds.
-        Weight::from_ref_time(1_453_796)
+        Weight::from_parts(1_453_796, 0)
             // Standard Error: 3_114
-            .saturating_add(Weight::from_ref_time(327_471).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(327_471, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64extendui32(r: u32, ) -> Weight {
@@ -2799,9 +2799,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_999 nanoseconds.
-        Weight::from_ref_time(2_357_081)
+        Weight::from_parts(2_357_081, 0)
             // Standard Error: 2_303
-            .saturating_add(Weight::from_ref_time(189_759).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(189_759, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32wrapi64(r: u32, ) -> Weight {
@@ -2809,9 +2809,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_943 nanoseconds.
-        Weight::from_ref_time(2_328_805)
+        Weight::from_parts(2_328_805, 0)
             // Standard Error: 1_980
-            .saturating_add(Weight::from_ref_time(196_714).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(196_714, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64eq(r: u32, ) -> Weight {
@@ -2819,9 +2819,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_016 nanoseconds.
-        Weight::from_ref_time(2_044_000)
+        Weight::from_parts(2_044_000, 0)
             // Standard Error: 12_976
-            .saturating_add(Weight::from_ref_time(1_999_087).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_999_087, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32eq(r: u32, ) -> Weight {
@@ -2829,9 +2829,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_010 nanoseconds.
-        Weight::from_ref_time(2_050_000)
+        Weight::from_parts(2_050_000, 0)
             // Standard Error: 8_186
-            .saturating_add(Weight::from_ref_time(1_216_597).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_216_597, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64ne(r: u32, ) -> Weight {
@@ -2839,9 +2839,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_018 nanoseconds.
-        Weight::from_ref_time(2_085_000)
+        Weight::from_parts(2_085_000, 0)
             // Standard Error: 11_416
-            .saturating_add(Weight::from_ref_time(1_983_732).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_983_732, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32ne(r: u32, ) -> Weight {
@@ -2849,9 +2849,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_976 nanoseconds.
-        Weight::from_ref_time(2_051_000)
+        Weight::from_parts(2_051_000, 0)
             // Standard Error: 8_062
-            .saturating_add(Weight::from_ref_time(1_242_110).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_242_110, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64lts(r: u32, ) -> Weight {
@@ -2859,9 +2859,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_998 nanoseconds.
-        Weight::from_ref_time(2_044_000)
+        Weight::from_parts(2_044_000, 0)
             // Standard Error: 10_495
-            .saturating_add(Weight::from_ref_time(1_932_653).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_932_653, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32lts(r: u32, ) -> Weight {
@@ -2869,9 +2869,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_043 nanoseconds.
-        Weight::from_ref_time(2_081_000)
+        Weight::from_parts(2_081_000, 0)
             // Standard Error: 7_512
-            .saturating_add(Weight::from_ref_time(1_186_900).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_186_900, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64ltu(r: u32, ) -> Weight {
@@ -2879,9 +2879,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_026 nanoseconds.
-        Weight::from_ref_time(2_083_000)
+        Weight::from_parts(2_083_000, 0)
             // Standard Error: 10_425
-            .saturating_add(Weight::from_ref_time(1_898_222).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_898_222, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32ltu(r: u32, ) -> Weight {
@@ -2889,9 +2889,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_010 nanoseconds.
-        Weight::from_ref_time(2_117_000)
+        Weight::from_parts(2_117_000, 0)
             // Standard Error: 6_972
-            .saturating_add(Weight::from_ref_time(1_160_775).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_160_775, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64gts(r: u32, ) -> Weight {
@@ -2899,9 +2899,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_990 nanoseconds.
-        Weight::from_ref_time(2_047_000)
+        Weight::from_parts(2_047_000, 0)
             // Standard Error: 12_802
-            .saturating_add(Weight::from_ref_time(1_934_073).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_934_073, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32gts(r: u32, ) -> Weight {
@@ -2909,9 +2909,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_994 nanoseconds.
-        Weight::from_ref_time(2_051_000)
+        Weight::from_parts(2_051_000, 0)
             // Standard Error: 8_950
-            .saturating_add(Weight::from_ref_time(1_150_032).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_150_032, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64gtu(r: u32, ) -> Weight {
@@ -2919,9 +2919,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_033 nanoseconds.
-        Weight::from_ref_time(2_064_000)
+        Weight::from_parts(2_064_000, 0)
             // Standard Error: 10_982
-            .saturating_add(Weight::from_ref_time(1_860_562).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_860_562, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32gtu(r: u32, ) -> Weight {
@@ -2929,9 +2929,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_952 nanoseconds.
-        Weight::from_ref_time(2_017_000)
+        Weight::from_parts(2_017_000, 0)
             // Standard Error: 7_830
-            .saturating_add(Weight::from_ref_time(1_142_371).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_142_371, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64les(r: u32, ) -> Weight {
@@ -2939,9 +2939,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_967 nanoseconds.
-        Weight::from_ref_time(2_043_000)
+        Weight::from_parts(2_043_000, 0)
             // Standard Error: 13_663
-            .saturating_add(Weight::from_ref_time(1_916_603).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_916_603, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32les(r: u32, ) -> Weight {
@@ -2949,9 +2949,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_997 nanoseconds.
-        Weight::from_ref_time(2_106_000)
+        Weight::from_parts(2_106_000, 0)
             // Standard Error: 8_319
-            .saturating_add(Weight::from_ref_time(1_134_347).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_134_347, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64leu(r: u32, ) -> Weight {
@@ -2959,9 +2959,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_023 nanoseconds.
-        Weight::from_ref_time(2_081_000)
+        Weight::from_parts(2_081_000, 0)
             // Standard Error: 11_442
-            .saturating_add(Weight::from_ref_time(1_911_437).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_911_437, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32leu(r: u32, ) -> Weight {
@@ -2969,9 +2969,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_057 nanoseconds.
-        Weight::from_ref_time(2_094_000)
+        Weight::from_parts(2_094_000, 0)
             // Standard Error: 9_220
-            .saturating_add(Weight::from_ref_time(1_180_260).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_180_260, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64ges(r: u32, ) -> Weight {
@@ -2979,9 +2979,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_975 nanoseconds.
-        Weight::from_ref_time(2_048_000)
+        Weight::from_parts(2_048_000, 0)
             // Standard Error: 12_117
-            .saturating_add(Weight::from_ref_time(1_976_120).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_976_120, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32ges(r: u32, ) -> Weight {
@@ -2989,9 +2989,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_928 nanoseconds.
-        Weight::from_ref_time(2_011_000)
+        Weight::from_parts(2_011_000, 0)
             // Standard Error: 6_776
-            .saturating_add(Weight::from_ref_time(1_194_751).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_194_751, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64geu(r: u32, ) -> Weight {
@@ -2999,9 +2999,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_004 nanoseconds.
-        Weight::from_ref_time(2_045_000)
+        Weight::from_parts(2_045_000, 0)
             // Standard Error: 10_428
-            .saturating_add(Weight::from_ref_time(1_856_349).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_856_349, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32geu(r: u32, ) -> Weight {
@@ -3009,9 +3009,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_992 nanoseconds.
-        Weight::from_ref_time(2_064_000)
+        Weight::from_parts(2_064_000, 0)
             // Standard Error: 7_849
-            .saturating_add(Weight::from_ref_time(1_153_509).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_153_509, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64add(r: u32, ) -> Weight {
@@ -3019,9 +3019,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_956 nanoseconds.
-        Weight::from_ref_time(2_030_000)
+        Weight::from_parts(2_030_000, 0)
             // Standard Error: 8_433
-            .saturating_add(Weight::from_ref_time(1_268_864).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_268_864, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32add(r: u32, ) -> Weight {
@@ -3029,9 +3029,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_947 nanoseconds.
-        Weight::from_ref_time(2_018_000)
+        Weight::from_parts(2_018_000, 0)
             // Standard Error: 4_547
-            .saturating_add(Weight::from_ref_time(645_032).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(645_032, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64sub(r: u32, ) -> Weight {
@@ -3039,9 +3039,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_032 nanoseconds.
-        Weight::from_ref_time(2_064_000)
+        Weight::from_parts(2_064_000, 0)
             // Standard Error: 8_005
-            .saturating_add(Weight::from_ref_time(1_289_651).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_289_651, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32sub(r: u32, ) -> Weight {
@@ -3049,9 +3049,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_986 nanoseconds.
-        Weight::from_ref_time(2_028_000)
+        Weight::from_parts(2_028_000, 0)
             // Standard Error: 5_600
-            .saturating_add(Weight::from_ref_time(678_797).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(678_797, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64mul(r: u32, ) -> Weight {
@@ -3059,9 +3059,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_994 nanoseconds.
-        Weight::from_ref_time(2_039_000)
+        Weight::from_parts(2_039_000, 0)
             // Standard Error: 10_526
-            .saturating_add(Weight::from_ref_time(1_973_986).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_973_986, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32mul(r: u32, ) -> Weight {
@@ -3069,9 +3069,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_984 nanoseconds.
-        Weight::from_ref_time(2_043_000)
+        Weight::from_parts(2_043_000, 0)
             // Standard Error: 7_034
-            .saturating_add(Weight::from_ref_time(1_215_647).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_215_647, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64divs(r: u32, ) -> Weight {
@@ -3079,9 +3079,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_988 nanoseconds.
-        Weight::from_ref_time(2_050_000)
+        Weight::from_parts(2_050_000, 0)
             // Standard Error: 7_212
-            .saturating_add(Weight::from_ref_time(2_771_771).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_771_771, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32divs(r: u32, ) -> Weight {
@@ -3089,9 +3089,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_981 nanoseconds.
-        Weight::from_ref_time(2_076_000)
+        Weight::from_parts(2_076_000, 0)
             // Standard Error: 7_088
-            .saturating_add(Weight::from_ref_time(2_419_686).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_419_686, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64divu(r: u32, ) -> Weight {
@@ -3099,9 +3099,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_036 nanoseconds.
-        Weight::from_ref_time(2_083_000)
+        Weight::from_parts(2_083_000, 0)
             // Standard Error: 9_570
-            .saturating_add(Weight::from_ref_time(2_981_619).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_981_619, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32divu(r: u32, ) -> Weight {
@@ -3109,9 +3109,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_027 nanoseconds.
-        Weight::from_ref_time(191_713)
+        Weight::from_parts(191_713, 0)
             // Standard Error: 16_475
-            .saturating_add(Weight::from_ref_time(2_611_675).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_611_675, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64rems(r: u32, ) -> Weight {
@@ -3119,9 +3119,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_028 nanoseconds.
-        Weight::from_ref_time(2_100_000)
+        Weight::from_parts(2_100_000, 0)
             // Standard Error: 13_977
-            .saturating_add(Weight::from_ref_time(9_909_370).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(9_909_370, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32rems(r: u32, ) -> Weight {
@@ -3129,9 +3129,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_980 nanoseconds.
-        Weight::from_ref_time(2_054_000)
+        Weight::from_parts(2_054_000, 0)
             // Standard Error: 26_367
-            .saturating_add(Weight::from_ref_time(7_874_905).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(7_874_905, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64remu(r: u32, ) -> Weight {
@@ -3139,9 +3139,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_997 nanoseconds.
-        Weight::from_ref_time(2_043_000)
+        Weight::from_parts(2_043_000, 0)
             // Standard Error: 9_661
-            .saturating_add(Weight::from_ref_time(3_029_452).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(3_029_452, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32remu(r: u32, ) -> Weight {
@@ -3149,9 +3149,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_040 nanoseconds.
-        Weight::from_ref_time(2_145_000)
+        Weight::from_parts(2_145_000, 0)
             // Standard Error: 12_480
-            .saturating_add(Weight::from_ref_time(2_537_714).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(2_537_714, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64and(r: u32, ) -> Weight {
@@ -3159,9 +3159,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_991 nanoseconds.
-        Weight::from_ref_time(2_043_000)
+        Weight::from_parts(2_043_000, 0)
             // Standard Error: 8_986
-            .saturating_add(Weight::from_ref_time(1_297_956).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_297_956, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32and(r: u32, ) -> Weight {
@@ -3169,9 +3169,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_917 nanoseconds.
-        Weight::from_ref_time(1_991_000)
+        Weight::from_parts(1_991_000, 0)
             // Standard Error: 4_526
-            .saturating_add(Weight::from_ref_time(662_435).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(662_435, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64or(r: u32, ) -> Weight {
@@ -3179,9 +3179,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_021 nanoseconds.
-        Weight::from_ref_time(2_069_000)
+        Weight::from_parts(2_069_000, 0)
             // Standard Error: 8_324
-            .saturating_add(Weight::from_ref_time(1_327_872).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_327_872, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32or(r: u32, ) -> Weight {
@@ -3189,9 +3189,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_026 nanoseconds.
-        Weight::from_ref_time(2_070_000)
+        Weight::from_parts(2_070_000, 0)
             // Standard Error: 4_898
-            .saturating_add(Weight::from_ref_time(684_578).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(684_578, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64xor(r: u32, ) -> Weight {
@@ -3199,9 +3199,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_989 nanoseconds.
-        Weight::from_ref_time(2_057_000)
+        Weight::from_parts(2_057_000, 0)
             // Standard Error: 9_116
-            .saturating_add(Weight::from_ref_time(1_341_076).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_341_076, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32xor(r: u32, ) -> Weight {
@@ -3209,9 +3209,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_960 nanoseconds.
-        Weight::from_ref_time(2_004_000)
+        Weight::from_parts(2_004_000, 0)
             // Standard Error: 5_064
-            .saturating_add(Weight::from_ref_time(664_619).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(664_619, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64shl(r: u32, ) -> Weight {
@@ -3219,9 +3219,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_024 nanoseconds.
-        Weight::from_ref_time(2_072_000)
+        Weight::from_parts(2_072_000, 0)
             // Standard Error: 7_079
-            .saturating_add(Weight::from_ref_time(1_109_813).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_109_813, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32shl(r: u32, ) -> Weight {
@@ -3229,9 +3229,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_022 nanoseconds.
-        Weight::from_ref_time(2_110_000)
+        Weight::from_parts(2_110_000, 0)
             // Standard Error: 4_499
-            .saturating_add(Weight::from_ref_time(596_565).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(596_565, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64shrs(r: u32, ) -> Weight {
@@ -3239,9 +3239,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_945 nanoseconds.
-        Weight::from_ref_time(2_043_000)
+        Weight::from_parts(2_043_000, 0)
             // Standard Error: 7_388
-            .saturating_add(Weight::from_ref_time(1_102_019).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_102_019, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32shrs(r: u32, ) -> Weight {
@@ -3249,9 +3249,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_053 nanoseconds.
-        Weight::from_ref_time(2_103_000)
+        Weight::from_parts(2_103_000, 0)
             // Standard Error: 4_340
-            .saturating_add(Weight::from_ref_time(589_998).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(589_998, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64shru(r: u32, ) -> Weight {
@@ -3259,9 +3259,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_017 nanoseconds.
-        Weight::from_ref_time(2_099_000)
+        Weight::from_parts(2_099_000, 0)
             // Standard Error: 7_859
-            .saturating_add(Weight::from_ref_time(1_089_304).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_089_304, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32shru(r: u32, ) -> Weight {
@@ -3269,9 +3269,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_034 nanoseconds.
-        Weight::from_ref_time(2_083_000)
+        Weight::from_parts(2_083_000, 0)
             // Standard Error: 4_304
-            .saturating_add(Weight::from_ref_time(598_598).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(598_598, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64rotl(r: u32, ) -> Weight {
@@ -3279,9 +3279,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_023 nanoseconds.
-        Weight::from_ref_time(2_097_000)
+        Weight::from_parts(2_097_000, 0)
             // Standard Error: 7_539
-            .saturating_add(Weight::from_ref_time(1_121_707).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_121_707, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32rotl(r: u32, ) -> Weight {
@@ -3289,9 +3289,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_063 nanoseconds.
-        Weight::from_ref_time(2_117_000)
+        Weight::from_parts(2_117_000, 0)
             // Standard Error: 4_365
-            .saturating_add(Weight::from_ref_time(566_368).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(566_368, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64rotr(r: u32, ) -> Weight {
@@ -3299,9 +3299,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 1_995 nanoseconds.
-        Weight::from_ref_time(2_062_000)
+        Weight::from_parts(2_062_000, 0)
             // Standard Error: 8_936
-            .saturating_add(Weight::from_ref_time(1_092_338).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(1_092_338, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i32rotr(r: u32, ) -> Weight {
@@ -3309,8 +3309,8 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 2_039 nanoseconds.
-        Weight::from_ref_time(2_094_000)
+        Weight::from_parts(2_094_000, 0)
             // Standard Error: 4_196
-            .saturating_add(Weight::from_ref_time(603_336).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(603_336, 0).saturating_mul(r.into()))
     }
 }
