@@ -41,8 +41,6 @@
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
 #![allow(unused_imports)]
-
-// (issue #2531)
 #![allow(deprecated)]
 
 use frame_support::{traits::Get, weights::{constants::RocksDbWeight, Weight}};

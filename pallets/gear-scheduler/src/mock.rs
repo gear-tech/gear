@@ -16,9 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// (issue #2531)
-#![allow(deprecated)]
-
 use crate as pallet_gear_scheduler;
 use common::storage::Limiter;
 use frame_support::{
