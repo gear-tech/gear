@@ -3932,6 +3932,7 @@ dependencies = [
  "sp-std 5.0.0",
  "sp-transaction-pool",
  "sp-version",
+ "substrate-validator-set",
  "substrate-wasm-builder",
 ]
 
@@ -11542,6 +11543,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "substrate-validator-set"
+version = "0.9.41"
+source = "git+https://github.com/gear-tech/substrate-validator-set.git?branch=gear-polkadot-v0.9.41-sign-ext#82ac0b50baab4b195a949665d0dd694e38bdb0f4"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-session",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std 5.0.0",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "substrate-wasm-builder"
 version = "5.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-sign-ext#36699c4478ce8ae05517bb42a1b115403313e083"
@@ -12580,6 +12601,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "static_assertions",
+ "substrate-validator-set",
  "substrate-wasm-builder",
  "wat",
 ]
@@ -13161,7 +13183,7 @@ dependencies = [
 [[package]]
 name = "wasmi-validation"
 version = "0.5.0"
-source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#d230c9bba8e763d03b390038750cee07ee937416"
+source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
 dependencies = [
  "parity-wasm 0.45.0",
 ]

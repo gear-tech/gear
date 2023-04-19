@@ -112,6 +112,8 @@ use governance::pallet_custom_origins;
 mod extensions;
 pub use extensions::DisableValueTransfers;
 
+mod migrations;
+
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
@@ -327,6 +329,16 @@ impl pallet_transaction_payment::Config for Runtime {
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Runtime, QueueLengthStep>;
 }
 
+parameter_types! {
+    pub const MinAuthorities: u32 = 1;
+}
+
+impl validator_set::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type AddRemoveOrigin = EnsureRoot<AccountId>;
+    type MinAuthorities = MinAuthorities;
+}
+
 impl_opaque_keys! {
     pub struct SessionKeys {
         pub babe: Babe,
@@ -339,10 +351,10 @@ impl_opaque_keys! {
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
-    type ValidatorIdOf = pallet_staking::StashOf<Self>;
+    type ValidatorIdOf = validator_set::ValidatorOf<Self>;
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
-    type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
+    type SessionManager = ValidatorSet;
     type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
@@ -739,7 +751,10 @@ construct_runtime!(
         Origins: pallet_custom_origins = 20,
         Whitelist: pallet_whitelist = 21,
 
+        // TODO: Remove in stage 2
+        ValidatorSet: validator_set = 98,
         Sudo: pallet_sudo = 99,
+
         Scheduler: pallet_scheduler = 22,
         Preimage: pallet_preimage = 23,
         Identity: pallet_identity = 24,
@@ -791,7 +806,10 @@ construct_runtime!(
         Origins: pallet_custom_origins = 20,
         Whitelist: pallet_whitelist = 21,
 
+        // TODO: Remove in stage 2
+        ValidatorSet: validator_set = 98,
         Sudo: pallet_sudo = 99,
+
         Scheduler: pallet_scheduler = 22,
         Preimage: pallet_preimage = 23,
         Identity: pallet_identity = 24,
@@ -842,6 +860,7 @@ pub type Executive = frame_executive::Executive<
     frame_system::ChainContext<Runtime>,
     Runtime,
     AllPalletsWithSystem,
+    migrations::Migrations,
 >;
 
 #[cfg(test)]

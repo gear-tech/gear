@@ -41,7 +41,10 @@ pub use frame_support::{
     },
     StorageValue,
 };
-use frame_system::limits::{BlockLength, BlockWeights};
+use frame_system::{
+    limits::{BlockLength, BlockWeights},
+    EnsureRoot,
+};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 pub use pallet_gear_payment::CustomChargeTransactionPayment;
 use pallet_grandpa::{
@@ -86,6 +89,8 @@ pub use pallet_gear_payment;
 pub mod constants;
 
 pub use constants::{currency::*, time::*};
+
+mod migrations;
 
 // Weights used in the runtime.
 mod weights;
@@ -263,6 +268,16 @@ impl pallet_transaction_payment::Config for Runtime {
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Runtime, QueueLengthStep>;
 }
 
+parameter_types! {
+    pub const MinAuthorities: u32 = 1;
+}
+
+impl validator_set::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type AddRemoveOrigin = EnsureRoot<AccountId>;
+    type MinAuthorities = MinAuthorities;
+}
+
 impl_opaque_keys! {
     pub struct SessionKeys {
         pub babe: Babe,
@@ -273,10 +288,10 @@ impl_opaque_keys! {
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
-    type ValidatorIdOf = ();
+    type ValidatorIdOf = validator_set::ValidatorOf<Self>;
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
-    type SessionManager = ();
+    type SessionManager = ValidatorSet;
     type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
@@ -411,6 +426,7 @@ construct_runtime!(
         TransactionPayment: pallet_transaction_payment = 6,
         Session: pallet_session = 7,
         Utility: pallet_utility = 8,
+        ValidatorSet: validator_set = 98,
         Sudo: pallet_sudo = 99,
 
         // Gear pallets
@@ -442,6 +458,7 @@ construct_runtime!(
         TransactionPayment: pallet_transaction_payment = 6,
         Session: pallet_session = 7,
         Utility: pallet_utility = 8,
+        ValidatorSet: validator_set = 98,
         Sudo: pallet_sudo = 99,
 
         // Gear pallets
@@ -483,6 +500,7 @@ pub type Executive = frame_executive::Executive<
     frame_system::ChainContext<Runtime>,
     Runtime,
     AllPalletsWithSystem,
+    migrations::Migrations,
 >;
 
 #[cfg(test)]
