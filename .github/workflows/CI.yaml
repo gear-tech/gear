@@ -842,6 +842,5 @@ jobs:
 
       - name: "Check fuzzer with mutation test"
         run: |
-          pwd
           chmod +x ./scripts/check-fuzzer.sh
           ./scripts/check-fuzzer.sh
