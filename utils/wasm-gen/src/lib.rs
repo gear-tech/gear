@@ -781,7 +781,7 @@ impl<'a> WasmGen<'a> {
         for (name, data) in call_data {
             let instructions = self.build_call_instructions(
                 name,
-                &data,
+                data,
                 memory_pages,
                 source_call_index,
                 &mut offsets,
@@ -908,8 +908,8 @@ impl<'a> WasmGen<'a> {
         let func_type = send_from_reservation_call_info.func_type();
 
         let func_signature = builder::signature()
-            .with_params(func_type.params().iter().map(|func_param| *func_param))
-            .with_results(func_type.results().iter().map(|func_result| *func_result))
+            .with_params(func_type.params().iter().copied())
+            .with_results(func_type.results().iter().copied())
             .build_sig();
 
         let func_instructions = Instructions::new(vec![
@@ -963,7 +963,7 @@ impl<'a> WasmGen<'a> {
             CallName::System(SysCallName::SendInputWGas),
             CallName::SendFromReservation,
         ]
-        .contains(&name)
+        .contains(name)
         {
             return build_checked_call(
                 self.u,
