@@ -20,7 +20,7 @@
 
 use super::{
     code::{
-        body::{self, DynInstr::*},
+        body::{self, unreachable_condition, DynInstr::*},
         max_pages, DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
     },
     utils::{self, PrepareConfig},
@@ -182,21 +182,12 @@ where
         use Instruction::*;
         let mut instructions = vec![];
         for _ in 0..API_BENCHMARK_BATCH_SIZE {
-            instructions.push(I32Const(r as i32));
-            instructions.push(Call(0)); // alloc `r` pages
-            instructions.push(I32Const(i32::MAX));
-            instructions.push(I32Eq); // if alloc returns i32::MAX then it's error
-            instructions.push(If(BlockType::NoResult));
-            instructions.push(Unreachable);
-            instructions.push(End);
+            instructions.extend([I32Const(r as i32), Call(0), I32Const(i32::MAX)]);
+            unreachable_condition(&mut instructions, I32Eq); // if alloc returns i32::MAX then it's error
+
             for page in 0..r {
-                instructions.push(I32Const(page as i32));
-                instructions.push(Call(1)); // free `page` page
-                instructions.push(I32Const(0));
-                instructions.push(I32Ne); // if free returns not 0 then it's error
-                instructions.push(If(BlockType::NoResult));
-                instructions.push(Unreachable);
-                instructions.push(End);
+                instructions.extend([I32Const(page as i32), Call(1), I32Const(0)]);
+                unreachable_condition(&mut instructions, I32Ne); // if free returns 0 then it's error
             }
         }
 
