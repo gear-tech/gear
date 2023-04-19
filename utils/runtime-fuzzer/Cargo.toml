@@ -22,7 +22,6 @@ runtime-primitives.workspace = true
 gear-common.workspace = true
 gear-core.workspace = true
 gear-utils.workspace = true
-# todo remove std
 gear-runtime = { workspace = true, features = ['std', 'lazy-pages'] }
 pallet-gear.workspace = true
 
