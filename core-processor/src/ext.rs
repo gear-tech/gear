@@ -80,7 +80,7 @@ pub struct ProcessorContext {
     /// Map of code hashes to program ids of future programs, which are planned to be
     /// initialized with the corresponding code (with the same code hash).
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
-    /// Map of program ids to payed blocks.
+    /// Map of program ids to paid blocks.
     pub program_rents: BTreeMap<ProgramId, u32>,
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
@@ -679,16 +679,16 @@ impl EnvExt for Ext {
             return Err(ExecutionError::InvalidArgument.into());
         }
 
-        let old_payed_blocks = self
+        let old_paid_blocks = self
             .context
             .program_rents
             .get(&program_id)
             .copied()
             .unwrap_or(0);
 
-        let (payed_blocks, blocks_to_pay) = match old_payed_blocks.overflowing_add(block_count) {
+        let (paid_blocks, blocks_to_pay) = match old_paid_blocks.overflowing_add(block_count) {
             (count, false) => (count, block_count),
-            (_, true) => (u32::MAX, u32::MAX - old_payed_blocks),
+            (_, true) => (u32::MAX, u32::MAX - old_paid_blocks),
         };
 
         if blocks_to_pay == 0 {
@@ -701,7 +701,7 @@ impl EnvExt for Ext {
                 self.context
                     .program_rents
                     .entry(program_id)
-                    .and_modify(|rent_blocks| *rent_blocks = payed_blocks)
+                    .and_modify(|rent_blocks| *rent_blocks = paid_blocks)
                     .or_insert(block_count);
             }
             ChargeResult::NotEnough => {

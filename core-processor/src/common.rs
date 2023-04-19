@@ -76,7 +76,7 @@ pub struct DispatchResult {
     pub awakening: Vec<(MessageId, u32)>,
     /// New programs to be created with additional data (corresponding code hash and init message id).
     pub program_candidates: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
-    /// Map of program ids to payed blocks.
+    /// Map of program ids to paid blocks.
     pub program_rents: BTreeMap<ProgramId, u32>,
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
@@ -331,7 +331,7 @@ pub enum JournalNote {
     PayRent {
         /// Rent payer.
         payer: ProgramId,
-        /// Program whose rent will be payed.
+        /// Program whose rent will be paid.
         program_id: ProgramId,
         /// Amount of blocks to pay for.
         block_count: u32,

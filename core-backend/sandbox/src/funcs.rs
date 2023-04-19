@@ -911,9 +911,9 @@ where
 
     /// Fallible `gr_pay_rent` syscall.
     pub fn pay_rent(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        sys_trace!(target: "syscalls", "pay_rent, args = {}", args_to_str(args));
+        let (bn_pid_ptr, err_ptr) = args.iter().read_2();
 
-        let (bn_pid_ptr, err_ptr) = args.iter().read_2()?;
+        syscall_trace!("pay_rent", bn_pid_ptr, err_ptr);
 
         ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::PayRent, |ctx| {
             let read_bn_pid = ctx.register_read_as(bn_pid_ptr);
