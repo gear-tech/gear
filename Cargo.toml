@@ -85,7 +85,6 @@ members = [
     "utils/wasm-info",
     "utils/wasm-instrument",
     "utils/wasm-proc",
-    "utils/migration-checker",
 ]
 
 [workspace.dependencies]
