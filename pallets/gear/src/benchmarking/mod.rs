@@ -1693,7 +1693,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_extends = w_bench
+    // w_extend = w_bench
     //
     // i32.extend8_s
     instr_i32extend8s {
@@ -1710,7 +1710,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_extends = w_bench
+    // w_extend = w_bench
     //
     // i32.extend16_s
     instr_i32extend16s {
@@ -1727,7 +1727,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_extends = w_bench
+    // w_extend = w_bench
     //
     // i64.extend8_s
     instr_i64extend8s {
@@ -1744,7 +1744,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_extends = w_bench
+    // w_extend = w_bench
     //
     // i64.extend16_s
     instr_i64extend16s {
@@ -1761,7 +1761,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_extends = w_bench
+    // w_extend = w_bench
     //
     // i64.extend32_s
     instr_i64extend32s {
