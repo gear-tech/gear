@@ -112,6 +112,8 @@ use governance::pallet_custom_origins;
 mod extensions;
 pub use extensions::DisableValueTransfers;
 
+mod migrations;
+
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
@@ -858,6 +860,7 @@ pub type Executive = frame_executive::Executive<
     frame_system::ChainContext<Runtime>,
     Runtime,
     AllPalletsWithSystem,
+    migrations::Migrations,
 >;
 
 #[cfg(test)]

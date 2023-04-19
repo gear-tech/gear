@@ -150,6 +150,7 @@ try-runtime = [
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-utility/try-runtime",
+	"validator-set/try-runtime",
 ]
 debug-mode = ["pallet-gear-debug", "pallet-gear-program/debug-mode"]
 lazy-pages = [
