@@ -759,7 +759,6 @@ impl<'a> WasmGen<'a> {
             module_builder: builder,
             offsets,
             last_offset,
-            ..
         } = builder;
 
         let mut module = builder.build();
