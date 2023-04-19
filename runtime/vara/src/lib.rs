@@ -351,15 +351,10 @@ impl_opaque_keys! {
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
-    // Uncomment for live network upgrade.
-    // type ValidatorIdOf = validator_set::ValidatorOf<Self>;
-    type ValidatorIdOf = pallet_staking::StashOf<Self>;
+    type ValidatorIdOf = validator_set::ValidatorOf<Self>;
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
-    // Uncomment for live network upgrade.  Won't work in genesis cuz pallet id > pallet_session id.
-    // Empty validator set for session 0 in genesis block.
-    // type SessionManager = ValidatorSet;
-    type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
+    type SessionManager = ValidatorSet;
     type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
