@@ -12670,6 +12670,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "static_assertions",
+ "substrate-validator-set",
  "substrate-wasm-builder",
  "wat",
 ]

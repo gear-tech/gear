@@ -90,6 +90,9 @@ pallet-gear-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
 pallet-airdrop.workspace = true
 
+# Authority add/remove
+validator-set.workspace = true
+
 [dev-dependencies]
 sp-io.workspace = true
 sp-keyring.workspace = true
@@ -165,6 +168,7 @@ std = [
 	"sp-version/std",
 	"substrate-wasm-builder",
 	"pallet-airdrop/std",
+	"validator-set/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
