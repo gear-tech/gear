@@ -105,7 +105,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 140,
+    spec_version: 130,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -288,10 +288,15 @@ impl_opaque_keys! {
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
-    type ValidatorIdOf = validator_set::ValidatorOf<Self>;
+    // Uncomment for live network upgrade.
+    // type ValidatorIdOf = validator_set::ValidatorOf<Self>;
+    type ValidatorIdOf = ();
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
-    type SessionManager = ValidatorSet;
+    // Uncomment for live network upgrade.  Won't work in genesis cuz pallet id > pallet_session id.
+    // Empty validator set for session 0 in genesis block.
+    // type SessionManager = ValidatorSet;
+    type SessionManager = ();
     type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
