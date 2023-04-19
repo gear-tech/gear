@@ -229,10 +229,6 @@ pub enum ExecutionError {
         /// Amount of available value.
         value_left: u128,
     } = 1,
-
-    /// An error occurs in attempt to pay rent for 0 block count.
-    #[display(fmt = "Provided incorrect argument for pay_rent")]
-    InvalidArgument = 2,
 }
 
 /// An error occurred in API.

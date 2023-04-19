@@ -675,10 +675,6 @@ impl EnvExt for Ext {
     }
 
     fn pay_rent(&mut self, program_id: ProgramId, block_count: u32) -> Result<(), Self::Error> {
-        if block_count == 0 {
-            return Err(ExecutionError::InvalidArgument.into());
-        }
-
         let old_paid_blocks = self
             .context
             .program_rents
