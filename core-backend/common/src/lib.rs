@@ -247,6 +247,7 @@ pub trait BackendExtError: Clone + Sized {
     fn into_termination_reason(self) -> TerminationReason;
 }
 
+// TODO: consider to remove this trait and use Result<Result<Page, AllocError>, GasError> insted
 pub trait BackendAllocExtError: Sized {
     type ExtError: BackendExtError;
 
