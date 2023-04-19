@@ -16,7 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{collections::BTreeMap, iter::Cycle, ops::RangeInclusive};
+use std::{
+    collections::{BTreeMap, HashSet},
+    iter::Cycle,
+    ops::RangeInclusive,
+};
 
 use arbitrary::Unstructured;
 use gear_wasm_instrument::{
@@ -35,7 +39,7 @@ use gsys::HashWithValue;
 use wasm_smith::{InstructionKind::*, InstructionKinds, Module as ModuleSmith, SwarmConfig};
 
 mod syscalls;
-use syscalls::{sys_calls_table, Parameter, SysCallInfo, SyscallsConfig};
+use syscalls::{sys_calls_table, CallInfo, Parameter, SyscallsConfig};
 
 #[cfg(test)]
 mod tests;
@@ -446,11 +450,24 @@ enum GearStackEndExportSeed {
     GenerateValue(u32),
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum CallName {
+    System(SysCallName),
+    SendFromReservation,
+}
+
+impl From<SysCallName> for CallName {
+    fn from(value: SysCallName) -> Self {
+        Self::System(value)
+    }
+}
+
 #[derive(Debug)]
-struct SyscallData {
-    info: SysCallInfo,
-    sys_call_amount: usize,
-    call_index: u32,
+struct CallData {
+    info: CallInfo,
+    call_amount: usize,
+    call_index: u32,              // Index in the `WasmGen::calls_indexes`
+    call_body_index: Option<u32>, // Index of generated body in a code section
 }
 
 impl<'a> WasmGen<'a> {
@@ -582,14 +599,20 @@ impl<'a> WasmGen<'a> {
         (module, mem_size.into())
     }
 
-    fn insert_instructions_in_random_place(
+    /// Inserts `instructions` into funcs satisfying the `insert_into_func_filter`
+    /// predicate which takes function body index in the `module` code section.
+    fn insert_instructions_into_functions(
         &mut self,
         mut module: Module,
+        insert_into_func_filter: impl FnOnce(usize) -> bool,
         instructions: &[Instruction],
     ) -> Module {
         let funcs_num = module.code_section().unwrap().bodies().len();
-        let insert_func_no = self.u.int_in_range(0..=funcs_num - 1).unwrap();
-        let code = module.code_section_mut().unwrap().bodies_mut()[insert_func_no]
+        let insert_into_func_no = self.u.int_in_range(0..=funcs_num - 1).unwrap();
+        if !insert_into_func_filter(insert_into_func_no) {
+            return module;
+        }
+        let code = module.code_section_mut().unwrap().bodies_mut()[insert_into_func_no]
             .code_mut()
             .elements_mut();
 
@@ -726,10 +749,10 @@ impl<'a> WasmGen<'a> {
         )
     }
 
-    pub fn insert_sys_calls(
+    fn insert_calls(
         &mut self,
         builder: ModuleBuilderWithData,
-        syscall_data: &BTreeMap<SysCallName, SyscallData>,
+        call_data: &BTreeMap<CallName, CallData>,
         memory_pages: WasmPageCount,
     ) -> ModuleWithDebug {
         let ModuleBuilderWithData {
@@ -741,17 +764,21 @@ impl<'a> WasmGen<'a> {
 
         let mut module = builder.build();
 
-        let source_call_index = syscall_data
-            .get(&SysCallName::Source)
+        let source_call_index = call_data
+            .get(&CallName::System(SysCallName::Source))
             .map(|value| value.call_index);
-        let debug_call_index = syscall_data
-            .get(&SysCallName::Debug)
+        let debug_call_index = call_data
+            .get(&CallName::System(SysCallName::Debug))
             .map(|value| value.call_index);
+        let generated_call_body_indexes: HashSet<Option<u32>> = call_data
+            .values()
+            .map(|call_data| call_data.call_body_index)
+            .collect();
 
         let mut offsets = offsets.into_iter().cycle();
 
         // generate call instructions for syscalls and insert them somewhere into the code
-        for (name, data) in syscall_data {
+        for (name, data) in call_data {
             let instructions = self.build_call_instructions(
                 name,
                 &data,
@@ -759,18 +786,21 @@ impl<'a> WasmGen<'a> {
                 source_call_index,
                 &mut offsets,
             );
-            for _ in 0..data.sys_call_amount {
-                module = self.insert_instructions_in_random_place(module, &instructions);
+            for _ in 0..data.call_amount {
+                module = self.insert_instructions_into_functions(
+                    module,
+                    |func_body_idx| {
+                        !generated_call_body_indexes.contains(&Some(func_body_idx as u32))
+                    },
+                    &instructions,
+                );
             }
         }
 
         (module, debug_call_index, last_offset).into()
     }
 
-    fn gen_syscall_imports(
-        &mut self,
-        module: Module,
-    ) -> (Module, BTreeMap<SysCallName, SyscallData>) {
+    fn gen_syscall_imports(&mut self, module: Module) -> (Module, BTreeMap<CallName, CallData>) {
         let code_size = module.code_section().map_or(0, |code_section| {
             code_section
                 .bodies()
@@ -829,11 +859,12 @@ impl<'a> WasmGen<'a> {
             self.calls_indexes
                 .push(FuncIdx::Import((import_count + i) as u32));
             syscall_data.insert(
-                name,
-                SyscallData {
+                name.into(),
+                CallData {
                     info,
-                    sys_call_amount,
+                    call_amount: sys_call_amount,
                     call_index,
+                    call_body_index: None,
                 },
             );
         }
@@ -843,10 +874,11 @@ impl<'a> WasmGen<'a> {
     fn gen_send_from_reservation(
         &mut self,
         module: Module,
-        syscall_data: &BTreeMap<SysCallName, SyscallData>,
-    ) -> (Module, Option<SyscallData>) {
-        let reserve_gas_call_data = syscall_data.get(&SysCallName::ReserveGas);
-        let reservation_send_call_data = syscall_data.get(&SysCallName::ReservationSend);
+        call_data: &BTreeMap<CallName, CallData>,
+    ) -> (Module, Option<CallData>) {
+        let reserve_gas_call_data = call_data.get(&CallName::System(SysCallName::ReserveGas));
+        let reservation_send_call_data =
+            call_data.get(&CallName::System(SysCallName::ReservationSend));
         let (_reserve_gas_call_data, reservation_send_call_data) =
             if let (Some(reserve_gas_call_data), Some(reservation_send_call_data)) =
                 (reserve_gas_call_data, reservation_send_call_data)
@@ -866,7 +898,7 @@ impl<'a> WasmGen<'a> {
             ],
             results: Default::default(),
         };
-        let send_from_reservation_call_info = SysCallInfo::new(
+        let send_from_reservation_call_info = CallInfo::new(
             &self.config,
             send_from_reservation_signature,
             self.config.sys_call_freq,
@@ -880,50 +912,56 @@ impl<'a> WasmGen<'a> {
             .with_results(func_type.results().iter().map(|func_result| *func_result))
             .build_sig();
 
-        let func_instructions = Instructions::new(vec![Instruction::End]);
+        let func_instructions = Instructions::new(vec![
+            Instruction::I32Const(142),
+            Instruction::I32Const(143),
+            Instruction::Drop,
+            Instruction::Drop,
+            Instruction::End,
+        ]);
 
         let mut module_builder = builder::from_module(module);
 
-        let func_idx = module_builder
-            .push_function(
-                builder::function()
-                    .with_signature(func_signature)
-                    .body()
-                    .with_instructions(func_instructions)
-                    .build()
-                    .build(),
-            )
-            .signature;
+        let func_location = module_builder.push_function(
+            builder::function()
+                .with_signature(func_signature)
+                .body()
+                .with_instructions(func_instructions)
+                .build()
+                .build(),
+        );
 
         let call_idx = self.calls_indexes.len() as u32;
 
-        self.calls_indexes.push(FuncIdx::Func(func_idx));
+        self.calls_indexes
+            .push(FuncIdx::Func(func_location.signature));
 
         (
             module_builder.build(),
-            Some(SyscallData {
+            Some(CallData {
                 info: send_from_reservation_call_info,
-                sys_call_amount: reservation_send_call_data.sys_call_amount, // Could be generated from Unstructured based on code size
+                call_amount: reservation_send_call_data.call_amount, // Could be generated from Unstructured based on code size
                 call_index: call_idx,
+                call_body_index: Some(func_location.body),
             }),
         )
     }
 
     fn build_call_instructions<I: Clone + Iterator<Item = u32>>(
         &mut self,
-        name: &SysCallName,
-        data: &SyscallData,
+        name: &CallName,
+        data: &CallData,
         memory_pages: WasmPageCount,
         source_call_index: Option<u32>,
         offsets: &mut Cycle<I>,
     ) -> Vec<Instruction> {
         let info = &data.info;
-        // TODO #2206: send also using reserved gas
         if ![
-            SysCallName::Send,
-            SysCallName::SendWGas,
-            SysCallName::SendInput,
-            SysCallName::SendInputWGas,
+            CallName::System(SysCallName::Send),
+            CallName::System(SysCallName::SendWGas),
+            CallName::System(SysCallName::SendInput),
+            CallName::System(SysCallName::SendInputWGas),
+            CallName::SendFromReservation,
         ]
         .contains(&name)
         {
@@ -1134,17 +1172,18 @@ pub fn gen_gear_program_module<'a>(
 
     let (module, _has_handle_reply) = gen.gen_handle_reply(module);
 
-    let (module, syscall_data) = gen.gen_syscall_imports(module);
+    let (module, mut syscall_data) = gen.gen_syscall_imports(module);
 
     let (module, send_from_reservation_call_data) =
         gen.gen_send_from_reservation(module, &syscall_data);
+    if let Some(send_from_reservation_call_data) = send_from_reservation_call_data {
+        syscall_data.insert(
+            CallName::SendFromReservation,
+            send_from_reservation_call_data,
+        );
+    }
 
-    println!(
-        "send_from_reservation: {:?}",
-        send_from_reservation_call_data
-    );
-
-    let module = gen.insert_sys_calls(
+    let module = gen.insert_calls(
         ModuleBuilderWithData::new(addresses, module, memory_pages),
         &syscall_data,
         memory_pages,
