@@ -40,7 +40,10 @@ use gear_core::{
     message::{Message, Value},
     reservation::GasReservationSlot,
 };
-use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
+use gear_wasm_instrument::{
+    parity_wasm::elements::{BlockType, Instruction},
+    syscalls::SysCallName,
+};
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
 
@@ -161,9 +164,10 @@ where
                     Instruction::I32Const(0),
                     Instruction::Call(0),
                     Instruction::I32Const(i32::MAX),
-                    Instruction::I32Ne,
-                    Instruction::BrIf(0),
+                    Instruction::I32Eq, // if alloc returns i32::MAX then it's error
+                    Instruction::If(BlockType::NoResult),
                     Instruction::Unreachable,
+                    Instruction::End,
                 ],
             )),
             ..Default::default()
@@ -181,18 +185,18 @@ where
             instructions.push(I32Const(r as i32));
             instructions.push(Call(0)); // alloc `r` pages
             instructions.push(I32Const(i32::MAX));
-            instructions.push(I32Ne); // if alloc returns i32::MAX then it's error
-            instructions.push(BrIf(0));
+            instructions.push(I32Eq); // if alloc returns i32::MAX then it's error
+            instructions.push(If(BlockType::NoResult));
             instructions.push(Unreachable);
-            instructions.push(Drop);
+            instructions.push(End);
             for page in 0..r {
                 instructions.push(I32Const(page as i32));
                 instructions.push(Call(1)); // free `page` page
                 instructions.push(I32Const(0));
-                instructions.push(I32Eq); // if free returns 0 then it's error
-                instructions.push(BrIf(0));
+                instructions.push(I32Ne); // if free returns not 0 then it's error
+                instructions.push(If(BlockType::NoResult));
                 instructions.push(Unreachable);
-                instructions.push(Drop);
+                instructions.push(End);
             }
         }
 
