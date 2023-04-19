@@ -592,9 +592,9 @@ where
     /// message went to wait list, so wasn't consumed but the one generated
     /// during the execution of the original message went to message queue
     /// and was successfully executed.
-    #[cfg_attr(all(not(test), feature = "std"), mutagen::mutate)]
+    #[cfg_attr(all(not(test), feature = "fuzz"), mutagen::mutate)]
     #[cfg_attr(
-        all(not(test), feature = "std"),
+        all(not(test), feature = "fuzz"),
         allow(clippy::blocks_in_if_conditions)
     )]
     fn consume(key: impl Into<GasNodeIdOf<Self>>) -> ConsumeResultOf<Self> {

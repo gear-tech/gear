@@ -110,6 +110,9 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	"substrate-wasm-builder",
+	"common/fuzz",
+	"pallet-gear/fuzz",
+	"pallet-gear-gas/fuzz",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
