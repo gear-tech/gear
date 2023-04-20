@@ -5284,6 +5284,11 @@ fn reservations_cleaned_in_paused_program() {
         ));
 
         let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(program_id));
+
         let map = get_reservation_map(program_id).unwrap();
 
         for (rid, slot) in &map {
@@ -5302,6 +5307,10 @@ fn reservations_cleaned_in_paused_program() {
         Gear::set_block_number((expected_block - 1).try_into().unwrap());
 
         run_to_next_block(None);
+
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(
+            &program_id
+        ));
 
         for (rid, slot) in &map {
             assert!(!TaskPoolOf::<Test>::contains(
