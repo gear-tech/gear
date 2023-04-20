@@ -46,18 +46,15 @@ where
     fn pause_program(&mut self, program_id: ProgramId) {
         log::debug!("pause_program; id = {:?}", program_id);
 
-        let Some(program) = ProgramStorageOf::<T>::get_program(program_id) else {
-            log::debug!("pause_program; not found");
-            return;
-        };
+        let program = ProgramStorageOf::<T>::get_program(program_id)
+            .unwrap_or_else(|| unreachable!("Program to pause not found."));
 
         let Some(init_message_id) = program.program.is_uninitialized() else {
             // pause initialized program
-            let Ok(gas_reservation_map) = ProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number()) else {
-                log::debug!("pause_program; not active");
-                return;
-            };
+            let gas_reservation_map = ProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number())
+                .unwrap_or_else(|e| unreachable!("Failed to pause program: {:?}", e));
 
+            // clean wait list from the messages
             let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
             WaitlistOf::<T>::drain_key(program_id).for_each(|entry| {
                 let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
@@ -76,8 +73,10 @@ where
         };
 
         // terminate uninitialized program
+
+        // clean wait list from the messages
         let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
-        let Some(origin) = WaitlistOf::<T>::drain_key(program_id).fold(None, |maybe_origin, entry| {
+        let origin = WaitlistOf::<T>::drain_key(program_id).fold(None, |maybe_origin, entry| {
             let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
             let result = match maybe_origin {
                 Some(_) => maybe_origin,
@@ -89,11 +88,10 @@ where
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
             result
-        }) else {
-            log::debug!("pause_program; init message not found");
-            return;
-        };
+        })
+        .unwrap_or_else(|| unreachable!("Failed to find init-message."));
 
+        // set program status to Terminated
         let gas_reservations =
             ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
                 *bn = Pallet::<T>::block_number();
@@ -114,14 +112,17 @@ where
                 );
             });
 
+        // remove program's resources
         Self::remove_gas_reservation_map(program_id, gas_reservations);
         ProgramStorageOf::<T>::remove_program_pages(program_id);
+        ProgramStorageOf::<T>::waiting_init_remove(program_id);
 
         let event = Event::ProgramChanged {
             id: program_id,
             change: ProgramChangeKind::Terminated,
         };
 
+        // transfer program's balance to the origin
         let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
 
         let balance = CurrencyOf::<T>::free_balance(&program_id);
