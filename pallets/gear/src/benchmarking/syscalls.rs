@@ -40,10 +40,7 @@ use gear_core::{
     message::{Message, Value},
     reservation::GasReservationSlot,
 };
-use gear_wasm_instrument::{
-    parity_wasm::elements::{BlockType, Instruction},
-    syscalls::SysCallName,
-};
+use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
 
@@ -154,22 +151,19 @@ where
     }
 
     pub fn alloc(r: u32) -> Result<Exec<T>, &'static str> {
+        let mut instructions = vec![
+            // Alloc 0 pages take almost the same amount of resources as another amount.
+            Instruction::I32Const(0),
+            Instruction::Call(0),
+            Instruction::I32Const(i32::MAX),
+        ];
+
+        unreachable_condition(&mut instructions, Instruction::I32Eq); // if alloc returns i32::MAX then it's error
+
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
             imported_functions: vec![SysCallName::Alloc],
-            handle_body: Some(body::repeated(
-                r * API_BENCHMARK_BATCH_SIZE,
-                &[
-                    // Alloc 0 pages take almost the same amount of resources as another amount.
-                    Instruction::I32Const(0),
-                    Instruction::Call(0),
-                    Instruction::I32Const(i32::MAX),
-                    Instruction::I32Eq, // if alloc returns i32::MAX then it's error
-                    Instruction::If(BlockType::NoResult),
-                    Instruction::Unreachable,
-                    Instruction::End,
-                ],
-            )),
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &instructions)),
             ..Default::default()
         };
 
