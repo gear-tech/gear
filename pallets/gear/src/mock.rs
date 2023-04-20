@@ -143,6 +143,7 @@ impl common::GasPrice for GasConverter {
 
 impl pallet_gear_program::Config for Test {
     type Scheduler = GearScheduler;
+    type CurrentBlockNumber = ();
 }
 
 parameter_types! {

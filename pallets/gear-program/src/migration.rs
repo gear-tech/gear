@@ -18,7 +18,10 @@
 
 use crate::{Config, Pallet, ProgramStorage, TaskPoolOf};
 use common::{scheduler::*, Program};
-use frame_support::{traits::StorageVersion, weights::Weight};
+use frame_support::{
+    traits::{Get, StorageVersion},
+    weights::Weight,
+};
 use sp_runtime::Saturating;
 
 // almost 2 month for networks with 1-second block production
@@ -35,7 +38,7 @@ pub fn migrate<T: Config>() -> Weight {
     if version == VERSION_1 {
         ProgramStorage::<T>::translate(
             |program_id, (program, _bn): (Program, <T as frame_system::Config>::BlockNumber)| {
-                let block_number = frame_system::Pallet::<T>::block_number();
+                let block_number = T::CurrentBlockNumber::get();
                 let expiration_block = block_number.saturating_add(FREE_PERIOD.into());
                 if expiration_block > block_number {
                     let task = ScheduledTask::PauseProgram(program_id);

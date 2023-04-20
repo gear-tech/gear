@@ -206,6 +206,7 @@ impl pallet_gear::Config for Test {
 
 impl pallet_gear_program::Config for Test {
     type Scheduler = GearScheduler;
+    type CurrentBlockNumber = ();
 }
 
 impl pallet_gear_gas::Config for Test {

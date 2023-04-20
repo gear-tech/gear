@@ -296,6 +296,7 @@ impl pallet_utility::Config for Runtime {
 
 impl pallet_gear_program::Config for Runtime {
     type Scheduler = GearScheduler;
+    type CurrentBlockNumber = Gear;
 }
 
 parameter_types! {

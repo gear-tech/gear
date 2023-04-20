@@ -168,6 +168,9 @@ pub mod pallet {
             BlockNumber = Self::BlockNumber,
             Task = ScheduledTask<Self::AccountId>,
         >;
+
+        /// Custom block number tracker.
+        type CurrentBlockNumber: Get<BlockNumberFor<Self>>;
     }
 
     #[pallet::pallet]
