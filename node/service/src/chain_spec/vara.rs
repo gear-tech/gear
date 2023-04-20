@@ -30,7 +30,8 @@ use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
     constants::currency::UNITS as TOKEN, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig,
     GenesisConfig, GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
-    StakingConfig, StakingRewardsConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
+    StakingConfig, StakingRewardsConfig, SudoConfig, SystemConfig, ValidatorSetConfig,
+    VestingConfig, WASM_BINARY,
 };
 
 // The URL for the telemetry server.
@@ -572,6 +573,12 @@ fn testnet_genesis(
                 .map(|k: &AccountId| (k.clone(), ENDOWMENT))
                 .chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
                 .collect(),
+        },
+        validator_set: ValidatorSetConfig {
+            initial_validators: initial_authorities
+                .iter()
+                .map(|x| x.0.clone())
+                .collect::<Vec<_>>(),
         },
         babe: BabeConfig {
             authorities: Default::default(),

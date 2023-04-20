@@ -30,7 +30,7 @@ use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
     constants::currency::*, AccountId, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
     SessionConfig, StakerStatus, StakingConfig, StakingRewardsConfig, SudoConfig, SystemConfig,
-    BABE_GENESIS_EPOCH_CONFIG, WASM_BINARY,
+    ValidatorSetConfig, BABE_GENESIS_EPOCH_CONFIG, WASM_BINARY,
 };
 
 fn wasm_binary() -> &'static [u8] {
@@ -70,6 +70,9 @@ pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> Gen
                 .unwrap_or_else(|| wasm_binary().to_vec()),
         },
         balances: BalancesConfig { balances: endowed },
+        validator_set: ValidatorSetConfig {
+            initial_validators: vec![],
+        },
         babe: BabeConfig {
             authorities: vec![],
             epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),

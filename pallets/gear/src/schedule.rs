@@ -20,8 +20,6 @@
 //! sane default schedule from a `WeightInfo` implementation.
 
 #![allow(unused_parens)]
-// (issue #2531)
-#![allow(deprecated)]
 
 use crate::{weights::WeightInfo, Config};
 use core_processor::configs::PageCosts;
@@ -641,7 +639,7 @@ macro_rules! cost_byte_batched {
 
 macro_rules! to_weight {
     ($ref_time:expr $(, $proof_size:expr )?) => {
-        Weight::from_ref_time($ref_time)$(.set_proof_size($proof_size))?
+        Weight::from_parts($ref_time, 0)$(.set_proof_size($proof_size))?
     };
 }
 
@@ -949,8 +947,8 @@ impl<T: Config> Default for MemoryWeights<T> {
                 .saturating_mul(kb_number_in_one_gear_page)
                 .saturating_sub(T::DbWeight::get().writes(1).ref_time(),)),
             // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
-            static_page: Weight::from_ref_time(100),
-            mem_grow: Weight::from_ref_time(100),
+            static_page: Weight::from_parts(100, 0),
+            mem_grow: Weight::from_parts(100, 0),
             // TODO: make it non-zero for para-chains (issue #2225)
             parachain_read_heuristic: Weight::zero(),
             _phantom: PhantomData,
