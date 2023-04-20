@@ -19,6 +19,7 @@
 use std::{
     collections::{BTreeMap, HashSet},
     iter::Cycle,
+    mem::size_of,
     ops::RangeInclusive,
 };
 
@@ -27,15 +28,15 @@ use gear_wasm_instrument::{
     parity_wasm::{
         self, builder,
         elements::{
-            External, FunctionType, ImportCountType, Instruction, Instructions, Internal, Module,
-            Section, Type, ValueType,
+            BlockType, External, FunctionType, ImportCountType, Instruction, Instructions,
+            Internal, Module, Section, Type, ValueType,
         },
     },
     syscalls::{ParamType, SysCallName, SysCallSignature},
     STACK_END_EXPORT_NAME,
 };
 pub use gsys;
-use gsys::HashWithValue;
+use gsys::{HashWithValue, Length, LengthWithHash};
 use wasm_smith::{InstructionKind::*, InstructionKinds, Module as ModuleSmith, SwarmConfig};
 
 mod syscalls;
@@ -874,11 +875,12 @@ impl<'a> WasmGen<'a> {
         &mut self,
         module: Module,
         call_data: &BTreeMap<CallName, CallData>,
+        memory_pages: WasmPageCount,
     ) -> (Module, Option<CallData>) {
         let reserve_gas_call_data = call_data.get(&CallName::System(SysCallName::ReserveGas));
         let reservation_send_call_data =
             call_data.get(&CallName::System(SysCallName::ReservationSend));
-        let (_reserve_gas_call_data, reservation_send_call_data) =
+        let (reserve_gas_call_data, reservation_send_call_data) =
             if let (Some(reserve_gas_call_data), Some(reservation_send_call_data)) =
                 (reserve_gas_call_data, reservation_send_call_data)
             {
@@ -888,12 +890,12 @@ impl<'a> WasmGen<'a> {
             };
         let send_from_reservation_signature = SysCallSignature {
             params: vec![
-                ParamType::Ptr,
-                ParamType::Ptr,
-                ParamType::Size,
-                ParamType::Delay,
-                ParamType::Gas,
-                ParamType::Duration,
+                ParamType::Ptr,      // Address of recipient and value (HashWithValue struct)
+                ParamType::Ptr,      // Pointer to payload
+                ParamType::Size,     // Size of the payload
+                ParamType::Delay,    // Number of blocks to delay the sending for
+                ParamType::Gas,      // Amount of gas to reserve
+                ParamType::Duration, // Duration of the reservation
             ],
             results: Default::default(),
         };
@@ -911,11 +913,52 @@ impl<'a> WasmGen<'a> {
             .with_results(func_type.results().iter().copied())
             .build_sig();
 
+        let memory_size_in_bytes = memory_pages.memory_size();
+        let reserve_gas_result_ptr = memory_size_in_bytes.saturating_sub(MEMORY_VALUE_SIZE) as i32; // Pointer to the LengthWithHash struct
+        let rid_pid_value_ptr = reserve_gas_result_ptr + size_of::<Length>() as i32;
+        let pid_value_ptr = reserve_gas_result_ptr + size_of::<LengthWithHash>() as i32;
+        let reservation_send_result_ptr = pid_value_ptr + size_of::<HashWithValue>() as i32;
+
         let func_instructions = Instructions::new(vec![
-            Instruction::I32Const(142),
-            Instruction::I32Const(143),
-            Instruction::Drop,
-            Instruction::Drop,
+            Instruction::GetLocal(4),                      // Amount of gas to reserve
+            Instruction::GetLocal(5),                      // Duration of the reservation
+            Instruction::I32Const(reserve_gas_result_ptr), // Pointer to the LengthWithHash struct
+            Instruction::Call(reserve_gas_call_data.call_index),
+            Instruction::I32Const(reserve_gas_result_ptr), // Pointer to the LengthWithHash struct
+            Instruction::I32Load(2, 0),                    // Load LengthWithHash.length
+            Instruction::I32Eqz,                           // Check if LengthWithHash.length == 0
+            Instruction::If(BlockType::NoResult),          // If LengthWithHash.length == 0
+            Instruction::I32Const(pid_value_ptr), // Copy the HashWithValue struct (48 bytes) containing the recipient and value after the obtained reservation ID
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 0),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 8),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 16),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 24),
+            Instruction::I64Store(3, 24),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 32),
+            Instruction::I64Store(3, 32),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 40),
+            Instruction::I64Store(3, 40),
+            Instruction::I32Const(rid_pid_value_ptr), // Pointer to reservation ID, recipient ID and value
+            Instruction::GetLocal(1),                 // Pointer to payload
+            Instruction::GetLocal(2),                 // Size of the payload
+            Instruction::GetLocal(3),                 // Number of blocks to delay the sending for
+            Instruction::I32Const(reservation_send_result_ptr), // Pointer to the result of the reservation send
+            Instruction::Call(reservation_send_call_data.call_index),
+            Instruction::End,
             Instruction::End,
         ]);
 
@@ -1174,7 +1217,7 @@ pub fn gen_gear_program_module<'a>(
     let (module, mut syscall_data) = gen.gen_syscall_imports(module);
 
     let (module, send_from_reservation_call_data) =
-        gen.gen_send_from_reservation(module, &syscall_data);
+        gen.gen_send_from_reservation(module, &syscall_data, memory_pages);
     if let Some(send_from_reservation_call_data) = send_from_reservation_call_data {
         syscall_data.insert(
             CallName::SendFromReservation,
