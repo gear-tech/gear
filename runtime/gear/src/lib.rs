@@ -100,6 +100,7 @@ mod weights;
 // Full node will not attempt to use its native runtime in substitute for the
 // on-chain WASM runtime unless all of `spec_name`, `spec_version`, and
 // `authoring_version` are the same between WASM and native.
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("gear"),
     impl_name: create_runtime_str!("gear"),

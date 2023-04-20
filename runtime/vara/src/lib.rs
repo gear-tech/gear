@@ -114,6 +114,7 @@ pub use extensions::DisableValueTransfers;
 
 mod migrations;
 
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
