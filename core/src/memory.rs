@@ -580,12 +580,10 @@ impl AllocationsContext {
     /// and returns zero-based number of the first one.
     pub fn alloc<G: GrowHandler>(
         &mut self,
-        pages_num: u32,
+        pages: WasmPage,
         mem: &mut impl Memory,
         charge_gas_for_grow: impl FnOnce(WasmPage) -> Result<(), ChargeError>,
     ) -> Result<WasmPage, AllocError> {
-        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
-
         let mem_size = mem.size();
         let mut start = self.static_pages;
         let mut start_page = None;

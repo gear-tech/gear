@@ -87,23 +87,23 @@ mod tests {
         let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
         assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(16, &mut mem_wrap, |_| Ok(())),
+            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(())),
             16.into()
         );
 
         assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(0, &mut mem_wrap, |_| Ok(())),
+            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(())),
             16.into()
         );
 
         // there is a space for 14 more
         for _ in 0..14 {
-            assert_ok!(ctx.alloc::<NoopGrowHandler>(16, &mut mem_wrap, |_| Ok(())));
+            assert_ok!(ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(())));
         }
 
         // no more mem!
         assert_err!(
-            ctx.alloc::<NoopGrowHandler>(1, &mut mem_wrap, |_| Ok(())),
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
             AllocError::ProgramAllocOutOfBounds
         );
 
@@ -112,7 +112,7 @@ mod tests {
 
         // and now can allocate page that was freed
         assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(1, &mut mem_wrap, |_| Ok(())),
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
             137.into()
         );
 
@@ -121,7 +121,7 @@ mod tests {
         assert_ok!(ctx.free(118.into()));
 
         assert_ok!(
-            ctx.alloc::<NoopGrowHandler>(2, &mut mem_wrap, |_| Ok(())),
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
             117.into()
         );
 
@@ -130,7 +130,7 @@ mod tests {
         assert_ok!(ctx.free(158.into()));
 
         assert_err!(
-            ctx.alloc::<NoopGrowHandler>(2, &mut mem_wrap, |_| Ok(())),
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
             AllocError::ProgramAllocOutOfBounds
         );
     }

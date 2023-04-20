@@ -876,9 +876,11 @@ impl Ext {
         pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, ProcessorAllocError> {
+        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
+
         self.context
             .allocations_context
-            .alloc::<G>(pages_num, mem, |pages| {
+            .alloc::<G>(pages, mem, |pages| {
                 Ext::charge_gas_if_enough(
                     &mut self.context.gas_counter,
                     &mut self.context.gas_allowance_counter,
