@@ -37,6 +37,7 @@ pub trait Error {
     fn cannot_find_page_data() -> Self;
 }
 
+// TODO: store block_number directly in ActiveProgram (2570)
 /// The entity specifies the structure of stored data.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
