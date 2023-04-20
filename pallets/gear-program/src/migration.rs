@@ -21,7 +21,9 @@ use common::{scheduler::*, Program};
 use frame_support::{traits::StorageVersion, weights::Weight};
 use sp_runtime::Saturating;
 
-pub const FREE_PERIOD: u32 = 3_000_000;
+// almost 2 month for networks with 1-second block production
+pub const FREE_PERIOD: u32 = 5_000_000;
+static_assertions::const_assert!(FREE_PERIOD > 0);
 
 const VERSION_1: StorageVersion = StorageVersion::new(1);
 

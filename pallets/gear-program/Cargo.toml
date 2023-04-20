@@ -18,6 +18,7 @@ scale-info = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
 hashbrown.workspace = true
+static_assertions.workspace = true
 
 # Internal deps
 common.workspace = true
