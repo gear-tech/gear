@@ -46,12 +46,8 @@ impl Item {
 }
 
 /// Trait to pause/resume programs.
-pub trait PausedProgramStorage {
-    type BlockNumber;
-
+pub trait PausedProgramStorage: super::ProgramStorage {
     type PausedProgramMap: MapStorage<Key = ProgramId, Value = (Self::BlockNumber, H256)>;
-
-    type ProgramStorage: super::ProgramStorage<BlockNumber = Self::BlockNumber>;
 
     /// Attempt to remove all items from all the associated maps.
     fn reset() {
@@ -69,10 +65,10 @@ pub trait PausedProgramStorage {
     fn pause_program(
         program_id: ProgramId,
         block_number: Self::BlockNumber,
-    ) -> Result<GasReservationMap, <Self::ProgramStorage as super::ProgramStorage>::Error> {
-        let (mut program, memory_pages) = Self::ProgramStorage::remove_active_program(program_id)?;
+    ) -> Result<GasReservationMap, <Self as super::ProgramStorage>::Error> {
+        let (mut program, memory_pages) = Self::remove_active_program(program_id)?;
         let gas_reservations = core::mem::take(&mut program.gas_reservation_map);
-        
+
         Self::PausedProgramMap::insert(
             program_id,
             (block_number, Item::from((program, memory_pages)).hash()),

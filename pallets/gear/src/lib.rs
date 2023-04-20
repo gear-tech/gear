@@ -126,7 +126,6 @@ pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
 pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
-pub type PausedProgramStorageOf<T> = <T as Config>::PausedProgramStorage;
 pub type RentFreePeriodOf<T> = <<T as Config>::ProgramRentConfig as ProgramRentConfig>::FreePeriod;
 pub type RentCostPerBlockOf<T> =
     <<T as Config>::ProgramRentConfig as ProgramRentConfig>::CostPerBlock;
@@ -210,7 +209,7 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
-        type ProgramStorage: ProgramStorage<BlockNumber = Self::BlockNumber>;
+        type ProgramStorage: PausedProgramStorage<BlockNumber = Self::BlockNumber>;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -264,11 +263,6 @@ pub mod pallet {
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
 
-        /// Storage of paused programs.
-        type PausedProgramStorage: PausedProgramStorage<
-            BlockNumber = Self::BlockNumber,
-            ProgramStorage = Self::ProgramStorage,
-        >;
         type ProgramRentConfig: ProgramRentConfig<
             BlockNumber = Self::BlockNumber,
             Balance = BalanceOf<Self>,
@@ -834,7 +828,7 @@ pub mod pallet {
         /// Returns true if there is a program with the specified id (it may be paused).
         pub fn program_exists(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::program_exists(program_id)
-                || PausedProgramStorageOf::<T>::paused_program_exists(&program_id)
+                || ProgramStorageOf::<T>::paused_program_exists(&program_id)
         }
 
         pub fn get_block_number(program_id: ProgramId) -> <T as frame_system::Config>::BlockNumber {

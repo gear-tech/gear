@@ -345,7 +345,6 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
-    type PausedProgramStorage = GearProgram;
     type ProgramRentConfig = ProgramRentConfig;
 }
 

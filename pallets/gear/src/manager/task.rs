@@ -18,7 +18,7 @@
 
 use crate::{
     manager::ExtManager, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, GasHandlerOf,
-    Pallet, PausedProgramStorageOf, ProgramStorageOf, QueueOf, WaitlistOf,
+    Pallet, ProgramStorageOf, QueueOf, WaitlistOf,
 };
 use alloc::string::ToString;
 use common::{
@@ -53,7 +53,7 @@ where
 
         let Some(init_message_id) = program.program.is_uninitialized() else {
             // pause initialized program
-            let Ok(gas_reservation_map) = PausedProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number()) else {
+            let Ok(gas_reservation_map) = ProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number()) else {
                 log::debug!("pause_program; not active");
                 return;
             };

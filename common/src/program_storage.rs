@@ -83,7 +83,9 @@ pub trait ProgramStorage {
     }
 
     /// Remove an active program with the given key `program_id` from the map.
-    fn remove_active_program(program_id: ProgramId) -> Result<(ActiveProgram, BTreeMap<GearPage, PageBuf>), Self::Error> {
+    fn remove_active_program(
+        program_id: ProgramId,
+    ) -> Result<(ActiveProgram, BTreeMap<GearPage, PageBuf>), Self::Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
             let Some(item) = maybe.take() else {
                 return Err(Self::InternalError::item_not_found().into());
@@ -95,7 +97,10 @@ pub trait ProgramStorage {
                 return Err(Self::InternalError::not_active_program().into());
             };
 
-            let memory_pages = match Self::get_program_data_for_pages(program_id, program.pages_with_data.iter()) {
+            let memory_pages = match Self::get_program_data_for_pages(
+                program_id,
+                program.pages_with_data.iter(),
+            ) {
                 Ok(memory_pages) => memory_pages,
                 Err(e) => {
                     *maybe = Some(Item {

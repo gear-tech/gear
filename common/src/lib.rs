@@ -63,7 +63,7 @@ use gear_core::{
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
-use sp_arithmetic::traits::{BaseArithmetic, Unsigned, Saturating};
+use sp_arithmetic::traits::{BaseArithmetic, Saturating, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -236,7 +236,8 @@ impl Program {
         if let Program::Active(ActiveProgram {
             state: ProgramState::Uninitialized { message_id },
             ..
-        }) = self {
+        }) = self
+        {
             Some(*message_id)
         } else {
             None

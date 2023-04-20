@@ -41,8 +41,8 @@ use crate::{
         USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, PausedProgramStorageOf, ProgramStorageOf, RentFreePeriodOf,
-    Schedule, TaskPoolOf, WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, RentFreePeriodOf, Schedule, TaskPoolOf,
+    WaitlistOf,
 };
 use common::{
     event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _,
@@ -54,7 +54,7 @@ use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 use frame_support::{
-    assert_noop, assert_ok, assert_err,
+    assert_err, assert_noop, assert_ok,
     codec::{Decode, Encode},
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
@@ -5180,7 +5180,10 @@ fn test_pausing_programs_works() {
         let program =
             ProgramStorageOf::<Test>::get_program(factory_id).expect("program should exist");
         let expected_block = program.block_number;
-        assert_eq!(expected_block, factory_bn.saturating_add(RentFreePeriodOf::<Test>::get()));
+        assert_eq!(
+            expected_block,
+            factory_bn.saturating_add(RentFreePeriodOf::<Test>::get())
+        );
         assert!(TaskPoolOf::<Test>::contains(
             &expected_block,
             &ScheduledTask::PauseProgram(factory_id)
@@ -5192,16 +5195,17 @@ fn test_pausing_programs_works() {
         run_to_next_block(None);
 
         assert!(!ProgramStorageOf::<Test>::program_exists(factory_id));
-        assert!(PausedProgramStorageOf::<Test>::paused_program_exists(
-            &factory_id
-        ));
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(&factory_id));
         assert!(Gear::program_exists(factory_id));
 
         // check that program created via syscall is paused
         let program =
             ProgramStorageOf::<Test>::get_program(child_program_id).expect("program should exist");
         let expected_block = program.block_number;
-        assert_eq!(expected_block, child_bn.saturating_add(RentFreePeriodOf::<Test>::get()));
+        assert_eq!(
+            expected_block,
+            child_bn.saturating_add(RentFreePeriodOf::<Test>::get())
+        );
         assert!(TaskPoolOf::<Test>::contains(
             &expected_block,
             &ScheduledTask::PauseProgram(child_program_id)
@@ -5213,7 +5217,7 @@ fn test_pausing_programs_works() {
         run_to_next_block(None);
 
         assert!(!ProgramStorageOf::<Test>::program_exists(child_program_id));
-        assert!(PausedProgramStorageOf::<Test>::paused_program_exists(
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(
             &child_program_id
         ));
         assert!(Gear::program_exists(child_program_id));

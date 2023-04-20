@@ -135,14 +135,15 @@ pub use pallet::*;
 
 pub mod migration;
 
-pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as common::scheduler::Scheduler>::TaskPool;
+pub(crate) type TaskPoolOf<T> =
+    <<T as Config>::Scheduler as common::scheduler::Scheduler>::TaskPool;
 
 #[frame_support::pallet]
 pub mod pallet {
     use crate::migration::migrate;
 
-    use common::{scheduler::*, storage::*, CodeMetadata, ProgramStorageItem};
     use super::*;
+    use common::{scheduler::*, storage::*, CodeMetadata, ProgramStorageItem};
     #[cfg(feature = "debug-mode")]
     use frame_support::storage::PrefixIterator;
     use frame_support::{
@@ -321,11 +322,7 @@ pub mod pallet {
     }
 
     impl<T: Config> common::PausedProgramStorage for pallet::Pallet<T> {
-        type BlockNumber = T::BlockNumber;
-
         type PausedProgramMap = PausedProgramStorageWrap<T>;
-
-        type ProgramStorage = Self;
     }
 
     #[cfg(feature = "debug-mode")]
