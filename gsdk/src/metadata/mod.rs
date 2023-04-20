@@ -587,12 +587,14 @@ pub mod runtime_types {
                 #[codec(index = 0)]
                 ExpirationChanged { expiration: _0 },
                 #[codec(index = 1)]
-                Active,
+                ProgramSet { expiration: _0 },
                 #[codec(index = 2)]
-                Inactive,
+                Active { expiration: _0 },
                 #[codec(index = 3)]
-                Terminated,
+                Inactive,
                 #[codec(index = 4)]
+                Terminated,
+                #[codec(index = 5)]
                 Paused,
             }
             #[derive(

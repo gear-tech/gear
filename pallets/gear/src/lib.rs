@@ -1196,7 +1196,7 @@ pub mod pallet {
             let program_id = packet.destination();
             let program_event = Event::ProgramChanged {
                 id: program_id,
-                change: ProgramChangeKind::ExpirationChanged {
+                change: ProgramChangeKind::ProgramSet {
                     expiration: expiration_block,
                 },
             };

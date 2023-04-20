@@ -222,14 +222,19 @@ pub enum ProgramChangeKind<BlockNumber> {
     /// paused due to losing ability to pay rent for holding.
     ExpirationChanged { expiration: BlockNumber },
 
-    /// Active status achieved.
-    ///
-    /// Occurs when new program created, paused program was resumed
-    /// or expiration block number updated.
+    /// Occurs when new program set in the storage.
     ///
     /// Expiration block number presents block number when this program become
     /// paused due to losing ability to pay rent for holding.
-    Active,
+    ProgramSet { expiration: BlockNumber },
+
+    /// Active status achieved.
+    ///
+    /// Occurs when new program created or paused program was resumed.
+    ///
+    /// Expiration block number presents block number when this program become
+    /// paused due to losing ability to pay rent for holding.
+    Active { expiration: BlockNumber },
 
     /// Program become inactive forever due to `gr_exit` call.
     Inactive,

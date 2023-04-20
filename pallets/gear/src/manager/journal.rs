@@ -112,8 +112,13 @@ where
                 );
 
                 wake_waiting_init_msgs(program_id);
-                ProgramStorageOf::<T>::update_active_program(program_id, |p| {
-                    p.state = ProgramState::Initialized;
+                let expiration = ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
+                    match p {
+                        Program::Active(active) => active.state = ProgramState::Initialized,
+                        _ => unreachable!("Only active programs are able to initialize"),
+                    }
+
+                    *bn
                 })
                 .unwrap_or_else(|e| {
                     unreachable!(
@@ -124,7 +129,7 @@ where
 
                 Pallet::<T>::deposit_event(Event::ProgramChanged {
                     id: program_id,
-                    change: ProgramChangeKind::Active,
+                    change: ProgramChangeKind::Active { expiration },
                 });
 
                 DispatchStatus::Success
@@ -473,6 +478,13 @@ where
                     let task = ScheduledTask::PauseProgram(candidate_id);
                     TaskPoolOf::<T>::add(expiration_block, task)
                         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+                    Pallet::<T>::deposit_event(Event::ProgramChanged {
+                        id: candidate_id,
+                        change: ProgramChangeKind::ProgramSet {
+                            expiration: expiration_block,
+                        },
+                    });
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
