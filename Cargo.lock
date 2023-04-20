@@ -11588,7 +11588,7 @@ dependencies = [
 [[package]]
 name = "substrate-validator-set"
 version = "0.9.41"
-source = "git+https://github.com/gear-tech/substrate-validator-set.git?branch=gear-polkadot-v0.9.41-sign-ext#82ac0b50baab4b195a949665d0dd694e38bdb0f4"
+source = "git+https://github.com/gear-tech/substrate-validator-set.git?branch=gshep/polkadot-v0.9.41#10996a406d7441f290b3c51bb9f945d693245156"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
