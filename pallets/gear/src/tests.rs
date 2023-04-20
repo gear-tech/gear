@@ -45,8 +45,8 @@ use crate::{
     WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _,
-    PausedProgramStorage, ProgramStorage,
+    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree,
+    Origin as _, PausedProgramStorage, ProgramStorage,
 };
 use core_processor::{common::ActorExecutionErrorReason, ActorPrepareMemoryError};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
@@ -5311,6 +5311,84 @@ fn reservations_cleaned_in_paused_program() {
             assert_err!(
                 GasHandlerOf::<Test>::get_limit_node(*rid),
                 pallet_gear_gas::Error::<Test>::NodeNotFound
+            );
+        }
+    });
+}
+
+#[test]
+fn uninitialized_program_terminates() {
+    use demo_reserve_gas::InitAction;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitAction::Wait.encode(),
+            50_000_000_000,
+            0,
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            b"0123456789".to_vec(),
+            50_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert!(WaitlistOf::<Test>::iter_key(program_id).next().is_some());
+
+        let map = get_reservation_map(program_id).unwrap();
+
+        for (rid, slot) in &map {
+            assert!(TaskPoolOf::<Test>::contains(
+                &u64::from(slot.finish),
+                &ScheduledTask::RemoveGasReservation(program_id, *rid)
+            ));
+            assert!(GasHandlerOf::<Test>::get_limit_node(*rid).is_ok());
+        }
+
+        let program =
+            ProgramStorageOf::<Test>::get_program(program_id).expect("program should exist");
+        let expected_block = program.block_number;
+
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number((expected_block - 1).try_into().unwrap());
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_terminated(program_id));
+
+        for (rid, slot) in &map {
+            assert!(!TaskPoolOf::<Test>::contains(
+                &u64::from(slot.finish),
+                &ScheduledTask::RemoveGasReservation(program_id, *rid)
+            ));
+            assert_err!(
+                GasHandlerOf::<Test>::get_limit_node(*rid),
+                pallet_gear_gas::Error::<Test>::NodeNotFound
+            );
+        }
+
+        assert!(WaitlistOf::<Test>::iter_key(program_id).next().is_none());
+        assert!(ProgramStorageOf::<Test>::waiting_init_get_messages(program_id).is_empty());
+        let active: ActiveProgram = program.program.try_into().unwrap();
+        for page in active.pages_with_data.iter() {
+            assert_err!(
+                ProgramStorageOf::<Test>::get_program_data_for_pages(
+                    program_id,
+                    Some(*page).iter()
+                ),
+                pallet_gear_program::Error::<Test>::CannotFindDataForPage
             );
         }
     });

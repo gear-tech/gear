@@ -76,20 +76,23 @@ where
 
         // clean wait list from the messages
         let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
-        let origin = WaitlistOf::<T>::drain_key(program_id).fold(None, |maybe_origin, entry| {
-            let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
-            let result = match maybe_origin {
-                Some(_) => maybe_origin,
-                None if init_message_id == message.message().id() => Some(message.message().source()),
-                _ => None
-            };
+        let origin = WaitlistOf::<T>::drain_key(program_id)
+            .fold(None, |maybe_origin, entry| {
+                let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
+                let result = match maybe_origin {
+                    Some(_) => maybe_origin,
+                    None if init_message_id == message.message().id() => {
+                        Some(message.message().source())
+                    }
+                    _ => None,
+                };
 
-            QueueOf::<T>::queue(message)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+                QueueOf::<T>::queue(message)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
-            result
-        })
-        .unwrap_or_else(|| unreachable!("Failed to find init-message."));
+                result
+            })
+            .unwrap_or_else(|| unreachable!("Failed to find init-message."));
 
         // set program status to Terminated
         let gas_reservations =
