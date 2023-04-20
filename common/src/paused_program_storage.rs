@@ -69,24 +69,15 @@ pub trait PausedProgramStorage {
     fn pause_program(
         program_id: ProgramId,
         block_number: Self::BlockNumber,
-    ) -> Option<GasReservationMap> {
-        Self::ProgramStorage::remove_active_program(program_id).map(|mut program| {
-            let gas_reservations = core::mem::take(&mut program.gas_reservation_map);
+    ) -> Result<GasReservationMap, <Self::ProgramStorage as super::ProgramStorage>::Error> {
+        let (mut program, memory_pages) = Self::ProgramStorage::remove_active_program(program_id)?;
+        let gas_reservations = core::mem::take(&mut program.gas_reservation_map);
+        
+        Self::PausedProgramMap::insert(
+            program_id,
+            (block_number, Item::from((program, memory_pages)).hash()),
+        );
 
-            let _messages = Self::ProgramStorage::waiting_init_take_messages(program_id);
-            let memory_pages = Self::ProgramStorage::get_program_data_for_pages(
-                program_id,
-                program.pages_with_data.iter(),
-            )
-            .expect("active program has pages with data");
-            Self::ProgramStorage::remove_program_pages(program_id);
-
-            Self::PausedProgramMap::insert(
-                program_id,
-                (block_number, Item::from((program, memory_pages)).hash()),
-            );
-
-            gas_reservations
-        })
+        Ok(gas_reservations)
     }
 }

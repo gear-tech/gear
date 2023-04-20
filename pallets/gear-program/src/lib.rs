@@ -129,19 +129,19 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use common::{scheduler::*, storage::*, CodeMetadata, ProgramStorageItem};
-use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, prelude::*};
+use sp_std::{convert::TryInto, prelude::*};
 
 pub use pallet::*;
 
 pub mod migration;
 
-pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
+pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as common::scheduler::Scheduler>::TaskPool;
 
 #[frame_support::pallet]
 pub mod pallet {
     use crate::migration::migrate;
 
+    use common::{scheduler::*, storage::*, CodeMetadata, ProgramStorageItem};
     use super::*;
     #[cfg(feature = "debug-mode")]
     use frame_support::storage::PrefixIterator;
@@ -165,9 +165,7 @@ pub mod pallet {
         /// Scheduler.
         type Scheduler: Scheduler<
             BlockNumber = Self::BlockNumber,
-            Cost = u64,
             Task = ScheduledTask<Self::AccountId>,
-            MissedBlocksCollection = BTreeSet<Self::BlockNumber>,
         >;
     }
 
@@ -282,7 +280,6 @@ pub mod pallet {
     );
 
     #[pallet::storage]
-    #[pallet::unbounded]
     pub(crate) type PausedProgramStorage<T: Config> =
         StorageMap<_, Identity, ProgramId, (BlockNumberFor<T>, H256)>;
 

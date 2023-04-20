@@ -54,7 +54,7 @@ use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 use frame_support::{
-    assert_noop, assert_ok,
+    assert_noop, assert_ok, assert_err,
     codec::{Decode, Encode},
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
@@ -5156,7 +5156,9 @@ fn test_pausing_programs_works() {
             50_000_000_000,
             0,
         ));
-        run_to_block(2, None);
+
+        let factory_bn = System::block_number();
+        run_to_next_block(None);
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -5170,39 +5172,51 @@ fn test_pausing_programs_works() {
             50_000_000_000,
             0,
         ));
-        run_to_block(3, None);
+        run_to_next_block(None);
+
+        let child_bn = System::block_number();
 
         // check that program created via extrinsic is paused
         let program =
             ProgramStorageOf::<Test>::get_program(factory_id).expect("program should exist");
         let expected_block = program.block_number;
+        assert_eq!(expected_block, factory_bn.saturating_add(RentFreePeriodOf::<Test>::get()));
         assert!(TaskPoolOf::<Test>::contains(
-            &program.block_number,
+            &expected_block,
             &ScheduledTask::PauseProgram(factory_id)
         ));
 
-        run_to_block(expected_block + 1, None);
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number((expected_block - 1).try_into().unwrap());
+
+        run_to_next_block(None);
 
         assert!(!ProgramStorageOf::<Test>::program_exists(factory_id));
         assert!(PausedProgramStorageOf::<Test>::paused_program_exists(
             &factory_id
         ));
+        assert!(Gear::program_exists(factory_id));
 
         // check that program created via syscall is paused
         let program =
             ProgramStorageOf::<Test>::get_program(child_program_id).expect("program should exist");
         let expected_block = program.block_number;
+        assert_eq!(expected_block, child_bn.saturating_add(RentFreePeriodOf::<Test>::get()));
         assert!(TaskPoolOf::<Test>::contains(
             &expected_block,
             &ScheduledTask::PauseProgram(child_program_id)
         ));
 
-        run_to_block(expected_block + 1, None);
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number((expected_block - 1).try_into().unwrap());
+
+        run_to_next_block(None);
 
         assert!(!ProgramStorageOf::<Test>::program_exists(child_program_id));
         assert!(PausedProgramStorageOf::<Test>::paused_program_exists(
             &child_program_id
         ));
+        assert!(Gear::program_exists(child_program_id));
     })
 }
 
@@ -5236,7 +5250,10 @@ fn test_no_messages_to_paused_program() {
             ProgramStorageOf::<Test>::get_program(program_id).expect("program should exist");
         let expected_block = program.block_number;
 
-        run_to_block(expected_block + 1, None);
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number((expected_block - 1).try_into().unwrap());
+
+        run_to_next_block(None);
 
         assert!(WaitlistOf::<Test>::iter_key(program_id).next().is_none());
     })
@@ -5277,14 +5294,17 @@ fn reservations_cleaned_in_paused_program() {
             ProgramStorageOf::<Test>::get_program(program_id).expect("program should exist");
         let expected_block = program.block_number;
 
-        run_to_block(expected_block + 1, None);
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number((expected_block - 1).try_into().unwrap());
+
+        run_to_next_block(None);
 
         for (rid, slot) in &map {
             assert!(!TaskPoolOf::<Test>::contains(
                 &u64::from(slot.finish),
                 &ScheduledTask::RemoveGasReservation(program_id, *rid)
             ));
-            frame_support::assert_err!(
+            assert_err!(
                 GasHandlerOf::<Test>::get_limit_node(*rid),
                 pallet_gear_gas::Error::<Test>::NodeNotFound
             );

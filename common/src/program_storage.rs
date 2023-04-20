@@ -50,7 +50,7 @@ pub struct Item<BlockNumber> {
 pub trait ProgramStorage {
     type InternalError: Error;
     type Error: From<Self::InternalError> + Debug;
-    type BlockNumber: Copy + sp_arithmetic::traits::Saturating;
+    type BlockNumber: Copy + Saturating;
 
     type ProgramMap: MapStorage<Key = ProgramId, Value = Item<Self::BlockNumber>>;
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;
@@ -83,20 +83,34 @@ pub trait ProgramStorage {
     }
 
     /// Remove an active program with the given key `program_id` from the map.
-    fn remove_active_program(program_id: ProgramId) -> Option<ActiveProgram> {
+    fn remove_active_program(program_id: ProgramId) -> Result<(ActiveProgram, BTreeMap<GearPage, PageBuf>), Self::Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
-            let mut program = maybe.take();
-            match program {
-                Some(Item {
-                    program: Program::Active(p),
-                    ..
-                }) => Some(p),
-                _ => {
-                    *maybe = program.take();
+            let Some(item) = maybe.take() else {
+                return Err(Self::InternalError::item_not_found().into());
+            };
 
-                    None
+            let Program::Active(program) = item.program else {
+                *maybe = Some(item);
+
+                return Err(Self::InternalError::not_active_program().into());
+            };
+
+            let memory_pages = match Self::get_program_data_for_pages(program_id, program.pages_with_data.iter()) {
+                Ok(memory_pages) => memory_pages,
+                Err(e) => {
+                    *maybe = Some(Item {
+                        program: Program::Active(program),
+                        block_number: item.block_number,
+                    });
+
+                    return Err(e);
                 }
-            }
+            };
+
+            Self::waiting_init_remove(program_id);
+            Self::remove_program_pages(program_id);
+
+            Ok((program, memory_pages))
         })
     }
 
@@ -200,5 +214,10 @@ pub trait ProgramStorage {
     /// Append the given message id to the list of messages to uninitialized program in the storage.
     fn waiting_init_append_message_id(dest_prog_id: ProgramId, message_id: MessageId) {
         Self::WaitingInitMap::append(dest_prog_id, message_id);
+    }
+
+    /// Remove all messages to uninitialized program under the given key `program_id`.
+    fn waiting_init_remove(program_id: ProgramId) {
+        let _ = Self::waiting_init_take_messages(program_id);
     }
 }

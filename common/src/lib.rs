@@ -63,7 +63,7 @@ use gear_core::{
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
-use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
+use sp_arithmetic::traits::{BaseArithmetic, Unsigned, Saturating};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -233,13 +233,13 @@ impl Program {
     }
 
     pub fn is_uninitialized(&self) -> Option<MessageId> {
-        let Program::Active(p) = self else {
-            return None;
-        };
-
-        match p.state {
-            ProgramState::Initialized => None,
-            ProgramState::Uninitialized { message_id } => Some(message_id),
+        if let Program::Active(ActiveProgram {
+            state: ProgramState::Uninitialized { message_id },
+            ..
+        }) = self {
+            Some(*message_id)
+        } else {
+            None
         }
     }
 }
