@@ -622,6 +622,7 @@ impl common::ProgramRentConfig for ProgramRentConfig {
 
     type FreePeriod = ConstU32<RENT_FREE_PERIOD>;
     type CostPerBlock = ConstU128<EXISTENTIAL_DEPOSIT>;
+    type ResumePeriod = ConstU32<RENT_RESUME_PERIOD>;
 }
 
 impl pallet_gear::Config for Runtime {
