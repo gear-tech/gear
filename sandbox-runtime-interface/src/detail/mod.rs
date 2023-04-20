@@ -85,10 +85,6 @@ impl Store {
 
         &mut self.store
     }
-
-    pub fn lengths(&self) -> (usize, usize) {
-        self.store.lengths()
-    }
 }
 
 static mut SANDBOX_STORE: Lazy<Store> = Lazy::new(Store::new);
@@ -235,4 +231,17 @@ fn read_memory(
     let mut vec = vec![0; size as usize];
     read_memory_into(ctx, address, &mut vec)?;
     Ok(vec)
+}
+
+fn trace(func: &str, caller: &Caller<'_, StoreData>) {
+    let data_ptr: *const _ = caller.data();
+    let caller_ptr: *const _ = caller;
+    let thread_id = std::thread::current().id();
+
+    log::trace!(
+        "{func}; data_ptr = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+        data_ptr as u64,
+        caller_ptr as u64,
+        thread_id,
+    );
 }

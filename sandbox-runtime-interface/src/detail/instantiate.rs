@@ -46,22 +46,10 @@ pub fn method(
 
     self_.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
         let context_ptr: *mut Context = context_ptr.cast();
-        let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+        let context: &mut Context =
+            unsafe { context_ptr.as_mut().expect("instantiate; set above") };
 
-        let data_ptr: *const _ = caller.data();
-        let store_data_key = data_ptr as u64;
-        {
-            // logging
-            let caller_ptr: *mut _ = caller;
-            let thread_id = std::thread::current().id();
-
-            log::trace!(target: "gear-sandbox-runtime-interface",
-                "instantiate; data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
-                data_ptr as u64,
-                caller_ptr as u64,
-                thread_id,
-            );
-        }
+        trace("instantiate", caller);
 
         // Extract a dispatch thunk from the instance's table by the specified index.
         let dispatch_thunk = {
@@ -78,6 +66,8 @@ pub fn method(
                 .expect("dispatch_thunk_idx should point to actual func")
         };
 
+        let data_ptr: *const _ = caller.data();
+        let store_data_key = data_ptr as u64;
         let guest_env = match sandbox_env::GuestEnvironment::decode(
             context.store.get(store_data_key),
             context.raw_env_def,

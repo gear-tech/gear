@@ -515,12 +515,7 @@ impl<DT: Clone> Store<DT> {
         }
     }
 
-    ///
-    pub fn lengths(&self) -> (usize, usize) {
-        (self.instances.len(), self.memories.len())
-    }
-
-    ///
+    /// Clear instance list and memory list.
     pub fn clear(&mut self) {
         log::trace!(
             "clear; instances = {}",

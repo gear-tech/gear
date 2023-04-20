@@ -54,25 +54,10 @@ pub fn method(
 
     self_.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
         let context_ptr: *mut Context = context_ptr.cast();
-        let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+        let context: &mut Context = unsafe { context_ptr.as_mut().expect("invoke; set above") };
 
-        let data_ptr: *const _ = caller.data();
-        let store_data_key = data_ptr as u64;
-        {
-            // logging
-            let caller_ptr: *mut _ = caller;
-            let thread_id = std::thread::current().id();
-
-            log::trace!(target: "gear-sandbox-runtime-interface",
-                "invoke; {:?}, data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
-                unsafe { &mut SANDBOX_STORE }.lengths(),
-                data_ptr as u64,
-                caller_ptr as u64,
-                thread_id,
-            );
-        }
-
-        log::trace!(target: "gear-sandbox-runtime-interface", "invoke, instance_idx={}", context.instance_idx);
+        trace("invoke", caller);
+        log::trace!("invoke, instance_idx={}", context.instance_idx);
 
         // Deserialize arguments and convert them into wasmi types.
         let args = Vec::<sp_wasm_interface::Value>::decode(&mut context.args)
@@ -80,18 +65,26 @@ pub fn method(
             .into_iter()
             .collect::<Vec<_>>();
 
-        let instance = context.store.get(store_data_key).instance(context.instance_idx)
+        let data_ptr: *const _ = caller.data();
+        let store_data_key = data_ptr as u64;
+        let instance = context
+            .store
+            .get(store_data_key)
+            .instance(context.instance_idx)
             .expect("backend instance not found");
 
-        let dispatch_thunk =
-            context.store.get(store_data_key).dispatch_thunk(context.instance_idx).expect("dispatch_thunk not found");
+        let dispatch_thunk = context
+            .store
+            .get(store_data_key)
+            .dispatch_thunk(context.instance_idx)
+            .expect("dispatch_thunk not found");
 
-        let mut sandbox_context = SandboxContext { caller, dispatch_thunk, state: context.state_ptr.into() };
-        let result = instance.invoke(
-            context.function,
-            &args,
-            &mut sandbox_context,
-        );
+        let mut sandbox_context = SandboxContext {
+            caller,
+            dispatch_thunk,
+            state: context.state_ptr.into(),
+        };
+        let result = instance.invoke(context.function, &args, &mut sandbox_context);
 
         context.result = match result {
             Ok(None) => sandbox_env::env::ERR_OK,
@@ -102,17 +95,18 @@ pub fn method(
                         panic!("Return value buffer is too small");
                     }
 
-                    sandbox_context.write_memory(context.return_val_ptr, val)
+                    sandbox_context
+                        .write_memory(context.return_val_ptr, val)
                         .expect("can't write return value");
 
                     sandbox_env::env::ERR_OK
                 })
-            },
+            }
             Err(e) => {
-                log::trace!(target: "gear-sandbox-runtime-interface", "e = {e:?}");
+                log::trace!("e = {e:?}");
 
                 sandbox_env::env::ERR_EXECUTION
-            },
+            }
         };
     });
 

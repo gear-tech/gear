@@ -38,27 +38,15 @@ pub fn method(self_: &mut dyn FunctionContext, memory_idx: u32, size: u32) -> u3
 
     self_.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
         let context_ptr: *mut Context = context_ptr.cast();
-        let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+        let context: &mut Context =
+            unsafe { context_ptr.as_mut().expect("memory_grow; set above") };
+
+        trace("memory_grow", caller);
 
         let data_ptr: *const _ = caller.data();
-        let store_data_key = data_ptr as u64;
-        {
-            // logging
-            let data_ptr: *const _ = caller.data();
-            let caller_ptr: *mut _ = caller;
-            let thread_id = std::thread::current().id();
-
-            log::trace!(target: "gear-sandbox-runtime-interface",
-                "memory_grow; data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
-                data_ptr as u64,
-                caller_ptr as u64,
-                thread_id,
-            );
-        }
-
         let mut m = context
             .store
-            .get(store_data_key)
+            .get(data_ptr as u64)
             .memory(context.memory_idx)
             .expect("Failed to grow memory: cannot get backend memory");
 

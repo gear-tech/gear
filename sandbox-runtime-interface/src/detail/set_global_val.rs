@@ -38,35 +38,29 @@ pub fn method(self_: &mut dyn FunctionContext, instance_idx: u32, name: &str, va
 
     self_.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
         let context_ptr: *mut Context = context_ptr.cast();
-        let context: &mut Context = unsafe { context_ptr.as_mut().expect("") };
+        let context: &mut Context =
+            unsafe { context_ptr.as_mut().expect("set_global_val; set above") };
 
-        let data_ptr: *const _ = caller.data();
-        let store_data_key = data_ptr as u64;
-        {
-            // logging
-            let data_ptr: *const _ = caller.data();
-            let caller_ptr: *mut _ = caller;
-            let thread_id = std::thread::current().id();
-
-            log::trace!(target: "gear-sandbox-runtime-interface",
-                "set_global_val; data = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
-                data_ptr as u64,
-                caller_ptr as u64,
-                thread_id,
-            );
-        }
+        trace("set_global_val", caller);
 
         let instance_idx = context.instance_idx;
-        log::trace!(target: "gear-sandbox-runtime-interface", "set_global_val, instance_idx={instance_idx}");
+        log::trace!("set_global_val, instance_idx={instance_idx}");
 
-        let instance = context.store.get(store_data_key)
+        let data_ptr: *const _ = caller.data();
+        let instance = context
+            .store
+            .get(data_ptr as u64)
             .instance(instance_idx)
             .map_err(|e| e.to_string())
             .expect("Failed to set global in sandbox");
 
         let result = instance.set_global_val(context.name, context.value);
 
-        log::trace!(target: "gear-sandbox-runtime-interface", "set_global_val, name={}, value={:?}, result={result:?}", context.name, context.value);
+        log::trace!(
+            "set_global_val, name={}, value={:?}, result={result:?}",
+            context.name,
+            context.value
+        );
         context.result = match result {
             Ok(None) => sandbox_env::env::ERROR_GLOBALS_NOT_FOUND,
             Ok(Some(_)) => sandbox_env::env::ERROR_GLOBALS_OK,
