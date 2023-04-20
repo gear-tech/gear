@@ -1225,7 +1225,9 @@ pub mod pallet {
 
             QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
-            Self::schedule_program_pausing(program_id, block_number, expiration_block);
+            let task = ScheduledTask::PauseProgram(program_id);
+            TaskPoolOf::<T>::add(expiration_block, task)
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
             Self::deposit_event(program_event);
             Self::deposit_event(event);

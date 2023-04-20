@@ -470,11 +470,9 @@ where
                         block_number.saturating_add(RentFreePeriodOf::<T>::get());
                     self.set_program(candidate_id, &code_info, init_message, expiration_block);
 
-                    Pallet::<T>::schedule_program_pausing(
-                        candidate_id,
-                        block_number,
-                        expiration_block,
-                    );
+                    let task = ScheduledTask::PauseProgram(candidate_id);
+                    TaskPoolOf::<T>::add(expiration_block, task)
+                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
