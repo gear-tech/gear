@@ -112,20 +112,21 @@ where
                 );
 
                 wake_waiting_init_msgs(program_id);
-                let expiration = ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
-                    match p {
-                        Program::Active(active) => active.state = ProgramState::Initialized,
-                        _ => unreachable!("Only active programs are able to initialize"),
-                    }
+                let expiration =
+                    ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
+                        match p {
+                            Program::Active(active) => active.state = ProgramState::Initialized,
+                            _ => unreachable!("Only active programs are able to initialize"),
+                        }
 
-                    *bn
-                })
-                .unwrap_or_else(|e| {
-                    unreachable!(
-                        "Program initialized status may only be set to active program {:?}",
-                        e
-                    );
-                });
+                        *bn
+                    })
+                    .unwrap_or_else(|e| {
+                        unreachable!(
+                            "Program initialized status may only be set to active program {:?}",
+                            e
+                        );
+                    });
 
                 Pallet::<T>::deposit_event(Event::ProgramChanged {
                     id: program_id,

@@ -5308,9 +5308,7 @@ fn reservations_cleaned_in_paused_program() {
 
         run_to_next_block(None);
 
-        assert!(ProgramStorageOf::<Test>::paused_program_exists(
-            &program_id
-        ));
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
 
         for (rid, slot) in &map {
             assert!(!TaskPoolOf::<Test>::contains(
