@@ -44,8 +44,8 @@ use crate::{
     GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, LockIdentifier,
-    LockableTree, Origin as _, ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree, LockId, LockableTree,
+    Origin as _, ProgramStorage, ReservableTree,
 };
 use core_processor::{common::ActorExecutionErrorReason, ActorPrepareMemoryError};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
@@ -637,7 +637,7 @@ fn delayed_send_user_message_with_reservation() {
 
         let mailbox_gas_threshold = GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
 
-        // Gas should be reserved until message is holding.
+        // Gas should be reserved while message is being held in storage.
         assert_eq!(
             Balances::reserved_balance(USER_1),
             mailbox_gas_threshold + delay_holding_fee
@@ -860,7 +860,7 @@ fn delayed_send_program_message_with_reservation() {
 
         // Check that correct amount locked for dispatch stash
         let gas_locked_in_gas_node =
-            GasPrice::gas_price(Gas::get_lock(LockIdentifier::DispatchStash, delayed_id).unwrap());
+            GasPrice::gas_price(Gas::get_lock(LockId::DispatchStash, delayed_id).unwrap());
         assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
 
         // Gas should be reserved until message is holding.
@@ -968,7 +968,7 @@ fn delayed_send_program_message_with_low_reservation() {
 
         // Check that correct amount locked for dispatch stash
         let gas_locked_in_gas_node =
-            GasPrice::gas_price(Gas::get_lock(LockIdentifier::DispatchStash, delayed_id).unwrap());
+            GasPrice::gas_price(Gas::get_lock(LockId::DispatchStash, delayed_id).unwrap());
         assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
 
         // Gas should be reserved until message is holding.
@@ -1872,7 +1872,7 @@ fn mailbox_threshold_works() {
                 // All gas in the gas node has been locked
                 assert_ok!(GasHandlerOf::<Test>::get_limit(message_id), 0);
                 assert_ok!(
-                    GasHandlerOf::<Test>::get_lock(LockIdentifier::Mailbox, message_id),
+                    GasHandlerOf::<Test>::get_lock(LockId::Mailbox, message_id),
                     rent
                 );
             } else {

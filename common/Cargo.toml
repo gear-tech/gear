@@ -9,6 +9,8 @@ license = "GPL-3.0"
 primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
 derive_more.workspace = true
+enum-iterator.workspace = true
+static_assertions.workspace = true
 
 # Internal deps
 gear-core.workspace = true

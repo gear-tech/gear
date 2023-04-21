@@ -78,6 +78,7 @@
 use super::*;
 use crate::storage::MapStorage;
 use core::{cell::RefCell, iter::FromIterator, ops::DerefMut};
+use enum_iterator::all;
 use frame_support::{assert_err, assert_ok};
 use gear_utils::{NonEmpty, RingGet};
 use primitive_types::H256;
@@ -425,12 +426,7 @@ proptest! {
         let mut forest = TestForest::create(root_node, max_balance);
         node_ids.push(root_node.into());
 
-        let lock_ids = vec![
-            LockIdentifier::Mailbox,
-            LockIdentifier::Waitlist,
-            LockIdentifier::Reservation,
-            LockIdentifier::DispatchStash,
-        ];
+        let lock_ids = all::<LockId>().collect::<Vec<_>>();
 
         // Only root has a max balance
         Gas::create(external, root_node, max_balance).expect("Failed to create gas tree");
@@ -671,7 +667,7 @@ proptest! {
             }
 
             // Check property: for all the nodes with lock currently existing in the tree...
-            if node.lock().iter().any(|x| *x != 0) {
+            if !node.lock().is_zero() {
                 // ...is not consumed
                 assert!(!node.is_consumed());
                 // ...can be with lock only after `lock`
@@ -688,7 +684,7 @@ proptest! {
             // Check property: for all the consumed nodes currently existing in the tree...
             if node.is_consumed() {
                 // ...have no locked value
-                assert!(node.lock().iter().all(|x| *x == 0));
+                assert!(node.lock().is_zero());
                 // ..have no system reserved value
                 assert!(matches!(node.system_reserve(), Some(0) | None));
                 // ...existing consumed node can't have zero refs. Otherwise it must have been deleted from the storage

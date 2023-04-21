@@ -33,7 +33,7 @@ use common::{
     gas_provider::{GasNodeId, Imbalance},
     scheduler::*,
     storage::*,
-    GasPrice, GasTree, LockIdentifier, LockableTree, Origin,
+    GasPrice, GasTree, LockId, LockableTree, Origin,
 };
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReason;
@@ -103,7 +103,7 @@ impl<T: Config> HoldBoundCost<T> {
     }
 }
 
-/// Hold bound, specifying cost of storing, expected block number for task to
+/// Hold bound, specifying cost of storage, expected block number for task to
 /// create on it, deadlines and durations of holding.
 #[derive(Clone, Debug, Decode, Encode, Eq, PartialEq)]
 pub(crate) struct HoldBound<T: Config> {
@@ -305,18 +305,19 @@ where
 
     /// Charges for holding in some storage. In order to be placed into a holding storage
     /// a message must lock some funds as a deposit to "book" the storage until some time
-    /// in the future. Regardless whether storing costs or the safety margin have changed
-    /// in the meantime (due to storage migration) a message can't be charged more than
-    /// deposited upfront.
+    /// in the future.
+    /// Basic invariant is that we can't charge for storing an item more than had been deposited,
+    /// regardless whether storage costs or the safety margin have changed in the meantime
+    /// (via storage migration). The actual "prepaid" amount is determined through releasing
+    /// the lock corresponding to the `storage_type` inside the fucntion.
     ///
     /// `id` - parameter convertible to the respective gas node id;
     /// `hold_interval` - determines the time interval to charge rent for;
-    /// `cost` - rental cost per time unit (block);
-    /// `max_charge` - if set, contains the deposit locked at the time of starting storage rental.
+    /// `storage_type` - storage type that determines the lock and the cost for holding a message.
     pub(crate) fn charge_for_hold(
         id: impl Into<GasNodeIdOf<T>>,
         hold_interval: Interval<BlockNumberFor<T>>,
-        lock_id: LockIdentifier,
+        storage_type: StorageType,
     ) {
         let id = id.into();
 
@@ -342,28 +343,20 @@ where
             .saturating_sub(hold_interval.start)
             .unique_saturated_into();
 
-        // Cost per block based on the storage used for holding (identifiable by `lock_id`)
-        let cost = match lock_id {
-            LockIdentifier::Mailbox => CostsPerBlockOf::<T>::mailbox(),
-            LockIdentifier::Waitlist => CostsPerBlockOf::<T>::waitlist(),
-            LockIdentifier::Reservation => CostsPerBlockOf::<T>::reservation(),
-            _ => CostsPerBlockOf::<T>::dispatch_stash(),
-        };
+        // Cost per block based on the storage used for holding
+        let cost = CostsPerBlockOf::<T>::by_storage_type(storage_type);
 
-        // Unlocking all funds that have been locked for using the respective storage
-        let mut prepaid = GasHandlerOf::<T>::unlock_all(lock_id, id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        // In case gas hasn't been locked before putting a message in storage (for whatever reason)
-        // set the `prepaid` to the maximum possible value.
-        if prepaid.is_zero() {
-            prepaid = <CostsPerBlockOf<T> as SchedulingCostsPerBlock>::Cost::MAX;
-        }
-
-        // Amount of gas to charge for holding.
-        // Note: the amount being charged is capped with the `prepaid` to handle potential
-        // changes in storage cost or `ReserveFor` safety margin while using storage.
-        let amount = prepaid.min(duration.saturating_mul(cost));
+        // Amount of gas to be charged for holding.
+        // Note: unlocking of all funds that had been locked under the respective lock defines
+        // the maximum amount that can be charged for using storage.
+        let amount = storage_type.try_into().map_or_else(
+            |_| duration.saturating_mul(cost),
+            |lock_id| {
+                let prepaid = GasHandlerOf::<T>::unlock_all(lock_id, id)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                prepaid.min(duration.saturating_mul(cost))
+            },
+        );
 
         // Spending gas, if need.
         if !amount.is_zero() {
@@ -400,7 +393,7 @@ where
         }
 
         // Locking funds for holding.
-        GasHandlerOf::<T>::lock(LockIdentifier::Waitlist, dispatch.id(), hold.lock())
+        GasHandlerOf::<T>::lock(dispatch.id(), LockId::Waitlist, hold.lock())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying origin message id. Fails in cases of `GasTree` invalidations.
@@ -461,7 +454,7 @@ where
         let expected = hold_interval.finish;
 
         // Charging for holding.
-        Self::charge_for_hold(waitlisted.id(), hold_interval, LockIdentifier::Waitlist);
+        Self::charge_for_hold(waitlisted.id(), hold_interval, StorageType::Waitlist);
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::MessageWoken {
@@ -506,7 +499,7 @@ where
         let expected = hold_interval.finish;
 
         // Charging for holding.
-        Self::charge_for_hold(mailboxed.id(), hold_interval, LockIdentifier::Mailbox);
+        Self::charge_for_hold(mailboxed.id(), hold_interval, StorageType::Mailbox);
 
         // Determining if the reason is user action.
         let user_queries = matches!(reason, Reason::Runtime(MessageClaimed | MessageReplied));
@@ -649,7 +642,7 @@ where
             let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
-            GasHandlerOf::<T>::lock(LockIdentifier::DispatchStash, dispatch.id(), hold.lock())
+            GasHandlerOf::<T>::lock(dispatch.id(), LockId::DispatchStash, hold.lock())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if hold.expected_duration().is_zero() {
@@ -706,7 +699,7 @@ where
             let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
-            GasHandlerOf::<T>::lock(LockIdentifier::DispatchStash, dispatch.id(), hold.lock())
+            GasHandlerOf::<T>::lock(dispatch.id(), LockId::DispatchStash, hold.lock())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if hold.expected_duration().is_zero() {
@@ -831,7 +824,7 @@ where
                 .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
 
             // Lock the entire `gas_limit` since the only purpose of it is payment for storage.
-            GasHandlerOf::<T>::lock(LockIdentifier::Mailbox, message.id(), gas_limit)
+            GasHandlerOf::<T>::lock(message.id(), LockId::Mailbox, gas_limit)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Inserting message in mailbox.
@@ -905,7 +898,7 @@ where
             }
 
             // Lock the entire `gas_limit` since the only purpose of it is payment for storage.
-            GasHandlerOf::<T>::lock(LockIdentifier::Mailbox, message.id(), gas_limit)
+            GasHandlerOf::<T>::lock(message.id(), LockId::Mailbox, gas_limit)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Inserting message in mailbox.

@@ -18,7 +18,6 @@
 
 use super::*;
 use crate::storage::MapStorage;
-use frame_support::ensure;
 
 /// Output of `TreeImpl::catch_value` call.
 #[derive(Debug, Clone, Copy)]
@@ -535,10 +534,9 @@ where
         }
 
         // Check if at least one lock has not been released
-        ensure!(
-            node.lock().iter().all(|x| x.is_zero()),
-            InternalError::consumed_with_lock()
-        );
+        if !node.lock().is_zero() {
+            return Err(InternalError::consumed_with_lock().into());
+        }
 
         if let Some(system_reserve) = node.system_reserve() {
             if !system_reserve.is_zero() {
@@ -753,8 +751,8 @@ where
     StorageMap: MapStorage<Key = NodeId, Value = GasNode<ExternalId, NodeId, Balance>>,
 {
     fn lock(
-        id: LockIdentifier,
         key: impl Into<Self::NodeId>,
+        id: LockId,
         amount: Self::Balance,
     ) -> Result<(), Self::Error> {
         let key = key.into();
@@ -797,9 +795,8 @@ where
             ancestor_node
         };
 
-        let node_lock = &mut node.lock_mut()[id];
-
-        *node_lock = node_lock.saturating_add(amount);
+        let locked = node.lock()[id];
+        node.lock_mut()[id] = locked.saturating_add(amount);
 
         StorageMap::insert(key, node);
 
@@ -819,7 +816,7 @@ where
     //
     // - For reservation type (`GasNode::ReservedLocal`) locking is denied.
     fn unlock(
-        id: LockIdentifier,
+        id: LockId,
         key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<(), Self::Error> {
@@ -871,10 +868,7 @@ where
         Ok(())
     }
 
-    fn get_lock(
-        id: LockIdentifier,
-        key: impl Into<Self::NodeId>,
-    ) -> Result<Self::Balance, Self::Error> {
+    fn get_lock(id: LockId, key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error> {
         let key = key.into();
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 

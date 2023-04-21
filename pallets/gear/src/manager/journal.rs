@@ -26,8 +26,8 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
     storage::*,
-    CodeStorage, GasTree, LockIdentifier, LockableTree, Origin, Program, ProgramState,
-    ProgramStorage, ReservableTree,
+    CodeStorage, GasTree, LockId, LockableTree, Origin, Program, ProgramState, ProgramStorage,
+    ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{
@@ -517,7 +517,7 @@ where
         GasHandlerOf::<T>::reserve(message_id, reservation_id, total_amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
 
-        GasHandlerOf::<T>::lock(LockIdentifier::Reservation, reservation_id, hold.lock())
+        GasHandlerOf::<T>::lock(reservation_id, LockId::Reservation, hold.lock())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         TaskPoolOf::<T>::add(

@@ -22,9 +22,7 @@ extern crate alloc;
 
 use crate::{mock::*, *};
 use alloc::string::ToString;
-use common::{
-    scheduler::*, storage::*, GasPrice as _, GasTree, LockIdentifier, LockableTree as _, Origin,
-};
+use common::{scheduler::*, storage::*, GasPrice as _, GasTree, LockId, LockableTree as _, Origin};
 use frame_support::traits::ReservableCurrency;
 use gear_core::{ids::*, message::*};
 use gear_core_errors::{SimpleCodec, SimpleReplyError};
@@ -73,12 +71,12 @@ fn populate_wl_from(
 
     TaskPoolOf::<Test>::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid))
         .expect("Failed to insert task");
-    WaitlistOf::<Test>::insert(dispatch, u64::MAX).expect("Failed to insert to waitlist");
+    WaitlistOf::<Test>::insert(dispatch, bn).expect("Failed to insert to waitlist");
     Balances::reserve(&src, GasPrice::gas_price(DEFAULT_GAS)).expect("Cannot reserve gas");
     GasHandlerOf::<Test>::create(src, mid, DEFAULT_GAS).expect("Failed to create gas handler");
     // Locking funds for holding.
     GasHandlerOf::<Test>::lock(
-        LockIdentifier::Waitlist,
+        LockId::Waitlist,
         mid,
         <Pallet<Test> as Scheduler>::CostsPerBlock::waitlist() * bn,
     )

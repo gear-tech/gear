@@ -102,4 +102,17 @@ pub trait SchedulingCostsPerBlock {
     /// Cost for storing message in dispatch stash.
     /// Everything sent delayed goes into dispatch stash.
     fn dispatch_stash() -> Self::Cost;
+
+    /// Derives the cost per block based on the lock identifier
+    fn by_storage_type(storage: StorageType) -> Self::Cost;
+}
+
+#[derive(Clone, Copy)]
+pub enum StorageType {
+    Code,
+    Mailbox,
+    Program,
+    Waitlist,
+    Reservation,
+    DispatchStash,
 }

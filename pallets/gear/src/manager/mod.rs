@@ -54,10 +54,9 @@ pub use task::*;
 use crate::{Config, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf};
 use common::{
     event::*,
-    scheduler::{ScheduledTask, TaskHandler, TaskPool},
+    scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
     storage::{Interval, Queue},
-    ActiveProgram, CodeStorage, GasTree, LockIdentifier, Origin, ProgramState, ProgramStorage,
-    ReservableTree,
+    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState, ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -324,7 +323,7 @@ where
             finish: BlockNumberFor::<T>::from(slot.finish),
         };
 
-        Pallet::<T>::charge_for_hold(reservation_id, interval, LockIdentifier::Reservation);
+        Pallet::<T>::charge_for_hold(reservation_id, interval, StorageType::Reservation);
 
         Pallet::<T>::consume_and_retrieve(reservation_id);
 

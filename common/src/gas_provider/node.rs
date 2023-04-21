@@ -17,13 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use core::{
-    ops::{Add, Index, IndexMut},
-    slice::Iter,
-};
+use core::ops::{Add, Index, IndexMut};
+use enum_iterator::cardinality;
 use frame_support::{codec, dispatch::MaxEncodedLen, scale_info};
 use gear_core::ids::ReservationId;
 use sp_runtime::traits::Zero;
+use static_assertions::const_assert;
 
 /// ID of the [`GasNode`].
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
@@ -75,37 +74,33 @@ impl<T> From<ReservationId> for GasNodeId<T, ReservationId> {
     }
 }
 
-#[derive(Clone, Copy, Decode, Encode, Debug, Default, PartialEq, Eq, TypeInfo)]
+#[derive(Clone, Copy, Decode, Encode, Debug, Default, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub struct NodeLock<Balance>([Balance; 4]);
 
-impl<'a, Balance> NodeLock<Balance> {
-    pub fn iter(&'a self) -> Iter<'a, Balance> {
-        self.0.iter()
-    }
-}
+const_assert!(cardinality::<LockId>() == 4);
 
-impl<Balance> Index<LockIdentifier> for NodeLock<Balance> {
+impl<Balance> Index<LockId> for NodeLock<Balance> {
     type Output = Balance;
 
-    fn index(&self, index: LockIdentifier) -> &Self::Output {
+    fn index(&self, index: LockId) -> &Self::Output {
         match index {
-            LockIdentifier::Mailbox => &self.0[0],
-            LockIdentifier::Waitlist => &self.0[1],
-            LockIdentifier::Reservation => &self.0[2],
-            LockIdentifier::DispatchStash => &self.0[3],
+            LockId::Mailbox => &self.0[0],
+            LockId::Waitlist => &self.0[1],
+            LockId::Reservation => &self.0[2],
+            LockId::DispatchStash => &self.0[3],
         }
     }
 }
 
-impl<Balance> IndexMut<LockIdentifier> for NodeLock<Balance> {
-    fn index_mut(&mut self, index: LockIdentifier) -> &mut Self::Output {
+impl<Balance> IndexMut<LockId> for NodeLock<Balance> {
+    fn index_mut(&mut self, index: LockId) -> &mut Self::Output {
         match index {
-            LockIdentifier::Mailbox => &mut self.0[0],
-            LockIdentifier::Waitlist => &mut self.0[1],
-            LockIdentifier::Reservation => &mut self.0[2],
-            LockIdentifier::DispatchStash => &mut self.0[3],
+            LockId::Mailbox => &mut self.0[0],
+            LockId::Waitlist => &mut self.0[1],
+            LockId::Reservation => &mut self.0[2],
+            LockId::DispatchStash => &mut self.0[3],
         }
     }
 }
@@ -115,28 +110,22 @@ impl<Balance: Zero + Copy> Zero for NodeLock<Balance> {
         Self([Balance::zero(); 4])
     }
 
-    fn set_zero(&mut self) {
-        self.0.iter_mut().for_each(|x| x.set_zero());
-    }
-
     fn is_zero(&self) -> bool {
         self.0.iter().all(|x| x.is_zero())
     }
 }
 
-impl<Balance: Add + Zero + Copy> Add<Self> for NodeLock<Balance> {
+impl<Balance: Add<Output = Balance> + Copy> Add<Self> for NodeLock<Balance> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self::Output {
-        let sum_as_vec = self
-            .0
-            .iter()
-            .zip(other.0.iter())
-            .map(|(&x, &y)| x + y)
-            .collect::<Vec<_>>();
+        let NodeLock(mut inner) = self;
+        let NodeLock(other) = other;
 
-        let mut inner = [Balance::zero(); 4];
-        inner.copy_from_slice(&sum_as_vec[..4]);
+        for (i, elem) in inner.iter_mut().enumerate() {
+            *elem = *elem + other[i];
+        }
+
         Self(inner)
     }
 }

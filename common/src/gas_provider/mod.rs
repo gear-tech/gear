@@ -35,7 +35,7 @@ mod property_tests;
 
 pub use error::Error;
 pub use internal::TreeImpl;
-pub use lockable::{LockIdentifier, LockableTree};
+pub use lockable::{LockId, LockableTree};
 pub use negative_imbalance::NegativeImbalance;
 pub use node::{GasNode, GasNodeId};
 pub use positive_imbalance::PositiveImbalance;

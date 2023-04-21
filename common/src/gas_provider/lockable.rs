@@ -16,26 +16,51 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::*;
+use super::{scheduler::StorageType, *};
+use enum_iterator::Sequence;
 
-#[derive(Clone, Copy)]
-pub enum LockIdentifier {
+#[derive(Clone, Copy, Sequence)]
+pub enum LockId {
     Mailbox,
     Waitlist,
     Reservation,
     DispatchStash,
 }
 
+/// An error indicating there is no corresponding enum variant to the one provided
+#[derive(Debug)]
+pub struct VariantMismatch;
+
+impl fmt::Display for VariantMismatch {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "Corresponding enum variant not found")
+    }
+}
+
+impl TryFrom<StorageType> for LockId {
+    type Error = VariantMismatch;
+
+    fn try_from(storage: StorageType) -> Result<Self, Self::Error> {
+        match storage {
+            StorageType::Mailbox => Ok(Self::Mailbox),
+            StorageType::Waitlist => Ok(Self::Waitlist),
+            StorageType::Reservation => Ok(Self::Reservation),
+            StorageType::DispatchStash => Ok(Self::DispatchStash),
+            _ => Err(VariantMismatch),
+        }
+    }
+}
+
 pub trait LockableTree: Tree {
-    /// Locking some value from underlying balance.
+    /// Locking some value from underlying node balance.
     ///
     /// If `key` does not identify any value or the `amount` exceeds what's
     /// locked under that key, an error is returned.
     ///
     /// This can't create imbalance as no value is burned or created.
     fn lock(
-        id: LockIdentifier,
         key: impl Into<Self::NodeId>,
+        id: LockId,
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
 
@@ -46,7 +71,7 @@ pub trait LockableTree: Tree {
     ///
     /// This can't create imbalance as no value is burned or created.
     fn unlock(
-        id: LockIdentifier,
+        id: LockId,
         key: impl Into<Self::NodeId>,
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
@@ -55,10 +80,7 @@ pub trait LockableTree: Tree {
     /// (wrapped in a `Result`)
     ///
     /// See [`unlock`](Self::unlock) for details.
-    fn unlock_all(
-        id: LockIdentifier,
-        key: impl Into<Self::NodeId>,
-    ) -> Result<Self::Balance, Self::Error> {
+    fn unlock_all(id: LockId, key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error> {
         let key = key.into();
         let amount = Self::get_lock(id, key.clone())?;
         Self::unlock(id, key, amount.clone()).map(|_| amount)
@@ -69,8 +91,5 @@ pub trait LockableTree: Tree {
     /// Returns errors in cases of absence associated with given key node,
     /// or if such functionality is forbidden for specific node type:
     /// for example, for `GasNode::ReservedLocal`.
-    fn get_lock(
-        id: LockIdentifier,
-        key: impl Into<Self::NodeId>,
-    ) -> Result<Self::Balance, Self::Error>;
+    fn get_lock(id: LockId, key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error>;
 }

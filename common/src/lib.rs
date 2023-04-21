@@ -69,7 +69,7 @@ use storage::ValueStorage;
 extern crate alloc;
 
 pub use gas_provider::{
-    LockIdentifier, LockableTree, Provider as GasProvider, ReservableTree, Tree as GasTree,
+    LockId, LockableTree, Provider as GasProvider, ReservableTree, Tree as GasTree,
 };
 
 pub trait Origin: Sized {
