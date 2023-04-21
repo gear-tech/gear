@@ -258,10 +258,6 @@ fn waited_with_zero_gas() {
 
         let program_id = utils::get_last_program_id();
 
-        let expiration_block =
-            System::block_number().saturating_add(RentFreePeriodOf::<Test>::get());
-        assert_eq!(Gear::get_block_number(program_id), expiration_block);
-
         run_to_next_block(None);
         let mid_in_mailbox = utils::get_last_message_id();
 
@@ -311,10 +307,6 @@ fn terminated_program_zero_gas() {
 
         let program_id = utils::get_last_program_id();
 
-        let expiration_block =
-            System::block_number().saturating_add(RentFreePeriodOf::<Test>::get());
-        assert_eq!(Gear::get_block_number(program_id), expiration_block);
-
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -325,8 +317,6 @@ fn terminated_program_zero_gas() {
 
         run_to_next_block(None);
         assert!(Gear::is_terminated(program_id));
-
-        assert_eq!(Gear::get_block_number(program_id), System::block_number());
 
         // Nothing panics here.
         assert_total_dequeued(2);
@@ -3162,7 +3152,6 @@ fn send_reply_failure_to_claim_from_mailbox() {
 
         if ProgramStorageOf::<Test>::get_program(prog_id)
             .expect("Failed to get program from storage")
-            .program
             .is_terminated()
         {
             panic!("Program is terminated!");
@@ -4252,10 +4241,6 @@ fn test_sending_waits() {
 
         let program_id = get_last_program_id();
 
-        let expiration_block =
-            System::block_number().saturating_add(RentFreePeriodOf::<Test>::get());
-        assert_eq!(Gear::get_block_number(program_id), expiration_block);
-
         run_to_next_block(None);
 
         // Case 1 - `Command::SendFor`
@@ -4851,9 +4836,10 @@ fn exit_init() {
 
         let program_id = utils::get_last_program_id();
 
-        let program =
-            ProgramStorageOf::<Test>::get_program(program_id).expect("program should exist");
-        let expected_block = program.block_number;
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
         assert!(TaskPoolOf::<Test>::contains(
             &expected_block,
             &ScheduledTask::PauseProgram(program_id)
@@ -5177,9 +5163,10 @@ fn test_pausing_programs_works() {
         let child_bn = System::block_number();
 
         // check that program created via extrinsic is paused
-        let program =
-            ProgramStorageOf::<Test>::get_program(factory_id).expect("program should exist");
-        let expected_block = program.block_number;
+        let program = ProgramStorageOf::<Test>::get_program(factory_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
         assert_eq!(
             expected_block,
             factory_bn.saturating_add(RentFreePeriodOf::<Test>::get())
@@ -5199,9 +5186,10 @@ fn test_pausing_programs_works() {
         assert!(Gear::program_exists(factory_id));
 
         // check that program created via syscall is paused
-        let program =
-            ProgramStorageOf::<Test>::get_program(child_program_id).expect("program should exist");
-        let expected_block = program.block_number;
+        let program = ProgramStorageOf::<Test>::get_program(child_program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
         assert_eq!(
             expected_block,
             child_bn.saturating_add(RentFreePeriodOf::<Test>::get())
@@ -5250,9 +5238,10 @@ fn test_no_messages_to_paused_program() {
         ));
         run_to_next_block(None);
 
-        let program =
-            ProgramStorageOf::<Test>::get_program(program_id).expect("program should exist");
-        let expected_block = program.block_number;
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
 
         System::set_block_number(expected_block - 1);
         Gear::set_block_number((expected_block - 1).try_into().unwrap());
@@ -5299,9 +5288,10 @@ fn reservations_cleaned_in_paused_program() {
             assert!(GasHandlerOf::<Test>::get_limit_node(*rid).is_ok());
         }
 
-        let program =
-            ProgramStorageOf::<Test>::get_program(program_id).expect("program should exist");
-        let expected_block = program.block_number;
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
 
         System::set_block_number(expected_block - 1);
         Gear::set_block_number((expected_block - 1).try_into().unwrap());
@@ -5364,9 +5354,10 @@ fn uninitialized_program_terminates() {
             assert!(GasHandlerOf::<Test>::get_limit_node(*rid).is_ok());
         }
 
-        let program =
-            ProgramStorageOf::<Test>::get_program(program_id).expect("program should exist");
-        let expected_block = program.block_number;
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
 
         System::set_block_number(expected_block - 1);
         Gear::set_block_number((expected_block - 1).try_into().unwrap());
@@ -5388,8 +5379,7 @@ fn uninitialized_program_terminates() {
 
         assert!(WaitlistOf::<Test>::iter_key(program_id).next().is_none());
         assert!(ProgramStorageOf::<Test>::waiting_init_get_messages(program_id).is_empty());
-        let active: ActiveProgram = program.program.try_into().unwrap();
-        for page in active.pages_with_data.iter() {
+        for page in program.pages_with_data.iter() {
             assert_err!(
                 ProgramStorageOf::<Test>::get_program_data_for_pages(
                     program_id,
@@ -6150,13 +6140,13 @@ fn gas_spent_precalculated() {
         let code = code.code();
 
         let init_gas_code_id = CodeId::from_origin(ProgramStorageOf::<Test>::get_program(init_gas_id)
-            .and_then(|program| common::ActiveProgram::try_from(program.program).ok())
+            .and_then(|program| common::ActiveProgram::try_from(program).ok())
             .expect("program must exist")
             .code_hash);
         let init_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_gas_code_id).unwrap().code().len() as u64;
 
         let init_no_gas_code_id = CodeId::from_origin(ProgramStorageOf::<Test>::get_program(init_no_counter_id)
-            .and_then(|program| common::ActiveProgram::try_from(program.program).ok())
+            .and_then(|program| common::ActiveProgram::try_from(program).ok())
             .expect("program must exist")
             .code_hash);
         let init_no_gas_code_len: u64 = <Test as Config>::CodeStorage::get_code(init_no_gas_code_id).unwrap().code().len() as u64;
@@ -9238,7 +9228,7 @@ mod utils {
             let expected_code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
             assert_eq!(
                 ProgramStorageOf::<Test>::get_program(prog_id)
-                    .and_then(|program| common::ActiveProgram::try_from(program.program).ok())
+                    .and_then(|program| common::ActiveProgram::try_from(program).ok())
                     .expect("program must exist")
                     .code_hash,
                 generate_code_hash(&expected_code).into(),
@@ -9258,7 +9248,7 @@ mod utils {
         )
         .into();
         let actual_code_hash = ProgramStorageOf::<Test>::get_program(program_id)
-            .and_then(|program| common::ActiveProgram::try_from(program.program).ok())
+            .and_then(|program| common::ActiveProgram::try_from(program).ok())
             .map(|prog| prog.code_hash)
             .expect("invalid program address for the test");
         assert_eq!(
@@ -9591,7 +9581,7 @@ mod utils {
         if let common::Program::Active(common::ActiveProgram {
             gas_reservation_map,
             ..
-        }) = program.program
+        }) = program
         {
             Some(gas_reservation_map)
         } else {

@@ -143,7 +143,7 @@ pub mod pallet {
     use crate::migration::migrate;
 
     use super::*;
-    use common::{scheduler::*, storage::*, CodeMetadata, ProgramStorageItem};
+    use common::{scheduler::*, storage::*, CodeMetadata, Program};
     #[cfg(feature = "debug-mode")]
     use frame_support::storage::PrefixIterator;
     use frame_support::{
@@ -249,13 +249,13 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type ProgramStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, ProgramStorageItem<BlockNumberFor<T>>>;
+        StorageMap<_, Identity, ProgramId, Program<BlockNumberFor<T>>>;
 
     common::wrap_storage_map!(
         storage: ProgramStorage,
         name: ProgramStorageWrap,
         key: ProgramId,
-        value: ProgramStorageItem<BlockNumberFor<T>>
+        value: Program<BlockNumberFor<T>>
     );
 
     #[pallet::storage]
@@ -329,11 +329,9 @@ pub mod pallet {
     }
 
     #[cfg(feature = "debug-mode")]
-    impl<T: Config> IterableMap<(ProgramId, ProgramStorageItem<BlockNumberFor<T>>)>
-        for pallet::Pallet<T>
-    {
-        type DrainIter = PrefixIterator<(ProgramId, ProgramStorageItem<BlockNumberFor<T>>)>;
-        type Iter = PrefixIterator<(ProgramId, ProgramStorageItem<BlockNumberFor<T>>)>;
+    impl<T: Config> IterableMap<(ProgramId, Program<BlockNumberFor<T>>)> for pallet::Pallet<T> {
+        type DrainIter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
+        type Iter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
 
         fn drain() -> Self::DrainIter {
             ProgramStorage::<T>::drain()

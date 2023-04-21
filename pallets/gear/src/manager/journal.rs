@@ -119,7 +119,7 @@ where
                             _ => unreachable!("Only active programs are able to initialize"),
                         }
 
-                        *bn
+                        bn
                     })
                     .unwrap_or_else(|e| {
                         unreachable!(
@@ -163,11 +163,10 @@ where
 
                 ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
                     let _ = TaskPoolOf::<T>::delete(
-                        *bn,
+                        bn,
                         ScheduledTask::PauseProgram(program_id),
                     );
 
-                    *bn = Pallet::<T>::block_number();
                     *p = Program::Terminated(origin);
                 }).unwrap_or_else(|e| {
                     if !maybe_inactive {
@@ -243,9 +242,8 @@ where
         self.clean_reservation_tasks(id_exited, false);
 
         ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn| {
-            let _ = TaskPoolOf::<T>::delete(*bn, ScheduledTask::PauseProgram(id_exited));
+            let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(id_exited));
 
-            *bn = Pallet::<T>::block_number();
             *p = Program::Exited(value_destination);
         })
         .unwrap_or_else(|e| {

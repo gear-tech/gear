@@ -49,7 +49,7 @@ where
         let program = ProgramStorageOf::<T>::get_program(program_id)
             .unwrap_or_else(|| unreachable!("Program to pause not found."));
 
-        let Some(init_message_id) = program.program.is_uninitialized() else {
+        let Some(init_message_id) = program.is_uninitialized() else {
             // pause initialized program
             let gas_reservation_map = ProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number())
                 .unwrap_or_else(|e| unreachable!("Failed to pause program: {:?}", e));
@@ -96,9 +96,7 @@ where
 
         // set program status to Terminated
         let gas_reservations =
-            ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
-                *bn = Pallet::<T>::block_number();
-
+            ProgramStorageOf::<T>::update_program_if_active(program_id, |p, _bn| {
                 let gas_reservations = match p {
                     Program::Active(program) => core::mem::take(&mut program.gas_reservation_map),
                     _ => unreachable!("Action executed only for active program"),

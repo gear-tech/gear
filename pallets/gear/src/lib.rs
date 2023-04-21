@@ -800,28 +800,28 @@ pub mod pallet {
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|program| program.program.is_initialized())
+                .map(|program| program.is_initialized())
                 .unwrap_or(false)
         }
 
         /// Returns true if id is a program and the program has active status.
         pub fn is_active(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|program| program.program.is_active())
+                .map(|program| program.is_active())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has terminated status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|program| program.program.is_terminated())
+                .map(|program| program.is_terminated())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has exited status.
         pub fn is_exited(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|program| program.program.is_exited())
+                .map(|program| program.is_exited())
                 .unwrap_or_default()
         }
 
@@ -831,17 +831,11 @@ pub mod pallet {
                 || ProgramStorageOf::<T>::paused_program_exists(&program_id)
         }
 
-        pub fn get_block_number(program_id: ProgramId) -> <T as frame_system::Config>::BlockNumber {
-            ProgramStorageOf::<T>::get_program(program_id)
-                .map(|program| program.block_number)
-                .unwrap_or_default()
-        }
-
         /// Returns exit argument of an exited program.
         pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
                 .map(|program| {
-                    if let Program::Exited(inheritor) = program.program {
+                    if let Program::Exited(inheritor) = program {
                         Some(inheritor)
                     } else {
                         None
@@ -854,7 +848,7 @@ pub mod pallet {
         pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
                 .map(|program| {
-                    if let Program::Terminated(inheritor) = program.program {
+                    if let Program::Terminated(inheritor) = program {
                         Some(inheritor)
                     } else {
                         None

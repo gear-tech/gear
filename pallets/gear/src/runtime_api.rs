@@ -308,7 +308,7 @@ where
         let program = ProgramStorageOf::<T>::get_program(program_id)
             .ok_or(String::from("Program not found"))?;
 
-        let program = ActiveProgram::try_from(program.program)
+        let program = ActiveProgram::try_from(program)
             .map_err(|e| format!("Get active program error: {e:?}"))?;
 
         let code_id = CodeId::from_origin(program.code_hash);

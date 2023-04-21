@@ -31,9 +31,7 @@ pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
 pub mod program_storage;
-pub use program_storage::{
-    Error as ProgramStorageError, Item as ProgramStorageItem, ProgramStorage,
-};
+pub use program_storage::{Error as ProgramStorageError, ProgramStorage};
 
 pub mod paused_program_storage;
 pub use paused_program_storage::PausedProgramStorage;
@@ -205,13 +203,13 @@ pub trait BlockLimiter {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub enum Program {
-    Active(ActiveProgram),
+pub enum Program<BlockNumber: Copy + Saturating> {
+    Active(ActiveProgram<BlockNumber>),
     Exited(ProgramId),
     Terminated(ProgramId),
 }
 
-impl Program {
+impl<BlockNumber: Copy + Saturating> Program<BlockNumber> {
     pub fn is_active(&self) -> bool {
         matches!(self, Program::Active(_))
     }
@@ -251,10 +249,12 @@ impl Program {
 #[display(fmt = "Program is not an active one")]
 pub struct InactiveProgramError;
 
-impl core::convert::TryFrom<Program> for ActiveProgram {
+impl<BlockNumber: Copy + Saturating> core::convert::TryFrom<Program<BlockNumber>>
+    for ActiveProgram<BlockNumber>
+{
     type Error = InactiveProgramError;
 
-    fn try_from(prog_with_status: Program) -> Result<ActiveProgram, Self::Error> {
+    fn try_from(prog_with_status: Program<BlockNumber>) -> Result<Self, Self::Error> {
         match prog_with_status {
             Program::Active(p) => Ok(p),
             _ => Err(InactiveProgramError),
@@ -265,7 +265,7 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub struct ActiveProgram {
+pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
     /// Set of dynamic wasm page numbers, which are allocated by the program.
     pub allocations: BTreeSet<WasmPage>,
     /// Set of gear pages numbers, which has data in storage.
@@ -275,6 +275,7 @@ pub struct ActiveProgram {
     pub code_exports: BTreeSet<DispatchKind>,
     pub static_pages: WasmPage,
     pub state: ProgramState,
+    pub expiration_block: BlockNumber,
 }
 
 /// Enumeration contains variants for program state.

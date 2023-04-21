@@ -37,18 +37,26 @@ pub fn migrate<T: Config>() -> Weight {
 
     if version == VERSION_1 {
         ProgramStorage::<T>::translate(
-            |program_id, (program, _bn): (Program, <T as frame_system::Config>::BlockNumber)| {
+            |program_id, (program, _bn): (version_1::Program, <T as frame_system::Config>::BlockNumber)| {
                 let block_number = T::CurrentBlockNumber::get();
                 let expiration_block = block_number.saturating_add(FREE_PERIOD.into());
-                if expiration_block > block_number {
-                    let task = ScheduledTask::PauseProgram(program_id);
-                    TaskPoolOf::<T>::add(expiration_block, task)
-                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-                }
+                let task = ScheduledTask::PauseProgram(program_id);
+                TaskPoolOf::<T>::add(expiration_block, task)
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
-                Some(common::program_storage::Item {
-                    program,
-                    block_number: expiration_block,
+                Some(match program {
+                    version_1::Program::Active(p) => Program::Active(common::ActiveProgram {
+                        allocations: p.allocations,
+                        pages_with_data: p.pages_with_data,
+                        gas_reservation_map: p.gas_reservation_map,
+                        code_hash: p.code_hash,
+                        code_exports: p.code_exports,
+                        static_pages: p.static_pages,
+                        state: p.state,
+                        expiration_block,
+                    }),
+                    version_1::Program::Exited(id) => Program::Exited(id),
+                    version_1::Program::Terminated(id) => Program::Terminated(id),
                 })
             },
         );
@@ -57,4 +65,42 @@ pub fn migrate<T: Config>() -> Weight {
     }
 
     weight
+}
+
+mod version_1 {
+    use common::ProgramState;
+    use frame_support::{
+        codec::{self, Decode, Encode},
+        scale_info::{self, TypeInfo},
+    };
+    use gear_core::{
+        ids::ProgramId,
+        memory::{GearPage, WasmPage},
+        message::DispatchKind,
+        reservation::GasReservationMap,
+    };
+    use primitive_types::H256;
+    use sp_std::{collections::btree_set::BTreeSet, prelude::*};
+
+    #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+    #[codec(crate = codec)]
+    #[scale_info(crate = scale_info)]
+    pub struct ActiveProgram {
+        pub allocations: BTreeSet<WasmPage>,
+        pub pages_with_data: BTreeSet<GearPage>,
+        pub gas_reservation_map: GasReservationMap,
+        pub code_hash: H256,
+        pub code_exports: BTreeSet<DispatchKind>,
+        pub static_pages: WasmPage,
+        pub state: ProgramState,
+    }
+
+    #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+    #[codec(crate = codec)]
+    #[scale_info(crate = scale_info)]
+    pub enum Program {
+        Active(ActiveProgram),
+        Exited(ProgramId),
+        Terminated(ProgramId),
+    }
 }

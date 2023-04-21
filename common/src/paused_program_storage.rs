@@ -29,8 +29,12 @@ struct Item {
     code_hash: H256,
 }
 
-impl From<(ActiveProgram, BTreeMap<GearPage, PageBuf>)> for Item {
-    fn from((program, memory_pages): (ActiveProgram, BTreeMap<GearPage, PageBuf>)) -> Self {
+impl<BlockNumber: Copy + Saturating> From<(ActiveProgram<BlockNumber>, BTreeMap<GearPage, PageBuf>)>
+    for Item
+{
+    fn from(
+        (program, memory_pages): (ActiveProgram<BlockNumber>, BTreeMap<GearPage, PageBuf>),
+    ) -> Self {
         Self {
             allocations: program.allocations,
             memory_pages,

@@ -250,12 +250,9 @@ macro_rules! command {
                     static_pages: 0.into(),
                     state: gear_common::ProgramState::Initialized,
                     gas_reservation_map: Default::default(),
+                    expiration_block: DEFAULT_BLOCK_NUMBER.saturating_add(DEFAULT_INTERVAL).into(),
                 };
-                ProgramStorageOf::<Runtime>::add_program(
-                    ProgramId::from_origin(*id),
-                    program,
-                    DEFAULT_BLOCK_NUMBER.saturating_add(DEFAULT_INTERVAL).into(),
-                );
+                ProgramStorageOf::<Runtime>::add_program(ProgramId::from_origin(*id), program);
             }
 
             // Enable remapping of the source and destination of messages
@@ -470,7 +467,7 @@ macro_rules! command {
                                 if let gear_common::Program::Active(gear_common::ActiveProgram {
                                     gas_reservation_map,
                                     ..
-                                }) = program.program
+                                }) = program
                                 {
                                     gas_reservation_map
                                 } else {
