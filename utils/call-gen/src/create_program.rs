@@ -31,7 +31,12 @@ type CreateProgramArgsInner = (CodeId, Vec<u8>, Vec<u8>, u64, u128);
 #[derive(Debug, Clone)]
 pub struct CreateProgramArgs(pub CreateProgramArgsInner);
 
-impl_convert_traits!(CreateProgramArgs, CreateProgramArgsInner, CreateProgram, "create_program");
+impl_convert_traits!(
+    CreateProgramArgs,
+    CreateProgramArgsInner,
+    CreateProgram,
+    "create_program"
+);
 
 impl CreateProgramArgs {
     /// Generates `pallet_gear::Pallet::<T>::create_program` call arguments.

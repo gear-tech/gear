@@ -31,7 +31,12 @@ type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);
 #[derive(Debug, Clone)]
 pub struct SendMessageArgs(pub SendMessageArgsInner);
 
-impl_convert_traits!(SendMessageArgs, SendMessageArgsInner, SendMessage, "send_message");
+impl_convert_traits!(
+    SendMessageArgs,
+    SendMessageArgsInner,
+    SendMessage,
+    "send_message"
+);
 
 impl SendMessageArgs {
     /// Generates `pallet_gear::Pallet::<T>::send_message` call arguments.

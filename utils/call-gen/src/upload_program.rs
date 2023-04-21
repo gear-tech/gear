@@ -30,7 +30,12 @@ type UploadProgramArgsInner = (Vec<u8>, Vec<u8>, Vec<u8>, u64, u128);
 #[derive(Debug, Clone)]
 pub struct UploadProgramArgs(pub UploadProgramArgsInner);
 
-impl_convert_traits!(UploadProgramArgs, UploadProgramArgsInner, UploadProgram, "upload_program");
+impl_convert_traits!(
+    UploadProgramArgs,
+    UploadProgramArgsInner,
+    UploadProgram,
+    "upload_program"
+);
 
 impl UploadProgramArgs {
     /// Generates `pallet_gear::Pallet::<T>::upload_program` call arguments.
