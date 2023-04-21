@@ -816,8 +816,8 @@ where
     //
     // - For reservation type (`GasNode::ReservedLocal`) locking is denied.
     fn unlock(
-        id: LockId,
         key: impl Into<Self::NodeId>,
+        id: LockId,
         amount: Self::Balance,
     ) -> Result<(), Self::Error> {
         let key = key.into();
@@ -868,7 +868,7 @@ where
         Ok(())
     }
 
-    fn get_lock(id: LockId, key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error> {
+    fn get_lock(key: impl Into<Self::NodeId>, id: LockId) -> Result<Self::Balance, Self::Error> {
         let key = key.into();
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 

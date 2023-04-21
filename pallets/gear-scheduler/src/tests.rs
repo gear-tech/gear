@@ -76,8 +76,8 @@ fn populate_wl_from(
     GasHandlerOf::<Test>::create(src, mid, DEFAULT_GAS).expect("Failed to create gas handler");
     // Locking funds for holding.
     GasHandlerOf::<Test>::lock(
-        LockId::Waitlist,
         mid,
+        LockId::Waitlist,
         <Pallet<Test> as Scheduler>::CostsPerBlock::waitlist() * bn,
     )
     .expect("GasTree corrupted");

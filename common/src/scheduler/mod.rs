@@ -107,7 +107,7 @@ pub trait SchedulingCostsPerBlock {
     fn by_storage_type(storage: StorageType) -> Self::Cost;
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum StorageType {
     Code,
     Mailbox,

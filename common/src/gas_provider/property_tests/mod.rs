@@ -572,7 +572,7 @@ proptest! {
                     let &lock_id = NonEmpty::from_slice(&lock_ids).expect("non-empty vector; qed").ring_get(from);
                     let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
-                    if let Err(e) = Gas::lock(lock_id, from, amount) {
+                    if let Err(e) = Gas::lock(from, lock_id, amount) {
                         assertions::assert_not_invariant_error(e)
                     } else {
                         forest.tree_mut(from).locked += amount;
@@ -583,7 +583,7 @@ proptest! {
                     let &lock_id = NonEmpty::from_slice(&lock_ids).expect("non-empty vector; qed").ring_get(from);
                     let &from = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(from);
 
-                    if let Err(e) = Gas::unlock(lock_id, from, amount) {
+                    if let Err(e) = Gas::unlock(from, lock_id, amount) {
                         assertions::assert_not_invariant_error(e)
                     } else {
                         forest.tree_mut(from).locked -= amount;

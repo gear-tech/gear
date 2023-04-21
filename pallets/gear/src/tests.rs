@@ -19,7 +19,7 @@
 use core::convert::TryInto;
 
 use crate::{
-    internal::HoldBound,
+    internal::HoldBoundBuilder,
     manager::HandleKind,
     mock::{
         self,
@@ -860,7 +860,7 @@ fn delayed_send_program_message_with_reservation() {
 
         // Check that correct amount locked for dispatch stash
         let gas_locked_in_gas_node =
-            GasPrice::gas_price(Gas::get_lock(LockId::DispatchStash, delayed_id).unwrap());
+            GasPrice::gas_price(Gas::get_lock(delayed_id, LockId::DispatchStash).unwrap());
         assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
 
         // Gas should be reserved until message is holding.
@@ -968,7 +968,7 @@ fn delayed_send_program_message_with_low_reservation() {
 
         // Check that correct amount locked for dispatch stash
         let gas_locked_in_gas_node =
-            GasPrice::gas_price(Gas::get_lock(LockId::DispatchStash, delayed_id).unwrap());
+            GasPrice::gas_price(Gas::get_lock(delayed_id, LockId::DispatchStash).unwrap());
         assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
 
         // Gas should be reserved until message is holding.
@@ -1470,7 +1470,7 @@ fn mailbox_rent_out_of_rent() {
 
             run_to_next_block(None);
 
-            let hold_bound = HoldBound::<Test>::by(CostsPerBlockOf::<Test>::mailbox())
+            let hold_bound = HoldBoundBuilder::<Test>::new(StorageType::Mailbox)
                 .maximum_for(data.gas_limit_to_send);
 
             let expected_duration = data.gas_limit_to_send / mb_cost - reserve_for;
@@ -1872,7 +1872,7 @@ fn mailbox_threshold_works() {
                 // All gas in the gas node has been locked
                 assert_ok!(GasHandlerOf::<Test>::get_limit(message_id), 0);
                 assert_ok!(
-                    GasHandlerOf::<Test>::get_lock(LockId::Mailbox, message_id),
+                    GasHandlerOf::<Test>::get_lock(message_id, LockId::Mailbox),
                     rent
                 );
             } else {
@@ -6632,8 +6632,8 @@ fn free_storage_hold_on_scheduler_overwhelm() {
 
         run_to_next_block(None);
 
-        let hold_bound = HoldBound::<Test>::by(CostsPerBlockOf::<Test>::mailbox())
-            .maximum_for(data.gas_limit_to_send);
+        let hold_bound =
+            HoldBoundBuilder::<Test>::new(StorageType::Mailbox).maximum_for(data.gas_limit_to_send);
 
         let expected_duration = data.gas_limit_to_send / mb_cost - reserve_for;
 

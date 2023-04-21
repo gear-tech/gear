@@ -19,7 +19,7 @@
 use super::{scheduler::StorageType, *};
 use enum_iterator::Sequence;
 
-#[derive(Clone, Copy, Sequence)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Sequence)]
 pub enum LockId {
     Mailbox,
     Waitlist,
@@ -71,8 +71,8 @@ pub trait LockableTree: Tree {
     ///
     /// This can't create imbalance as no value is burned or created.
     fn unlock(
-        id: LockId,
         key: impl Into<Self::NodeId>,
+        id: LockId,
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
 
@@ -80,10 +80,10 @@ pub trait LockableTree: Tree {
     /// (wrapped in a `Result`)
     ///
     /// See [`unlock`](Self::unlock) for details.
-    fn unlock_all(id: LockId, key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error> {
+    fn unlock_all(key: impl Into<Self::NodeId>, id: LockId) -> Result<Self::Balance, Self::Error> {
         let key = key.into();
-        let amount = Self::get_lock(id, key.clone())?;
-        Self::unlock(id, key, amount.clone()).map(|_| amount)
+        let amount = Self::get_lock(key.clone(), id)?;
+        Self::unlock(key, id, amount.clone()).map(|_| amount)
     }
 
     /// Get locked value associated with given id.
@@ -91,5 +91,5 @@ pub trait LockableTree: Tree {
     /// Returns errors in cases of absence associated with given key node,
     /// or if such functionality is forbidden for specific node type:
     /// for example, for `GasNode::ReservedLocal`.
-    fn get_lock(id: LockId, key: impl Into<Self::NodeId>) -> Result<Self::Balance, Self::Error>;
+    fn get_lock(key: impl Into<Self::NodeId>, id: LockId) -> Result<Self::Balance, Self::Error>;
 }
