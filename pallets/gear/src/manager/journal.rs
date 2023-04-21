@@ -629,30 +629,27 @@ where
         let block_count = block_count.unique_saturated_into();
         let value = Pallet::<T>::rent_fee_for(block_count);
 
-        ProgramStorageOf::<T>::update_program_if_active(
-            program_id,
-            |_p, block_number| {
-                CurrencyOf::<T>::transfer(
-                    &from,
-                    &block_author,
-                    value,
-                    ExistenceRequirement::AllowDeath,
-                )
-                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            CurrencyOf::<T>::transfer(
+                &from,
+                &block_author,
+                value,
+                ExistenceRequirement::AllowDeath,
+            )
+            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
 
-                let old_block = *block_number;
-                let block_count = block_count.unique_saturated_into();
-                *block_number = old_block.saturating_add(block_count);
+            let old_block = program.expiration_block;
+            let block_count = block_count.unique_saturated_into();
+            let expiration_block = old_block.saturating_add(block_count);
+            program.expiration_block = expiration_block;
 
-                let task = ScheduledTask::PauseProgram(program_id);
-                let r =
-                    TaskPoolOf::<T>::delete(old_block, task.clone());
-                log::debug!("TaskPool::delete result = {r:?}");
+            let task = ScheduledTask::PauseProgram(program_id);
+            let r = TaskPoolOf::<T>::delete(old_block, task.clone());
+            log::debug!("TaskPool::delete result = {r:?}");
 
-                let r = TaskPoolOf::<T>::add(*block_number, task);
-                log::debug!("TaskPool::add result = {r:?}");
-            },
-        )
+            let r = TaskPoolOf::<T>::add(expiration_block, task);
+            log::debug!("TaskPool::add result = {r:?}");
+        })
         .unwrap_or_else(|e| {
             log::debug!("Hold period may only be set for active program {e:?}");
         });

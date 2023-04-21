@@ -62,7 +62,7 @@ use ::alloc::vec;
 use common::{
     self, benchmarking,
     storage::{Counter, *},
-    CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, ProgramStorage,
+    ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, ProgramStorage,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -434,9 +434,11 @@ benchmarks! {
         init_block::<T>(None);
     }: _(RawOrigin::Signed(caller.clone()), program_id, hold_period)
     verify {
-        let item = <T as pallet::Config>::ProgramStorage::get_program(program_id)
-            .expect("program should exist");
-        assert_eq!(item.hold_period, hold_period);
+        let program: ActiveProgram<_> = <T as pallet::Config>::ProgramStorage::get_program(program_id)
+            .expect("program should exist")
+            .try_into()
+            .expect("program should be active");
+        assert_eq!(program.expiration_block, hold_period);
     }
 
     // This constructs a program that is maximal expensive to instrument.

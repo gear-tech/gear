@@ -5416,9 +5416,10 @@ fn test_pay_rent_syscall_works() {
 
         run_to_block(2, None);
 
-        let program =
-            ProgramStorageOf::<Test>::get_program(pay_rent_id).expect("program should exist");
-        let old_block = program.block_number;
+        let program = ProgramStorageOf::<Test>::get_program(pay_rent_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let old_block = program.expiration_block;
 
         let block_count = 2_000;
         assert_ok!(Gear::send_message(
@@ -5431,9 +5432,10 @@ fn test_pay_rent_syscall_works() {
 
         run_to_next_block(None);
 
-        let program =
-            ProgramStorageOf::<Test>::get_program(pay_rent_id).expect("program should exist");
-        assert_eq!(old_block + u64::from(block_count), program.block_number);
+        let program = ProgramStorageOf::<Test>::get_program(pay_rent_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        assert_eq!(old_block + u64::from(block_count), program.expiration_block);
 
         // attempt to pay rent for not existing program
         let pay_rent_account_id = AccountId::from_origin(pay_rent_id.into_origin());

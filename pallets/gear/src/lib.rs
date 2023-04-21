@@ -1699,9 +1699,9 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            ProgramStorageOf::<T>::update_program_if_active(
+            ProgramStorageOf::<T>::update_active_program(
                 program_id,
-                |_program, block_number| -> Result<(), Error<T>> {
+                |program| -> Result<(), Error<T>> {
                     let block_author =
                         Authorship::<T>::author().ok_or(Error::<T>::BlockAuthorNotFound)?;
 
@@ -1713,24 +1713,22 @@ pub mod pallet {
                     )
                     .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
-                    let old_block = *block_number;
-                    *block_number = old_block.saturating_add(block_count);
+                    let old_block = program.expiration_block;
+                    let expiration_block = old_block.saturating_add(block_count);
+                    program.expiration_block = expiration_block;
 
                     let task = ScheduledTask::PauseProgram(program_id);
-                    let r = TaskPoolOf::<T>::delete(
-                        old_block,
-                        task.clone(),
-                    );
+                    let r = TaskPoolOf::<T>::delete(old_block, task.clone());
                     log::debug!("TaskPool::delete result = {r:?}");
 
-                    let r = TaskPoolOf::<T>::add(*block_number, task);
+                    let r = TaskPoolOf::<T>::add(expiration_block, task);
                     log::debug!("TaskPool::add result = {r:?}");
 
                     Ok(())
                 },
             )
             .map_err(|e| {
-                log::debug!("update_program_if_active failed: {e:?}");
+                log::debug!("update_active_program failed: {e:?}");
                 Error::<T>::ProgramNotFound
             })??;
 
