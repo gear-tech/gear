@@ -135,6 +135,20 @@ impl GearApiFacade {
         r.map_err(Into::into)
     }
 
+    pub async fn calculate_handle_gas_info(&mut self, args: SendMessageArgs) -> Result<u64> {
+        self.api
+            .calculate_handle_gas(
+                Some(H256::from_slice(self.api.account_id().as_ref())),
+                args.0 .0,
+                args.0 .1,
+                args.0 .3,
+                false,
+            )
+            .await
+            .map(|res| res.min_limit)
+            .map_err(|err| err.into())
+    }
+
     fn prepare_api_for_call(&self) -> (GearApi, u32) {
         let nonce = self.call_nonce().expect("nonce storages are initialized");
         let mut api = self.api.clone();

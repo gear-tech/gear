@@ -4,18 +4,20 @@ use crate::{
     batch_pool::{api::GearApiFacade, context::Context, Seed},
 };
 use anyhow::Result;
+use codec::Encode;
 use futures::FutureExt;
 use gear_call_gen::{
     CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, GearProgGenConfig,
     SendMessageArgs, SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
 };
+use gear_core::ids::ProgramId;
 use gear_utils::NonEmpty;
 use std::iter;
 use tracing::instrument;
 
 #[derive(Clone, Copy)]
 pub struct RuntimeSettings {
-    gas_limit: u64,
+    pub gas_limit: u64,
 }
 
 impl RuntimeSettings {
@@ -26,6 +28,14 @@ impl RuntimeSettings {
 
         Ok(Self { gas_limit })
     }
+}
+
+pub struct StressBatchGenerator<Rng> {
+    pub batch_gen_rng: Rng,
+    pub batch_size: usize,
+    pub gas: u64,
+    pub estimated: u128,
+    rt_settings: RuntimeSettings,
 }
 
 pub struct BatchGenerator<Rng> {
@@ -237,5 +247,117 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
             .collect();
 
         inner.into()
+    }
+}
+
+impl<Rng: CallGenRng> StressBatchGenerator<Rng> {
+    pub fn new(
+        seed: Seed,
+        batch_size: usize,
+        estimated: u128,
+        rt_settings: RuntimeSettings,
+    ) -> Self {
+        let mut batch_gen_rng = Rng::seed_from_u64(seed);
+        // tracing::info!("Code generator starts with seed: {code_seed_type:?}");
+
+        Self {
+            batch_gen_rng,
+            batch_size,
+            gas: 1,
+            estimated,
+            rt_settings,
+        }
+    }
+
+    pub fn generate(&mut self, context: Context) -> BatchWithSeed {
+        let seed = self.batch_gen_rng.next_u64();
+        let batch_id = self.batch_gen_rng.gen_range(0..=1u8);
+        let rt_settings = self.rt_settings;
+
+        let batch = self.generate_batch(batch_id, context, seed, rt_settings);
+
+        (seed, batch).into()
+    }
+
+    fn generate_batch(
+        &mut self,
+        batch_id: u8,
+        context: Context,
+        seed: Seed,
+        rt_settings: RuntimeSettings,
+    ) -> Batch {
+        let existing_programs = context.programs.iter().copied().collect::<Vec<_>>();
+        if self.gas == 1 {
+            self.gen_upload_program_batch(existing_programs, seed, rt_settings)
+        } else {
+            match NonEmpty::from_vec(context.programs.iter().copied().collect()) {
+                Some(existing_programs) => {
+                    self.gen_send_message_batch(existing_programs, seed, rt_settings)
+                }
+                None => self.generate_batch(0, context, seed, rt_settings),
+            }
+        }
+    }
+
+    #[instrument(skip_all, fields(seed = seed, batch_type = "upload_program"))]
+    fn gen_upload_program_batch(
+        &mut self,
+        existing_programs: Vec<ProgramId>,
+        seed: Seed,
+        rt_settings: RuntimeSettings,
+    ) -> Batch {
+        use demo_calc_hash_in_one_block::WASM_BINARY;
+
+        let mut rng = Rng::seed_from_u64(seed);
+        // let inner = utils::iterator_with_args(self.batch_size, || {
+        //     (existing_programs.clone(), rng.next_u64())
+        // })
+        // .enumerate()
+        // .map(|(i, (existing_programs, rng_seed))| {
+        //     let mut rng = Rng::seed_from_u64(rng_seed);
+        //     let mut salt = vec![0; rng.gen_range(1..=100)];
+        //     rng.fill_bytes(&mut salt);
+        //     UploadProgramArgs((WASM_BINARY.to_vec(), salt, vec![], rt_settings.gas_limit, 0))
+        // })
+        // .collect();
+
+        let inner = iter::zip(1_usize.., iter::repeat_with(|| (existing_programs.clone(), seed)))
+            .take(self.batch_size)
+            .map(|(i, (existing_programs, rng_seed))| {
+                let mut rng = Rng::seed_from_u64(rng_seed);
+                let mut salt = vec![0; rng.gen_range(1..=100)];
+                rng.fill_bytes(&mut salt);
+                UploadProgramArgs((WASM_BINARY.to_vec(), salt, vec![], rt_settings.gas_limit, 0))
+            })
+            .collect();
+
+        Batch::UploadProgram(inner)
+    }
+
+    #[instrument(skip_all, fields(seed = seed, batch_type = "send_message"))]
+    fn gen_send_message_batch(
+        &mut self,
+        existing_programs: NonEmpty<ProgramId>,
+        seed: Seed,
+        rt_settings: RuntimeSettings,
+    ) -> Batch {
+        use demo_calc_hash_in_one_block::Package;
+        let inner = iter::zip(1_usize.., iter::repeat_with(|| existing_programs.clone()))
+            .take(self.batch_size)
+            .map(|(i, existing_programs)| {
+                tracing::debug_span!("`stress send_message` generator", call_id = i + 1,).in_scope(
+                    || {
+                        // let program_idx = rng.next_u64() as usize;
+                        tracing::debug!("{:?}, len = {}, {:?}", existing_programs, existing_programs.len(), i);
+                        let &destination = existing_programs.get(i -1 ).unwrap();
+                        let src = [0; 32];
+                        let payload = Package::new(self.estimated, src).encode();
+                        SendMessageArgs((destination, payload, self.gas, 0))
+                    },
+                )
+            })
+            .collect();
+
+        Batch::SendMessage(inner)
     }
 }

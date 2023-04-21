@@ -1,4 +1,6 @@
 mod batch;
 mod seed;
 
-pub use self::batch::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
+pub use self::batch::{
+    Batch, BatchGenerator, BatchWithSeed, RuntimeSettings, StressBatchGenerator,
+};

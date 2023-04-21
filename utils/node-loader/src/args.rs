@@ -14,6 +14,8 @@ pub enum Params {
     },
     /// Perform load test on the node
     Load(LoadParams),
+    /// Perform stress test
+    Stress(StressParams),
 }
 
 #[derive(Debug, Parser)]
@@ -46,6 +48,36 @@ pub struct LoadParams {
     /// Example value: `<seed_variant>=<seed_u64_value>`.
     #[arg(long)]
     pub code_seed_type: Option<SeedVariant>,
+
+    /// Desirable amount of workers in task pool.
+    #[arg(long, short, default_value = "8")]
+    pub workers: usize,
+
+    /// Desirable amount of calls in the sending batch.
+    #[arg(long, short, default_value = "4")]
+    pub batch_size: usize,
+}
+
+#[derive(Debug, Parser)]
+pub struct StressParams {
+    #[arg(long, default_value = "ws://localhost:9944")]
+    pub node: String,
+
+    /// Node stopping service.
+    #[arg(long, default_value = "http://localhost:5000/executions/start")]
+    pub node_stopper: String,
+
+    /// User name
+    #[arg(long, default_value = "//Bob")]
+    pub user: String,
+
+    /// Root account of the node
+    #[arg(long, default_value = "//Alice")]
+    pub root: String,
+
+    /// Starting seed for loading the network
+    #[arg(long)]
+    pub loader_seed: Option<u64>,
 
     /// Desirable amount of workers in task pool.
     #[arg(long, short, default_value = "8")]

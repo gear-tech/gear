@@ -21,6 +21,7 @@ gsdk.workspace = true
 anyhow.workspace = true
 arbitrary.workspace = true
 clap = { workspace = true, features = ["derive"] }
+codec.workspace = true
 dyn-clonable.workspace = true
 futures.workspace = true
 futures-timer.workspace = true
@@ -37,3 +38,5 @@ tokio = { workspace = true, features = [ "macros", "rt-multi-thread" ] }
 tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber = { workspace = true, features = [ "env-filter", "json" ] }
+demo-calc-hash.workspace = true
+demo-calc-hash-in-one-block.workspace = true

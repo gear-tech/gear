@@ -1,15 +1,16 @@
 use crate::{
-    args::{LoadParams, SeedVariant},
+    args::{LoadParams, SeedVariant, StressParams},
     utils::{self, SwapResult},
 };
 use anyhow::{anyhow, Result};
 use api::GearApiFacade;
+use codec::Encode;
 use context::Context;
 use futures::{stream::FuturesUnordered, Future, StreamExt};
 use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{MessageId, ProgramId};
-use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
+use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings, StressBatchGenerator};
 use gsdk::metadata::{gear::Event as GearEvent, Event};
 use primitive_types::H256;
 pub use report::CrashAlert;
@@ -121,6 +122,64 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
 
             batches.push(run_batch(api, batch_with_seed, self.rx.resubscribe()));
+        }
+
+        unreachable!()
+    }
+
+    #[instrument(skip_all)]
+    async fn run_stress_pool_loop(&mut self, loader_seed: Option<u64>) -> Result<()> {
+        let mut batches = FuturesUnordered::new();
+        let seed = loader_seed.unwrap_or_else(gear_utils::now_millis);
+
+        tracing::info!(
+            message = "Running stress task pool with params",
+            pool_size = self.pool_size,
+            batch_size = self.batch_size
+        );
+
+        let rt_settings = RuntimeSettings::new(&self.api).await?;
+        let mut batch_gen = StressBatchGenerator::<Rng>::new(seed, self.batch_size, 1, rt_settings);
+
+        while batches.len() != self.pool_size {
+            let api = self.api.clone();
+            let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
+
+            batches.push(run_batch(api, batch_with_seed));
+        }
+
+        while let Some(report_res) = batches.next().await {
+            self.process_run_report(report_res?).await;
+
+            let mut api = self.api.clone();
+            println!("PID LEN = {:?}", self.tasks_context.programs.len());
+            if self.tasks_context.programs.len() >= self.batch_size && batch_gen.estimated == 1 {
+                while (batch_gen.gas * self.batch_size as u64) < rt_settings.gas_limit {
+                    use demo_calc_hash_in_one_block::Package;
+
+                    let (src, times) = ([0; 32], batch_gen.estimated);
+
+                    // estimate start cost
+                    let pkg = Package::new(times, src);
+                    let new_gas = api
+                        .calculate_handle_gas_info(gear_call_gen::SendMessageArgs((
+                            self.tasks_context.programs.first().unwrap().clone(),
+                            pkg.encode(),
+                            0,
+                            0,
+                        )))
+                        .await
+                        .expect("Failed to get gas spent");
+
+                    batch_gen.estimated = batch_gen.estimated * 2;
+                    batch_gen.gas = new_gas;
+                }
+                println!("ESTIMATED = {:?}", batch_gen.estimated);
+            } else {
+
+                let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
+                batches.push(run_batch(api, batch_with_seed));
+            }
         }
 
         unreachable!()
