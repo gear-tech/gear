@@ -93,3 +93,13 @@ pub trait LockableTree: Tree {
     /// for example, for `GasNode::ReservedLocal`.
     fn get_lock(key: impl Into<Self::NodeId>, id: LockId) -> Result<Self::Balance, Self::Error>;
 }
+
+#[test]
+fn lock_id_enum_discriminants_are_consistent() {
+    // Important for the [`gclient::api::GearApi`] implementation:
+    // the function `migrate_program()` relies on `LockId::Reservation` having discriminant 2
+    assert_eq!(0, LockId::Mailbox as usize);
+    assert_eq!(1, LockId::Waitlist as usize);
+    assert_eq!(2, LockId::Reservation as usize);
+    assert_eq!(3, LockId::DispatchStash as usize);
+}

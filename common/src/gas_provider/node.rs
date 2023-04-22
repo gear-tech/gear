@@ -85,23 +85,13 @@ impl<Balance> Index<LockId> for NodeLock<Balance> {
     type Output = Balance;
 
     fn index(&self, index: LockId) -> &Self::Output {
-        match index {
-            LockId::Mailbox => &self.0[0],
-            LockId::Waitlist => &self.0[1],
-            LockId::Reservation => &self.0[2],
-            LockId::DispatchStash => &self.0[3],
-        }
+        &self.0[index as usize]
     }
 }
 
 impl<Balance> IndexMut<LockId> for NodeLock<Balance> {
     fn index_mut(&mut self, index: LockId) -> &mut Self::Output {
-        match index {
-            LockId::Mailbox => &mut self.0[0],
-            LockId::Waitlist => &mut self.0[1],
-            LockId::Reservation => &mut self.0[2],
-            LockId::DispatchStash => &mut self.0[3],
-        }
+        &mut self.0[index as usize]
     }
 }
 
