@@ -1,11 +1,11 @@
 //! CLI args for the `gear-node-loader`
 
 use anyhow::Error;
+use clap::Parser;
 use std::str::FromStr;
-use structopt::StructOpt;
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "node-loader")]
+#[derive(Debug, Parser)]
+#[clap(name = "node-loader")]
 pub enum Params {
     /// Dump the wasm program with provided seed to "out.wasm"
     Dump {
@@ -16,25 +16,25 @@ pub enum Params {
     Load(LoadParams),
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct LoadParams {
-    #[structopt(long, default_value = "ws://localhost:9944")]
+    #[arg(long, default_value = "ws://localhost:9944")]
     pub node: String,
 
     /// Node stopping service.
-    #[structopt(long, default_value = "http://localhost:5000/executions/start")]
+    #[arg(long, default_value = "http://localhost:5000/executions/start")]
     pub node_stopper: String,
 
     /// User name
-    #[structopt(long, default_value = "//Bob")]
+    #[arg(long, default_value = "//Bob")]
     pub user: String,
 
     /// Root account of the node
-    #[structopt(long, default_value = "//Alice")]
+    #[arg(long, default_value = "//Alice")]
     pub root: String,
 
     /// Starting seed for loading the network
-    #[structopt(long)]
+    #[arg(long)]
     pub loader_seed: Option<u64>,
 
     /// Seed used to generate random seeds for various internal generators.
@@ -44,25 +44,25 @@ pub struct LoadParams {
     /// used in every test, therefore generated input data (for example, program)
     /// for each test will be the same.
     /// Example value: `<seed_variant>=<seed_u64_value>`.
-    #[structopt(long)]
+    #[arg(long)]
     pub code_seed_type: Option<SeedVariant>,
 
     /// Desirable amount of workers in task pool.
-    #[structopt(long, short, default_value = "8")]
+    #[arg(long, short, default_value = "8")]
     pub workers: usize,
 
     /// Desirable amount of calls in the sending batch.
-    #[structopt(long, short, default_value = "4")]
+    #[arg(long, short, default_value = "4")]
     pub batch_size: usize,
 }
 
 pub fn parse_cli_params() -> Params {
-    Params::from_args()
+    Params::parse()
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SeedVariant {
-    // TODO remove later (considering )
+    // TODO remove later (considering)
     Dynamic(u64),
     Constant(u64),
 }

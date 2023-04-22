@@ -57,11 +57,11 @@ jobs:
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
       - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
           components: clippy, rustfmt
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
 
       - name: "Install: Show specific nightly version"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
@@ -69,10 +69,10 @@ jobs:
 
       - name: "Install: Specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
           components: llvm-tools-preview
 
       - name: "Install: Pin to specific nightly toolchain"
@@ -145,10 +145,10 @@ jobs:
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
       - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
           components: llvm-tools-preview
 
       - name: "Install: Show specific nightly version"
@@ -157,10 +157,10 @@ jobs:
 
       - name: "Install: Specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
           components: llvm-tools-preview
 
       - name: "Install: Pin to specific nightly toolchain"
@@ -357,10 +357,10 @@ jobs:
             mingw-w64-x86_64-protobuf
 
       - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
 
       - name: "Install: Show specific nightly version"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
@@ -368,10 +368,10 @@ jobs:
 
       - name: "Install: Specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
           components: llvm-tools-preview
 
       - name: "Install: Pin to specific nightly toolchain"
@@ -440,18 +440,15 @@ jobs:
         run: ./scripts/gear.sh test client
 
       - name: "Test: Lazy pages"
-        uses: actions-rs/cargo@v1
-        with:
-          command: nextest
-          args: >-
-            run
-            -p pallet-gear
-            -p pallet-gear-debug
-            -p pallet-gear-payment
-            -p gear-lazy-pages
-            -p gear-runtime-interface
-            --features=lazy-pages
-            --release
+        run: >-
+          cargo nextest run
+          -p pallet-gear
+          -p pallet-gear-debug
+          -p pallet-gear-payment
+          -p gear-lazy-pages
+          -p gear-runtime-interface
+          --features=lazy-pages
+          --release
 
   build-win-cross:
     runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
@@ -476,10 +473,10 @@ jobs:
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
       - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
           components: llvm-tools-preview
 
       - name: "Install: Show specific nightly version"
@@ -488,10 +485,10 @@ jobs:
 
       - name: "Install: Specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
           components: llvm-tools-preview
 
       - name: "Install: Pin to specific nightly toolchain"
@@ -587,18 +584,15 @@ jobs:
       #    CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
       - name: "Test: Lazy pages"
-        uses: actions-rs/cargo@v1
-        with:
-          command: xwin
-          args: >-
-            test
-            -p pallet-gear
-            -p pallet-gear-debug
-            -p pallet-gear-payment
-            -p gear-lazy-pages
-            -p gear-runtime-interface
-            --features=lazy-pages
-            --release
+        run: >-
+          cargo xwin test
+          -p pallet-gear
+          -p pallet-gear-debug
+          -p pallet-gear-payment
+          -p gear-lazy-pages
+          -p gear-runtime-interface
+          --features=lazy-pages
+          --release
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
@@ -651,10 +645,10 @@ jobs:
         run: brew install protobuf
 
       - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
 
       - name: "Install: Show specific nightly version"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
@@ -662,10 +656,10 @@ jobs:
 
       - name: "Install: Specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
           components: llvm-tools-preview
 
       - name: "Install: Pin to specific nightly toolchain"
@@ -678,23 +672,19 @@ jobs:
         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
       - name: "Build: Node"
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p gear-cli --features=lazy-pages
+        run: >-
+          cargo build
+          -p gear-cli --features=lazy-pages
 
       - name: "Test: Lazy pages"
-        uses: actions-rs/cargo@v1
-        with:
-          command: nextest
-          args: >-
-            run
-            -p pallet-gear
-            -p pallet-gear-debug
-            -p pallet-gear-payment
-            -p gear-lazy-pages
-            -p gear-runtime-interface
-            --features=lazy-pages
+        run: >-
+          cargo nextest run
+          -p pallet-gear
+          -p pallet-gear-debug
+          -p pallet-gear-payment
+          -p gear-lazy-pages
+          -p gear-runtime-interface
+          --features=lazy-pages
 
   upload:
     if: github.event_name == 'push' && github.ref_name == 'master'
