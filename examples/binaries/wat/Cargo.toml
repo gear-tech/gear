@@ -9,5 +9,3 @@ workspace = "../../../"
 [dependencies]
 hex = { workspace = true, features = ["alloc"] }
 wabt.workspace = true
-
-[dev-dependencies]

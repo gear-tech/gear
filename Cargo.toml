@@ -349,6 +349,7 @@ demo-waiter = { path = "examples/binaries/waiter" }
 demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
 demo-wait-wake = { path = "examples/binaries/wait_wake" }
 demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
+demo-wat = { path = "examples/binaries/wat" }
 
 # Dependencies that only used in one package
 #

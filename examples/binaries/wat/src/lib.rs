@@ -16,7 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::fmt::{self, Debug, Display, Formatter};
+#![no_std]
+
+extern crate alloc;
+
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
+use core::fmt::{self, Debug, Display, Formatter};
 use wabt::{Wasm2Wat, Wat2Wasm};
 
 pub struct WatStr(String);
