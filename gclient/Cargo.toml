@@ -24,7 +24,6 @@ gstd.workspace = true
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
 wat.workspace = true
-async-std.workspace = true
 env_logger.workspace = true
 hex-literal.workspace = true
 log.workspace = true
