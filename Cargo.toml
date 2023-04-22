@@ -53,6 +53,7 @@ members = [
     "examples/binaries/wait_wake",
     "examples/binaries/waiter",
     "examples/binaries/waiting-proxy",
+    "examples/binaries/wat",
     "galloc",
     "gcli",
     "gclient",
