@@ -90,7 +90,6 @@ members = [
 [workspace.dependencies]
 anyhow = "1.0.70"
 arbitrary = "1.3.0"
-async-std = "1.12"
 async-recursion = "1.0.4"
 async-trait = "0.1.68"
 base64 = "0.21.0"
@@ -201,6 +200,8 @@ testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara" }
 wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
+
+validator-set = { package = 'substrate-validator-set', git = 'https://github.com/gear-tech/substrate-validator-set.git', branch = 'gear-polkadot-v0.9.41-sign-ext', default-features = false }
 
 # Substrate deps
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
