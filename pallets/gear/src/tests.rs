@@ -532,7 +532,7 @@ fn delayed_send_user_message_payment() {
                 .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
 
-        // Gas should be reserved until message is holding.
+        // Gas should be reserved while message is being held in storage.
         assert_eq!(Balances::reserved_balance(USER_1), delay_holding_fee);
         let total_balance = Balances::free_balance(USER_1) + Balances::reserved_balance(USER_1);
 
@@ -637,7 +637,9 @@ fn delayed_send_user_message_with_reservation() {
 
         let mailbox_gas_threshold = GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
 
-        // Gas should be reserved while message is being held in storage.
+        // At this point a `Cut` node has been created with `mailbox_threshold` as value and
+        // `delay` + 1 locked for using dispatch stash storage.
+        // Other gas nodes have been consumed with all gas released to the user.
         assert_eq!(
             Balances::reserved_balance(USER_1),
             mailbox_gas_threshold + delay_holding_fee
@@ -675,7 +677,10 @@ fn delayed_send_user_message_with_reservation() {
         // Mailbox should not be empty.
         assert!(!MailboxOf::<Test>::is_empty(&USER_2));
 
-        // TODO: deal with reserve_for in reserve.
+        // At this point the `Cut` node has all its value locked for using mailbox storage.
+        // The extra `reserve_for_fee` as a leftover from the message having been charged exactly
+        // for the `delay` number of blocks spent in the dispatch stash so that the "+ 1" security
+        // margin remained unused and was simply added back to the `Cut` node value.
         assert_eq!(
             Balances::reserved_balance(USER_1),
             mailbox_gas_threshold + reserve_for_fee
@@ -750,7 +755,7 @@ fn delayed_send_program_message_payment() {
                 .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
 
-        // Gas should be reserved until message is holding.
+        // Gas should be reserved while message is being held in storage.
         assert_eq!(Balances::reserved_balance(USER_1), delay_holding_fee);
         let total_balance = Balances::free_balance(USER_1) + Balances::reserved_balance(USER_1);
 
@@ -863,7 +868,7 @@ fn delayed_send_program_message_with_reservation() {
             GasPrice::gas_price(Gas::get_lock(delayed_id, LockId::DispatchStash).unwrap());
         assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
 
-        // Gas should be reserved until message is holding.
+        // Gas should be reserved while message is being held in storage.
         assert_eq!(
             Balances::reserved_balance(USER_1),
             GasPrice::gas_price(reservation_amount) + reservation_holding_fee
@@ -971,7 +976,7 @@ fn delayed_send_program_message_with_low_reservation() {
             GasPrice::gas_price(Gas::get_lock(delayed_id, LockId::DispatchStash).unwrap());
         assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
 
-        // Gas should be reserved until message is holding.
+        // Gas should be reserved while message is being held in storage.
         assert_eq!(
             Balances::reserved_balance(USER_1),
             GasPrice::gas_price(reservation_amount) + reservation_holding_fee
