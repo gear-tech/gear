@@ -69,7 +69,7 @@ pub fn method(
             Ok(buffer) => buffer,
         };
 
-        context.result = match write_memory(caller, context.buf_ptr, &buffer) {
+        context.result = match util::write_memory_from(caller, context.buf_ptr, &buffer) {
             Ok(_) => sandbox_env::env::ERR_OK,
             Err(_) => sandbox_env::env::ERR_OUT_OF_BOUNDS,
         };

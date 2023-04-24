@@ -20,9 +20,9 @@ use codec::{Decode, Encode};
 use gear_sandbox_native::sandbox as sandbox_env;
 use once_cell::unsync::Lazy;
 use sp_wasm_interface::{
+    util,
     wasmtime::{AsContext, AsContextMut, Func, Val},
-    Caller, FunctionContext, HostPointer, HostState, MemoryWrapper, Pointer, StoreData, Value,
-    WordSize,
+    Caller, FunctionContext, HostPointer, Pointer, StoreData, Value, WordSize,
 };
 
 mod instantiate;
@@ -107,15 +107,6 @@ struct SandboxContext<'a, 'b> {
     state: u32,
 }
 
-impl<'a, 'b> SandboxContext<'a, 'b> {
-    fn host_state_mut(&mut self) -> &mut HostState {
-        self.caller
-            .data_mut()
-            .host_state_mut()
-            .expect("host state is not empty when calling a function in wasm; qed")
-    }
-}
-
 impl<'a, 'b> sandbox_env::SandboxContext for SandboxContext<'a, 'b> {
     fn invoke(
         &mut self,
@@ -152,75 +143,20 @@ impl<'a, 'b> sandbox_env::SandboxContext for SandboxContext<'a, 'b> {
         address: Pointer<u8>,
         dest: &mut [u8],
     ) -> sp_wasm_interface::Result<()> {
-        self::read_memory_into(self.caller.as_context(), address, dest)
+        util::read_memory_into(self.caller.as_context(), address, dest)
     }
 
     fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> sp_wasm_interface::Result<()> {
-        self::write_memory(self.caller.as_context_mut(), address, data)
+        util::write_memory_from(self.caller.as_context_mut(), address, data)
     }
 
     fn allocate_memory(&mut self, size: WordSize) -> sp_wasm_interface::Result<Pointer<u8>> {
-        let memory = self.caller.data().memory();
-        let mut allocator = self
-            .host_state_mut()
-            .allocator
-            .take()
-            .expect("allocator is not empty when calling a function in wasm; qed");
-
-        // We can not return on error early, as we need to store back allocator.
-        let res = allocator
-            .allocate(&mut MemoryWrapper::from((&memory, &mut self.caller)), size)
-            .map_err(|e| e.to_string());
-
-        self.host_state_mut().allocator = Some(allocator);
-
-        res
+        util::allocate_memory(self.caller, size)
     }
 
     fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> sp_wasm_interface::Result<()> {
-        let memory = self.caller.data().memory();
-        let mut allocator = self
-            .host_state_mut()
-            .allocator
-            .take()
-            .expect("allocator is not empty when calling a function in wasm; qed");
-
-        // We can not return on error early, as we need to store back allocator.
-        let res = allocator
-            .deallocate(&mut MemoryWrapper::from((&memory, &mut self.caller)), ptr)
-            .map_err(|e| e.to_string());
-
-        self.host_state_mut().allocator = Some(allocator);
-
-        res
+        util::deallocate_memory(self.caller, ptr)
     }
-}
-
-fn write_memory(
-    mut ctx: impl AsContextMut<Data = StoreData>,
-    address: Pointer<u8>,
-    data: &[u8],
-) -> sp_wasm_interface::Result<()> {
-    let memory = ctx.as_context().data().memory();
-    let memory = memory.data_mut(&mut ctx);
-
-    let range = gear_sandbox_native::util::checked_range(address.into(), data.len(), memory.len())
-        .ok_or_else(|| String::from("memory write is out of bounds"))?;
-    memory[range].copy_from_slice(data);
-    Ok(())
-}
-
-fn read_memory_into(
-    ctx: impl AsContext<Data = StoreData>,
-    address: Pointer<u8>,
-    dest: &mut [u8],
-) -> sp_wasm_interface::Result<()> {
-    let memory = ctx.as_context().data().memory().data(&ctx);
-
-    let range = gear_sandbox_native::util::checked_range(address.into(), dest.len(), memory.len())
-        .ok_or_else(|| String::from("memory read is out of bounds"))?;
-    dest.copy_from_slice(&memory[range]);
-    Ok(())
 }
 
 fn read_memory(
@@ -229,7 +165,7 @@ fn read_memory(
     size: WordSize,
 ) -> sp_wasm_interface::Result<Vec<u8>> {
     let mut vec = vec![0; size as usize];
-    read_memory_into(ctx, address, &mut vec)?;
+    util::read_memory_into(ctx, address, &mut vec)?;
     Ok(vec)
 }
 

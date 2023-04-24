@@ -27,7 +27,7 @@ use wasmer::Module;
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::HostError;
-use sp_wasm_interface::{Pointer, ReturnValue, Value, WordSize};
+use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
     error::{Error, Result},
@@ -35,7 +35,7 @@ use crate::{
         BackendInstance, GuestEnvironment, InstantiationError, Memory, SandboxContext,
         SandboxInstance, SupervisorFuncIndex,
     },
-    util::{checked_range, MemoryTransfer},
+    util::MemoryTransfer,
 };
 
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
@@ -462,7 +462,7 @@ impl MemoryTransfer for MemoryWrapper {
 			possible on current achitecture; thus the conversion can not fail; qed",
         );
 
-        let range = checked_range(source_addr.into(), size, data_size)
+        let range = util::checked_range(source_addr.into(), size, data_size)
             .ok_or_else(|| Error::Other("memory read is out of bounds".into()))?;
 
         let mut buffer = vec![0; range.len()];
@@ -479,7 +479,7 @@ impl MemoryTransfer for MemoryWrapper {
             // and we give up the reference before returning from this function.
             let source = Self::memory_as_slice(&memory);
 
-            let range = checked_range(source_addr.into(), destination.len(), source.len())
+            let range = util::checked_range(source_addr.into(), destination.len(), source.len())
                 .ok_or_else(|| Error::Other("memory read is out of bounds".into()))?;
 
             destination.copy_from_slice(&source[range]);
@@ -495,7 +495,7 @@ impl MemoryTransfer for MemoryWrapper {
             // and we give up the reference before returning from this function.
             let destination = Self::memory_as_slice_mut(memory);
 
-            let range = checked_range(dest_addr.into(), source.len(), destination.len())
+            let range = util::checked_range(dest_addr.into(), source.len(), destination.len())
                 .ok_or_else(|| Error::Other("memory write is out of bounds".into()))?;
 
             destination[range].copy_from_slice(source);

@@ -22,7 +22,7 @@ use std::fmt;
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::HostError;
-use sp_wasm_interface::{Pointer, ReturnValue, Value, WordSize};
+use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
 use wasmi::{
     memory_units::Pages, ImportResolver, MemoryInstance, Module, ModuleInstance, RuntimeArgs,
     RuntimeValue, Trap,
@@ -34,7 +34,7 @@ use crate::{
         BackendInstance, GuestEnvironment, GuestExternals, GuestFuncIndex, Imports,
         InstantiationError, Memory, SandboxContext, SandboxInstance,
     },
-    util::{checked_range, MemoryTransfer},
+    util::MemoryTransfer,
 };
 
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
@@ -150,7 +150,7 @@ impl MemoryWrapper {
 impl MemoryTransfer for MemoryWrapper {
     fn read(&self, source_addr: Pointer<u8>, size: usize) -> error::Result<Vec<u8>> {
         self.0.with_direct_access(|source| {
-            let range = checked_range(source_addr.into(), size, source.len())
+            let range = util::checked_range(source_addr.into(), size, source.len())
                 .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
 
             Ok(Vec::from(&source[range]))
@@ -159,7 +159,7 @@ impl MemoryTransfer for MemoryWrapper {
 
     fn read_into(&self, source_addr: Pointer<u8>, destination: &mut [u8]) -> error::Result<()> {
         self.0.with_direct_access(|source| {
-            let range = checked_range(source_addr.into(), destination.len(), source.len())
+            let range = util::checked_range(source_addr.into(), destination.len(), source.len())
                 .ok_or_else(|| error::Error::Other("memory read is out of bounds".into()))?;
 
             destination.copy_from_slice(&source[range]);
@@ -169,7 +169,7 @@ impl MemoryTransfer for MemoryWrapper {
 
     fn write_from(&self, dest_addr: Pointer<u8>, source: &[u8]) -> error::Result<()> {
         self.0.with_direct_access_mut(|destination| {
-            let range = checked_range(dest_addr.into(), source.len(), destination.len())
+            let range = util::checked_range(dest_addr.into(), source.len(), destination.len())
                 .ok_or_else(|| error::Error::Other("memory write is out of bounds".into()))?;
 
             destination[range].copy_from_slice(source);
