@@ -201,114 +201,116 @@ vara-runtime = { path = "runtime/vara" }
 wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
 
-validator-set = { package = 'substrate-validator-set', git = 'https://github.com/gear-tech/substrate-validator-set.git', branch = 'gear-polkadot-v0.9.41-sign-ext', default-features = false }
+validator-set = { package = 'substrate-validator-set', git = 'https://github.com/gear-tech/substrate-validator-set.git', branch = 'gear-polkadot-v0.9.41-canary', default-features = false }
 
 # Substrate deps
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-frame-executive = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-frame-system-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-frame-try-runtime = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-frame-system-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-generate-bags = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-babe = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-conviction-voting = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-election-provider-multi-phase = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-identity = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-preimage = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-ranked-collective = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-referenda = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-scheduler = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-staking-reward-fn = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-sudo = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-transaction-payment = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-transaction-payment-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-treasury = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-utility = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-vesting = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-pallet-whitelist = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-authority-discovery = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-block-builder = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-consensus-babe-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-consensus-epochs = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-client-db = { version = "0.10.0-dev", features = ["rocksdb"], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-executor-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-consensus-grandpa = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-consensus-grandpa-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-keystore = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-network = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-network-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-network-sync = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-proposer-metrics = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-telemetry = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-rpc-spec-v2 = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-sync-state-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-sysinfo = { version = "6.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-arithmetic = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-externalities = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-consensus-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-keyring = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-keystore = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-offchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-rpc = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-runtime-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-state-machine = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-storage = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-transaction-storage-proof = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-trie = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-version = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-sp-wasm-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext", default-features = false }
-substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-substrate-state-trie-migration-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-substrate-test-client = { version = "2.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
-try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-sign-ext" }
+#
+# NOTE: gear-polkadot-v0.9.41-canary = gear-polkadot-v0.9.41-sign-ext + alloc panic
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+frame-executive = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+frame-system-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+frame-try-runtime = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+frame-system-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+generate-bags = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-babe = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-conviction-voting = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-election-provider-multi-phase = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-identity = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-preimage = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-ranked-collective = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-referenda = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-scheduler = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-staking-reward-fn = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-sudo = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-transaction-payment = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-transaction-payment-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-treasury = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-utility = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-vesting = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-whitelist = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-authority-discovery = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-block-builder = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-consensus-babe-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-consensus-epochs = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-client-db = { version = "0.10.0-dev", features = ["rocksdb"], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-executor-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-consensus-grandpa = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-consensus-grandpa-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-keystore = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-network = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-network-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-network-sync = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-proposer-metrics = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-telemetry = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-rpc-spec-v2 = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-sync-state-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-sysinfo = { version = "6.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-arithmetic = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-externalities = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-consensus-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-keyring = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-keystore = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-offchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-rpc = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-runtime-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-session = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-state-machine = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-staking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-storage = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-transaction-storage-proof = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-trie = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-version = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+sp-wasm-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+substrate-state-trie-migration-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+substrate-test-client = { version = "2.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
 
 # Examples
 test-syscalls = { path = "examples/binaries/sys-calls", default-features = false }
