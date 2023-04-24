@@ -841,6 +841,4 @@ jobs:
         run: cargo install cargo-fuzz
 
       - name: "Check fuzzer with mutation test"
-        run: |
-          chmod +x ./scripts/check-fuzzer.sh
-          ./scripts/check-fuzzer.sh
+        run: ./scripts/check-fuzzer.sh
