@@ -25,6 +25,8 @@ test_usage() {
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
     syscalls       run syscalls integrity test in benchmarking module of pallet-gear
+    docs           run doc tests
+    validators     run validator checks
 
 EOF
 }

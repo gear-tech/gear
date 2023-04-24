@@ -18,7 +18,7 @@
 
 //! Claim value args generator.
 
-use crate::{CallGenRng, GearCall, GearCallConversionError, Seed};
+use crate::{impl_convert_traits, CallGenRng, Seed};
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -28,29 +28,7 @@ use gear_utils::{NonEmpty, RingGet};
 #[derive(Debug, Clone)]
 pub struct ClaimValueArgs(pub MessageId);
 
-impl From<ClaimValueArgs> for MessageId {
-    fn from(args: ClaimValueArgs) -> Self {
-        args.0
-    }
-}
-
-impl From<ClaimValueArgs> for GearCall {
-    fn from(args: ClaimValueArgs) -> Self {
-        GearCall::ClaimValue(args)
-    }
-}
-
-impl TryFrom<GearCall> for ClaimValueArgs {
-    type Error = GearCallConversionError;
-
-    fn try_from(call: GearCall) -> Result<Self, Self::Error> {
-        if let GearCall::ClaimValue(call) = call {
-            Ok(call)
-        } else {
-            Err(GearCallConversionError("claim_value"))
-        }
-    }
-}
+impl_convert_traits!(ClaimValueArgs, MessageId, ClaimValue, "claim_value");
 
 impl ClaimValueArgs {
     /// Generates `pallet_gear::Pallet::<T>::claim_value` call arguments.

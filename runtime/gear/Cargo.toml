@@ -16,6 +16,8 @@ log.workspace = true
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
 
+validator-set.workspace = true
+
 # Substrate deps
 frame-support.workspace = true
 frame-system.workspace = true
@@ -89,6 +91,7 @@ std = [
 	"pallet-gear-payment/std",
 	"pallet-gear-rpc-runtime-api/std",
 	"runtime-primitives/std",
+	"validator-set/std",
 	"pallet-grandpa/std",
 	"pallet-session/std",
 	"pallet-sudo/std",
@@ -150,6 +153,7 @@ try-runtime = [
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-utility/try-runtime",
+	"validator-set/try-runtime",
 ]
 debug-mode = ["pallet-gear-debug", "pallet-gear-program/debug-mode"]
 lazy-pages = [
