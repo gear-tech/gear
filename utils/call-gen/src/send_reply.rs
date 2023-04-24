@@ -18,7 +18,7 @@
 
 //! Send reply args generator.
 
-use crate::{CallGenRng, GearCall, GearCallConversionError, Seed};
+use crate::{impl_convert_traits, CallGenRng, Seed};
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -31,29 +31,7 @@ type SendReplyArgsInner = (MessageId, Vec<u8>, u64, u128);
 #[derive(Debug, Clone)]
 pub struct SendReplyArgs(pub SendReplyArgsInner);
 
-impl From<SendReplyArgs> for SendReplyArgsInner {
-    fn from(args: SendReplyArgs) -> Self {
-        args.0
-    }
-}
-
-impl From<SendReplyArgs> for GearCall {
-    fn from(args: SendReplyArgs) -> Self {
-        GearCall::SendReply(args)
-    }
-}
-
-impl TryFrom<GearCall> for SendReplyArgs {
-    type Error = GearCallConversionError;
-
-    fn try_from(call: GearCall) -> Result<Self, Self::Error> {
-        if let GearCall::SendReply(call) = call {
-            Ok(call)
-        } else {
-            Err(GearCallConversionError("send_reply"))
-        }
-    }
-}
+impl_convert_traits!(SendReplyArgs, SendReplyArgsInner, SendReply, "send_reply");
 
 impl SendReplyArgs {
     /// Generates `pallet_gear::Pallet::<T>::send_reply` call arguments.
