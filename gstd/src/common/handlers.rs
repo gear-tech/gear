@@ -34,7 +34,11 @@ use {crate::ext, alloc::alloc::AllocErrorPanicPayload, core::panic::PanicInfo};
 #[panic_handler]
 pub fn panic(panic_info: &PanicInfo) -> ! {
     // Alloc error handling through panic message.
-    if panic_info.payload().downcast_ref::<AllocErrorPanicPayload>().is_some() {
+    if panic_info
+        .payload()
+        .downcast_ref::<AllocErrorPanicPayload>()
+        .is_some()
+    {
         ext::oom_panic()
     }
 
@@ -49,7 +53,11 @@ pub fn panic(panic_info: &PanicInfo) -> ! {
     use crate::prelude::format;
 
     // Alloc error handling through panic message.
-    if panic_info.payload().downcast_ref::<AllocErrorPanicPayload>().is_some() {
+    if panic_info
+        .payload()
+        .downcast_ref::<AllocErrorPanicPayload>()
+        .is_some()
+    {
         ext::oom_panic()
     }
 
