@@ -31,7 +31,6 @@
 //!
 //! ```
 //! #![no_std]
-//! #![feature(alloc_error_handler)]
 //!
 //! extern crate galloc;
 //!
@@ -46,12 +45,6 @@
 //!             msg::reply(b"PONG", 0).expect("Unable to reply");
 //!         }
 //!     }
-//! }
-//!
-//! # #[cfg(target = "wasm32")]
-//! #[alloc_error_handler]
-//! pub fn oom(_: core::alloc::Layout) -> ! {
-//!     core::arch::wasm32::unreachable()
 //! }
 //!
 //! # #[cfg(target = "wasm32")]
