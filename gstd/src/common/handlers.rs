@@ -26,7 +26,7 @@
 //! For `debug` mode it provides more extensive logging.
 
 #[cfg(target_arch = "wasm32")]
-use {crate::ext, core::alloc::Layout, core::panic::PanicInfo};
+use {crate::ext, core::panic::PanicInfo};
 
 #[cfg(not(feature = "debug"))]
 #[cfg(not(debug_assertions))]
