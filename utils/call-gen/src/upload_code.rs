@@ -18,7 +18,7 @@
 
 //! Upload code args generator.
 
-use crate::{CallGenRng, GearCall, GearCallConversionError, GearProgGenConfig, Seed};
+use crate::{impl_convert_traits, CallGenRng, GearProgGenConfig, Seed};
 use gear_core::ids::ProgramId;
 
 /// Upload code args
@@ -27,29 +27,7 @@ use gear_core::ids::ProgramId;
 #[derive(Debug, Clone)]
 pub struct UploadCodeArgs(pub Vec<u8>);
 
-impl From<UploadCodeArgs> for Vec<u8> {
-    fn from(args: UploadCodeArgs) -> Self {
-        args.0
-    }
-}
-
-impl From<UploadCodeArgs> for GearCall {
-    fn from(args: UploadCodeArgs) -> Self {
-        GearCall::UploadCode(args)
-    }
-}
-
-impl TryFrom<GearCall> for UploadCodeArgs {
-    type Error = GearCallConversionError;
-
-    fn try_from(call: GearCall) -> Result<Self, Self::Error> {
-        if let GearCall::UploadCode(call) = call {
-            Ok(call)
-        } else {
-            Err(GearCallConversionError("upload_code"))
-        }
-    }
-}
+impl_convert_traits!(UploadCodeArgs, Vec<u8>, UploadCode, "upload_code");
 
 impl UploadCodeArgs {
     /// Generates `pallet_gear::Pallet::<T>::upload_code` call arguments.

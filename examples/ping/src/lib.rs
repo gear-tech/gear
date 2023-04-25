@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(alloc_error_handler)]
 
 #[cfg(target_arch = "wasm32")]
 extern crate galloc;
@@ -18,12 +17,6 @@ extern "C" fn handle() {
             let _ = msg::reply(b"PONG", 0);
         }
     }
-}
-
-#[cfg(target_arch = "wasm32")]
-#[alloc_error_handler]
-pub fn oom(_: core::alloc::Layout) -> ! {
-    core::arch::wasm32::unreachable()
 }
 
 #[cfg(target_arch = "wasm32")]

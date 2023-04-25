@@ -61,3 +61,4 @@ runtime-benchmarks = [
 	"parity-wasm",
 ]
 try-runtime = ["frame-support/try-runtime"]
+fuzz = ["common/fuzz"]

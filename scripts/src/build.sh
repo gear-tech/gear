@@ -23,6 +23,7 @@ build_usage() {
     wasm-proc      build wasm-proc util
     examples-proc  process built examples via wasm-proc
     node           build node
+    wat-examples   build wat-examples
 
 EOF
 }

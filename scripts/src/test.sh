@@ -25,6 +25,8 @@ test_usage() {
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
     syscalls       run syscalls integrity test in benchmarking module of pallet-gear
+    docs           run doc tests
+    validators     run validator checks
 
 EOF
 }
@@ -118,7 +120,7 @@ run_fuzzer() {
 
   # Run fuzzer
   RUST_LOG="debug,runtime_fuzzer_fuzz=debug,wasmi,libfuzzer_sys,node_fuzzer=debug,gear,pallet_gear,gear-core-processor,gear-backend-wasmi,gwasm'" \
-  cargo fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192
+  cargo +nightly fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192
 }
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802

@@ -18,7 +18,7 @@
 
 //! Upload program args generator.
 
-use crate::{CallGenRng, GearCall, GearCallConversionError, GearProgGenConfig, Seed};
+use crate::{impl_convert_traits, CallGenRng, GearProgGenConfig, Seed};
 use gear_core::ids::ProgramId;
 
 // code, salt, payload, gas, value
@@ -30,29 +30,12 @@ type UploadProgramArgsInner = (Vec<u8>, Vec<u8>, Vec<u8>, u64, u128);
 #[derive(Debug, Clone)]
 pub struct UploadProgramArgs(pub UploadProgramArgsInner);
 
-impl From<UploadProgramArgs> for UploadProgramArgsInner {
-    fn from(args: UploadProgramArgs) -> Self {
-        args.0
-    }
-}
-
-impl From<UploadProgramArgs> for GearCall {
-    fn from(args: UploadProgramArgs) -> Self {
-        GearCall::UploadProgram(args)
-    }
-}
-
-impl TryFrom<GearCall> for UploadProgramArgs {
-    type Error = GearCallConversionError;
-
-    fn try_from(call: GearCall) -> Result<Self, Self::Error> {
-        if let GearCall::UploadProgram(call) = call {
-            Ok(call)
-        } else {
-            Err(GearCallConversionError("upload_program"))
-        }
-    }
-}
+impl_convert_traits!(
+    UploadProgramArgs,
+    UploadProgramArgsInner,
+    UploadProgram,
+    "upload_program"
+);
 
 impl UploadProgramArgs {
     /// Generates `pallet_gear::Pallet::<T>::upload_program` call arguments.

@@ -134,7 +134,7 @@ fn fee_rounding_error_bounded_by_multiplier() {
             // not charging for tx len to make rounding error more significant
             let len = 0;
 
-            let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(mul));
+            let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(mul, 0));
 
             for w in weights {
                 let alice_initial_balance = Balances::free_balance(ALICE);
@@ -173,9 +173,9 @@ fn fee_rounding_error_bounded_by_multiplier() {
             });
 
         let weights = vec![
-            Weight::from_ref_time(1_000),
-            Weight::from_ref_time(100_000),
-            Weight::from_ref_time(10_000_000),
+            Weight::from_parts(1_000, 0),
+            Weight::from_parts(100_000, 0),
+            Weight::from_parts(10_000_000, 0),
         ];
 
         // MQ is empty => multiplier is 1. No rounding error expected
@@ -221,9 +221,9 @@ fn mq_size_affecting_fee_works() {
             });
 
         let len = 100usize;
-        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(len as u64));
+        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len as u64, 0));
 
-        let weight = Weight::from_ref_time(1_000);
+        let weight = Weight::from_parts(1_000, 0);
 
         let pre = CustomChargeTransactionPayment::<Test>::from(0)
             .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
@@ -311,9 +311,9 @@ fn mq_size_not_affecting_fee_works() {
             });
 
         let len = 100usize;
-        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(len as u64));
+        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len as u64, 0));
 
-        let weight = Weight::from_ref_time(1_000);
+        let weight = Weight::from_parts(1_000, 0);
 
         let pre = CustomChargeTransactionPayment::<Test>::from(0)
             .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
@@ -361,7 +361,7 @@ fn mq_size_not_affecting_fee_works() {
             .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
             .unwrap();
 
-        let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(16));
+        let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(16, 0));
         // Now we may have some rounding error somewhere at the least significant digits
         assert_approx_eq!(
             Balances::free_balance(ALICE),
@@ -420,7 +420,7 @@ fn query_info_and_fee_details_work() {
     new_test_ext().execute_with(|| {
         // Empty Message queue => extra fee is not applied
         let fee_affecting_weight = WeightToFeeFor::<Test>::weight_to_fee(&info_affecting_mq.weight);
-        let fee_affecting_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(len_affecting_mq.into()));
+        let fee_affecting_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len_affecting_mq.into(), 0));
         assert_eq!(
             GearPayment::query_info(xt_affecting_mq.clone(), len_affecting_mq),
             RuntimeDispatchInfo {
@@ -433,7 +433,7 @@ fn query_info_and_fee_details_work() {
         );
 
         let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&info_not_affecting_mq.weight);
-        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(len_not_affecting_mq.into()));
+        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len_not_affecting_mq.into(), 0));
         assert_eq!(
             GearPayment::query_info(xt_not_affecting_mq.clone(), len_not_affecting_mq),
             RuntimeDispatchInfo {
@@ -504,7 +504,7 @@ fn query_info_and_fee_details_work() {
 
         // Extra fee not applicable => fee should be exactly what it was for empty MQ
         // However, we must account for the rounding error in this case
-        let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_ref_time(16));
+        let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(16, 0));
         assert_eq!(
             GearPayment::query_info(xt_not_affecting_mq.clone(), len_not_affecting_mq),
             RuntimeDispatchInfo {

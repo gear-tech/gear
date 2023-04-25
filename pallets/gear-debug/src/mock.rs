@@ -16,9 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// (issue #2531)
-#![allow(deprecated)]
-
 use crate as pallet_gear_debug;
 use common::storage::Limiter;
 use frame_support::{
@@ -230,7 +227,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
                 <<Test as frame_system::Config>::BlockWeights as Get<BlockWeights>>::get()
                     .max_block;
             System::register_extra_weight_unchecked(
-                max_block_weight.saturating_sub(Weight::from_ref_time(remaining_weight)),
+                max_block_weight.saturating_sub(Weight::from_parts(remaining_weight, 0)),
                 frame_support::dispatch::DispatchClass::Normal,
             );
         }
