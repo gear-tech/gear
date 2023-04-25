@@ -17,8 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-// (issue #2531)
-#![allow(deprecated)]
 
 #[macro_use]
 extern crate gear_common_codegen;
@@ -152,7 +150,7 @@ pub trait GasPrice {
     /// In general case, this doesn't necessarily has to be constant.
     fn gas_price(gas: u64) -> Self::Balance {
         ConstantMultiplier::<Self::Balance, Self::GasToBalanceMultiplier>::weight_to_fee(
-            &Weight::from_ref_time(gas),
+            &Weight::from_parts(gas, 0),
         )
     }
 }

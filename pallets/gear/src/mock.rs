@@ -263,7 +263,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 pub fn get_min_weight() -> Weight {
     new_test_ext().execute_with(|| {
         dry_run!(weight, BlockGasLimitOf::<Test>::get());
-        Weight::from_ref_time(weight)
+        Weight::from_parts(weight, 0)
     })
 }
 
@@ -281,7 +281,7 @@ pub fn get_weight_of_adding_task() -> Weight {
         )
         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
-        Weight::from_ref_time(gas_allowance - GasAllowanceOf::<Test>::get())
+        Weight::from_parts(gas_allowance - GasAllowanceOf::<Test>::get(), 0)
     }) - minimal_weight
 }
 
@@ -298,7 +298,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             GasAllowanceOf::<Test>::put(remaining_weight);
             let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
             System::register_extra_weight_unchecked(
-                max_block_weight.saturating_sub(Weight::from_ref_time(remaining_weight)),
+                max_block_weight.saturating_sub(Weight::from_parts(remaining_weight, 0)),
                 DispatchClass::Normal,
             );
         }
