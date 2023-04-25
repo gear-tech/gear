@@ -37,6 +37,9 @@ use wasm_smith::{InstructionKind::*, InstructionKinds, Module as ModuleSmith, Sw
 mod syscalls;
 use syscalls::{sys_calls_table, Parameter, SysCallInfo, SyscallsConfig};
 
+#[cfg(test)]
+mod tests;
+
 pub mod utils;
 pub mod wasm;
 use wasm::{PageCount as WasmPageCount, PAGE_SIZE as WASM_PAGE_SIZE};
@@ -1064,6 +1067,3 @@ pub fn gen_gear_program_code<'a>(
     let module = gen_gear_program_module(u, config, addresses);
     parity_wasm::serialize(module).unwrap()
 }
-
-#[cfg(test)]
-mod tests;

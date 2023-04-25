@@ -20,7 +20,8 @@ EOF
 }
 
 gear_clippy() {
-  SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo +nightly clippy --workspace "$@" -- --no-deps -D warnings
+  SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo +nightly clippy --workspace "$@" --exclude gear-runtime --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz -- --no-deps -D warnings -A clippy::items-after-test-module
+  SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 cargo +nightly clippy -p runtime-fuzzer -p runtime-fuzzer-fuzz -p gear-runtime --all-features -- --no-deps -D warnings -A clippy::items-after-test-module
 }
 
 # $1 - ROOT DIR
