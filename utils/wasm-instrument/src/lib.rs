@@ -33,9 +33,6 @@ use wasm_instrument::{
 use crate::syscalls::SysCallName;
 pub use wasm_instrument::{self, parity_wasm};
 
-#[cfg(test)]
-mod tests;
-
 pub mod syscalls;
 
 pub const GLOBAL_NAME_GAS: &str = "gear_gas";
@@ -263,3 +260,6 @@ pub fn inject<R: Rules>(
 
     gas_metering::post_injection_handler(module, rules, gas_charge_index, out_of_gas_index, 2)
 }
+
+#[cfg(test)]
+mod tests;
