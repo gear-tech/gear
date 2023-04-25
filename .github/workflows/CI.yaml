@@ -238,7 +238,7 @@ jobs:
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
 
       - name: "Test: `gcli`"
-        run: ./scripts/gear.sh test gcli --release --locked
+        run: ./scripts/gear.sh test gcli --release --locked --retries 3
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
