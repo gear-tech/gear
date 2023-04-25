@@ -46,7 +46,11 @@ members = [
 ]
 
 exclude = [
-    "binaries/*"
+    "binaries/*",
+    "binaries/new-meta/io",
+    "binaries/new-meta/state-v1",
+    "binaries/new-meta/state-v2",
+    "binaries/new-meta/state-v3",
 ]
 
 [workspace.dependencies]
