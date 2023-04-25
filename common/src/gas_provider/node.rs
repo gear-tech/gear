@@ -22,7 +22,6 @@ use enum_iterator::cardinality;
 use frame_support::{codec, dispatch::MaxEncodedLen, scale_info};
 use gear_core::ids::ReservationId;
 use sp_runtime::traits::Zero;
-use static_assertions::const_assert;
 
 /// ID of the [`GasNode`].
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
@@ -77,9 +76,7 @@ impl<T> From<ReservationId> for GasNodeId<T, ReservationId> {
 #[derive(Clone, Copy, Decode, Encode, Debug, Default, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub struct NodeLock<Balance>([Balance; 4]);
-
-const_assert!(cardinality::<LockId>() == 4);
+pub struct NodeLock<Balance>([Balance; cardinality::<LockId>()]);
 
 impl<Balance> Index<LockId> for NodeLock<Balance> {
     type Output = Balance;
@@ -97,7 +94,7 @@ impl<Balance> IndexMut<LockId> for NodeLock<Balance> {
 
 impl<Balance: Zero + Copy> Zero for NodeLock<Balance> {
     fn zero() -> Self {
-        Self([Balance::zero(); 4])
+        Self([Balance::zero(); cardinality::<LockId>()])
     }
 
     fn is_zero(&self) -> bool {

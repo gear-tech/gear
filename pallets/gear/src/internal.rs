@@ -403,10 +403,11 @@ where
         }
 
         // Locking funds for holding.
-        if let Some(lock_id) = hold.lock_id() {
-            GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-        }
+        let lock_id = hold.lock_id().unwrap_or_else(|| {
+            unreachable!("Every type of storage must have an associated lock id")
+        });
+        GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying origin message id. Fails in cases of `GasTree` invalidations.
         let origin_msg = GasHandlerOf::<T>::get_origin_key(GasNodeId::Node(dispatch.id()))
@@ -654,10 +655,11 @@ where
             let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
-            if let Some(lock_id) = hold.lock_id() {
-                GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-            }
+            let lock_id = hold.lock_id().unwrap_or_else(|| {
+                unreachable!("Every type of storage must have an associated lock id")
+            });
+            GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if hold.expected_duration().is_zero() {
                 unreachable!("Hold duration cannot be zero");
@@ -713,10 +715,11 @@ where
             let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
-            if let Some(lock_id) = hold.lock_id() {
-                GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-            }
+            let lock_id = hold.lock_id().unwrap_or_else(|| {
+                unreachable!("Every type of storage must have an associated lock id")
+            });
+            GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if hold.expected_duration().is_zero() {
                 unreachable!("Hold duration cannot be zero");

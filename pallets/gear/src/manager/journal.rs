@@ -517,10 +517,11 @@ where
         GasHandlerOf::<T>::reserve(message_id, reservation_id, total_amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
 
-        if let Some(lock_id) = hold.lock_id() {
-            GasHandlerOf::<T>::lock(reservation_id, lock_id, hold.lock_amount())
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-        }
+        let lock_id = hold.lock_id().unwrap_or_else(|| {
+            unreachable!("Every type of storage must have an associated lock id")
+        });
+        GasHandlerOf::<T>::lock(reservation_id, lock_id, hold.lock_amount())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         TaskPoolOf::<T>::add(
             hold.expected(),
