@@ -18,6 +18,8 @@
 
 //! Shared traits.
 
+use crate::common::{Args, Output, Result};
+
 /// Convert self into `String`.
 pub trait Convert<T> {
     fn convert(&self) -> T;
@@ -27,4 +29,11 @@ impl Convert<String> for Vec<u8> {
     fn convert(&self) -> String {
         String::from_utf8_lossy(self).to_string()
     }
+}
+
+/// Run node.
+pub trait NodeExt {
+    fn run(&self, args: Args) -> Result<Output>;
+
+    fn ws(&self) -> String;
 }

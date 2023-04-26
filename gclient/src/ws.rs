@@ -16,12 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{borrow::Cow, fmt};
+use crate::Error;
+use anyhow::anyhow;
+use std::{
+    fmt,
+    net::{AddrParseError, SocketAddrV4},
+};
 
 /// Full WebSocket address required to specify the node.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct WSAddress {
-    domain: Cow<'static, str>,
+    // Host domain name or IP address.
+    //
+    // TODO: `String` here for saving lives, no clue how many tests are using
+    // this, could be `Ipv4Address`(ip) + tls(wss?) after #2588 since #2588
+    // requires a `Result` as the result of function `new`.
+    domain: String,
     port: Option<u16>,
 }
 
@@ -40,9 +50,11 @@ impl WSAddress {
     const VARA: &'static str = "wss://rpc.vara-network.io";
 
     /// Create a new `WSAddress` from a host `domain` and `port`.
-    pub fn new(domain: impl Into<Cow<'static, str>>, port: impl Into<Option<u16>>) -> Self {
+    ///
+    /// TODO: validate the domain (#2588)
+    pub fn new(domain: impl AsRef<str>, port: impl Into<Option<u16>>) -> Self {
         Self {
-            domain: domain.into(),
+            domain: domain.as_ref().into(),
             port: port.into(),
         }
     }
@@ -133,5 +145,32 @@ impl fmt::Debug for WSAddress {
 impl fmt::Display for WSAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.url())
+    }
+}
+
+impl From<SocketAddrV4> for WSAddress {
+    fn from(addr: SocketAddrV4) -> Self {
+        Self::new(addr.ip().to_string(), addr.port())
+    }
+}
+
+impl TryInto<SocketAddrV4> for WSAddress {
+    type Error = Error;
+
+    fn try_into(self) -> Result<SocketAddrV4, Self::Error> {
+        let domain = self.domain.split(':').collect::<Vec<_>>();
+        let (ip, mb_port) = if domain.len() != 2 {
+            return Err(anyhow!("Invalid domain").into());
+        } else {
+            match domain[0] {
+                "ws" => (domain[1], 80),
+                "wss" => (domain[1], 443),
+                _ => return Err(anyhow!("Invalid protocol").into()),
+            }
+        };
+
+        Ok(format!("{}:{}", ip, self.port.unwrap_or(mb_port))
+            .parse()
+            .map_err(|e: AddrParseError| anyhow!(e))?)
     }
 }

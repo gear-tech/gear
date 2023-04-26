@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::node::result::Error as NodeError;
 use anyhow::Error as AError;
+use gsdk::testing::Error as NodeError;
 use std::{io::Error as IOError, result::Result as StdResult};
 use subxt::error::Error as SubxtError;
 

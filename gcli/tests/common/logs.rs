@@ -19,7 +19,8 @@
 //! Logs from binaries
 
 pub mod gear_node {
-    pub const IMPORTING_BLOCKS: &str = "Imported #2";
+    // `#1` is enough here.
+    pub const IMPORTING_BLOCKS: &str = "Imported #1";
 }
 
 pub mod gear_program {

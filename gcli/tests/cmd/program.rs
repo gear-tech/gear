@@ -17,7 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `program`
-use crate::common::{self, env, logs, traits::Convert, Args, Result};
+use crate::common::{
+    self, env, logs,
+    traits::{Convert, NodeExt},
+    Args, Result,
+};
 use demo_new_meta::{MessageInitIn, Wallet};
 use scale_info::scale::Encode;
 
@@ -26,8 +30,8 @@ async fn test_command_program_state_works() -> Result<()> {
     common::login_as_alice().expect("login failed");
 
     // Setup node.
-    let mut node = common::Node::dev()?;
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+    let mut node = common::dev()?;
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     // Deploy demo_new_meta.
     let opt = env::wasm_bin("demo_new_meta.opt.wasm");

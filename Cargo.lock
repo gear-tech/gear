@@ -4313,6 +4313,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "primitive-types",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "sp-core",

@@ -7,7 +7,7 @@ license = "GPL-3.0"
 
 [dependencies]
 gear-utils.workspace = true
-gsdk.workspace = true
+gsdk = { workspace = true, features = ["testing"] }
 gear-core.workspace = true
 futures.workspace = true
 anyhow.workspace = true

@@ -26,3 +26,9 @@ subxt.workspace = true
 thiserror.workspace = true
 sp-runtime = { workspace = true, features = [ "std" ] }
 sp-core.workspace = true
+
+# deps for features `testing`
+rand = { workspace = true, optional = true }
+
+[features]
+testing = [ "rand" ]
