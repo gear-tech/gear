@@ -9081,12 +9081,6 @@ fn async_does_not_duplicate_sync() {
 fn state_rollback() {
     use demo_state_rollback::WASM_BINARY;
 
-    #[derive(Debug, Eq, PartialEq)]
-    enum Assertion {
-        Payload(Vec<u8>),
-        StatusCode(Option<i32>),
-    }
-
     let init = || {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
@@ -9106,41 +9100,6 @@ fn state_rollback() {
         rollback
     };
 
-    let send_messages = |program_id: ProgramId, payloads: Vec<Vec<u8>>| {
-        for payload in payloads {
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                program_id,
-                payload,
-                BlockGasLimitOf::<Test>::get(),
-                0,
-            ));
-        }
-
-        run_to_next_block(None);
-    };
-
-    let assert_responses = |user_id: ProgramId, assertions: Vec<Assertion>| {
-        let mut res = vec![];
-
-        System::events().iter().for_each(|e| {
-            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = &e.event {
-                if message.destination() == user_id {
-                    match assertions[res.len()] {
-                        Assertion::Payload(_) => {
-                            res.push(Assertion::Payload(message.payload().to_vec()))
-                        }
-                        Assertion::StatusCode(_) => {
-                            res.push(Assertion::StatusCode(message.status_code()))
-                        }
-                    }
-                }
-            }
-        });
-
-        assert_eq!(res, assertions);
-    };
-
     let panic_bytes = b"panic".to_vec();
     let leave_bytes = b"leave".to_vec();
 
@@ -9149,7 +9108,8 @@ fn state_rollback() {
         let program = init();
 
         let to_send = vec![0.encode(), panic_bytes, 1.encode()];
-        send_messages(program, to_send);
+        send_payloads(USER_1, program, to_send);
+        run_to_next_block(None);
 
         let to_assert = vec![
             Assertion::Payload(None::<Vec<u8>>.encode()),
@@ -9160,7 +9120,7 @@ fn state_rollback() {
             Assertion::Payload(Some(0.encode()).encode()),
             Assertion::Payload(Some(1.encode()).encode()),
         ];
-        assert_responses(USER_1.into(), to_assert);
+        assert_responses_to_user(USER_1, to_assert);
     });
 
     // state-saving
@@ -9168,7 +9128,8 @@ fn state_rollback() {
         let program = init();
 
         let to_send = vec![0.encode(), leave_bytes.clone(), 1.encode()];
-        send_messages(program, to_send);
+        send_payloads(USER_1, program, to_send);
+        run_to_next_block(None);
 
         let to_assert = vec![
             Assertion::Payload(None::<Vec<u8>>.encode()),
@@ -9178,7 +9139,7 @@ fn state_rollback() {
             Assertion::Payload(Some(leave_bytes).encode()),
             Assertion::Payload(Some(1.encode()).encode()),
         ];
-        assert_responses(USER_1.into(), to_assert);
+        assert_responses_to_user(USER_1, to_assert);
     })
 }
 
@@ -9190,7 +9151,7 @@ mod utils {
     };
     use crate::{
         mock::{Balances, Gear, System},
-        BalanceOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
+        BalanceOf, BlockGasLimitOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
     };
     use common::{
         event::*,
@@ -9856,6 +9817,47 @@ mod utils {
 
     pub(super) fn waiting_init_messages(pid: ProgramId) -> Vec<MessageId> {
         ProgramStorageOf::<Test>::waiting_init_get_messages(pid)
+    }
+
+    #[track_caller]
+    pub(super) fn send_payloads(user_id: AccountId, program_id: ProgramId, payloads: Vec<Vec<u8>>) {
+        for payload in payloads {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(user_id),
+                program_id,
+                payload,
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+        }
+    }
+
+    #[derive(Debug, Eq, PartialEq)]
+    pub(super) enum Assertion {
+        Payload(Vec<u8>),
+        StatusCode(Option<i32>),
+    }
+
+    #[track_caller]
+    pub(super) fn assert_responses_to_user(user_id: AccountId, assertions: Vec<Assertion>) {
+        let mut res = vec![];
+
+        System::events().iter().for_each(|e| {
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = &e.event {
+                if message.destination() == user_id.into() {
+                    match assertions[res.len()] {
+                        Assertion::Payload(_) => {
+                            res.push(Assertion::Payload(message.payload().to_vec()))
+                        }
+                        Assertion::StatusCode(_) => {
+                            res.push(Assertion::StatusCode(message.status_code()))
+                        }
+                    }
+                }
+            }
+        });
+
+        assert_eq!(res, assertions);
     }
 }
 
