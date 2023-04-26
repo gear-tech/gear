@@ -9077,6 +9077,111 @@ fn async_does_not_duplicate_sync() {
     })
 }
 
+#[test]
+fn state_rollback() {
+    use demo_state_rollback::WASM_BINARY;
+
+    #[derive(Debug, Eq, PartialEq)]
+    enum Assertion {
+        Payload(Vec<u8>),
+        StatusCode(Option<i32>),
+    }
+
+    let init = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let rollback = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(rollback));
+
+        rollback
+    };
+
+    let send_messages = |program_id: ProgramId, payloads: Vec<Vec<u8>>| {
+        for payload in payloads {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                payload,
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+        }
+
+        run_to_next_block(None);
+    };
+
+    let assert_responses = |user_id: ProgramId, assertions: Vec<Assertion>| {
+        let mut res = vec![];
+
+        System::events().iter().for_each(|e| {
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = &e.event {
+                if message.destination() == user_id {
+                    match assertions[res.len()] {
+                        Assertion::Payload(_) => {
+                            res.push(Assertion::Payload(message.payload().to_vec()))
+                        }
+                        Assertion::StatusCode(_) => {
+                            res.push(Assertion::StatusCode(message.status_code()))
+                        }
+                    }
+                }
+            }
+        });
+
+        assert_eq!(res, assertions);
+    };
+
+    let panic_bytes = b"panic".to_vec();
+    let leave_bytes = b"leave".to_vec();
+
+    // state-rollback
+    new_test_ext().execute_with(|| {
+        let program = init();
+
+        let to_send = vec![0.encode(), panic_bytes, 1.encode()];
+        send_messages(program, to_send);
+
+        let to_assert = vec![
+            Assertion::Payload(None::<Vec<u8>>.encode()),
+            Assertion::Payload(Some(0.encode()).encode()),
+            Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            )),
+            Assertion::Payload(Some(0.encode()).encode()),
+            Assertion::Payload(Some(1.encode()).encode()),
+        ];
+        assert_responses(USER_1.into(), to_assert);
+    });
+
+    // state-saving
+    new_test_ext().execute_with(|| {
+        let program = init();
+
+        let to_send = vec![0.encode(), leave_bytes.clone(), 1.encode()];
+        send_messages(program, to_send);
+
+        let to_assert = vec![
+            Assertion::Payload(None::<Vec<u8>>.encode()),
+            Assertion::Payload(Some(0.encode()).encode()),
+            Assertion::Payload(Some(0.encode()).encode()),
+            Assertion::Payload(Some(leave_bytes.clone()).encode()),
+            Assertion::Payload(Some(leave_bytes).encode()),
+            Assertion::Payload(Some(1.encode()).encode()),
+        ];
+        assert_responses(USER_1.into(), to_assert);
+    })
+}
+
 mod utils {
     #![allow(unused)]
 
