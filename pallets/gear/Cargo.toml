@@ -76,6 +76,7 @@ demo-program-factory.workspace = true
 demo-proxy.workspace = true
 demo-proxy-relay.workspace = true
 demo-proxy-reservation-with-gas.workspace = true
+demo-incomplete-async-payloads.workspace = true
 demo-gas-burned.workspace = true
 demo-waiting-proxy.workspace = true
 demo-calc-hash.workspace = true

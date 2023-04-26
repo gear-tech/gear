@@ -1906,6 +1906,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-incomplete-async-payloads"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-init-fail-sender"
 version = "0.1.0"
 dependencies = [
@@ -6952,6 +6961,7 @@ dependencies = [
  "demo-delayed-sender",
  "demo-distributor",
  "demo-gas-burned",
+ "demo-incomplete-async-payloads",
  "demo-init-fail-sender",
  "demo-init-wait",
  "demo-init-wait-reply-exit",

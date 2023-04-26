@@ -9827,6 +9827,67 @@ fn state_rollback() {
     })
 }
 
+#[test]
+fn incomplete_async_payloads_kept() {
+    use demo_incomplete_async_payloads::{Command, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let incomplete = get_last_program_id();
+
+        run_to_next_block(None);
+
+        System::reset_events();
+
+        let to_send = [
+            Command::Handle,
+            Command::Reply,
+            Command::HandleStore,
+            Command::ReplyStore,
+        ]
+        .iter()
+        .map(Encode::encode)
+        .collect();
+        send_payloads(USER_1, incomplete, to_send);
+        run_to_next_block(None);
+
+        // Empty payloads are auto-replies.
+        // TODO: assert status codes for them after #2739.
+        let to_assert = [
+            "",
+            "OK PING",
+            "OK REPLY",
+            "",
+            "STORED COMMON",
+            "STORED REPLY",
+        ]
+        .iter()
+        .map(|s| Assertion::Payload(s.as_bytes().to_vec()))
+        .collect::<Vec<_>>();
+        assert_responses_to_user(USER_1, to_assert);
+    })
+}
+
 mod utils {
     #![allow(unused)]
 

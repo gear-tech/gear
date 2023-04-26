@@ -18,7 +18,6 @@ members = [
     "status-code",
     "futures-unordered",
     "guestbook",
-    "incomplete_async_payloads",
     "loop",
     "minimal",
     "mutex",
