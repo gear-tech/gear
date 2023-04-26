@@ -22,7 +22,6 @@ use std::time::Duration;
 
 use demo_wat::WatExample;
 use gclient::{EventProcessor, GearApi};
-use gear_core::code;
 
 async fn upload_programs_and_check(
     api: &GearApi,
