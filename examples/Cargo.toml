@@ -12,11 +12,9 @@ members = [
     "incomplete_async_payloads",
     "mutex",
     "piggy-bank",
-    "ping",
     "rwlock",
     "rwlock_write",
     "state_rollback",
-    "sync_duplicate",
 ]
 
 exclude = [

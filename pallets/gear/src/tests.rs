@@ -9033,6 +9033,50 @@ fn signal_on_uninitialized_program() {
     });
 }
 
+#[test]
+fn async_does_not_duplicate_sync() {
+    use demo_ping::WASM_BINARY as PING_BINARY;
+    use demo_sync_duplicate::WASM_BINARY as SYNC_DUPLICATE_BINARY;
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            SYNC_DUPLICATE_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let sync = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            sync,
+            b"async".to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert_eq!(get_last_mail(USER_1).payload(), 1i32.to_le_bytes());
+    })
+}
+
 mod utils {
     #![allow(unused)]
 
