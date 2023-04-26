@@ -83,7 +83,7 @@ jobs:
             [gearNodes:children]
             nodes
             [nodes]
-            ${{secrets.VARA_NODE_2}} name=vara-gear02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_1}} name=vara-validator-1 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             
   deploy-all-validator:
     runs-on: ubuntu-latest
@@ -121,14 +121,14 @@ jobs:
             bootnode
             nodes
             [bootnode]
-            ${{secrets.VARA_NODE}} name=vara-gear01 loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_2}} name=vara-validator-2 loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             [nodes]
-            ${{secrets.VARA_NODE_3}} name=vara-rpc-node rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.VARA_NODE_4}} name=vara-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.VARA_NODE_5}} name=vara-gear05 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.VARA_NODE_6}} name=vara-gear06 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.VARA_NODE_7}} name=vara-gear07 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.VARA_NODE_8}} name=vara-gear08 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.VARA_NODE_9}} name=vara-gear09 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_3}} name=vara-validator-3 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_4}} name=vara-validator-4 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_5}} name=vara-validator-5 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_6}} name=vara-validator-6 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_7}} name=vara-validator-7 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_8}} name=vara-validator-8 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_RPC}} name=vara-rpc rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             ${{secrets.VARA_NODE_ARCHIVE_RPC}} name=vara-archive-rpc rpc=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
           
