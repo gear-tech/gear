@@ -179,13 +179,13 @@ pub fn access_memory(
             vec![]
         }
         (_, 0) => {
-            let (gas_left_new, res) = gear_ri::memory_access_reads(&reads, (*gas_left,));
+            let (gas_left_new, res) = gear_ri::memory_access_reads(reads, (*gas_left,));
             *gas_left = gas_left_new;
             res?
         }
         (_, 1) => {
             let (gas_left_new, res) = gear_ri::memory_access_reads_and_write(
-                &reads,
+                reads,
                 (writes[0].0,),
                 writes[0].1,
                 (*gas_left,),
@@ -198,7 +198,7 @@ pub fn access_memory(
 
             // Handle reads and first write
             let (gas_left_new, res) = gear_ri::memory_access_reads_and_write(
-                &reads,
+                reads,
                 (writes[0].0,),
                 writes[0].1,
                 (*gas_left,),
@@ -207,9 +207,9 @@ pub fn access_memory(
             *gas_left = gas_left_new;
 
             // Handle other writes one by one
-            writes.into_iter().skip(1).try_for_each(|(write, data)| {
+            writes.iter().skip(1).try_for_each(|(write, data)| {
                 let (gas_left_new, res) =
-                    gear_ri::memory_access_reads_and_write(&[], (*write,), *data, (*gas_left,));
+                    gear_ri::memory_access_reads_and_write(&[], (*write,), data, (*gas_left,));
                 *gas_left = gas_left_new;
                 res.map(|_| ())
             })?;

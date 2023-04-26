@@ -7,7 +7,7 @@ license = "GPL-3.0"
 
 [dependencies]
 # add "checks" feature to enable hard checks in allocator
-dlmalloc = { workspace = true, features = ["global", "verbose"] }
+dlmalloc = { workspace = true, features = ["global"] }
 
 [features]
 debug = ["dlmalloc/debug"]

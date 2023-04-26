@@ -218,11 +218,11 @@ pub fn process_memory_accesses<const WRITES_AMOUNT: usize>(
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
 
-        let res = pre_process_memory_accesses_internal(&mut ctx, &reads, &writes, gas_left);
+        let res = pre_process_memory_accesses_internal(&mut ctx, reads, &writes, gas_left);
         handle_pre_process_result(res)?;
 
         // All panics below are impossible,
-        // because we have already check all intervals in `pre_process_memory_accesses_internal`.
+        // because we have already check intervals in `pre_process_memory_accesses_internal`.
 
         let ctx = ctx
             .execution_context_mut()
@@ -230,7 +230,7 @@ pub fn process_memory_accesses<const WRITES_AMOUNT: usize>(
         let wasm_mem_addr = ctx.wasm_mem_addr.unwrap_or_else(|| unreachable!("+_+_+"));
 
         let reads_out_buffers: Vec<Vec<u8>> = reads
-            .into_iter()
+            .iter()
             .map(|read| {
                 let addr = wasm_mem_addr
                     .checked_add(read.offset as usize)
@@ -245,7 +245,10 @@ pub fn process_memory_accesses<const WRITES_AMOUNT: usize>(
             .into_iter()
             .zip(writes_data)
             .for_each(|(write, data)| {
-                let addr = wasm_mem_addr;
+                log::trace!("write {data:?} to {write:?}");
+                let addr = wasm_mem_addr
+                    .checked_add(write.offset as usize)
+                    .unwrap_or_else(|| unreachable!("+_+_+"));
                 let buffer = unsafe {
                     core::slice::from_raw_parts_mut(addr as *mut u8, write.size as usize)
                 };
