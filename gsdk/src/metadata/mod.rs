@@ -585,17 +585,17 @@ pub mod runtime_types {
             )]
             pub enum ProgramChangeKind<_0> {
                 #[codec(index = 0)]
-                ExpirationChanged { expiration: _0 },
-                #[codec(index = 1)]
-                ProgramSet { expiration: _0 },
-                #[codec(index = 2)]
                 Active { expiration: _0 },
-                #[codec(index = 3)]
+                #[codec(index = 1)]
                 Inactive,
-                #[codec(index = 4)]
-                Terminated,
-                #[codec(index = 5)]
+                #[codec(index = 2)]
                 Paused,
+                #[codec(index = 3)]
+                Terminated,
+                #[codec(index = 4)]
+                ExpirationChanged { expiration: _0 },
+                #[codec(index = 5)]
+                ProgramSet { expiration: _0 },
             }
             #[derive(
                 :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,

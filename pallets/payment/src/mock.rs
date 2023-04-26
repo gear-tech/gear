@@ -167,7 +167,7 @@ parameter_types! {
     pub const BlockGasLimit: u64 = 500_000;
     pub const OutgoingLimit: u32 = 1024;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
-    pub RentFreePeriod: BlockNumber = 10;
+    pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
     pub RentResumePeriod: BlockNumber = 100;
 }
@@ -180,7 +180,7 @@ impl common::ProgramRentConfig for ProgramRentConfig {
 
     type FreePeriod = RentFreePeriod;
     type CostPerBlock = RentCostPerBlock;
-    type ResumePeriod = RentResumePeriod;
+    type MinimalResumePeriod = RentResumePeriod;
 }
 
 impl pallet_gear::Config for Test {

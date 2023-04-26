@@ -5314,7 +5314,7 @@ fn reservations_cleaned_in_paused_program() {
 }
 
 #[test]
-fn uninitialized_program_terminates() {
+fn uninitialized_program_terminates_on_pause() {
     use demo_reserve_gas::InitAction;
 
     init_logger();

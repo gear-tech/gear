@@ -256,16 +256,13 @@ where
         dispatch_id: MessageId,
         reply: bool,
     ) -> ActorResult {
-        let maybe_active_program = match ProgramStorageOf::<T>::get_program(program_id) {
-            Some(program) => program,
-            None => {
-                // When an actor sends messages, which is intended to be added to the queue
-                // it's destination existence is always checked. There are two cases this
-                // doesn't happen:
-                // 1. program tries to submit another program with non-existing code hash;
-                // 2. program was being paused after message enqueued.
-                return ActorResult::Data(None);
-            }
+        let Some(maybe_active_program) = ProgramStorageOf::<T>::get_program(program_id) else {
+            // When an actor sends messages, which is intended to be added to the queue
+            // it's destination existence is always checked. There are two cases this
+            // doesn't happen:
+            // 1. program tries to submit another program with non-existing code hash;
+            // 2. program was being paused after message enqueued.
+            return ActorResult::Data(None);
         };
 
         let program = match maybe_active_program {

@@ -137,7 +137,7 @@ impl pallet_gear_program::Config for Test {
 }
 
 parameter_types! {
-    pub RentFreePeriod: BlockNumber = 10;
+    pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
     pub RentResumePeriod: BlockNumber = 100;
 }
@@ -150,7 +150,7 @@ impl common::ProgramRentConfig for ProgramRentConfig {
 
     type FreePeriod = RentFreePeriod;
     type CostPerBlock = RentCostPerBlock;
-    type ResumePeriod = RentResumePeriod;
+    type MinimalResumePeriod = RentResumePeriod;
 }
 
 impl pallet_gear::Config for Test {

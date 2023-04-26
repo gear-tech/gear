@@ -216,18 +216,6 @@ pub type UserMessageReadReason = Reason<UserMessageReadRuntimeReason, UserMessag
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum ProgramChangeKind<BlockNumber> {
-    /// Occurs when expiration block number of a program changed.
-    ///
-    /// Expiration block number presents block number when this program become
-    /// paused due to losing ability to pay rent for holding.
-    ExpirationChanged { expiration: BlockNumber },
-
-    /// Occurs when new program set in the storage.
-    ///
-    /// Expiration block number presents block number when this program become
-    /// paused due to losing ability to pay rent for holding.
-    ProgramSet { expiration: BlockNumber },
-
     /// Active status achieved.
     ///
     /// Occurs when new program created or paused program was resumed.
@@ -239,12 +227,25 @@ pub enum ProgramChangeKind<BlockNumber> {
     /// Program become inactive forever due to `gr_exit` call.
     Inactive,
 
-    /// Program become inactive forever due to init failure.
-    Terminated,
-
     /// Paused status.
     ///
     /// Program is no longer available for interaction, but can be
     /// resumed by paying rent and giving whole data related to it.
     Paused,
+
+    /// Program become inactive forever due to init failure.
+    Terminated,
+
+    /// Occurs when expiration block number of a program changed.
+    ///
+    /// Expiration block number presents block number when this program become
+    /// paused due to losing ability to pay rent for holding.
+    ExpirationChanged { expiration: BlockNumber },
+
+    /// Occurs when new program set in the storage.
+    ///
+    /// Expiration block number presents block number when this program become
+    /// paused due to losing ability to pay rent for holding or terminated in
+    /// case of didn't get initialised.
+    ProgramSet { expiration: BlockNumber },
 }

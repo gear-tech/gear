@@ -164,7 +164,7 @@ impl common::ProgramRentConfig for ProgramRentConfig {
 
     type FreePeriod = RentFreePeriod;
     type CostPerBlock = RentCostPerBlock;
-    type ResumePeriod = RentResumePeriod;
+    type MinimalResumePeriod = RentResumePeriod;
 }
 
 impl pallet_gear::Config for Test {

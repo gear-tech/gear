@@ -167,7 +167,7 @@ pub trait ProgramRentConfig {
     /// The program rent cost per block.
     type CostPerBlock: Get<Self::Balance>;
     /// The minimal amount of blocks to resume.
-    type ResumePeriod: Get<Self::BlockNumber>;
+    type MinimalResumePeriod: Get<Self::BlockNumber>;
 }
 
 pub trait QueueRunner {
