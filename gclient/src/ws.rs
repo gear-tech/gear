@@ -158,7 +158,7 @@ impl TryInto<SocketAddrV4> for WSAddress {
     type Error = Error;
 
     fn try_into(self) -> Result<SocketAddrV4, Self::Error> {
-        let domain = self.domain.split(':').collect::<Vec<_>>();
+        let domain = self.domain.split("://").collect::<Vec<_>>();
         let (ip, mb_port) = if domain.len() != 2 {
             return Err(anyhow!("Invalid domain").into());
         } else {
