@@ -47,6 +47,7 @@ members = [
     "examples/binaries/reserve-gas",
     "examples/binaries/send-from-reservation",
     "examples/binaries/signal-entry",
+    "examples/binaries/state-rollback",
     "examples/binaries/sync-duplicate",
     "examples/binaries/sys-calls",
     "examples/binaries/syscall-error",
@@ -351,6 +352,7 @@ demo-proxy-reservation-with-gas = { path = "examples/binaries/proxy-reservation-
 demo-reserve-gas = { path = "examples/binaries/reserve-gas" }
 demo-send-from-reservation = { path = "examples/binaries/send-from-reservation" }
 demo-signal-entry = { path = "examples/binaries/signal-entry" }
+demo-state-rollback = { path = "examples/binaries/state-rollback" }
 demo-sync-duplicate = { path = "examples/binaries/sync-duplicate" }
 demo-waiter = { path = "examples/binaries/waiter" }
 demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
