@@ -274,6 +274,11 @@ jobs:
 
       - name: "Test: Sys-calls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls --release
+        
+      - name: "Test: Migrations work"
+        run: |
+          cargo build -p gear-cli --release --features try-runtime
+          ./target/release/gear try-runtime --dev --runtime ./target/release/wbuild/gear-runtime/gear_runtime.wasm on-runtime-upgrade --checks live --uri wss://rpc-node.gear-tech.io:443
 
       - name: "Coverage: Aggregate"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
