@@ -20,12 +20,9 @@
 
 use std::time::Duration;
 
+use demo_wat::WatExample;
 use gclient::{EventProcessor, GearApi};
-
-const PATHS: [&str; 2] = [
-    "../target/wat-examples/wrong_load.wasm",
-    "../target/wat-examples/inf_recursion.wasm",
-];
+use gear_core::code;
 
 async fn upload_programs_and_check(
     api: &GearApi,
@@ -76,10 +73,14 @@ async fn upload_programs_and_check(
 
 #[tokio::test]
 async fn harmless_upload() -> anyhow::Result<()> {
-    let mut codes = vec![];
-    for path in &PATHS {
-        codes.push(gclient::code_from_os(path)?);
-    }
+    let examples = vec![
+        WatExample::WrongLoad,
+        WatExample::InfRecursion,
+        WatExample::ReadAccess,
+        WatExample::ReadWriteAccess,
+    ];
+
+    let codes = examples.into_iter().map(|e| e.code()).collect();
 
     // Creating gear api.
     //

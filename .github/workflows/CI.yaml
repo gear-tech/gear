@@ -211,9 +211,6 @@ jobs:
       - name: "Build fuzzer"
         run: ./scripts/gear.sh build fuzz --locked --release
 
-      - name: "Build: WAT examples"
-        run: ./scripts/gear.sh build wat-examples
-
       - name: "Check: Gear runtime imports"
         run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/gear-runtime/gear_runtime.compact.wasm
 
@@ -427,9 +424,6 @@ jobs:
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
-      - name: "Build: WAT examples"
-        run: ./scripts/gear.sh build wat-examples
-
       - name: "Build: wasm-proc"
         run: ./scripts/gear.sh build wasm-proc --locked
 
@@ -567,9 +561,6 @@ jobs:
 
       - name: "Build: wasm-proc"
         run: ./scripts/gear.sh build wasm-proc --locked
-
-      - name: "Build: WAT examples"
-        run: ./scripts/gear.sh build wat-examples
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked

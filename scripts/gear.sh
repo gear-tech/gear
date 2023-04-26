@@ -122,10 +122,6 @@ case "$COMMAND" in
         header "Building gear node"
         node_build "$@"; ;;
 
-      wat-examples)
-        header "Build wat examples"
-        wat_examples_build "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
-
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         build_usage

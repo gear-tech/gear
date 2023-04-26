@@ -18,7 +18,6 @@ clean:
 .PHONY: clean-examples
 clean-examples:
 	@ rm -rf ./target/wasm32-unknown-unknown
-	@ rm -rf ./target/wat-examples
 	@ rm -rvf target/release/build/demo-*
 	@ cargo clean --manifest-path=./examples/Cargo.toml
 
@@ -47,10 +46,6 @@ build-examples:
 .PHONY: wasm-proc
 wasm-proc:
 	@ ./scripts/gear.sh build wasm-proc
-
-.PHONY: wat-examples
-wat-examples:
-	@ ./scripts/gear.sh build wat-examples
 
 .PHONY: proc-examples
 proc-examples: wasm-proc
@@ -231,7 +226,7 @@ test-pallet-release:
 	@ ./scripts/gear.sh test pallet --release
 
 .PHONY: test-client
-test-client: node-release examples wat-examples
+test-client: node-release examples
 	@ ./scripts/gear.sh test client --run-node
 
 .PHONY: test-syscalls-integrity

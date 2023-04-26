@@ -18,9 +18,8 @@
 
 //! Test for infinity loop, that it can't exceed block production time.
 
+use demo_wat::WatExample;
 use gclient::{EventProcessor, GearApi};
-
-const PATH: &str = "../target/wat-examples/large_scheduled.wasm";
 
 #[tokio::test]
 async fn keyhasher_size_exceed() -> anyhow::Result<()> {
@@ -35,9 +34,11 @@ async fn keyhasher_size_exceed() -> anyhow::Result<()> {
     // Subscribing for events.
     let mut listener = api.subscribe().await?;
 
+    let code = WatExample::LargeScheduled.code();
+
     // Program initialization.
     let (mid, _pid, _) = api
-        .upload_program_bytes_by_path(PATH, gclient::now_micros().to_le_bytes(), "", gas_limit, 0)
+        .upload_program_bytes(code, gclient::now_micros().to_le_bytes(), "", gas_limit, 0)
         .await?;
 
     // Asserting successful initialization.
