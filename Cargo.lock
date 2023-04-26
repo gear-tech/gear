@@ -2027,6 +2027,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-ping"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
@@ -2095,6 +2103,14 @@ dependencies = [
  "gstd",
  "gtest",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-sync-duplicate"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
@@ -6934,6 +6950,7 @@ dependencies = [
  "demo-mul-by-const",
  "demo-new-meta",
  "demo-out-of-memory",
+ "demo-ping",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",
@@ -6941,6 +6958,7 @@ dependencies = [
  "demo-reserve-gas",
  "demo-send-from-reservation",
  "demo-signal-entry",
+ "demo-sync-duplicate",
  "demo-wait-timeout",
  "demo-wait-wake",
  "demo-waiter",
