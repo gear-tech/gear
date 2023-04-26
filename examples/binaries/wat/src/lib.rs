@@ -30,9 +30,11 @@ use wabt::{Wasm2Wat, Wat2Wasm};
 pub struct WatStr(String);
 
 pub enum WatExample {
+    Big,
     Custom(WatStr),
     InfRecursion,
     LargeScheduled,
+    Loop,
     ReadAccess,
     ReadWriteAccess,
     WrongLoad,
@@ -55,9 +57,11 @@ impl WatExample {
 
     fn name(&self) -> &'static str {
         match self {
+            Self::Big => "Big",
             Self::Custom(_) => "Custom",
             Self::InfRecursion => "InfRecursion",
             Self::LargeScheduled => "LargeScheduled",
+            Self::Loop => "Loop",
             Self::ReadAccess => "ReadAccess",
             Self::ReadWriteAccess => "ReadWriteAccess",
             Self::WrongLoad => "WrongLoad",
@@ -91,12 +95,14 @@ impl WatExample {
 
     pub fn wat(&'_ self) -> &'_ str {
         match self {
+            Self::Big => include_str!("../spec/big.wat"),
+            Self::Custom(WatStr(string)) => string.as_ref(),
             Self::InfRecursion => include_str!("../spec/inf_recursion.wat"),
             Self::LargeScheduled => include_str!("../spec/large_scheduled.wat"),
+            Self::Loop => include_str!("../spec/loop.wat"),
             Self::ReadAccess => include_str!("../spec/read_access.wat"),
             Self::ReadWriteAccess => include_str!("../spec/read_write_access.wat"),
             Self::WrongLoad => include_str!("../spec/wrong_load.wat"),
-            Self::Custom(WatStr(string)) => string.as_ref(),
         }
     }
 

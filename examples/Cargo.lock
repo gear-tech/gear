@@ -52,14 +52,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bot"
-version = "0.1.0"
-dependencies = [
- "demo-chat",
- "gstd",
-]
-
-[[package]]
 name = "bs58"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -162,62 +154,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-block-info"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-bot"
 version = "0.1.0"
 dependencies = [
  "gstd",
  "parity-scale-codec",
  "scale-info",
-]
-
-[[package]]
-name = "demo-capacitor"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-chat"
-version = "0.1.0"
-dependencies = [
- "parity-scale-codec",
-]
-
-[[package]]
-name = "demo-collector"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-create-program"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "hex-literal",
-]
-
-[[package]]
-name = "demo-decoder"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-fib"
-version = "0.1.0"
-dependencies = [
- "gstd",
 ]
 
 [[package]]
@@ -230,15 +172,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-gui-test"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
 name = "demo-incomplete-async-payloads"
 version = "0.1.0"
 dependencies = [
@@ -246,44 +179,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-loop"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-mem"
-version = "0.1.0"
-dependencies = [
- "gcore",
- "gstd",
-]
-
-[[package]]
-name = "demo-minimal"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-multiping"
-version = "0.1.0"
-dependencies = [
- "gcore",
- "gstd",
-]
-
-[[package]]
 name = "demo-mutex"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-panicker"
 version = "0.1.0"
 dependencies = [
  "gstd",
@@ -302,28 +198,6 @@ version = "0.1.0"
 dependencies = [
  "galloc",
  "gcore",
-]
-
-[[package]]
-name = "demo-ping-gas"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-program-generator"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "hex-literal",
-]
-
-[[package]]
-name = "demo-program-id"
-version = "0.1.0"
-dependencies = [
- "gstd",
 ]
 
 [[package]]
@@ -350,41 +224,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-status-code"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-sum"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-sync-duplicate"
 version = "0.1.0"
 dependencies = [
  "gcore",
  "gstd",
  "hex",
-]
-
-[[package]]
-name = "demo-vec"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-wait"
-version = "0.1.0"
-dependencies = [
- "gcore",
- "gstd",
 ]
 
 [[package]]
@@ -448,17 +293,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "835c052cb0c08c1acf6ffd71c022172e18723949c8282f2b9f27efbc51e64534"
 dependencies = [
  "static_assertions",
-]
-
-[[package]]
-name = "fungible-token"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "hex",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
 ]
 
 [[package]]
@@ -601,15 +435,6 @@ name = "gsys"
 version = "0.1.0"
 
 [[package]]
-name = "guestbook"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -629,12 +454,6 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
-
-[[package]]
-name = "hex-literal"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ebdb29d2ea9ed0083cd8cece49bbd968021bd99b0849edb4a9a7ee0fdf6a4e0"
 
 [[package]]
 name = "impl-codec"
@@ -819,14 +638,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 
 [[package]]
-name = "room"
-version = "0.1.0"
-dependencies = [
- "demo-chat",
- "gstd",
-]
-
-[[package]]
 name = "rustc_version"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -935,18 +746,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "token-vendor"
-version = "0.1.0"
-dependencies = [
- "bs58",
- "gstd",
- "hex",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
-]
-
-[[package]]
 name = "toml_datetime"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1022,16 +821,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae8970b36c66498d8ff1d66685dc86b91b29db0c7739899012f63a63814b4b28"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "workshop-example"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "hex",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]

@@ -18,9 +18,8 @@
 
 //! Test for infinity loop, that it can't exceed block production time.
 
+use demo_wat::WatExample;
 use gclient::{EventProcessor, GearApi};
-
-const PATH: &str = "../target/wasm32-unknown-unknown/release/demo_loop.opt.wasm";
 
 #[tokio::test]
 async fn inf_loop() -> anyhow::Result<()> {
@@ -38,9 +37,11 @@ async fn inf_loop() -> anyhow::Result<()> {
     // Subscribing for events.
     let mut listener = api.subscribe().await?;
 
+    let code = WatExample::Loop.code();
+
     // Program initialization.
     let (mid, pid, _) = api
-        .upload_program_bytes_by_path(PATH, gclient::now_micros().to_le_bytes(), "", gas_limit, 0)
+        .upload_program_bytes(code, gclient::now_micros().to_le_bytes(), "", gas_limit, 0)
         .await?;
 
     // Asserting successful initialization.

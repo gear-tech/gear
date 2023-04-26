@@ -41,7 +41,7 @@ async fn test_command_program_state_works() -> Result<()> {
         )),
     )?;
 
-    // Query state of demo_meta
+    // Query state of demo_new_meta
     let pid = common::program_id(demo_new_meta::WASM_BINARY, &[]);
     let state = node.run(Args::new("program").action("state").program(pid))?;
 

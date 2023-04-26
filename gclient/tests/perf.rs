@@ -9,24 +9,9 @@ const WASM_PATH: &str = "../target/wasm32-unknown-unknown/release";
 
 async fn upload_programs(api: &GearApi) -> Result<HashMap<&str, ProgramId>> {
     let init_payloads = vec![
-        ("demo_block_info", vec![]),
-        ("demo_capacitor", 2_000_000.to_string().into()),
-        ("demo_collector", vec![]),
-        ("demo_decoder", vec![]),
-        ("demo_fib", vec![]),
-        ("guestbook", vec![]),
-        ("demo_minimal", vec![]),
-        ("demo_multiping", vec![]),
         ("demo_piggy_bank", vec![]),
         ("demo_ping", vec![]),
-        ("demo_ping_gas", vec![]),
-        ("demo_program_id", vec![]),
         ("demo_state_rollback", vec![]),
-        (
-            "demo_sum",
-            b"d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d".to_vec(),
-        ),
-        ("demo_vec", vec![]),
         ("demo_async_tester", vec![]),
         ("demo_btree", vec![]),
         ("demo_calc_hash_in_one_block", vec![]),
@@ -35,14 +20,6 @@ async fn upload_programs(api: &GearApi) -> Result<HashMap<&str, ProgramId>> {
         ("demo_exit_handle_sender", vec![]),
         ("demo_gas_burned", vec![]),
         ("demo_gasless_wasting", vec![]),
-        (
-            "demo_meta",
-            demo_meta::MessageInitIn {
-                amount: 42,
-                currency: "USD".to_string(),
-            }
-            .encode(),
-        ),
         ("demo_mul_by_const", 42_u64.encode()),
         ("demo_ncompose", (gstd::ActorId::zero(), 42_u16).encode()),
         (
@@ -107,31 +84,9 @@ async fn upload_programs(api: &GearApi) -> Result<HashMap<&str, ProgramId>> {
 
 async fn send_messages(api: &GearApi, progs: &HashMap<&str, ProgramId>) -> Result<()> {
     let handle_payloads = vec![
-        ("demo_block_info", vec![]),
-        ("demo_capacitor", 1_000_000.to_string().into()),
-        ("demo_collector", b"Lorem ipsum dolor sit amet".to_vec()),
-        (
-            "demo_decoder",
-            b"1 2 3 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20".to_vec(),
-        ),
-        ("demo_fib", 1000.to_string().into()),
-        (
-            "guestbook",
-            guestbook::Action::AddMessage(guestbook::MessageIn {
-                author: "Gear Technologies".to_string(),
-                msg: "Lorem ipsum dolor sit amet".to_string(),
-            })
-            .encode(),
-        ),
-        ("demo_minimal", vec![]),
-        ("demo_multiping", b"PING".to_vec()),
         ("demo_piggy_bank", b"smash".to_vec()),
         ("demo_ping", b"PING".to_vec()),
-        ("demo_ping_gas", b"PING_REPLY_COMMIT_WITH_GAS".to_vec()),
-        ("demo_program_id", vec![]),
         ("demo_state_rollback", b"leave".to_vec()),
-        ("demo_sum", 42.encode()),
-        ("demo_vec", 65535.encode()),
         (
             "demo_async_tester",
             demo_async_tester::Kind::SendCommit.encode(),
@@ -168,16 +123,6 @@ async fn send_messages(api: &GearApi, progs: &HashMap<&str, ProgramId>) -> Resul
             demo_gasless_wasting::InputArgs {
                 prog_to_wait: [0u8; 32].into(),
                 prog_to_waste: [0u8; 32].into(),
-            }
-            .encode(),
-        ),
-        (
-            "demo_meta",
-            demo_meta::MessageIn {
-                id: demo_meta::Id {
-                    decimal: 1,
-                    hex: vec![1u8],
-                },
             }
             .encode(),
         ),
@@ -247,21 +192,4 @@ async fn full_block_of_messages() -> Result<()> {
     time::sleep(Duration::from_secs(3)).await;
 
     send_messages(&api, &progs).await
-}
-
-mod guestbook {
-    use super::*;
-
-    #[allow(dead_code)]
-    #[derive(Encode)]
-    pub enum Action {
-        AddMessage(MessageIn),
-        ViewMessages,
-    }
-
-    #[derive(Encode)]
-    pub struct MessageIn {
-        pub author: String,
-        pub msg: String,
-    }
 }

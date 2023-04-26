@@ -53,6 +53,7 @@ use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
+use demo_wat::WatExample;
 use frame_support::{
     assert_err, assert_noop, assert_ok,
     codec::{Decode, Encode},
@@ -7414,8 +7415,7 @@ fn invalid_memory_page_count_rejected() {
 fn test_mad_big_prog_instrumentation() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let path = "../../examples/big-wasm/big.wasm";
-        let code_bytes = std::fs::read(path).expect("can't read big wasm");
+        let code_bytes = WatExample::Big.code();
         let schedule = <Test as Config>::Schedule::get();
         let code_inst_res = gear_core::code::Code::try_new(
             code_bytes,

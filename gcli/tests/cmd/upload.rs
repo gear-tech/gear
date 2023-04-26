@@ -57,7 +57,7 @@ async fn test_command_upload_program_works() -> Result<()> {
     let output = node.run(
         Args::new("upload")
             .flag("--code-only")
-            .program(env::wasm_bin("demo_meta.opt.wasm")),
+            .program(env::wasm_bin("demo_waiter.opt.wasm")),
     )?;
 
     assert!(output
