@@ -83,7 +83,7 @@ jobs:
             [gearNodes:children]
             nodes
             [nodes]
-            ${{secrets.VARA_CONNECT_1}} name=vara-connect-1 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_CONNECT_1}} name=vara-connect-1 connect=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
 
   deploy-second-connector:
     runs-on: ubuntu-latest
@@ -120,7 +120,7 @@ jobs:
             [gearNodes:children]
             nodes
             [nodes]
-            ${{secrets.VARA_CONNECT_2}} name=vara-connect-2 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_CONNECT_2}} name=vara-connect-2 connect=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
 
   deploy-one-validator:
     runs-on: ubuntu-latest
@@ -204,5 +204,5 @@ jobs:
             ${{secrets.VARA_NODE_7}} name=vara-validator-7 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             ${{secrets.VARA_NODE_8}} name=vara-validator-8 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
             ${{secrets.VARA_NODE_RPC}} name=vara-rpc rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
-            ${{secrets.VARA_NODE_ARCHIVE_RPC}} name=vara-archive-rpc rpc=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
+            ${{secrets.VARA_NODE_ARCHIVE_RPC}} name=vara-archive-rpc archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=${{ needs.tag-image.outputs.image_tag }}
         
