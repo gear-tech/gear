@@ -80,6 +80,7 @@ demo-proxy-with-gas.workspace = true
 demo-proxy-reservation-with-gas.workspace = true
 demo-init-with-value.workspace = true
 demo-gasless-wasting.workspace = true
+demo-incomplete-async-payloads.workspace = true
 demo-gas-burned.workspace = true
 demo-waiting-proxy.workspace = true
 demo-calc-hash.workspace = true

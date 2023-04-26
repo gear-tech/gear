@@ -9,12 +9,10 @@ members = [
     "async-recursion",
     "bot",
     "futures-unordered",
-    "incomplete_async_payloads",
     "mutex",
     "piggy-bank",
     "rwlock",
     "rwlock_write",
-    "state_rollback",
 ]
 
 exclude = [
