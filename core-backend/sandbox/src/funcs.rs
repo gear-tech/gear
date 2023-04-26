@@ -101,7 +101,7 @@ where
             err_mid_ptr
         );
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Send(len), |ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendWGas(len), |ctx| {
             let read_hash_val = ctx.register_read_as(pid_value_ptr);
             let read_payload = ctx.register_read(payload_ptr, len);
             let HashWithValue {
@@ -125,7 +125,7 @@ where
 
         syscall_trace!("send_commit", handle, pid_value_ptr, delay, err_mid_ptr);
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendCommit(0), |ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendCommit, |ctx| {
             let read_pid_value = ctx.register_read_as(pid_value_ptr);
             let HashWithValue {
                 hash: destination,
@@ -155,7 +155,7 @@ where
             err_mid_ptr
         );
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendCommit(0), |ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendCommitWGas, |ctx| {
             let read_pid_value = ctx.register_read_as(pid_value_ptr);
             let HashWithValue {
                 hash: destination,
@@ -253,7 +253,7 @@ where
 
         ctx.run_fallible::<_, _, LengthWithHash>(
             err_mid_ptr,
-            RuntimeCosts::ReservationSendCommit(0),
+            RuntimeCosts::ReservationSendCommit,
             |ctx| {
                 let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
                 let TwoHashesWithValue {
@@ -481,7 +481,7 @@ where
             err_mid_ptr
         );
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply(len), |ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyWGas(len), |ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
             let value = Self::register_and_read_value(ctx, value_ptr)?;
             let payload = ctx.read(read_payload)?.try_into()?;
@@ -498,7 +498,7 @@ where
 
         syscall_trace!("reply_commit", value_ptr, delay, err_mid_ptr);
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyCommit(0), |ctx| {
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyCommit, |ctx| {
             let value = Self::register_and_read_value(ctx, value_ptr)?;
 
             ctx.ext
@@ -519,16 +519,20 @@ where
             err_mid_ptr
         );
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyCommit(0), |ctx| {
-            let value = Self::register_and_read_value(ctx, value_ptr)?;
+        ctx.run_fallible::<_, _, LengthWithHash>(
+            err_mid_ptr,
+            RuntimeCosts::ReplyCommitWGas,
+            |ctx| {
+                let value = Self::register_and_read_value(ctx, value_ptr)?;
 
-            ctx.ext
-                .reply_commit(
-                    ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                    delay,
-                )
-                .map_err(Into::into)
-        })
+                ctx.ext
+                    .reply_commit(
+                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
+                        delay,
+                    )
+                    .map_err(Into::into)
+            },
+        )
     }
 
     /// Fallible `gr_reservation_reply` syscall.
@@ -580,7 +584,7 @@ where
 
         ctx.run_fallible::<_, _, LengthWithHash>(
             err_mid_ptr,
-            RuntimeCosts::ReservationReplyCommit(0),
+            RuntimeCosts::ReservationReplyCommit,
             |ctx| {
                 let read_rid_value = ctx.register_read_as(rid_value_ptr);
                 let HashWithValue {
@@ -641,6 +645,7 @@ where
 
         syscall_trace!("reply_input", offset, len, value_ptr, delay, err_mid_ptr);
 
+        // Charge for `len` inside `reply_push_input`
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyInput, |ctx| {
             let value = Self::register_and_read_value(ctx, value_ptr)?;
 
@@ -679,7 +684,8 @@ where
             err_mid_ptr
         );
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyInput, |ctx| {
+        // Charge for `len` inside `reply_push_input`
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyInputWGas, |ctx| {
             let value = Self::register_and_read_value(ctx, value_ptr)?;
 
             let mut f = || {
@@ -700,6 +706,7 @@ where
 
         syscall_trace!("send_input", pid_value_ptr, offset, len, delay, err_mid_ptr);
 
+        // Charge for `len` inside `send_push_input`
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInput, |ctx| {
             let read_pid_value = ctx.register_read_as(pid_value_ptr);
             let HashWithValue {
@@ -748,7 +755,8 @@ where
             err_mid_ptr
         );
 
-        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInput, |ctx| {
+        // Charge for `len` inside `send_push_input`
+        ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::SendInputWGas, |ctx| {
             let read_pid_value = ctx.register_read_as(pid_value_ptr);
             let HashWithValue {
                 hash: destination,
@@ -1071,7 +1079,7 @@ where
 
         ctx.run_fallible::<_, _, LengthWithTwoHashes>(
             err_mid_pid_ptr,
-            RuntimeCosts::CreateProgram(payload_len, salt_len),
+            RuntimeCosts::CreateProgramWGas(payload_len, salt_len),
             |ctx| {
                 let read_cid_value = ctx.register_read_as(cid_value_ptr);
                 let read_salt = ctx.register_read(salt_ptr, salt_len);
