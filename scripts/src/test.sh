@@ -37,9 +37,9 @@ test_run_node() {
 
 workspace_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test --workspace "$@" --no-fail-fast
+    $CARGO test --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz "$@" --no-fail-fast
   else
-    cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
+    cargo +nightly nextest run --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz "$@" --profile ci --no-fail-fast
   fi
 }
 
