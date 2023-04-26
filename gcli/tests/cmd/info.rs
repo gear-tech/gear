@@ -61,10 +61,6 @@ const EXPECTED_MAILBOX: &str = r#"
     payload: "0x",
     value: 0,
     details: None,
-    interval: Interval {
-        start: 3,
-        finish: 32,
-    },
 }
 "#;
 
@@ -74,11 +70,6 @@ const EXPECTED_MAILBOX: &str = r#"
     payload: "0x",
     value: 5000,
     details: None,
-    interval: Interval {
-        start: 3,
-        finish: 32,
-    },
-}
 "#;
 
 #[tokio::test]
