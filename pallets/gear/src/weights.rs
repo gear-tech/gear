@@ -1228,9 +1228,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(2_595_993, 0).saturating_mul(r.into()))
     }
     fn instr_i64const(r: u32, ) -> Weight {
-        Weight::from_ref_time(0)
-            .saturating_add(Weight::from_ref_time(2_595_993 -
-            2_515_508).saturating_mul(r.into()))
+        Weight::from_parts(0, 0)
+            .saturating_add(Weight::from_parts(2_595_993 -
+            2_515_508, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_call(r: u32, ) -> Weight {
@@ -2955,9 +2955,9 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(2_595_993, 0).saturating_mul(r.into()))
     }
     fn instr_i64const(r: u32, ) -> Weight {
-        Weight::from_ref_time(0)
-            .saturating_add(Weight::from_ref_time(2_595_993 -
-            2_515_508).saturating_mul(r.into()))
+        Weight::from_parts(0, 0)
+            .saturating_add(Weight::from_parts(2_595_993 -
+            2_515_508, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_call(r: u32, ) -> Weight {

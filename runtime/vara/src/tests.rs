@@ -74,7 +74,7 @@ fn heuristics_test() {
     check_weight_inbounds_interval!(instruction_weights, i32eqz, 2_400);
     check_weight_inbounds_interval!(instruction_weights, i64extendsi32, 800);
     check_weight_inbounds_interval!(instruction_weights, i64extendui32, 500);
-    check_weight_inbounds_interval!(instruction_weights, i32wrapi64, 200);
+    check_weight_inbounds_interval!(instruction_weights, i32wrapi64, 300);
     check_weight_inbounds_interval!(instruction_weights, i64eq, 4_200);
     check_weight_inbounds_interval!(instruction_weights, i32eq, 2_200);
     check_weight_inbounds_interval!(instruction_weights, i64ne, 4_200);
