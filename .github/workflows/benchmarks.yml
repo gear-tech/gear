@@ -58,14 +58,10 @@ jobs:
           ./scripts/benchmarking/run_all_benchmarks.sh -b -c vara-dev # -b to skip build
           cp ./scripts/benchmarking/weights-output/* runtime/vara/src/weights
 
-      - uses: actions/upload-artifact@v3
+      - name: "ACTIONS: Upload artifact with updated weights"
+        uses: actions/upload-artifact@v3
         with:
-          name: my-artifact
+          name: weights
           path: |
             runtime/gear/src/weights/
             runtime/vara/src/weights/
-
-      - name: dump diffs
-        run: |
-          rm -rf ./scripts/benchmarking/weights-output
-          git status
