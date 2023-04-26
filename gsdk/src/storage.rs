@@ -20,16 +20,13 @@
 use crate::{
     metadata::runtime_types::{
         frame_system::{AccountInfo, EventRecord},
-        gear_common::{
-            program_storage::Item as ProgramStorageItem, storage::primitives::Interval,
-            ActiveProgram, Program,
-        },
+        gear_common::{storage::primitives::Interval, ActiveProgram, Program},
         gear_core::{code::InstrumentedCode, message::stored::StoredMessage},
         gear_runtime::RuntimeEvent,
         pallet_balances::AccountData,
     },
     result::{Error, Result},
-    types, Api, BlockNumber, Program as GProgram,
+    types, Api, BlockNumber,
 };
 use gear_core::ids::*;
 use hex::ToHex;
@@ -81,7 +78,7 @@ impl Api {
 
     /// Get program pages from program id.
     pub async fn program_pages(&self, pid: ProgramId) -> Result<types::GearPages> {
-        let GProgram { program, .. } = self.gprog(pid).await?;
+        let program = self.gprog(pid).await?;
         self.gpages(pid, &program).await
     }
 }
@@ -278,7 +275,7 @@ impl Api {
     }
 
     /// Get active program from program id.
-    pub async fn gprog(&self, program_id: ProgramId) -> Result<GProgram> {
+    pub async fn gprog(&self, program_id: ProgramId) -> Result<ActiveProgram<BlockNumber>> {
         self.gprog_at(program_id, None).await
     }
 
@@ -287,7 +284,7 @@ impl Api {
         &self,
         program_id: ProgramId,
         block_hash: Option<H256>,
-    ) -> Result<GProgram> {
+    ) -> Result<ActiveProgram<BlockNumber>> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "ProgramStorage",
@@ -295,14 +292,11 @@ impl Api {
         );
 
         let program = self
-            .fetch_storage_at::<_, ProgramStorageItem<BlockNumber>>(&addr, block_hash)
+            .fetch_storage_at::<_, Program<BlockNumber>>(&addr, block_hash)
             .await?;
 
-        match program.program {
-            Program::Active(p) => Ok(GProgram {
-                program: p,
-                bn: program.block_number,
-            }),
+        match program {
+            Program::Active(p) => Ok(p),
             _ => Err(Error::ProgramTerminated),
         }
     }
@@ -311,7 +305,7 @@ impl Api {
     pub async fn gpages(
         &self,
         program_id: ProgramId,
-        program: &ActiveProgram,
+        program: &ActiveProgram<BlockNumber>,
     ) -> Result<types::GearPages> {
         self.gpages_at(program_id, program, None).await
     }
@@ -320,7 +314,7 @@ impl Api {
     pub async fn gpages_at(
         &self,
         program_id: ProgramId,
-        program: &ActiveProgram,
+        program: &ActiveProgram<BlockNumber>,
         block_hash: Option<H256>,
     ) -> Result<types::GearPages> {
         let mut pages = HashMap::new();

@@ -684,16 +684,6 @@ pub mod runtime_types {
                 }
             }
         }
-        pub mod program_storage {
-            use super::runtime_types;
-            #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
-            )]
-            pub struct Item<_0> {
-                pub program: runtime_types::gear_common::Program,
-                pub block_number: _0,
-            }
-        }
         pub mod scheduler {
             use super::runtime_types;
             pub mod task {
@@ -764,7 +754,7 @@ pub mod runtime_types {
             }
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        pub struct ActiveProgram {
+        pub struct ActiveProgram<_0> {
             pub allocations: ::std::vec::Vec<runtime_types::gear_core::memory::WasmPage>,
             pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::memory::GearPage>,
             pub gas_reservation_map: ::subxt::utils::KeyedVec<
@@ -775,6 +765,7 @@ pub mod runtime_types {
             pub code_exports: ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
             pub static_pages: runtime_types::gear_core::memory::WasmPage,
             pub state: runtime_types::gear_common::ProgramState,
+            pub expiration_block: _0,
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
         pub struct CodeMetadata {
@@ -783,9 +774,9 @@ pub mod runtime_types {
             pub block_number: ::core::primitive::u32,
         }
         #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
-        pub enum Program {
+        pub enum Program<_0> {
             #[codec(index = 0)]
-            Active(runtime_types::gear_common::ActiveProgram),
+            Active(runtime_types::gear_common::ActiveProgram<_0>),
             #[codec(index = 1)]
             Exited(runtime_types::gear_core::ids::ProgramId),
             #[codec(index = 2)]

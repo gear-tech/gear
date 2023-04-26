@@ -22,7 +22,7 @@ use crate::{
     metadata::{
         runtime_types::{
             frame_system::pallet::Call,
-            gear_common::{program_storage::Item, ActiveProgram, Program},
+            gear_common::{ActiveProgram, Program},
             gear_core::code::InstrumentedCode,
             gear_runtime::RuntimeCall,
             sp_weights::weight_v2::Weight,
@@ -340,22 +340,14 @@ impl Signer {
     pub async fn set_gprog(
         &self,
         program_id: ProgramId,
-        program: ActiveProgram,
-        block_number: BlockNumber,
+        program: ActiveProgram<BlockNumber>,
     ) -> EventsResult {
         let addr = subxt::dynamic::storage(
             "GearProgram",
             "ProgramStorage",
             vec![Value::from_bytes(program_id)],
         );
-        self.set_storage(&[(
-            addr,
-            &Item {
-                program: Program::Active(program),
-                block_number,
-            },
-        )])
-        .await
+        self.set_storage(&[(addr, &Program::Active(program))]).await
     }
 }
 

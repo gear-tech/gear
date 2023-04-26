@@ -257,10 +257,7 @@ impl GearApi {
             }
         })?;
 
-        let gsdk::Program {
-            program: src_program,
-            ..
-        } = self
+        let mut src_program = self
             .0
             .api()
             .gprog_at(src_program_id, src_block_hash)
@@ -387,13 +384,10 @@ impl GearApi {
             .set_gpages(dest_program_id, &src_program_pages)
             .await?;
 
+        src_program.expiration_block = dest_node_api.last_block_number().await?;
         dest_node_api
             .0
-            .set_gprog(
-                dest_program_id,
-                src_program,
-                dest_node_api.last_block_number().await?,
-            )
+            .set_gprog(dest_program_id, src_program)
             .await?;
 
         Ok(dest_program_id)

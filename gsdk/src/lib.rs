@@ -45,12 +45,6 @@ pub mod ext {
 
 pub type BlockNumber = u32;
 
-// Program struct returned by storage query API.
-pub struct Program {
-    pub program: metadata::runtime_types::gear_common::ActiveProgram,
-    pub bn: BlockNumber,
-}
-
 /// Gear api wrapper.
 #[derive(Clone)]
 pub struct Api {
