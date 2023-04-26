@@ -116,7 +116,7 @@ where
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
-        ProgramStorageOf::<T>::update_active_program(program_id, |program, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
             for x in 0..repetitions {
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),
@@ -705,7 +705,7 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 10000000)
+        Self::prepare_handle(module, 10_000_000)
     }
 
     pub fn gr_reply_push_per_kb(n: u32) -> Result<Exec<T>, &'static str> {

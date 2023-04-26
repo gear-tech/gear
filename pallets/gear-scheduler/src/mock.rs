@@ -39,6 +39,8 @@ use sp_std::convert::{TryFrom, TryInto};
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
+type BlockNumber = u64;
+type Balance = u128;
 
 pub(crate) const USER_1: AccountId = 1;
 pub(crate) const USER_2: AccountId = 2;
@@ -69,7 +71,7 @@ impl pallet_balances::Config for Test {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    type Balance = u128;
+    type Balance = Balance;
     type DustRemoval = ();
     type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
@@ -80,7 +82,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 500;
+    pub const ExistentialDeposit: Balance = 500;
 }
 
 impl system::Config for Test {
@@ -91,7 +93,7 @@ impl system::Config for Test {
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
@@ -112,16 +114,33 @@ impl system::Config for Test {
 
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
-    type Balance = u128;
+    type Balance = Balance;
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
-impl pallet_gear_program::Config for Test {}
+impl pallet_gear_program::Config for Test {
+    type Scheduler = GearScheduler;
+    type CurrentBlockNumber = ();
+}
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
+    pub RentFreePeriod: BlockNumber = 1_000;
+    pub RentCostPerBlock: Balance = 11;
+    pub RentResumePeriod: BlockNumber = 100;
+}
+
+pub struct ProgramRentConfig;
+
+impl common::ProgramRentConfig for ProgramRentConfig {
+    type BlockNumber = BlockNumber;
+    type Balance = Balance;
+
+    type FreePeriod = RentFreePeriod;
+    type CostPerBlock = RentCostPerBlock;
+    type MinimalResumePeriod = RentResumePeriod;
 }
 
 impl pallet_gear::Config for Test {
@@ -142,6 +161,7 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type ProgramRentConfig = ProgramRentConfig;
 }
 
 impl pallet_gear_scheduler::Config for Test {

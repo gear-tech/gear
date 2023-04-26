@@ -31,6 +31,9 @@ pub use code_storage::{CodeStorage, Error as CodeStorageError};
 pub mod program_storage;
 pub use program_storage::{Error as ProgramStorageError, ProgramStorage};
 
+pub mod paused_program_storage;
+pub use paused_program_storage::PausedProgramStorage;
+
 pub mod gas_provider;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -56,7 +59,7 @@ use gear_core::{
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
-use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
+use sp_arithmetic::traits::{BaseArithmetic, Saturating, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -152,6 +155,21 @@ pub trait GasPrice {
     }
 }
 
+/// Trait defines basic parameters of programs rent charging.
+pub trait ProgramRentConfig {
+    /// Type representing an index of a block.
+    type BlockNumber;
+    /// Type representing a quantity of value.
+    type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
+
+    /// The free of charge period of rent.
+    type FreePeriod: Get<Self::BlockNumber>;
+    /// The program rent cost per block.
+    type CostPerBlock: Get<Self::Balance>;
+    /// The minimal amount of blocks to resume.
+    type MinimalResumePeriod: Get<Self::BlockNumber>;
+}
+
 pub trait QueueRunner {
     type Gas;
 
@@ -183,13 +201,13 @@ pub trait BlockLimiter {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub enum Program {
-    Active(ActiveProgram),
+pub enum Program<BlockNumber: Copy + Saturating> {
+    Active(ActiveProgram<BlockNumber>),
     Exited(ProgramId),
     Terminated(ProgramId),
 }
 
-impl Program {
+impl<BlockNumber: Copy + Saturating> Program<BlockNumber> {
     pub fn is_active(&self) -> bool {
         matches!(self, Program::Active(_))
     }
@@ -212,14 +230,16 @@ impl Program {
         )
     }
 
-    pub fn is_uninitialized(&self) -> bool {
-        matches!(
-            self,
-            Program::Active(ActiveProgram {
-                state: ProgramState::Uninitialized { .. },
-                ..
-            })
-        )
+    pub fn is_uninitialized(&self) -> Option<MessageId> {
+        if let Program::Active(ActiveProgram {
+            state: ProgramState::Uninitialized { message_id },
+            ..
+        }) = self
+        {
+            Some(*message_id)
+        } else {
+            None
+        }
     }
 }
 
@@ -227,10 +247,12 @@ impl Program {
 #[display(fmt = "Program is not an active one")]
 pub struct InactiveProgramError;
 
-impl core::convert::TryFrom<Program> for ActiveProgram {
+impl<BlockNumber: Copy + Saturating> core::convert::TryFrom<Program<BlockNumber>>
+    for ActiveProgram<BlockNumber>
+{
     type Error = InactiveProgramError;
 
-    fn try_from(prog_with_status: Program) -> Result<ActiveProgram, Self::Error> {
+    fn try_from(prog_with_status: Program<BlockNumber>) -> Result<Self, Self::Error> {
         match prog_with_status {
             Program::Active(p) => Ok(p),
             _ => Err(InactiveProgramError),
@@ -241,7 +263,7 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub struct ActiveProgram {
+pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
     /// Set of dynamic wasm page numbers, which are allocated by the program.
     pub allocations: BTreeSet<WasmPage>,
     /// Set of gear pages numbers, which has data in storage.
@@ -251,6 +273,7 @@ pub struct ActiveProgram {
     pub code_exports: BTreeSet<DispatchKind>,
     pub static_pages: WasmPage,
     pub state: ProgramState,
+    pub expiration_block: BlockNumber,
 }
 
 /// Enumeration contains variants for program state.
