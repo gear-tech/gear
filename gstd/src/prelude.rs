@@ -19,6 +19,8 @@
 //! The `gstd` default prelude. Re-imports default `std` modules and traits.
 //! `std` can be safely replaced to `gstd` in the Rust programs.
 
+extern crate alloc;
+
 pub use core::prelude::v1::*;
 
 // Public module re-exports

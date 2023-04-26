@@ -68,12 +68,18 @@ pub mod ext {
     ///
     /// ```rust,ignore
     /// #![no_std]
+    /// #![feature(alloc_error_handler)]
     /// #![feature(allocator_api)]
     ///
     /// extern crate alloc;
     ///
-    /// use alloc::alloc::{Global, Allocator};
+    /// use alloc::alloc::{Global, Layout, Allocator};
     /// use gcore::ext;
+    ///
+    /// #[alloc_error_handler]
+    /// fn oom(_layout: Layout) -> ! {
+    ///     ext::oom_panic()
+    /// }
     ///
     /// #[no_mangle]
     /// extern "C" fn handle() {
