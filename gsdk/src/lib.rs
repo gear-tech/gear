@@ -43,6 +43,8 @@ pub mod ext {
     pub use sp_runtime;
 }
 
+pub type BlockNumber = u32;
+
 /// Gear api wrapper.
 #[derive(Clone)]
 pub struct Api {

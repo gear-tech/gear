@@ -28,10 +28,13 @@ use sp_std::convert::{TryFrom, TryInto};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+type AccountId = u64;
+type BlockNumber = u64;
+type Balance = u128;
 
-pub const ALICE: u64 = 1;
-pub const BOB: u64 = 2;
-pub const BLOCK_AUTHOR: u64 = 255;
+pub const ALICE: AccountId = 1;
+pub const BOB: AccountId = 2;
+pub const BLOCK_AUTHOR: AccountId = 255;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -50,7 +53,7 @@ impl pallet_balances::Config for Test {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    type Balance = u128;
+    type Balance = Balance;
     type DustRemoval = ();
     type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
@@ -61,7 +64,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 1;
+    pub const ExistentialDeposit: Balance = 1;
 }
 
 impl system::Config for Test {
@@ -72,10 +75,10 @@ impl system::Config for Test {
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
-    type AccountId = u64;
+    type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
     type RuntimeEvent = RuntimeEvent;

@@ -24,6 +24,7 @@ use crate::{
         ActiveProgram,
     },
     result::Result,
+    BlockNumber,
 };
 use futures::{Stream, StreamExt};
 use gear_core::ids::*;
@@ -99,6 +100,6 @@ pub type TxStatus = tx::TxStatus<GearConfig, OnlineClient<GearConfig>>;
 /// Gear Program
 #[derive(Debug, Decode)]
 pub enum Program {
-    Active(ActiveProgram),
+    Active(ActiveProgram<BlockNumber>),
     Terminated,
 }

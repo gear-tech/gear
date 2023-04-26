@@ -135,7 +135,7 @@ pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
 
 pub fn set_program<
     ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
-    BlockNumber: Zero,
+    BlockNumber: Zero + Copy + Saturating,
 >(
     program_id: ProgramId,
     code: Vec<u8>,
@@ -164,8 +164,8 @@ pub fn set_program<
             static_pages,
             state: ProgramState::Initialized,
             gas_reservation_map: GasReservationMap::default(),
+            expiration_block: Zero::zero(),
         },
-        Zero::zero(),
     )
     .expect("benchmarking; program duplicates should not exist");
 }
