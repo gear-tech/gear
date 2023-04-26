@@ -91,7 +91,7 @@ extern "C" fn init() {
 
             unsafe {
                 RESERVATION_ID = Some(
-                    ReservationId::reserve(RESERVATION_AMOUNT, 5)
+                    ReservationId::reserve(RESERVATION_AMOUNT, 15)
                         .expect("reservation across executions"),
                 )
             };
