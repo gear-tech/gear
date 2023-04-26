@@ -19,37 +19,21 @@
 use super::*;
 
 pub fn method(self_: &mut dyn FunctionContext, instance_id: u32) -> HostPointer {
-    struct Context<'a> {
-        store: &'a mut Store,
-        result: HostPointer,
-        instance_id: u32,
-    }
+    let mut method_result: HostPointer = u32::MAX.into();
 
-    let mut context = Context {
-        store: unsafe { &mut SANDBOX_STORE },
-        result: u32::MAX.into(),
-        instance_id,
-    };
-    let context_ptr: *mut Context = &mut context;
-
-    self_.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
-        let context_ptr: *mut Context = context_ptr.cast();
-        let context: &mut Context =
-            unsafe { context_ptr.as_mut().expect("get_instance_ptr; set above") };
-
+    sp_wasm_interface::with_caller_mut(self_, |caller| {
         trace("get_instance_ptr", caller);
 
         let data_ptr: *const _ = caller.data();
-        let instance = context
-            .store
+        let instance = unsafe { &mut SANDBOX_STORE }
             .get(data_ptr as u64)
-            .instance(context.instance_id)
+            .instance(instance_id)
             .expect("Failed to get sandboxed instance");
 
-        context.result = instance.as_ref().get_ref()
+        method_result = instance.as_ref().get_ref()
             as *const gear_sandbox_native::sandbox::SandboxInstance
             as HostPointer;
     });
 
-    context.result
+    method_result
 }

@@ -21,35 +21,19 @@ use super::*;
 pub fn method(self_: &mut dyn FunctionContext, memory_idx: u32) -> u32 {
     use gear_sandbox_native::util::MemoryTransfer;
 
-    struct Context<'a> {
-        store: &'a mut Store,
-        result: u32,
-        memory_idx: u32,
-    }
+    let mut method_result = 0;
 
-    let mut context = Context {
-        store: unsafe { &mut SANDBOX_STORE },
-        result: u32::MAX,
-        memory_idx,
-    };
-    let context_ptr: *mut Context = &mut context;
-
-    self_.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
-        let context_ptr: *mut Context = context_ptr.cast();
-        let context: &mut Context =
-            unsafe { context_ptr.as_mut().expect("memory_size; set above") };
-
+    sp_wasm_interface::with_caller_mut(self_, |caller| {
         trace("memory_size", caller);
 
         let data_ptr: *const _ = caller.data();
-        let mut m = context
-            .store
+        let mut m = unsafe { &mut SANDBOX_STORE }
             .get(data_ptr as u64)
-            .memory(context.memory_idx)
+            .memory(memory_idx)
             .expect("Failed to get memory size: cannot get backend memory");
 
-        context.result = m.memory_size();
+        method_result = m.memory_size();
     });
 
-    context.result
+    method_result
 }

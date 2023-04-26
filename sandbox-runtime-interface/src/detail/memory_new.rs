@@ -19,35 +19,18 @@
 use super::*;
 
 pub fn method(self_: &mut dyn FunctionContext, initial: u32, maximum: u32) -> u32 {
-    struct Context<'a> {
-        store: &'a mut Store,
-        result: u32,
-        initial: u32,
-        maximum: u32,
-    }
+    let mut method_result = u32::MAX;
 
-    let mut context = Context {
-        store: unsafe { &mut SANDBOX_STORE },
-        result: u32::MAX,
-        initial,
-        maximum,
-    };
-    let context_ptr: *mut Context = &mut context;
-
-    self_.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
-        let context_ptr: *mut Context = context_ptr.cast();
-        let context: &mut Context = unsafe { context_ptr.as_mut().expect("memory_new; set above") };
-
+    sp_wasm_interface::with_caller_mut(self_, |caller| {
         trace("memory_new", caller);
 
         let data_ptr: *const _ = caller.data();
-        context.result = context
-            .store
+        method_result = unsafe { &mut SANDBOX_STORE }
             .get(data_ptr as u64)
-            .new_memory(context.initial, context.maximum)
+            .new_memory(initial, maximum)
             .map_err(|e| e.to_string())
             .expect("Failed to create new memory with sandbox");
     });
 
-    context.result
+    method_result
 }

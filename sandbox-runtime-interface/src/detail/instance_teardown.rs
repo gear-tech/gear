@@ -19,29 +19,13 @@
 use super::*;
 
 pub fn method(self_: &mut dyn FunctionContext, instance_idx: u32) {
-    struct Context<'a> {
-        store: &'a mut Store,
-        instance_idx: u32,
-    }
-
-    let mut context = Context {
-        store: unsafe { &mut SANDBOX_STORE },
-        instance_idx,
-    };
-    let context_ptr: *mut Context = &mut context;
-
-    self_.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
-        let context_ptr: *mut Context = context_ptr.cast();
-        let context: &mut Context =
-            unsafe { context_ptr.as_mut().expect("instance_teardown; set above") };
-
+    sp_wasm_interface::with_caller_mut(self_, |caller| {
         trace("instance_teardown", caller);
 
         let data_ptr: *const _ = caller.data();
-        context
-            .store
+        unsafe { &mut SANDBOX_STORE }
             .get(data_ptr as u64)
-            .instance_teardown(context.instance_idx)
+            .instance_teardown(instance_idx)
             .expect("Failed to teardown sandbox instance")
     });
 }

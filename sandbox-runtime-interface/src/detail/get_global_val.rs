@@ -19,37 +19,19 @@
 use super::*;
 
 pub fn method(self_: &mut dyn FunctionContext, instance_idx: u32, name: &str) -> Option<Value> {
-    struct Context<'a> {
-        store: &'a mut Store,
-        result: Option<Value>,
-        instance_idx: u32,
-        name: &'a str,
-    }
+    let mut method_result = None::<Value>;
 
-    let mut context = Context {
-        store: unsafe { &mut SANDBOX_STORE },
-        result: None,
-        instance_idx,
-        name,
-    };
-    let context_ptr: *mut Context = &mut context;
-
-    self_.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
-        let context_ptr: *mut Context = context_ptr.cast();
-        let context: &mut Context =
-            unsafe { context_ptr.as_mut().expect("get_global_val; set above") };
-
+    sp_wasm_interface::with_caller_mut(self_, |caller| {
         trace("get_global_val", caller);
 
         let data_ptr: *const _ = caller.data();
-        context.result = context
-            .store
+        method_result = unsafe { &mut SANDBOX_STORE }
             .get(data_ptr as u64)
-            .instance(context.instance_idx)
-            .map(|i| i.get_global_val(context.name))
+            .instance(instance_idx)
+            .map(|i| i.get_global_val(name))
             .map_err(|e| e.to_string())
             .expect("Failed to get global from sandbox");
     });
 
-    context.result
+    method_result
 }

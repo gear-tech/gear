@@ -25,30 +25,9 @@ pub fn method(
     raw_env_def: &[u8],
     state_ptr: Pointer<u8>,
 ) -> u32 {
-    struct Context<'a> {
-        store: &'a mut Store,
-        result: u32,
-        dispatch_thunk_id: u32,
-        wasm_code: &'a [u8],
-        raw_env_def: &'a [u8],
-        state_ptr: Pointer<u8>,
-    }
+    let mut method_result = u32::MAX;
 
-    let mut context = Context {
-        store: unsafe { &mut SANDBOX_STORE },
-        result: 0,
-        dispatch_thunk_id,
-        wasm_code,
-        raw_env_def,
-        state_ptr,
-    };
-    let context_ptr: *mut Context = &mut context;
-
-    self_.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
-        let context_ptr: *mut Context = context_ptr.cast();
-        let context: &mut Context =
-            unsafe { context_ptr.as_mut().expect("instantiate; set above") };
-
+    sp_wasm_interface::with_caller_mut(self_, |caller| {
         trace("instantiate", caller);
 
         // Extract a dispatch thunk from the instance's table by the specified index.
@@ -57,7 +36,7 @@ pub fn method(
                 .data()
                 .table
                 .expect("Runtime doesn't have a table; sandbox is unavailable");
-            let table_item = table.get(caller.as_context_mut(), context.dispatch_thunk_id);
+            let table_item = table.get(caller.as_context_mut(), dispatch_thunk_id);
 
             *table_item
                 .expect("dispatch_thunk_id is out of bounds")
@@ -66,29 +45,29 @@ pub fn method(
                 .expect("dispatch_thunk_idx should point to actual func")
         };
 
+        let store = unsafe { &mut SANDBOX_STORE };
+
         let data_ptr: *const _ = caller.data();
         let store_data_key = data_ptr as u64;
-        let guest_env = match sandbox_env::GuestEnvironment::decode(
-            context.store.get(store_data_key),
-            context.raw_env_def,
-        ) {
-            Ok(guest_env) => guest_env,
-            Err(_) => {
-                context.result = sandbox_env::env::ERR_MODULE;
-                return;
-            }
-        };
+        let guest_env =
+            match sandbox_env::GuestEnvironment::decode(store.get(store_data_key), raw_env_def) {
+                Ok(guest_env) => guest_env,
+                Err(_) => {
+                    method_result = sandbox_env::env::ERR_MODULE;
+                    return;
+                }
+            };
 
         // Catch any potential panics so that we can properly restore the sandbox store
         // which we've destructively borrowed.
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            context.store.get(store_data_key).instantiate(
-                context.wasm_code,
+            store.get(store_data_key).instantiate(
+                wasm_code,
                 guest_env,
                 &mut SandboxContext {
                     caller,
                     dispatch_thunk,
-                    state: context.state_ptr.into(),
+                    state: state_ptr.into(),
                 },
             )
         }));
@@ -99,13 +78,13 @@ pub fn method(
         };
 
         let instance_idx_or_err_code = match result {
-            Ok(instance) => instance.register(context.store.get(store_data_key), dispatch_thunk),
+            Ok(instance) => instance.register(store.get(store_data_key), dispatch_thunk),
             Err(sandbox_env::InstantiationError::StartTrapped) => sandbox_env::env::ERR_EXECUTION,
             Err(_) => sandbox_env::env::ERR_MODULE,
         };
 
-        context.result = instance_idx_or_err_code
+        method_result = instance_idx_or_err_code;
     });
 
-    context.result
+    method_result
 }

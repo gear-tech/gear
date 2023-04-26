@@ -27,53 +27,32 @@ pub fn method(
 ) -> u32 {
     use gear_sandbox_native::util::MemoryTransfer;
 
-    struct Context<'a> {
-        store: &'a mut Store,
-        result: u32,
-        memory_idx: u32,
-        offset: u32,
-        buf_ptr: Pointer<u8>,
-        buf_len: u32,
-    }
+    let mut method_result = u32::MAX;
 
-    let mut context = Context {
-        store: unsafe { &mut SANDBOX_STORE },
-        result: u32::MAX,
-        memory_idx,
-        offset,
-        buf_ptr,
-        buf_len,
-    };
-    let context_ptr: *mut Context = &mut context;
-
-    self_.with_caller_mut(context_ptr as *mut (), |context_ptr, caller| {
-        let context_ptr: *mut Context = context_ptr.cast();
-        let context: &mut Context = unsafe { context_ptr.as_mut().expect("memory_get; set above") };
-
+    sp_wasm_interface::with_caller_mut(self_, |caller| {
         trace("memory_get", caller);
 
         let data_ptr: *const _ = caller.data();
-        let sandboxed_memory = context
-            .store
+        let sandboxed_memory = unsafe { &mut SANDBOX_STORE }
             .get(data_ptr as u64)
-            .memory(context.memory_idx)
+            .memory(memory_idx)
             .expect("sandboxed memory not found");
 
-        let len = context.buf_len as usize;
+        let len = buf_len as usize;
 
-        let buffer = match sandboxed_memory.read(Pointer::new(context.offset), len) {
+        let buffer = match sandboxed_memory.read(Pointer::new(offset), len) {
             Err(_) => {
-                context.result = sandbox_env::env::ERR_OUT_OF_BOUNDS;
+                method_result = sandbox_env::env::ERR_OUT_OF_BOUNDS;
                 return;
             }
             Ok(buffer) => buffer,
         };
 
-        context.result = match util::write_memory_from(caller, context.buf_ptr, &buffer) {
+        method_result = match util::write_memory_from(caller, buf_ptr, &buffer) {
             Ok(_) => sandbox_env::env::ERR_OK,
             Err(_) => sandbox_env::env::ERR_OUT_OF_BOUNDS,
         };
     });
 
-    context.result
+    method_result
 }
