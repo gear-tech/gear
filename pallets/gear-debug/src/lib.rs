@@ -62,7 +62,8 @@ pub mod pallet {
 
         type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
 
-        type ProgramStorage: ProgramStorage + IterableMap<(ProgramId, (Program, Self::BlockNumber))>;
+        type ProgramStorage: ProgramStorage
+            + IterableMap<(ProgramId, common::Program<Self::BlockNumber>)>;
     }
 
     #[pallet::pallet]
@@ -199,8 +200,8 @@ pub mod pallet {
                 .collect();
 
             let programs = T::ProgramStorage::iter()
-                .map(|(id, (prog, _bn))| {
-                    let active = match prog {
+                .map(|(id, program)| {
+                    let active = match program {
                         Program::Active(active) => active,
                         _ => {
                             return ProgramDetails {

@@ -20,7 +20,7 @@ use crate::{
     internal::HoldBound,
     manager::{CodeInfo, ExtManager},
     Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, Pallet,
-    ProgramStorageOf, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
+    ProgramStorageOf, QueueOf, RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -41,6 +41,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::SimpleSignalError;
+use sp_core::Get as _;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -111,25 +112,25 @@ where
                 );
 
                 wake_waiting_init_msgs(program_id);
-                ProgramStorageOf::<T>::update_active_program(program_id, |p, bn_ref| {
-                    *bn_ref = Pallet::<T>::block_number();
-                    p.state = ProgramState::Initialized;
-                })
-                .unwrap_or_else(|e| {
-                    unreachable!(
-                        "Program initialized status may only be set to active program {:?}",
-                        e
-                    );
-                });
+                let expiration =
+                    ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
+                        match p {
+                            Program::Active(active) => active.state = ProgramState::Initialized,
+                            _ => unreachable!("Only active programs are able to initialize"),
+                        }
 
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
+                        bn
+                    })
+                    .unwrap_or_else(|e| {
+                        unreachable!(
+                            "Program initialized status may only be set to active program {:?}",
+                            e
+                        );
+                    });
+
                 Pallet::<T>::deposit_event(Event::ProgramChanged {
                     id: program_id,
-                    change: ProgramChangeKind::Active {
-                        expiration: T::BlockNumber::zero(),
-                    },
+                    change: ProgramChangeKind::Active { expiration },
                 });
 
                 DispatchStatus::Success
@@ -160,8 +161,12 @@ where
 
                 self.clean_reservation_tasks(program_id, maybe_inactive);
 
-                ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn_ref| {
-                    *bn_ref = Pallet::<T>::block_number();
+                ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
+                    let _ = TaskPoolOf::<T>::delete(
+                        bn,
+                        ScheduledTask::PauseProgram(program_id),
+                    );
+
                     *p = Program::Terminated(origin);
                 }).unwrap_or_else(|e| {
                     if !maybe_inactive {
@@ -173,6 +178,11 @@ where
                 });
 
                 ProgramStorageOf::<T>::remove_program_pages(program_id);
+
+                let event = Event::ProgramChanged {
+                    id: program_id,
+                    change: ProgramChangeKind::Terminated,
+                };
 
                 let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
 
@@ -189,6 +199,8 @@ where
                     )
                     .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
                 }
+
+                Pallet::<T>::deposit_event(event);
 
                 DispatchStatus::Failed
             }
@@ -229,8 +241,9 @@ where
         // Program can't be inactive, cause it was executed.
         self.clean_reservation_tasks(id_exited, false);
 
-        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn_ref| {
-            *bn_ref = Pallet::<T>::block_number();
+        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn| {
+            let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(id_exited));
+
             *p = Program::Exited(value_destination);
         })
         .unwrap_or_else(|e| {
@@ -409,7 +422,7 @@ where
     ) {
         self.state_changes.insert(program_id);
 
-        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             for (page, data) in pages_data {
                 ProgramStorageOf::<T>::set_program_page_data(program_id, page, data);
                 p.pages_with_data.insert(page);
@@ -428,7 +441,7 @@ where
         program_id: ProgramId,
         allocations: BTreeSet<gear_core::memory::WasmPage>,
     ) {
-        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             let removed_pages = p.allocations.difference(&allocations);
             for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
                 if p.pages_with_data.remove(&page) {
@@ -455,9 +468,22 @@ where
         if let Some(code) = T::CodeStorage::get_code(code_id) {
             let code_info = CodeInfo::from_code(&code_id, &code);
             for (init_message, candidate_id) in candidates {
-                if !ProgramStorageOf::<T>::program_exists(candidate_id) {
+                if !Pallet::<T>::program_exists(candidate_id) {
                     let block_number = Pallet::<T>::block_number();
-                    self.set_program(candidate_id, &code_info, init_message, block_number);
+                    let expiration_block =
+                        block_number.saturating_add(RentFreePeriodOf::<T>::get());
+                    self.set_program(candidate_id, &code_info, init_message, expiration_block);
+
+                    let task = ScheduledTask::PauseProgram(candidate_id);
+                    TaskPoolOf::<T>::add(expiration_block, task)
+                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+                    Pallet::<T>::deposit_event(Event::ProgramChanged {
+                        id: candidate_id,
+                        change: ProgramChangeKind::ProgramSet {
+                            expiration: expiration_block,
+                        },
+                    });
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
@@ -545,7 +571,7 @@ where
     }
 
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
-        ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
+        ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             p.gas_reservation_map = reserver.into_map(
                 Pallet::<T>::block_number().unique_saturated_into(),
                 |duration| {
