@@ -153,6 +153,8 @@ runtime-benchmarks = [
 	"sp-consensus-babe",
 	"rand",
 	"rand_pcg",
+	"test-syscalls/std",
+	"demo-proxy/std",
 	"gsys",
 ]
 runtime-benchmarks-checkers = []
