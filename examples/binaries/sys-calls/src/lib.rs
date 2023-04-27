@@ -22,7 +22,7 @@ extern crate alloc;
 
 use codec::{Decode, Encode};
 
-#[cfg(feature = "wasm-wrapper")]
+#[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
@@ -30,7 +30,7 @@ mod code {
 type MessageId = [u8; 32];
 type ActorId = [u8; 32];
 
-#[cfg(feature = "wasm-wrapper")]
+#[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 use alloc::{string::String, vec::Vec};
@@ -101,7 +101,7 @@ pub enum Kind {
     SystemReserveGas(u64),
 }
 
-#[cfg(not(feature = "wasm-wrapper"))]
+#[cfg(not(feature = "std"))]
 mod wasm {
     use super::Kind;
     use codec::Encode;

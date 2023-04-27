@@ -7,7 +7,7 @@ license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-gstd = { workspace = true, features = ["debug"] }
+gstd = { workspace = true }
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
 
 [build-dependencies]
@@ -16,6 +16,6 @@ gear-wasm-builder.workspace = true
 [lib]
 
 [features]
-wasm-wrapper = []
-std = ["wasm-wrapper", "codec/std"]
+debug = ["gstd/debug"]
+std = ["codec/std"]
 default = ["std"]

@@ -24,6 +24,7 @@ use crate::{
 use anyhow::{Context, Result};
 use gmeta::MetadataRepr;
 use pwasm_utils::parity_wasm::{self, elements::Internal};
+use regex::Regex;
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -60,6 +61,7 @@ pub struct WasmProject {
     file_base_name: Option<String>,
     profile: String,
     project_type: ProjectType,
+    features: Option<Vec<String>>,
 }
 
 impl WasmProject {
@@ -109,6 +111,7 @@ impl WasmProject {
             file_base_name: None,
             profile,
             project_type,
+            features: None,
         }
     }
 
@@ -127,11 +130,43 @@ impl WasmProject {
         &self.profile
     }
 
+    /// Return features available in the generated `Cargo.toml`.
+    pub fn features(&self) -> &[String] {
+        self.features
+            .as_ref()
+            .expect("Run project generation first")
+    }
+
+    /// Match a feature in the form of `feature_name` to one of the available features
+    /// in the generated `Cargo.toml` which can be in the form of `feature-name` or `feature_name`.
+    pub fn match_features(&self, features: &[String]) -> Result<Vec<String>> {
+        let mut matched_features = Vec::with_capacity(features.len());
+        for feature in features {
+            let feature = feature.replace('_', "[_-]");
+            let mut feature_regex = String::with_capacity(1 + feature.len() + 1);
+            feature_regex.push('^');
+            feature_regex.push_str(&feature);
+            feature_regex.push('$');
+            let featue_regex = Regex::new(&feature_regex)?;
+            if let Some(matched_feature) = self
+                .features()
+                .iter()
+                .find(|feature| featue_regex.is_match(feature))
+            {
+                matched_features.push(matched_feature.clone());
+            } else {
+                anyhow::bail!("Feature `{}` is not available", feature);
+            }
+        }
+        Ok(matched_features)
+    }
+
     /// Generate a temporary cargo project that includes the original package as a dependency.
     pub fn generate(&mut self) -> Result<()> {
         let original_manifest = self.original_dir.join("Cargo.toml");
         let crate_info = CrateInfo::from_manifest(&original_manifest)?;
         self.file_base_name = Some(crate_info.snake_case_name.clone());
+        self.features = Some(vec![]);
 
         let mut package = Table::new();
         package.insert("name".into(), format!("{}-wasm", &crate_info.name).into());
@@ -175,6 +210,7 @@ impl WasmProject {
                     feature.into(),
                     vec![format!("orig-project/{feature}")].into(),
                 );
+                self.features.as_mut().unwrap().push(feature.into());
             }
         }
 

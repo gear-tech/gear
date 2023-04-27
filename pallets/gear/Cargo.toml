@@ -152,8 +152,6 @@ runtime-benchmarks = [
 	"sp-consensus-babe",
 	"rand",
 	"rand_pcg",
-	"test-syscalls/wasm-wrapper",
-	"demo-proxy/wasm-wrapper",
 	"gsys",
 ]
 runtime-benchmarks-checkers = []
