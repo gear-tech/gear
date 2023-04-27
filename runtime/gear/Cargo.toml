@@ -126,6 +126,11 @@ runtime-benchmarks = [
 	"pallet-gear/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
+fuzz = [
+	"common/fuzz",
+	"pallet-gear/fuzz",
+	"pallet-gear-gas/fuzz"
+]
 runtime-benchmarks-checkers = [
 	"pallet-gear/runtime-benchmarks-checkers",
 ]

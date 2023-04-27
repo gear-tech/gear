@@ -22,7 +22,7 @@ runtime-primitives.workspace = true
 gear-common.workspace = true
 gear-core.workspace = true
 gear-utils.workspace = true
-gear-runtime = { workspace = true, features = ['lazy-pages'] }
+gear-runtime = { workspace = true, features = ["std", "fuzz", "lazy-pages"] }
 pallet-gear.workspace = true
 
 frame-support.workspace = true
