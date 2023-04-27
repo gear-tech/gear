@@ -73,7 +73,7 @@ jobs:
         with:
           toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
           targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
+          components: clippy, rustfmt
 
       - name: "Install: Pin to specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
@@ -788,6 +788,8 @@ jobs:
 
   check-fuzzer:
     runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}

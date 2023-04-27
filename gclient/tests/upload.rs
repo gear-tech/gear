@@ -115,7 +115,7 @@ async fn alloc_zero_pages() -> anyhow::Result<()> {
         .await?
         .with("//Bob")?;
     let codes = vec![wat::parse_str(wat_code).unwrap()];
-    upload_programs_and_check(&api, codes, Some(Duration::from_secs(5))).await
+    upload_programs_and_check(&api, codes, Some(Duration::from_secs(15))).await
 }
 
 #[tokio::test]

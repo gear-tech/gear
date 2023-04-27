@@ -129,16 +129,21 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::convert::TryInto;
+use sp_std::{convert::TryInto, prelude::*};
 
 pub use pallet::*;
 
 pub mod migration;
 
+pub(crate) type TaskPoolOf<T> =
+    <<T as Config>::Scheduler as common::scheduler::Scheduler>::TaskPool;
+
 #[frame_support::pallet]
 pub mod pallet {
+    use crate::migration::migrate;
+
     use super::*;
-    use common::{storage::*, CodeMetadata, Program};
+    use common::{scheduler::*, storage::*, CodeMetadata, Program};
     #[cfg(feature = "debug-mode")]
     use frame_support::storage::PrefixIterator;
     use frame_support::{
@@ -150,14 +155,23 @@ pub mod pallet {
         ids::{CodeId, MessageId, ProgramId},
         memory::{GearPage, PageBuf},
     };
+    use primitive_types::H256;
     use sp_runtime::DispatchError;
-    use sp_std::prelude::*;
 
     /// The current storage version.
-    const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {}
+    pub trait Config: frame_system::Config {
+        /// Scheduler.
+        type Scheduler: Scheduler<
+            BlockNumber = Self::BlockNumber,
+            Task = ScheduledTask<Self::AccountId>,
+        >;
+
+        /// Custom block number tracker.
+        type CurrentBlockNumber: Get<BlockNumberFor<Self>>;
+    }
 
     #[pallet::pallet]
     #[pallet::storage_version(PROGRAM_STORAGE_VERSION)]
@@ -235,13 +249,13 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type ProgramStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, (Program, T::BlockNumber)>;
+        StorageMap<_, Identity, ProgramId, Program<BlockNumberFor<T>>>;
 
     common::wrap_storage_map!(
         storage: ProgramStorage,
         name: ProgramStorageWrap,
         key: ProgramId,
-        value: (Program, T::BlockNumber)
+        value: Program<BlockNumberFor<T>>
     );
 
     #[pallet::storage]
@@ -269,8 +283,25 @@ pub mod pallet {
         value: Vec<MessageId>
     );
 
+    #[pallet::storage]
+    pub(crate) type PausedProgramStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, (BlockNumberFor<T>, H256)>;
+
+    common::wrap_storage_map!(
+        storage: PausedProgramStorage,
+        name: PausedProgramStorageWrap,
+        key: ProgramId,
+        value: (BlockNumberFor<T>, H256)
+    );
+
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_runtime_upgrade() -> Weight {
+            log::debug!(target: "gear::program", "⚙️ Runtime upgrade");
+
+            migrate::<T>()
+        }
+    }
 
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
         type InstrumentedCodeStorage = CodeStorageWrap<T>;
@@ -293,10 +324,14 @@ pub mod pallet {
         }
     }
 
+    impl<T: Config> common::PausedProgramStorage for pallet::Pallet<T> {
+        type PausedProgramMap = PausedProgramStorageWrap<T>;
+    }
+
     #[cfg(feature = "debug-mode")]
-    impl<T: Config> IterableMap<(ProgramId, (Program, T::BlockNumber))> for pallet::Pallet<T> {
-        type DrainIter = PrefixIterator<(ProgramId, (Program, T::BlockNumber))>;
-        type Iter = PrefixIterator<(ProgramId, (Program, T::BlockNumber))>;
+    impl<T: Config> IterableMap<(ProgramId, Program<BlockNumberFor<T>>)> for pallet::Pallet<T> {
+        type DrainIter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
+        type Iter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
 
         fn drain() -> Self::DrainIter {
             ProgramStorage::<T>::drain()

@@ -144,6 +144,7 @@ wabt = "0.10.0"
 wasmi = { version = "0.14.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
 winapi = "0.3.9"
+paste = "1.0"
 
 # Internal deps
 authorship = { package = "gear-authorship", path = "node/authorship" }
@@ -349,6 +350,7 @@ demo-signal-entry = { path = "examples/binaries/signal-entry" }
 demo-value-sender = { path = "examples/binaries/value-sender" }
 demo-waiter = { path = "examples/binaries/waiter" }
 demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
+demo-wait-wake = { path = "examples/binaries/wait_wake" }
 demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
 
 # Dependencies that only used in one package
