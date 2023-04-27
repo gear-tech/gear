@@ -134,7 +134,7 @@ impl WasmProject {
     pub fn features(&self) -> &[String] {
         self.features
             .as_ref()
-            .expect("Run project generation first")
+            .expect("Run `WasmProject::generate()` first")
     }
 
     /// Match a feature in the form of `feature_name` to one of the available features
@@ -166,7 +166,6 @@ impl WasmProject {
         let original_manifest = self.original_dir.join("Cargo.toml");
         let crate_info = CrateInfo::from_manifest(&original_manifest)?;
         self.file_base_name = Some(crate_info.snake_case_name.clone());
-        self.features = Some(vec![]);
 
         let mut package = Table::new();
         package.insert("name".into(), format!("{}-wasm", &crate_info.name).into());
@@ -210,9 +209,9 @@ impl WasmProject {
                     feature.into(),
                     vec![format!("orig-project/{feature}")].into(),
                 );
-                self.features.as_mut().unwrap().push(feature.into());
             }
         }
+        self.features = Some(features.keys().cloned().collect());
 
         let mut cargo_toml = Table::new();
         cargo_toml.insert("package".into(), package.into());
@@ -267,7 +266,7 @@ impl WasmProject {
         let file_base_name = self
             .file_base_name
             .as_ref()
-            .expect("Run `WasmProject::create_project()` first");
+            .expect("Run `WasmProject::generate()` first");
 
         let from_path = self
             .target_dir
