@@ -150,7 +150,10 @@ impl fmt::Display for WSAddress {
 
 impl From<SocketAddrV4> for WSAddress {
     fn from(addr: SocketAddrV4) -> Self {
-        Self::new(addr.ip().to_string(), addr.port())
+        let tls = addr.port() == 443;
+        let scheme_prefix = tls.then(|| "wss").unwrap_or("ws").to_string() + "://";
+
+        Self::new(scheme_prefix + &addr.ip().to_string(), addr.port())
     }
 }
 
@@ -165,7 +168,7 @@ impl TryInto<SocketAddrV4> for WSAddress {
             match domain[0] {
                 "ws" => (domain[1], 80),
                 "wss" => (domain[1], 443),
-                _ => return Err(anyhow!("Invalid protocol").into()),
+                _ => return Err(anyhow!("Invalid scheme").into()),
             }
         };
 
