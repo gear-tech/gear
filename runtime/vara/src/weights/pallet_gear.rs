@@ -455,9 +455,9 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 120_198 nanoseconds.
-        Weight::from_ref_time(130_172_800)
+        Weight::from_parts(130_172_800, 0)
             // Standard Error: 2_420_191
-            .saturating_add(Weight::from_ref_time(9_196_990).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(9_196_990, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_program_id(r: u32, ) -> Weight {
@@ -2205,9 +2205,9 @@ impl WeightInfo for () {
         //  Measured:  `0`
         //  Estimated: `0`
         // Minimum execution time: 120_198 nanoseconds.
-        Weight::from_ref_time(130_172_800)
+        Weight::from_parts(130_172_800, 0)
             // Standard Error: 2_420_191
-            .saturating_add(Weight::from_ref_time(9_196_990).saturating_mul(r.into()))
+            .saturating_add(Weight::from_parts(9_196_990, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_program_id(r: u32, ) -> Weight {
