@@ -40,6 +40,7 @@ pub const TARGET: &str = env!("TARGET");
 pub struct WasmBuilder {
     wasm_project: WasmProject,
     cargo: CargoCommand,
+    excluded_features: Vec<&'static str>,
 }
 
 impl WasmBuilder {
@@ -48,6 +49,7 @@ impl WasmBuilder {
         WasmBuilder {
             wasm_project: WasmProject::new(ProjectType::Program(None)),
             cargo: CargoCommand::new(),
+            excluded_features: vec![],
         }
     }
 
@@ -56,6 +58,7 @@ impl WasmBuilder {
         WasmBuilder {
             wasm_project: WasmProject::new(ProjectType::Metawasm),
             cargo: CargoCommand::new(),
+            excluded_features: vec![],
         }
     }
 
@@ -64,16 +67,23 @@ impl WasmBuilder {
         WasmBuilder {
             wasm_project: WasmProject::new(ProjectType::Program(Some(metadata))),
             cargo: CargoCommand::new(),
+            excluded_features: vec![],
         }
     }
 
+    /// Exclude features from the build.
+    pub fn exclude_features(mut self, features: impl Into<Vec<&'static str>>) -> Self {
+        self.excluded_features = features.into();
+        self
+    }
+
     /// Build the program and produce an output WASM binary.
-    pub fn build(self, features_to_exclude: &[&str]) {
+    pub fn build(self) {
         if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() {
             return;
         }
 
-        if let Err(e) = self.build_project(features_to_exclude) {
+        if let Err(e) = self.build_project() {
             eprintln!("error: {e}");
             e.chain()
                 .skip(1)
@@ -84,7 +94,7 @@ impl WasmBuilder {
         WasmBuilder::force_build_script_rebuild_on_next_run();
     }
 
-    fn build_project(mut self, features_to_exclude: &[&str]) -> Result<()> {
+    fn build_project(mut self) -> Result<()> {
         // TODO: Check nightly toolchain
         self.wasm_project.generate()?;
 
@@ -96,7 +106,7 @@ impl WasmBuilder {
         self.cargo.set_profile(profile.to_string());
         self.cargo.set_features(&WasmBuilder::enabled_features(
             &self.wasm_project,
-            features_to_exclude,
+            &self.excluded_features,
         )?);
 
         self.cargo.run()?;
@@ -149,8 +159,10 @@ pub fn build() {
 }
 
 /// Shorthand function similar to the [`build`] one, but allowing some customizations.
-pub fn build_custom(features_to_exclude: &[&str]) {
-    WasmBuilder::new().build(features_to_exclude);
+pub fn build_custom(features_to_exclude: &[&'static str]) {
+    WasmBuilder::new()
+        .exclude_features(features_to_exclude.to_vec())
+        .build();
 }
 
 /// Shorthand function to be used in `build.rs`.
@@ -159,8 +171,10 @@ pub fn build_with_metadata<T: Metadata>() {
 }
 
 /// Shorthand function similar to the [`build_with_metadata`] one, but allowing some customizations.
-pub fn build_with_metadata_custom<T: Metadata>(features_to_exclude: &[&str]) {
-    WasmBuilder::with_meta(T::repr()).build(features_to_exclude);
+pub fn build_with_metadata_custom<T: Metadata>(features_to_exclude: &[&'static str]) {
+    WasmBuilder::with_meta(T::repr())
+        .exclude_features(features_to_exclude)
+        .build();
 }
 
 /// Shorthand function to be used in `build.rs`.
@@ -169,6 +183,8 @@ pub fn build_metawasm() {
 }
 
 /// Shrthand function similar to the [`build_metawasm`] one, but allowing some customizations.
-pub fn build_metawasm_custom(features_to_exclude: &[&str]) {
-    WasmBuilder::new_metawasm().build(features_to_exclude);
+pub fn build_metawasm_custom(features_to_exclude: &[&'static str]) {
+    WasmBuilder::new_metawasm()
+        .exclude_features(features_to_exclude)
+        .build();
 }
