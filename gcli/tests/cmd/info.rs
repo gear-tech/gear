@@ -61,7 +61,6 @@ const EXPECTED_MAILBOX: &str = r#"
     payload: "0x",
     value: 0,
     details: None,
-}
 "#;
 
 #[cfg(not(feature = "vara-testing"))]
@@ -90,7 +89,7 @@ async fn test_action_mailbox_works() -> Result<()> {
 
     let stdout = output.stdout.convert();
     if !stdout.contains(EXPECTED_MAILBOX.trim()) {
-        panic!("{stdout}")
+        panic!("{stdout}, {EXPECTED_MAILBOX}")
     }
     Ok(())
 }
