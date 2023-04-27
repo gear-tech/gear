@@ -911,13 +911,13 @@ where
     )
     .expect("sys-call check program deploy failed");
 
+    utils::run_to_next_block::<T>(None);
+
     assert_ok!(Gear::<T>::pay_rent(
         RawOrigin::Signed(default_account).into(),
         tester_pid,
         1_000u32.into()
     ));
-
-    utils::run_to_next_block::<T>(None);
 
     let (call, post_check) = get_test_call_params(tester_pid, child_code_hash);
     let sender;
