@@ -77,17 +77,17 @@ pub mod v1 {
 
     #[derive(Decode, Default)]
     pub struct WaitlistKey((ProgramId, MessageId));
-    impl Into<MessageId> for WaitlistKey {
-        fn into(self) -> MessageId {
-            self.0 .1
+    impl From<WaitlistKey> for MessageId {
+        fn from(val: WaitlistKey) -> Self {
+            val.0 .1
         }
     }
 
     #[derive(Decode, Default)]
     pub struct MailboxKey<T: Config>((T::AccountId, MessageId));
-    impl<T: Config> Into<MessageId> for MailboxKey<T> {
-        fn into(self) -> MessageId {
-            self.0 .1
+    impl<T: Config> From<MailboxKey<T>> for MessageId {
+        fn from(val: MailboxKey<T>) -> Self {
+            val.0 .1
         }
     }
 
@@ -144,7 +144,7 @@ pub mod v1 {
                 let dispatch_stash_keys = KeyPrefixIterator::new(
                     dispatch_stash_storage_prefix.to_vec(),
                     dispatch_stash_storage_prefix.to_vec(),
-                    |mut key| Ok(DispatchStashKey::decode(&mut key)?),
+                    |mut key| DispatchStashKey::decode(&mut key),
                 )
                 .collect::<BTreeSet<_>>();
 
