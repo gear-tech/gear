@@ -30,7 +30,7 @@
 use super::*;
 
 use crate::WaitlistOf;
-use frame_support::traits::Randomness;
+use frame_support::{assert_ok, traits::Randomness};
 use gear_core::ids::{CodeId, ReservationId};
 use gear_core_errors::{ExtError, MessageError};
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -902,7 +902,7 @@ where
         100_000_000_000_000_u128.unique_saturated_into(),
     );
     Gear::<T>::upload_program(
-        RawOrigin::Signed(default_account).into(),
+        RawOrigin::Signed(default_account.clone()).into(),
         SYSCALLS_TEST_WASM_BINARY.to_vec(),
         b"".to_vec(),
         child_code_hash.encode(),
@@ -910,6 +910,12 @@ where
         0u128.unique_saturated_into(),
     )
     .expect("sys-call check program deploy failed");
+
+    assert_ok!(Gear::<T>::pay_rent(
+        RawOrigin::Signed(default_account).into(),
+        tester_pid,
+        1_000u32.into()
+    ));
 
     utils::run_to_next_block::<T>(None);
 
