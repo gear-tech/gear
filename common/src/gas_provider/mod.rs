@@ -37,7 +37,7 @@ pub use error::Error;
 pub use internal::TreeImpl;
 pub use lockable::{LockId, LockableTree};
 pub use negative_imbalance::NegativeImbalance;
-pub use node::{GasNode, GasNodeId};
+pub use node::{ChildrenRefs, GasNode, GasNodeId, NodeLock};
 pub use positive_imbalance::PositiveImbalance;
 pub use reservable::ReservableTree;
 

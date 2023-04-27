@@ -117,6 +117,15 @@ impl<Balance: Add<Output = Balance> + Copy> Add<Self> for NodeLock<Balance> {
     }
 }
 
+#[cfg(feature = "extended-lock")]
+impl<Balance: Zero + Copy + sp_runtime::traits::Saturating> NodeLock<Balance> {
+    pub fn total_locked(&self) -> Balance {
+        self.0
+            .iter()
+            .fold(Balance::zero(), |acc, v| acc.saturating_add(*v))
+    }
+}
+
 /// Node of the ['Tree'] gas tree
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 #[codec(crate = codec)]

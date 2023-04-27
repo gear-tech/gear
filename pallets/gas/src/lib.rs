@@ -128,7 +128,7 @@ use common::{
     storage::{MapStorage, ValueStorage},
     BlockLimiter, GasProvider,
 };
-use frame_support::{dispatch::DispatchError, pallet_prelude::*};
+use frame_support::{dispatch::DispatchError, pallet_prelude::*, traits::StorageVersion};
 pub use pallet::*;
 pub use primitive_types::H256;
 use sp_std::convert::TryInto;
@@ -139,8 +139,13 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub mod migrations;
+
 type BlockGasLimitOf<T> = <T as Config>::BlockGasLimit;
 type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+
+/// The current storage version.
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -157,6 +162,8 @@ pub mod pallet {
     }
 
     #[pallet::pallet]
+    #[pallet::storage_version(STORAGE_VERSION)]
+    #[pallet::without_storage_info]
     pub struct Pallet<T>(_);
 
     // Gas pallet error.
