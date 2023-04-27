@@ -880,14 +880,10 @@ impl<'a> WasmGen<'a> {
         let reserve_gas_call_data = call_data.get(&CallName::System(SysCallName::ReserveGas));
         let reservation_send_call_data =
             call_data.get(&CallName::System(SysCallName::ReservationSend));
-        let (reserve_gas_call_data, reservation_send_call_data) =
-            if let (Some(reserve_gas_call_data), Some(reservation_send_call_data)) =
-                (reserve_gas_call_data, reservation_send_call_data)
-            {
-                (reserve_gas_call_data, reservation_send_call_data)
-            } else {
-                return (module, None);
-            };
+        let (Some(reserve_gas_call_data), Some(reservation_send_call_data)) =
+            (reserve_gas_call_data, reservation_send_call_data) else {
+            return (module, None);
+        };
         let send_from_reservation_signature = SysCallSignature {
             params: vec![
                 ParamType::Ptr,      // Address of recipient and value (HashWithValue struct)
@@ -982,7 +978,9 @@ impl<'a> WasmGen<'a> {
             module_builder.build(),
             Some(CallData {
                 info: send_from_reservation_call_info,
-                call_amount: reservation_send_call_data.call_amount, // Could be generated from Unstructured based on code size
+                // Could be generated from Unstructured based on code size,
+                // but apparently this level os randomness suffices
+                call_amount: reservation_send_call_data.call_amount,
                 call_index: call_idx,
                 call_body_index: Some(func_location.body),
             }),
