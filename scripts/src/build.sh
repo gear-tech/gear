@@ -23,12 +23,17 @@ build_usage() {
     wasm-proc      build wasm-proc util
     examples-proc  process built examples via wasm-proc
     node           build node
+    wat-examples   build wat-examples
 
 EOF
 }
 
 gear_build() {
-  $CARGO build --workspace "$@"
+  echo "  >> Build workspace without crates that use runtime with 'fuzz' feature"
+  $CARGO build --workspace "$@" --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz
+
+  echo "  >> Build crates that use runtime with 'fuzz' feature"
+  $CARGO +nightly build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
 }
 
 gear_test_build() {

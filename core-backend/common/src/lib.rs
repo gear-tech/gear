@@ -341,6 +341,7 @@ pub trait BackendState {
                 )) = err
                 {
                     let len = ext_err.encoded_size() as u32;
+                    log::trace!(target: "syscalls", "fallible syscall error: {ext_err}");
                     self.set_fallible_syscall_error(ext_err);
                     Ok(Err(len))
                 } else {

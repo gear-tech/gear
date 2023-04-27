@@ -46,7 +46,7 @@ async fn upload_programs_and_check(
         .map(|code| (code, gclient::now_micros().to_le_bytes(), "", gas_limit, 0))
         .collect();
     let (ex_res, _) = if let Some(timeout) = timeout {
-        async_std::future::timeout(timeout, api.upload_program_bytes_batch(args))
+        tokio::time::timeout(timeout, api.upload_program_bytes_batch(args))
             .await
             .expect("Too long test upload time - something goes wrong.")?
     } else {
