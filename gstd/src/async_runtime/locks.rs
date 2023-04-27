@@ -177,8 +177,18 @@ impl LocksMap {
     }
 
     pub fn remove_message_entry(&mut self, message_id: MessageId) {
-        // TODO: check this place #2385
-        self.0.remove(&message_id);
+        // in some cases this function gets called even if there are still locks
+        // so this may need a further investigation
+        if self
+            .0
+            .get(&message_id)
+            .expect("Cannot get lock maps for message")
+            .is_empty()
+        {
+            self.0.remove(&message_id);
+        } else {
+            panic!("Cannot remove message entry with locks");
+        }
     }
 
     /// Check if message is timed out.
