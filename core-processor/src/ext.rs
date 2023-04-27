@@ -487,7 +487,7 @@ impl EnvExt for Ext {
 
     fn alloc(
         &mut self,
-        pages_num: WasmPage,
+        pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
         self.alloc_inner::<NoopGrowHandler>(pages_num, mem)
@@ -873,9 +873,11 @@ impl Ext {
     /// Inner alloc realization.
     pub fn alloc_inner<G: GrowHandler>(
         &mut self,
-        pages: WasmPage,
+        pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, ProcessorAllocError> {
+        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
+
         self.context
             .allocations_context
             .alloc::<G>(pages, mem, |pages| {
@@ -1232,7 +1234,7 @@ mod tests {
                 for action in actions {
                     match action {
                         Action::Alloc { pages } => {
-                            if let Err(err) = ext.alloc(pages, &mut mem) {
+                            if let Err(err) = ext.alloc(pages.raw(), &mut mem) {
                                 assert_alloc_error(err);
                             }
                         }
