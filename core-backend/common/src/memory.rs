@@ -21,8 +21,9 @@
 // TODO: make unit tests for `MemoryAccessManager` (issue #2068)
 
 use crate::BackendExt;
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::{collections::BTreeMap, vec, vec::Vec};
 use core::{
+    any::type_name,
     fmt::Debug,
     marker::PhantomData,
     mem,
@@ -255,6 +256,12 @@ impl<E: BackendExt> MemoryAccessRecorder for MemoryAccessManager<E> {
 }
 
 impl<E: BackendExt> MemoryAccessManager<E> {
+    fn flush_read_tokens(&mut self) -> Vec<ReadToken> {
+        let mut out = vec![];
+        mem::swap(&mut self.reads, &mut out);
+        out
+    }
+
     fn save_read_token(&mut self, token: ReadToken) -> Result<(), MemoryAccessError> {
         RuntimeBuffer::check_size(token.interval.size as usize)?;
         self.reads.push(token);
@@ -269,20 +276,20 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         if self.reads.is_empty() {
             return Ok(());
         }
-        let reads: Vec<MemoryInterval> = self.reads.iter().map(|token| token.interval).collect();
+        let read_tokens = self.flush_read_tokens();
+        let reads: Vec<MemoryInterval> = read_tokens.iter().map(|token| token.interval).collect();
         let reads_data = E::access_memory_reads(memory, &reads, gas_left)?;
         if reads.len() != reads_data.len() {
             unreachable!(
                 "Wrong memory backend behavior - must return the same amount of reads data buffers"
             );
         }
-        self.reads.iter().zip(reads_data.into_iter()).for_each(|(token, data)| {
+        read_tokens.iter().zip(reads_data.into_iter()).for_each(|(token, data)| {
             if data.len() != token.interval.size as usize {
                 unreachable!("Wrong memory backend behavior - must return the same size of data buffer for each read");
             }
             self.reads_data.insert(token.private_clone(), data);
         });
-        self.reads.clear();
         Ok(())
     }
 
@@ -296,20 +303,23 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         let size = u32::try_from(data.len())
             .unwrap_or_else(|_| unreachable!("Write buffer size is bigger than u32::MAX"));
         let write = MemoryInterval { offset, size };
-        let reads: Vec<MemoryInterval> = self.reads.iter().map(|token| token.interval).collect();
+        let read_tokens = self.flush_read_tokens();
+        let reads: Vec<MemoryInterval> = read_tokens.iter().map(|token| token.interval).collect();
+
         let reads_data = E::access_memory_with_writes(memory, &reads, &[(write, data)], gas_left)?;
         if reads.len() != reads_data.len() {
             unreachable!(
                 "Wrong memory backend behavior - must return the same amount of reads data buffers"
             );
         }
-        self.reads.iter().zip(reads_data.into_iter()).for_each(|(token, data)| {
+
+        read_tokens.iter().zip(reads_data.into_iter()).for_each(|(token, data)| {
             if data.len() != token.interval.size as usize {
                 unreachable!("Wrong memory backend behavior - must return the same size of data buffer for each read");
             }
             self.reads_data.insert(token.private_clone(), data);
         });
-        self.reads.clear();
+
         Ok(())
     }
 
@@ -340,7 +350,7 @@ impl<E: BackendExt> MemoryAccessManager<E> {
             .reads_data
             .remove(&token.into())
             .unwrap_or_else(|| unreachable!("Given token is not created by this memory manager"));
-        interpret_as(&data)
+        Ok(interpret_as(&data))
     }
 
     /// Pre-process registered accesses if need and read and decode data as `T` from `memory`.
@@ -395,6 +405,8 @@ impl<E: BackendExt> MemoryAccessManager<E> {
 /// Reads bytes from given pointer to construct type T from them.
 fn interpret_as<T: Sized>(data: &[u8]) -> T {
     let mut buf = MaybeUninit::<T>::uninit();
+
+    log::trace!("{} {}", type_name::<T>(), mem::size_of::<T>());
 
     // # Safety:
     //
