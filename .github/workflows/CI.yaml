@@ -217,7 +217,7 @@ jobs:
         run: ./scripts/gear.sh build gear --locked --release
 
       - name: "Build fuzzer"
-        run: ./scripts/gear.sh build fuzzer --locked --release
+        run: ./scripts/gear.sh build fuzz --locked --release
 
       - name: "Build: WAT examples"
         run: ./scripts/gear.sh build wat-examples
