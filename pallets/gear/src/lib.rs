@@ -1724,6 +1724,13 @@ pub mod pallet {
                     let r = TaskPoolOf::<T>::add(expiration_block, task);
                     log::debug!("TaskPool::add result = {r:?}");
 
+                    Self::deposit_event(Event::ProgramChanged {
+                        id: program_id,
+                        change: ProgramChangeKind::ExpirationChanged {
+                            expiration: expiration_block,
+                        },
+                    });
+
                     Ok(())
                 },
             )

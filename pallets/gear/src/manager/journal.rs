@@ -649,6 +649,13 @@ where
 
             let r = TaskPoolOf::<T>::add(expiration_block, task);
             log::debug!("TaskPool::add result = {r:?}");
+
+            Pallet::<T>::deposit_event(Event::ProgramChanged {
+                id: program_id,
+                change: ProgramChangeKind::ExpirationChanged {
+                    expiration: expiration_block,
+                },
+            });
         })
         .unwrap_or_else(|e| {
             log::debug!("Hold period may only be set for active program {e:?}");
