@@ -11,13 +11,9 @@ members = [
     "futures-unordered",
     "mutex",
     "piggy-bank",
-    "rwlock",
-    "rwlock_write",
 ]
 
-exclude = [
-    "binaries/*"
-]
+exclude = ["binaries/*"]
 
 [workspace.dependencies]
 galloc = { path = "../galloc" }
