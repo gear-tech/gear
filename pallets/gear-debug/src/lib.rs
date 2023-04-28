@@ -57,7 +57,8 @@ pub mod pallet {
         type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
 
         /// Storage with programs data.
-        type ProgramStorage: ProgramStorage + IterableMap<(ProgramId, (Program, Self::BlockNumber))>;
+        type ProgramStorage: ProgramStorage
+            + IterableMap<(ProgramId, common::Program<Self::BlockNumber>)>;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
@@ -137,18 +138,18 @@ pub mod pallet {
                 .collect();
 
             let programs = T::ProgramStorage::iter()
-                .map(|(id, (prog, _bn))| {
-                    let Program::Active(program) = prog else {
+                .map(|(id, program)| {
+                    let Program::Active(active) = program else {
                         return ProgramDetails {
                             id,
                             state: ProgramState::Inactive,
                         }
                     };
 
-                    let code_id = CodeId::from_origin(program.code_hash);
+                    let code_id = CodeId::from_origin(active.code_hash);
                     let persistent_pages = T::ProgramStorage::get_program_data_for_pages(
                         id,
-                        program.pages_with_data.iter(),
+                        active.pages_with_data.iter(),
                     )
                     .unwrap_or_else(|e| unreachable!("Program storage corrupted! {:?}", e));
 

@@ -3672,6 +3672,7 @@ dependencies = [
  "hex",
  "log",
  "parity-scale-codec",
+ "paste",
  "scale-info",
  "static_assertions",
  "wabt",
@@ -6868,6 +6869,7 @@ dependencies = [
  "demo-signal-entry",
  "demo-value-sender",
  "demo-wait-timeout",
+ "demo-wait-wake",
  "demo-waiter",
  "demo-waiting-proxy",
  "derive_more",
@@ -7057,6 +7059,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std 5.0.0",
+ "static_assertions",
 ]
 
 [[package]]

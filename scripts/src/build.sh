@@ -14,6 +14,7 @@ build_usage() {
     help           show help message and exit
 
     gear           build gear workspace
+    fuzz           build fuzzer crates
     examples       build gear program examples
     wasm-proc      build wasm-proc util
     examples-proc  process built examples via wasm-proc
@@ -24,7 +25,15 @@ EOF
 }
 
 gear_build() {
-  $CARGO build --workspace "$@"
+  $CARGO build --workspace "$@" --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz
+}
+
+fuzzer_build() {
+  $CARGO +nightly build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
+}
+
+gear_test_build() {
+  $CARGO build -p gear-test "$@"
 }
 
 node_build() {
