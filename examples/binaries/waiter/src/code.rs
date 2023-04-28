@@ -1,6 +1,6 @@
 use crate::Command;
 
-use gstd::{errors::ContractError, exec, msg, MessageId};
+use gstd::{exec, msg};
 
 #[gstd::async_main]
 async fn main() {
@@ -15,29 +15,33 @@ async fn main() {
                 .expect("send message failed")
                 .exactly(Some(duration))
                 .expect("Invalid wait duration.")
-                .await;
+                .await
+                .expect("Received error reply");
         }
         Command::SendUpTo(to, duration) => {
             msg::send_bytes_for_reply(to, [], 0)
                 .expect("send message failed")
                 .up_to(Some(duration))
                 .expect("Invalid wait duration.")
-                .await;
+                .await
+                .expect("Received error reply");
         }
         Command::SendUpToWait(to, duration) => {
             msg::send_bytes_for_reply(to, [], 0)
                 .expect("send message failed")
                 .up_to(Some(duration))
                 .expect("Invalid wait duration.")
-                .await;
+                .await
+                .expect("Received error reply");
 
             // after waking, wait again.
             msg::send_bytes_for_reply(to, [], 0)
                 .expect("send message failed")
-                .await;
+                .await
+                .expect("Received error reply");
         }
         Command::SendAndWaitFor(duration, to) => {
-            msg::send(to, b"ping", 0);
+            msg::send(to, b"ping", 0).expect("Failed to send message");
             exec::wait_for(duration);
         }
     }

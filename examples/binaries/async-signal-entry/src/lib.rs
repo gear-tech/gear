@@ -37,7 +37,7 @@ pub enum InitAction {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::*;
-    use gstd::{exec, msg, ActorId};
+    use gstd::{exec, msg};
 
     #[gstd::async_init]
     async fn init() {
@@ -54,11 +54,6 @@ mod wasm {
     #[gstd::async_main]
     async fn main() {
         msg::reply(b"handle_signal", 0).unwrap();
-        exec::wait();
-    }
-
-    fn my_handle_reply() {
-        exec::system_reserve_gas(1_000_000).unwrap();
         exec::wait();
     }
 }

@@ -12,6 +12,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 mod wasm {
     use gstd::{exec, msg};
 
+    #[allow(unreachable_code)]
     #[no_mangle]
     extern "C" fn handle() {
         exec::exit(msg::source());

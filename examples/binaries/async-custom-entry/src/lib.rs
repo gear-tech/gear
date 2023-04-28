@@ -28,7 +28,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{exec, msg, ActorId};
+    use gstd::{msg, ActorId};
 
     static mut USER: ActorId = ActorId::zero();
 
@@ -41,6 +41,7 @@ mod wasm {
 
     #[gstd::async_main]
     async fn main() {
+        #[allow(clippy::empty_loop)]
         loop {}
     }
 

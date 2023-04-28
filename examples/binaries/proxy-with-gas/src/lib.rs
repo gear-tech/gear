@@ -38,7 +38,7 @@ pub struct InputArgs {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use crate::InputArgs;
-    use gstd::{msg, ActorId, ToString};
+    use gstd::{msg, ActorId};
 
     static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
     static mut DELAY: u32 = 0;

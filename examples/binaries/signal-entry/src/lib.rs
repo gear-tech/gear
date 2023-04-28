@@ -160,6 +160,7 @@ mod wasm {
                 exec::system_reserve_gas(5_000_000_000).unwrap();
                 // used to found message id in test
                 msg::reply(0, 0).unwrap();
+                #[allow(clippy::empty_loop)]
                 loop {}
             }
             HandleAction::AcrossWaits => {

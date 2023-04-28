@@ -28,7 +28,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{msg, ActorId, ToString};
+    use gstd::{msg, ActorId};
 
     static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
 
@@ -39,7 +39,7 @@ mod wasm {
             .expect("Error sending message")
             .await
         {
-            msg::reply(outcome, 0);
+            msg::reply(outcome, 0).expect("Failed to send reply");
         }
     }
 
@@ -47,6 +47,6 @@ mod wasm {
     extern "C" fn init() {
         let dest: ActorId = msg::load().expect("Expecting a contract address");
         unsafe { DESTINATION = dest };
-        msg::reply((), 0);
+        msg::reply((), 0).expect("Failed to send reply");
     }
 }

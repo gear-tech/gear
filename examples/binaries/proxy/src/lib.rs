@@ -37,15 +37,9 @@ pub struct InputArgs {
 #[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     use crate::InputArgs;
-    use gstd::{msg, ActorId, ToString};
+    use gstd::{msg, ActorId};
 
     static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
-
-    gstd::metadata! {
-        title: "tests-proxy",
-        handle:
-            input: InputArgs,
-    }
 
     #[no_mangle]
     extern "C" fn handle() {

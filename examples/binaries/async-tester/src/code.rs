@@ -1,7 +1,7 @@
 use crate::Kind;
 use gstd::{
-    exec, msg::{self, MessageHandle},
-    prelude::{vec, *},
+    msg::{self, MessageHandle},
+    prelude::*,
 };
 
 #[no_mangle]

@@ -13,21 +13,18 @@ mod wasm {
     use gcore::msg;
     use gstd::exec;
 
-    #[no_mangle]
-    extern "C" fn handle() {}
-
+    #[allow(unreachable_code)]
     #[no_mangle]
     extern "C" fn init() {
         let shall_reply_before_exit: bool = {
             let mut flag = [0u8];
-            msg::read(&mut flag);
+            msg::read(&mut flag).expect("Failed to read message");
             u8::from_le_bytes(flag) == 1
         };
         if shall_reply_before_exit {
             msg::reply(b"If you read this, I'm dead", 0).unwrap();
             exec::exit(gstd::msg::source());
         } else {
-            #[allow(unreachable_code)]
             exec::exit(gstd::msg::source());
             // should not be executed
             msg::reply(b"reply", 0).unwrap();

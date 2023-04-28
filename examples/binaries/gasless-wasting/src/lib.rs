@@ -37,7 +37,7 @@ pub struct InputArgs {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use crate::InputArgs;
-    use gstd::{msg, ActorId};
+    use gstd::msg;
 
     #[no_mangle]
     extern "C" fn handle() {

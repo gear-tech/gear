@@ -32,7 +32,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 mod wasm {
     extern crate alloc;
 
-    use gstd::{debug, exec, msg};
+    use gstd::{debug, msg};
 
     #[no_mangle]
     extern "C" fn handle() {

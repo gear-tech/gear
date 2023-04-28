@@ -47,7 +47,6 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle() {
-        let gas_limit: u64 = msg::load().expect("Failed to decode `gas_limit: u64'");
         let reservation_id = ReservationId::reserve(unsafe { RESERVATION_AMOUNT }, 80)
             .expect("Failed to reserve gas");
         msg::send_delayed_from_reservation(

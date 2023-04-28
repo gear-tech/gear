@@ -51,18 +51,9 @@ pub enum RelayCall {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::*;
-    use gstd::{
-        msg::{self, MessageHandle},
-        ToString,
-    };
+    use gstd::msg::{self, MessageHandle};
 
     static mut RELAY_CALL: Option<RelayCall> = None;
-
-    gstd::metadata! {
-        title: "tests-proxy-relay",
-        handle:
-            input: RelayCall,
-    }
 
     fn resend_push(resend_pushes: &[ResendPushData]) {
         for data in resend_pushes {
@@ -80,10 +71,10 @@ mod wasm {
                     None => {
                         msg_handle.push_input(s..).expect("Push failed");
                     }
-                    Some((e, included @ true)) => {
+                    Some((e, true)) => {
                         msg_handle.push_input(s..=e).expect("Push failed");
                     }
-                    Some((e, _)) => {
+                    Some((e, false)) => {
                         msg_handle.push_input(s..e).expect("Push failed");
                     }
                 },
@@ -91,10 +82,10 @@ mod wasm {
                     None => {
                         msg_handle.push_input(..).expect("Push failed");
                     }
-                    Some((e, included @ true)) => {
+                    Some((e, true)) => {
                         msg_handle.push_input(..=e).expect("Push failed");
                     }
-                    Some((e, _)) => {
+                    Some((e, false)) => {
                         msg_handle.push_input(..e).expect("Push failed");
                     }
                 },
@@ -113,7 +104,7 @@ mod wasm {
 
         match relay_call {
             Resend(d) => {
-                msg::send_input(*d, msg::value(), ..msg::size() as usize).expect("Resend failed");
+                msg::send_input(*d, msg::value(), ..msg::size()).expect("Resend failed");
             }
             ResendWithGas(d, gas) => {
                 msg::send_input_with_gas(*d, *gas, msg::value(), ..).expect("Resend wgas failed");
@@ -122,7 +113,7 @@ mod wasm {
                 resend_push(data);
             }
             Rereply => {
-                msg::reply_input(msg::value(), 0..msg::size() as usize).expect("Rereply failed");
+                msg::reply_input(msg::value(), 0..msg::size()).expect("Rereply failed");
             }
             RereplyPush => {
                 msg::reply_push_input(0..).expect("Push failed");

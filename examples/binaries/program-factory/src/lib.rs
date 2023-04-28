@@ -83,7 +83,7 @@ mod wasm {
                     let (_message_id, new_program_id) =
                         prog::create_program_with_gas(submitted_code, &salt, [], gas_limit, 0)
                             .unwrap();
-                    let msg_id = msg::send_bytes(new_program_id, [], 0).unwrap();
+                    msg::send_bytes(new_program_id, [], 0).unwrap();
                 }
             }
         };
@@ -92,7 +92,7 @@ mod wasm {
     #[no_mangle]
     extern "C" fn handle_reply() {
         if msg::status_code().unwrap() != 0 {
-            let origin = unsafe { ORIGIN.clone().unwrap() };
+            let origin = unsafe { ORIGIN.unwrap() };
             msg::send_bytes(origin, [], 0).unwrap();
         }
     }
