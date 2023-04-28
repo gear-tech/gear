@@ -9,27 +9,13 @@ const WASM_PATH: &str = "../target/wasm32-unknown-unknown/release";
 
 async fn upload_programs(api: &GearApi) -> Result<HashMap<&str, ProgramId>> {
     let init_payloads = vec![
-        ("demo_piggy_bank", vec![]),
-        ("demo_ping", vec![]),
-        ("demo_state_rollback", vec![]),
         ("demo_async_tester", vec![]),
         ("demo_btree", vec![]),
         ("demo_calc_hash_in_one_block", vec![]),
         ("demo_distributor", vec![]),
-        ("demo_exit_handle", vec![]),
         ("demo_exit_handle_sender", vec![]),
-        ("demo_gas_burned", vec![]),
         ("demo_gasless_wasting", vec![]),
         ("demo_mul_by_const", 42_u64.encode()),
-        ("demo_ncompose", (gstd::ActorId::zero(), 42_u16).encode()),
-        (
-            "demo_new_meta",
-            demo_meta_io::MessageInitIn {
-                amount: 42,
-                currency: "USD".to_string(),
-            }
-            .encode(),
-        ),
         (
             "demo_node",
             demo_node::Initialization { status: 42 }.encode(),
@@ -76,7 +62,7 @@ async fn upload_programs(api: &GearApi) -> Result<HashMap<&str, ProgramId>> {
     }
 
     // Upload code for `demo_program_factory`
-    api.upload_code_by_path("../examples/binaries/program-factory/child_contract.wasm")
+    api.upload_code_by_path("../examples/program-factory/child_contract.wasm")
         .await?;
 
     Ok(progs)
@@ -84,9 +70,6 @@ async fn upload_programs(api: &GearApi) -> Result<HashMap<&str, ProgramId>> {
 
 async fn send_messages(api: &GearApi, progs: &HashMap<&str, ProgramId>) -> Result<()> {
     let handle_payloads = vec![
-        ("demo_piggy_bank", b"smash".to_vec()),
-        ("demo_ping", b"PING".to_vec()),
-        ("demo_state_rollback", b"leave".to_vec()),
         (
             "demo_async_tester",
             demo_async_tester::Kind::SendCommit.encode(),
@@ -107,7 +90,6 @@ async fn send_messages(api: &GearApi, progs: &HashMap<&str, ProgramId>) -> Resul
             "demo_distributor",
             demo_distributor::Request::Report.encode(),
         ),
-        ("demo_exit_handle", vec![]),
         (
             "demo_exit_handle_sender",
             demo_exit_handle_sender::Input::SendMessage {
@@ -117,7 +99,6 @@ async fn send_messages(api: &GearApi, progs: &HashMap<&str, ProgramId>) -> Resul
             }
             .encode(),
         ),
-        ("demo_gas_burned", vec![]),
         (
             "demo_gasless_wasting",
             demo_gasless_wasting::InputArgs {
@@ -127,17 +108,6 @@ async fn send_messages(api: &GearApi, progs: &HashMap<&str, ProgramId>) -> Resul
             .encode(),
         ),
         ("demo_mul_by_const", 42_u64.encode()),
-        ("demo_ncompose", vec![1, 2, 3, 4]),
-        (
-            "demo_new_meta",
-            demo_meta_io::MessageIn {
-                id: demo_meta_io::Id {
-                    decimal: 1,
-                    hex: vec![1u8],
-                },
-            }
-            .encode(),
-        ),
         ("demo_node", demo_node::Request::Add(42).encode()),
         (
             "demo_program_factory",

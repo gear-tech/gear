@@ -1,0 +1,19 @@
+[package]
+name = "demo-calc-hash-over-blocks"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "GPL-3.0"
+
+[dependencies]
+gstd = { workspace = true, features = ["debug"] }
+
+parity-scale-codec = { workspace = true, features = ["derive"]}
+shared = { path = "../", package = "demo-calc-hash" }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+std = []
+default = ["std"]

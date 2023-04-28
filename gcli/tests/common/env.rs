@@ -54,7 +54,7 @@ pub fn wasm_bin(name: &str) -> String {
     bin_path(name, true)
 }
 
-/// path of `example/binaries` folders
+/// path of `example` folders
 pub fn example_path(name: &str) -> String {
-    ROOT.clone() + "/examples/binaries/" + name
+    ROOT.clone() + "/examples/" + name
 }

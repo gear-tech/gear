@@ -26,3 +26,4 @@ gear-wasm-instrument.workspace = true
 
 [dev-dependencies]
 demo-piggy-bank.workspace = true
+demo-futures-unordered.workspace = true

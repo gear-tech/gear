@@ -1,0 +1,16 @@
+[package]
+name = "demo-meta-state-v1"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gstd.workspace = true
+gmeta = { workspace = true, features = ["codegen"] }
+demo-meta-io.workspace = true
+
+[build-dependencies]
+gear-wasm-builder = { workspace = true, features = ["metawasm"] }
+
+[features]
+default = ["std"]
+std = []
