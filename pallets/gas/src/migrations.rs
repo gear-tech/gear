@@ -539,7 +539,7 @@ pub mod test {
             mailbox_ids.iter().for_each(|msg_id| {
                 assert_ok!(MailboxOf::<Test>::insert(
                     StoredMessage::new(
-                        msg_id.clone(),
+                        *msg_id,
                         ProgramId::from_origin(H256::random()),
                         ProgramId::from_origin(2_u64.into_origin()), // to Bob
                         Default::default(),
@@ -555,7 +555,7 @@ pub mod test {
                     StoredDispatch::new(
                         DispatchKind::Handle,
                         StoredMessage::new(
-                            msg_id.clone(),
+                            *msg_id,
                             ProgramId::from_origin(H256::random()),
                             ProgramId::from_origin(H256::random()),
                             Default::default(),
@@ -570,12 +570,12 @@ pub mod test {
             // Populate delayed messages stash
             dispatch_stash_ids.iter().for_each(|msg_id| {
                 DispatchStashOf::<Test>::insert(
-                    msg_id.clone(),
+                    *msg_id,
                     (
                         StoredDispatch::new(
                             DispatchKind::Handle,
                             StoredMessage::new(
-                                msg_id.clone(),
+                                *msg_id,
                                 ProgramId::from_origin(H256::random()),
                                 ProgramId::from_origin(H256::random()),
                                 Default::default(),
@@ -628,7 +628,7 @@ pub mod test {
                 .iter()
                 .chain(dispatch_stash_ids.iter())
                 .for_each(|msg_id| {
-                    let node_id = NodeId::Node(msg_id.clone());
+                    let node_id = NodeId::Node(*msg_id);
                     let key = gas_nodes_storage_map_final_key(&node_id);
                     let mut factor_bytes = [0_u8; 8];
                     factor_bytes.copy_from_slice(&msg_id.as_ref()[0..8]);
