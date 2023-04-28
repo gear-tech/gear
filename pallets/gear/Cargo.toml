@@ -62,6 +62,7 @@ wabt.workspace = true
 hex.workspace = true
 blake2-rfc.workspace = true
 demo-async.workspace = true
+demo-async-recursion.workspace = true
 demo-async-tester.workspace = true
 demo-backend-error.workspace = true
 demo-btree.workspace = true
