@@ -21,12 +21,12 @@
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[derive(Debug, Decode, Encode, TypeInfo)]
@@ -34,7 +34,7 @@ pub struct InputArgs {
     pub destination: [u8; 32],
 }
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     use crate::InputArgs;
     use gstd::{msg, ActorId, ToString};

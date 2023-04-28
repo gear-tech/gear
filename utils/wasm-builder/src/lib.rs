@@ -16,13 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};
 use anyhow::Result;
 use filetime::{set_file_mtime, FileTime};
 use gmeta::{Metadata, MetadataRepr};
+use regex::Regex;
 use std::{env, path::Path, process};
 use wasm_project::ProjectType;
-
-use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};
 
 mod builder_error;
 mod cargo_command;
@@ -46,26 +46,22 @@ pub struct WasmBuilder {
 impl WasmBuilder {
     /// Create a new `WasmBuilder`.
     pub fn new() -> Self {
-        WasmBuilder {
-            wasm_project: WasmProject::new(ProjectType::Program(None)),
-            cargo: CargoCommand::new(),
-            excluded_features: vec![],
-        }
+        WasmBuilder::create(WasmProject::new(ProjectType::Program(None)))
     }
 
     /// Create a new `WasmBuilder` for metawasm.
     pub fn new_metawasm() -> Self {
-        WasmBuilder {
-            wasm_project: WasmProject::new(ProjectType::Metawasm),
-            cargo: CargoCommand::new(),
-            excluded_features: vec![],
-        }
+        WasmBuilder::create(WasmProject::new(ProjectType::Metawasm))
     }
 
     /// Create a new `WasmBuilder` with metadata.
     pub fn with_meta(metadata: MetadataRepr) -> Self {
+        WasmBuilder::create(WasmProject::new(ProjectType::Program(Some(metadata))))
+    }
+
+    fn create(wasm_project: WasmProject) -> Self {
         WasmBuilder {
-            wasm_project: WasmProject::new(ProjectType::Program(Some(metadata))),
+            wasm_project,
             cargo: CargoCommand::new(),
             excluded_features: vec![],
         }
@@ -90,8 +86,6 @@ impl WasmBuilder {
                 .for_each(|cause| eprintln!("|      {cause}"));
             process::exit(1);
         }
-
-        WasmBuilder::force_build_script_rebuild_on_next_run();
     }
 
     fn build_project(mut self) -> Result<()> {
@@ -104,42 +98,71 @@ impl WasmBuilder {
         let profile = self.wasm_project.profile();
         let profile = if profile == "debug" { "dev" } else { profile };
         self.cargo.set_profile(profile.to_string());
-        self.cargo.set_features(&WasmBuilder::enabled_features(
-            &self.wasm_project,
-            &self.excluded_features,
-        )?);
+        self.cargo.set_features(&self.enabled_features()?);
 
         self.cargo.run()?;
-        self.wasm_project.postprocess()
+        self.wasm_project.postprocess()?;
+
+        self.force_build_script_rebuild_on_next_run()
     }
 
-    /// Returns the features enabled for the current build.
-    fn enabled_features(
-        wasm_project: &WasmProject,
-        features_to_exclude: &[&str],
-    ) -> Result<Vec<String>> {
-        let features = env::vars()
-            .filter_map(|(key, _)| {
-                key.strip_prefix("CARGO_FEATURE_")
-                    .map(|feature| feature.to_lowercase())
-            })
-            .filter(|feature| {
-                // Omit the `default` feature because the generated project excludes it
-                feature != "default" && !features_to_exclude.contains(&feature.as_str())
-            })
-            .collect::<Vec<String>>();
-        wasm_project.match_features(&features)
+    fn manifest_path(&self) -> Result<String> {
+        let manifest_path = env::var("CARGO_MANIFEST_DIR")?;
+        Ok(manifest_path)
+    }
+
+    /// Returns features enabled for the current build.
+    fn enabled_features(&self) -> Result<Vec<String>> {
+        let project_features = self.wasm_project.features();
+        let enabled_features_iter = env::vars().filter_map(|(key, _)| {
+            key.strip_prefix("CARGO_FEATURE_")
+                .map(|feature| feature.to_lowercase())
+        });
+        let mut matched_features = Vec::new();
+        let mut unmatched_features = Vec::new();
+        for enabled_feature in enabled_features_iter {
+            // Features coming via the CARGO_FEATURE_<feature> environment variable are in normilized form,
+            // i.e. all dashes are replaced with underscores.
+            let enabled_feature_regex =
+                Regex::new(&format!("^{}$", enabled_feature.replace('_', "[-_]")))?;
+            if self
+                .excluded_features
+                .iter()
+                .any(|excluded_feature| enabled_feature_regex.is_match(excluded_feature))
+            {
+                continue;
+            }
+            if let Some(project_feature) = project_features
+                .iter()
+                .find(|project_feature| enabled_feature_regex.is_match(&project_feature))
+            {
+                matched_features.push(project_feature.clone());
+            } else {
+                unmatched_features.push(enabled_feature);
+            }
+        }
+
+        // It may turn out that crate with a build script is built as a dependency of
+        // another crate with build script in the same process (gear-runtime -> pallet-gear -> examples).
+        // In that case, all the CARGO_FEATURE_<feature> environment variables are propagated down to
+        // the dependent crate which might not have the corresponding features at all.
+        // In such situation, we just warn about unmatched features for diagnostic purposes and ignore them
+        // as cargo itself checks initial set of features before they reach the build script.
+        if !unmatched_features.is_empty() && unmatched_features != ["default"] {
+            println!(
+                "cargo:warning=Package {}: features `{}` are not available and will be ignored",
+                self.manifest_path()?,
+                unmatched_features.join(", ")
+            );
+        }
+        Ok(matched_features)
     }
 
     /// Force cargo to rebuild the build script next time it is invoked (e.g. when a feature is added or removed).
-    fn force_build_script_rebuild_on_next_run() {
-        let build_rs_path = Path::new(
-            &env::var("CARGO_MANIFEST_DIR")
-                .expect("Failed to read the CARGO_MANIFEST_DIR variable"),
-        )
-        .join("build.rs");
-        set_file_mtime(build_rs_path, FileTime::now())
-            .expect("Failed to update the build script modification time");
+    fn force_build_script_rebuild_on_next_run(&self) -> Result<()> {
+        let build_rs_path = Path::new(&self.manifest_path()?).join("build.rs");
+        let _ = set_file_mtime(build_rs_path, FileTime::now())?;
+        Ok(())
     }
 }
 

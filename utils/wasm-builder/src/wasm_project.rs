@@ -24,7 +24,6 @@ use crate::{
 use anyhow::{Context, Result};
 use gmeta::MetadataRepr;
 use pwasm_utils::parity_wasm::{self, elements::Internal};
-use regex::Regex;
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -135,30 +134,6 @@ impl WasmProject {
         self.features
             .as_ref()
             .expect("Run `WasmProject::generate()` first")
-    }
-
-    /// Match a feature in the form of `feature_name` to one of the available features
-    /// in the generated `Cargo.toml` which can be in the form of `feature-name` or `feature_name`.
-    pub fn match_features(&self, features: &[String]) -> Result<Vec<String>> {
-        let mut matched_features = Vec::with_capacity(features.len());
-        for feature in features {
-            let feature = feature.replace('_', "[_-]");
-            let mut feature_regex = String::with_capacity(1 + feature.len() + 1);
-            feature_regex.push('^');
-            feature_regex.push_str(&feature);
-            feature_regex.push('$');
-            let featue_regex = Regex::new(&feature_regex)?;
-            if let Some(matched_feature) = self
-                .features()
-                .iter()
-                .find(|feature| featue_regex.is_match(feature))
-            {
-                matched_features.push(matched_feature.clone());
-            } else {
-                anyhow::bail!("Feature `{}` is not available", feature);
-            }
-        }
-        Ok(matched_features)
     }
 
     /// Generate a temporary cargo project that includes the original package as a dependency.
