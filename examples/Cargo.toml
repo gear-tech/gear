@@ -7,7 +7,6 @@ members = [
     "async-sign",
     "async-recursion",
     "bot",
-    "futures-unordered",
     "piggy-bank",
 ]
 

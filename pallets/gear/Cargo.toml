@@ -74,6 +74,7 @@ demo-new-meta.workspace = true
 demo-exit-init.workspace = true
 demo-exit-handle.workspace = true
 demo-exit-handle-sender.workspace = true
+demo-futures-unordered.workspace = true
 demo-program-factory.workspace = true
 demo-proxy.workspace = true
 demo-proxy-relay.workspace = true

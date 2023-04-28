@@ -1876,6 +1876,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-futures-unordered"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-gas-burned"
 version = "0.1.0"
 dependencies = [
@@ -6900,6 +6910,7 @@ dependencies = [
  "demo-exit-handle",
  "demo-exit-handle-sender",
  "demo-exit-init",
+ "demo-futures-unordered",
  "demo-gas-burned",
  "demo-gasless-wasting",
  "demo-incomplete-async-payloads",

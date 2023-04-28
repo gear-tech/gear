@@ -26,6 +26,7 @@ members = [
     "examples/binaries/exit-handle",
     "examples/binaries/exit-handle-sender",
     "examples/binaries/exit-init",
+    "examples/binaries/futures-unordered",
     "examples/binaries/gas-burned",
     "examples/binaries/gasless-wasting",
     "examples/binaries/incomplete-async-payloads",
@@ -330,6 +331,7 @@ demo-distributor = { path = "examples/binaries/distributor" }
 demo-exit-handle = { path = "examples/binaries/exit-handle" }
 demo-exit-handle-sender = { path = "examples/binaries/exit-handle-sender" }
 demo-exit-init = { path = "examples/binaries/exit-init" }
+demo-futures-unordered = { path = "examples/binaries/futures-unordered" }
 demo-gas-burned = { path = "examples/binaries/gas-burned" }
 demo-gasless-wasting = { path = "examples/binaries/gasless-wasting" }
 demo-incomplete-async-payloads = { path = "examples/binaries/incomplete-async-payloads" }
