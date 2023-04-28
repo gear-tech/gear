@@ -6,7 +6,6 @@ members = [
     "async-multisig",
     "async-sign",
     "bot",
-    "piggy-bank",
 ]
 
 exclude = ["binaries/*"]

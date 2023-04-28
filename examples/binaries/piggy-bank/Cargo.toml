@@ -1,0 +1,17 @@
+[package]
+name = "demo-piggy-bank"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "GPL-3.0"
+workspace = "../../../"
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+default = ["std"]
+std = []

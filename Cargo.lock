@@ -2045,6 +2045,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-piggy-bank"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-ping"
 version = "0.1.0"
 dependencies = [
@@ -4358,6 +4366,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "colored",
+ "demo-piggy-bank",
  "derive_more",
  "env_logger",
  "gear-backend-common",

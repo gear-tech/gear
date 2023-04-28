@@ -1,5 +1,3 @@
-#![no_std]
-
 use gstd::{debug, exec, msg};
 
 #[no_mangle]
