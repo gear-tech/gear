@@ -2095,6 +2095,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-rwlock"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-send-from-reservation"
 version = "0.1.0"
 dependencies = [
@@ -6974,6 +6983,7 @@ dependencies = [
  "demo-proxy-relay",
  "demo-proxy-reservation-with-gas",
  "demo-reserve-gas",
+ "demo-rwlock",
  "demo-send-from-reservation",
  "demo-signal-entry",
  "demo-state-rollback",

@@ -9616,6 +9616,7 @@ fn signal_on_uninitialized_program() {
     use demo_async_signal_entry::{InitAction, WASM_BINARY};
 
     init_logger();
+
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
@@ -9832,6 +9833,8 @@ fn incomplete_async_payloads_kept() {
     use demo_incomplete_async_payloads::{Command, WASM_BINARY};
     use demo_ping::WASM_BINARY as PING_BINARY;
 
+    init_logger();
+
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
@@ -9886,6 +9889,137 @@ fn incomplete_async_payloads_kept() {
         .collect::<Vec<_>>();
         assert_responses_to_user(USER_1, to_assert);
     })
+}
+
+#[test]
+fn rw_lock_works() {
+    use demo_ping::WASM_BINARY as PING_BINARY;
+    use demo_rwlock::{Command, WASM_BINARY};
+
+    init_logger();
+
+    // TODO: assert auto replies after #2739.
+    let upload = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let prog_id = get_last_program_id();
+
+        run_to_next_block(None);
+        System::reset_events();
+
+        prog_id
+    };
+
+    // RwLock wide
+    new_test_ext().execute_with(|| {
+        let rwlock = upload();
+
+        let to_send = [
+            Command::Get,
+            Command::Inc,
+            Command::Get,
+            Command::PingGet,
+            Command::IncPing,
+        ]
+        .iter()
+        .map(Encode::encode)
+        .collect();
+        send_payloads(USER_1, rwlock, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::Payload(0u32.encode()),
+            Assertion::Payload(vec![]),
+            Assertion::Payload(1u32.encode()),
+            Assertion::Payload(vec![]),
+            Assertion::Payload(2u32.encode()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // RwLock read while writing
+    new_test_ext().execute_with(|| {
+        let rwlock = upload();
+
+        let to_send = [Command::IncPing, Command::Get]
+            .iter()
+            .map(Encode::encode)
+            .collect();
+        send_payloads(USER_1, rwlock, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::Payload(vec![]),
+            Assertion::Payload(1u32.encode()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // RwLock write while reading
+    new_test_ext().execute_with(|| {
+        let rwlock = upload();
+
+        let to_send = [Command::GetPing, Command::Get, Command::Inc]
+            .iter()
+            .map(Encode::encode)
+            .collect();
+        send_payloads(USER_1, rwlock, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::Payload(0i32.encode()),
+            Assertion::Payload(0i32.encode()),
+            Assertion::Payload(vec![]),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // RwLock deadlock
+    new_test_ext().execute_with(|| {
+        let rwlock = upload();
+
+        let to_send = [
+            Default::default(), // None-Command
+            Command::Get.encode(),
+        ]
+        .into_iter()
+        .collect();
+        send_payloads(USER_1, rwlock, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // RwLock check readers
+    new_test_ext().execute_with(|| {
+        let rwlock = upload();
+
+        let to_send = vec![Command::CheckReaders.encode()];
+        send_payloads(USER_1, rwlock, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![Assertion::Payload(0i32.encode())];
+        assert_responses_to_user(USER_1, to_assert);
+    });
 }
 
 mod utils {
@@ -10667,7 +10801,7 @@ mod utils {
         }
     }
 
-    #[derive(Debug, Eq, PartialEq)]
+    #[derive(Clone, Debug, Eq, PartialEq)]
     pub(super) enum Assertion {
         Payload(Vec<u8>),
         StatusCode(Option<i32>),

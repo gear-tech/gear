@@ -26,8 +26,6 @@ members = [
     "ping-gas",
     "program_generator",
     "program-id",
-    "rwlock",
-    "rwlock_write",
     "token-vendor",
     "token-vendor/workshop-example",
     "wait",

@@ -117,6 +117,9 @@ pub struct RwLock<T> {
 }
 
 impl<T> RwLock<T> {
+    /// Limit of readers for `RwLock`
+    pub const READERS_LIMIT: ReadersCount = READERS_LIMIT;
+
     /// Create a new instance of an `RwLock<T>` which is unlocked.
     pub const fn new(t: T) -> RwLock<T> {
         RwLock {
