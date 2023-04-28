@@ -15,7 +15,6 @@ members = [
     "capacitor",
     "collector",
     "status-code",
-    "futures-unordered",
     "guestbook",
     "loop",
     "minimal",

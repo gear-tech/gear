@@ -30,6 +30,7 @@ members = [
     "examples/binaries/delayed-sender",
     "examples/binaries/distributor",
     "examples/binaries/fungible-token",
+    "examples/binaries/futures-unordered",
     "examples/binaries/gas-burned",
     "examples/binaries/incomplete-async-payloads",
     "examples/binaries/init-fail-sender",
@@ -337,6 +338,7 @@ demo-compose = { path = "examples/binaries/compose" }
 demo-constructor = { path = "examples/binaries/constructor" }
 demo-delayed-sender = { path = "examples/binaries/delayed-sender" }
 demo-distributor = { path = "examples/binaries/distributor" }
+demo-futures-unordered = { path = "examples/binaries/futures-unordered" }
 demo-gas-burned = { path = "examples/binaries/gas-burned" }
 demo-fungible-token = { path = "examples/binaries/fungible-token" }
 demo-incomplete-async-payloads = { path = "examples/binaries/incomplete-async-payloads" }

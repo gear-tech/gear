@@ -10085,6 +10085,101 @@ fn async_works() {
     });
 }
 
+#[test]
+fn futures_unordered() {
+    use demo_async::WASM_BINARY as DEMO_ASYNC_BINARY;
+    use demo_futures_unordered::{Command, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
+
+    init_logger();
+
+    let upload = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            DEMO_ASYNC_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let demo_async = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            (demo_async, ping).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let prog_id = get_last_program_id();
+
+        run_to_next_block(None);
+        System::reset_events();
+
+        prog_id
+    };
+
+    // FuturesUnordered
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+
+        let to_send = vec![Command::Unordered.encode()];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::Payload(b"PONG".to_vec()),
+            Assertion::Payload(MessageId::generate_outgoing(ids[0], 0).encode()),
+            Assertion::Payload(ids[0].encode()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // Select
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+
+        let to_send = vec![Command::Select.encode()];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::Payload(b"PONG".to_vec()),
+            Assertion::Payload(ids[0].encode()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // Join
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+
+        let to_send = vec![Command::Join.encode()];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let mut res = MessageId::generate_outgoing(ids[0], 0).encode();
+        res.append(&mut b"PONG".to_vec());
+
+        let to_assert = vec![Assertion::Payload(res), Assertion::Payload(ids[0].encode())];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
