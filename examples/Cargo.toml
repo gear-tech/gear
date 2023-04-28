@@ -1,18 +1,6 @@
 [workspace]
 resolver = "2"
 
-members = [
-    "async-multisig",
-    "async-sign",
-]
+members = []
 
 exclude = ["binaries/*"]
-
-[workspace.dependencies]
-galloc = { path = "../galloc" }
-gcore = { path = "../gcore" }
-gstd = { path = "../gstd" }
-
-[profile.release]
-lto = true
-opt-level = 's'
