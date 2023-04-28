@@ -1770,6 +1770,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-async-custom-entry"
 version = "0.1.0"
 dependencies = [
@@ -6957,6 +6966,7 @@ name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
  "blake2-rfc",
+ "demo-async",
  "demo-async-custom-entry",
  "demo-async-signal-entry",
  "demo-async-tester",
