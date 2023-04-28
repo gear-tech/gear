@@ -10,7 +10,6 @@ members = [
     "async-init",
     "async-multisig",
     "async-sign",
-    "async-recursion",
     "bot",
     "capacitor",
     "collector",

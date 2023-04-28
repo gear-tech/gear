@@ -10180,6 +10180,60 @@ fn futures_unordered() {
     });
 }
 
+#[test]
+fn async_recursion() {
+    use demo_async_recursion::WASM_BINARY;
+    use demo_ping::WASM_BINARY as PING_BINARY;
+
+    init_logger();
+
+    let upload = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let prog_id = get_last_program_id();
+
+        run_to_next_block(None);
+        System::reset_events();
+
+        prog_id
+    };
+
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+        let arg = 100i32;
+
+        let to_send = vec![arg.encode()];
+        send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let mut to_assert = (1..=arg)
+            .rev()
+            .filter_map(|i| (i % 4 == 0).then(|| Assertion::Payload(i.encode())))
+            .collect::<Vec<_>>();
+        // TODO: assert auto reply after #2739.
+        to_assert.insert(to_assert.len() - 1, Assertion::Payload(vec![]));
+        assert_responses_to_user(USER_1, to_assert);
+    });
+}
+
 mod utils {
     #![allow(unused)]
 

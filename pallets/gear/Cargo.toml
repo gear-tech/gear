@@ -64,6 +64,7 @@ hex.workspace = true
 blake2-rfc.workspace = true
 gstd = { workspace = true, features = ["debug"] }
 demo-async.workspace = true
+demo-async-recursion.workspace = true
 demo-async-tester.workspace = true
 demo-backend-error.workspace = true
 demo-btree.workspace = true

@@ -1789,6 +1789,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async-recursion"
+version = "0.1.0"
+dependencies = [
+ "async-recursion",
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-async-signal-entry"
 version = "0.1.0"
 dependencies = [
@@ -6978,6 +6987,7 @@ dependencies = [
  "blake2-rfc",
  "demo-async",
  "demo-async-custom-entry",
+ "demo-async-recursion",
  "demo-async-signal-entry",
  "demo-async-tester",
  "demo-backend-error",
