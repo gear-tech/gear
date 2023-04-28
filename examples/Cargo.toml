@@ -2,10 +2,8 @@
 resolver = "2"
 
 members = [
-    "async-init",
     "async-multisig",
     "async-sign",
-    "bot",
 ]
 
 exclude = ["binaries/*"]

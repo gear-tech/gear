@@ -14,6 +14,7 @@ members = [
     "core-errors",
     "examples/binaries/async",
     "examples/binaries/async-custom-entry",
+    "examples/binaries/async-init",
     "examples/binaries/async-signal-entry",
     "examples/binaries/async-tester",
     "examples/binaries/backend-error",
@@ -319,6 +320,7 @@ try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/
 test-syscalls = { path = "examples/binaries/sys-calls", default-features = false }
 demo-async = { path = "examples/binaries/async" }
 demo-async-custom-entry = { path = "examples/binaries/async-custom-entry" }
+demo-async-init = { path = "examples/binaries/async-init" }
 demo-async-recursion = { path = "examples/binaries/async-recursion" }
 demo-async-signal-entry = { path = "examples/binaries/async-signal-entry" }
 demo-async-tester = { path = "examples/binaries/async-tester" }
