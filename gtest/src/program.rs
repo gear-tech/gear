@@ -616,9 +616,11 @@ mod tests {
         sys.mint_to(sender1, 10000);
         sys.mint_to(sender2, 10000);
 
-        let prog = Program::from_file(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+            137,
+            demo_piggy_bank::WASM_BINARY.to_vec(),
+            None,
         );
 
         prog.send_bytes(receiver, b"init");
@@ -658,10 +660,11 @@ mod tests {
         let sys = System::new();
 
         let user = 1;
-        let prog = Program::from_file_with_id(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             2,
-            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+            demo_piggy_bank::WASM_BINARY.to_vec(),
+            None,
         );
 
         assert_eq!(sys.balance_of(user), 0);
@@ -681,9 +684,11 @@ mod tests {
 
         sys.mint_to(sender, 10000);
 
-        let prog = Program::from_file(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+            137,
+            demo_piggy_bank::WASM_BINARY.to_vec(),
+            None,
         );
 
         prog.send_bytes(receiver, b"init");

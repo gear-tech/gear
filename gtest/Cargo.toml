@@ -24,3 +24,6 @@ env_logger.workspace = true
 path-clean.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 gear-wasm-instrument.workspace = true
+
+[dev-dependencies]
+demo-piggy-bank.workspace = true

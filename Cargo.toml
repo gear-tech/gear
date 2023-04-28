@@ -42,6 +42,7 @@ members = [
     "examples/binaries/new-meta",
     "examples/binaries/node",
     "examples/binaries/out-of-memory",
+    "examples/binaries/piggy-bank",
     "examples/binaries/ping",
     "examples/binaries/program-factory",
     "examples/binaries/proxy",
@@ -352,6 +353,7 @@ demo-mul-by-const = { path = "examples/binaries/mul-by-const" }
 demo-new-meta = { path = "examples/binaries/new-meta" }
 demo-node = { path = "examples/binaries/node" }
 demo-out-of-memory = { path = "examples/binaries/out-of-memory" }
+demo-piggy-bank = { path = "examples/binaries/piggy-bank" }
 demo-ping = { path = "examples/binaries/ping" }
 demo-program-factory = { path = "examples/binaries/program-factory" }
 demo-proxy = { path = "examples/binaries/proxy", default-features = false }

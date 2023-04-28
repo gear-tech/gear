@@ -18,7 +18,6 @@ members = [
     "loop",
     "minimal",
     "panicker",
-    "piggy-bank",
     "ping-gas",
     "program_generator",
     "program-id",
