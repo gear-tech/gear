@@ -172,13 +172,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-incomplete-async-payloads"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-mutex"
 version = "0.1.0"
 dependencies = [
@@ -190,46 +183,6 @@ name = "demo-piggy-bank"
 version = "0.1.0"
 dependencies = [
  "gstd",
-]
-
-[[package]]
-name = "demo-ping"
-version = "0.1.0"
-dependencies = [
- "galloc",
- "gcore",
-]
-
-[[package]]
-name = "demo-rwlock"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "hex",
-]
-
-[[package]]
-name = "demo-rwlock-write"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "hex",
-]
-
-[[package]]
-name = "demo-state-rollback"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-sync-duplicate"
-version = "0.1.0"
-dependencies = [
- "gcore",
- "gstd",
- "hex",
 ]
 
 [[package]]

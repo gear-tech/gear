@@ -2,14 +2,12 @@
 resolver = "2"
 
 members = [
-    "async",
     "async-init",
     "async-multisig",
     "async-sign",
     "async-recursion",
     "bot",
     "futures-unordered",
-    "mutex",
     "piggy-bank",
 ]
 

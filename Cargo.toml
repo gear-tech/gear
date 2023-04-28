@@ -12,6 +12,7 @@ members = [
     "core-backend/wasmi",
     "core-processor",
     "core-errors",
+    "examples/binaries/async",
     "examples/binaries/async-custom-entry",
     "examples/binaries/async-signal-entry",
     "examples/binaries/async-tester",
@@ -314,6 +315,7 @@ try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/
 
 # Examples
 test-syscalls = { path = "examples/binaries/sys-calls", default-features = false }
+demo-async = { path = "examples/binaries/async" }
 demo-async-custom-entry = { path = "examples/binaries/async-custom-entry" }
 demo-async-signal-entry = { path = "examples/binaries/async-signal-entry" }
 demo-async-tester = { path = "examples/binaries/async-tester" }

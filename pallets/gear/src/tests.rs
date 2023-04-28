@@ -9327,6 +9327,66 @@ fn rw_lock_works() {
     });
 }
 
+#[test]
+fn async_works() {
+    use demo_async::{Command, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
+
+    init_logger();
+
+    let upload = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        get_last_program_id()
+    };
+
+    // Common async scenario
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+        run_to_next_block(None);
+
+        let to_send = vec![Command::Common.encode()];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![Assertion::Payload(ids[0].encode())];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // Mutex scenario
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+        run_to_next_block(None);
+
+        let to_send = vec![Command::Mutex.encode(); 2];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let to_assert = (0..4)
+            .map(|i| Assertion::Payload(ids[i / 2].encode()))
+            .collect();
+        assert_responses_to_user(USER_1, to_assert);
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -10004,16 +10064,25 @@ mod utils {
     }
 
     #[track_caller]
-    pub(super) fn send_payloads(user_id: AccountId, program_id: ProgramId, payloads: Vec<Vec<u8>>) {
-        for payload in payloads {
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(user_id),
-                program_id,
-                payload,
-                BlockGasLimitOf::<Test>::get(),
-                0,
-            ));
-        }
+    pub(super) fn send_payloads(
+        user_id: AccountId,
+        program_id: ProgramId,
+        payloads: Vec<Vec<u8>>,
+    ) -> Vec<MessageId> {
+        payloads
+            .into_iter()
+            .map(|payload| {
+                assert_ok!(Gear::send_message(
+                    RuntimeOrigin::signed(user_id),
+                    program_id,
+                    payload,
+                    BlockGasLimitOf::<Test>::get(),
+                    0,
+                ));
+
+                get_last_message_id()
+            })
+            .collect()
     }
 
     #[derive(Clone, Debug, Eq, PartialEq)]
