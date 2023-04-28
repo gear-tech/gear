@@ -6,7 +6,7 @@ SELF="$0"
 ROOT_DIR="$(cd "$(dirname "$SELF")"/.. && pwd)"
 SCRIPTS="$ROOT_DIR/scripts/src"
 TARGET_DIR="$ROOT_DIR/target"
-CARGO_HACK="hack"
+# CARGO_HACK="hack"
 CARGO_NEXTEST="nextest"
 CARGO="cargo"
 EXE_RUNNER=""
@@ -32,7 +32,8 @@ fi
 . "$SCRIPTS"/test.sh
 
 check_extensions() {
-  if [ -z "$(cargo --list | awk '{print $1}' | grep "^$CARGO_HACK$")" ] || [ -z "$(cargo --list | awk '{print $1}' | grep "^$CARGO_NEXTEST$")" ]
+  # if [ -z "$(cargo --list | awk '{print $1}' | grep "^$CARGO_HACK$")" ] || [ -z "$(cargo --list | awk '{print $1}' | grep "^$CARGO_NEXTEST$")" ]
+  if [ -z "$(cargo --list | awk '{print $1}' | grep "^$CARGO_NEXTEST$")" ]
     then
       "$SELF" init cargo
   fi
@@ -106,9 +107,8 @@ case "$COMMAND" in
         fuzzer_build "$@"; ;;
 
       examples)
-        check_extensions
         header "Building gear examples"
-        examples_build "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
+        examples_build "$@"; ;;
 
       wasm-proc)
         header "Building wasm-proc util"
@@ -139,9 +139,8 @@ case "$COMMAND" in
         gear_check "$@"; ;;
 
       examples)
-        check_extensions
         header "Checking gear examples"
-        examples_check "$ROOT_DIR" "$TARGET_DIR"; ;;
+        examples_check "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
@@ -160,9 +159,8 @@ case "$COMMAND" in
         gear_clippy "$@"; ;;
 
       examples)
-        check_extensions
         header "Invoking clippy on gear examples"
-        examples_clippy "$ROOT_DIR"; ;;
+        examples_clippy "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
@@ -203,13 +201,6 @@ case "$COMMAND" in
           else header "Formatting gear workspace"
         fi
         format "$ROOT_DIR/Cargo.toml" "$@"; ;;
-
-      examples)
-        if [ "$CHECK" = "true" ]
-          then header "Checking gear examples formatting"
-          else header "Formatting gear examples"
-        fi
-        format "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
 
       doc)
         if [ "$CHECK" = "true" ]
@@ -305,8 +296,7 @@ case "$COMMAND" in
 
       doc)
         header "Testing examples in docs"
-        doc_test "$ROOT_DIR/Cargo.toml" "$@";
-        doc_test "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
+        doc_test "$ROOT_DIR/Cargo.toml" "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"

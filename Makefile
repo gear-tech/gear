@@ -12,22 +12,11 @@ check-spec:
 
 .PHONY: clean
 clean:
-	@ cargo clean --manifest-path=./Cargo.toml
-	@ cargo clean --manifest-path=./examples/Cargo.toml
-
-.PHONY: clean-examples
-clean-examples:
 	@ rm -rf ./target/wasm32-unknown-unknown
 	@ rm -rvf target/release/build/demo-*
-	@ cargo clean --manifest-path=./examples/Cargo.toml
+	@ cargo clean --manifest-path=./Cargo.toml
 
 # Build section
-.PHONY: all
-all: gear examples
-
-.PHONY: all-release
-all-release: gear-release examples
-
 .PHONY: gear
 gear:
 	@ ./scripts/gear.sh build gear
@@ -37,10 +26,7 @@ gear-release:
 	@ ./scripts/gear.sh build gear --release
 
 .PHONY: examples
-examples: build-examples proc-examples
-
-.PHONY: build-examples
-build-examples:
+examples: # always release
 	@ ./scripts/gear.sh build examples
 
 .PHONY: wasm-proc
@@ -68,12 +54,6 @@ vara-release:
 	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
 
 # Check section
-.PHONY: check
-check: check-gear check-examples
-
-.PHONY: check-release
-check-release: check-gear-release check-examples
-
 .PHONY: check-gear
 check-gear:
 	@ ./scripts/gear.sh check gear
@@ -86,24 +66,26 @@ check-gear-release:
 check-examples:
 	@ ./scripts/gear.sh check examples
 
+.PHONY: check-examples-release
+check-examples-release:
+	@ ./scripts/gear.sh check examples --release
+
 # Clippy section
-.PHONY: clippy
-clippy: clippy-gear clippy-examples
-
-.PHONY: clippy-release
-clippy-release: clippy-gear-release clippy-examples
-
 .PHONY: clippy-gear
 clippy-gear:
 	@ ./scripts/gear.sh clippy gear --all-targets --all-features
 
 .PHONY: clippy-gear-release
 clippy-gear-release:
-	@ ./scripts/gear.sh clippy gear --release
+	@ ./scripts/gear.sh clippy gear --all-targets --all-features --release
 
 .PHONY: clippy-examples
 clippy-examples:
 	@ ./scripts/gear.sh clippy examples
+
+.PHONY: clippy-examples-release
+clippy-examples-release:
+	@ ./scripts/gear.sh clippy examples --release
 
 # Docker section
 .PHONY: docker-run
@@ -112,10 +94,10 @@ docker-run:
 
 # Format section
 .PHONY: fmt
-fmt: fmt-gear fmt-examples fmt-doc
+fmt: fmt-gear fmt-doc
 
 .PHONY: fmt-check
-fmt-check: fmt-gear-check fmt-examples-check fmt-doc-check
+fmt-check: fmt-gear-check fmt-doc-check
 
 .PHONY: fmt-gear
 fmt-gear:
@@ -124,14 +106,6 @@ fmt-gear:
 .PHONY: fmt-gear-check
 fmt-gear-check:
 	@ ./scripts/gear.sh format gear --check
-
-.PHONY: fmt-examples
-fmt-examples:
-	@ ./scripts/gear.sh format examples
-
-.PHONY: fmt-examples-check
-fmt-examples-check:
-	@ ./scripts/gear.sh format examples --check
 
 .PHONY: fmt-doc
 fmt-doc:

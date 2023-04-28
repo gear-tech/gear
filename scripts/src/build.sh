@@ -48,16 +48,6 @@ examples_proc() {
   "$1"/release/wasm-proc "$1"/wasm32-unknown-unknown/release/*.wasm
 }
 
-# $1 = ROOT DIR, $2 = TARGET DIR
 examples_build() {
-  ROOT_DIR="$1"
-  TARGET_DIR="$2"
-  shift
-  shift
-
-  cd "$ROOT_DIR"
-  cargo +nightly build --release -p "demo-*" "$@"
-  cd "$ROOT_DIR"/examples
-  CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release --workspace "$@"
-  cd "$ROOT_DIR"
+  cargo build --release --no-default-features -p "demo-*" "$@"
 }

@@ -25,11 +25,7 @@ gear_clippy() {
   SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 cargo +nightly clippy -p runtime-fuzzer -p runtime-fuzzer-fuzz -p gear-runtime --all-features -- --no-deps -D warnings
 }
 
-# $1 - ROOT DIR
 examples_clippy() {
-  cd "$1"/examples
-  SKIP_WASM_BUILD=1 cargo +nightly hack clippy --workspace --release -- --no-deps \
-	  -A clippy::stable_sort_primitive \
-    -D warnings
-  cd "$1"
+  SKIP_WASM_BUILD=1 cargo +nightly clippy --no-default-features -p "demo-*" "$@" -- --no-deps -D warnings
+  SKIP_WASM_BUILD=1 cargo +nightly clippy -p "demo-*" "$@" -- --no-deps -D warnings
 }

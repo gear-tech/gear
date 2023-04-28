@@ -9,15 +9,6 @@ updates:
     commit-message:
       prefix: "[skip ci] "
 
-  - package-ecosystem: "cargo"
-    directory: "/examples/"
-    labels: ["A4-insubstantial"]
-    schedule:
-      interval: "weekly"
-      day: "friday"
-    commit-message:
-      prefix: "[skip ci] "
-
   - package-ecosystem: "github-actions"
     directory: "/"
     labels: ["A4-insubstantial"]
