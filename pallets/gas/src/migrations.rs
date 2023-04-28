@@ -421,10 +421,26 @@ pub mod test {
         type GasToBalanceMultiplier = ConstU128<1_000>;
     }
 
-    impl pallet_gear_program::Config for Test {}
+    impl pallet_gear_program::Config for Test {
+        type Scheduler = GearScheduler;
+        type CurrentBlockNumber = ();
+    }
 
     parameter_types! {
         pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
+        pub RentFreePeriod: u64 = 1_000;
+        pub RentCostPerBlock: Balance = 11;
+        pub RentResumePeriod: u64 = 100;
+    }
+
+    pub struct ProgramRentConfig;
+    impl common::ProgramRentConfig for ProgramRentConfig {
+        type BlockNumber = u64;
+        type Balance = u128;
+
+        type FreePeriod = RentFreePeriod;
+        type CostPerBlock = RentCostPerBlock;
+        type MinimalResumePeriod = RentResumePeriod;
     }
 
     impl pallet_gear::Config for Test {
@@ -445,6 +461,7 @@ pub mod test {
         type BlockLimiter = GearGas;
         type Scheduler = GearScheduler;
         type QueueRunner = Gear;
+        type ProgramRentConfig = ProgramRentConfig;
     }
 
     impl pallet_gear_scheduler::Config for Test {
