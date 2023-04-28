@@ -134,7 +134,7 @@ impl WasmBuilder {
             }
             if let Some(project_feature) = project_features
                 .iter()
-                .find(|project_feature| enabled_feature_regex.is_match(&project_feature))
+                .find(|project_feature| enabled_feature_regex.is_match(project_feature))
             {
                 matched_features.push(project_feature.clone());
             } else {
@@ -161,7 +161,7 @@ impl WasmBuilder {
     /// Force cargo to rebuild the build script next time it is invoked (e.g. when a feature is added or removed).
     fn force_build_script_rebuild_on_next_run(&self) -> Result<()> {
         let build_rs_path = Path::new(&self.manifest_path()?).join("build.rs");
-        let _ = set_file_mtime(build_rs_path, FileTime::now())?;
+        set_file_mtime(build_rs_path, FileTime::now())?;
         Ok(())
     }
 }
