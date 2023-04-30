@@ -29,6 +29,9 @@ mod utils;
 #[cfg(any(feature = "mock", test))]
 pub mod mock;
 
+#[cfg(test)]
+mod tests;
+
 pub mod memory;
 
 use crate::memory::MemoryAccessError;
