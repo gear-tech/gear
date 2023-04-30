@@ -48,9 +48,6 @@ jobs:
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
 
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-
       - name: Run all benchmarks
         run: |
           ./scripts/benchmarking/run_all_benchmarks.sh -c gear-dev -m || true
