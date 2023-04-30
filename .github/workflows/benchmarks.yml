@@ -53,9 +53,9 @@ jobs:
 
       - name: Run all benchmarks
         run: |
-          ./scripts/benchmarking/run_all_benchmarks.sh -c gear-dev
+          ./scripts/benchmarking/run_all_benchmarks.sh -c gear-dev -m
           cp ./scripts/benchmarking/weights-output/* runtime/gear/src/weights
-          ./scripts/benchmarking/run_all_benchmarks.sh -b -c vara-dev # -b to skip build
+          ./scripts/benchmarking/run_all_benchmarks.sh -b -c vara-dev -m # -b to skip build
           cp ./scripts/benchmarking/weights-output/* runtime/vara/src/weights
 
       - name: "ACTIONS: Upload artifact with updated weights"
