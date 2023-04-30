@@ -129,9 +129,6 @@ for PALLET in "${PALLETS[@]}"; do
   fi
 done
 
-# TODO: delete/add flag to skip
-exit
-
 echo "[+] Benchmarking the machine..."
 OUTPUT=$(
   $GEAR benchmark machine --chain=$chain_spec --allow-fail 2>&1
