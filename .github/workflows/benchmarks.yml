@@ -11,7 +11,7 @@ env:
 
 jobs:
   benchmarks:
-    runs-on: ubuntu-latest
+    runs-on: bench
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
