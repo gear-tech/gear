@@ -4309,6 +4309,7 @@ dependencies = [
  "futures",
  "futures-util",
  "gear-core",
+ "gsdk-derive",
  "hex",
  "jsonrpsee",
  "log",
@@ -4320,6 +4321,15 @@ dependencies = [
  "sp-runtime",
  "subxt",
  "thiserror",
+]
+
+[[package]]
+name = "gsdk-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.13",
 ]
 
 [[package]]
