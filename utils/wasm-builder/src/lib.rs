@@ -60,7 +60,10 @@ impl WasmBuilder {
     }
 
     /// Create a new `WasmBuilder` with metadata.
-    pub fn with_meta<const SIZE: usize>(metadata: MetadataRepr, binary_features: [&'static str; SIZE]) -> Self {
+    pub fn with_meta<const SIZE: usize>(
+        metadata: MetadataRepr,
+        binary_features: [&'static str; SIZE],
+    ) -> Self {
         WasmBuilder {
             wasm_project: WasmProject::new(ProjectType::Program(Some(metadata))),
             cargo: CargoCommand::new(binary_features.to_vec()),

@@ -106,7 +106,7 @@ impl CargoCommand {
         let all_features = feature_set.all_features();
 
         if all_features {
-            feature_set.convert_all_features(features);
+            feature_set.convert_all_features(features.clone());
         };
 
         if all_features || !feature_set.no_default_features() {
@@ -118,6 +118,8 @@ impl CargoCommand {
         self.binary_features
             .iter()
             .for_each(|f| feature_set.remove_feature(f));
+
+        feature_set.filter_existing(features);
 
         if let Some(features_string) = feature_set.features_string() {
             cargo.arg("--features").arg(features_string);

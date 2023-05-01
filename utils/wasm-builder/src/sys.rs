@@ -138,15 +138,13 @@ impl SpecificFeatureSet {
         crate_name: impl AsRef<str>,
         features: impl IntoIterator<Item = impl ToString>,
     ) {
-        let crate_name = crate_name.as_ref();
-
         for feature in features.into_iter() {
             let feature: String = feature.to_string().replace('"', "");
 
             let feature = feature
                 .split_once('/')
                 .map(|(name, feat)| {
-                    (name == crate_name)
+                    (name == crate_name.as_ref())
                         .then(|| feat.to_string())
                         .unwrap_or_default()
                 })
@@ -158,10 +156,15 @@ impl SpecificFeatureSet {
         }
     }
 
-    fn remove_feature(&mut self, feature: impl ToString) {
-        let feature = feature.to_string();
+    fn remove_feature(&mut self, feature: impl AsRef<str>) {
+        self.features.retain(|e| e != feature.as_ref());
+    }
 
-        self.features.retain(|e| e != &feature);
+    fn filter_existing(&mut self, existing_features: impl IntoIterator<Item = impl AsRef<str>>) {
+        let mut existing_features = existing_features.into_iter();
+
+        self.features
+            .retain(|e| e.contains('/') || existing_features.any(|f| f.as_ref() == e))
     }
 }
 
@@ -204,10 +207,19 @@ impl FeatureSet {
     }
 
     /// Explicitly removes feature, if present.
-    pub fn remove_feature(&mut self, feature: impl ToString) {
+    pub fn remove_feature(&mut self, feature: impl AsRef<str>) {
         let Self::SomeFeatures(specific_feature_set) = self else { return };
 
         specific_feature_set.remove_feature(feature);
+    }
+
+    pub fn filter_existing(
+        &mut self,
+        existing_features: impl IntoIterator<Item = impl AsRef<str>>,
+    ) {
+        let Self::SomeFeatures(specific_feature_set) = self else { return };
+
+        specific_feature_set.filter_existing(existing_features);
     }
 
     /// Returns Vec of features, if any should be used.

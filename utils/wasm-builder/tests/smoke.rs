@@ -64,7 +64,9 @@ fn test_release() {
 
 #[test]
 fn test_feature_release() {
-    CargoRunner::new().args(["test", "--release", "-F", "init-panic"]).run()
+    CargoRunner::new()
+        .args(["test", "--release", "-F", "init-panic"])
+        .run()
 }
 
 #[test]
