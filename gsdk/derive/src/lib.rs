@@ -60,14 +60,7 @@ pub fn short(_: TokenStream, item: TokenStream) -> TokenStream {
     // reset function inputs.
     short.sig.inputs = Punctuated::from_iter(short.sig.inputs.into_iter().filter(|v| {
         if let FnArg::Typed(PatType { pat, .. }) = v {
-            if pat
-                .to_token_stream()
-                .to_string()
-                .find("block_hash")
-                .is_some()
-            {
-                return false;
-            }
+            return !pat.to_token_stream().to_string().contains("block_hash");
         }
 
         true
@@ -75,7 +68,7 @@ pub fn short(_: TokenStream, item: TokenStream) -> TokenStream {
 
     // reset function block.
     {
-        let fn_at = long.sig.ident.clone();
+        let fn_at = &long.sig.ident;
         let args = short
             .sig
             .inputs
