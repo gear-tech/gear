@@ -5,6 +5,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+
 jobs:
   
   deploy-first-connector:
