@@ -285,10 +285,7 @@ fn toolchain_parsing() {
         );
         let cmd = command.split(' ').collect::<Vec<_>>();
 
-        assert_eq!(
-            format!("+{toolchain}"),
-            Toolchain::from_command(cmd).toolchain_string()
-        )
+        assert_eq!(toolchain, Toolchain::from_command(cmd).toolchain_string())
     }
 }
 

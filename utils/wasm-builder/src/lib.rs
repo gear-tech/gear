@@ -44,7 +44,7 @@ pub struct WasmBuilder {
 
 impl WasmBuilder {
     /// Create a new `WasmBuilder`.
-    pub fn new(binary_features: &[&'static str]) -> Self {
+    pub fn new<const SIZE: usize>(binary_features: [&'static str; SIZE]) -> Self {
         WasmBuilder {
             wasm_project: WasmProject::new(ProjectType::Program(None)),
             cargo: CargoCommand::new(binary_features.to_vec()),
@@ -52,7 +52,7 @@ impl WasmBuilder {
     }
 
     /// Create a new `WasmBuilder` for metawasm.
-    pub fn new_metawasm(binary_features: &[&'static str]) -> Self {
+    pub fn new_metawasm<const SIZE: usize>(binary_features: [&'static str; SIZE]) -> Self {
         WasmBuilder {
             wasm_project: WasmProject::new(ProjectType::Metawasm),
             cargo: CargoCommand::new(binary_features.to_vec()),
@@ -60,7 +60,7 @@ impl WasmBuilder {
     }
 
     /// Create a new `WasmBuilder` with metadata.
-    pub fn with_meta(metadata: MetadataRepr, binary_features: &[&'static str]) -> Self {
+    pub fn with_meta<const SIZE: usize>(metadata: MetadataRepr, binary_features: [&'static str; SIZE]) -> Self {
         WasmBuilder {
             wasm_project: WasmProject::new(ProjectType::Program(Some(metadata))),
             cargo: CargoCommand::new(binary_features.to_vec()),
@@ -99,27 +99,36 @@ impl WasmBuilder {
 
 impl Default for WasmBuilder {
     fn default() -> Self {
-        Self::new(&[])
+        Self::new([])
     }
 }
 
 /// Shorthand function to be used in `build.rs`.
+///
+/// Note: excludes "std" feature by default.
+/// To exclude other set use [`build_excluding`].
 pub fn build() {
-    WasmBuilder::new(&["std"]).build();
+    WasmBuilder::new(["std"]).build();
 }
 
 /// Shorthand function to be used in `build.rs` excluding custom features,
 /// instead of default "std".
-pub fn build_excluding(binary_features: &[&'static str]) {
+pub fn build_excluding<const SIZE: usize>(binary_features: [&'static str; SIZE]) {
     WasmBuilder::new(binary_features).build();
 }
 
 /// Shorthand function to be used in `build.rs`.
+///
+/// Note: excludes "std" feature by default.
+/// To exclude other set use [`WasmBuilder`].
 pub fn build_with_metadata<T: Metadata>() {
-    WasmBuilder::with_meta(T::repr(), &["std"]).build();
+    WasmBuilder::with_meta(T::repr(), ["std"]).build();
 }
 
 /// Shorthand function to be used in `build.rs`.
+///
+/// Note: excludes "std" feature by default.
+/// To exclude other set use [`WasmBuilder`].
 pub fn build_metawasm() {
-    WasmBuilder::new_metawasm(&["std"]).build();
+    WasmBuilder::new_metawasm(["std"]).build();
 }
