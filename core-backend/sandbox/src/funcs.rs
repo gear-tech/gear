@@ -338,11 +338,9 @@ where
         syscall_trace!("alloc", pages);
 
         ctx.run_any(RuntimeCosts::Alloc, |ctx| {
-            // TODO: return u32::MAX in case this is error #2353
-            let pages = WasmPage::new(pages).map_err(|_| TrapExplanation::Unknown)?;
-
             let res = ctx.ext.alloc(pages, &mut ctx.memory);
             let res = ctx.process_alloc_func_result(res)?;
+
             let page = match res {
                 Ok(page) => {
                     log::trace!("Alloc {pages:?} pages at {page:?}");

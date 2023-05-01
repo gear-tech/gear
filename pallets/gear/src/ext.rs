@@ -162,7 +162,7 @@ impl EnvExt for LazyPagesExt {
 
     fn alloc(
         &mut self,
-        pages_num: WasmPage,
+        pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
         self.inner.alloc_inner::<LazyGrowHandler>(pages_num, mem)

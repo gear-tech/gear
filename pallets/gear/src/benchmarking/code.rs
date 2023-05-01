@@ -674,6 +674,17 @@ pub mod body {
         use self::elements::Local;
         *body.locals_mut() = vec![Local::new(num, ValueType::I64)];
     }
+
+    pub fn unreachable_condition(instructions: &mut Vec<Instruction>, flag: Instruction) {
+        let additional = vec![
+            flag,
+            Instruction::If(BlockType::NoResult),
+            Instruction::Unreachable,
+            Instruction::End,
+        ];
+
+        instructions.extend(additional)
+    }
 }
 
 /// The maximum amount of pages any program is allowed to have according to the current `Schedule`.

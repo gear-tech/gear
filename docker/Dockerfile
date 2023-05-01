@@ -27,10 +27,10 @@ RUN  wget https://sh.rustup.rs/rustup-init.sh
 RUN chmod +x rustup-init.sh
 RUN ./rustup-init.sh -y
 ENV PATH="/root/.cargo/bin:$PATH"
-RUN rustup default stable
-RUN cargo --version
-RUN rustc --version
-RUN rustup update nightly && rustup target add wasm32-unknown-unknown --toolchain nightly
+#RUN rustup default stable
+RUN rustup toolchain install nightly-2023-04-25
+RUN rustup target add wasm32-unknown-unknown --toolchain nightly-2023-04-25
+#RUN rustup update nightly && rustup target add wasm32-unknown-unknown --toolchain
 
 # Build
 RUN cargo build -p gear-cli --profile $PROFILE

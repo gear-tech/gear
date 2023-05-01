@@ -97,7 +97,7 @@ impl Ext for MockExt {
 
     fn alloc(
         &mut self,
-        _pages: WasmPage,
+        _pages_num: u32,
         _mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
         Err(Error)
