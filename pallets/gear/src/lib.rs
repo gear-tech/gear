@@ -470,12 +470,6 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        fn on_runtime_upgrade() -> Weight {
-            log::debug!(target: "gear::runtime", "⚙️ Runtime upgrade");
-
-            Zero::zero()
-        }
-
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
             // Incrementing Gear block number
