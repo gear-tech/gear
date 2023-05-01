@@ -247,9 +247,9 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         token: ReadToken,
         gas_left: &mut GasLeft,
     ) -> Result<Vec<u8>, MemoryAccessError> {
-        let mut read_buffer = vec![0; token.0.size as usize];
-        self.pre_process_and_read(memory, token.0.offset, read_buffer.as_mut_slice(), gas_left)?;
-        Ok(read_buffer)
+        read_to_uninitialized_buffer(token.0.size as usize, |buffer| {
+            self.pre_process_and_read(memory, token.0.offset, buffer, gas_left)
+        })
     }
 
     /// Pre-process registered accesses if need and read data as `T` from `memory`.
@@ -269,9 +269,10 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         token: ReadDecodedToken<T>,
         gas_left: &mut GasLeft,
     ) -> Result<T, MemoryAccessError> {
-        let mut buffer = vec![0; T::max_encoded_len()];
-        self.pre_process_and_read(memory, token.offset, buffer.as_mut_slice(), gas_left)?;
-        T::decode_all(&mut buffer.as_slice()).map_err(|_| MemoryAccessError::Decode)
+        let data = read_to_uninitialized_buffer(T::max_encoded_len(), |buffer| {
+            self.pre_process_and_read(memory, token.offset, buffer, gas_left)
+        })?;
+        T::decode_all(&mut data.as_slice()).map_err(|_| MemoryAccessError::Decode)
     }
 
     /// Pre-process registered accesses if need and write data from `buff` to `memory`.
@@ -306,6 +307,19 @@ impl<E: BackendExt> MemoryAccessManager<E> {
             unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
         self.pre_process_and_write(memory, offset, data, gas_left)
     }
+}
+
+fn read_to_uninitialized_buffer(
+    size: usize,
+    mut read_to_buffer: impl FnMut(&mut [u8]) -> Result<(), MemoryAccessError>,
+) -> Result<Vec<u8>, MemoryAccessError> {
+    let mut buffer = Vec::with_capacity(size);
+    #[allow(clippy::uninit_vec)]
+    unsafe {
+        buffer.set_len(size)
+    };
+    read_to_buffer(buffer.as_mut_slice())?;
+    Ok(buffer)
 }
 
 /// Reads bytes from given pointer to construct type T from them.
