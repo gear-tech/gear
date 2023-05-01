@@ -22,15 +22,9 @@
 
 use crate::BackendExt;
 use alloc::{vec, vec::Vec};
-use core::{
-    fmt::Debug,
-    marker::PhantomData,
-    mem,
-    mem::MaybeUninit,
-    slice::{self},
-};
+use core::{fmt::Debug, marker::PhantomData, mem, mem::MaybeUninit, slice};
 use gear_core::{
-    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
+    buffer::RuntimeBufferSizeError,
     gas::GasLeft,
     memory::{Memory, MemoryInterval},
 };
@@ -104,78 +98,20 @@ pub trait MemoryOwner {
     fn write_as<T: Sized>(&mut self, offset: u32, obj: T) -> Result<(), MemoryAccessError>;
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ReadToken {
-    interval: MemoryInterval,
-    salt: u32,
-}
-
-impl ReadToken {
-    fn private_clone(&self) -> Self {
-        Self {
-            interval: self.interval,
-            salt: self.salt,
-        }
-    }
-}
+#[derive(Debug)]
+pub struct ReadToken(MemoryInterval);
 
 #[derive(Debug)]
 pub struct ReadAsToken<T> {
     offset: u32,
-    salt: u32,
     _phantom: PhantomData<T>,
 }
 
-impl<T> From<ReadAsToken<T>> for ReadToken {
-    fn from(token: ReadAsToken<T>) -> Self {
-        let ReadAsToken { offset, salt, .. } = token;
-        let size = u32::try_from(mem::size_of::<T>())
-            .unwrap_or_else(|_| unreachable!("Size of `T` is bigger than u32::MAX"));
-        Self {
-            interval: MemoryInterval { offset, size },
-            salt,
-        }
-    }
-}
-
-impl<T> ReadAsToken<T> {
-    fn private_clone(&self) -> Self {
-        Self {
-            offset: self.offset,
-            salt: self.salt,
-            _phantom: Default::default(),
-        }
-    }
-}
-
-#[derive(Debug)]
 /// Read decoded type access wrapper.
+#[derive(Debug)]
 pub struct ReadDecodedToken<T: Decode + MaxEncodedLen> {
     offset: u32,
-    salt: u32,
     _phantom: PhantomData<T>,
-}
-
-impl<T: Decode + MaxEncodedLen> ReadDecodedToken<T> {
-    fn private_clone(&self) -> Self {
-        Self {
-            offset: self.offset,
-            salt: self.salt,
-            _phantom: Default::default(),
-        }
-    }
-}
-
-impl<T: Decode + MaxEncodedLen> From<ReadDecodedToken<T>> for ReadToken {
-    fn from(token: ReadDecodedToken<T>) -> Self {
-        let ReadDecodedToken { offset, salt, .. } = token;
-        let size = u32::try_from(T::max_encoded_len())
-            .unwrap_or_else(|_| unreachable!("Max encoded len of `T` is bigger than u32::MAX"));
-        Self {
-            interval: MemoryInterval { offset, size },
-            salt,
-        }
-    }
 }
 
 /// Memory access manager. Allows to pre-register memory accesses,
@@ -196,8 +132,7 @@ impl<T: Decode + MaxEncodedLen> From<ReadDecodedToken<T>> for ReadToken {
 /// ```
 #[derive(Debug)]
 pub struct MemoryAccessManager<E> {
-    reads: Vec<ReadToken>,
-    salt: u32,
+    reads: Vec<MemoryInterval>,
     _phantom: PhantomData<E>,
 }
 
@@ -205,7 +140,6 @@ impl<E> Default for MemoryAccessManager<E> {
     fn default() -> Self {
         Self {
             reads: Default::default(),
-            salt: 0,
             _phantom: PhantomData,
         }
     }
@@ -213,56 +147,45 @@ impl<E> Default for MemoryAccessManager<E> {
 
 impl<E: BackendExt> MemoryAccessRecorder for MemoryAccessManager<E> {
     fn register_read(&mut self, offset: u32, size: u32) -> Result<ReadToken, MemoryAccessError> {
-        RuntimeBuffer::check_size(size as usize)?;
-        let token = ReadToken {
-            interval: MemoryInterval { offset, size },
-            salt: self.salt,
-        };
-        self.salt += 1;
-        self.save_read_token(token.private_clone())?;
-        Ok(token)
+        let interval = MemoryInterval { offset, size };
+        self.reads.push(interval);
+        Ok(ReadToken(interval))
     }
 
     fn register_read_as<T: Sized>(
         &mut self,
         offset: u32,
     ) -> Result<ReadAsToken<T>, MemoryAccessError> {
-        let token = ReadAsToken {
+        let size = mem::size_of::<T>()
+            .try_into()
+            .unwrap_or_else(|err| unreachable!("Size of `T` is bigger than u32::MAX: {err}"));
+        self.reads.push(MemoryInterval { offset, size });
+        Ok(ReadAsToken {
             offset,
-            salt: self.salt,
-            _phantom: Default::default(),
-        };
-        self.salt += 1;
-        self.save_read_token(token.private_clone().into())?;
-        Ok(token)
+            _phantom: PhantomData,
+        })
     }
 
     fn register_read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         offset: u32,
     ) -> Result<ReadDecodedToken<T>, MemoryAccessError> {
-        let token = ReadDecodedToken {
+        let size = T::max_encoded_len().try_into().unwrap_or_else(|err| {
+            unreachable!("Max encoded len of `T` is bigger than u32::MAX: {err}")
+        });
+        self.reads.push(MemoryInterval { offset, size });
+        Ok(ReadDecodedToken {
             offset,
-            salt: self.salt,
-            _phantom: Default::default(),
-        };
-        self.salt += 1;
-        self.save_read_token(token.private_clone().into())?;
-        Ok(token)
+            _phantom: PhantomData,
+        })
     }
 }
 
 impl<E: BackendExt> MemoryAccessManager<E> {
-    fn flush_read_tokens(&mut self) -> Vec<ReadToken> {
+    fn flush_reads(&mut self) -> Vec<MemoryInterval> {
         let mut out = vec![];
         mem::swap(&mut self.reads, &mut out);
         out
-    }
-
-    fn save_read_token(&mut self, token: ReadToken) -> Result<(), MemoryAccessError> {
-        RuntimeBuffer::check_size(token.interval.size as usize)?;
-        self.reads.push(token);
-        Ok(())
     }
 
     fn pre_process_and_read<M: Memory>(
@@ -272,16 +195,25 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         read_buffer: &mut [u8],
         gas_left: &mut GasLeft,
     ) -> Result<(), MemoryAccessError> {
-        let size = u32::try_from(read_buffer.len())
-            .unwrap_or_else(|_| unreachable!("Write data size is bigger than u32::MAX"));
-        let read_interval = MemoryInterval {
-            offset: read_offset,
-            size,
-        };
-        let read_tokens = self.flush_read_tokens();
-        let reads: Vec<MemoryInterval> = read_tokens.iter().map(|token| token.interval).collect();
-        E::pre_process_access_and_read(memory, &reads, &[], read_interval, read_buffer, gas_left)
-            .map_err(Into::into)
+        if self.reads.is_empty() {
+            memory.read(read_offset, read_buffer)?;
+        } else {
+            let size = u32::try_from(read_buffer.len())
+                .unwrap_or_else(|_| unreachable!("Read data size is bigger than u32::MAX"));
+            let read_interval = MemoryInterval {
+                offset: read_offset,
+                size,
+            };
+            E::pre_process_access_and_read(
+                memory,
+                self.flush_reads().as_slice(),
+                &[],
+                read_interval,
+                read_buffer,
+                gas_left,
+            )?;
+        }
+        Ok(())
     }
 
     fn pre_process_and_write<M: Memory>(
@@ -297,17 +229,15 @@ impl<E: BackendExt> MemoryAccessManager<E> {
             offset: write_offset,
             size,
         };
-        let read_tokens = self.flush_read_tokens();
-        let reads: Vec<MemoryInterval> = read_tokens.iter().map(|token| token.interval).collect();
         E::pre_process_accesses_and_write(
             memory,
-            &reads,
+            self.flush_reads().as_slice(),
             &[write_interval],
             write_interval,
             write_data,
             gas_left,
-        )
-        .map_err(Into::into)
+        )?;
+        Ok(())
     }
 
     /// Pre-process registered accesses if need and read data from `memory` into new vector.
@@ -317,13 +247,8 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         token: ReadToken,
         gas_left: &mut GasLeft,
     ) -> Result<Vec<u8>, MemoryAccessError> {
-        let mut read_buffer = vec![0; token.interval.size as usize];
-        self.pre_process_and_read(
-            memory,
-            token.interval.offset,
-            read_buffer.as_mut_slice(),
-            gas_left,
-        )?;
+        let mut read_buffer = vec![0; token.0.size as usize];
+        self.pre_process_and_read(memory, token.0.offset, read_buffer.as_mut_slice(), gas_left)?;
         Ok(read_buffer)
     }
 
