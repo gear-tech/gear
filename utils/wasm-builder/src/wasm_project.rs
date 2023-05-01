@@ -130,7 +130,7 @@ impl WasmProject {
     /// Generate a temporary cargo project that includes the original package as a dependency.
     pub fn generate(&mut self) -> Result<()> {
         let original_manifest = self.original_dir.join("Cargo.toml");
-        let crate_info = CrateInfo::from_manifest(&original_manifest)?;
+        let crate_info = CrateInfo::from_manifest(&original_manifest, true)?;
         self.file_base_name = Some(crate_info.snake_case_name.clone());
 
         let mut package = Table::new();

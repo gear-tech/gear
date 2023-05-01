@@ -382,6 +382,7 @@ tracing = "0.1.37"                                                        # util
 tracing-appender = "0.2"                                                  # utils/node-loder
 tracing-subscriber = "0.3.16"                                             # utils/node-loder
 trybuild = "1"                                                            # gstd/codegen
+sysinfo = "0.28.4"                                                        # utils/wasm-builder
 wasm-opt = "0.111.0"                                                      # utils/wasm-builder
 wasmprinter = "0.2"                                                       # utils/wasm-gen
 whoami = "1.4.0"                                                          # gcli

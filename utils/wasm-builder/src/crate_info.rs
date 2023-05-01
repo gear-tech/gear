@@ -37,7 +37,7 @@ pub struct CrateInfo {
 
 impl CrateInfo {
     /// Create a new `CrateInfo` from a path to the `Cargo.toml`.
-    pub fn from_manifest(manifest_path: &Path) -> Result<Self> {
+    pub fn from_manifest(manifest_path: &Path, validation: bool) -> Result<Self> {
         anyhow::ensure!(
             manifest_path.exists(),
             BuilderError::InvalidManifestPath(manifest_path.to_path_buf())
@@ -51,7 +51,7 @@ impl CrateInfo {
 
         let root_package = Self::root_package(&metadata)
             .ok_or_else(|| BuilderError::RootPackageNotFound.into())
-            .and_then(Self::check)?;
+            .and_then(|p| if validation { Self::check(p) } else { Ok(p) })?;
         let name = root_package.name.clone();
         let snake_case_name = name.replace('-', "_");
         let version = root_package.version.to_string();

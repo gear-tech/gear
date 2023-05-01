@@ -29,6 +29,7 @@ mod crate_info;
 pub mod optimize;
 mod smart_fs;
 mod stack_end;
+mod sys;
 mod wasm_project;
 
 pub use stack_end::insert_stack_end_export;
@@ -43,26 +44,26 @@ pub struct WasmBuilder {
 
 impl WasmBuilder {
     /// Create a new `WasmBuilder`.
-    pub fn new() -> Self {
+    pub fn new(binary_features: &[&'static str]) -> Self {
         WasmBuilder {
             wasm_project: WasmProject::new(ProjectType::Program(None)),
-            cargo: CargoCommand::new(),
+            cargo: CargoCommand::new(binary_features.to_vec()),
         }
     }
 
     /// Create a new `WasmBuilder` for metawasm.
-    pub fn new_metawasm() -> Self {
+    pub fn new_metawasm(binary_features: &[&'static str]) -> Self {
         WasmBuilder {
             wasm_project: WasmProject::new(ProjectType::Metawasm),
-            cargo: CargoCommand::new(),
+            cargo: CargoCommand::new(binary_features.to_vec()),
         }
     }
 
     /// Create a new `WasmBuilder` with metadata.
-    pub fn with_meta(metadata: MetadataRepr) -> Self {
+    pub fn with_meta(metadata: MetadataRepr, binary_features: &[&'static str]) -> Self {
         WasmBuilder {
             wasm_project: WasmProject::new(ProjectType::Program(Some(metadata))),
-            cargo: CargoCommand::new(),
+            cargo: CargoCommand::new(binary_features.to_vec()),
         }
     }
 
@@ -98,21 +99,27 @@ impl WasmBuilder {
 
 impl Default for WasmBuilder {
     fn default() -> Self {
-        Self::new()
+        Self::new(&[])
     }
 }
 
 /// Shorthand function to be used in `build.rs`.
 pub fn build() {
-    WasmBuilder::new().build();
+    WasmBuilder::new(&["std"]).build();
+}
+
+/// Shorthand function to be used in `build.rs` excluding custom features,
+/// instead of default "std".
+pub fn build_excluding(binary_features: &[&'static str]) {
+    WasmBuilder::new(binary_features).build();
 }
 
 /// Shorthand function to be used in `build.rs`.
 pub fn build_with_metadata<T: Metadata>() {
-    WasmBuilder::with_meta(T::repr()).build();
+    WasmBuilder::with_meta(T::repr(), &["std"]).build();
 }
 
 /// Shorthand function to be used in `build.rs`.
 pub fn build_metawasm() {
-    WasmBuilder::new_metawasm().build();
+    WasmBuilder::new_metawasm(&["std"]).build();
 }

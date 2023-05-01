@@ -20,6 +20,7 @@ which.workspace = true
 colored.workspace = true
 gmeta.workspace = true
 gear-wasm-instrument.workspace = true
+sysinfo.workspace = true
 wasm-opt = { workspace = true, optional = true }
 
 [features]
