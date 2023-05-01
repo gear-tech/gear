@@ -42,7 +42,7 @@ jobs:
             [gearNodes:children]
             nodes
             [nodes]
-            ${{secrets.VARA_CONNECT_1}} name=vara-connect-1 connect=yes validator=no loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=ghcr.io/gear-tech/node-vara:0.1.0-e2dcdb47
+            ${{secrets.VARA_CONNECT_1}} name=vara-connect-1 connect=yes validator=no rpc=no loki=yes loki_url=${{secrets.LOKI_URL}} gear_image_tag=ghcr.io/gear-tech/node-vara:0.1.0-e2dcdb47
 
   deploy-second-connector:
     runs-on: ubuntu-latest
