@@ -21,9 +21,8 @@
 // TODO: make unit tests for `MemoryAccessManager` (issue #2068)
 
 use crate::BackendExt;
-use alloc::{collections::BTreeMap, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 use core::{
-    any::type_name,
     fmt::Debug,
     marker::PhantomData,
     mem,
@@ -198,7 +197,6 @@ impl<T: Decode + MaxEncodedLen> From<ReadDecodedToken<T>> for ReadToken {
 #[derive(Debug)]
 pub struct MemoryAccessManager<E> {
     reads: Vec<ReadToken>,
-    reads_data: BTreeMap<ReadToken, Vec<u8>>,
     salt: u32,
     _phantom: PhantomData<E>,
 }
@@ -207,7 +205,6 @@ impl<E> Default for MemoryAccessManager<E> {
     fn default() -> Self {
         Self {
             reads: Default::default(),
-            reads_data: Default::default(),
             salt: 0,
             _phantom: PhantomData,
         }
@@ -268,59 +265,49 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         Ok(())
     }
 
-    fn pre_process_reads<M: Memory>(
+    fn pre_process_and_read<M: Memory>(
         &mut self,
         memory: &M,
+        read_offset: u32,
+        read_buffer: &mut [u8],
         gas_left: &mut GasLeft,
     ) -> Result<(), MemoryAccessError> {
-        if self.reads.is_empty() {
-            return Ok(());
-        }
+        let size = u32::try_from(read_buffer.len())
+            .unwrap_or_else(|_| unreachable!("Write data size is bigger than u32::MAX"));
+        let read_interval = MemoryInterval {
+            offset: read_offset,
+            size,
+        };
         let read_tokens = self.flush_read_tokens();
         let reads: Vec<MemoryInterval> = read_tokens.iter().map(|token| token.interval).collect();
-        let reads_data = E::access_memory_reads(memory, &reads, gas_left)?;
-        if reads.len() != reads_data.len() {
-            unreachable!(
-                "Wrong memory backend behavior - must return the same amount of reads data buffers"
-            );
-        }
-        read_tokens.iter().zip(reads_data.into_iter()).for_each(|(token, data)| {
-            if data.len() != token.interval.size as usize {
-                unreachable!("Wrong memory backend behavior - must return the same size of data buffer for each read");
-            }
-            self.reads_data.insert(token.private_clone(), data);
-        });
-        Ok(())
+        E::pre_process_access_and_read(memory, &reads, &[], read_interval, read_buffer, gas_left)
+            .map_err(Into::into)
     }
 
     fn pre_process_and_write<M: Memory>(
         &mut self,
         memory: &mut M,
-        offset: u32,
-        data: &[u8],
+        write_offset: u32,
+        write_data: &[u8],
         gas_left: &mut GasLeft,
     ) -> Result<(), MemoryAccessError> {
-        let size = u32::try_from(data.len())
-            .unwrap_or_else(|_| unreachable!("Write buffer size is bigger than u32::MAX"));
-        let write = MemoryInterval { offset, size };
+        let size = u32::try_from(write_data.len())
+            .unwrap_or_else(|_| unreachable!("Write data size is bigger than u32::MAX"));
+        let write_interval = MemoryInterval {
+            offset: write_offset,
+            size,
+        };
         let read_tokens = self.flush_read_tokens();
         let reads: Vec<MemoryInterval> = read_tokens.iter().map(|token| token.interval).collect();
-
-        let reads_data = E::access_memory_with_writes(memory, &reads, &[(write, data)], gas_left)?;
-        if reads.len() != reads_data.len() {
-            unreachable!(
-                "Wrong memory backend behavior - must return the same amount of reads data buffers"
-            );
-        }
-
-        read_tokens.iter().zip(reads_data.into_iter()).for_each(|(token, data)| {
-            if data.len() != token.interval.size as usize {
-                unreachable!("Wrong memory backend behavior - must return the same size of data buffer for each read");
-            }
-            self.reads_data.insert(token.private_clone(), data);
-        });
-
-        Ok(())
+        E::pre_process_accesses_and_write(
+            memory,
+            &reads,
+            &[write_interval],
+            write_interval,
+            write_data,
+            gas_left,
+        )
+        .map_err(Into::into)
     }
 
     /// Pre-process registered accesses if need and read data from `memory` into new vector.
@@ -330,12 +317,14 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         token: ReadToken,
         gas_left: &mut GasLeft,
     ) -> Result<Vec<u8>, MemoryAccessError> {
-        self.pre_process_reads(memory, gas_left)?;
-        let data = self
-            .reads_data
-            .remove(&token)
-            .unwrap_or_else(|| unreachable!("Given token is not created by this memory manager"));
-        Ok(data)
+        let mut read_buffer = vec![0; token.interval.size as usize];
+        self.pre_process_and_read(
+            memory,
+            token.interval.offset,
+            read_buffer.as_mut_slice(),
+            gas_left,
+        )?;
+        Ok(read_buffer)
     }
 
     /// Pre-process registered accesses if need and read data as `T` from `memory`.
@@ -345,12 +334,7 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         token: ReadAsToken<T>,
         gas_left: &mut GasLeft,
     ) -> Result<T, MemoryAccessError> {
-        self.pre_process_reads(memory, gas_left)?;
-        let data = self
-            .reads_data
-            .remove(&token.into())
-            .unwrap_or_else(|| unreachable!("Given token is not created by this memory manager"));
-        Ok(interpret_as(&data))
+        read_as(|buffer| self.pre_process_and_read(memory, token.offset, buffer, gas_left))
     }
 
     /// Pre-process registered accesses if need and read and decode data as `T` from `memory`.
@@ -360,12 +344,9 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         token: ReadDecodedToken<T>,
         gas_left: &mut GasLeft,
     ) -> Result<T, MemoryAccessError> {
-        self.pre_process_reads(memory, gas_left)?;
-        let data = self
-            .reads_data
-            .remove(&token.into())
-            .unwrap_or_else(|| unreachable!("Given token is not created by this memory manager"));
-        T::decode_all(&mut data.as_slice()).map_err(|_| MemoryAccessError::Decode)
+        let mut buffer = vec![0; T::max_encoded_len()];
+        self.pre_process_and_read(memory, token.offset, buffer.as_mut_slice(), gas_left)?;
+        T::decode_all(&mut buffer.as_slice()).map_err(|_| MemoryAccessError::Decode)
     }
 
     /// Pre-process registered accesses if need and write data from `buff` to `memory`.
@@ -403,10 +384,10 @@ impl<E: BackendExt> MemoryAccessManager<E> {
 }
 
 /// Reads bytes from given pointer to construct type T from them.
-fn interpret_as<T: Sized>(data: &[u8]) -> T {
+fn read_as<T: Sized>(
+    mut read_to_buffer: impl FnMut(&mut [u8]) -> Result<(), MemoryAccessError>,
+) -> Result<T, MemoryAccessError> {
     let mut buf = MaybeUninit::<T>::uninit();
-
-    log::trace!("{} {}", type_name::<T>(), mem::size_of::<T>());
 
     // # Safety:
     //
@@ -423,7 +404,7 @@ fn interpret_as<T: Sized>(data: &[u8]) -> T {
         unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
 
     // Panics if `data` has different size.
-    mut_slice.copy_from_slice(data);
+    read_to_buffer(mut_slice)?;
 
     // # Safety:
     //
@@ -431,5 +412,5 @@ fn interpret_as<T: Sized>(data: &[u8]) -> T {
     // amount of bytes from the wasm memory, which is never uninited: they may
     // be filled by zeroes or some trash (valid for our primitives used as T),
     // but always exist.
-    unsafe { buf.assume_init() }
+    unsafe { Ok(buf.assume_init()) }
 }

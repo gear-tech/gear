@@ -80,6 +80,13 @@ impl Debug for MemoryInterval {
     }
 }
 
+impl MemoryInterval {
+    /// +_+_+
+    pub fn end_offset(&self) -> Option<u32> {
+        self.offset.checked_add(self.size)
+    }
+}
+
 /// Alias for inner type of page buffer.
 pub type PageBufInner = LimitedVec<u8, (), GEAR_PAGE_SIZE>;
 

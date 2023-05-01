@@ -68,21 +68,38 @@ impl BackendExt for LazyPagesExt {
         lazy_pages::pre_process_memory_accesses(reads, writes, gas_left)
     }
 
-    fn access_memory_reads(
+    fn pre_process_access_and_read(
         _memory: &impl Memory,
         reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+        read_interval: MemoryInterval,
+        read_buffer: &mut [u8],
         gas_left: &mut GasLeft,
-    ) -> Result<Vec<Vec<u8>>, ProcessAccessError> {
-        lazy_pages::access_memory(reads, &[], gas_left)
+    ) -> Result<(), ProcessAccessError> {
+        lazy_pages::pre_process_accesses_and_read(
+            reads,
+            writes,
+            read_interval,
+            read_buffer,
+            gas_left,
+        )
     }
 
-    fn access_memory_with_writes(
+    fn pre_process_accesses_and_write(
         _memory: &mut impl Memory,
         reads: &[MemoryInterval],
-        writes: &[(MemoryInterval, &[u8])],
+        writes: &[MemoryInterval],
+        write_interval: MemoryInterval,
+        write_data: &[u8],
         gas_left: &mut GasLeft,
-    ) -> Result<Vec<Vec<u8>>, ProcessAccessError> {
-        lazy_pages::access_memory(reads, writes, gas_left)
+    ) -> Result<(), ProcessAccessError> {
+        lazy_pages::pre_process_accesses_and_write(
+            reads,
+            writes,
+            write_interval,
+            write_data,
+            gas_left,
+        )
     }
 }
 

@@ -100,27 +100,6 @@ impl PassBy for LazyPagesRuntimeContext {
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
-    fn memory_access_reads(
-        reads: &[MemoryInterval],
-        gas_left: (GasLeft,),
-    ) -> (GasLeft, Result<Vec<Vec<u8>>, ProcessAccessError>) {
-        let mut gas_left = gas_left.0;
-        let res = lazy_pages::process_memory_accesses(reads, [], [], &mut gas_left);
-        (gas_left, res)
-    }
-
-    fn memory_access_reads_and_write(
-        reads: &[MemoryInterval],
-        write: (MemoryInterval,),
-        writes_data: &[u8],
-        gas_left: (GasLeft,),
-    ) -> (GasLeft, Result<Vec<Vec<u8>>, ProcessAccessError>) {
-        let mut gas_left = gas_left.0;
-        let res =
-            lazy_pages::process_memory_accesses(reads, [write.0], [writes_data], &mut gas_left);
-        (gas_left, res)
-    }
-
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
@@ -128,6 +107,42 @@ pub trait GearRI {
     ) -> (GasLeft, Result<(), ProcessAccessError>) {
         let mut gas_left = gas_left.0;
         let res = lazy_pages::pre_process_memory_accesses(reads, writes, &mut gas_left);
+        (gas_left, res)
+    }
+
+    fn pre_process_accesses_and_read(
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+        read_interval: (MemoryInterval,),
+        read_buffer: &mut [u8],
+        gas_left: (GasLeft,),
+    ) -> (GasLeft, Result<(), ProcessAccessError>) {
+        let mut gas_left = gas_left.0;
+        let res = lazy_pages::pre_process_accesses_and_read(
+            reads,
+            writes,
+            read_interval.0,
+            read_buffer,
+            &mut gas_left,
+        );
+        (gas_left, res)
+    }
+
+    fn pre_process_accesses_and_write(
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+        write_interval: (MemoryInterval,),
+        write_data: &[u8],
+        gas_left: (GasLeft,),
+    ) -> (GasLeft, Result<(), ProcessAccessError>) {
+        let mut gas_left = gas_left.0;
+        let res = lazy_pages::pre_process_accesses_and_write(
+            reads,
+            writes,
+            write_interval.0,
+            write_data,
+            &mut gas_left,
+        );
         (gas_left, res)
     }
 

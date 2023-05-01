@@ -19,7 +19,6 @@
 use crate::configs::{BlockInfo, PageCosts};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    vec,
     vec::Vec,
 };
 use gear_backend_common::{
@@ -269,51 +268,36 @@ impl BackendExt for Ext {
         Ok(())
     }
 
-    fn access_memory_reads(
+    fn pre_process_access_and_read(
         memory: &impl Memory,
-        reads: &[MemoryInterval],
+        _reads: &[MemoryInterval],
+        _writes: &[MemoryInterval],
+        read_interval: MemoryInterval,
+        read_buffer: &mut [u8],
         _gas_left: &mut GasLeft,
-    ) -> Result<Vec<Vec<u8>>, ProcessAccessError> {
-        let mut reads_data = vec![];
-        for read in reads {
-            let mut buffer = vec![0; read.size as usize];
-            memory
-                .read(read.offset, &mut buffer)
-                .map_err(|err| match err {
-                    MemoryError::AccessOutOfBounds => ProcessAccessError::OutOfBounds,
-                    _ => unreachable!("Cannot be returned from read"),
-                })?;
-            reads_data.push(buffer);
-        }
-        Ok(reads_data)
+    ) -> Result<(), ProcessAccessError> {
+        memory
+            .read(read_interval.offset, read_buffer)
+            .map_err(|err| match err {
+                MemoryError::AccessOutOfBounds => ProcessAccessError::OutOfBounds,
+                _ => unreachable!("Cannot be returned from read"),
+            })
     }
 
-    fn access_memory_with_writes(
+    fn pre_process_accesses_and_write(
         memory: &mut impl Memory,
-        reads: &[MemoryInterval],
-        writes: &[(MemoryInterval, &[u8])],
+        _reads: &[MemoryInterval],
+        _writes: &[MemoryInterval],
+        write_interval: MemoryInterval,
+        write_data: &[u8],
         _gas_left: &mut GasLeft,
-    ) -> Result<Vec<Vec<u8>>, ProcessAccessError> {
-        let mut reads_data = vec![];
-        for read in reads {
-            let mut buffer = vec![0; read.size as usize];
-            memory
-                .read(read.offset, &mut buffer)
-                .map_err(|err| match err {
-                    MemoryError::AccessOutOfBounds => ProcessAccessError::OutOfBounds,
-                    _ => unreachable!("Cannot be returned from read"),
-                })?;
-            reads_data.push(buffer);
-        }
-
-        for (write, data) in writes {
-            memory.write(write.offset, data).map_err(|err| match err {
+    ) -> Result<(), ProcessAccessError> {
+        memory
+            .write(write_interval.offset, write_data)
+            .map_err(|err| match err {
                 MemoryError::AccessOutOfBounds => ProcessAccessError::OutOfBounds,
                 _ => unreachable!("Cannot be returned from write"),
-            })?;
-        }
-
-        Ok(reads_data)
+            })
     }
 }
 

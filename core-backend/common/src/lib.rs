@@ -242,18 +242,23 @@ pub trait BackendExt: EnvExt + CountersOwner {
         gas_left: &mut GasLeft,
     ) -> Result<(), ProcessAccessError>;
 
-    fn access_memory_reads(
+    fn pre_process_access_and_read(
         memory: &impl Memory,
         reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+        read_interval: MemoryInterval,
+        read_buffer: &mut [u8],
         gas_left: &mut GasLeft,
-    ) -> Result<Vec<Vec<u8>>, ProcessAccessError>;
+    ) -> Result<(), ProcessAccessError>;
 
-    fn access_memory_with_writes(
+    fn pre_process_accesses_and_write(
         memory: &mut impl Memory,
         reads: &[MemoryInterval],
-        writes: &[(MemoryInterval, &[u8])],
+        writes: &[MemoryInterval],
+        write_interval: MemoryInterval,
+        write_data: &[u8],
         gas_left: &mut GasLeft,
-    ) -> Result<Vec<Vec<u8>>, ProcessAccessError>;
+    ) -> Result<(), ProcessAccessError>;
 }
 
 pub trait BackendExtError: Clone + Sized {

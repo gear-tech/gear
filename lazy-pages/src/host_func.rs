@@ -19,14 +19,14 @@
 //! Host function call `pre_process_memory_accesses` support in lazy-pages.
 
 use crate::{
-    common::{Error, GasLeftCharger, LazyPagesContext, LazyPagesExecutionContext, WeightNo},
+    common::{Error, GasLeftCharger, LazyPagesExecutionContext, WeightNo},
     pages::{GearPageNumber, PageDynSize},
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
 use gear_backend_common::{lazy_pages::Status, memory::ProcessAccessError};
 use gear_core::{gas::GasLeft, memory::MemoryInterval};
-use std::{cell::RefMut, collections::BTreeSet};
+use std::collections::BTreeSet;
 
 pub(crate) struct HostFuncAccessHandler<'a> {
     pub is_write: bool,
@@ -43,9 +43,7 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
     }
 
     fn check_status_is_gas_exceeded() -> Result<(), Error> {
-        // Currently, we charge gas for sys-call after memory processing, so this can appear.
-        // In this case we do nothing, because all memory is already unprotected, and no need
-        // to take in account pages data from storage, because gas is exceeded.
+        log::error!("This can appear only in case somebody create gear syscall, which access memory before charging for call");
         Ok(())
     }
 
@@ -133,14 +131,13 @@ fn accesses_pages(
 }
 
 fn pre_process_memory_accesses_internal(
-    ctx: &mut RefMut<LazyPagesContext>,
+    ctx: &mut LazyPagesExecutionContext,
     reads: &[MemoryInterval],
     writes: &[MemoryInterval],
     gas_left: &mut GasLeft,
 ) -> Result<Status, Error> {
     log::trace!("Pre-process memory accesses. Reads: {reads:?} Writes: {writes:?}");
 
-    let ctx = ctx.execution_context_mut()?;
     let mut read_pages = BTreeSet::new();
     accesses_pages(ctx, reads, &mut read_pages)?;
 
@@ -180,20 +177,36 @@ fn pre_process_memory_accesses_internal(
     )
 }
 
-fn handle_pre_process_result(res: Result<Status, Error>) -> Result<(), ProcessAccessError> {
-    match res {
-        Err(error) => match error {
+impl From<Error> for ProcessAccessError {
+    fn from(err: Error) -> Self {
+        match err {
             Error::WasmMemAddrIsNotSet | Error::OutOfWasmMemoryAccess => {
-                Err(ProcessAccessError::OutOfBounds)
+                ProcessAccessError::OutOfBounds
             }
             err => unreachable!("Lazy-pages unexpected error: {}", err),
-        },
-        Ok(status) => match status {
-            Status::Normal => Ok(()),
-            Status::GasLimitExceeded => Err(ProcessAccessError::GasLimitExceeded),
-            Status::GasAllowanceExceeded => Err(ProcessAccessError::GasAllowanceExceeded),
-        },
+        }
     }
+}
+
+fn pre_process_memory_accesses_with_action(
+    reads: &[MemoryInterval],
+    writes: &[MemoryInterval],
+    gas_left: &mut GasLeft,
+    mut post_action: impl FnMut(&mut LazyPagesExecutionContext) -> Result<(), Error>,
+) -> Result<(), ProcessAccessError> {
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        let mut ctx = ctx.borrow_mut();
+        let ctx = ctx.execution_context_mut().map_err(Error::from)?;
+        pre_process_memory_accesses_internal(ctx, reads, writes, gas_left).map(|status| {
+            match status {
+                Status::Normal => Ok(()),
+                Status::GasLimitExceeded => Err(ProcessAccessError::GasLimitExceeded),
+                Status::GasAllowanceExceeded => Err(ProcessAccessError::GasAllowanceExceeded),
+            }
+        })??;
+        post_action(ctx)?;
+        Ok(())
+    })
 }
 
 pub fn pre_process_memory_accesses(
@@ -201,60 +214,75 @@ pub fn pre_process_memory_accesses(
     writes: &[MemoryInterval],
     gas_left: &mut GasLeft,
 ) -> Result<(), ProcessAccessError> {
-    log::trace!("host func mem accesses: {reads:?} {writes:?}");
-    LAZY_PAGES_CONTEXT.with(|ctx| {
-        let mut ctx = ctx.borrow_mut();
-        let res = pre_process_memory_accesses_internal(&mut ctx, reads, writes, gas_left);
-        handle_pre_process_result(res)
+    pre_process_memory_accesses_with_action(reads, writes, gas_left, |_| Ok(()))
+}
+
+pub fn pre_process_accesses_and_read(
+    reads: &[MemoryInterval],
+    writes: &[MemoryInterval],
+    read_interval: MemoryInterval,
+    read_buffer: &mut [u8],
+    gas_left: &mut GasLeft,
+) -> Result<(), ProcessAccessError> {
+    pre_process_memory_accesses_with_action(reads, writes, gas_left, |ctx| {
+        if ctx.wasm_mem_size.offset(ctx)
+            < read_interval
+                .end_offset()
+                .ok_or(Error::OutOfWasmMemoryAccess)?
+        {
+            return Err(Error::OutOfWasmMemoryAccess);
+        }
+        let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
+
+        // +_+_+ change to panic
+        let read_addr = wasm_mem_addr
+            .checked_add(read_interval.offset as usize)
+            .ok_or(Error::OutOfWasmMemoryAccess)?;
+
+        // Safety:
+        //
+        // +_+_+
+        unsafe {
+            let data =
+                core::slice::from_raw_parts(read_addr as *const u8, read_interval.size as usize);
+            read_buffer.copy_from_slice(data);
+        }
+
+        Ok(())
     })
 }
 
-pub fn process_memory_accesses<const WRITES_AMOUNT: usize>(
+pub fn pre_process_accesses_and_write(
     reads: &[MemoryInterval],
-    writes: [MemoryInterval; WRITES_AMOUNT],
-    writes_data: [&[u8]; WRITES_AMOUNT],
+    writes: &[MemoryInterval],
+    write_interval: MemoryInterval,
+    write_data: &[u8],
     gas_left: &mut GasLeft,
-) -> Result<Vec<Vec<u8>>, ProcessAccessError> {
-    LAZY_PAGES_CONTEXT.with(|ctx| {
-        let mut ctx = ctx.borrow_mut();
+) -> Result<(), ProcessAccessError> {
+    pre_process_memory_accesses_with_action(reads, writes, gas_left, |ctx| {
+        if ctx.wasm_mem_size.offset(ctx)
+            < write_interval
+                .end_offset()
+                .ok_or(Error::OutOfWasmMemoryAccess)?
+        {
+            return Err(Error::OutOfWasmMemoryAccess);
+        }
+        let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
+        let write_addr = wasm_mem_addr
+            .checked_add(write_interval.offset as usize)
+            .ok_or(Error::OutOfWasmMemoryAccess)?;
 
-        let res = pre_process_memory_accesses_internal(&mut ctx, reads, &writes, gas_left);
-        handle_pre_process_result(res)?;
+        // Safety:
+        //
+        // +_+_+
+        unsafe {
+            let buffer = core::slice::from_raw_parts_mut(
+                write_addr as *mut u8,
+                write_interval.size as usize,
+            );
+            buffer.copy_from_slice(write_data);
+        }
 
-        // All panics below are impossible,
-        // because we have already check intervals in `pre_process_memory_accesses_internal`.
-
-        let ctx = ctx
-            .execution_context_mut()
-            .unwrap_or_else(|_| unreachable!("+_+_+"));
-        let wasm_mem_addr = ctx.wasm_mem_addr.unwrap_or_else(|| unreachable!("+_+_+"));
-
-        let reads_out_buffers: Vec<Vec<u8>> = reads
-            .iter()
-            .map(|read| {
-                let addr = wasm_mem_addr
-                    .checked_add(read.offset as usize)
-                    .unwrap_or_else(|| unreachable!("+_+_+"));
-                let data =
-                    unsafe { core::slice::from_raw_parts(addr as *const u8, read.size as usize) };
-                data.to_vec()
-            })
-            .collect();
-
-        writes
-            .into_iter()
-            .zip(writes_data)
-            .for_each(|(write, data)| {
-                log::trace!("write {data:?} to {write:?}");
-                let addr = wasm_mem_addr
-                    .checked_add(write.offset as usize)
-                    .unwrap_or_else(|| unreachable!("+_+_+"));
-                let buffer = unsafe {
-                    core::slice::from_raw_parts_mut(addr as *mut u8, write.size as usize)
-                };
-                buffer.copy_from_slice(data);
-            });
-
-        Ok(reads_out_buffers)
+        Ok(())
     })
 }
