@@ -55,6 +55,8 @@ impl WSAddress {
         port: impl Into<Option<u16>>,
     ) -> Result<Self> {
         let domain = domain.into();
+        let port = port.into();
+
         let url = Url::parse(domain.as_ref())?;
 
         let valid_domain = matches!(url.scheme(), "ws" | "wss")
@@ -70,10 +72,7 @@ impl WSAddress {
             return Err(Error::IncorrectWSDomain);
         }
 
-        Ok(Self {
-            domain: domain.into(),
-            port: port.into(),
-        })
+        Ok(Self { domain, port })
     }
 
     /// Return the address of the local node working in developer mode (running
