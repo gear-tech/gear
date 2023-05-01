@@ -13,6 +13,8 @@ extern "C" fn handle() {
 #[no_mangle]
 extern "C" fn init() {
     debug!("init()");
+    #[cfg(feature = "init-panic")]
+    panic!();
 }
 
 #[cfg(test)]
@@ -22,6 +24,7 @@ mod gtest_tests {
     use gtest::{Log, Program, System};
 
     #[test]
+    #[cfg_attr(feature = "init-panic", should_panic)]
     fn init_self() {
         let system = System::new();
         system.init_logger();
@@ -29,6 +32,7 @@ mod gtest_tests {
         let this_program = Program::current(&system);
 
         let res = this_program.send_bytes(123, "INIT");
+        assert!(!res.main_failed());
         assert!(res.log().is_empty());
 
         let res = this_program.send_bytes(123, "Hi");
@@ -38,6 +42,19 @@ mod gtest_tests {
                 .dest(123)
                 .payload_bytes("Hello world!")
         ));
+    }
+
+    #[test]
+    #[cfg_attr(not(feature = "init-panic"), should_panic)]
+    fn feature_test() {
+        let system = System::new();
+        system.init_logger();
+
+        let this_program = Program::current(&system);
+
+        let res = this_program.send_bytes(123, "INIT");
+        assert!(res.main_failed());
+        assert!(!res.log().is_empty());
     }
 }
 

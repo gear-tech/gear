@@ -48,6 +48,11 @@ fn test_debug() {
 }
 
 #[test]
+fn test_feature_debug() {
+    CargoRunner::new().args(["test", "-F", "init-panic"]).run();
+}
+
+#[test]
 fn build_debug() {
     CargoRunner::new().args(["build"]).run()
 }
@@ -55,6 +60,11 @@ fn build_debug() {
 #[test]
 fn test_release() {
     CargoRunner::new().args(["test", "--release"]).run()
+}
+
+#[test]
+fn test_feature_release() {
+    CargoRunner::new().args(["test", "--release", "-F", "init-panic"]).run()
 }
 
 #[test]
