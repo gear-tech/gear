@@ -70,7 +70,10 @@ impl WSAddress {
             return Err(Error::IncorrectWSDomain);
         }
 
-        Ok(Self::new(domain, port))
+        Ok(Self {
+            domain: domain.into(),
+            port: port.into(),
+        })
     }
 
     /// Return the address of the local node working in developer mode (running
