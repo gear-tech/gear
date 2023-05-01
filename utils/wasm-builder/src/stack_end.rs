@@ -76,3 +76,43 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &str> {
         Err("has unexpected instr for init")
     }
 }
+
+#[test]
+fn assembly_script_stack_pointer() {
+    use pwasm_utils::parity_wasm::elements;
+
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (global $~lib/memory/__data_end i32 (i32.const 2380))
+            (global $~lib/memory/__stack_pointer (mut i32) (i32.const 1050956))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle)
+            (func $init)
+        )"#;
+
+    let binary = wabt::Wat2Wasm::new()
+        .validate(true)
+        .write_debug_names(true)
+        .convert(wat)
+        .expect("failed to parse module")
+        .as_ref()
+        .to_vec();
+
+    let mut module = elements::deserialize_buffer(&binary).expect("failed to deserialize binary");
+    insert_stack_end_export(&mut module).expect("insert_stack_end_export failed");
+
+    let gear_stack_end = module
+        .export_section()
+        .expect("export section should exist")
+        .entries()
+        .iter()
+        .find(|e| e.field() == STACK_END_EXPORT_NAME)
+        .expect("export entry should exist");
+
+    assert!(matches!(
+        gear_stack_end.internal(),
+        elements::Internal::Global(1)
+    ));
+}

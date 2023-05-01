@@ -22,5 +22,8 @@ gmeta.workspace = true
 gear-wasm-instrument.workspace = true
 wasm-opt = { workspace = true, optional = true }
 
+[dev-dependencies]
+wabt.workspace = true
+
 [features]
 metawasm = ["gmeta/codegen"]
