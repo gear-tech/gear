@@ -3470,6 +3470,7 @@ dependencies = [
  "subxt",
  "thiserror",
  "tokio",
+ "url",
  "wabt",
  "wat",
 ]
