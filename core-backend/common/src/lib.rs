@@ -29,10 +29,10 @@ mod utils;
 #[cfg(any(feature = "mock", test))]
 pub mod mock;
 
+pub mod memory;
+
 #[cfg(test)]
 mod tests;
-
-pub mod memory;
 
 use crate::memory::MemoryAccessError;
 use alloc::{
