@@ -904,7 +904,6 @@ mod benches {
         [pallet_utility, Utility]
         // Gear pallets
         [pallet_gear, Gear]
-        [pallet_airdrop, Airdrop]
     );
 }
 
