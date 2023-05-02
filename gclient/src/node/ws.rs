@@ -61,10 +61,8 @@ impl WSAddress {
 
         let valid_domain = matches!(url.scheme(), "ws" | "wss")
             && !url.cannot_be_a_base()
-            // TODO: should we add checks for `username:password` here?
             && url.has_host()
             && url.port().is_none()
-            // TODO: should we add `&& url.path() == "/"` here?
             && url.query().is_none()
             && url.fragment().is_none();
 
