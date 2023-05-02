@@ -4309,7 +4309,7 @@ dependencies = [
  "futures",
  "futures-util",
  "gear-core",
- "gsdk-derive",
+ "gsdk-codegen",
  "hex",
  "jsonrpsee",
  "log",
@@ -4324,7 +4324,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gsdk-derive"
+name = "gsdk-codegen"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",

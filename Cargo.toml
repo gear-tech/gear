@@ -60,7 +60,7 @@ members = [
     "gear-test",
     "gmeta",
     "gsdk",
-    "gsdk/derive",
+    "gsdk/codegen",
     "gstd",
     "gsys",
     "gtest",

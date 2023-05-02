@@ -20,10 +20,11 @@ use proc_macro2::Span;
 use quote::{quote, ToTokens};
 use syn::{
     parse_quote, punctuated::Punctuated, Expr, ExprLit, FnArg, Ident, ItemFn, Lit, LitStr, Meta,
-    MetaNameValue, PatType, Type,
+    MetaNameValue, PatType,
 };
 
 const FULL_DOC_SUFFIX: &str = " at specified block";
+const FULL_SUFFIX: &str = "_at";
 
 /// Storage query builder for generating
 /// - basic private shared query
@@ -32,58 +33,6 @@ const FULL_DOC_SUFFIX: &str = " at specified block";
 pub struct StorageQueryBuilder(ItemFn);
 
 impl StorageQueryBuilder {
-    /// Build private storage query.
-    fn private(&self) -> ItemFn {
-        let mut private = self.0.clone();
-        private.sig.ident = private.sig.ident.to_priv();
-
-        private
-    }
-
-    /// Build full storage query.
-    fn full(&self) -> ItemFn {
-        let mut full = self.0.clone();
-
-        // reset function docs.
-        //
-        // - `PatType(block_hash: Option<H256>)` -> `block_hash: H256`.
-        full.sig.inputs.iter_mut().find_map(|v| {
-            if let FnArg::Typed(PatType { pat, ty, .. }) = v {
-                if !pat.to_token_stream().to_string().contains("block_hash") {
-                    return None;
-                }
-
-                *ty = Box::new(Type::Verbatim(quote! { H256 }));
-                return Some(());
-            }
-
-            None
-        });
-
-        // reset function block.
-        //
-        // ```ignore
-        // {
-        //   self.storage_query_at(..args, Some(block_hash));
-        // }
-        // ```
-        {
-            let fn_at = &self.0.sig.ident.to_priv();
-            let mut args = full.typed_args();
-            // # Safty
-            //
-            // panic here is expected bcz the process will be failed anyway
-            // if we don't have `block_hash` as the last argument.
-            let block_hash = args.pop().expect("block_hash is not found");
-
-            full.block.stmts = parse_quote! {
-                self.#fn_at(#(#args,)* Some(#block_hash)).await
-            };
-        }
-
-        full
-    }
-
     /// Build short storage query.
     fn short(&self) -> ItemFn {
         let mut short = self.0.clone();
@@ -114,7 +63,10 @@ impl StorageQueryBuilder {
         // reset function name.
         //
         // - `storage_query_at` -> `storage_query`
-        short.sig.ident = short.sig.ident.to_short();
+        short.sig.ident = Ident::new(
+            short.sig.ident.to_string().trim_end_matches(FULL_SUFFIX),
+            short.sig.ident.span(),
+        );
 
         // reset function inputs.
         //
@@ -135,8 +87,22 @@ impl StorageQueryBuilder {
         // }
         // ```
         {
-            let fn_at = &self.0.sig.ident.to_priv();
-            let args = short.typed_args();
+            let fn_at = &self.0.sig.ident;
+            let args = short
+                .sig
+                .inputs
+                .iter()
+                .filter_map(|v| {
+                    if let FnArg::Typed(PatType { pat, .. }) = v {
+                        Some(Ident::new(
+                            &pat.to_token_stream().to_string(),
+                            Span::call_site(),
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<Ident>>();
 
             short.block.stmts = parse_quote! {
                 self.#fn_at(#(#args,)* None).await
@@ -148,10 +114,8 @@ impl StorageQueryBuilder {
 
     /// Build all storage queries.
     pub fn build(&self) -> TokenStream {
-        let (private, full, short) = (self.private(), self.full(), self.short());
+        let (full, short) = (self.0.clone(), self.short());
         quote! {
-            #private
-
             #full
 
             #short
@@ -163,47 +127,5 @@ impl StorageQueryBuilder {
 impl From<ItemFn> for StorageQueryBuilder {
     fn from(full: ItemFn) -> Self {
         Self(full)
-    }
-}
-
-trait QueryIdentConversion {
-    const PRIV_PREFIX: &'static str = "_";
-    const FULL_SUFFIX: &'static str = "_at";
-
-    fn to_priv(&self) -> Ident;
-
-    fn to_short(&self) -> Ident;
-}
-
-impl QueryIdentConversion for Ident {
-    fn to_priv(&self) -> Ident {
-        Ident::new(&format!("{}{}", Self::PRIV_PREFIX, self), self.span())
-    }
-
-    fn to_short(&self) -> Ident {
-        Ident::new(self.to_string().trim_end_matches("_at"), self.span())
-    }
-}
-
-trait Function {
-    fn typed_args(&self) -> Vec<Ident>;
-}
-
-impl Function for ItemFn {
-    fn typed_args(&self) -> Vec<Ident> {
-        self.sig
-            .inputs
-            .iter()
-            .filter_map(|v| {
-                if let FnArg::Typed(PatType { pat, .. }) = v {
-                    Some(Ident::new(
-                        &pat.to_token_stream().to_string(),
-                        Span::call_site(),
-                    ))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<Ident>>()
     }
 }
