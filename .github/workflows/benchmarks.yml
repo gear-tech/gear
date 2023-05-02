@@ -1,7 +1,6 @@
 name: Benchmarks
 
 on:
-  push: #TODO: delete
   workflow_dispatch:
     inputs:
       create_pr:
@@ -16,9 +15,7 @@ env:
 
 jobs:
   benchmarks:
-    # TODO: switch to prod VM
-    # runs-on: bench
-    runs-on: ubuntu-latest
+    runs-on: bench
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:

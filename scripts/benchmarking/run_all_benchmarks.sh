@@ -117,8 +117,8 @@ for PALLET in "${PALLETS[@]}"; do
   OUTPUT=$(
     $GEAR benchmark pallet \
     --chain=$chain_spec \
-    --steps=2 \
-    --repeat=1 \
+    --steps=50 \
+    --repeat=20 \
     --pallet="$PALLET" \
     --extrinsic="*" \
     --execution=wasm \
