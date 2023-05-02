@@ -42,6 +42,9 @@ impl WSAddress {
     const VARA: &'static str = "wss://rpc.vara-network.io";
 
     /// Create a new `WSAddress` from a host `domain` and `port`.
+    ///
+    /// This method does not do any validation of `domain`,
+    /// see [`WSAddress::try_new`] if you need it.
     pub fn new(domain: impl Into<Cow<'static, str>>, port: impl Into<Option<u16>>) -> Self {
         Self {
             domain: domain.into(),
@@ -50,6 +53,9 @@ impl WSAddress {
     }
 
     /// Try to create a new `WSAddress` from `domain` and `port`.
+    ///
+    /// Unlike the [`WSAddress::new`] method, this function checks
+    /// that the `domain` is valid.
     pub fn try_new(
         domain: impl Into<Cow<'static, str>>,
         port: impl Into<Option<u16>>,
