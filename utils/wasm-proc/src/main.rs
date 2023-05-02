@@ -188,7 +188,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let path = file.with_extension("opt.wasm");
 
         log::debug!("*** Processing chain optimization: {}", path.display());
-        let code = optimizer.optimize(OptType::Opt)?;
+        let code = optimizer.optimize()?;
         log::debug!("Optimized wasm: {}", path.to_string_lossy());
 
         fs::write(path, code)?;
