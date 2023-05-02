@@ -26,4 +26,4 @@ subxt.workspace = true
 thiserror.workspace = true
 sp-runtime = { workspace = true, features = [ "std" ] }
 sp-core.workspace = true
-gsdk-codegen = { path = "./codegen" }
+gsdk-codegen = { path = "codegen" }

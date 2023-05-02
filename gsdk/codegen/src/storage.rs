@@ -34,6 +34,36 @@ const AT_BLOCK_HASH: &str = "Option<H256>";
 pub struct StorageQueryBuilder(ItemFn);
 
 impl StorageQueryBuilder {
+    /// Build storage query at specifed block with and without Option.
+    fn at(&self) -> ItemFn {
+        let mut at = self.0.clone();
+
+        // reset block hash argument.
+        //
+        // - `value: Option<H256>` ->  `value: impl Into<Option<H256>>`
+        let ident =
+            if let Some(FnArg::Typed(PatType { ty, pat, .. })) = at.sig.inputs.iter_mut().last() {
+                *ty = parse_quote! {
+                    impl Into<Option<H256>>
+                };
+
+                Ident::new(&pat.to_token_stream().to_string(), Span::call_site())
+            } else {
+                unreachable!("Checked before in function validate");
+            };
+
+        // reset function block.
+        //
+        // - push `let block_hash = ident.into();` to the top of the block.
+        let mut stmts = vec![];
+        stmts.push(parse_quote! {
+            let block_hash = #ident.into();
+        });
+        at.block.stmts = [stmts, at.block.stmts].concat();
+
+        at
+    }
+
     /// Build storage query for full blocks.
     fn full(&self) -> ItemFn {
         let mut full = self.0.clone();
@@ -113,7 +143,7 @@ impl StorageQueryBuilder {
 
     /// Build all storage queries.
     pub fn build(&self) -> TokenStream {
-        let (at, full) = (self.0.clone(), self.full());
+        let (at, full) = (self.at(), self.full());
         quote! {
             #at
 
