@@ -156,7 +156,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rt_allowed_imports: HashSet<&str> = RT_ALLOWED_IMPORTS.into();
 
     for file in &wasm_files {
-        if !file.ends_with(".wasm") || file.ends_with(".opt.wasm") {
+        if !file.ends_with(".wasm") || file.ends_with(".meta.wasm") || file.ends_with(".opt.wasm") {
             continue;
         }
 
