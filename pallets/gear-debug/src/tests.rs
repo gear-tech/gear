@@ -117,6 +117,40 @@ fn vec() {
 }
 
 #[test]
+fn ping() {
+    use demo_ping::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(1),
+            WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+        ));
+
+        let ping_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(1),
+            ping_id,
+            b"PING".to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let reply = maybe_last_message(1).expect("Should be");
+        assert_eq!(reply.payload(), b"PONG");
+    });
+}
+
+#[test]
 fn debug_mode_works() {
     let wat_1 = r#"
         (module

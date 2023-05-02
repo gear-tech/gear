@@ -7030,6 +7030,7 @@ dependencies = [
 name = "pallet-gear-debug"
 version = "2.0.0"
 dependencies = [
+ "demo-ping",
  "demo-vec",
  "env_logger",
  "frame-benchmarking",
