@@ -11,7 +11,9 @@ env:
 
 jobs:
   benchmarks:
-    runs-on: bench
+    # TODO: switch to prod VM
+    # runs-on: bench
+    runs-on: ubuntu-latest
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
