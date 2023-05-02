@@ -3673,6 +3673,7 @@ dependencies = [
  "hex",
  "log",
  "parity-scale-codec",
+ "paste",
  "scale-info",
  "static_assertions",
  "wabt",
