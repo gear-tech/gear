@@ -3,6 +3,11 @@ name: Benchmarks
 on:
   push: #TODO: delete
   workflow_dispatch:
+    inputs:
+      create_pr:
+        description: Whether to create a pull request after the benchmarks are completed
+        required: false
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
@@ -68,3 +73,19 @@ jobs:
         with:
           name: weights-vara
           path: runtime/vara/src/weights/
+
+      - name: Create Pull Request
+        if: ${{ inputs.create_pr }}
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GH_TOKEN_FOR_PR }}
+          add-paths: |
+            runtime/gear/src/weights/
+            runtime/vara/src/weights/
+          commit-message: update weights
+          branch: weights/patch
+          branch-suffix: short-commit-hash
+          title: >-
+            chore: update weights
+          body: >-
+            `run_all_benchmarks.sh` script is applied to update weights
