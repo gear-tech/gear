@@ -87,7 +87,7 @@ impl Api {
         let dest = AccountId32::from_ss58check(address)?;
         let addr = subxt::dynamic::storage("System", "Account", vec![Value::from_bytes(dest)]);
 
-        self.fetch_storage_at(&addr, block_hash).await
+        self._fetch_storage_at(&addr, block_hash).await
     }
 
     /// Get block number.
@@ -156,7 +156,7 @@ impl Api {
     #[short]
     pub async fn total_issuance_at(&self, block_hash: Option<H256>) -> Result<u64> {
         let addr = subxt::dynamic::storage_root("GearGas", "TotalIssuance");
-        self.fetch_storage_at(&addr, block_hash).await
+        self._fetch_storage_at(&addr, block_hash).await
     }
 
     /// Get Gear gas nodes by their ids at specified block.
@@ -174,7 +174,7 @@ impl Api {
                 "GasNodes",
                 vec![subxt::metadata::EncodeStaticType(gas_node_id)],
             );
-            let gas_node = self.fetch_storage_at(&addr, block_hash).await?;
+            let gas_node = self._fetch_storage_at(&addr, block_hash).await?;
             gas_nodes.push((*gas_node_id, gas_node));
         }
         Ok(gas_nodes)
@@ -226,7 +226,7 @@ impl Api {
             "CodeStorage",
             vec![Value::from_bytes(code_id)],
         );
-        self.fetch_storage_at(&addr, block_hash).await
+        self._fetch_storage_at(&addr, block_hash).await
     }
 
     /// Get `InstrumentedCode` length by its `CodeId` at specified block.
@@ -241,7 +241,7 @@ impl Api {
             "CodeLenStorage",
             vec![Value::from_bytes(code_id)],
         );
-        self.fetch_storage_at(&addr, block_hash).await
+        self._fetch_storage_at(&addr, block_hash).await
     }
 
     /// Get active program from program id at specified block.
@@ -258,7 +258,7 @@ impl Api {
         );
 
         let program = self
-            .fetch_storage_at::<_, Program<BlockNumber>>(&addr, block_hash)
+            ._fetch_storage_at::<_, Program<BlockNumber>>(&addr, block_hash)
             .await?;
 
         match program {

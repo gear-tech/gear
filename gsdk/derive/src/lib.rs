@@ -17,83 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use proc_macro::TokenStream;
-use proc_macro2::Span;
-use quote::{quote, ToTokens};
-use syn::{
-    parse_quote, punctuated::Punctuated, Expr, ExprLit, FnArg, Ident, ItemFn, Lit, LitStr, Meta,
-    MetaNameValue, PatType,
-};
+use syn::ItemFn;
 
-const DOC_SUFFIX: &str = " at specified block";
+mod storage;
 
-/// Converts query_storage_at functions into short functions
-/// without block_hash parameter.
+/// Builds fn query_storage_at to
+///
+/// - `fn _query_storage_at(..args, block_hash: Option<H256>) -> R`
+/// - `fn query_storage_at(..args, block_hash: H256) -> R`
+/// - `fn query_storage(..args) -> R`
 #[proc_macro_attribute]
 pub fn short(_: TokenStream, item: TokenStream) -> TokenStream {
-    let long: ItemFn = syn::parse_macro_input!(item);
-    let mut short = long.clone();
-
-    // reset function docs.
-    short.attrs.iter_mut().find_map(|attr| {
-        if let Meta::NameValue(MetaNameValue {
-            value:
-                Expr::Lit(ExprLit {
-                    attrs: _,
-                    lit: Lit::Str(lit_str),
-                }),
-            ..
-        }) = &mut attr.meta
-        {
-            *lit_str = LitStr::new(&lit_str.value().replace(DOC_SUFFIX, ""), lit_str.span());
-            return Some(());
-        }
-
-        None
-    });
-
-    // reset function name.
-    short.sig.ident = Ident::new(
-        short.sig.ident.to_string().trim_end_matches("_at"),
-        long.sig.ident.span(),
-    );
-
-    // reset function inputs.
-    short.sig.inputs = Punctuated::from_iter(short.sig.inputs.into_iter().filter(|v| {
-        if let FnArg::Typed(PatType { pat, .. }) = v {
-            return !pat.to_token_stream().to_string().contains("block_hash");
-        }
-
-        true
-    }));
-
-    // reset function block.
-    {
-        let fn_at = &long.sig.ident;
-        let args = short
-            .sig
-            .inputs
-            .iter()
-            .filter_map(|v| {
-                if let FnArg::Typed(PatType { pat, .. }) = v {
-                    Some(Ident::new(
-                        &pat.to_token_stream().to_string(),
-                        Span::call_site(),
-                    ))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<Ident>>();
-
-        short.block.stmts = parse_quote! {
-            self.#fn_at(#(#args,)* None).await
-        };
-    }
-
-    quote! {
-        #long
-
-        #short
-    }
-    .into()
+    let full: ItemFn = syn::parse_macro_input!(item);
+    storage::StorageQueryBuilder::from(full).build()
 }
