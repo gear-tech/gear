@@ -2197,6 +2197,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-vec"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-wait-timeout"
 version = "0.1.0"
 dependencies = [
@@ -7097,6 +7105,7 @@ dependencies = [
 name = "pallet-gear-debug"
 version = "2.0.0"
 dependencies = [
+ "demo-vec",
  "env_logger",
  "frame-benchmarking",
  "frame-support",

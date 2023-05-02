@@ -57,6 +57,7 @@ members = [
     "examples/binaries/sync-duplicate",
     "examples/binaries/sys-calls",
     "examples/binaries/syscall-error",
+    "examples/binaries/vec",
     "examples/binaries/wait-timeout",
     "examples/binaries/wait_wake",
     "examples/binaries/waiter",
@@ -367,6 +368,7 @@ demo-send-from-reservation = { path = "examples/binaries/send-from-reservation" 
 demo-signal-entry = { path = "examples/binaries/signal-entry" }
 demo-state-rollback = { path = "examples/binaries/state-rollback" }
 demo-sync-duplicate = { path = "examples/binaries/sync-duplicate" }
+demo-vec = { path = "examples/binaries/vec" }
 demo-waiter = { path = "examples/binaries/waiter" }
 demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
 demo-wait-wake = { path = "examples/binaries/wait_wake" }

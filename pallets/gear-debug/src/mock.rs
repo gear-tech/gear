@@ -258,3 +258,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         }))
     }
 }
+
+pub fn run_to_next_block(remaining_weight: Option<u64>) {
+    run_to_block(System::block_number() + 1, remaining_weight);
+}
