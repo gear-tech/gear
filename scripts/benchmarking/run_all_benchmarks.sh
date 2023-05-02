@@ -10,11 +10,15 @@
 #
 # Should be run from the root of the repo.
 
-while getopts 'bfps:c:v' flag; do
+while getopts 'bmfps:c:v' flag; do
   case "${flag}" in
     b)
       # Skip build.
       skip_build='true'
+      ;;
+    m)
+      # Skip machine benchmark.
+      skip_machine_benchmark='true'
       ;;
     c)
       # Which chain spec to use.
@@ -129,13 +133,16 @@ for PALLET in "${PALLETS[@]}"; do
   fi
 done
 
-echo "[+] Benchmarking the machine..."
-OUTPUT=$(
-  $GEAR benchmark machine --chain=$chain_spec --allow-fail 2>&1
-)
-# In any case don't write errors to the error file since they're not benchmarking errors.
-echo "[x] Machine benchmark:\n$OUTPUT"
-echo $OUTPUT >> $MACHINE_OUTPUT
+if [ "$skip_machine_benchmark" != true ]
+then
+  echo "[+] Benchmarking the machine..."
+  OUTPUT=$(
+    $GEAR benchmark machine --chain=$chain_spec --allow-fail 2>&1
+  )
+  # In any case don't write errors to the error file since they're not benchmarking errors.
+  echo "[x] Machine benchmark:\n$OUTPUT"
+  echo $OUTPUT >> $MACHINE_OUTPUT
+fi
 
 # If `-s` is used, run the storage benchmark.
 if [ ! -z "$storage_folder" ]; then
