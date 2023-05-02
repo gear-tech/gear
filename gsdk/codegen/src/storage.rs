@@ -27,9 +27,9 @@ const FULL_DOC_SUFFIX: &str = " at specified block";
 const FULL_SUFFIX: &str = "_at";
 
 /// Storage query builder for generating
-/// - basic private shared query
-/// - full query with block hash
-/// - short query with block hash None.
+///
+/// - storage query from full blocks.
+/// - storage query at block hash.
 pub struct StorageQueryBuilder(ItemFn);
 
 impl StorageQueryBuilder {

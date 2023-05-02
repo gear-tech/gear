@@ -21,10 +21,38 @@ use syn::ItemFn;
 
 mod storage;
 
-/// Builds fn `query_storage_at` to
+/// Generate storage query from full blocks for functions that query storage
+/// at specified block.
 ///
-/// - `fn query_storage_at(..args, block_hash: impl Into<Option<H256>>) -> R`
-/// - `fn query_storage(..args) -> R`
+/// # Note
+///
+/// - the docs must be end with `at specfied block.`
+/// - the function name must be end with `_at`.
+/// - the last argument must be `Option<H256>`.
+///
+/// # Example
+///
+/// ```ignore
+/// /// Imdocs at specfied block.
+/// #[storage_fetch]
+/// pub fn query_storage_at(addr: Address, block_hash: Option<H256>) -> R {
+///     // ...
+/// }
+/// ```
+///
+/// will generate functions
+///
+/// ```ignore
+/// /// Imdocs at specfied block.
+/// pub fn query_storage_at(addr: Address, block_hash: impl Into<Option<H256>>) -> R {
+///     // ...
+/// }
+///
+/// /// Imdocs.
+/// pub fn query_storage(addr: Address) -> R {
+///     query_storage_at(addr, None)
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn storage_fetch(_: TokenStream, item: TokenStream) -> TokenStream {
     let raw: ItemFn = syn::parse_macro_input!(item);
