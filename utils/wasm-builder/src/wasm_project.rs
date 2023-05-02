@@ -16,11 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    crate_info::CrateInfo,
-    optimize::{OptType, Optimizer},
-    smart_fs,
-};
+use crate::{crate_info::CrateInfo, optimize::Optimizer, smart_fs};
 use anyhow::{Context, Result};
 use gmeta::MetadataRepr;
 use pwasm_utils::parity_wasm::{self, elements::Internal};
@@ -320,20 +316,18 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
     }
 
     fn generate_wasm(from: PathBuf, to_opt: Option<&Path>, to_meta: Option<&Path>) -> Result<()> {
-        let mut optimizer = Optimizer::new(from)?;
-        optimizer.insert_stack_and_export();
-        optimizer.strip_custom_sections();
+        // Generate *.meta.wasm.
+        if let Some(to_meta) = to_meta {
+            fs::copy(&from, to_meta)?;
+        }
 
         // Generate *.opt.wasm.
         if let Some(to_opt) = to_opt {
-            let opt = optimizer.optimize(OptType::Opt)?;
+            let mut optimizer = Optimizer::new(from)?;
+            optimizer.insert_stack_and_export();
+            optimizer.strip_custom_sections();
+            let opt = optimizer.optimize()?;
             fs::write(to_opt, opt)?;
-        }
-
-        // Generate *.meta.wasm.
-        if let Some(to_meta) = to_meta {
-            let meta = optimizer.optimize(OptType::Meta)?;
-            fs::write(to_meta, meta)?;
         }
 
         Ok(())

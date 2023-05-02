@@ -30,7 +30,7 @@ use gear_core::{
     program::Program as CoreProgram,
 };
 use gear_core_errors::SimpleSignalError;
-use gear_wasm_builder::optimize::{OptType, Optimizer};
+use gear_wasm_builder::optimize::Optimizer;
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
 use std::{
