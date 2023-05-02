@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use gear_wasm_builder::WasmBuilder;
+
 fn main() {
-    gear_wasm_builder::build_custom(&["std", "wasm-wrapper"]);
+    WasmBuilder::new()
+        .exclude_features(vec!["std", "wasm-wrapper"])
+        .build();
 }

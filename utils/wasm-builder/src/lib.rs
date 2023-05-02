@@ -178,36 +178,21 @@ const FEATURES_TO_EXCLUDE_BY_DEFAULT: &[&str] = &["std"];
 
 /// Shorthand function to be used in `build.rs`.
 pub fn build() {
-    build_custom(FEATURES_TO_EXCLUDE_BY_DEFAULT)
-}
-
-/// Shorthand function similar to the [`build`] one, but allowing some customizations.
-pub fn build_custom(features_to_exclude: &[&'static str]) {
     WasmBuilder::new()
-        .exclude_features(features_to_exclude.to_vec())
+        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
         .build();
 }
 
 /// Shorthand function to be used in `build.rs`.
 pub fn build_with_metadata<T: Metadata>() {
-    build_with_metadata_custom::<T>(FEATURES_TO_EXCLUDE_BY_DEFAULT);
-}
-
-/// Shorthand function similar to the [`build_with_metadata`] one, but allowing some customizations.
-pub fn build_with_metadata_custom<T: Metadata>(features_to_exclude: &[&'static str]) {
     WasmBuilder::with_meta(T::repr())
-        .exclude_features(features_to_exclude)
+        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
         .build();
 }
 
 /// Shorthand function to be used in `build.rs`.
 pub fn build_metawasm() {
-    build_metawasm_custom(FEATURES_TO_EXCLUDE_BY_DEFAULT);
-}
-
-/// Shrthand function similar to the [`build_metawasm`] one, but allowing some customizations.
-pub fn build_metawasm_custom(features_to_exclude: &[&'static str]) {
     WasmBuilder::new_metawasm()
-        .exclude_features(features_to_exclude)
+        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
         .build();
 }
