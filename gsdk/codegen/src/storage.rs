@@ -33,8 +33,8 @@ const FULL_SUFFIX: &str = "_at";
 pub struct StorageQueryBuilder(ItemFn);
 
 impl StorageQueryBuilder {
-    /// Build short storage query.
-    fn short(&self) -> ItemFn {
+    /// Build storage query from full blocks.
+    fn full(&self) -> ItemFn {
         let mut short = self.0.clone();
 
         // reset function docs.
@@ -114,11 +114,11 @@ impl StorageQueryBuilder {
 
     /// Build all storage queries.
     pub fn build(&self) -> TokenStream {
-        let (full, short) = (self.0.clone(), self.short());
+        let (at, full) = (self.0.clone(), self.full());
         quote! {
-            #full
+            #at
 
-            #short
+            #full
         }
         .into()
     }

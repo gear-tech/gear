@@ -29,7 +29,7 @@ use crate::{
     types, Api, BlockNumber,
 };
 use gear_core::ids::*;
-use gsdk_codegen::short;
+use gsdk_codegen::storage_fetch;
 use hex::ToHex;
 use parity_scale_codec::Decode;
 use sp_core::{crypto::Ss58Codec, H256};
@@ -45,7 +45,7 @@ use subxt::{
 
 impl Api {
     /// Shortcut for fetching storage at specified block.
-    #[short]
+    #[storage_fetch]
     pub async fn fetch_storage_at<'a, Address, Value>(
         &self,
         address: &'a Address,
@@ -78,7 +78,7 @@ impl Api {
 // frame-system
 impl Api {
     /// Get account info by address at specified block.
-    #[short]
+    #[storage_fetch]
     pub async fn info_at(
         &self,
         address: &str,
@@ -102,7 +102,7 @@ impl Api {
     }
 
     /// Get events from the block.
-    #[short]
+    #[storage_fetch]
     pub async fn get_events_at(
         &self,
         block_hash: impl Into<Option<H256>>,
@@ -156,14 +156,14 @@ impl Api {
 // pallet-gas
 impl Api {
     /// Get value of gas total issuance at specified block.
-    #[short]
+    #[storage_fetch]
     pub async fn total_issuance_at(&self, block_hash: impl Into<Option<H256>>) -> Result<u64> {
         let addr = subxt::dynamic::storage_root("GearGas", "TotalIssuance");
         self.fetch_storage_at(&addr, block_hash).await
     }
 
     /// Get Gear gas nodes by their ids at specified block.
-    #[short]
+    #[storage_fetch]
     pub async fn gas_nodes_at(
         &self,
         gas_node_ids: &impl AsRef<[types::GearGasNodeId]>,
@@ -223,7 +223,7 @@ impl Api {
 // pallet-gear-program
 impl Api {
     /// Get `InstrumentedCode` by its `CodeId` at specified block.
-    #[short]
+    #[storage_fetch]
     pub async fn code_storage_at(
         &self,
         code_id: CodeId,
@@ -238,7 +238,7 @@ impl Api {
     }
 
     /// Get `InstrumentedCode` length by its `CodeId` at specified block.
-    #[short]
+    #[storage_fetch]
     pub async fn code_len_storage_at(
         &self,
         code_id: CodeId,
@@ -253,7 +253,7 @@ impl Api {
     }
 
     /// Get active program from program id at specified block.
-    #[short]
+    #[storage_fetch]
     pub async fn gprog_at(
         &self,
         program_id: ProgramId,
@@ -276,7 +276,7 @@ impl Api {
     }
 
     /// Get pages of active program at specified block.
-    #[short]
+    #[storage_fetch]
     pub async fn gpages_at(
         &self,
         program_id: ProgramId,

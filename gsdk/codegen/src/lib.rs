@@ -21,13 +21,12 @@ use syn::ItemFn;
 
 mod storage;
 
-/// Builds fn query_storage_at to
+/// Builds fn `query_storage_at` to
 ///
-/// - `fn _query_storage_at(..args, block_hash: Option<H256>) -> R`
-/// - `fn query_storage_at(..args, block_hash: H256) -> R`
+/// - `fn query_storage_at(..args, block_hash: impl Into<Option<H256>>) -> R`
 /// - `fn query_storage(..args) -> R`
 #[proc_macro_attribute]
-pub fn short(_: TokenStream, item: TokenStream) -> TokenStream {
-    let full: ItemFn = syn::parse_macro_input!(item);
-    storage::StorageQueryBuilder::from(full).build()
+pub fn storage_fetch(_: TokenStream, item: TokenStream) -> TokenStream {
+    let raw: ItemFn = syn::parse_macro_input!(item);
+    storage::StorageQueryBuilder::from(raw).build()
 }
