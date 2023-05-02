@@ -21,7 +21,7 @@ use syn::ItemFn;
 
 mod storage;
 
-/// Generate storage query from full blocks for functions that query storage
+/// Generate storage query for full blocks for functions that query storage
 /// at specified block.
 ///
 /// # Note

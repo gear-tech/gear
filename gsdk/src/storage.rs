@@ -49,7 +49,7 @@ impl Api {
     pub async fn fetch_storage_at<'a, Address, Value>(
         &self,
         address: &'a Address,
-        block_hash: impl Into<Option<H256>>,
+        block_hash: Option<H256>,
     ) -> Result<Value>
     where
         Address:
@@ -59,7 +59,7 @@ impl Api {
         Ok(Value::decode(
             &mut self
                 .storage()
-                .at(block_hash.into())
+                .at(block_hash)
                 .await?
                 .fetch(address)
                 .await?
@@ -82,7 +82,7 @@ impl Api {
     pub async fn info_at(
         &self,
         address: &str,
-        block_hash: impl Into<Option<H256>>,
+        block_hash: Option<H256>,
     ) -> Result<AccountInfo<u32, AccountData<u128>>> {
         let dest = AccountId32::from_ss58check(address)?;
         let addr = subxt::dynamic::storage("System", "Account", vec![Value::from_bytes(dest)]);
@@ -101,16 +101,13 @@ impl Api {
         Ok(self.info(address).await?.data.free)
     }
 
-    /// Get events from the block.
+    /// Get events at specified block.
     #[storage_fetch]
-    pub async fn get_events_at(
-        &self,
-        block_hash: impl Into<Option<H256>>,
-    ) -> Result<Vec<RuntimeEvent>> {
+    pub async fn get_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
         let addr = subxt::dynamic::storage_root("System", "Events");
         let thunk = self
             .storage()
-            .at(block_hash.into())
+            .at(block_hash)
             .await?
             .fetch(&addr)
             .await?
@@ -129,11 +126,11 @@ impl Api {
 // pallet-timestamp
 impl Api {
     /// Return a timestamp of the block.
-    pub async fn block_timestamp(&self, block_hash: impl Into<Option<H256>>) -> Result<u64> {
+    pub async fn block_timestamp(&self, block_hash: Option<H256>) -> Result<u64> {
         let addr = subxt::dynamic::storage_root("Timestamp", "now");
         let thunk = self
             .storage()
-            .at(block_hash.into())
+            .at(block_hash)
             .await?
             .fetch(&addr)
             .await?
@@ -157,7 +154,7 @@ impl Api {
 impl Api {
     /// Get value of gas total issuance at specified block.
     #[storage_fetch]
-    pub async fn total_issuance_at(&self, block_hash: impl Into<Option<H256>>) -> Result<u64> {
+    pub async fn total_issuance_at(&self, block_hash: Option<H256>) -> Result<u64> {
         let addr = subxt::dynamic::storage_root("GearGas", "TotalIssuance");
         self.fetch_storage_at(&addr, block_hash).await
     }
@@ -167,11 +164,10 @@ impl Api {
     pub async fn gas_nodes_at(
         &self,
         gas_node_ids: &impl AsRef<[types::GearGasNodeId]>,
-        block_hash: impl Into<Option<H256>>,
+        block_hash: Option<H256>,
     ) -> Result<Vec<(types::GearGasNodeId, types::GearGasNode)>> {
         let gas_node_ids = gas_node_ids.as_ref();
         let mut gas_nodes = Vec::with_capacity(gas_node_ids.len());
-        let block = block_hash.into();
 
         for gas_node_id in gas_node_ids {
             let addr = subxt::dynamic::storage(
@@ -179,7 +175,7 @@ impl Api {
                 "GasNodes",
                 vec![subxt::metadata::EncodeStaticType(gas_node_id)],
             );
-            let gas_node = self.fetch_storage_at(&addr, block).await?;
+            let gas_node = self.fetch_storage_at(&addr, block_hash).await?;
             gas_nodes.push((*gas_node_id, gas_node));
         }
         Ok(gas_nodes)
@@ -203,14 +199,11 @@ impl Api {
     }
 
     /// Get gear block number.
-    pub async fn gear_block_number(
-        &self,
-        block_hash: impl Into<Option<H256>>,
-    ) -> Result<BlockNumber> {
+    pub async fn gear_block_number(&self, block_hash: Option<H256>) -> Result<BlockNumber> {
         let addr = subxt::dynamic::storage_root("Gear", "BlockNumber");
         let thunk = self
             .storage()
-            .at(block_hash.into())
+            .at(block_hash)
             .await?
             .fetch_or_default(&addr)
             .await?
@@ -227,7 +220,7 @@ impl Api {
     pub async fn code_storage_at(
         &self,
         code_id: CodeId,
-        block_hash: impl Into<Option<H256>>,
+        block_hash: Option<H256>,
     ) -> Result<InstrumentedCode> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
@@ -242,7 +235,7 @@ impl Api {
     pub async fn code_len_storage_at(
         &self,
         code_id: CodeId,
-        block_hash: impl Into<Option<H256>>,
+        block_hash: Option<H256>,
     ) -> Result<u32> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
@@ -257,7 +250,7 @@ impl Api {
     pub async fn gprog_at(
         &self,
         program_id: ProgramId,
-        block_hash: impl Into<Option<H256>>,
+        block_hash: Option<H256>,
     ) -> Result<ActiveProgram<BlockNumber>> {
         let addr = subxt::dynamic::storage(
             "GearProgram",
@@ -281,10 +274,9 @@ impl Api {
         &self,
         program_id: ProgramId,
         program: &ActiveProgram<BlockNumber>,
-        block_hash: impl Into<Option<H256>>,
+        block_hash: Option<H256>,
     ) -> Result<types::GearPages> {
         let mut pages = HashMap::new();
-        let block = block_hash.into();
 
         for page in &program.pages_with_data {
             let addr = subxt::dynamic::storage(
@@ -298,7 +290,7 @@ impl Api {
 
             let encoded_page = self
                 .storage()
-                .at(block)
+                .at(block_hash)
                 .await?
                 .fetch_raw(&lookup_bytes)
                 .await?

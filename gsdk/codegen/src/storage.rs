@@ -23,8 +23,9 @@ use syn::{
     MetaNameValue, PatType,
 };
 
-const FULL_DOC_SUFFIX: &str = " at specified block";
-const FULL_SUFFIX: &str = "_at";
+const AT_DOC_SUFFIX: &str = " at specified block";
+const AT_SUFFIX: &str = "_at";
+const AT_BLOCK_HASH: &str = "Option<H256>";
 
 /// Storage query builder for generating
 ///
@@ -33,14 +34,14 @@ const FULL_SUFFIX: &str = "_at";
 pub struct StorageQueryBuilder(ItemFn);
 
 impl StorageQueryBuilder {
-    /// Build storage query from full blocks.
+    /// Build storage query for full blocks.
     fn full(&self) -> ItemFn {
-        let mut short = self.0.clone();
+        let mut full = self.0.clone();
 
         // reset function docs.
         //
         // - remove `at specified block` suffix.
-        short.attrs.iter_mut().find_map(|attr| {
+        full.attrs.iter_mut().for_each(|attr| {
             if let Meta::NameValue(MetaNameValue {
                 value:
                     Expr::Lit(ExprLit {
@@ -50,30 +51,28 @@ impl StorageQueryBuilder {
                 ..
             }) = &mut attr.meta
             {
-                *lit_str = LitStr::new(
-                    &lit_str.value().replace(FULL_DOC_SUFFIX, ""),
-                    lit_str.span(),
-                );
-                return Some(());
+                *lit_str = LitStr::new(&lit_str.value().replace(AT_DOC_SUFFIX, ""), lit_str.span());
             }
-
-            None
         });
 
         // reset function name.
         //
         // - `storage_query_at` -> `storage_query`
-        short.sig.ident = Ident::new(
-            short.sig.ident.to_string().trim_end_matches(FULL_SUFFIX),
-            short.sig.ident.span(),
+        full.sig.ident = Ident::new(
+            full.sig.ident.to_string().trim_end_matches(AT_SUFFIX),
+            full.sig.ident.span(),
         );
 
         // reset function inputs.
         //
         // - remove `block_hash: Option<H256>`
-        short.sig.inputs = Punctuated::from_iter(short.sig.inputs.into_iter().filter(|v| {
-            if let FnArg::Typed(PatType { pat, .. }) = v {
-                return !pat.to_token_stream().to_string().contains("block_hash");
+        full.sig.inputs = Punctuated::from_iter(full.sig.inputs.into_iter().filter(|v| {
+            if let FnArg::Typed(PatType { ty, .. }) = v {
+                return !ty
+                    .to_token_stream()
+                    .to_string()
+                    .replace(' ', "")
+                    .contains(AT_BLOCK_HASH);
             }
 
             true
@@ -88,7 +87,7 @@ impl StorageQueryBuilder {
         // ```
         {
             let fn_at = &self.0.sig.ident;
-            let args = short
+            let args = full
                 .sig
                 .inputs
                 .iter()
@@ -104,12 +103,12 @@ impl StorageQueryBuilder {
                 })
                 .collect::<Vec<Ident>>();
 
-            short.block.stmts = parse_quote! {
+            full.block.stmts = parse_quote! {
                 self.#fn_at(#(#args,)* None).await
             };
         }
 
-        short
+        full
     }
 
     /// Build all storage queries.
@@ -122,10 +121,52 @@ impl StorageQueryBuilder {
         }
         .into()
     }
+
+    /// This function validates the input of the storage query
+    /// function, follows the rules below:
+    ///
+    /// - the docs must be end with `at specfied block.`
+    /// - the function name must be end with `_at`.
+    /// - the last argument must be `Option<H256>`.
+    fn validate(fun: &ItemFn) {
+        // validate the function docs.
+        if !fun.attrs.iter().any(|attr| {
+            attr.path().is_ident("doc")
+                && attr
+                    .meta
+                    .require_name_value()
+                    .expect("doc attribute must be name value")
+                    .value
+                    .to_token_stream()
+                    .to_string()
+                    .ends_with(&(AT_DOC_SUFFIX.to_string() + ".\""))
+        }) {
+            panic!("the docs must be end with `{}`", AT_DOC_SUFFIX);
+        }
+
+        // validate the function name.
+        if !fun.sig.ident.to_string().ends_with(AT_SUFFIX) {
+            panic!("the function name must be end with `_at`");
+        }
+
+        // validate the last argument.
+        if let Some(FnArg::Typed(PatType { ty, pat, .. })) = fun.sig.inputs.iter().last() {
+            if !pat.to_token_stream().to_string().contains("block_hash") {
+                panic!("the last argument's name must be `block_hash`");
+            }
+
+            if ty.to_token_stream().to_string().replace(' ', "") != "Option<H256>" {
+                panic!("the last argument's type must be `Option<H256>`");
+            };
+        } else {
+            panic!("the last argument must be `block_hash: Option<H256>`");
+        }
+    }
 }
 
 impl From<ItemFn> for StorageQueryBuilder {
-    fn from(full: ItemFn) -> Self {
-        Self(full)
+    fn from(at: ItemFn) -> Self {
+        Self::validate(&at);
+        Self(at)
     }
 }
