@@ -18,6 +18,7 @@
 
 use super::*;
 use crate::mock::*;
+use common::{event::MessageEntry, CodeStorage};
 use frame_support::assert_ok;
 #[cfg(feature = "lazy-pages")]
 use gear_core::memory::GearPage;
@@ -27,8 +28,9 @@ use gear_core::{
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use pallet_gear::{DebugInfo, Pallet as PalletGear};
-use sp_std::collections::btree_map::BTreeMap;
+use pallet_gear::{DebugInfo, Event, Pallet as PalletGear};
+use parity_scale_codec::Encode;
+use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
@@ -48,6 +50,70 @@ fn parse_wat(source: &str) -> Vec<u8> {
 
 fn generate_program_id(code: &[u8]) -> ProgramId {
     ProgramId::generate(CodeId::generate(code), b"salt")
+}
+
+#[test]
+fn vec() {
+    use demo_vec::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(1),
+            WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+        ));
+
+        let vec_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let code_id = CodeId::generate(WASM_BINARY);
+
+        let code = <Test as pallet_gear::Config>::CodeStorage::get_code(code_id)
+            .expect("code should be in the storage");
+
+        let static_pages = code.static_pages().raw();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(1),
+            vec_id,
+            131072i32.encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let reply = maybe_last_message(1).expect("Should be");
+        assert_eq!(reply.payload(), 131072i32.encode());
+
+        GearDebug::do_snapshot();
+        let snapshot = get_last_snapshot();
+
+        assert!(snapshot.dispatch_queue.is_empty());
+        assert_eq!(snapshot.programs.len(), 1);
+
+        let program_details = &snapshot.programs[0];
+        assert_eq!(program_details.id, vec_id);
+
+        let crate::ProgramState::Active(ref program_info) = program_details.state else { panic!("Inactive program") };
+        assert_eq!(program_info.code_id, code_id);
+
+        let pages = program_info.persistent_pages.keys().fold(BTreeSet::new(), |mut set, page| {
+            let page = page.to_page::<WasmPage>().raw();
+            if page >= static_pages {
+                set.insert(page);
+            }
+            set
+        });
+
+        let pages = pages.into_iter().collect::<Vec<_>>();
+        assert_eq!(pages, vec![17, 18]);
+    });
 }
 
 #[test]
@@ -255,8 +321,6 @@ fn debug_mode_works() {
 }
 
 fn get_last_message_id() -> MessageId {
-    use pallet_gear::Event;
-
     let event = match System::events().last().map(|r| r.event.clone()) {
         Some(super::mock::RuntimeEvent::Gear(e)) => e,
         _ => unreachable!("Should be one Gear event"),
@@ -266,6 +330,55 @@ fn get_last_message_id() -> MessageId {
         Event::MessageQueued { id, .. } => id,
         Event::UserMessageSent { message, .. } => message.id(),
         _ => unreachable!("expect sending"),
+    }
+}
+
+#[track_caller]
+fn get_last_program_id() -> ProgramId {
+    let event = match System::events().last().map(|r| r.event.clone()) {
+        Some(super::mock::RuntimeEvent::Gear(e)) => e,
+        _ => unreachable!("Should be one Gear event"),
+    };
+
+    match event {
+        Event::MessageQueued {
+            destination,
+            entry: MessageEntry::Init,
+            ..
+        } => destination,
+        _ => unreachable!("expect RuntimeEvent::InitMessageEnqueued"),
+    }
+}
+
+#[track_caller]
+fn maybe_last_message(account: u64) -> Option<StoredMessage> {
+    System::events().into_iter().rev().find_map(|e| {
+        if let super::mock::RuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+            if message.destination() == account.into() {
+                Some(message)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    })
+}
+
+#[track_caller]
+fn get_last_event() -> crate::mock::RuntimeEvent {
+    System::events()
+        .into_iter()
+        .last()
+        .expect("failed to get last event")
+        .event
+}
+
+#[track_caller]
+fn get_last_snapshot() -> DebugData {
+    match get_last_event() {
+        crate::mock::RuntimeEvent::GearDebug(crate::Event::DebugDataSnapshot(data)) => data,
+        _ => panic!("Should be one GearDebug event"),
     }
 }
 

@@ -57,6 +57,7 @@ members = [
     "examples/syscall-error",
     "examples/unchecked-mul",
     "examples/value-sender",
+    "examples/vec",
     "examples/wait-timeout",
     "examples/wait_wake",
     "examples/waiter",
@@ -362,6 +363,7 @@ demo-signal-entry = { path = "examples/signal-entry" }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-value-sender = { path = "examples/value-sender" }
+demo-vec = { path = "examples/vec" }
 demo-waiter = { path = "examples/waiter" }
 demo-wait-timeout = { path = "examples/wait-timeout" }
 demo-wait-wake = { path = "examples/wait_wake" }
