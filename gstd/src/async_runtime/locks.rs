@@ -173,12 +173,16 @@ impl LocksMap {
     /// Remove message lock.
     pub fn remove(&mut self, message_id: MessageId, waiting_reply_to: MessageId) {
         let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        locks.remove(&waiting_reply_to);
+
+        // if the key is not found, then this is the case from `wait` fn
+        // when the waiting_reply_to is the same as the message id
+        locks
+            .remove(&waiting_reply_to)
+            .or_else(|| locks.remove(&message_id))
+            .expect("Cannot remove lock");
     }
 
     pub fn remove_message_entry(&mut self, message_id: MessageId) {
-        // in some cases this function gets called even if there are still locks
-        // so this may need a further investigation
         if self
             .0
             .get(&message_id)
