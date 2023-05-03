@@ -87,6 +87,7 @@ pub trait Ext {
     ) -> Result<MessageId, Self::Error>;
 
     /// Send message to another program.
+    // Not executed (?)
     fn send(&mut self, msg: HandlePacket, delay: u32) -> Result<MessageId, Self::Error> {
         let handle = self.send_init()?;
         self.send_commit(handle, msg, delay)
@@ -105,6 +106,7 @@ pub trait Ext {
     ) -> Result<MessageId, Self::Error>;
 
     /// Send message to another program using gas from reservation.
+    /// // Not executed
     fn reservation_send(
         &mut self,
         id: ReservationId,
@@ -135,6 +137,7 @@ pub trait Ext {
     }
 
     /// Produce reply to the current message from reservation.
+    /// // Not executed
     fn reservation_reply(
         &mut self,
         id: ReservationId,

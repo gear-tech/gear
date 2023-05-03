@@ -452,10 +452,12 @@ impl RuntimeCosts {
             Free => s.free,
             ReserveGas => s.gr_reserve_gas,
             UnreserveGas => s.gr_unreserve_gas,
+            // Not executed
             SystemReserveGas => s.gr_system_reserve_gas,
             GasAvailable => s.gr_gas_available,
             MsgId => s.gr_message_id,
             Origin => s.gr_origin,
+            // Not executed
             ProgramId => s.gr_program_id,
             Source => s.gr_source,
             Value => s.gr_value,
@@ -464,7 +466,9 @@ impl RuntimeCosts {
             Read => s.gr_read,
             ReadPerByte(len) => cost_per_byte(s.gr_read_per_byte, len),
             BlockHeight => s.gr_block_height,
+            // Not executed
             BlockTimestamp => s.gr_block_timestamp,
+            // Not executed
             Random => s.gr_random,
             Send(len) => cost_with_weight_per_byte!(gr_send, len),
             SendWGas(len) => cost_with_weight_per_byte!(gr_send_wgas, len),
@@ -472,8 +476,11 @@ impl RuntimeCosts {
             SendPush(len) => cost_with_weight_per_byte!(gr_send_push, len),
             SendCommit => s.gr_send_commit,
             SendCommitWGas => s.gr_send_commit_wgas,
+            // Not executed
             ReservationSend(len) => cost_with_weight_per_byte!(gr_reservation_send, len),
+            // Not executed
             ReservationSendCommit => s.gr_reservation_send_commit,
+            // Not executed
             SendInput => s.gr_send_input,
             SendInputWGas => s.gr_send_input_wgas,
             SendPushInput => s.gr_send_push_input,
@@ -483,15 +490,19 @@ impl RuntimeCosts {
             ReplyPush(len) => cost_with_weight_per_byte!(gr_reply_push, len),
             ReplyCommit => s.gr_reply_commit,
             ReplyCommitWGas => s.gr_reply_commit_wgas,
+            // Not executed
             ReservationReply(len) => cost_with_weight_per_byte!(gr_reservation_reply, len),
             ReservationReplyCommit => s.gr_reservation_reply_commit,
             ReplyInput => s.gr_reply_input,
             ReplyInputWGas => s.gr_reply_input_wgas,
+            // Not executed
             ReplyPushInput => s.gr_reply_push_input,
+            // Not executed
             ReplyPushInputPerByte(len) => cost_per_byte(s.gr_reply_push_input_per_byte, len),
             ReplyTo => s.gr_reply_to,
             SignalFrom => s.gr_signal_from,
             Debug(len) => cost_with_weight_per_byte!(gr_debug, len),
+            // Not executed
             Error => s.gr_error,
             StatusCode => s.gr_status_code,
             Exit => s.gr_exit,

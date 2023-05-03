@@ -64,6 +64,7 @@ fn get_exports(
             if let Some(kind) = DispatchKind::try_from_entry(entry.field()) {
                 exports.insert(kind);
             } else if !STATE_EXPORTS.contains(&entry.field()) && reject_unnecessary {
+                // Not executed
                 return Err(CodeError::NonGearExportFnFound);
             }
         }
@@ -98,11 +99,13 @@ fn get_offset_i32(init_code: &[Instruction]) -> Option<u32> {
     use Instruction::{End, I32Const};
 
     if init_code.len() != 2 {
+        // Not executed
         return None;
     }
 
     match (&init_code[0], &init_code[1]) {
         (I32Const(stack_end), End) => Some(*stack_end as u32),
+        // Not executed
         _ => None,
     }
 }
@@ -205,6 +208,7 @@ impl Code {
             parity_wasm::deserialize_buffer(&raw_code).map_err(|_| CodeError::Decode)?;
 
         if module.start_section().is_some() {
+            // Not executed
             log::debug!("Found start section in contract code, which is not allowed");
             return Err(CodeError::StartSectionExists);
         }
@@ -217,6 +221,7 @@ impl Code {
             .iter()
             .find_map(|entry| match entry.external() {
                 parity_wasm::elements::External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
+                // Not executed
                 _ => None,
             })
             .ok_or(CodeError::MemoryEntryNotFound)?;
@@ -237,6 +242,7 @@ impl Code {
                 .map_err(|_| CodeError::GasInjection)?;
 
             let instrumented = if let Some(limit) = stack_height {
+                // Not executed
                 let instrumented_module =
                     wasm_instrument::inject_stack_limiter(instrumented_module, limit)
                         .map_err(|_| CodeError::StackLimitInjection)?;

@@ -76,6 +76,7 @@ impl GasCounter {
             self.burned += amount.into();
             ChargeResult::Enough
         } else {
+            // Not executed
             self.burned += self.left;
             self.left = 0;
             ChargeResult::NotEnough
@@ -138,6 +139,7 @@ impl GasCounter {
             return ChargeResult::NotEnough;
         }
         match self.left.checked_add(amount) {
+            // Not executed
             None => ChargeResult::NotEnough,
             Some(new_left) => {
                 self.left = new_left;
@@ -154,6 +156,7 @@ impl GasCounter {
     }
 
     /// Report how much gas is burned.
+    // Not executed
     pub fn burned(&self) -> u64 {
         self.burned
     }
@@ -179,6 +182,7 @@ pub struct GasAmount {
 
 impl GasAmount {
     /// Report how much gas were left.
+    // Not executed
     pub fn left(&self) -> u64 {
         self.left
     }
@@ -205,6 +209,7 @@ impl ValueCounter {
     /// receiving program.
     pub fn reduce(&mut self, amount: u128) -> ChargeResult {
         match self.0.checked_sub(amount) {
+            // Not executed
             None => ChargeResult::NotEnough,
             Some(new_left) => {
                 self.0 = new_left;
@@ -244,6 +249,7 @@ impl GasAllowanceCounter {
             self.0 = new_left;
             ChargeResult::Enough
         } else {
+            // Not executed
             self.0 = 0;
             ChargeResult::NotEnough
         }
@@ -258,6 +264,7 @@ impl GasAllowanceCounter {
             self.0 = new_left;
             ChargeResult::Enough
         } else {
+            // Not executed
             ChargeResult::NotEnough
         }
     }

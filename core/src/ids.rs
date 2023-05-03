@@ -210,6 +210,7 @@ impl MessageId {
     }
 
     /// Generate MessageId for signal message depend on status code
+    // Not executed
     pub fn generate_signal(origin_msg_id: MessageId) -> MessageId {
         const SALT: &[u8] = b"signal";
 

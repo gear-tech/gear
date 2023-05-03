@@ -69,6 +69,7 @@ impl GasReserver {
             .states
             .values()
             .map(|state| {
+                // Not executed `map`
                 matches!(
                     state,
                     GasReservationState::Exists { .. } | GasReservationState::Created { .. }
@@ -76,6 +77,7 @@ impl GasReserver {
             })
             .sum::<u64>();
         if current_reservations > self.max_reservations {
+            // Not executed
             Err(ReservationError::ReservationsLimitReached)
         } else {
             Ok(())
@@ -117,6 +119,7 @@ impl GasReserver {
             .remove(&id)
             .ok_or(ReservationError::InvalidReservationId)?;
 
+        // Not executed everything that is lower
         let amount = match state {
             GasReservationState::Exists { amount, finish, .. } => {
                 self.states
@@ -138,6 +141,7 @@ impl GasReserver {
             GasReservationState::Created { used, .. } | GasReservationState::Exists { used, .. },
         ) = self.states.get_mut(&id)
         {
+            // Not executed branch
             if *used {
                 Err(ReservationError::InvalidReservationId)
             } else {
@@ -171,6 +175,7 @@ impl GasReserver {
         self.states
             .into_iter()
             .flat_map(|(id, state)| match state {
+                // Not executed branch
                 GasReservationState::Exists {
                     amount,
                     start,
@@ -197,6 +202,7 @@ impl GasReserver {
                         },
                     ))
                 }
+                // Not executed
                 GasReservationState::Removed { .. } => None,
             })
             .collect()
