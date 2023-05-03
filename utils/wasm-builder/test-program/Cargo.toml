@@ -1,7 +1,7 @@
 [package]
 name = "test-program"
 version = "0.1.0"
-edition.workspace = "2021"
+edition = "2021"
 
 [dependencies]
 gstd = { path = "../../../gstd", features = ["debug"] }
