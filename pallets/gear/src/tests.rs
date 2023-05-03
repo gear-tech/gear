@@ -9061,11 +9061,14 @@ fn missing_block_tasks_handled() {
         let task = ScheduledTask::RemoveFromMailbox(USER_1, mid);
         TaskPoolOf::<Test>::add(N + 1, task.clone()).unwrap();
 
+        assert!(MailboxOf::<Test>::contains(&USER_1, &mid));
+
         // insert task
         run_to_block(N, None);
 
         // task was inserted
         assert!(TaskPoolOf::<Test>::contains(&(N + 1), &task));
+        assert!(MailboxOf::<Test>::contains(&USER_1, &mid));
 
         // task must be skipped in this block
         run_to_block_maybe_with_queue(N + 1, Some(0), false);
@@ -9073,12 +9076,15 @@ fn missing_block_tasks_handled() {
 
         // task could be processed in N + 1 block but `Gear::run` extrinsic have been skipped
         assert!(TaskPoolOf::<Test>::contains(&(N + 1), &task));
+        assert!(MailboxOf::<Test>::contains(&USER_1, &mid));
 
         // continue to process task from previous block
         run_to_block(N + 2, None);
 
         // task have been processed
         assert!(!TaskPoolOf::<Test>::contains(&(N + 1), &task));
+        // so message should be removed from mailbox
+        assert!(!MailboxOf::<Test>::contains(&USER_1, &mid));
     });
 }
 
