@@ -31,9 +31,6 @@ pub mod mock;
 
 pub mod memory;
 
-#[cfg(test)]
-mod tests;
-
 use crate::memory::MemoryAccessError;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -443,3 +440,6 @@ macro_rules! syscall_trace {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
