@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 fn main() {
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", not(feature = "fuzz")))]
     {
         substrate_wasm_builder::WasmBuilder::new()
             .with_current_project()

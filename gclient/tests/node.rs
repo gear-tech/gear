@@ -166,7 +166,12 @@ async fn program_with_gas_reservation_migrated_to_another_node() {
     let (src_node_api, src_program_id) = upload_program_to_node(
         demo_reserve_gas::WASM_BINARY,
         &gclient::now_micros().to_le_bytes(),
-        Some(demo_reserve_gas::InitAction::Normal),
+        Some(demo_reserve_gas::InitAction::Normal(vec![
+            // orphan reservation; will be removed automatically
+            (50_000, 3),
+            // must be cleared during `gr_exit`
+            (25_000, 5),
+        ])),
     )
     .await;
 

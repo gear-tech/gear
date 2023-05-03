@@ -20,8 +20,12 @@
 pub enum Error {
     #[error("No stderr was found.")]
     EmptyStderr,
+    #[error("Failed to parse WebSocket domain.")]
+    IncorrectWSDomain,
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Url(#[from] url::ParseError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
