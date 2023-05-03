@@ -17,6 +17,7 @@ wasmparser.workspace = true
 hex = { workspace = true, features = ["alloc"] }
 hashbrown.workspace = true
 static_assertions.workspace = true
+paste = { workspace = true }
 
 [dev-dependencies]
 wabt.workspace = true

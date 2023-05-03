@@ -58,6 +58,35 @@ pub enum GearCall {
     ClaimValue(ClaimValueArgs),
 }
 
+#[macro_export]
+macro_rules! impl_convert_traits {
+    ($args:ty, $args_inner:ty, $gear_call_variant:ident, $error:literal) => {
+        impl From<$args> for $args_inner {
+            fn from(args: $args) -> Self {
+                args.0
+            }
+        }
+
+        impl From<$args> for $crate::GearCall {
+            fn from(args: $args) -> Self {
+                $crate::GearCall::$gear_call_variant(args)
+            }
+        }
+
+        impl TryFrom<$crate::GearCall> for $args {
+            type Error = $crate::GearCallConversionError;
+
+            fn try_from(call: $crate::GearCall) -> Result<Self, Self::Error> {
+                if let $crate::GearCall::$gear_call_variant(call) = call {
+                    Ok(call)
+                } else {
+                    Err($crate::GearCallConversionError($error))
+                }
+            }
+        }
+    };
+}
+
 /// Function generates WASM-binary of a Gear program with the
 /// specified `seed`. `programs` may specify addresses which
 /// can be used for send-calls.

@@ -334,6 +334,13 @@ fn system_call_to_scale_value(call: SystemCall) -> Value {
                 [("items", Value::unnamed_composite(items_as_values))],
             )
         }
+        SystemCall::set_code { code } => {
+            Value::named_variant("set_code", [("code", Value::from_bytes(code))])
+        }
+        SystemCall::set_code_without_checks { code } => Value::named_variant(
+            "set_code_without_checks",
+            [("code", Value::from_bytes(code))],
+        ),
         _ => unreachable!("other calls aren't supported for now."),
     };
 

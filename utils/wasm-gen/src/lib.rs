@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(clippy::items_after_test_module)]
+
 use std::{
     collections::{BTreeMap, HashSet},
     iter::Cycle,

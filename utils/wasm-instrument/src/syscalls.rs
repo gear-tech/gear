@@ -295,10 +295,23 @@ impl SysCallName {
             other => panic!("Unknown syscall: '{:?}'", other),
         }
     }
+
+    pub fn to_wgas(self) -> Option<Self> {
+        Some(match self {
+            Self::Reply => Self::ReplyWGas,
+            Self::ReplyInput => Self::ReplyInputWGas,
+            Self::ReplyCommit => Self::ReplyCommitWGas,
+            Self::Send => Self::SendWGas,
+            Self::SendInput => Self::SendInputWGas,
+            Self::SendCommit => Self::SendCommitWGas,
+            Self::CreateProgram => Self::CreateProgramWGas,
+            _ => return None,
+        })
+    }
 }
 
 /// Syscall param type.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParamType {
     Size,            // i32 buffers size in memory
     Ptr,             // i32 pointer

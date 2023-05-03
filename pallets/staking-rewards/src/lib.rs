@@ -38,6 +38,7 @@
 //!
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::items_after_test_module)]
 
 pub mod extension;
 mod inflation;

@@ -18,8 +18,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "512")]
-// (issue #2531)
-#![allow(deprecated)]
 
 extern crate alloc;
 
@@ -54,8 +52,8 @@ pub use weights::WeightInfo;
 use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
-    CodeStorage, GasPrice, GasProvider, GasTree, Origin, Program, ProgramState, ProgramStorage,
-    QueueRunner,
+    CodeStorage, GasPrice, GasProvider, GasTree, Origin, PausedProgramStorage, Program,
+    ProgramRentConfig, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -119,14 +117,16 @@ pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPoo
 pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
 pub(crate) type SchedulingCostOf<T> = <<T as Config>::Scheduler as Scheduler>::Cost;
-pub(crate) type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub(crate) type DispatchStashOf<T> = <<T as Config>::Messenger as Messenger>::DispatchStash;
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
-pub type GasUnitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::Balance;
+pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
+pub type RentFreePeriodOf<T> = <<T as Config>::ProgramRentConfig as ProgramRentConfig>::FreePeriod;
+pub type RentCostPerBlockOf<T> =
+    <<T as Config>::ProgramRentConfig as ProgramRentConfig>::CostPerBlock;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -207,7 +207,7 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
-        type ProgramStorage: ProgramStorage<BlockNumber = Self::BlockNumber>;
+        type ProgramStorage: PausedProgramStorage<BlockNumber = Self::BlockNumber>;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -248,7 +248,7 @@ pub mod pallet {
         >;
 
         /// Block limits.
-        type BlockLimiter: BlockLimiter<Balance = u64>;
+        type BlockLimiter: BlockLimiter<Balance = GasBalanceOf<Self>>;
 
         /// Scheduler.
         type Scheduler: Scheduler<
@@ -259,7 +259,12 @@ pub mod pallet {
         >;
 
         /// Message Queue processing routing provider.
-        type QueueRunner: QueueRunner<Gas = GasUnitOf<Self>>;
+        type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
+
+        type ProgramRentConfig: ProgramRentConfig<
+            BlockNumber = Self::BlockNumber,
+            Balance = BalanceOf<Self>,
+        >;
     }
 
     #[pallet::pallet]
@@ -567,7 +572,7 @@ pub mod pallet {
             let program_id = packet.destination();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !ProgramStorageOf::<T>::program_exists(program_id),
+                !Self::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -593,13 +598,13 @@ pub mod pallet {
             }
 
             let message_id = Self::next_message_id(origin);
-            let block_number = Self::block_number().unique_saturated_into();
+            let block_number = Self::block_number();
 
             ExtManager::<T>::default().set_program(
                 program_id,
                 &code_info,
                 message_id,
-                block_number,
+                block_number.saturating_add(RentFreePeriodOf::<T>::get()),
             );
 
             // # Safety
@@ -793,42 +798,42 @@ pub mod pallet {
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(p, _bn)| p.is_initialized())
+                .map(|program| program.is_initialized())
                 .unwrap_or(false)
         }
 
         /// Returns true if id is a program and the program has active status.
         pub fn is_active(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(p, _bn)| p.is_active())
+                .map(|program| program.is_active())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has terminated status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(p, _bn)| p.is_terminated())
+                .map(|program| program.is_terminated())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has exited status.
         pub fn is_exited(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(p, _bn)| p.is_exited())
+                .map(|program| program.is_exited())
                 .unwrap_or_default()
         }
 
-        pub fn get_block_number(program_id: ProgramId) -> <T as frame_system::Config>::BlockNumber {
-            ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(_p, bn)| bn)
-                .unwrap_or_default()
+        /// Returns true if there is a program with the specified id (it may be paused).
+        pub fn program_exists(program_id: ProgramId) -> bool {
+            ProgramStorageOf::<T>::program_exists(program_id)
+                || ProgramStorageOf::<T>::paused_program_exists(&program_id)
         }
 
         /// Returns exit argument of an exited program.
         pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(p, _bn)| {
-                    if let Program::Exited(inheritor) = p {
+                .map(|program| {
+                    if let Program::Exited(inheritor) = program {
                         Some(inheritor)
                     } else {
                         None
@@ -840,8 +845,8 @@ pub mod pallet {
         /// Returns inheritor of terminated (failed it's init) program.
         pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             ProgramStorageOf::<T>::get_program(program_id)
-                .map(|(p, _bn)| {
-                    if let Program::Terminated(inheritor) = p {
+                .map(|program| {
+                    if let Program::Terminated(inheritor) = program {
                         Some(inheritor)
                     } else {
                         None
@@ -1148,7 +1153,7 @@ pub mod pallet {
             let program_id = packet.destination();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !ProgramStorageOf::<T>::program_exists(program_id),
+                !Self::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -1170,14 +1175,23 @@ pub mod pallet {
             let origin = who.clone().into_origin();
 
             let message_id = Self::next_message_id(origin);
-            let block_number = Self::block_number().unique_saturated_into();
+            let block_number = Self::block_number();
+            let expiration_block = block_number.saturating_add(RentFreePeriodOf::<T>::get());
 
             ExtManager::<T>::default().set_program(
                 packet.destination(),
                 &code_info,
                 message_id,
-                block_number,
+                expiration_block,
             );
+
+            let program_id = packet.destination();
+            let program_event = Event::ProgramChanged {
+                id: program_id,
+                change: ProgramChangeKind::ProgramSet {
+                    expiration: expiration_block,
+                },
+            };
 
             // # Safety
             //
@@ -1203,6 +1217,11 @@ pub mod pallet {
 
             QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
+            let task = ScheduledTask::PauseProgram(program_id);
+            TaskPoolOf::<T>::add(expiration_block, task)
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+            Self::deposit_event(program_event);
             Self::deposit_event(event);
 
             Ok(())
@@ -1425,7 +1444,7 @@ pub mod pallet {
                 ),
             );
 
-            if ProgramStorageOf::<T>::program_exists(destination) {
+            if Self::program_exists(destination) {
                 ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
@@ -1638,7 +1657,7 @@ pub mod pallet {
 
             Ok(PostDispatchInfo {
                 actual_weight: Some(
-                    Weight::from_ref_time(actual_weight)
+                    Weight::from_parts(actual_weight, 0)
                         .saturating_add(T::DbWeight::get().writes(1)),
                 ),
                 pays_fee: Pays::No,
@@ -1664,7 +1683,7 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        type Gas = GasUnitOf<T>;
+        type Gas = GasBalanceOf<T>;
 
         fn run_queue(initial_gas: Self::Gas) -> Self::Gas {
             // Setting adjusted initial gas allowance

@@ -21,7 +21,7 @@
 #![recursion_limit = "256"]
 
 // Make the WASM binary available.
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(feature = "fuzz")))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use frame_support::weights::ConstantMultiplier;
@@ -41,7 +41,10 @@ pub use frame_support::{
     },
     StorageValue,
 };
-use frame_system::limits::{BlockLength, BlockWeights};
+use frame_system::{
+    limits::{BlockLength, BlockWeights},
+    EnsureRoot,
+};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 pub use pallet_gear_payment::CustomChargeTransactionPayment;
 use pallet_grandpa::{
@@ -87,6 +90,8 @@ pub mod constants;
 
 pub use constants::{currency::*, time::*};
 
+mod migrations;
+
 // Weights used in the runtime.
 mod weights;
 
@@ -95,12 +100,13 @@ mod weights;
 // Full node will not attempt to use its native runtime in substitute for the
 // on-chain WASM runtime unless all of `spec_name`, `spec_version`, and
 // `authoring_version` are the same between WASM and native.
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("gear"),
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 130,
+    spec_version: 140,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -263,6 +269,16 @@ impl pallet_transaction_payment::Config for Runtime {
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Runtime, QueueLengthStep>;
 }
 
+parameter_types! {
+    pub const MinAuthorities: u32 = 1;
+}
+
+impl validator_set::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type AddRemoveOrigin = EnsureRoot<AccountId>;
+    type MinAuthorities = MinAuthorities;
+}
+
 impl_opaque_keys! {
     pub struct SessionKeys {
         pub babe: Babe,
@@ -273,10 +289,10 @@ impl_opaque_keys! {
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
-    type ValidatorIdOf = ();
+    type ValidatorIdOf = validator_set::ValidatorOf<Self>;
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
-    type SessionManager = ();
+    type SessionManager = ValidatorSet;
     type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
@@ -294,7 +310,10 @@ impl pallet_utility::Config for Runtime {
     type PalletsOrigin = OriginCaller;
 }
 
-impl pallet_gear_program::Config for Runtime {}
+impl pallet_gear_program::Config for Runtime {
+    type Scheduler = GearScheduler;
+    type CurrentBlockNumber = Gear;
+}
 
 parameter_types! {
     pub const GasLimitMaxPercentage: Percent = Percent::from_percent(GAS_LIMIT_MIN_PERCENTAGE_NUM);
@@ -315,6 +334,17 @@ parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
 }
 
+pub struct ProgramRentConfig;
+
+impl common::ProgramRentConfig for ProgramRentConfig {
+    type BlockNumber = BlockNumber;
+    type Balance = Balance;
+
+    type FreePeriod = ConstU32<RENT_FREE_PERIOD>;
+    type CostPerBlock = ConstU128<EXISTENTIAL_DEPOSIT>;
+    type MinimalResumePeriod = ConstU32<RENT_RESUME_PERIOD>;
+}
+
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -333,6 +363,7 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type ProgramRentConfig = ProgramRentConfig;
 }
 
 #[cfg(feature = "debug-mode")]
@@ -411,6 +442,7 @@ construct_runtime!(
         TransactionPayment: pallet_transaction_payment = 6,
         Session: pallet_session = 7,
         Utility: pallet_utility = 8,
+        ValidatorSet: validator_set = 98,
         Sudo: pallet_sudo = 99,
 
         // Gear pallets
@@ -442,6 +474,7 @@ construct_runtime!(
         TransactionPayment: pallet_transaction_payment = 6,
         Session: pallet_session = 7,
         Utility: pallet_utility = 8,
+        ValidatorSet: validator_set = 98,
         Sudo: pallet_sudo = 99,
 
         // Gear pallets
@@ -483,6 +516,7 @@ pub type Executive = frame_executive::Executive<
     frame_system::ChainContext<Runtime>,
     Runtime,
     AllPalletsWithSystem,
+    migrations::Migrations,
 >;
 
 #[cfg(test)]

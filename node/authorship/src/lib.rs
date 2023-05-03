@@ -21,6 +21,8 @@
 // The block proposer explicitly pushes the `pallet_gear::run`
 // extrinsic at the end of each block.
 
+#![allow(clippy::items_after_test_module)]
+
 mod authorship;
 mod block_builder;
 
