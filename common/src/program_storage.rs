@@ -63,6 +63,7 @@ pub trait ProgramStorage {
     ) -> Result<(), Self::Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
             if maybe.is_some() {
+                // Not executed
                 return Err(Self::InternalError::duplicate_item().into());
             }
 
@@ -125,6 +126,7 @@ pub trait ProgramStorage {
     {
         Self::update_program_if_active(program_id, |program, _bn| match program {
             Program::Active(active_program) => update_action(active_program),
+            // Not executed
             _ => unreachable!("invariant kept by update_program_if_active"),
         })
     }
@@ -142,6 +144,7 @@ pub trait ProgramStorage {
             Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
         let bn = match program {
             Program::Active(ref p) => p.expiration_block,
+            // Not executed
             _ => return Err(Self::InternalError::not_active_program().into()),
         };
 
@@ -152,6 +155,7 @@ pub trait ProgramStorage {
     }
 
     /// Return program data for each page from `pages`.
+    // Not executed
     fn get_program_data_for_pages<'a>(
         program_id: ProgramId,
         pages: impl Iterator<Item = &'a GearPage>,
@@ -172,6 +176,7 @@ pub trait ProgramStorage {
     }
 
     /// Remove a memory page buffer under the given keys `program_id` and `page`.
+    // Not executed
     fn remove_program_page_data(program_id: ProgramId, page_num: GearPage) {
         Self::MemoryPageMap::remove(program_id, page_num);
     }
@@ -185,6 +190,7 @@ pub trait ProgramStorage {
     fn pages_final_prefix() -> [u8; 32];
 
     /// Load the messages to uninitialized program associated with the given key `program_id` from the map.
+    // Not executed
     fn waiting_init_get_messages(program_id: ProgramId) -> Vec<MessageId> {
         Self::WaitingInitMap::get(&program_id).unwrap_or_default()
     }

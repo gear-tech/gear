@@ -42,10 +42,12 @@ impl<Balance: BalanceTrait> CatchValueOutput<Balance> {
     {
         match self {
             CatchValueOutput::Caught(value) => Some((NegativeImbalance::new(value), origin)),
+            // Not executed variant
             _ => None,
         }
     }
 
+    // Not executed
     fn is_blocked(&self) -> bool {
         matches!(self, CatchValueOutput::Blocked)
     }
@@ -70,6 +72,7 @@ where
     fn to_gas_node_id(self) -> GasNodeId<MapKey, MapReservationKey> {
         match self {
             NodeCreationKey::Cut(key) => GasNodeId::Node(key),
+            // Not executed variant
             NodeCreationKey::SpecifiedLocal(key) => GasNodeId::Node(key),
             NodeCreationKey::Reserved(key) => GasNodeId::Reservation(key),
         }
@@ -125,6 +128,7 @@ where
         let mut ret_node = node;
         let mut ret_id = None;
         if let GasNode::UnspecifiedLocal { parent, .. } = ret_node {
+            // Not executed completely (so no unspec nodes -_-)
             ret_id = Some(parent);
             ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
             if !(ret_node.is_external() || ret_node.is_specified_local() || ret_node.is_reserved())
@@ -148,6 +152,7 @@ where
         let mut ret_id = None;
         let mut ret_node = node;
         while let Some(parent) = ret_node.parent() {
+            // Not executed - so tree is not larger than 1 root node
             ret_id = Some(parent);
             ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
         }
@@ -158,6 +163,7 @@ where
     pub(super) fn decrease_parents_ref(node: &StorageMap::Value) -> Result<(), Error> {
         let id = match node.parent() {
             Some(id) => id,
+            // Only this executed
             None => return Ok(()),
         };
 
@@ -218,6 +224,7 @@ where
 
                 Ok(CatchValueOutput::Missed)
             } else {
+                // Only this executed
                 let self_value = node
                     .value_mut()
                     .ok_or_else(InternalError::unexpected_node_type)?;
@@ -244,6 +251,7 @@ where
         node: &StorageMap::Value,
     ) -> Result<Option<(StorageMap::Value, GasNodeIdOf<Self>)>, Error> {
         match node {
+            // only this executed
             GasNode::External { .. } | GasNode::Cut { .. } | GasNode::Reserved { .. } => Ok(None),
             GasNode::SpecifiedLocal { parent, .. } => {
                 let mut ret_id = *parent;
@@ -395,6 +403,7 @@ where
 
         // Check if the parent node is cut
         if node.is_cut() {
+            // Not executed
             return Err(InternalError::forbidden().into());
         }
 
@@ -410,6 +419,7 @@ where
             .ok_or_else(InternalError::unexpected_node_type)?
             < amount
         {
+            // Not executed
             return Err(InternalError::insufficient_balance().into());
         }
 
@@ -423,6 +433,7 @@ where
                     lock: Zero::zero(),
                 }
             }
+            // Not executed
             NodeCreationKey::SpecifiedLocal(_) => {
                 node.increase_spec_refs();
 
@@ -497,6 +508,7 @@ where
     type InternalError = InternalError;
     type Error = Error;
 
+    // Not executed - only tests
     fn total_supply() -> Self::Balance {
         TotalValue::get().unwrap_or_else(Zero::zero)
     }
@@ -509,6 +521,7 @@ where
         let key = key.into();
 
         if StorageMap::contains_key(&key) {
+            // Not executed
             return Err(InternalError::node_already_exists().into());
         }
 
@@ -540,11 +553,13 @@ where
         let (root, maybe_key) = Self::root(node)?;
 
         if let GasNode::External { id, .. }
+        // Not executed variant
         | GasNode::Cut { id, .. }
         | GasNode::Reserved { id, .. } = root
         {
             Ok((id, maybe_key.unwrap_or(key)))
         } else {
+            // Not executed
             unreachable!("Guaranteed by ValueNode::root method")
         }
     }
@@ -602,15 +617,18 @@ where
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         if node.is_consumed() {
+            // Not executed
             return Err(InternalError::node_was_consumed().into());
         }
 
         if !node.lock().is_zero() {
+            // Not executed
             return Err(InternalError::consumed_with_lock().into());
         }
 
         if let Some(system_reserve) = node.system_reserve() {
             if !system_reserve.is_zero() {
+                // Not executed
                 return Err(InternalError::consumed_with_system_reservation().into());
             }
         }
@@ -624,8 +642,10 @@ where
             StorageMap::remove(key);
 
             match node {
+                // Only this branch is executed
                 GasNode::External { .. } | GasNode::Cut { .. } | GasNode::Reserved { .. } => {
                     if !catch_output.is_caught() {
+                        // Not executed
                         return Err(InternalError::value_is_not_caught().into());
                     }
                     catch_output.into_consume_output(external)
@@ -697,6 +717,7 @@ where
             .ok_or_else(InternalError::unexpected_node_type)?;
 
         if *node_value < amount {
+            // Not executed
             return Err(InternalError::insufficient_balance().into());
         }
 
@@ -719,6 +740,7 @@ where
         Ok(negative_imbalance)
     }
 
+    // Not executed at all
     fn split_with_value(
         key: impl Into<GasNodeIdOf<Self>>,
         new_key: Self::Key,
@@ -777,11 +799,13 @@ where
 
         // Validating that node is not consumed.
         if node.is_consumed() {
+            // Not executed
             return Err(InternalError::node_was_consumed().into());
         }
 
         // Quick quit on queried zero lock.
         if amount.is_zero() {
+            // Not executed
             return Ok(());
         }
 
@@ -802,6 +826,7 @@ where
         // If provider is a parent, we save it to storage, otherwise mutating
         // current node further, saving it afterward.
         let mut node = if let Some(ancestor_id) = ancestor_id {
+            // Not executed branch
             StorageMap::insert(ancestor_id, ancestor_node);
 
             // Unreachable error: the same queried at the beginning of function.
@@ -831,6 +856,7 @@ where
     // unspecified node, referring it.
     //
     // - For reservation type (`GasNode::ReservedLocal`) locking is denied.
+    // Not executed at all
     fn unlock(key: impl Into<GasNodeIdOf<Self>>, amount: Self::Balance) -> Result<(), Self::Error> {
         let key = key.into();
 
@@ -881,6 +907,7 @@ where
         Ok(())
     }
 
+    // Not executed at all
     fn get_lock(key: impl Into<GasNodeIdOf<Self>>) -> Result<Self::Balance, Self::Error> {
         let key = key.into();
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
@@ -896,6 +923,7 @@ where
         Self::create_from_with_value(key, NodeCreationKey::Reserved(new_key), amount)
     }
 
+    // Not executed at all
     fn system_reserve(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
         let key = key.into();
 

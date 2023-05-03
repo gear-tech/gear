@@ -40,6 +40,7 @@ use sp_std::{vec, vec::Vec};
 
 fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
     if mem.get_buffer_host_addr().is_none() {
+        // Not executed
         return;
     }
 
@@ -120,6 +121,7 @@ pub fn update_lazy_pages_and_protect_again(
         .map(|addr| new_mem_addr != addr)
         .unwrap_or(true)
     {
+        // Not executed
         log::debug!(
             "backend executor has changed wasm mem buff: from {:?} to {:?}",
             old_mem_addr.map(PointerDisplay),

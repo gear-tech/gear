@@ -120,6 +120,7 @@ impl From<MessageWaitedType> for MessageWaitedRuntimeReason {
         match src {
             MessageWaitedType::Wait => MessageWaitedRuntimeReason::WaitCalled,
             MessageWaitedType::WaitFor => MessageWaitedRuntimeReason::WaitForCalled,
+            // Not executed variant
             MessageWaitedType::WaitUpTo => MessageWaitedRuntimeReason::WaitUpToCalled,
             MessageWaitedType::WaitUpToFull => MessageWaitedRuntimeReason::WaitUpToCalledFull,
         }

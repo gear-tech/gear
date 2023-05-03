@@ -210,6 +210,7 @@ pub trait Tree {
     /// Unlocking all value from node's locked balance.
     ///
     /// See [`unlock`](Self::unlock) for details.
+    // Not executed
     fn unlock_all(key: impl Into<GasNodeIdOf<Self>>) -> Result<(), Self::Error> {
         let key = key.into();
         let amount = Self::get_lock(key.clone())?;
@@ -293,6 +294,7 @@ pub trait Provider {
     ///
     /// It's a temporary production solution to avoid DB migrations
     /// and would be available for test purposes only in the future.
+    // Not executed
     fn reset() {
         Self::GasTree::clear();
     }

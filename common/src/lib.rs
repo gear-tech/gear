@@ -207,6 +207,7 @@ pub enum Program<BlockNumber: Copy + Saturating> {
     Terminated(ProgramId),
 }
 
+// Not executed - nothing from that impl
 impl<BlockNumber: Copy + Saturating> Program<BlockNumber> {
     pub fn is_active(&self) -> bool {
         matches!(self, Program::Active(_))
@@ -320,6 +321,7 @@ where
     Call: Dispatchable + Clone,
     Extra: SignedExtension,
 {
+    // Not executed
     fn extract_call(&self) -> Call {
         self.function.clone()
     }
@@ -330,6 +332,7 @@ impl<Address, Call, Extra> ExtractCall<Call> for CheckedExtrinsic<Address, Call,
 where
     Call: Dispatchable + Clone,
 {
+    // Not executed - nothing from that impl
     fn extract_call(&self) -> Call {
         self.function.clone()
     }

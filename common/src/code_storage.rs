@@ -34,6 +34,7 @@ pub trait CodeStorage {
     type MetadataStorage: MapStorage<Key = CodeId, Value = CodeMetadata>;
 
     /// Attempt to remove all items from all the associated maps.
+    // Not executed, maybe move under feature
     fn reset() {
         Self::MetadataStorage::clear();
         Self::OriginalCodeStorage::clear();
@@ -47,6 +48,7 @@ pub trait CodeStorage {
 
         Self::InstrumentedCodeStorage::mutate(code_id, |maybe| {
             if maybe.is_some() {
+                // Not executed
                 return Err(CodeStorageError::DuplicateItem);
             }
 
@@ -60,6 +62,7 @@ pub trait CodeStorage {
     }
 
     /// Update the corresponding code in the storage.
+    // Not executed (all the func) - no re-instrumentation happened
     fn update_code(code_and_id: InstrumentedCodeAndId) {
         let (code, code_id) = code_and_id.into_parts();
 
@@ -74,6 +77,7 @@ pub trait CodeStorage {
     /// Returns true if the code associated with given id was removed.
     ///
     /// If there is no code for the given id then false is returned.
+    // Not executed
     fn remove_code(code_id: CodeId) -> bool {
         Self::InstrumentedCodeStorage::mutate(code_id, |maybe| {
             if maybe.is_none() {
@@ -97,10 +101,12 @@ pub trait CodeStorage {
         Self::InstrumentedLenStorage::get(&code_id)
     }
 
+    // Not executed (reinstrumentation)
     fn get_original_code(code_id: CodeId) -> Option<Vec<u8>> {
         Self::OriginalCodeStorage::get(&code_id)
     }
 
+    // Not executed (only tests)
     fn get_metadata(code_id: CodeId) -> Option<CodeMetadata> {
         Self::MetadataStorage::get(&code_id)
     }

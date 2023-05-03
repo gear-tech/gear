@@ -30,6 +30,7 @@ pub enum GasNodeId<T, U> {
 }
 
 impl<T, U> GasNodeId<T, U> {
+    // Not executed
     pub fn to_node_id(self) -> Option<T> {
         match self {
             GasNodeId::Node(message_id) => Some(message_id),
@@ -37,6 +38,7 @@ impl<T, U> GasNodeId<T, U> {
         }
     }
 
+    // Not executed
     pub fn to_reservation_id(self) -> Option<U> {
         match self {
             GasNodeId::Node(_) => None,
@@ -160,21 +162,25 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         }
     }
 
+    // Not executed
     /// Increases node's spec refs, if it can have any
     pub fn increase_spec_refs(&mut self) {
         self.adjust_refs(true, true);
     }
 
+    // Not executed
     /// Decreases node's spec refs, if it can have any
     pub fn decrease_spec_refs(&mut self) {
         self.adjust_refs(false, true);
     }
 
+    // Not executed
     /// Increases node's unspec refs, if it can have any
     pub fn increase_unspec_refs(&mut self) {
         self.adjust_refs(true, false);
     }
 
+    // Not executed
     /// Decreases node's unspec refs, if it can have any
     pub fn decrease_unspec_refs(&mut self) {
         self.adjust_refs(false, false);
@@ -183,6 +189,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     /// Marks the node as consumed, if it has the flag
     pub fn mark_consumed(&mut self) {
         if let Self::External { consumed, .. }
+        // Not executed
         | Self::SpecifiedLocal { consumed, .. }
         | Self::Reserved { consumed, .. } = self
         {
@@ -196,6 +203,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     /// consumed and not deleted. See [`Tree::consume`] for details.
     pub fn is_consumed(&self) -> bool {
         if let Self::External { consumed, .. }
+        // Not executed
         | Self::SpecifiedLocal { consumed, .. }
         | Self::Reserved { consumed, .. } = self
         {
@@ -218,11 +226,13 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     /// (including the self node).
     pub fn is_patron(&self) -> bool {
         if let Self::External { refs, consumed, .. }
+        // Not executed
         | Self::SpecifiedLocal { refs, consumed, .. }
         | Self::Reserved { refs, consumed, .. } = self
         {
             !consumed || refs.unspec_refs != 0
         } else {
+            // Not executed
             false
         }
     }
@@ -232,8 +242,10 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         match self {
             Self::External { value, .. }
             | Self::Cut { value, .. }
+            // Not executed
             | Self::Reserved { value, .. }
             | Self::SpecifiedLocal { value, .. } => Some(*value),
+            // Not executed
             Self::UnspecifiedLocal { .. } => None,
         }
     }
@@ -245,6 +257,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
             | Self::Cut { ref mut value, .. }
             | Self::Reserved { ref mut value, .. }
             | Self::SpecifiedLocal { ref mut value, .. } => Some(value),
+            // Not executed
             Self::UnspecifiedLocal { .. } => None,
         }
     }
@@ -253,8 +266,11 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     pub fn lock(&self) -> Balance {
         match self {
             Self::External { lock, .. }
+            // Not executed
             | Self::UnspecifiedLocal { lock, .. }
+            // Not executed
             | Self::SpecifiedLocal { lock, .. }
+            // Not executed
             | Self::Reserved { lock, .. }
             | Self::Cut { lock, .. } => *lock,
         }
@@ -299,6 +315,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     pub fn parent(&self) -> Option<Id> {
         match self {
             Self::External { .. } | Self::Cut { .. } | Self::Reserved { .. } => None,
+            // Not executed
             Self::SpecifiedLocal { parent, .. } | Self::UnspecifiedLocal { parent, .. } => {
                 Some(*parent)
             }
@@ -351,6 +368,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     }
 
     /// Returns whether the node is of `Reserve` type
+    // Not executed
     pub(crate) fn is_reserved(&self) -> bool {
         matches!(self, Self::Reserved { .. })
     }
@@ -360,6 +378,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         self.system_reserve().is_some()
     }
 
+    // Not executed
     fn adjust_refs(&mut self, increase: bool, spec: bool) {
         if let Self::External { refs, .. }
         | Self::SpecifiedLocal { refs, .. }
