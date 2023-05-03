@@ -29,7 +29,7 @@ const AT_BLOCK_HASH: &str = "Option<H256>";
 
 /// Storage query builder for generating
 ///
-/// - storage query from full blocks.
+/// - storage query from the latest state.
 /// - storage query at block hash.
 pub struct StorageQueryBuilder(ItemFn);
 
@@ -54,17 +54,17 @@ impl StorageQueryBuilder {
 
         // reset function block.
         //
-        // - push `let block_hash = ident.into();` to the top of the block.
+        // - push `let #ident = #ident.into();` to the top of the block.
         let mut stmts = vec![];
         stmts.push(parse_quote! {
-            let block_hash = #ident.into();
+            let #ident = #ident.into();
         });
         at.block.stmts = [stmts, at.block.stmts].concat();
 
         at
     }
 
-    /// Build storage query for full blocks.
+    /// Build storage query for the latest state.
     fn full(&self) -> ItemFn {
         let mut full = self.0.clone();
 
