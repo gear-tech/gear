@@ -90,6 +90,7 @@ members = [
     "utils/wasm-info",
     "utils/wasm-instrument",
     "utils/wasm-proc",
+    "utils/migration-tests",
 ]
 
 [workspace.dependencies]
@@ -221,6 +222,7 @@ frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/subs
 frame-system-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 frame-try-runtime = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 frame-system-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+frame-remote-externalities = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 generate-bags = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
 pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
