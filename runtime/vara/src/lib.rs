@@ -113,6 +113,7 @@ mod extensions;
 pub use extensions::DisableValueTransfers;
 
 mod migrations;
+pub use migrations::Migrations;
 
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
@@ -876,7 +877,7 @@ pub type Executive = frame_executive::Executive<
     frame_system::ChainContext<Runtime>,
     Runtime,
     AllPalletsWithSystem,
-    migrations::Migrations,
+    Migrations,
 >;
 
 #[cfg(test)]
