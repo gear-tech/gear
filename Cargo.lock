@@ -4090,7 +4090,9 @@ dependencies = [
  "pwasm-utils",
  "thiserror",
  "toml 0.7.3",
+ "wabt",
  "wasm-opt",
+ "wasmparser-nostd 0.100.1",
  "which",
 ]
 
