@@ -7,13 +7,14 @@ edition = "2021"
 
 [dependencies]
 tokio = { workspace = true, features = ["macros"] }
-env_logger.workspace = true
+log.workspace = true
 
 frame-support.workspace = true
-frame-system.workspace = true
 frame-remote-externalities.workspace = true
-gear-common = { workspace = true, features = ["std"] }
-gear-runtime = { workspace = true, features = ["std", "try-runtime"] }
-pallet-gear-program = { workspace = true, features = ["std"] }
 
-demo-backend-error.workspace = true
+gear-runtime = { workspace = true, features = ["std", "try-runtime"] }
+
+[dev-dependencies]
+env_logger.workspace = true
+
+pallet-gear-program = { workspace = true, features = ["std"] }

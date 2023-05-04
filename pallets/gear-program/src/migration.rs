@@ -152,7 +152,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateV1ToV2<T> {
     }
 }
 
-pub mod version_1 {
+mod version_1 {
     use common::ProgramState;
     use frame_support::{
         codec::{self, Decode, Encode},
