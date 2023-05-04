@@ -1,8 +1,8 @@
 [package]
 name = "runtime-fuzzer"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
