@@ -33,7 +33,7 @@ RUN rustup target add wasm32-unknown-unknown --toolchain nightly-2023-04-25
 #RUN rustup update nightly && rustup target add wasm32-unknown-unknown --toolchain
 
 # Build
-RUN cargo build -p gear-cli --no-default-features --features=vara-native,lazy-pages --profile $PROFILE
+RUN cargo build -p gear-cli --release --features=vara-native,lazy-pages,runtime-benchmarks --profile $PROFILE
 
 # ===== SECOND STAGE ======
 
