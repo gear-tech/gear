@@ -625,6 +625,17 @@ pub mod runtime_types {
         }
         pub mod gas_provider {
             use super::runtime_types;
+            pub mod lockable {
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
+                pub enum LockId {
+                    Mailbox,
+                    Waitlist,
+                    Reservation = 2,
+                    DispatchStash,
+                }
+            }
             pub mod node {
                 use super::runtime_types;
                 #[derive(
@@ -634,8 +645,10 @@ pub mod runtime_types {
                     pub spec_refs: ::core::primitive::u32,
                     pub unspec_refs: ::core::primitive::u32,
                 }
-                // Making use of zero cost abstraction over the inner array representing locks
-                pub type NodeLock<_0> = [_0; 4];
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
+                pub struct NodeLock<_0>(pub [_0; 4]);
                 #[derive(
                     :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
                 )]

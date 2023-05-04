@@ -107,6 +107,10 @@ pub trait SchedulingCostsPerBlock {
     fn by_storage_type(storage: StorageType) -> Self::Cost;
 }
 
+/// The type whose variants correspond to various storages used in Gear,
+/// including waitlist, mailbox, delayed messages stash etc.
+/// Used as a parameter in functions performing some common actions on storages
+/// like, for instance, holding cost calculation, to signal a concrete storage kind.
 #[derive(Debug, Clone, Copy)]
 pub enum StorageType {
     Code,

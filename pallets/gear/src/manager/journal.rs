@@ -544,7 +544,7 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
 
         let lock_id = hold.lock_id().unwrap_or_else(|| {
-            unreachable!("Every type of storage must have an associated lock id")
+            unreachable!("Reservation storage is guaranteed to have an associated lock id")
         });
         GasHandlerOf::<T>::lock(reservation_id, lock_id, hold.lock_amount())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));

@@ -20,6 +20,7 @@ use super::{scheduler::StorageType, *};
 use enum_iterator::Sequence;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Sequence)]
+#[repr(u8)]
 pub enum LockId {
     Mailbox,
     Waitlist,
@@ -29,16 +30,16 @@ pub enum LockId {
 
 /// An error indicating there is no corresponding enum variant to the one provided
 #[derive(Debug)]
-pub struct VariantMismatch;
+pub struct TryFromStorageTypeError;
 
-impl fmt::Display for VariantMismatch {
+impl fmt::Display for TryFromStorageTypeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "Corresponding enum variant not found")
     }
 }
 
 impl TryFrom<StorageType> for LockId {
-    type Error = VariantMismatch;
+    type Error = TryFromStorageTypeError;
 
     fn try_from(storage: StorageType) -> Result<Self, Self::Error> {
         match storage {
@@ -46,7 +47,7 @@ impl TryFrom<StorageType> for LockId {
             StorageType::Waitlist => Ok(Self::Waitlist),
             StorageType::Reservation => Ok(Self::Reservation),
             StorageType::DispatchStash => Ok(Self::DispatchStash),
-            _ => Err(VariantMismatch),
+            _ => Err(TryFromStorageTypeError),
         }
     }
 }

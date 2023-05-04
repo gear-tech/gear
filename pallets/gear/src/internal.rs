@@ -45,7 +45,7 @@ use gear_core::{
 };
 use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
 
-/// `HoldBound<T>` builder
+/// [`HoldBound`] builder
 #[derive(Clone, Debug)]
 pub(crate) struct HoldBoundBuilder<T: Config> {
     storage_type: StorageType,
@@ -404,7 +404,7 @@ where
 
         // Locking funds for holding.
         let lock_id = hold.lock_id().unwrap_or_else(|| {
-            unreachable!("Every type of storage must have an associated lock id")
+            unreachable!("Waitlist storage is guaranteed to have an associated lock id")
         });
         GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
@@ -656,7 +656,7 @@ where
 
             // Locking funds for holding.
             let lock_id = hold.lock_id().unwrap_or_else(|| {
-                unreachable!("Every type of storage must have an associated lock id")
+                unreachable!("DispatchStash storage is guaranteed to have an associated lock id")
             });
             GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
@@ -716,7 +716,7 @@ where
 
             // Locking funds for holding.
             let lock_id = hold.lock_id().unwrap_or_else(|| {
-                unreachable!("Every type of storage must have an associated lock id")
+                unreachable!("DispatchStash storage is guaranteed to have an associated lock id")
             });
             GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));

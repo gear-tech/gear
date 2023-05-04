@@ -723,7 +723,7 @@ where
             key,
             new_key,
             amount,
-            |key, value, _parent_node, _parend_id| {
+            |key, value, _parent_node, _parent_id| {
                 let id = Self::get_external(key)?;
                 Ok(GasNode::Cut {
                     id,
@@ -901,7 +901,7 @@ where
             key,
             new_key,
             amount,
-            |key, value, _parent_node, _parend_id| {
+            |key, value, _parent_node, _parent_id| {
                 let id = Self::get_external(key)?;
                 Ok(GasNode::Reserved {
                     id,
