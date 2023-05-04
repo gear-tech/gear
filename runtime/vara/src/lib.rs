@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![feature(const_option)]
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
@@ -81,6 +82,7 @@ use sp_std::{
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
+use static_assertions::const_assert;
 
 #[cfg(any(feature = "std", test))]
 pub use frame_system::Call as SystemCall;
@@ -136,13 +138,23 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
         allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
     };
 
+// We'll check that WEIGHT_REF_TIME_PER_SECOND is not overflows so we can use checked_mul and
+// checked_div instead of saturating ones.
+const_assert!(WEIGHT_REF_TIME_PER_SECOND
+    .checked_div(3)
+    .expect("cannot divide WEIGHT_REF_TIME_PER_SECOND by 3")
+    .checked_mul(2)
+    .is_some());
+
 /// We allow for 1/3 of block time for computations, with maximum proof size.
 ///
 /// It's 2/3 sec for vara runtime with 2 second block duration.
 const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
     WEIGHT_REF_TIME_PER_SECOND
-        .saturating_mul(2)
-        .saturating_div(3),
+        .checked_mul(2)
+        .expect("cannot multiply WEIGHT_REF_TIME_PER_SECOND by 2")
+        .checked_div(3)
+        .expect("cannot divide WEIGHT_REF_TIME_PER_SECOND by 3"),
     u64::MAX,
 );
 
