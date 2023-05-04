@@ -14,7 +14,7 @@
     "tokenSymbol": "VARA"
   },
   "forkBlocks": null,
-  "badBlocks": null,
+  "badBlocks": ["0x20fef93e186ea41971dcffbb38303d67754da6824845683d4bd28bc5a94f7c72"],
   "lightSyncState": null,
   "codeSubstitutes": {},
   "genesis": {
