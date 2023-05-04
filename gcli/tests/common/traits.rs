@@ -33,6 +33,19 @@ impl Convert<String> for Vec<u8> {
 
 /// Run node.
 pub trait NodeExec {
+    /// Exec command gcli with Node instance.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let node = Node::new();
+    /// let args = Args::new("upload")
+    ///              .flag("--code-only")
+    ///              .program(env::wasm_bin("demo_meta.opt.wasm"));
+    /// let output = node.run(args)
+    ///
+    /// // ...
+    /// ```
     fn run(&self, args: Args) -> Result<Output>;
 
     fn ws(&self) -> String;
