@@ -14,4 +14,7 @@ impl OnRuntimeUpgrade for SessionValidatorSetMigration {
     }
 }
 
-pub type Migrations = (SessionValidatorSetMigration,);
+pub type Migrations = (
+    SessionValidatorSetMigration,
+    pallet_gear_program::migration::MigrateV1ToV2<Runtime>,
+);

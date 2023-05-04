@@ -140,8 +140,6 @@ pub(crate) type TaskPoolOf<T> =
 
 #[frame_support::pallet]
 pub mod pallet {
-    use crate::migration::migrate;
-
     use super::*;
     use common::{scheduler::*, storage::*, CodeMetadata, Program};
     #[cfg(feature = "debug-mode")]
@@ -293,15 +291,6 @@ pub mod pallet {
         key: ProgramId,
         value: (BlockNumberFor<T>, H256)
     );
-
-    #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn on_runtime_upgrade() -> Weight {
-            log::debug!(target: "gear::program", "⚙️ Runtime upgrade");
-
-            migrate::<T>()
-        }
-    }
 
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
         type InstrumentedCodeStorage = CodeStorageWrap<T>;
