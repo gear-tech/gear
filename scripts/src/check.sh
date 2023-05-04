@@ -20,7 +20,11 @@ EOF
 }
 
 gear_check() {
-  SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo check --workspace "$@"
+  echo "  >> Check workspace without crates that use runtime with 'fuzz' feature"
+  SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo check --workspace "$@" --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz
+
+  echo "  >> Check crates that use runtime with 'fuzz' feature"
+  cargo +nightly check "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR

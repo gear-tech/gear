@@ -18,7 +18,7 @@
 
 //! Integration tests for command `deploy`
 #![cfg(not(feature = "vara-testing"))]
-use crate::common::{self, logs, Args, NodeExt, Result};
+use crate::common::{self, logs, Args, NodeExec, Result};
 use gsdk::Api;
 
 // Testing account

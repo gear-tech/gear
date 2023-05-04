@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::common::{self, logs, NodeExt, Result};
+use crate::common::{self, logs, NodeExec, Result};
 use gear_core::ids::CodeId;
 use gsdk::Api;
 use scale_info::scale::Encode;

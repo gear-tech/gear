@@ -32,7 +32,7 @@ impl Convert<String> for Vec<u8> {
 }
 
 /// Run node.
-pub trait NodeExt {
+pub trait NodeExec {
     fn run(&self, args: Args) -> Result<Output>;
 
     fn ws(&self) -> String;

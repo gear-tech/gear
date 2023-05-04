@@ -16,21 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Error;
+use crate::{Error, Result};
 use anyhow::anyhow;
 use std::{
     fmt,
     net::{AddrParseError, SocketAddrV4},
 };
+use url::Url;
 
 /// Full WebSocket address required to specify the node.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct WSAddress {
     // Host domain name or IP address.
     //
-    // TODO: `String` here for saving lives, no clue how many tests are using
-    // this, could be `Ipv4Address`(ip) + tls(wss?) after #2588 since #2588
-    // requires a `Result` as the result of function `new`.
+    // TODO: `String` here for saving lives, could be
+    // `Ipv4Address`(ip) + tls(wss?) after then.
     domain: String,
     port: Option<u16>,
 }
@@ -51,12 +51,37 @@ impl WSAddress {
 
     /// Create a new `WSAddress` from a host `domain` and `port`.
     ///
-    /// TODO: validate the domain (#2588)
+    /// This method does not do any validation of `domain`,
+    /// see [`WSAddress::try_new`] if you need it.
     pub fn new(domain: impl AsRef<str>, port: impl Into<Option<u16>>) -> Self {
         Self {
             domain: domain.as_ref().into(),
             port: port.into(),
         }
+    }
+
+    /// Try to create a new `WSAddress` from `domain` and `port`.
+    ///
+    /// Unlike the [`WSAddress::new`] method, this function checks
+    /// that the `domain` is valid.
+    pub fn try_new(domain: impl AsRef<str>, port: impl Into<Option<u16>>) -> Result<Self> {
+        let domain = domain.as_ref().to_string();
+        let port = port.into();
+
+        let url = Url::parse(domain.as_ref())?;
+
+        let valid_domain = matches!(url.scheme(), "ws" | "wss")
+            && !url.cannot_be_a_base()
+            && url.has_host()
+            && url.port().is_none()
+            && url.query().is_none()
+            && url.fragment().is_none();
+
+        if !valid_domain {
+            return Err(Error::IncorrectWSDomain);
+        }
+
+        Ok(Self { domain, port })
     }
 
     /// Return the address of the local node working in developer mode (running

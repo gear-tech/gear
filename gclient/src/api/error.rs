@@ -89,4 +89,10 @@ pub enum Error {
     /// Occurs when node spawining failed.
     #[error(transparent)]
     Node(#[from] NodeError),
+    /// Occurs when parsing websocket domain failed.
+    #[error("Failed to parse WebSocket domain.")]
+    IncorrectWSDomain,
+    /// Occurs when parsing domain url failed.
+    #[error(transparent)]
+    Url(#[from] url::ParseError),
 }

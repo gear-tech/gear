@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `send`
-use crate::common::{self, Args, NodeExt, Result};
+use crate::common::{self, Args, NodeExec, Result};
 use gsdk::Api;
 use scale_info::scale::Encode;
 

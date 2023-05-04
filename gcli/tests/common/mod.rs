@@ -20,7 +20,7 @@
 pub use self::{
     args::Args,
     result::{Error, Result},
-    traits::NodeExt,
+    traits::NodeExec,
 };
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
@@ -49,7 +49,7 @@ mod prelude {
 #[cfg(not(feature = "vara-testing"))]
 pub use prelude::*;
 
-impl NodeExt for Node {
+impl NodeExec for Node {
     fn ws(&self) -> String {
         "ws://".to_string() + &self.address().to_string()
     }

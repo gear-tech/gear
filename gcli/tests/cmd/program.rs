@@ -19,7 +19,7 @@
 //! Integration tests for command `program`
 use crate::common::{
     self, env, logs,
-    traits::{Convert, NodeExt},
+    traits::{Convert, NodeExec},
     Args, Result,
 };
 use demo_new_meta::{MessageInitIn, Wallet};
