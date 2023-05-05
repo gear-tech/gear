@@ -138,6 +138,10 @@ impl<T: Config> OnRuntimeUpgrade for MigrateV1ToV2<T> {
                 assert_eq!(new.code_exports, old.code_exports);
                 assert_eq!(new.static_pages, old.static_pages);
                 assert_eq!(new.state, old.state);
+                assert_eq!(
+                    new.expiration_block,
+                    T::CurrentBlockNumber::get() + FREE_PERIOD.into()
+                );
             }
             _ => panic!("New and old program expected to be active"),
         }
