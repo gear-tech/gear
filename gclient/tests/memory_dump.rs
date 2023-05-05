@@ -63,7 +63,7 @@ impl Drop for CleanupFolderOnDrop {
 #[tokio::test]
 async fn memory_dump() -> Result<()> {
     // Create API instance
-    let api = GearApi::dev().await?;
+    let api = GearApi::dev_from_path("../target/release/gear").await?;
     // Subscribe to events
     let mut listener = api.subscribe().await?;
     // Check that blocks are still running
