@@ -548,10 +548,8 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use super::Program;
-    use crate::{log::DecodedCoreLog, Log, System};
+    use crate::{Log, System};
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -748,7 +746,7 @@ mod tests {
         assert_eq!(
             response
                 .log()
-                .into_iter()
+                .iter()
                 .map(|log| { String::from_utf8(log.payload().to_vec()).unwrap() })
                 .find(|_| true)
                 .unwrap(),
@@ -764,7 +762,7 @@ mod tests {
         assert_eq!(
             response
                 .log()
-                .into_iter()
+                .iter()
                 .map(|log| { String::from_utf8(log.payload().to_vec()).unwrap() })
                 .find(|_| true)
                 .unwrap(),

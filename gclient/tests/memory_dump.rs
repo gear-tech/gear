@@ -16,11 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gclient::{code_from_os, now_micros, Error, EventListener, EventProcessor, GearApi, Result};
+use gclient::{code_from_os, now_micros, EventListener, EventProcessor, GearApi, Result};
 use gear_core::ids::ProgramId;
-use gsdk::ext::sp_runtime::MultiAddress;
-use hex::ToHex;
-use parity_scale_codec::{Decode, Encode};
 
 async fn charge_10(
     api: &GearApi,
