@@ -44,6 +44,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system,
+        GearMessenger: pallet_gear_messenger,
         Gas: pallet_gas,
         Balances: pallet_balances,
     }
@@ -92,6 +93,15 @@ impl system::Config for Test {
     type SS58Prefix = SS58Prefix;
     type OnSetCode = ();
     type MaxConsumers = frame_support::traits::ConstU32<16>;
+}
+
+parameter_types! {
+    pub const GearBlockNumber: BlockNumber = 100;
+}
+
+impl pallet_gear_messenger::Config for Test {
+    type BlockLimiter = Gas;
+    type CurrentBlockNumber = GearBlockNumber;
 }
 
 impl pallet_gas::Config for Test {

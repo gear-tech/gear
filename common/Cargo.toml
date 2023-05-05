@@ -9,6 +9,7 @@ license.workspace = true
 primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
 derive_more.workspace = true
+enum-iterator.workspace = true
 mutagen = { workspace = true, optional = true }
 
 # Internal deps

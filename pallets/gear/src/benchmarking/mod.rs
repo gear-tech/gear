@@ -62,7 +62,7 @@ use ::alloc::vec;
 use common::{
     self, benchmarking,
     storage::{Counter, *},
-    CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
+    CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, ReservableTree,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
