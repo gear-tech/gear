@@ -16,6 +16,9 @@ const GAS_LEFT: GasLeft = GasLeft {
     allowance: core::u64::MAX,
 };
 
+#[derive(Encode, Decode, MaxEncodedLen)]
+struct ZeroSizeStruct;
+
 #[test]
 fn test_pre_process_memory_accesses_with_no_accesses() {
     let mut gas_left = GAS_LEFT;
@@ -65,26 +68,55 @@ fn test_pre_process_memory_accesses_with_reads_and_writes() {
 }
 
 #[test]
-fn test_read_into_buf_with_zero_size_buffer() {
+fn test_read_of_zero_size_buf() {
     let mut gas_left = GAS_LEFT;
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
+    let memory = MockMemory::new(0);
+    let read = memory_access_manager.register_read(0, 0);
 
-    let result =
-        memory_access_manager.read_into_buf(&MockMemory::new(1), 0, &mut [], &mut gas_left);
+    let result = memory_access_manager.read(&memory, read, &mut gas_left);
 
     assert!(result.is_ok());
+    assert_eq!(memory.read_attempt_count(), 0);
 }
 
 #[test]
-fn test_read_into_buf_with_same_size_buffer() {
+fn test_read_of_zero_size_struct() {
     let mut gas_left = GAS_LEFT;
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
-    memory_access_manager.register_read(0, 10);
+    let memory = MockMemory::new(0);
+    let read = memory_access_manager.register_read_as::<ZeroSizeStruct>(0);
 
-    let result =
-        memory_access_manager.read_into_buf(&MockMemory::new(1), 0, &mut [0u8; 10], &mut gas_left);
+    let result = memory_access_manager.read_as(&memory, read, &mut gas_left);
 
     assert!(result.is_ok());
+    assert_eq!(memory.read_attempt_count(), 0);
+}
+
+#[test]
+fn test_read_of_zero_size_encoded_value() {
+    let mut gas_left = GAS_LEFT;
+    let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
+    let memory = MockMemory::new(0);
+    let read = memory_access_manager.register_read_decoded::<ZeroSizeStruct>(0);
+
+    let result = memory_access_manager.read_decoded(&memory, read, &mut gas_left);
+
+    assert!(result.is_ok());
+    assert_eq!(memory.read_attempt_count(), 0);
+}
+
+#[test]
+fn test_read_of_some_size_buf() {
+    let mut gas_left = GAS_LEFT;
+    let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
+    let memory = MockMemory::new(1);
+    let read = memory_access_manager.register_read(0, 10);
+
+    let result = memory_access_manager.read(&memory, read, &mut gas_left);
+
+    assert!(result.is_ok());
+    assert_eq!(memory.read_attempt_count(), 1);
 }
 
 #[test]
@@ -376,7 +408,7 @@ fn test_write_as_with_larger_object_size() {
 }
 
 #[test]
-fn test_register_read_with_valid_interval() {
+fn test_register_read_of_valid_interval() {
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
 
     let result = memory_access_manager.register_read(0, 10);
@@ -388,15 +420,32 @@ fn test_register_read_with_valid_interval() {
 }
 
 #[test]
-fn test_register_read_with_zero_size() {
+fn test_register_read_of_zero_size_buf() {
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
 
     let result = memory_access_manager.register_read(0, 0);
 
     assert_eq!(result.ptr, 0);
     assert_eq!(result.size, 0);
-    assert_eq!(memory_access_manager.reads.len(), 1);
-    assert_eq!(memory_access_manager.writes.len(), 0);
+    assert_eq!(memory_access_manager.reads.len(), 0);
+}
+
+#[test]
+fn test_register_read_of_zero_size_struct() {
+    let mut mem_access_manager = MemoryAccessManager::<()>::default();
+
+    mem_access_manager.register_read_as::<ZeroSizeStruct>(142);
+
+    assert_eq!(mem_access_manager.reads.len(), 0);
+}
+
+#[test]
+fn test_register_read_of_zero_size_encoded_value() {
+    let mut mem_access_manager = MemoryAccessManager::<()>::default();
+
+    mem_access_manager.register_read_decoded::<ZeroSizeStruct>(142);
+
+    assert_eq!(mem_access_manager.reads.len(), 0);
 }
 
 #[test]
