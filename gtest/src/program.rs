@@ -487,7 +487,7 @@ impl<'a> Program<'a> {
         current_dir.join(relative_path)
     }
 
-    pub fn save_memory_dump<P: AsRef<Path>>(&self, path: P) {
+    pub fn save_memory_dump(&self, path: impl AsRef<Path>) {
         let manager = self.manager.borrow();
         let mem = manager.read_memory_pages(&self.id);
         let balance = manager.balance_of(&self.id);
@@ -505,7 +505,7 @@ impl<'a> Program<'a> {
         .save_to_file(path);
     }
 
-    pub fn load_memory_dump<P: AsRef<Path>>(&mut self, path: P) {
+    pub fn load_memory_dump(&mut self, path: impl AsRef<Path>) {
         let memory_dump = ProgramMemoryDump::load_from_file(path);
         let mem = memory_dump
             .pages

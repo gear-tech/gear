@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -32,11 +32,11 @@ impl MemoryPageDump {
     pub fn new(page_number: GearPage, page_data: PageBuf) -> MemoryPageDump {
         let mut data_vec = vec![];
         page_data.encode_to(&mut data_vec);
-        let data = if data_vec.iter().all(|&byte| byte == 0) {
-            None
-        } else {
-            Some(hex::encode(data_vec))
-        };
+        let data = data_vec
+            .iter()
+            .any(|&byte| byte != 0)
+            .then(|| hex::encode(data_vec));
+
         MemoryPageDump {
             page: page_number.raw(),
             data,
@@ -66,7 +66,7 @@ pub struct ProgramMemoryDump {
 }
 
 impl ProgramMemoryDump {
-    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) {
+    pub fn save_to_file(&self, path: impl AsRef<Path>) {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")
             .join(path)
@@ -83,7 +83,7 @@ impl ProgramMemoryDump {
         fs::write(&path, data).unwrap_or_else(|_| panic!("Failed to write file {:?}", path));
     }
 
-    pub fn load_from_file<P: AsRef<Path>>(path: P) -> ProgramMemoryDump {
+    pub fn load_from_file(path: impl AsRef<Path>) -> ProgramMemoryDump {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")
             .join(path)
