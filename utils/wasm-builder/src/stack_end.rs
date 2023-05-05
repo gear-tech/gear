@@ -19,40 +19,62 @@
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pwasm_utils::parity_wasm::elements::{ExportEntry, Instruction, Internal, Module, ValueType};
 
-/// Insert stack end addr export in `module` if there is global '__stack_pointer'.
-/// By default rust compilation into wasm creates global '__stack_pointer', which
-/// initialized by end of stack address. Unfortunately this global is not export.
-/// By default '__stack_pointer' has number 0 in globals, so if there is '__stack_pointer' in
-/// a name section, then we suppose that 0 global contains stack end addr, and insert an export
-/// for this global. This export can be used in runtime to identify end of stack memory
-/// and skip its uploading to storage.
-pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &str> {
-    let name_section = module
-        .custom_sections()
-        .find(|x| x.name() == "name")
-        .ok_or("Cannot find name section")?;
-    let payload = unsafe { std::str::from_utf8_unchecked(name_section.payload()) };
+fn get_global_index(module_bytes: &[u8], name_predicate: impl Fn(&str) -> bool) -> Option<u32> {
+    use wasmparser::{Name, NameSectionReader, Parser, Payload::*};
 
-    // Unfortunately `parity-wasm` cannot work with global names subsection in custom names section.
-    // So, we just check, whether names section contains '__stack_pointer' as name.
-    // TODO: make parsing of global names and identify that global 0 has name '__stack_pointer'
-    if !payload.contains("__stack_pointer") {
-        return Err("has no stack pointer global");
+    let parser = Parser::new(0);
+    let mut reader = parser.parse_all(module_bytes).find_map(|p| {
+        p.ok().and_then(|section| match section {
+            CustomSection(r) if r.name() == "name" => {
+                Some(NameSectionReader::new(r.data(), r.data_offset()))
+            }
+            _ => None,
+        })
+    })?;
+
+    let global_map = reader.find_map(|name| match name {
+        Ok(Name::Global(m)) => Some(m),
+        _ => None,
+    })?;
+
+    for global in global_map {
+        match global {
+            Ok(g) if name_predicate(g.name) => return Some(g.index),
+            _ => (),
+        }
     }
+
+    None
+}
+
+/// Insert the export with the stack end address in `module` if there is
+/// the global '__stack_pointer'.
+/// By default rust compilation into wasm creates global '__stack_pointer', which
+/// initialized by the end of stack address. Unfortunately this global is not an export.
+///
+/// This export can be used in runtime to identify the end of stack memory
+/// and skip its uploading to the storage.
+pub fn insert_stack_end_export(
+    module_bytes: &[u8],
+    module: &mut Module,
+) -> Result<(), &'static str> {
+    let stack_pointer_index =
+        get_global_index(module_bytes, |name| name.ends_with("__stack_pointer"))
+            .ok_or("has no stack pointer global")?;
 
     let glob_section = module
         .global_section()
         .ok_or("Cannot find globals section")?;
-    let zero_global = glob_section
+    let global = glob_section
         .entries()
         .iter()
-        .next()
+        .nth(stack_pointer_index as usize)
         .ok_or("there is no globals")?;
-    if zero_global.global_type().content_type() != ValueType::I32 {
+    if global.global_type().content_type() != ValueType::I32 {
         return Err("has no i32 global 0");
     }
 
-    let init_code = zero_global.init_expr().code();
+    let init_code = global.init_expr().code();
     if init_code.len() != 2 {
         return Err("num of init instructions != 2 for glob 0");
     }
@@ -69,10 +91,50 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &str> {
         let x = export_section.entries_mut();
         x.push(ExportEntry::new(
             STACK_END_EXPORT_NAME.to_string(),
-            Internal::Global(0),
+            Internal::Global(stack_pointer_index),
         ));
         Ok(())
     } else {
         Err("has unexpected instr for init")
     }
+}
+
+#[test]
+fn assembly_script_stack_pointer() {
+    use pwasm_utils::parity_wasm::elements;
+
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (global $~lib/memory/__data_end i32 (i32.const 2380))
+            (global $~lib/memory/__stack_pointer (mut i32) (i32.const 1050956))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle)
+            (func $init)
+        )"#;
+
+    let binary = wabt::Wat2Wasm::new()
+        .validate(true)
+        .write_debug_names(true)
+        .convert(wat)
+        .expect("failed to parse module")
+        .as_ref()
+        .to_vec();
+
+    let mut module = elements::deserialize_buffer(&binary).expect("failed to deserialize binary");
+    insert_stack_end_export(&binary, &mut module).expect("insert_stack_end_export failed");
+
+    let gear_stack_end = module
+        .export_section()
+        .expect("export section should exist")
+        .entries()
+        .iter()
+        .find(|e| e.field() == STACK_END_EXPORT_NAME)
+        .expect("export entry should exist");
+
+    assert!(matches!(
+        gear_stack_end.internal(),
+        elements::Internal::Global(1)
+    ));
 }

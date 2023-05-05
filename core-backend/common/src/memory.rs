@@ -18,8 +18,6 @@
 
 //! Work with WASM program memory in backends.
 
-// TODO: make unit tests for `MemoryAccessManager` (issue #2068)
-
 use crate::BackendExt;
 use alloc::vec::Vec;
 use core::{
@@ -131,9 +129,9 @@ pub trait MemoryOwner {
 /// ```
 #[derive(Debug)]
 pub struct MemoryAccessManager<E> {
-    reads: Vec<MemoryInterval>,
-    writes: Vec<MemoryInterval>,
-    _phantom: PhantomData<E>,
+    pub(crate) reads: Vec<MemoryInterval>,
+    pub(crate) writes: Vec<MemoryInterval>,
+    pub(crate) _phantom: PhantomData<E>,
 }
 
 impl<E> Default for MemoryAccessManager<E> {
@@ -196,7 +194,7 @@ impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
 
 impl<E: BackendExt> MemoryAccessManager<E> {
     /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
-    fn pre_process_memory_accesses(
+    pub(crate) fn pre_process_memory_accesses(
         &mut self,
         gas_left: &mut GasLeft,
     ) -> Result<(), MemoryAccessError> {
@@ -213,7 +211,7 @@ impl<E: BackendExt> MemoryAccessManager<E> {
     }
 
     /// Pre-process registered accesses if need and read data from `memory` to `buff`.
-    fn read_into_buf<M: Memory>(
+    pub(crate) fn read_into_buf<M: Memory>(
         &mut self,
         memory: &M,
         ptr: u32,
@@ -340,30 +338,30 @@ fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryE
 
 /// Read static size type access wrapper.
 pub struct WasmMemoryReadAs<T> {
-    ptr: u32,
-    _phantom: PhantomData<T>,
+    pub(crate) ptr: u32,
+    pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Read decoded type access wrapper.
 pub struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
-    ptr: u32,
-    _phantom: PhantomData<T>,
+    pub(crate) ptr: u32,
+    pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Read access wrapper.
 pub struct WasmMemoryRead {
-    ptr: u32,
-    size: u32,
+    pub(crate) ptr: u32,
+    pub(crate) size: u32,
 }
 
 /// Write static size type access wrapper.
 pub struct WasmMemoryWriteAs<T> {
-    ptr: u32,
-    _phantom: PhantomData<T>,
+    pub(crate) ptr: u32,
+    pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Write access wrapper.
 pub struct WasmMemoryWrite {
-    ptr: u32,
-    size: u32,
+    pub(crate) ptr: u32,
+    pub(crate) size: u32,
 }

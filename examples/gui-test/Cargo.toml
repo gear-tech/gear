@@ -1,8 +1,8 @@
 [package]
 name = "demo-gui-test"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [lib]
 crate-type = ["cdylib"]

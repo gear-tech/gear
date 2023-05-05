@@ -26,29 +26,16 @@ pub struct ModuleBuilderWithData {
     pub module_builder: ModuleBuilder,
     pub offsets: Vec<u32>,
     pub last_offset: u32,
-    pub code_size: usize,
-    pub import_count: usize,
 }
 
 impl ModuleBuilderWithData {
     pub fn new(addresses: &[HashWithValue], module: Module, memory_pages: WasmPageCount) -> Self {
-        let code_size = module.code_section().map_or(0, |code_section| {
-            code_section
-                .bodies()
-                .iter()
-                .map(|b| b.code().elements().len())
-                .sum()
-        });
-        let import_count = module.import_count(ImportCountType::Function);
-
         let module_builder = builder::from_module(module);
         if memory_pages == 0.into() {
             return Self {
                 module_builder,
                 offsets: vec![],
                 last_offset: 0,
-                code_size,
-                import_count,
             };
         };
 
@@ -58,8 +45,6 @@ impl ModuleBuilderWithData {
             module_builder,
             offsets,
             last_offset,
-            code_size,
-            import_count,
         }
     }
 

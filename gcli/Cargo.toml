@@ -1,11 +1,11 @@
 [package]
 name = "gcli"
 version = "0.1.5"
-authors = ["Gear Technologies"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 description = "gear program cli"
 repository = "https://github.com/gear-tech/gear/tree/master/program"
-license = "GPL-3.0"
+license.workspace = true
 documentation = "https://docs.rs/gear-program"
 homepage = "https://github.com/gear-tech/gear/tree/master/program"
 keywords = ["gear", "cli", "wasm"]
