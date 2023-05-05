@@ -7106,6 +7106,11 @@ fn execution_over_blocks() {
             0,
         ));
         let over_blocks = get_last_program_id();
+        assert_ok!(Gear::pay_rent(
+            RuntimeOrigin::signed(USER_1),
+            over_blocks,
+            10_000
+        ));
 
         assert!(ProgramStorageOf::<Test>::program_exists(over_blocks));
 
