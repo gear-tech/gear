@@ -153,9 +153,9 @@ pub mod v1 {
                     .saturating_add(mailbox_keys.len() as u64)
                     .saturating_add(dispatch_stash_keys.len() as u64);
 
-                // A function that tries to derive the actual lock type throuhg storages scan
+                // A function that tries to derive the actual lock type through storages scan
                 // Caveat: for simplicity sake we do not scan programs reservation maps:
-                // - assuming a lock to be a Reservation if the key is not found in other storages.
+                // - assuming a lock to be a `Reservation` if the key is not found in other storages.
                 let appropriate_lock_id = |node_id: &NodeId| -> LockId {
                     match node_id {
                         NodeId::Node(msg_id) => {
@@ -190,7 +190,6 @@ pub mod v1 {
                                 if !lock.is_zero() {
                                     new_lock[appropriate_lock_id(&key)] = lock;
                                 }
-                                // GasNode::<AccountIdOf<T>, NodeId, Balance>::External { id, value, lock: new_lock, system_reserve, refs, consumed }
                                 GasNode::External {
                                     id,
                                     value,
@@ -299,209 +298,26 @@ pub mod v1 {
 #[cfg(test)]
 pub mod test {
     use super::{v1::*, *};
-    use crate as pallet_gas;
+    use crate::mock::*;
     use common::{gas_provider::GasNode, storage::*, Origin as _};
     use frame_support::{
         assert_ok,
         codec::Encode,
-        construct_runtime, parameter_types,
         storage::{storage_prefix, unhashed},
-        traits::{ConstU128, ConstU32, ConstU64, FindAuthor, OnRuntimeUpgrade, PalletInfoAccess},
+        traits::{OnRuntimeUpgrade, PalletInfoAccess},
         Identity, StorageHasher,
     };
-    use frame_support_test::TestRandomness;
-    use frame_system::{self as system};
     use gear_core::{
         ids::{MessageId, ProgramId, ReservationId},
         message::{DispatchKind, StoredDispatch, StoredMessage},
     };
     use sp_core::H256;
-    use sp_runtime::{
-        testing::Header,
-        traits::{BlakeTwo256, IdentityLookup, Zero},
-    };
-    use sp_std::convert::{TryFrom, TryInto};
+    use sp_runtime::traits::Zero;
 
-    type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-    type Block = frame_system::mocking::MockBlock<Test>;
-
-    pub(crate) type MailboxOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Mailbox;
-    pub(crate) type WaitlistOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Waitlist;
+    pub(crate) type MailboxOf<T> = <pallet_gear_messenger::Pallet<T> as Messenger>::Mailbox;
+    pub(crate) type WaitlistOf<T> = <pallet_gear_messenger::Pallet<T> as Messenger>::Waitlist;
     pub(crate) type DispatchStashOf<T> =
-        <<T as pallet_gear::Config>::Messenger as Messenger>::DispatchStash;
-
-    // Configure a mock runtime to test the pallet.
-    construct_runtime!(
-        pub enum Test where
-            Block = Block,
-            NodeBlock = Block,
-            UncheckedExtrinsic = UncheckedExtrinsic,
-        {
-            System: frame_system,
-            GearProgram: pallet_gear_program,
-            GearMessenger: pallet_gear_messenger,
-            GearScheduler: pallet_gear_scheduler,
-            Gear: pallet_gear,
-            GearGas: pallet_gas,
-            Balances: pallet_balances,
-            Authorship: pallet_authorship,
-            Timestamp: pallet_timestamp,
-        }
-    );
-
-    impl pallet_balances::Config for Test {
-        type MaxLocks = ();
-        type MaxReserves = ();
-        type ReserveIdentifier = [u8; 8];
-        type Balance = u128;
-        type DustRemoval = ();
-        type RuntimeEvent = RuntimeEvent;
-        type ExistentialDeposit = ConstU128<1>;
-        type AccountStore = System;
-        type WeightInfo = ();
-    }
-
-    parameter_types! {
-        pub const SS58Prefix: u8 = 42;
-    }
-
-    impl frame_system::Config for Test {
-        type BaseCallFilter = frame_support::traits::Everything;
-        type BlockWeights = ();
-        type BlockLength = ();
-        type DbWeight = ();
-        type RuntimeOrigin = RuntimeOrigin;
-        type RuntimeCall = RuntimeCall;
-        type Index = u64;
-        type BlockNumber = u64;
-        type Hash = H256;
-        type Hashing = BlakeTwo256;
-        type AccountId = u64;
-        type Lookup = IdentityLookup<Self::AccountId>;
-        type Header = Header;
-        type RuntimeEvent = RuntimeEvent;
-        type BlockHashCount = ConstU64<250>;
-        type Version = ();
-        type PalletInfo = PalletInfo;
-        type AccountData = pallet_balances::AccountData<u128>;
-        type OnNewAccount = ();
-        type OnKilledAccount = ();
-        type SystemWeightInfo = ();
-        type SS58Prefix = SS58Prefix;
-        type OnSetCode = ();
-        type MaxConsumers = frame_support::traits::ConstU32<16>;
-    }
-
-    pub struct FixedBlockAuthor;
-
-    impl FindAuthor<u64> for FixedBlockAuthor {
-        fn find_author<'a, I>(_digests: I) -> Option<u64>
-        where
-            I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
-        {
-            Some(255)
-        }
-    }
-
-    impl pallet_authorship::Config for Test {
-        type FindAuthor = FixedBlockAuthor;
-        type EventHandler = ();
-    }
-
-    impl pallet_timestamp::Config for Test {
-        type Moment = u64;
-        type OnTimestampSet = ();
-        type MinimumPeriod = ConstU64<500>;
-        type WeightInfo = ();
-    }
-
-    pub struct GasConverter;
-    impl common::GasPrice for GasConverter {
-        type Balance = u128;
-        type GasToBalanceMultiplier = ConstU128<1_000>;
-    }
-
-    impl pallet_gear_program::Config for Test {
-        type Scheduler = GearScheduler;
-        type CurrentBlockNumber = ();
-    }
-
-    parameter_types! {
-        pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
-        pub RentFreePeriod: u64 = 1_000;
-        pub RentCostPerBlock: Balance = 11;
-        pub RentResumePeriod: u64 = 100;
-    }
-
-    pub struct ProgramRentConfig;
-    impl common::ProgramRentConfig for ProgramRentConfig {
-        type BlockNumber = u64;
-        type Balance = u128;
-
-        type FreePeriod = RentFreePeriod;
-        type CostPerBlock = RentCostPerBlock;
-        type MinimalResumePeriod = RentResumePeriod;
-    }
-
-    impl pallet_gear::Config for Test {
-        type RuntimeEvent = RuntimeEvent;
-        type Randomness = TestRandomness<Self>;
-        type Currency = Balances;
-        type GasPrice = GasConverter;
-        type WeightInfo = ();
-        type Schedule = GearSchedule;
-        type OutgoingLimit = ConstU32<1024>;
-        type DebugInfo = ();
-        type CodeStorage = GearProgram;
-        type ProgramStorage = GearProgram;
-        type MailboxThreshold = ConstU64<3000>;
-        type ReservationsLimit = ConstU64<256>;
-        type Messenger = GearMessenger;
-        type GasProvider = GearGas;
-        type BlockLimiter = GearGas;
-        type Scheduler = GearScheduler;
-        type QueueRunner = Gear;
-        type ProgramRentConfig = ProgramRentConfig;
-    }
-
-    impl pallet_gear_scheduler::Config for Test {
-        type BlockLimiter = GearGas;
-        type ReserveThreshold = ConstU64<1>;
-        type WaitlistCost = ConstU64<100>;
-        type MailboxCost = ConstU64<100>;
-        type ReservationCost = ConstU64<100>;
-        type DispatchHoldCost = ConstU64<100>;
-    }
-
-    impl pallet_gear_messenger::Config for Test {
-        type BlockLimiter = GearGas;
-        type CurrentBlockNumber = Gear;
-    }
-
-    impl pallet_gas::Config for Test {
-        type BlockGasLimit = ();
-    }
-
-    // Build genesis storage according to the mock runtime.
-    pub fn new_test_ext() -> sp_io::TestExternalities {
-        let mut t = system::GenesisConfig::default()
-            .build_storage::<Test>()
-            .unwrap();
-
-        pallet_balances::GenesisConfig::<Test> {
-            balances: vec![
-                (1_u64, 100_000_000_u128), // Alice
-                (2_u64, 2_u128),           // Bob
-                (255_u64, 1_u128),         // Block author
-            ],
-        }
-        .assimilate_storage(&mut t)
-        .unwrap();
-
-        let mut ext = sp_io::TestExternalities::new(t);
-        ext.execute_with(|| System::set_block_number(1));
-        ext
-    }
+        <pallet_gear_messenger::Pallet<T> as Messenger>::DispatchStash;
 
     fn gas_nodes_storage_map_final_key(key: &NodeId) -> Vec<u8> {
         let storage_prefix = storage_prefix(<Pallet<Test>>::name().as_bytes(), b"GasNodes");
