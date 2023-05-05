@@ -18,7 +18,7 @@
 
 //! Send message args generator.
 
-use crate::{impl_convert_traits, CallGenRng, Seed};
+use crate::{impl_convert_traits, Args, ArgsName, CallGenRng, Seed};
 use gear_core::ids::ProgramId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -38,12 +38,14 @@ impl_convert_traits!(
     "send_message"
 );
 
-impl SendMessageArgs {
+impl Args for SendMessageArgs {
+    type FuzzerArgs = (NonEmpty<ProgramId>, Seed);
+    type ConstArgs = (u64,);
+
     /// Generates `pallet_gear::Pallet::<T>::send_message` call arguments.
-    pub fn generate<Rng: CallGenRng>(
-        existing_programs: NonEmpty<ProgramId>,
-        rng_seed: Seed,
-        gas_limit: u64,
+    fn generate<Rng: CallGenRng>(
+        (existing_programs, rng_seed): Self::FuzzerArgs,
+        (gas_limit,): Self::ConstArgs,
     ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
@@ -53,8 +55,9 @@ impl SendMessageArgs {
         let mut payload = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut payload);
 
+        let name = Self::name();
         log::debug!(
-            "Generated `send_message` call with destination = {destination}, payload = {}",
+            "Generated `{name}` call with destination = {destination}, payload = {}",
             hex::encode(&payload)
         );
 

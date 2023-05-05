@@ -18,7 +18,7 @@
 
 //! Upload program args generator.
 
-use crate::{impl_convert_traits, CallGenRng, GearProgGenConfig, Seed};
+use crate::{impl_convert_traits, Args, ArgsName, CallGenRng, GearProgGenConfig, Seed};
 use gear_core::ids::ProgramId;
 
 // code, salt, payload, gas, value
@@ -37,18 +37,18 @@ impl_convert_traits!(
     "upload_program"
 );
 
-impl UploadProgramArgs {
+impl Args for UploadProgramArgs {
+    type FuzzerArgs = (Vec<ProgramId>, Seed, Seed);
+    type ConstArgs = (u64, GearProgGenConfig);
+
     /// Generates `pallet_gear::Pallet::<T>::upload_program` call arguments.
-    pub fn generate<Rng: CallGenRng>(
-        code_seed: Seed,
-        rng_seed: Seed,
-        gas_limit: u64,
-        config: GearProgGenConfig,
-        programs: Vec<ProgramId>,
+    fn generate<Rng: CallGenRng>(
+        (existing_programs, code_seed, rng_seed): Self::FuzzerArgs,
+        (gas_limit, config): Self::ConstArgs,
     ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
-        let code = crate::generate_gear_program::<Rng>(code_seed, config, programs);
+        let code = crate::generate_gear_program::<Rng>(code_seed, config, existing_programs);
 
         let mut salt = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut salt);
@@ -56,8 +56,9 @@ impl UploadProgramArgs {
         let mut payload = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut payload);
 
+        let name = Self::name();
         log::debug!(
-            "Generated `upload_program` call with code seed = {code_seed}, salt = {}, payload = {}",
+            "Generated `{name}` call with code seed = {code_seed}, salt = {}, payload = {}",
             hex::encode(&salt),
             hex::encode(&payload)
         );

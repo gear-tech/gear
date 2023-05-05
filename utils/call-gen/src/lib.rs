@@ -42,6 +42,20 @@ pub struct GearCallConversionError(pub &'static str);
 pub type Seed = u64;
 pub type GearProgGenConfig = gear_wasm_gen::GearConfig;
 
+/// This trait must be implemented for all argument types
+/// that are used in `GearCall::Variant(_)`
+pub trait Args {
+    type FuzzerArgs;
+    type ConstArgs;
+
+    fn generate<Rng: CallGenRng>(_: Self::FuzzerArgs, _: Self::ConstArgs) -> Self;
+}
+
+/// This trait is used to get the name from the argument type
+pub trait ArgsName {
+    fn name() -> &'static str;
+}
+
 /// Set of `pallet_gear` calls supported by the crate.
 pub enum GearCall {
     /// Upload program call args.
@@ -60,7 +74,7 @@ pub enum GearCall {
 
 #[macro_export]
 macro_rules! impl_convert_traits {
-    ($args:ty, $args_inner:ty, $gear_call_variant:ident, $error:literal) => {
+    ($args:ty, $args_inner:ty, $gear_call_variant:ident, $gear_call_name:literal) => {
         impl From<$args> for $args_inner {
             fn from(args: $args) -> Self {
                 args.0
@@ -80,8 +94,14 @@ macro_rules! impl_convert_traits {
                 if let $crate::GearCall::$gear_call_variant(call) = call {
                     Ok(call)
                 } else {
-                    Err($crate::GearCallConversionError($error))
+                    Err($crate::GearCallConversionError($gear_call_name))
                 }
+            }
+        }
+
+        impl $crate::ArgsName for $args {
+            fn name() -> &'static str {
+                $gear_call_name
             }
         }
     };
@@ -91,7 +111,7 @@ macro_rules! impl_convert_traits {
 /// specified `seed`. `programs` may specify addresses which
 /// can be used for send-calls.
 pub fn generate_gear_program<Rng: CallGenRng>(
-    seed: u64,
+    seed: Seed,
     mut config: GearProgGenConfig,
     programs: Vec<ProgramId>,
 ) -> Vec<u8> {

@@ -18,7 +18,7 @@
 
 //! Upload code args generator.
 
-use crate::{impl_convert_traits, CallGenRng, GearProgGenConfig, Seed};
+use crate::{impl_convert_traits, Args, ArgsName, CallGenRng, GearProgGenConfig, Seed};
 use gear_core::ids::ProgramId;
 
 /// Upload code args
@@ -29,15 +29,19 @@ pub struct UploadCodeArgs(pub Vec<u8>);
 
 impl_convert_traits!(UploadCodeArgs, Vec<u8>, UploadCode, "upload_code");
 
-impl UploadCodeArgs {
+impl Args for UploadCodeArgs {
+    type FuzzerArgs = (Vec<ProgramId>, Seed);
+    type ConstArgs = (GearProgGenConfig,);
+
     /// Generates `pallet_gear::Pallet::<T>::upload_code` call arguments.
-    pub fn generate<Rng: CallGenRng>(
-        code_seed: Seed,
-        config: GearProgGenConfig,
-        programs: Vec<ProgramId>,
+    fn generate<Rng: CallGenRng>(
+        (existing_programs, code_seed): Self::FuzzerArgs,
+        (config,): Self::ConstArgs,
     ) -> Self {
-        let code = crate::generate_gear_program::<Rng>(code_seed, config, programs);
-        log::debug!("Generated `upload_code` with code from seed = {code_seed}");
+        let code = crate::generate_gear_program::<Rng>(code_seed, config, existing_programs);
+
+        let name = Self::name();
+        log::debug!("Generated `{name}` with code from seed = {code_seed}");
 
         Self(code)
     }

@@ -18,7 +18,7 @@
 
 //! Claim value args generator.
 
-use crate::{impl_convert_traits, CallGenRng, Seed};
+use crate::{impl_convert_traits, Args, ArgsName, CallGenRng, Seed};
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -30,15 +30,22 @@ pub struct ClaimValueArgs(pub MessageId);
 
 impl_convert_traits!(ClaimValueArgs, MessageId, ClaimValue, "claim_value");
 
-impl ClaimValueArgs {
+impl Args for ClaimValueArgs {
+    type FuzzerArgs = (NonEmpty<MessageId>, Seed);
+    type ConstArgs = ();
+
     /// Generates `pallet_gear::Pallet::<T>::claim_value` call arguments.
-    pub fn generate<Rng: CallGenRng>(mailbox: NonEmpty<MessageId>, rng_seed: Seed) -> Self {
+    fn generate<Rng: CallGenRng>(
+        (mailbox, rng_seed): Self::FuzzerArgs,
+        _: Self::ConstArgs,
+    ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
         let message_idx = rng.next_u64() as usize;
         let &claim_from = mailbox.ring_get(message_idx);
 
-        log::debug!("Generated `claim_value` call with message id = {claim_from}");
+        let name = Self::name();
+        log::debug!("Generated `{name}` call with message id = {claim_from}");
 
         Self(claim_from)
     }
