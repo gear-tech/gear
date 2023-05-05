@@ -29,6 +29,7 @@ pub struct CargoCommand {
     profile: String,
     rustc_flags: Vec<&'static str>,
     target_dir: PathBuf,
+    features: Vec<String>,
 }
 
 impl CargoCommand {
@@ -47,6 +48,7 @@ impl CargoCommand {
             profile: "dev".to_string(),
             rustc_flags: vec!["-C", "link-arg=--import-memory", "-C", "linker-plugin-lto"],
             target_dir: "target".into(),
+            features: vec![],
         }
     }
 
@@ -67,6 +69,11 @@ impl CargoCommand {
         self.profile = profile;
     }
 
+    /// Set features.
+    pub fn set_features(&mut self, features: &[String]) {
+        self.features = features.into();
+    }
+
     /// Execute the `cargo` command with invoking supplied arguments.
     pub fn run(&self) -> Result<()> {
         let mut cargo = Command::new(&self.path);
@@ -75,7 +82,14 @@ impl CargoCommand {
             .arg("--color=always")
             .arg(format!("--manifest-path={}", self.manifest_path.display()))
             .arg("--profile")
-            .arg(&self.profile)
+            .arg(&self.profile);
+
+        if !self.features.is_empty() {
+            cargo.arg("--features");
+            cargo.arg(self.features.join(","));
+        }
+
+        cargo
             .arg("--")
             .args(&self.rustc_flags)
             .env("CARGO_TARGET_DIR", &self.target_dir)

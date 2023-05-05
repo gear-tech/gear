@@ -22,6 +22,8 @@ gmeta.workspace = true
 gear-wasm-instrument.workspace = true
 wasm-opt = { workspace = true, optional = true }
 wasmparser.workspace = true
+regex.workspace = true
+filetime = "0.2"
 
 [dev-dependencies]
 wabt.workspace = true
