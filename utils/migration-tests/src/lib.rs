@@ -16,13 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_runtime::{AllPalletsWithSystem, Migrations};
-use migration_checker::{latest_gear_ext, run_upgrade};
+#![no_std]
 
-#[ignore]
-#[test]
-fn migration_test() {
-    env_logger::init();
-    let mut ext = latest_gear_ext();
-    run_upgrade::<(Migrations, AllPalletsWithSystem)>(&mut ext);
+/// Same as `OnRuntimeUpgrade` with `try-runtime` enabled
+/// but without storage checks
+pub trait MigrationTest {
+    type State;
+
+    fn pre_migration() -> Self::State;
+
+    fn post_migration(state: Self::State);
 }

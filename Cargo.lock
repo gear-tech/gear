@@ -6054,9 +6054,14 @@ dependencies = [
  "frame-support",
  "gear-runtime",
  "log",
+ "migration-tests",
  "pallet-gear-program",
  "tokio",
 ]
+
+[[package]]
+name = "migration-tests"
+version = "0.1.0"
 
 [[package]]
 name = "mimalloc"
@@ -7138,6 +7143,7 @@ dependencies = [
  "gear-core",
  "hashbrown 0.13.2",
  "log",
+ "migration-tests",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",

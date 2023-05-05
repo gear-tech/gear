@@ -91,6 +91,7 @@ members = [
     "utils/wasm-instrument",
     "utils/wasm-proc",
     "utils/migration-checker",
+    "utils/migration-tests",
 ]
 
 [workspace.dependencies]
@@ -208,6 +209,7 @@ testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara" }
 wasm-smith = { version = "0.11.4", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
+migration-tests = { path = "utils/migration-tests" }
 
 validator-set = { package = 'substrate-validator-set', git = 'https://github.com/gear-tech/substrate-validator-set.git', branch = 'gear-polkadot-v0.9.41-canary', default-features = false }
 

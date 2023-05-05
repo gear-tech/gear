@@ -23,6 +23,7 @@ static_assertions.workspace = true
 # Internal deps
 common.workspace = true
 gear-core.workspace = true
+migration-tests = { workspace = true, optional = true }
 
 # Substrate deps
 frame-support.workspace = true
@@ -47,5 +48,5 @@ std = [
 	"sp-runtime/std",
 	"primitive-types/std",
 ]
-try-runtime = ["frame-support/try-runtime"]
+try-runtime = ["frame-support/try-runtime", "migration-tests"]
 debug-mode = []

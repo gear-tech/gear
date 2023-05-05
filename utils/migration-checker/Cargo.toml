@@ -13,6 +13,7 @@ frame-support.workspace = true
 frame-remote-externalities.workspace = true
 
 gear-runtime = { workspace = true, features = ["std", "try-runtime"] }
+migration-tests.workspace = true
 
 [dev-dependencies]
 env_logger.workspace = true

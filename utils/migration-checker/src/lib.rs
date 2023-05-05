@@ -19,16 +19,21 @@
 use frame_remote_externalities::{Mode, OnlineConfig, RemoteExternalities, Transport};
 use frame_support::traits::OnRuntimeUpgrade;
 use gear_runtime::Block;
+use migration_tests::MigrationTest;
 
-pub fn run_upgrade<T: OnRuntimeUpgrade>(ext: &mut RemoteExternalities<Block>) {
+pub fn run_upgrade<T: MigrationTest + OnRuntimeUpgrade>(ext: &mut RemoteExternalities<Block>) {
     ext.execute_with(|| {
-        log::info!("Running pre-upgrade");
-        let state = T::pre_upgrade().unwrap();
+        log::info!("Running `OnRuntimeUpgrade::pre_upgrade()`");
+        let substrate_state = T::pre_upgrade().unwrap();
+        log::info!("Running `MigrationTest::pre_migration()`");
+        let test_state = T::pre_migration();
         log::info!("Running runtime upgrade");
         let weight = T::on_runtime_upgrade();
-        log::info!("Running post-upgrade");
-        T::post_upgrade(state).unwrap();
-        log::info!("T::on_runtime_upgrade weight: {weight}");
+        log::info!("Running `OnRuntimeUpgrade::post_upgrade()`");
+        T::post_upgrade(substrate_state).unwrap();
+        log::info!("Running `MigrationTest::pre_migration()`");
+        T::post_migration(test_state);
+        log::info!("Runtime upgrade weight: {weight}");
     });
 }
 
@@ -45,6 +50,7 @@ pub fn new_remote_ext(mode: Mode<Block>) -> RemoteExternalities<Block> {
 
 pub fn latest_gear_ext() -> RemoteExternalities<Block> {
     new_remote_ext(Mode::Online(OnlineConfig {
+        // TODO: change URI to private RPC node
         transport: Transport::Uri("wss://rpc-node.gear-tech.io:443".to_string()),
         ..Default::default()
     }))
