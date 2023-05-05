@@ -49,4 +49,3 @@ runtime-benchmarks = [
     "gear-wasm-instrument",
 ]
 fuzz = ["mutagen"]
-extended-lock = []

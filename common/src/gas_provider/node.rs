@@ -117,7 +117,8 @@ impl<Balance: Add<Output = Balance> + Copy> Add<Self> for NodeLock<Balance> {
     }
 }
 
-#[cfg(feature = "extended-lock")]
+// TODO: decide whether this method should stay or be removed as unused.
+// The only use case curretnly is to check Gas Tree migration upon runtime upgrade.
 impl<Balance: Zero + Copy + sp_runtime::traits::Saturating> NodeLock<Balance> {
     pub fn total_locked(&self) -> Balance {
         self.0
