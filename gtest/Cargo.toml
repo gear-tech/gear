@@ -12,6 +12,7 @@ gear-backend-common.workspace = true
 gear-backend-wasmi = { workspace = true, features = [ "std" ] }
 core-processor.workspace = true
 gear-wasm-builder.workspace = true
+gear-common = { workspace = true, default-features = true }
 
 anyhow.workspace = true
 codec = { workspace = true, features = ["derive"] }

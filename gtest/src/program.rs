@@ -23,6 +23,7 @@ use crate::{
     Result,
 };
 use codec::{Codec, Decode, Encode};
+use gear_common::memory_dump::{MemoryPageDump, ProgramMemoryDump};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -306,18 +307,6 @@ impl<'a> Program<'a> {
         optimized: P,
         metadata: P,
     ) -> Self {
-        let read_file = |path: P, ext| {
-            let path = env::current_dir()
-                .expect("Unable to get root directory of the project")
-                .join(path)
-                .clean();
-
-            let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
-            assert!(filename.ends_with(ext), "{}", "Wrong file extension: {ext}");
-
-            fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
-        };
-
         let opt_code = read_file(optimized, ".opt.wasm");
         let meta_code = read_file(metadata, ".meta.wasm");
 
@@ -497,6 +486,60 @@ impl<'a> Program<'a> {
         relative_path.set_extension(extension);
         current_dir.join(relative_path)
     }
+
+    pub fn save_memory_dump<P: AsRef<Path>>(&self, path: P) {
+        let manager = self.manager.borrow();
+        let mem = manager.read_memory_pages(&self.id);
+        let balance = manager.balance_of(&self.id);
+
+        ProgramMemoryDump {
+            balance,
+            reserved_balance: 0,
+            pages: mem
+                .iter()
+                .map(|(page_number, page_data)| {
+                    MemoryPageDump::new(*page_number, page_data.clone())
+                })
+                .collect(),
+        }
+        .save_to_file(path);
+    }
+
+    pub fn load_memory_dump<P: AsRef<Path>>(&mut self, path: P) {
+        let memory_dump = ProgramMemoryDump::load_from_file(path);
+        let mem = memory_dump
+            .pages
+            .into_iter()
+            .map(MemoryPageDump::into_gear_page)
+            .collect();
+
+        // @TODO : add support for gas reservation when implemented
+        let balance = memory_dump
+            .balance
+            .saturating_add(memory_dump.reserved_balance);
+
+        self.manager
+            .borrow_mut()
+            .override_memory_pages(&self.id, mem);
+        self.manager
+            .borrow_mut()
+            .override_balance(&self.id, balance);
+    }
+}
+
+fn read_file<P: AsRef<Path>>(path: P, extension: &str) -> Vec<u8> {
+    let path = env::current_dir()
+        .expect("Unable to get root directory of the project")
+        .join(path)
+        .clean();
+
+    let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
+    assert!(
+        filename.ends_with(extension),
+        "Wrong file extension: {extension}",
+    );
+
+    fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
 }
 
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
@@ -505,8 +548,10 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::Program;
-    use crate::{Log, System};
+    use crate::{log::DecodedCoreLog, Log, System};
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -662,5 +707,69 @@ mod tests {
         // Check receiver's balance
         sys.claim_value_from_mailbox(receiver);
         assert_eq!(sys.balance_of(receiver), 2 * crate::EXISTENTIAL_DEPOSIT);
+    }
+
+    struct CleanupFolderOnDrop {
+        path: String,
+    }
+
+    impl Drop for CleanupFolderOnDrop {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.path).expect("Failed to cleanup after test")
+        }
+    }
+
+    #[test]
+    fn save_load_memory_dump() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let mut prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_capacitor.wasm",
+        );
+
+        let signer = 42;
+
+        // Init capacitor with CAPACITY = 15
+        prog.send_bytes(signer, b"15");
+
+        // Charge capacitor with CHARGE = 10
+        let response = prog.send_bytes(signer, b"10");
+        assert_eq!(response.log().len(), 0);
+
+        let cleanup = CleanupFolderOnDrop {
+            path: "./296c6962726".to_string(),
+        };
+        prog.save_memory_dump("./296c6962726/demo_capacitor.dump");
+
+        // Charge capacitor with CHARGE = 10
+        let response = prog.send_bytes(signer, b"10");
+        assert_eq!(
+            response
+                .log()
+                .into_iter()
+                .map(|log| { String::from_utf8(log.payload().to_vec()).unwrap() })
+                .find(|_| true)
+                .unwrap(),
+            "Discharged: 20"
+        );
+        sys.claim_value_from_mailbox(signer);
+
+        prog.load_memory_dump("./296c6962726/demo_capacitor.dump");
+        drop(cleanup);
+
+        // Charge capacitor with CHARGE = 10
+        let response = prog.send_bytes(signer, b"10");
+        assert_eq!(
+            response
+                .log()
+                .into_iter()
+                .map(|log| { String::from_utf8(log.payload().to_vec()).unwrap() })
+                .find(|_| true)
+                .unwrap(),
+            "Discharged: 20"
+        );
+        sys.claim_value_from_mailbox(signer);
     }
 }

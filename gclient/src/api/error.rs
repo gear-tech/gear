@@ -22,7 +22,7 @@ use std::{io::Error as IOError, result::Result as StdResult};
 use subxt::error::Error as SubxtError;
 
 /// `Result` type with a predefined error type ([`Error`]).
-pub type Result<T, E = Error> = StdResult<T, E>;
+pub type Result<T = (), E = Error> = StdResult<T, E>;
 
 /// Common error type.
 #[derive(Debug, thiserror::Error)]
