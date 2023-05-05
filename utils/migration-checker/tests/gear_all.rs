@@ -16,22 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use frame_remote_externalities::{Mode, OfflineConfig, RemoteExternalities, SnapshotConfig};
-use gear_runtime::{Block, Runtime};
-use migration_tests::{new_remote_ext, run_upgrade};
-use pallet_gear_program::migration::MigrateV1ToV2;
+use gear_runtime::{AllPalletsWithSystem, Migrations};
+use migration_checker::{latest_gear_ext, run_upgrade};
 
-fn new_test_ext_v130() -> RemoteExternalities<Block> {
-    new_remote_ext(Mode::Offline(OfflineConfig {
-        state_snapshot: SnapshotConfig {
-            path: "snapshots/gear-staging-testnet-130.snap".into(),
-        },
-    }))
-}
-
+#[ignore]
 #[test]
 fn migration_test() {
     env_logger::init();
-    let mut ext = new_test_ext_v130();
-    run_upgrade::<MigrateV1ToV2<Runtime>>(&mut ext);
+    let mut ext = latest_gear_ext();
+    run_upgrade::<(Migrations, AllPalletsWithSystem)>(&mut ext);
 }

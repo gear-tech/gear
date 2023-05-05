@@ -90,7 +90,7 @@ members = [
     "utils/wasm-info",
     "utils/wasm-instrument",
     "utils/wasm-proc",
-    "utils/migration-tests",
+    "utils/migration-checker",
 ]
 
 [workspace.dependencies]

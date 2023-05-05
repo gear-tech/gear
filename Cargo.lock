@@ -6046,7 +6046,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "migration-tests"
+name = "migration-checker"
 version = "0.1.0"
 dependencies = [
  "env_logger",
