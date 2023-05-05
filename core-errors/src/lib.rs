@@ -223,7 +223,7 @@ pub enum ExecutionError {
 
     /// The error occurs when program's balance is less than rent it tries to pay.
     #[display(fmt = "Existing value {value_left} is not enough to pay rent {rent}")]
-    NotEnoughValue {
+    NotEnoughValueForRent {
         /// Rent cost.
         rent: u128,
         /// Amount of available value.

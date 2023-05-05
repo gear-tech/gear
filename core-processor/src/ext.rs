@@ -701,7 +701,7 @@ impl EnvExt for Ext {
                     .or_insert(block_count);
             }
             ChargeResult::NotEnough => {
-                return Err(ExecutionError::NotEnoughValue {
+                return Err(ExecutionError::NotEnoughValueForRent {
                     rent: cost,
                     value_left: self.context.value_counter.left(),
                 }
