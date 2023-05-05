@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::Parser;
-use gear_wasm_builder::optimize::Optimizer;
+use gear_wasm_builder::optimize::{OptType, Optimizer};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
@@ -188,7 +188,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let path = file.with_extension("opt.wasm");
 
         log::debug!("*** Processing chain optimization: {}", path.display());
-        let code = optimizer.optimize()?;
+        let code = optimizer.optimize(OptType::Opt)?;
         log::debug!("Optimized wasm: {}", path.to_string_lossy());
 
         fs::write(path, code)?;

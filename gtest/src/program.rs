@@ -30,7 +30,7 @@ use gear_core::{
     program::Program as CoreProgram,
 };
 use gear_core_errors::SimpleSignalError;
-use gear_wasm_builder::optimize::Optimizer;
+use gear_wasm_builder::optimize::{OptType, Optimizer};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
 use std::{
@@ -275,7 +275,7 @@ impl<'a> Program<'a> {
             optimizer.insert_stack_and_export();
             optimizer.strip_custom_sections();
             optimizer
-                .optimize()
+                .optimize(OptType::Opt)
                 .expect("Failed to produce optimized binary")
         } else {
             fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))

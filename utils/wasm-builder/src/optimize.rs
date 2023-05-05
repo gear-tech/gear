@@ -28,6 +28,13 @@ const OPTIMIZED_EXPORTS: [&str; 7] = [
     STACK_END_EXPORT_NAME,
 ];
 
+/// Type of the output wasm.
+#[derive(PartialEq, Eq)]
+pub enum OptType {
+    Meta,
+    Opt,
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error("Optimizer failed: {0:?}")]
 pub struct OptimizerError(pwasm_utils::OptimizerError);
@@ -59,10 +66,28 @@ impl Optimizer {
     }
 
     /// Process optimization.
-    pub fn optimize(&self) -> Result<Vec<u8>> {
+    pub fn optimize(&self, ty: OptType) -> Result<Vec<u8>> {
         let mut module = self.module.clone();
 
-        let exports = OPTIMIZED_EXPORTS.to_vec();
+        let exports = if ty == OptType::Opt {
+            OPTIMIZED_EXPORTS.to_vec()
+        } else {
+            self.module
+                .export_section()
+                .ok_or_else(|| anyhow::anyhow!("Export section not found"))?
+                .entries()
+                .iter()
+                .flat_map(|entry| {
+                    if let Internal::Function(_) = entry.internal() {
+                        let entry = entry.field();
+                        (!OPTIMIZED_EXPORTS.contains(&entry)).then_some(entry)
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        };
+
         pwasm_utils::optimize(&mut module, exports)
             .map_err(OptimizerError)
             .with_context(|| {
@@ -73,7 +98,9 @@ impl Optimizer {
             })?;
 
         // Post check exports if optimizing program binary.
-        check_exports(&module, &self.file)?;
+        if ty == OptType::Opt {
+            check_exports(&module, &self.file)?;
+        }
 
         let mut code = vec![];
         module.serialize(&mut code)?;

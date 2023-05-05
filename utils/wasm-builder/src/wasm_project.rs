@@ -16,7 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{crate_info::CrateInfo, optimize::Optimizer, smart_fs};
+use crate::{
+    crate_info::CrateInfo,
+    optimize::{OptType, Optimizer},
+    smart_fs,
+};
 use anyhow::{Context, Result};
 use gmeta::MetadataRepr;
 use pwasm_utils::parity_wasm::{self, elements::Internal};
@@ -240,14 +244,11 @@ impl WasmProject {
         let [to_path, to_opt_path, to_meta_path] = [".wasm", ".opt.wasm", ".meta.wasm"]
             .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
 
-        // Optimize *.wasm using `wasm-opt`
-        let dest_path = if self.project_type.is_metawasm() {
-            to_meta_path.clone()
-        } else {
-            to_path.clone()
-        };
-        fs::copy(&from_path, &dest_path).context("unable to copy WASM file")?;
-        _ = crate::optimize::optimize_wasm(dest_path, "s", false);
+        // Optimize source.
+        if !self.project_type.is_metawasm() {
+            fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
+            _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
+        }
 
         let metadata = self
             .project_type
@@ -319,18 +320,20 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
     }
 
     fn generate_wasm(from: PathBuf, to_opt: Option<&Path>, to_meta: Option<&Path>) -> Result<()> {
-        // Generate *.meta.wasm.
-        if let Some(to_meta) = to_meta {
-            fs::copy(&from, to_meta)?;
-        }
+        let mut optimizer = Optimizer::new(from)?;
+        optimizer.insert_stack_and_export();
+        optimizer.strip_custom_sections();
 
         // Generate *.opt.wasm.
         if let Some(to_opt) = to_opt {
-            let mut optimizer = Optimizer::new(from)?;
-            optimizer.insert_stack_and_export();
-            optimizer.strip_custom_sections();
-            let opt = optimizer.optimize()?;
+            let opt = optimizer.optimize(OptType::Opt)?;
             fs::write(to_opt, opt)?;
+        }
+
+        // Generate *.meta.wasm.
+        if let Some(to_meta) = to_meta {
+            let meta = optimizer.optimize(OptType::Meta)?;
+            fs::write(to_meta, meta)?;
         }
 
         Ok(())
