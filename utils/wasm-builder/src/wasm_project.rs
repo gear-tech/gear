@@ -240,11 +240,14 @@ impl WasmProject {
         let [to_path, to_opt_path, to_meta_path] = [".wasm", ".opt.wasm", ".meta.wasm"]
             .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
 
-        // Optimize source.
-        if !self.project_type.is_metawasm() {
-            fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
-            let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
-        }
+        // Optimize *.wasm using `wasm-opt`
+        let dest_path = if self.project_type.is_metawasm() {
+            to_meta_path.clone()
+        } else {
+            to_path.clone()
+        };
+        fs::copy(&from_path, &dest_path).context("unable to copy WASM file")?;
+        _ = crate::optimize::optimize_wasm(dest_path, "s", false);
 
         let metadata = self
             .project_type
