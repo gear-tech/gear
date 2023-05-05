@@ -35,7 +35,7 @@ pub mod program_storage;
 pub use program_storage::{Error as ProgramStorageError, ProgramStorage};
 
 pub mod paused_program_storage;
-pub use paused_program_storage::PausedProgramStorage;
+pub use paused_program_storage::{PausedProgramStorage, ResumeResult};
 
 pub mod gas_provider;
 

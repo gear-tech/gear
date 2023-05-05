@@ -93,4 +93,7 @@ pub mod time {
 
     // The minimal amount of blocks to resume.
     pub const RENT_RESUME_PERIOD: BlockNumber = 86_400;
+
+    // The amount of blocks for processing resume session.
+    pub const RESUME_SESSION_DURATION: BlockNumber = 21_600;
 }

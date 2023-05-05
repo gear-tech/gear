@@ -41,7 +41,7 @@ use crate::{
         USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasBalanceOf, GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, RentCostPerBlockOf,
+    GasBalanceOf, GasHandlerOf, GasInfo, MailboxOf, ResumeMinimalPeriodOf, ProgramStorageOf, RentCostPerBlockOf,
     RentFreePeriodOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
@@ -5236,6 +5236,151 @@ fn test_pausing_programs_works() {
             &child_program_id
         ));
         assert!(Gear::program_exists(child_program_id));
+    })
+}
+
+#[test]
+fn resume_program_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_btree::{Reply, Request};
+
+        let code = demo_btree::WASM_BINARY;
+        let program_id = generate_program_id(code, DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        ));
+
+        let request = Request::Insert(0, 1).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            request,
+            1_000_000_000,
+            0
+        ));
+
+        run_to_next_block(None);
+
+        // attempt to resume an active program should fail
+        assert_err!(
+            Gear::resume_program(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                ResumeMinimalPeriodOf::<Test>::get()
+            ),
+            pallet_gear_program::Error::<Test>::ItemNotFound
+        );
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
+
+        let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
+            program_id,
+            program.pages_with_data.iter(),
+        )
+        .unwrap();
+
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number((expected_block - 1).try_into().unwrap());
+
+        run_to_next_block(None);
+
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
+
+        assert_ok!(Gear::resume_program(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            program.allocations.clone(),
+            Default::default(),
+            program.code_hash,
+            ResumeMinimalPeriodOf::<Test>::get()
+        ));
+
+        let resume_end_block = match get_last_event() {
+            MockRuntimeEvent::Gear(Event::ResumeProgramIncompleteData {
+                id,
+                resume_end_block,
+            }) => {
+                assert_eq!(id, program_id);
+
+                resume_end_block
+            }
+            _ => unreachable!(),
+        };
+        assert!(TaskPoolOf::<Test>::contains(
+            &resume_end_block,
+            &ScheduledTask::RemoveResumeData(program_id)
+        ));
+
+        assert_ok!(Gear::resume_program(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            program.allocations,
+            memory_pages,
+            program.code_hash,
+            ResumeMinimalPeriodOf::<Test>::get()
+        ));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &resume_end_block,
+            &ScheduledTask::RemoveResumeData(program_id)
+        ));
+
+        let program_change = match get_last_event() {
+            MockRuntimeEvent::Gear(Event::ProgramChanged { id, change }) => {
+                assert_eq!(id, program_id);
+
+                change
+            }
+            _ => unreachable!(),
+        };
+        let expiration_block = match program_change {
+            ProgramChangeKind::Active { expiration } => expiration,
+            _ => unreachable!(),
+        };
+        assert!(TaskPoolOf::<Test>::contains(
+            &expiration_block,
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        assert_eq!(program.expiration_block, expiration_block);
+
+        // check that program operates properly after being resumed
+        run_to_next_block(None);
+
+        MailboxOf::<Test>::clear();
+
+        let request = Request::List.encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            request,
+            1_000_000_000,
+            0
+        ));
+
+        run_to_next_block(None);
+
+        let last_mail = get_last_mail(USER_1);
+        let reply = Reply::decode(&mut last_mail.payload()).unwrap();
+        match reply {
+            Reply::List(vec) if vec == vec![(0, 1)] => (),
+            _ => unreachable!(),
+        }
     })
 }
 

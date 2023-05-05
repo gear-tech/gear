@@ -53,7 +53,7 @@ use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
     CodeStorage, GasPrice, GasProvider, GasTree, Origin, PausedProgramStorage, Program,
-    ProgramState, ProgramStorage, QueueRunner,
+    ProgramState, ProgramStorage, QueueRunner, ResumeResult,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -75,7 +75,7 @@ use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf},
+    memory::{GearPage, PageBuf, WasmPage},
     message::*,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
@@ -131,6 +131,10 @@ pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
 pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
 pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
+pub type ResumeMinimalPeriodOf<T> =
+    <T as Config>::ProgramResumeMinimalRentPeriod;
+pub type ResumeSessionDurationOf<T> =
+    <T as Config>::ProgramResumeSessionDuration;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -211,7 +215,10 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
-        type ProgramStorage: PausedProgramStorage<BlockNumber = Self::BlockNumber>;
+        type ProgramStorage: PausedProgramStorage<
+            BlockNumber = Self::BlockNumber,
+            Error = DispatchError,
+        >;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -269,11 +276,15 @@ pub mod pallet {
 
         /// The minimal amount of blocks to resume.
         #[pallet::constant]
-        type ProgramRentMinimalResumePeriod: Get<BlockNumberFor<Self>>;
+        type ProgramResumeMinimalRentPeriod: Get<BlockNumberFor<Self>>;
 
         /// The program rent cost per block.
         #[pallet::constant]
         type ProgramRentCostPerBlock: Get<BalanceOf<Self>>;
+
+        /// The amount of blocks for processing resume session.
+        #[pallet::constant]
+        type ProgramResumeSessionDuration: Get<BlockNumberFor<Self>>;
     }
 
     #[pallet::pallet]
@@ -392,6 +403,14 @@ pub mod pallet {
 
         /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
         QueueProcessingReverted,
+
+        /// Provided data for resuming is incomplete or incorrect.
+        ResumeProgramIncompleteData {
+            /// Id of the program affected.
+            id: ProgramId,
+            /// Block number when resume data will be removed.
+            resume_end_block: T::BlockNumber,
+        },
     }
 
     // Gear pallet error.
@@ -440,6 +459,8 @@ pub mod pallet {
         MessageQueueProcessingDisabled,
         /// Program with the specified id is not found.
         ProgramNotFound,
+        /// Block count doesn't cover MinimalResumePeriod.
+        ResumePeriodLessThanMinimal,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -1708,6 +1729,98 @@ pub mod pallet {
                 );
                 Error::<T>::ProgramNotFound
             })??;
+
+            Ok(().into())
+        }
+
+        /// Resumes a previously paused program.
+        ///
+        /// The origin must be Signed and the sender must have sufficient funds to
+        /// transfer value to the program.
+        ///
+        /// Parameters:
+        /// - `program_id`: id of the program to resume.
+        /// - `allocations`: memory allocations of program prior to stop.
+        /// - `memory_pages`: program memory before it was paused.
+        /// - `code_hash`: id of the program binary code.
+        /// - `block_count`: resume program for the specified period.
+        #[pallet::call_index(9)]
+        // #[pallet::weight(<T as Config>::WeightInfo::pay_rent())]
+        #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
+        pub fn resume_program(
+            origin: OriginFor<T>,
+            program_id: ProgramId,
+            allocations: BTreeSet<WasmPage>,
+            memory_pages: BTreeMap<GearPage, PageBuf>,
+            code_hash: H256,
+            block_count: BlockNumberFor<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            ensure!(
+                block_count >= ResumeMinimalPeriodOf::<T>::get(),
+                Error::<T>::ResumePeriodLessThanMinimal
+            );
+
+            let rent_fee = Self::rent_fee_for(block_count);
+            ensure!(
+                CurrencyOf::<T>::free_balance(&who) >= rent_fee,
+                Error::<T>::InsufficientBalanceForReserve
+            );
+
+            let block_author = Authorship::<T>::author()
+                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
+
+            let block_number = Self::block_number();
+            let expiration_block = block_number.saturating_add(block_count);
+            match ProgramStorageOf::<T>::resume_program(
+                program_id,
+                allocations,
+                memory_pages,
+                code_hash,
+                expiration_block,
+                block_number,
+            )? {
+                ResumeResult::Ok(resume_start_block) => {
+                    let task = ScheduledTask::RemoveResumeData(program_id);
+                    let result = TaskPoolOf::<T>::delete(
+                        resume_start_block.saturating_add(ResumeSessionDurationOf::<T>::get()),
+                        task,
+                    );
+                    log::debug!("resume_program; ok, task result = {result:?}");
+
+                    CurrencyOf::<T>::transfer(
+                        &who,
+                        &block_author,
+                        rent_fee,
+                        ExistenceRequirement::AllowDeath,
+                    )
+                    .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+
+                    let task = ScheduledTask::PauseProgram(program_id);
+                    TaskPoolOf::<T>::add(expiration_block, task)
+                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+                    Self::deposit_event(Event::ProgramChanged {
+                        id: program_id,
+                        change: ProgramChangeKind::Active {
+                            expiration: expiration_block,
+                        },
+                    });
+                }
+                ResumeResult::IncompleteData(resume_start_block) => {
+                    let task = ScheduledTask::RemoveResumeData(program_id);
+                    let resume_end_block =
+                        resume_start_block.saturating_add(ResumeSessionDurationOf::<T>::get());
+                    let result = TaskPoolOf::<T>::add(resume_end_block, task);
+                    log::debug!("resume_program; incomplete data, task result = {result:?}");
+
+                    Self::deposit_event(Event::ResumeProgramIncompleteData {
+                        id: program_id,
+                        resume_end_block,
+                    });
+                }
+            }
 
             Ok(().into())
         }

@@ -158,6 +158,7 @@ pub mod pallet {
     };
     use primitive_types::H256;
     use sp_runtime::DispatchError;
+    use sp_std::collections::btree_set::BTreeSet;
 
     /// The current storage version.
     pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
@@ -295,6 +296,18 @@ pub mod pallet {
         value: (BlockNumberFor<T>, H256)
     );
 
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type ResumePagesStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, (BlockNumberFor<T>, BTreeSet<GearPage>)>;
+
+    common::wrap_storage_map!(
+        storage: ResumePagesStorage,
+        name: ResumePagesStorageWrap,
+        key: ProgramId,
+        value: (BlockNumberFor<T>, BTreeSet<GearPage>)
+    );
+
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
         type InstrumentedCodeStorage = CodeStorageWrap<T>;
         type InstrumentedLenStorage = CodeLenStorageWrap<T>;
@@ -318,6 +331,8 @@ pub mod pallet {
 
     impl<T: Config> common::PausedProgramStorage for pallet::Pallet<T> {
         type PausedProgramMap = PausedProgramStorageWrap<T>;
+        type ResumePageMap = ResumePagesStorageWrap<T>;
+        type CodeStorage = Self;
     }
 
     #[cfg(feature = "debug-mode")]

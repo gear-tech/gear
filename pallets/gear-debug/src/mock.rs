@@ -139,7 +139,8 @@ impl pallet_gear_program::Config for Test {
 parameter_types! {
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
-    pub RentResumePeriod: BlockNumber = 100;
+    pub ResumeMinimalPeriod: BlockNumber = 100;
+    pub ResumeSessionDuration: BlockNumber = 1_000;
 }
 
 impl pallet_gear::Config for Test {
@@ -161,8 +162,9 @@ impl pallet_gear::Config for Test {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type ProgramRentFreePeriod = RentFreePeriod;
-    type ProgramRentMinimalResumePeriod = RentResumePeriod;
+    type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
     type ProgramRentCostPerBlock = RentCostPerBlock;
+    type ProgramResumeSessionDuration = ResumeSessionDuration;
 }
 
 impl pallet_gear_messenger::Config for Test {

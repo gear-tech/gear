@@ -265,4 +265,10 @@ where
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {
         let _slot = Self::remove_gas_reservation_impl(program_id, reservation_id);
     }
+
+    fn remove_resume_data(&mut self, program_id: ProgramId) {
+        log::debug!("remove_resume_data task, program_id = {program_id}");
+        ProgramStorageOf::<T>::remove_resume_data(program_id)
+            .unwrap_or_else(|e| unreachable!("ProgramStorage corrupted! {:?}", e));
+    }
 }

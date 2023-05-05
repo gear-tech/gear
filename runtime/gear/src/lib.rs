@@ -460,8 +460,9 @@ impl pallet_gear::Config for Runtime {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type ProgramRentFreePeriod = ConstU32<RENT_FREE_PERIOD>;
-    type ProgramRentMinimalResumePeriod = ConstU32<RENT_RESUME_PERIOD>;
+    type ProgramResumeMinimalRentPeriod = ConstU32<RENT_RESUME_PERIOD>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
+    type ProgramResumeSessionDuration = ConstU32<RESUME_SESSION_DURATION>;
 }
 
 #[cfg(feature = "debug-mode")]
