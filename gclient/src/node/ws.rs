@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::{Error, Result};
 use std::{borrow::Cow, fmt};
+use url::Url;
 
 /// Full WebSocket address required to specify the node.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -40,11 +42,41 @@ impl WSAddress {
     const VARA: &'static str = "wss://rpc.vara-network.io";
 
     /// Create a new `WSAddress` from a host `domain` and `port`.
+    ///
+    /// This method does not do any validation of `domain`,
+    /// see [`WSAddress::try_new`] if you need it.
     pub fn new(domain: impl Into<Cow<'static, str>>, port: impl Into<Option<u16>>) -> Self {
         Self {
             domain: domain.into(),
             port: port.into(),
         }
+    }
+
+    /// Try to create a new `WSAddress` from `domain` and `port`.
+    ///
+    /// Unlike the [`WSAddress::new`] method, this function checks
+    /// that the `domain` is valid.
+    pub fn try_new(
+        domain: impl Into<Cow<'static, str>>,
+        port: impl Into<Option<u16>>,
+    ) -> Result<Self> {
+        let domain = domain.into();
+        let port = port.into();
+
+        let url = Url::parse(domain.as_ref())?;
+
+        let valid_domain = matches!(url.scheme(), "ws" | "wss")
+            && !url.cannot_be_a_base()
+            && url.has_host()
+            && url.port().is_none()
+            && url.query().is_none()
+            && url.fragment().is_none();
+
+        if !valid_domain {
+            return Err(Error::IncorrectWSDomain);
+        }
+
+        Ok(Self { domain, port })
     }
 
     /// Return the address of the local node working in developer mode (running
