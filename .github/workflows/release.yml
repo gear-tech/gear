@@ -35,6 +35,7 @@ jobs:
           OUTPUT: CHANGES.md
 
   prepare:
+    needs: generate-changelog
     runs-on: ubuntu-latest
     steps:
       - id: version

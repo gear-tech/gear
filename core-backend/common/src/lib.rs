@@ -26,7 +26,7 @@ pub mod lazy_pages;
 
 mod utils;
 
-#[cfg(feature = "mock")]
+#[cfg(any(feature = "mock", test))]
 pub mod mock;
 
 pub mod memory;
@@ -443,3 +443,6 @@ macro_rules! syscall_trace {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

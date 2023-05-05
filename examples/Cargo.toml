@@ -1,3 +1,8 @@
+[workspace.package]
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "GPL-3.0"
+
 [workspace]
 resolver = "2"
 
