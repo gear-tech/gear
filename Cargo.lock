@@ -6964,6 +6964,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-wasm-instrument",
  "gmeta",
+ "gstd",
  "gsys",
  "hex",
  "log",

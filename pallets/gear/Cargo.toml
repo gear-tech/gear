@@ -105,6 +105,7 @@ pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, features = ["std"] }
 gmeta.workspace = true
+gstd = { workspace = true, features = ["debug"] }
 
 [features]
 default = ['std']
