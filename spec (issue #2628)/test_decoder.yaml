@@ -1,0 +1,22 @@
+title: Decoder
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_decoder.opt.wasm
+
+fixtures:
+  - title: decoder
+
+    messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: 1 2 3
+
+    expected:
+      - step: 1
+        log:
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: "[4, 1];[1, 2];[2, 3];[5, 3]"

@@ -1,0 +1,8 @@
+[package]
+name = "light-sr25519"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2021"
+
+[dependencies]
+schnorrkel = { version = "0.10.2", default-features = false, features = ["preaudit_deprecated", "u64_backend"] }

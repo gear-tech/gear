@@ -1,0 +1,29 @@
+title: Program generator
+
+codes:
+  - path: examples/program_generator/child_contract.wasm
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_program_generator.opt.wasm
+
+fixtures:
+  - title: program_generator
+
+    messages:
+      - destination: 1
+        source:
+          kind: id
+          value: 100
+        payload:
+          kind: utf-8
+          value: default
+
+    expected:
+      - programs:
+        ids:
+          - kind: id
+            value: 1
+
+          - kind: h256
+            value: 9c1de0d1359e2a4bd3e474a21527afdb6eaeba3106a167705775af0acac11183

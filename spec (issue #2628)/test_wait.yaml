@@ -1,0 +1,67 @@
+title: Wait test
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_wait.opt.wasm
+
+fixtures:
+  - title: wait
+
+    messages:
+      - destination: 1
+        payload: &first
+          kind: utf-8
+          value: FIRST
+
+      - destination: 1
+        payload: &second
+          kind: utf-8
+          value: SECOND
+
+      - destination: 1
+        payload: &third
+          kind: utf-8
+          value: THIRD
+
+    expected:
+      - step: 0 # All three messages in the queue
+        messages:
+          - destination: 1
+            payload: *first
+
+          - destination: 1
+            payload: *second
+
+          - destination: 1
+            payload: *third
+
+      - step: 1 # First message processed
+        messages:
+          - destination: 1
+            payload: *second
+
+          - destination: 1
+            payload: *third
+
+      - step: 2 # Second message processed
+        messages:
+          - destination: 1
+            payload: *third
+
+      - step: 3 # First and second message awakened
+        messages:
+          - destination: 1
+            payload: *first
+
+          - destination: 1
+            payload: *second
+
+      - log: # First and second message processed
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: WAITED
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: WAITED

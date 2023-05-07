@@ -1,0 +1,32 @@
+title: basic
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_sum.opt.wasm
+    init_message:
+      kind: utf-8
+      value: "{2}"
+  - id: 2
+    path: target/wasm32-unknown-unknown/release/demo_fib.opt.wasm
+
+fixtures:
+  - title: fibonacci-sum
+    messages:
+      - destination: 1
+        payload:
+          kind: i32
+          value: 20
+        gas_limit: 10000000000
+    expected:
+      - step: 1
+        messages:
+          - destination: 2
+            payload:
+              kind: i32
+              value: 40
+      - step: 2
+        messages:
+          - destination: 1
+            payload:
+              kind: i32
+              value: 102334155

@@ -1622,6 +1622,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "curve25519-dalek-ng"
+version = "4.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c359b7249347e46fb28804470d071c921156ad62b3eef5d34e2ba867533dec8"
+dependencies = [
+ "byteorder",
+ "digest 0.9.0",
+ "rand_core 0.6.4",
+ "subtle-ng",
+ "zeroize",
+]
+
+[[package]]
 name = "cxx"
 version = "1.0.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1727,6 +1740,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "hex-literal 0.3.4",
+]
+
+[[package]]
 name = "demo-async"
 version = "0.1.0"
 dependencies = [
@@ -1765,6 +1787,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async-sign"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "light-sr25519",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-async-signal-entry"
 version = "0.1.0"
 dependencies = [
@@ -1790,6 +1822,15 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gsys",
+]
+
+[[package]]
+name = "demo-bot"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -1832,6 +1873,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-capacitor"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-collector"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-compose"
 version = "0.1.0"
 dependencies = [
@@ -1848,6 +1905,14 @@ dependencies = [
  "gstd",
  "hex",
  "rand 0.8.5",
+]
+
+[[package]]
+name = "demo-decoder"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
@@ -1895,6 +1960,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-fib"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-fungible-token"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "primitive-types",
+]
+
+[[package]]
 name = "demo-futures-unordered"
 version = "0.1.0"
 dependencies = [
@@ -1915,6 +1998,15 @@ dependencies = [
 
 [[package]]
 name = "demo-gasless-wasting"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-guestbook"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
@@ -1966,6 +2058,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-mem"
+version = "0.1.0"
+dependencies = [
+ "gcore",
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-meta-io"
 version = "0.1.0"
 dependencies = [
@@ -2014,6 +2115,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-multiping"
+version = "0.1.0"
+dependencies = [
+ "gcore",
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-multisig"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gear-wasm-builder",
+ "gstd",
+ "light-sr25519",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-ncompose"
 version = "0.1.0"
 dependencies = [
@@ -2054,6 +2175,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-panicker"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-piggy-bank"
 version = "0.1.0"
 dependencies = [
@@ -2063,6 +2192,14 @@ dependencies = [
 
 [[package]]
 name = "demo-ping"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-ping-gas"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
@@ -2140,6 +2277,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-rwlock-write"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-send-from-reservation"
 version = "0.1.0"
 dependencies = [
@@ -2168,6 +2313,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-sum"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-sync-duplicate"
 version = "0.1.0"
 dependencies = [
@@ -2184,6 +2337,18 @@ dependencies = [
  "gsys",
  "gtest",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-token-vendor"
+version = "0.1.0"
+dependencies = [
+ "bs58",
+ "gear-wasm-builder",
+ "gstd",
+ "hex",
+ "parity-scale-codec",
+ "primitive-types",
 ]
 
 [[package]]
@@ -2207,6 +2372,15 @@ dependencies = [
 name = "demo-vec"
 version = "0.1.0"
 dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-wait"
+version = "0.1.0"
+dependencies = [
+ "gcore",
  "gear-wasm-builder",
  "gstd",
 ]
@@ -2254,6 +2428,24 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "wabt",
+]
+
+[[package]]
+name = "demo-сhat-bot"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-сhat-room"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -3517,7 +3709,7 @@ dependencies = [
  "nacl",
  "rand 0.8.5",
  "scale-info",
- "schnorrkel",
+ "schnorrkel 0.9.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -5796,6 +5988,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "light-sr25519"
+version = "0.1.0"
+dependencies = [
+ "schnorrkel 0.10.2",
+]
+
+[[package]]
 name = "link-cplusplus"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6056,6 +6255,18 @@ dependencies = [
  "byteorder",
  "keccak",
  "rand_core 0.5.1",
+ "zeroize",
+]
+
+[[package]]
+name = "merlin"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58c38e2799fc0978b65dfff8023ec7843e2330bb462f19198840b34b6582397d"
+dependencies = [
+ "byteorder",
+ "keccak",
+ "rand_core 0.6.4",
  "zeroize",
 ]
 
@@ -9191,7 +9402,7 @@ dependencies = [
  "fork-tree",
  "futures",
  "log",
- "merlin",
+ "merlin 2.0.1",
  "num-bigint",
  "num-rational",
  "num-traits",
@@ -9204,7 +9415,7 @@ dependencies = [
  "sc-keystore",
  "sc-telemetry",
  "scale-info",
- "schnorrkel",
+ "schnorrkel 0.9.1",
  "sp-api",
  "sp-application-crypto",
  "sp-block-builder",
@@ -10127,11 +10338,27 @@ dependencies = [
  "arrayvec 0.5.2",
  "curve25519-dalek 2.1.3",
  "getrandom 0.1.16",
- "merlin",
+ "merlin 2.0.1",
  "rand 0.7.3",
  "rand_core 0.5.1",
  "sha2 0.8.2",
  "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "schnorrkel"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "844b7645371e6ecdf61ff246ba1958c29e802881a749ae3fb1993675d210d28d"
+dependencies = [
+ "arrayref",
+ "arrayvec 0.7.2",
+ "curve25519-dalek-ng",
+ "merlin 3.0.0",
+ "rand_core 0.6.4",
+ "sha2 0.9.9",
+ "subtle-ng",
  "zeroize",
 ]
 
@@ -10712,7 +10939,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary#34efda72d128b336f3afd72d70098deccd79c6c2"
 dependencies = [
  "async-trait",
- "merlin",
+ "merlin 2.0.1",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -10766,7 +10993,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "schnorrkel",
+ "schnorrkel 0.9.1",
  "sp-core",
  "sp-runtime",
  "sp-std 5.0.0",
@@ -10791,14 +11018,14 @@ dependencies = [
  "lazy_static",
  "libsecp256k1",
  "log",
- "merlin",
+ "merlin 2.0.1",
  "parity-scale-codec",
  "parking_lot 0.12.1",
  "primitive-types",
  "rand 0.8.5",
  "regex",
  "scale-info",
- "schnorrkel",
+ "schnorrkel 0.9.1",
  "secp256k1",
  "secrecy",
  "serde",
@@ -10944,10 +11171,10 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0
 dependencies = [
  "async-trait",
  "futures",
- "merlin",
+ "merlin 2.0.1",
  "parity-scale-codec",
  "parking_lot 0.12.1",
- "schnorrkel",
+ "schnorrkel 0.9.1",
  "serde",
  "sp-core",
  "sp-externalities",
@@ -11413,7 +11640,7 @@ checksum = "49eee6965196b32f882dd2ee85a92b1dbead41b04e53907f269de3b0dc04733c"
 dependencies = [
  "hmac 0.11.0",
  "pbkdf2 0.8.0",
- "schnorrkel",
+ "schnorrkel 0.9.1",
  "sha2 0.9.9",
  "zeroize",
 ]
@@ -11566,6 +11793,12 @@ name = "subtle"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
+
+[[package]]
+name = "subtle-ng"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 
 [[package]]
 name = "subxt"

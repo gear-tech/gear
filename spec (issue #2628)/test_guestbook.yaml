@@ -1,0 +1,44 @@
+title: guestbook test
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/guestbook.opt.wasm
+    init_message:
+      kind: utf-8
+      value: test
+
+fixtures:
+  - title: guestbook
+    messages:
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            addMessage:
+              author: Dmitry
+              msg: Hello, world!
+
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            addMessage:
+              author: Eugene
+              msg: Hello!
+
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            viewMessages:
+
+    expected:
+      - log:
+          - destination: 1000001
+            payload:
+              kind: custom
+              value:
+                - author: Dmitry
+                  msg: Hello, world!
+                - author: Eugene
+                  msg: Hello!

@@ -1,0 +1,52 @@
+title: Messages to failed program are handled properly
+
+programs:
+  # fails in init
+  - id: 1
+    source:
+      kind: id
+      value: 1000001
+    path: target/wasm32-unknown-unknown/release/demo_futures_unordered.opt.wasm
+    init_message:
+      kind: utf-8
+      value: "invalid input for init"
+
+fixtures:
+  - title: handle messages to failed program
+
+    messages:
+      - destination: 1
+        source:
+          kind: id
+          value: 100
+        payload:
+          kind: utf-8
+          value: unknown
+
+    expected:
+
+      # no active programs in the state
+      - programs:
+        only: true
+        ids:
+          - kind: id
+            value: 1
+            terminated: true
+
+        log:
+          # Trap in init generates trap reply
+          - destination: 1000001
+            source:
+              kind: id
+              value: 1
+              # empty payload
+            payload:
+              kind: utf-8
+              value: ""
+
+          - destination: 100
+            source:
+              kind: id
+              value: 1
+            statusCode: 2
+            value: 0

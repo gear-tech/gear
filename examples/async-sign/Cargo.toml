@@ -1,0 +1,19 @@
+[package]
+name = "demo-async-sign"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "GPL-3.0"
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+light-sr25519.workspace = true
+
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+default = ["std"]
+std = []

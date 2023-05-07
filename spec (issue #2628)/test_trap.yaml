@@ -1,0 +1,19 @@
+title: Trap test
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_panicker.opt.wasm
+
+fixtures:
+  - title: Test for trap result
+    messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: empty here
+    expected:
+      - step: 1
+        allowError: true
+        log:
+          - destination: 1000001
+            statusCode: 769 # SimpleReplyError::Execution(SimpleExecutionError::Panic)

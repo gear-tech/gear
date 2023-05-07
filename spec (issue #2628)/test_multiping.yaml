@@ -1,0 +1,29 @@
+title: Multiping
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_multiping.opt.wasm
+
+fixtures:
+  - title: multiping
+
+    messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: PING
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: PING PING PING
+
+    expected:
+      - log:
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: PONG
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: PONG1PONG2PONG3

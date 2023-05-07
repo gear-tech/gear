@@ -1,0 +1,842 @@
+title: Async-multisig (well known cases)
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_async_multisig.opt.wasm
+    init_message:
+      kind: custom
+      value:
+        threshold: 0
+        # Eve
+        destination: "0x{eve}"
+        signatories:
+          # bob's Account Id
+          - "0x{bob}"
+
+  - id: 2
+    path: target/wasm32-unknown-unknown/release/demo_async_multisig.opt.wasm
+    init_message:
+      kind: custom
+      value:
+        threshold: 4
+        # bob
+        destination: "0x{bob}"
+        signatories:
+          # bob, eve & alice
+          - "0x{bob}"
+          - "0x{eve}"
+          - "0x{alice}"
+          - "0x{alice}"
+
+  - id: 3
+    path: target/wasm32-unknown-unknown/release/demo_async_multisig.opt.wasm
+    init_message:
+      kind: custom
+      value:
+        threshold: 2
+        # bob
+        destination: "0x{bob}"
+        signatories:
+          # bob, eve & alice
+          - "0x{bob}"
+          - "0x{eve}"
+          - "0x{alice}"
+          - "0x{alice}"
+          - "0x{bob}"
+
+  - id:
+      kind: account
+      value: bob
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
+    init_message:
+      kind: custom
+      value:
+        - request: "0x1050494e47"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+        # Rejects SignRequest{ message: b"PING2" }
+        - request: "0x1450494e4732"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+        # Signs SignRequest{ message: b"PING3" }
+        - request: "0x1450494e4733"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x1450494e47330101f23c52c3d1fef130615a352a4a82dd79a3955b73a1837ebae79d319f80b10d7f4a55bd232105e4ff4702aba0bda3ff0c4cdff04697165d0861e75b84b1b0c98b"
+        # Signs SignRequest{ message: b"PING5" }
+        - request: "0x1450494e4735"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x1450494e47350101320a9816a10309b413a8895c46b82056ff8b2edb7f15d8a942206bae240b22684ae27ad96c9e189060787621c95426b370642b9ddf16d1757a88a1c350a6b987"
+
+  - id:
+      kind: account
+      value: eve
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
+    init_message:
+      kind: custom
+      value:
+        # Eve plays ping-pong
+        # "PING"
+        - request: "0x50494e47"
+          repeated: true
+          replies:
+            - count: 1
+            # "PONG"
+              reply: "0x504f4e47"
+        # Signs SignRequest{ message: b"PING" }
+        - request: "0x1050494e47"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x1050494e47010158d677fa5129987378f69fe127ec6c961d12b62b7b0fa1fdaf1671417348f10f07fbf4022285b4739054e4e372f63d6b28ddbd084c72a2e5cfc8429030dde581"
+        # Signs SignRequest{ message: b"PING2" }
+        - request: "0x1450494e4732"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x1450494e473201012204e714ad8e4d1ae69efcb88fae6ea86eee162f663e5942badc6b8487c6ff398eb2cdb7501f13fc083fdcda840ddecde144c36cc0719a2adfd8311e9523d785"
+        # Signs SignRequest{ message: b"PING4" }
+        - request: "0x1450494e4734"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x1450494e473401017a53b259df5acd423b326035202caf35717ab84650c96494d6ffdd1f404392383000510eea16d9bc2da4c5bd7a2051d60d9faa5e48728c58e26cd07fa94b0687"
+
+  - id:
+      kind: account
+      value: alice
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
+    init_message:
+      kind: custom
+      value:
+        # Signs SignRequest{ message: b"PING" }
+        - request: "0x1050494e47"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x1050494e470101f23c6bf2014b937a6a49a0f82a9f918e646051129fed8ca02f33da2e441b7f07252c17714565c043cb9b78f317c3f3c2d8f22211b8c8c4d5810e2faae6de8181"
+        # Signs SignRequest{ message: b"PING2" }
+        - request: "0x1450494e4732"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x1450494e473201010421e5a5a40cddc079a894e7fa3a5f267a63b818e1ccda089999131113d05d79e8a3c080fcaf0026c6a4823cd74f61d9455a64f1e96673a0c2c9a902bf1ff184"
+        # Rejects SignRequest{ message: b"PING3" }
+        - request: "0x1450494e4733"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x00"
+        # Signs SignRequest{ message: b"PING4" }
+        - request: "0x1450494e4734"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x1450494e47340101b413cc7945b3218fdd542070426d3022e0ed871dbc5e82ca80f460fb1f93367a8c002d63a7cb9c7c8e5cb2e2fa041afc75f59a18887e91dfd7116c77177cf687"
+        # Signs SignRequest{ message: b"PING5" }
+        - request: "0x1450494e4735"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x1450494e47350101105f41469c93f8d7b8b2520fd4273f1a604f02e3ef1314dac1b6f2c51a098731d269c30ddfd5606cc52a67801f03b6e348cb7c27a07c4399d0870b7a11128d8a"
+
+fixtures:
+  - title: Single signatory & zero threshold
+
+    messages:
+      - destination: 1
+        payload: &ping
+          kind: bytes
+          value: "0x50494e47"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload:
+              kind: bytes
+              value: "0x1050494e47"
+
+      - step: 2
+        messages:
+          - destination: 1
+            payload:
+              kind: bytes
+              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+
+      - step: 3
+        messages:
+          - destination: 1
+            payload: *ping
+
+      - step: 4
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *ping
+
+      - step: 5
+        messages:
+          - destination: 1
+            payload:
+              kind: utf-8
+              value: "PONG"
+
+  - title: Three signatories & redundant threshold
+
+    messages:
+      - destination: 2
+        payload: &ping
+          kind: bytes
+          value: "0x50494e47"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: &sign_request
+              kind: bytes
+              value: "0x1050494e47"
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 2
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 2
+            payload: &signed_by_bob
+              kind: bytes
+              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+
+      - step: 3
+        messages:
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 2
+            payload: *signed_by_bob
+          - destination: 2
+            payload: &signed_by_eve
+              kind: bytes
+              value: "0x1050494e47010158d677fa5129987378f69fe127ec6c961d12b62b7b0fa1fdaf1671417348f10f07fbf4022285b4739054e4e372f63d6b28ddbd084c72a2e5cfc8429030dde581"
+
+      - step: 4
+        messages:
+          - destination: 2
+            payload: *signed_by_bob
+          - destination: 2
+            payload: *signed_by_eve
+          - destination: 2
+            payload: &signed_by_alice
+              kind: bytes
+              value: "0x1050494e470101f23c6bf2014b937a6a49a0f82a9f918e646051129fed8ca02f33da2e441b7f07252c17714565c043cb9b78f317c3f3c2d8f22211b8c8c4d5810e2faae6de8181"
+
+      - step: 5
+        messages:
+          - destination: 2
+            payload: *signed_by_eve
+          - destination: 2
+            payload: *signed_by_alice
+          - destination: 2
+            payload: *ping
+
+      - step: 6
+        messages:
+          - destination: 2
+            payload: *signed_by_alice
+          - destination: 2
+            payload: *ping
+
+      - step: 7
+        messages:
+          - destination: 2
+            payload: *ping
+
+      - step: 8
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: *ping
+
+      - step: 9
+
+  - title: Three signatories; Bob replies with incorrect signature
+
+    messages:
+      - destination: 2
+        payload: &ping
+          kind: bytes
+          value: "0x50494e4732"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: &sign_request
+              kind: bytes
+              value: "0x1450494e4732"
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 2
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 2
+            payload: &signed_by_bob
+              kind: bytes
+              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+
+      - step: 3
+        messages:
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 2
+            payload: *signed_by_bob
+          - destination: 2
+            payload: &signed_by_eve
+              kind: bytes
+              value: "0x1450494e473201012204e714ad8e4d1ae69efcb88fae6ea86eee162f663e5942badc6b8487c6ff398eb2cdb7501f13fc083fdcda840ddecde144c36cc0719a2adfd8311e9523d785"
+
+      - step: 4
+        messages:
+          - destination: 2
+            payload: *signed_by_bob
+          - destination: 2
+            payload: *signed_by_eve
+          - destination: 2
+            payload: &signed_by_alice
+              kind: bytes
+              value: "0x1450494e473201010421e5a5a40cddc079a894e7fa3a5f267a63b818e1ccda089999131113d05d79e8a3c080fcaf0026c6a4823cd74f61d9455a64f1e96673a0c2c9a902bf1ff184"
+
+      - step: 5
+        messages:
+          - destination: 2
+            payload: *signed_by_eve
+          - destination: 2
+            payload: *signed_by_alice
+          - destination: 2
+            payload: *ping
+
+      - step: 6
+        messages:
+          - destination: 2
+            payload: *signed_by_alice
+          - destination: 2
+            payload: *ping
+
+      - step: 7
+        messages:
+          - destination: 2
+            payload: *ping
+
+      - step: 8
+
+  - title: Three signatories; Eve doesn't answer, Alice replies with incorrect payload
+
+    messages:
+      - destination: 2
+        payload: &ping
+          kind: bytes
+          value: "0x50494e4733"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: &sign_request
+              kind: bytes
+              value: "0x1450494e4733"
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 2
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 2
+            payload: &signed_by_bob
+              kind: bytes
+              value: "0x1450494e47330101f23c52c3d1fef130615a352a4a82dd79a3955b73a1837ebae79d319f80b10d7f4a55bd232105e4ff4702aba0bda3ff0c4cdff04697165d0861e75b84b1b0c98b"
+
+      - step: 3
+        messages:
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 2
+            payload: *signed_by_bob
+
+      - step: 4
+        messages:
+          - destination: 2
+            payload: *signed_by_bob
+          - destination: 2
+            payload: &rejected_by_alice
+              kind: bytes
+              value: "0x00"
+
+      - step: 5
+        messages:
+          - destination: 2
+            payload: *rejected_by_alice
+          - destination: 2
+            payload: *ping
+
+      - step: 6
+        messages:
+          - destination: 2
+            payload: *ping
+
+      - step: 7
+
+      - step: 8
+
+  - title: 2 of 3; bob & eve
+
+    messages:
+      - destination: 3
+        payload: &ping
+          kind: bytes
+          value: "0x50494e47"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: &sign_request
+              kind: bytes
+              value: "0x1050494e47"
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 2
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 3
+            payload: &signed_by_bob
+              kind: bytes
+              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+
+      - step: 3
+        messages:
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 3
+            payload: *signed_by_bob
+          - destination: 3
+            payload: &signed_by_eve
+              kind: bytes
+              value: "0x1050494e47010158d677fa5129987378f69fe127ec6c961d12b62b7b0fa1fdaf1671417348f10f07fbf4022285b4739054e4e372f63d6b28ddbd084c72a2e5cfc8429030dde581"
+
+      - step: 4
+        messages:
+          - destination: 3
+            payload: *signed_by_bob
+          - destination: 3
+            payload: *signed_by_eve
+          - destination: 3
+            payload: &signed_by_alice
+              kind: bytes
+              value: "0x1050494e470101f23c6bf2014b937a6a49a0f82a9f918e646051129fed8ca02f33da2e441b7f07252c17714565c043cb9b78f317c3f3c2d8f22211b8c8c4d5810e2faae6de8181"
+
+      - step: 5
+        messages:
+          - destination: 3
+            payload: *signed_by_eve
+          - destination: 3
+            payload: *signed_by_alice
+          - destination: 3
+            payload: *ping
+
+      - step: 6
+        messages:
+          - destination: 3
+            payload: *signed_by_alice
+          - destination: 3
+            payload: *ping
+
+      - step: 7
+        messages:
+          - destination: 3
+            payload: *ping
+
+      - step: 8
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: *ping
+
+      - step: 9
+
+  - title: 2 of 3; eve & alice
+
+    messages:
+      - destination: 3
+        payload: &ping
+          kind: bytes
+          value: "0x50494e4734"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: &sign_request
+              kind: bytes
+              value: "0x1450494e4734"
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 2
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 3
+        messages:
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 3
+            payload: &signed_by_eve
+              kind: bytes
+              value: "0x1450494e473401017a53b259df5acd423b326035202caf35717ab84650c96494d6ffdd1f404392383000510eea16d9bc2da4c5bd7a2051d60d9faa5e48728c58e26cd07fa94b0687"
+
+      - step: 4
+        messages:
+          - destination: 3
+            payload: *signed_by_eve
+          - destination: 3
+            payload: &signed_by_alice
+              kind: bytes
+              value: "0x1450494e47340101b413cc7945b3218fdd542070426d3022e0ed871dbc5e82ca80f460fb1f93367a8c002d63a7cb9c7c8e5cb2e2fa041afc75f59a18887e91dfd7116c77177cf687"
+
+      - step: 5
+        messages:
+          - destination: 3
+            payload: *signed_by_alice
+          - destination: 3
+            payload: *ping
+
+      - step: 6
+        messages:
+          - destination: 3
+            payload: *ping
+
+      - step: 7
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: *ping
+
+      - step: 8
+
+      - step: 9
+
+  - title: 2 of 3; bob & alice
+
+    messages:
+      - destination: 3
+        payload: &ping
+          kind: bytes
+          value: "0x50494e4735"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: &sign_request
+              kind: bytes
+              value: "0x1450494e4735"
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 2
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 3
+            payload: &signed_by_bob
+              kind: bytes
+              value: "0x1450494e47350101320a9816a10309b413a8895c46b82056ff8b2edb7f15d8a942206bae240b22684ae27ad96c9e189060787621c95426b370642b9ddf16d1757a88a1c350a6b987"
+
+      - step: 3
+        messages:
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 3
+            payload: *signed_by_bob
+
+      - step: 4
+        messages:
+          - destination: 3
+            payload: *signed_by_bob
+          - destination: 3
+            payload: &signed_by_alice
+              kind: bytes
+              value: "0x1450494e47350101105f41469c93f8d7b8b2520fd4273f1a604f02e3ef1314dac1b6f2c51a098731d269c30ddfd5606cc52a67801f03b6e348cb7c27a07c4399d0870b7a11128d8a"
+
+      - step: 5
+        messages:
+          - destination: 3
+            payload: *signed_by_alice
+          - destination: 3
+            payload: *ping
+
+      - step: 6
+        messages:
+          - destination: 3
+            payload: *ping
+
+      - step: 7
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: *ping
+
+      - step: 8
+
+      - step: 9
+
+  - title: 2 of 3; eve doesn't answer, alice replies with incorrect payload
+
+    messages:
+      - destination: 3
+        payload: &ping
+          kind: bytes
+          value: "0x50494e4733"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: &sign_request
+              kind: bytes
+              value: "0x1450494e4733"
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 2
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 3
+            payload: &signed_by_bob
+              kind: bytes
+              value: "0x1450494e47330101f23c52c3d1fef130615a352a4a82dd79a3955b73a1837ebae79d319f80b10d7f4a55bd232105e4ff4702aba0bda3ff0c4cdff04697165d0861e75b84b1b0c98b"
+
+      - step: 3
+        messages:
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 3
+            payload: *signed_by_bob
+
+      - step: 4
+        messages:
+          - destination: 3
+            payload: *signed_by_bob
+          - destination: 3
+            payload: &incorrect_alice
+              kind: bytes
+              value: "0x00"
+
+      - step: 5
+        messages:
+          - destination: 3
+            payload: *incorrect_alice
+          - destination: 3
+            payload: *ping
+
+      - step: 6
+        messages:
+          - destination: 3
+            payload: *ping
+
+      - step: 7
+
+      - step: 8
+
+      - step: 9
+
+  - title: 2 of 3; no replies
+
+    messages:
+      - destination: 3
+        payload: &ping
+          kind: bytes
+          # "PING. NO PONGS"
+          value: "0x50494e472e204e4f20504f4e4753"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: &sign_request
+              kind: bytes
+              value: "0x3850494e472e204e4f20504f4e4753"
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 2
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 3
+        messages:
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 4
+
+      - step: 5
+
+      - step: 6
+
+      - step: 7
+
+      - step: 8
+
+      - step: 9

@@ -1,0 +1,24 @@
+title: Memory test
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_mem.opt.wasm
+
+fixtures:
+  - title: Test for memory result
+    messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: empty here
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: empty here
+    expected:
+      - allowError: true
+        allocations:
+        - id: 1
+          filter: dynamic
+          # Allocates nothing, because rollbacks it's state
+          page_count: 0

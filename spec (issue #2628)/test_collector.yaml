@@ -1,0 +1,27 @@
+title: collector-1
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_collector.opt.wasm
+
+fixtures:
+  - title: collector pass 2 messages
+    messages:
+      - payload:
+          kind: utf-8
+          value: hey
+        destination: 1
+      - payload:
+          kind: utf-8
+          value: hop
+        destination: 1
+      - payload:
+          kind: utf-8
+          value: log
+        destination: 1
+    expected:
+      - log:
+          - payload:
+              kind: utf-8
+              value: "1: hey;2: hop;"
+            destination: 1000001

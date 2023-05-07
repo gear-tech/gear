@@ -1,0 +1,54 @@
+title: Status code
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_status_code.opt.wasm
+
+  - id: 2
+    path: target/wasm32-unknown-unknown/release/demo_panicker.opt.wasm
+
+  - id: 3
+    path: target/wasm32-unknown-unknown/release/demo_ping.opt.wasm
+
+fixtures:
+  - title: normal
+
+    messages:
+      - destination: 3
+        source:
+          kind: id
+          value: 1
+        payload:
+          kind: utf-8
+          value: PING
+
+    expected:
+      - log:
+        - destination: 0
+          source:
+            kind: id
+            value: 1
+          payload:
+            kind: i32
+            value: 0
+
+  - title: panic
+
+    messages:
+      - destination: 2
+        source:
+          kind: id
+          value: 1
+        payload:
+          kind: utf-8
+          value: any
+
+    expected:
+      - log:
+        - destination: 0
+          source:
+            kind: id
+            value: 1
+          payload:
+            kind: i32
+            value: 0x0301 # SimpleReplyError::Execution(SimpleExecutionError::Panic)

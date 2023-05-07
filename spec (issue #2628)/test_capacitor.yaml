@@ -1,0 +1,52 @@
+title: Basic capacitor check
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_capacitor.opt.wasm
+    init_message:
+      kind: utf-8
+      value: "200"
+
+fixtures:
+  - title: Test charging/discharging
+    messages:
+      - payload:
+          kind: utf-8
+          value: "101"
+        destination: 1
+      - payload:
+          kind: utf-8
+          value: "101"
+        destination: 1
+      - payload:
+          kind: utf-8
+          value: "101"
+        destination: 1
+    expected:
+      - step: 1
+        messages:
+          - payload:
+              kind: utf-8
+              value: "101"
+            destination: 1
+          - payload:
+              kind: utf-8
+              value: "101"
+            destination: 1
+        allocations:
+          - id: 1
+            contains_pages: []
+      - step: 2
+        messages:
+          - payload:
+              kind: utf-8
+              value: "101"
+            destination: 1
+        log:
+          - payload:
+              kind: utf-8
+              value: "Discharged: 202"
+            destination: 1000001
+        allocations:
+          - id: 1
+            contains_pages: []

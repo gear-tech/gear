@@ -1,0 +1,20 @@
+[package]
+name = "demo-token-vendor"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "GPL-3.0"
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+primitive-types.workspace = true
+bs58 = { workspace = true, features = ["alloc"] }
+hex = { workspace = true, features = ["alloc"] }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+default = ["std"]
+std = []

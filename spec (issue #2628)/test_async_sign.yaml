@@ -1,0 +1,170 @@
+title: Async-sign (well known cases)
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_async_sign.opt.wasm
+    init_message:
+      kind: custom
+      value:
+        # Eve
+        destination: "0x{eve}"
+        # Bob
+        signatory: "0x{bob}"
+
+  - id:
+      kind: account
+      value: bob
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
+    init_message:
+      kind: custom
+      value:
+        - request: "0x1050494e47"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x0101f44d40d2998053383a34af76bc66d00a16c280eb4ef8e8a9b82abdb311eaed0454553618b5b406c286047e4134bff676560b853088550156564a2365f33f7e8f"
+        # Rejects SignRequest{ message: b"PING2" }
+        - request: "0x1450494e4732"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x00"
+        # Rejects SignRequest{ message: b"PING3" }
+        - request: "0x1450494e4733"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x0101f44d40d2998053383a34af76bc66d00a16c280eb4ef8e8a9b82abdb311eaed0454553618b5b406c286047e4134bff676560b853088550156564a2365f33f7e8f"
+
+  - id:
+      kind: account
+      value: eve
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
+    init_message:
+      kind: custom
+      value: []
+
+fixtures:
+  - title: signed message
+
+    messages:
+      - destination: 1
+        payload: &ping
+          kind: bytes
+          value: "0x50494e47"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload:
+              kind: bytes
+              value: "0x1050494e47"
+
+      - step: 2
+        messages:
+          - destination: 1
+            payload:
+              kind: bytes
+              value: "0x0101f44d40d2998053383a34af76bc66d00a16c280eb4ef8e8a9b82abdb311eaed0454553618b5b406c286047e4134bff676560b853088550156564a2365f33f7e8f"
+
+      - step: 3
+        messages:
+          - destination: 1
+            payload: *ping
+
+      - step: 4
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *ping
+
+  - title: bad signature
+
+    messages:
+      - destination: 1
+        payload: &ping
+          kind: bytes
+          value: "0x50494e4732"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload:
+              kind: bytes
+              value: "0x1450494e4732"
+
+      - step: 2
+        messages:
+          - destination: 1
+            payload:
+              kind: bytes
+              value: "0x00"
+
+      - step: 3
+        messages:
+          - destination: 1
+            payload: *ping
+
+      - step: 4
+        messages: []
+
+  - title: correct signature but for another message
+
+    messages:
+      - destination: 1
+        payload: &ping
+          kind: bytes
+          value: "0x50494e4733"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload:
+              kind: bytes
+              value: "0x1450494e4733"
+
+      - step: 2
+        messages:
+          - destination: 1
+            payload:
+              kind: bytes
+              value: "0x0101f44d40d2998053383a34af76bc66d00a16c280eb4ef8e8a9b82abdb311eaed0454553618b5b406c286047e4134bff676560b853088550156564a2365f33f7e8f"
+
+      - step: 3
+        messages:
+          - destination: 1
+            payload: *ping
+
+      - step: 4
+        messages: []
+
+  - title: no reply
+
+    messages:
+      - destination: 1
+        payload: &ping
+          kind: bytes
+          value: "0x50494e4734"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload:
+              kind: bytes
+              value: "0x1450494e4734"
+
+      - step: 2
+        messages: []
