@@ -19,7 +19,8 @@
 //! Database migration module.
 
 use crate::{pallet, Config, Pallet, Weight};
-use frame_support::traits::{Get, StorageVersion};
+use frame_support::traits::{Get, GetStorageVersion, OnRuntimeUpgrade};
+use sp_std::marker::PhantomData;
 
 mod v1 {
     use crate::{Config, Pallet};
@@ -56,25 +57,88 @@ mod v1 {
     );
 }
 
-fn migrate_to_v2<T: Config>() -> Weight {
-    let set = v1::MissedBlocks::<T>::take();
-    let bn = set.and_then(|set| set.first().copied());
-    pallet::FirstIncompleteTasksBlock::<T>::set(bn);
+pub struct MigrateToV2<T: Config>(PhantomData<T>);
 
-    StorageVersion::new(2).put::<Pallet<T>>();
+impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
+    fn on_runtime_upgrade() -> Weight {
+        let current = Pallet::<T>::current_storage_version();
+        let onchain = Pallet::<T>::on_chain_storage_version();
 
-    log::info!("Successfully migrated storage from v1 to v2");
+        log::info!(
+            "🚚 Running migration with current storage version {:?} / onchain {:?}",
+            current,
+            onchain
+        );
 
-    T::DbWeight::get().reads_writes(1, 1)
+        let mut weight = T::DbWeight::get().reads(1); // 1 read for on chain storage version.
+
+        if current == 2 && onchain == 1 {
+            let set = v1::MissedBlocks::<T>::take();
+            let bn = set.and_then(|set| set.first().copied());
+            pallet::FirstIncompleteTasksBlock::<T>::set(bn);
+
+            current.put::<Pallet<T>>();
+
+            log::info!("Successfully migrated storage from v1 to v2");
+
+            // 1 read for `MissedBlocks`
+            // 1 write for `FirstIncompleteTasksBlock`
+            weight += T::DbWeight::get().reads_writes(1, 1)
+        } else {
+            log::info!("❌ Migration did not execute. This probably should be removed");
+        }
+
+        weight
+    }
+
+    #[cfg(feature = "try-runtime")]
+    fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+        use parity_scale_codec::Encode;
+
+        let set = v1::MissedBlocks::<T>::get();
+        assert!(!pallet::FirstIncompleteTasksBlock::<T>::exists());
+        Ok(set.encode())
+    }
+
+    #[cfg(feature = "try-runtime")]
+    fn post_upgrade(state: Vec<u8>) -> Result<(), &'static str> {
+        use parity_scale_codec::Decode;
+
+        assert!(!v1::MissedBlocks::<T>::exists());
+        let first_incomplete_tasks_block = pallet::FirstIncompleteTasksBlock::<T>::get();
+        let set: Option<v1::MissedBlocksCollection<T>> = Decode::decode(&mut &state[..]).unwrap();
+        assert_eq!(
+            first_incomplete_tasks_block,
+            set.and_then(|set| set.first().copied())
+        );
+        Ok(())
+    }
 }
 
-/// Wrapper for all migrations of this pallet, based on `StorageVersion`.
-pub fn migrate<T: Config>() -> Weight {
-    let version = StorageVersion::get::<Pallet<T>>();
-    if version == StorageVersion::new(1) {
-        migrate_to_v2::<T>()
-    } else {
-        log::info!("No migration required for storage version: {:?}", version);
-        Weight::zero()
+#[cfg(feature = "try-runtime")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mock::*;
+    use common::storage::ValueStorage;
+    use frame_support::traits::StorageVersion;
+
+    #[test]
+    fn migrate_to_v2() {
+        new_test_ext().execute_with(|| {
+            StorageVersion::new(1).put::<Pallet<Test>>();
+
+            v1::MissedBlocksWrap::<Test>::put([1_u32, 2, 3, 6, 7, 8].map(Into::into).into());
+
+            let state = MigrateToV2::<Test>::pre_upgrade().unwrap();
+            let weight = MigrateToV2::<Test>::on_runtime_upgrade();
+            assert_ne!(weight.ref_time(), 0);
+            MigrateToV2::<Test>::post_upgrade(state).unwrap();
+
+            assert_eq!(
+                pallet::FirstIncompleteTasksBlock::<Test>::get(),
+                Some(1_u32.into())
+            );
+        })
     }
 }

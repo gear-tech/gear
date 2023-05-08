@@ -276,13 +276,4 @@ pub mod pallet {
             TaskPoolCallbacksImpl<T>,
         >;
     }
-
-    #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn on_runtime_upgrade() -> Weight {
-            log::debug!(target: "gear::scheduler", "⚙️ Runtime upgrade");
-
-            crate::migration::migrate::<T>()
-        }
-    }
 }
