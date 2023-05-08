@@ -70,13 +70,11 @@ async fn test_command_upload_program_works() -> Result<()> {
             .program(env::wasm_bin("demo_meta.opt.wasm")),
     )?;
 
+    let stderr = output.stderr.convert();
+
     assert!(
-        output
-            .stderr
-            .convert()
-            .contains(logs::gear_program::EX_UPLOAD_CODE),
-        "code should be uploaded, but got: {:?}",
-        output.stderr
+        stderr.contains(logs::gear_program::EX_UPLOAD_CODE),
+        "code should be uploaded, but got: {stderr:?}",
     );
     Ok(())
 }
