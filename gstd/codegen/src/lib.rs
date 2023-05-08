@@ -471,7 +471,8 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
         utils::DocumentationStyle::Function
     };
 
-    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(function_ident.to_string(), style);
+    let (for_reply_docs, for_reply_as_docs) =
+        utils::wait_for_reply_docs(function_ident.to_string(), style);
 
     // Generate arguments.
     let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
