@@ -33,7 +33,7 @@ pub enum DocumentationStyle {
 }
 
 impl DocumentationStyle {
-    pub fn output(self, func_name: String) -> String {
+    pub fn output(&self, func_name: &str) -> String {
         match self {
             DocumentationStyle::Function => format!("self::{func_name}"),
             DocumentationStyle::Method => format!("Self::{func_name}"),
@@ -43,14 +43,16 @@ impl DocumentationStyle {
 
 const SPAN_CODEC: &str = "${CODEC}";
 const SPAN_ELSE: &str = "${ELSE}";
+const SPAN_ELSE_HREF: &str = "${ELSE_HREF}";
 const SPAN_IDENT: &str = "${IDENT}";
+const SPAN_IDENT_HREF: &str = "${IDENT_HREF}";
 const WAIT_FOR_REPLY_DOCS_TEMPLATE: &str = r#"
- Same as [`${IDENT}`](${IDENT}), but the program
+ Same as [`${IDENT}`](${IDENT_HREF}), but the program
  will interrupt until the reply is received. ${CODEC}
 
  # See also
 
- - [`${ELSE}`](${ELSE})
+ - [`${ELSE}`](${ELSE_HREF})
 "#;
 
 /// New `Ident`
@@ -82,18 +84,29 @@ pub fn get_args(inputs: &Punctuated<syn::FnArg, syn::token::Comma>) -> Expr {
 
 /// Parse `dyn AsRef<str>` to `Expr`
 pub fn wait_for_reply_docs(name: String, style: DocumentationStyle) -> (String, String) {
-    let name = style.output(name);
+    let href = style.output(&name);
     let docs = WAIT_FOR_REPLY_DOCS_TEMPLATE
         .trim_start_matches('\n')
-        .replace(SPAN_IDENT, name.as_ref());
+        .replace(SPAN_IDENT, &name)
+        .replace(SPAN_IDENT_HREF, &href);
+
+    let for_reply = format!("{name}_for_reply");
+    let for_reply_href = style.output(&for_reply);
+
+    let for_reply_as = format!("{name}_for_reply_as");
+    let for_reply_as_href = style.output(&for_reply_as);
 
     (
-        docs.replace(SPAN_ELSE, &(name.clone() + "_for_reply_as"))
+        docs.replace(SPAN_ELSE, &for_reply_as)
+            .replace(SPAN_ELSE_HREF, &for_reply_as_href)
             .replace(SPAN_CODEC, ""),
-        docs.replace(SPAN_ELSE, &(name + "_for_reply")).replace(
-            SPAN_CODEC,
-            "\n\n The output should be decodable via SCALE codec.",
-        ) + " - <https://docs.substrate.io/reference/scale-codec>",
+        docs.replace(SPAN_ELSE, &for_reply)
+            .replace(SPAN_ELSE_HREF, &for_reply_href)
+            .replace(
+                SPAN_CODEC,
+                "\n\n The output should be decodable via SCALE codec.",
+            )
+            + " - <https://docs.substrate.io/reference/scale-codec>",
     )
 }
 
