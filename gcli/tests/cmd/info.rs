@@ -84,7 +84,13 @@ async fn test_action_balance_works() -> Result<()> {
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let output = node.run(Args::new("info").address("//Alice").action("balance"))?;
-    assert_eq!(EXPECTED_BALANCE.trim(), output.stdout.convert().trim());
+    assert_eq!(
+        EXPECTED_BALANCE.trim(),
+        output.stdout.convert().trim(),
+        "Wrong balance. Expected:\n{}\nGot:\n{}",
+        EXPECTED_BALANCE.trim(),
+        output.stdout.convert().trim()
+    );
     Ok(())
 }
 
@@ -95,7 +101,10 @@ async fn test_action_mailbox_works() -> Result<()> {
 
     let stdout = output.stdout.convert();
     if !stdout.contains(EXPECTED_MAILBOX.trim()) {
-        panic!("{stdout}")
+        panic!(
+            "Wrong mailbox response. Expected:\n{}\nGot:\n{}",
+            EXPECTED_MAILBOX, stdout
+        );
     }
     Ok(())
 }

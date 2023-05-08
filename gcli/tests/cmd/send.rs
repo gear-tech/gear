@@ -31,7 +31,7 @@ async fn test_command_send_works() -> Result<()> {
         .api()
         .mailbox(Some(common::alice_account_id()), 10)
         .await?;
-    assert_eq!(mailbox.len(), 1);
+    assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
 
     // Send message to messager
     let dest = hex::encode(mailbox[0].0.source.0);
@@ -40,7 +40,11 @@ async fn test_command_send_works() -> Result<()> {
         .api()
         .mailbox(Some(common::alice_account_id()), 10)
         .await?;
-    assert_eq!(mailbox.len(), 2);
+    assert_eq!(
+        mailbox.len(),
+        2,
+        "Alice now should have 2 messages in mailbox"
+    );
     assert!(mailbox
         .iter()
         .any(|mail| mail.0.payload.0 == messager::SEND_REPLY.encode()));

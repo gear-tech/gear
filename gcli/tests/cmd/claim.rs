@@ -48,6 +48,8 @@ async fn test_command_claim_works() -> Result<()> {
     // before this checking.
     assert_eq!(
         after.saturating_sub(before),
+        MESSAGER_SENT_VALUE + REWARD_PER_BLOCK,
+        "Alice should have received the value of the message plus the reward ({})",
         MESSAGER_SENT_VALUE + REWARD_PER_BLOCK
     );
 
