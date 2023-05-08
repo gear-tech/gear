@@ -3635,6 +3635,7 @@ name = "gear-common"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "enum-iterator 1.4.0",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -4083,14 +4084,18 @@ dependencies = [
  "anyhow",
  "cargo_metadata",
  "colored",
+ "filetime",
  "gear-wasm-instrument",
  "gmeta",
  "log",
  "pathdiff",
  "pwasm-utils",
+ "regex",
  "thiserror",
  "toml 0.7.3",
+ "wabt",
  "wasm-opt",
+ "wasmparser-nostd 0.100.1",
  "which",
 ]
 
@@ -7032,21 +7037,27 @@ dependencies = [
  "env_logger",
  "frame-benchmarking",
  "frame-support",
+ "frame-support-test",
  "frame-system",
  "gear-common",
  "gear-core",
  "log",
+ "pallet-authorship",
  "pallet-balances",
+ "pallet-gear",
+ "pallet-gear-messenger",
+ "pallet-gear-program",
+ "pallet-gear-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
  "primitive-types",
  "scale-info",
  "serde",
+ "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std 5.0.0",
- "wabt",
 ]
 
 [[package]]
@@ -13121,7 +13132,7 @@ dependencies = [
 [[package]]
 name = "wasmi-validation"
 version = "0.5.0"
-source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
+source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#d230c9bba8e763d03b390038750cee07ee937416"
 dependencies = [
  "parity-wasm 0.45.0",
 ]

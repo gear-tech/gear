@@ -1,8 +1,8 @@
 [package]
 name = "token-vendor"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [lib]
 crate-type = ["cdylib"]

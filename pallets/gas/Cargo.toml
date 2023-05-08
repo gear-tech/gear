@@ -3,7 +3,7 @@ name = "pallet-gear-gas"
 version = "2.0.0"
 authors = ['Gear Technologies']
 edition = '2021'
-license = "GPL-3.0"
+license.workspace = true
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 description = "Gear main pallet"
@@ -34,10 +34,17 @@ pallet-balances.workspace = true
 [dev-dependencies]
 serde.workspace = true
 env_logger.workspace = true
-wabt.workspace = true
+common = { workspace = true, features = ["std"] }
 gear-core.workspace = true
+sp-core = {workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
+frame-support-test = { workspace = true, features = ["std"] }
+pallet-authorship = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
+pallet-gear = { workspace = true, features = ["std"] }
+pallet-gear-program = { workspace = true, features = ["std"] }
+pallet-gear-messenger = { workspace = true, features = ["std"] }
+pallet-gear-scheduler = { workspace = true, features = ["std"] }
 
 [features]
 default = ['std']
