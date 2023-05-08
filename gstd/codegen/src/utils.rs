@@ -24,16 +24,33 @@ use syn::{
     TypeParam, TypeParamBound,
 };
 
+/// Describes how to output documentation for `_for_reply_(as)`
+pub enum DocumentationStyle {
+    /// `self::{func_name}`
+    Function,
+    /// `Self::{func_name}`
+    Method,
+}
+
+impl DocumentationStyle {
+    pub fn output(self, func_name: String) -> String {
+        match self {
+            DocumentationStyle::Function => format!("self::{func_name}"),
+            DocumentationStyle::Method => format!("Self::{func_name}"),
+        }
+    }
+}
+
 const SPAN_CODEC: &str = "${CODEC}";
 const SPAN_ELSE: &str = "${ELSE}";
 const SPAN_IDENT: &str = "${IDENT}";
 const WAIT_FOR_REPLY_DOCS_TEMPLATE: &str = r#"
- Same as [`${IDENT}`](self::${IDENT}), but the program
+ Same as [`${IDENT}`](${IDENT}), but the program
  will interrupt until the reply is received. ${CODEC}
 
  # See also
 
- - [`${ELSE}`](self::${ELSE})
+ - [`${ELSE}`](${ELSE})
 "#;
 
 /// New `Ident`
@@ -64,7 +81,8 @@ pub fn get_args(inputs: &Punctuated<syn::FnArg, syn::token::Comma>) -> Expr {
 }
 
 /// Parse `dyn AsRef<str>` to `Expr`
-pub fn wait_for_reply_docs(name: String) -> (String, String) {
+pub fn wait_for_reply_docs(name: String, style: DocumentationStyle) -> (String, String) {
+    let name = style.output(name);
     let docs = WAIT_FOR_REPLY_DOCS_TEMPLATE
         .trim_start_matches('\n')
         .replace(SPAN_IDENT, name.as_ref());
@@ -75,7 +93,7 @@ pub fn wait_for_reply_docs(name: String) -> (String, String) {
         docs.replace(SPAN_ELSE, &(name + "_for_reply")).replace(
             SPAN_CODEC,
             "\n\n The output should be decodable via SCALE codec.",
-        ) + " - <https://docs.substrate.io/v3/advanced/scale-codec>",
+        ) + " - <https://docs.substrate.io/reference/scale-codec>",
     )
 }
 

@@ -380,7 +380,13 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     );
 
     // Generate docs.
-    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string());
+    let style = if !attr.is_empty() {
+        utils::DocumentationStyle::Method
+    } else {
+        utils::DocumentationStyle::Function
+    };
+
+    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string(), style);
 
     // Generate arguments.
     let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
@@ -438,7 +444,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
 
-    let ident = &function.sig.ident;
+    let function_ident = &function.sig.ident;
 
     let ident = if !attr.is_empty() {
         assert_eq!(
@@ -447,9 +453,9 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
             "Proc macro attribute should be used only to specify Self source of the function"
         );
 
-        quote! { Self::#ident }
+        quote! { Self::#function_ident }
     } else {
-        quote! { #ident }
+        quote! { #function_ident }
     };
 
     // Generate functions' idents.
@@ -459,7 +465,13 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
     );
 
     // Generate docs.
-    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string());
+    let style = if !attr.is_empty() {
+        utils::DocumentationStyle::Method
+    } else {
+        utils::DocumentationStyle::Function
+    };
+
+    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(function_ident.to_string(), style);
 
     // Generate arguments.
     let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
