@@ -18,7 +18,9 @@
 
 //! Upload code args generator.
 
-use crate::{impl_convert_traits, Args, ArgsName, CallGenRng, GearProgGenConfig, Seed};
+use crate::{
+    impl_convert_traits, CallGenRng, GearProgGenConfig, GeneratableCallArgs, NamedCallArgs, Seed,
+};
 use gear_core::ids::ProgramId;
 
 /// Upload code args
@@ -29,7 +31,7 @@ pub struct UploadCodeArgs(pub Vec<u8>);
 
 impl_convert_traits!(UploadCodeArgs, Vec<u8>, UploadCode, "upload_code");
 
-impl Args for UploadCodeArgs {
+impl GeneratableCallArgs for UploadCodeArgs {
     type FuzzerArgs = (Vec<ProgramId>, Seed);
     type ConstArgs = (GearProgGenConfig,);
 

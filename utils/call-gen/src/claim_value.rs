@@ -18,7 +18,7 @@
 
 //! Claim value args generator.
 
-use crate::{impl_convert_traits, Args, ArgsName, CallGenRng, Seed};
+use crate::{impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed};
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -30,7 +30,7 @@ pub struct ClaimValueArgs(pub MessageId);
 
 impl_convert_traits!(ClaimValueArgs, MessageId, ClaimValue, "claim_value");
 
-impl Args for ClaimValueArgs {
+impl GeneratableCallArgs for ClaimValueArgs {
     type FuzzerArgs = (NonEmpty<MessageId>, Seed);
     type ConstArgs = ();
 

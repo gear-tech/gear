@@ -18,7 +18,7 @@
 
 //! Send message args generator.
 
-use crate::{impl_convert_traits, Args, ArgsName, CallGenRng, Seed};
+use crate::{impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed};
 use gear_core::ids::ProgramId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -38,7 +38,7 @@ impl_convert_traits!(
     "send_message"
 );
 
-impl Args for SendMessageArgs {
+impl GeneratableCallArgs for SendMessageArgs {
     type FuzzerArgs = (NonEmpty<ProgramId>, Seed);
     type ConstArgs = (u64,);
 

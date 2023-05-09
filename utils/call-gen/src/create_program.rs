@@ -18,7 +18,7 @@
 
 //! Create program call generator.
 
-use crate::{impl_convert_traits, Args, ArgsName, CallGenRng, Seed};
+use crate::{impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed};
 use gear_core::ids::CodeId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -38,7 +38,7 @@ impl_convert_traits!(
     "create_program"
 );
 
-impl Args for CreateProgramArgs {
+impl GeneratableCallArgs for CreateProgramArgs {
     type FuzzerArgs = (NonEmpty<CodeId>, Seed);
     type ConstArgs = (u64,);
 

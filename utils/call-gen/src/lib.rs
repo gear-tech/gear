@@ -44,15 +44,23 @@ pub type GearProgGenConfig = gear_wasm_gen::GearConfig;
 
 /// This trait must be implemented for all argument types
 /// that are used in `GearCall::Variant(_)`
-pub trait Args {
+pub trait CallArgs: GeneratableCallArgs + NamedCallArgs {}
+
+impl<T: GeneratableCallArgs + NamedCallArgs> CallArgs for T {}
+
+/// Describes the type that is used for fuzzing
+pub trait GeneratableCallArgs {
     type FuzzerArgs;
     type ConstArgs;
 
+    /// Returns argument type for `GearCall::Variant(_)`
+    /// that is filled with random values
     fn generate<Rng: CallGenRng>(_: Self::FuzzerArgs, _: Self::ConstArgs) -> Self;
 }
 
 /// This trait is used to get the name from the argument type
-pub trait ArgsName {
+pub trait NamedCallArgs {
+    /// Returns name of gear-call argument type
     fn name() -> &'static str;
 }
 
@@ -99,7 +107,7 @@ macro_rules! impl_convert_traits {
             }
         }
 
-        impl $crate::ArgsName for $args {
+        impl $crate::NamedCallArgs for $args {
             fn name() -> &'static str {
                 $gear_call_name
             }

@@ -18,7 +18,9 @@
 
 //! Upload program args generator.
 
-use crate::{impl_convert_traits, Args, ArgsName, CallGenRng, GearProgGenConfig, Seed};
+use crate::{
+    impl_convert_traits, CallGenRng, GearProgGenConfig, GeneratableCallArgs, NamedCallArgs, Seed,
+};
 use gear_core::ids::ProgramId;
 
 // code, salt, payload, gas, value
@@ -37,7 +39,7 @@ impl_convert_traits!(
     "upload_program"
 );
 
-impl Args for UploadProgramArgs {
+impl GeneratableCallArgs for UploadProgramArgs {
     type FuzzerArgs = (Vec<ProgramId>, Seed, Seed);
     type ConstArgs = (u64, GearProgGenConfig);
 

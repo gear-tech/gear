@@ -7,8 +7,8 @@ use crate::{
 use anyhow::Result;
 use futures::FutureExt;
 use gear_call_gen::{
-    Args, ArgsName, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs,
-    GearProgGenConfig, SendMessageArgs, SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
+    CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, GearProgGenConfig,
+    SendMessageArgs, SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
 };
 use gear_utils::NonEmpty;
 use tracing::instrument;
@@ -211,7 +211,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
 
     #[instrument(skip_all, fields(seed = seed, batch_type = T::name()))]
     fn gen_batch<
-        T: Args + ArgsName,
+        T: CallArgs,
         FuzzerArgsFn: FnMut(&mut Rng) -> T::FuzzerArgs,
         ConstArgsFn: Fn() -> T::ConstArgs,
     >(

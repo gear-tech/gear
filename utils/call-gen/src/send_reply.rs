@@ -18,7 +18,7 @@
 
 //! Send reply args generator.
 
-use crate::{impl_convert_traits, Args, ArgsName, CallGenRng, Seed};
+use crate::{impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed};
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -33,7 +33,7 @@ pub struct SendReplyArgs(pub SendReplyArgsInner);
 
 impl_convert_traits!(SendReplyArgs, SendReplyArgsInner, SendReply, "send_reply");
 
-impl Args for SendReplyArgs {
+impl GeneratableCallArgs for SendReplyArgs {
     type FuzzerArgs = (NonEmpty<MessageId>, Seed);
     type ConstArgs = (u64,);
 

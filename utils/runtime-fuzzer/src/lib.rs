@@ -20,7 +20,8 @@ mod runtime;
 
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{
-    Args, CallGenRng, GearCall, GearProgGenConfig, SendMessageArgs, UploadProgramArgs,
+    CallGenRng, GearCall, GearProgGenConfig, GeneratableCallArgs, SendMessageArgs,
+    UploadProgramArgs,
 };
 use gear_common::event::ProgramChangeKind;
 use gear_core::ids::ProgramId;
