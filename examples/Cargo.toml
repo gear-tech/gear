@@ -17,6 +17,7 @@ members = [
     "chat",
     "chat/bot",
     "chat/room",
+    "capacitor",
     "collector",
     "create-program",
     "status-code",
