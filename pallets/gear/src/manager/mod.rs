@@ -51,15 +51,12 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{
-    Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf,
-    TaskPoolOf,
-};
+use crate::{Config, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf};
 use common::{
     event::*,
-    scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
+    scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
     storage::{Interval, Queue},
-    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState, ProgramStorage,
+    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState, ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -305,19 +302,12 @@ where
         reservation_id: ReservationId,
         slot: GasReservationSlot,
     ) -> GasReservationSlot {
-        GasHandlerOf::<T>::unlock_all(reservation_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
         let interval = Interval {
             start: BlockNumberFor::<T>::from(slot.start),
             finish: BlockNumberFor::<T>::from(slot.finish),
         };
 
-        Pallet::<T>::charge_for_hold(
-            reservation_id,
-            interval,
-            CostsPerBlockOf::<T>::reservation(),
-        );
+        Pallet::<T>::charge_for_hold(reservation_id, interval, StorageType::Reservation);
 
         Pallet::<T>::consume_and_retrieve(reservation_id);
 

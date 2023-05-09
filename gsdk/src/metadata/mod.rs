@@ -625,6 +625,17 @@ pub mod runtime_types {
         }
         pub mod gas_provider {
             use super::runtime_types;
+            pub mod lockable {
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
+                pub enum LockId {
+                    Mailbox,
+                    Waitlist,
+                    Reservation = 2,
+                    DispatchStash,
+                }
+            }
             pub mod node {
                 use super::runtime_types;
                 #[derive(
@@ -637,23 +648,31 @@ pub mod runtime_types {
                 #[derive(
                     :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
                 )]
+                pub struct NodeLock<_0>(pub [_0; 4]);
+                #[derive(
+                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                )]
                 pub enum GasNode<_0, _1, _2> {
                     #[codec(index = 0)]
                     External {
                         id: _0,
                         value: _2,
-                        lock: _2,
+                        lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                         system_reserve: _2,
                         refs: runtime_types::gear_common::gas_provider::node::ChildrenRefs,
                         consumed: ::core::primitive::bool,
                     },
                     #[codec(index = 1)]
-                    Cut { id: _0, value: _2, lock: _2 },
+                    Cut {
+                        id: _0,
+                        value: _2,
+                        lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
+                    },
                     #[codec(index = 2)]
                     Reserved {
                         id: _0,
                         value: _2,
-                        lock: _2,
+                        lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                         refs: runtime_types::gear_common::gas_provider::node::ChildrenRefs,
                         consumed: ::core::primitive::bool,
                     },
@@ -661,7 +680,7 @@ pub mod runtime_types {
                     SpecifiedLocal {
                         parent: _1,
                         value: _2,
-                        lock: _2,
+                        lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                         system_reserve: _2,
                         refs: runtime_types::gear_common::gas_provider::node::ChildrenRefs,
                         consumed: ::core::primitive::bool,
@@ -669,7 +688,7 @@ pub mod runtime_types {
                     #[codec(index = 4)]
                     UnspecifiedLocal {
                         parent: _1,
-                        lock: _2,
+                        lock: runtime_types::gear_common::gas_provider::node::NodeLock<_2>,
                         system_reserve: _2,
                     },
                 }

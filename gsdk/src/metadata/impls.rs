@@ -34,13 +34,20 @@
 
 use super::runtime_types::{
     frame_system::pallet::Call as SystemCall,
-    gear_common::{event::*, gas_provider::node::GasNodeId},
+    gear_common::{
+        event::*,
+        gas_provider::{
+            lockable::LockId,
+            node::{GasNodeId, NodeLock},
+        },
+    },
     gear_core::{ids as generated_ids, message as generated_message},
     gear_runtime::{RuntimeCall, RuntimeEvent},
     pallet_balances::pallet::Call as BalancesCall,
     pallet_gear::pallet::Call as GearCall,
     pallet_sudo::pallet::Call as SudoCall,
 };
+use core::ops::{Index, IndexMut};
 use gear_core::{ids, message, message::StoredMessage};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::MultiAddress;
@@ -157,6 +164,20 @@ impl<M: Clone, R: Clone> Clone for GasNodeId<M, R> {
 }
 
 impl<M: Copy, R: Copy> Copy for GasNodeId<M, R> {}
+
+impl<B> Index<LockId> for NodeLock<B> {
+    type Output = B;
+
+    fn index(&self, index: LockId) -> &Self::Output {
+        &self.0[index as usize]
+    }
+}
+
+impl<B> IndexMut<LockId> for NodeLock<B> {
+    fn index_mut(&mut self, index: LockId) -> &mut Self::Output {
+        &mut self.0[index as usize]
+    }
+}
 
 macro_rules! impl_basic {
     ($t:ty) => {

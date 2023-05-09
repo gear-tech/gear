@@ -9,6 +9,8 @@ license.workspace = true
 gear-utils.workspace = true
 gsdk.workspace = true
 gear-core.workspace = true
+gear-common = { workspace = true, default-features = true }
+
 futures.workspace = true
 anyhow.workspace = true
 hex.workspace = true
@@ -21,6 +23,7 @@ async-trait.workspace = true
 url.workspace = true
 wabt.workspace = true
 gstd.workspace = true
+static_assertions.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }

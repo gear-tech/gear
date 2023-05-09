@@ -46,9 +46,12 @@ async fn test_command_program_state_works() -> Result<()> {
     let state = node.run(Args::new("program").action("state").program(pid))?;
 
     // Verify result
+    let expected = hex::encode(Wallet::test_sequence().encode());
+    let got = state.stdout.convert();
     assert_eq!(
-        state.stdout.convert().trim_start_matches("0x").trim(),
-        hex::encode(Wallet::test_sequence().encode())
+        got.trim_start_matches("0x").trim(),
+        expected,
+        "state should be equal to Wallet::test_sequence(). Expected state: {expected}, got: {got}"
     );
     Ok(())
 }
@@ -94,9 +97,11 @@ fn test_command_program_metadata_works() -> Result<()> {
     let args = Args::new("program").action("meta").meta(meta);
     let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
 
+    let stdout = result.stdout.convert();
     assert_eq!(
-        result.stdout.convert().trim(),
-        DEMO_NEW_META_METADATA.trim()
+        stdout.trim(),
+        DEMO_NEW_META_METADATA.trim(),
+        "metadata should be equal to DEMO_NEW_META_METADATA. Expected metadata: {DEMO_NEW_META_METADATA}, got: {stdout:?}"
     );
     Ok(())
 }
@@ -111,9 +116,13 @@ fn test_command_program_metadata_derive_works() -> Result<()> {
         .derive("Person");
 
     let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+    let stdout = result.stdout.convert();
+
+    let expected = "Person { surname: String, name: String }";
     assert_eq!(
-        result.stdout.convert().trim(),
-        "Person { surname: String, name: String }"
+        stdout.trim(),
+        expected,
+        "metadata should be equal to {expected}, but got: {stdout:?}",
     );
     Ok(())
 }
@@ -144,7 +153,12 @@ fn test_command_program_metawasm_works() -> Result<()> {
     let args = Args::new("program").action("meta").meta(meta);
     let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
 
-    assert_eq!(result.stdout.convert().trim(), META_WASM_V1_OUTPUT.trim());
+    let stdout = result.stdout.convert();
+    assert_eq!(
+        stdout.trim(),
+        META_WASM_V1_OUTPUT.trim(),
+        "metadata should be equal to META_WASM_V1_OUTPUT. Expected metadata: {META_WASM_V1_OUTPUT}, got: {stdout:?}",
+    );
     Ok(())
 }
 
@@ -158,9 +172,13 @@ fn test_command_program_metawasm_derive_works() -> Result<()> {
         .derive("Person");
 
     let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+    let stdout = result.stdout.convert();
+
+    let expected = "Person { surname: String, name: String }";
     assert_eq!(
-        result.stdout.convert().trim(),
-        "Person { surname: String, name: String }"
+        stdout.trim(),
+        expected,
+        "metadata should be equal to {expected}, but got: {stdout:?}",
     );
     Ok(())
 }

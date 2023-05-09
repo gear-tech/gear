@@ -31,7 +31,7 @@ async fn test_command_reply_works() -> Result<()> {
         .api()
         .mailbox(Some(common::alice_account_id()), 10)
         .await?;
-    assert_eq!(mailbox.len(), 1);
+    assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
 
     // Send message to messager
     let id = hex::encode(mailbox[0].0.id.0);
@@ -40,8 +40,12 @@ async fn test_command_reply_works() -> Result<()> {
         .api()
         .mailbox(Some(common::alice_account_id()), 10)
         .await?;
-    assert_eq!(mailbox.len(), 1);
-    assert_eq!(mailbox[0].0.payload.0, messager::REPLY_REPLY.encode());
+    assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
+    assert_eq!(
+        mailbox[0].0.payload.0,
+        messager::REPLY_REPLY.encode(),
+        "Alice should have received a reply"
+    );
 
     Ok(())
 }
