@@ -88,5 +88,6 @@ jobs:
           branch-suffix: short-commit-hash
           title: >-
             chore: update weights
-          body: >-
+          body: |
             `run_all_benchmarks.sh` script is applied to update weights
+            **Note:** If CI fails, try manually updating the heuristic tests: `runtime/{gear, vara}/src/tests.rs`
