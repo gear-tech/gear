@@ -143,7 +143,10 @@ pub mod pallet {
     use crate::migration::migrate;
 
     use super::*;
-    use common::{scheduler::*, storage::*, CodeMetadata, Program};
+    use common::{
+        paused_program_storage::Item as PausedProgramItem, scheduler::*, storage::*, CodeMetadata,
+        Program,
+    };
     #[cfg(feature = "debug-mode")]
     use frame_support::storage::PrefixIterator;
     use frame_support::{
@@ -155,7 +158,6 @@ pub mod pallet {
         ids::{CodeId, MessageId, ProgramId},
         memory::{GearPage, PageBuf},
     };
-    use primitive_types::H256;
     use sp_runtime::DispatchError;
 
     /// The current storage version.
@@ -284,14 +286,15 @@ pub mod pallet {
     );
 
     #[pallet::storage]
+    #[pallet::unbounded]
     pub(crate) type PausedProgramStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, (BlockNumberFor<T>, H256)>;
+        StorageMap<_, Identity, ProgramId, PausedProgramItem>;
 
     common::wrap_storage_map!(
         storage: PausedProgramStorage,
         name: PausedProgramStorageWrap,
         key: ProgramId,
-        value: (BlockNumberFor<T>, H256)
+        value: PausedProgramItem
     );
 
     #[pallet::hooks]

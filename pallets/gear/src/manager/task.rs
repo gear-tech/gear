@@ -51,7 +51,7 @@ where
 
         let Some(init_message_id) = program.is_uninitialized() else {
             // pause initialized program
-            let gas_reservation_map = ProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number())
+            let gas_reservation_map = ProgramStorageOf::<T>::pause_program(program_id)
                 .unwrap_or_else(|e| unreachable!("Failed to pause program: {:?}", e));
 
             // clean wait list from the messages

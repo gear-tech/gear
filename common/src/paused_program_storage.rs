@@ -16,42 +16,35 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::*;
+use super::{program_storage::MemoryMap, *};
 use crate::storage::MapStorage;
 use core::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-struct Item {
-    allocations: BTreeSet<WasmPage>,
-    memory_pages: BTreeMap<GearPage, PageBuf>,
-    code_hash: H256,
+pub struct Item {
+    hash: H256,
+    page_hashes: BTreeMap<GearPage, H256>,
 }
 
-impl<BlockNumber: Copy + Saturating> From<(ActiveProgram<BlockNumber>, BTreeMap<GearPage, PageBuf>)>
-    for Item
-{
-    fn from(
-        (program, memory_pages): (ActiveProgram<BlockNumber>, BTreeMap<GearPage, PageBuf>),
-    ) -> Self {
+impl From<(BTreeSet<WasmPage>, H256, MemoryMap)> for Item {
+    fn from((allocations, code_hash, memory_pages): (BTreeSet<WasmPage>, H256, MemoryMap)) -> Self {
         Self {
-            allocations: program.allocations,
-            memory_pages,
-            code_hash: program.code_hash,
+            hash: (allocations, code_hash)
+                .using_encoded(sp_io::hashing::blake2_256)
+                .into(),
+            page_hashes: memory_pages
+                .into_iter()
+                .map(|(i, page)| (i, page.using_encoded(sp_io::hashing::blake2_256).into()))
+                .collect(),
         }
-    }
-}
-
-impl Item {
-    fn hash(&self) -> H256 {
-        self.using_encoded(sp_io::hashing::blake2_256).into()
     }
 }
 
 /// Trait to pause/resume programs.
 pub trait PausedProgramStorage: super::ProgramStorage {
-    type PausedProgramMap: MapStorage<Key = ProgramId, Value = (Self::BlockNumber, H256)>;
+    type PausedProgramMap: MapStorage<Key = ProgramId, Value = Item>;
 
     /// Attempt to remove all items from all the associated maps.
     fn reset() {
@@ -68,14 +61,13 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     /// Return corresponding map with gas reservations if the program was paused.
     fn pause_program(
         program_id: ProgramId,
-        block_number: Self::BlockNumber,
     ) -> Result<GasReservationMap, <Self as super::ProgramStorage>::Error> {
         let (mut program, memory_pages) = Self::remove_active_program(program_id)?;
         let gas_reservations = core::mem::take(&mut program.gas_reservation_map);
 
         Self::PausedProgramMap::insert(
             program_id,
-            (block_number, Item::from((program, memory_pages)).hash()),
+            Item::from((program.allocations, program.code_hash, memory_pages)),
         );
 
         Ok(gas_reservations)
