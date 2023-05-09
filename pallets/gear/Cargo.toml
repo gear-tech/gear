@@ -78,7 +78,7 @@ demo-proxy.workspace = true
 demo-proxy-relay.workspace = true
 demo-proxy-with-gas.workspace = true
 demo-proxy-reservation-with-gas.workspace = true
-demo-init-with-value.workspace = true
+demo-init-with-value = { workspace = true, features = ["debug"] } # The `debug` feature is required for assering debug output
 demo-gasless-wasting.workspace = true
 demo-gas-burned.workspace = true
 demo-waiting-proxy.workspace = true
@@ -105,7 +105,6 @@ pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, features = ["std"] }
 gmeta.workspace = true
-gstd = { workspace = true, features = ["debug"] }
 
 [features]
 default = ['std']
