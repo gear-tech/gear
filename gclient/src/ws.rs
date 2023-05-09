@@ -78,7 +78,7 @@ impl WSAddress {
             && url.fragment().is_none();
 
         if !valid_domain {
-            return Err(Error::IncorrectWSDomain);
+            return Err(Error::WSDomainInvalid);
         }
 
         Ok(Self { domain, port })

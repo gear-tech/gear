@@ -91,7 +91,7 @@ pub enum Error {
     Node(#[from] NodeError),
     /// Occurs when parsing websocket domain failed.
     #[error("Failed to parse WebSocket domain.")]
-    IncorrectWSDomain,
+    WSDomainInvalid,
     /// Occurs when parsing domain url failed.
     #[error(transparent)]
     Url(#[from] url::ParseError),

@@ -32,7 +32,7 @@ impl Convert<String> for Vec<u8> {
 }
 
 /// Run node.
-pub trait NodeExec {
+pub(crate) trait NodeExec {
     /// Exec command gcli with Node instance.
     ///
     /// # Example
@@ -48,5 +48,9 @@ pub trait NodeExec {
     /// ```
     fn run(&self, args: Args) -> Result<Output>;
 
+    /// Formats websocket address to string.
+    ///
+    /// This interface is used for constructing the `endpoint`
+    /// argument of gcli as the command line input.
     fn ws(&self) -> String;
 }
