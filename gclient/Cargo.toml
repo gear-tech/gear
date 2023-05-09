@@ -1,14 +1,16 @@
 [package]
 name = "gclient"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2021"
-license = "GPL-3.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 gear-utils.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
 gear-core.workspace = true
+gear-common = { workspace = true, default-features = true }
+
 futures.workspace = true
 anyhow.workspace = true
 hex.workspace = true
@@ -21,6 +23,7 @@ async-trait.workspace = true
 url.workspace = true
 wabt.workspace = true
 gstd.workspace = true
+static_assertions.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }

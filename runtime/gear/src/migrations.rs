@@ -1,6 +1,7 @@
 use crate::*;
 
 use frame_support::traits::OnRuntimeUpgrade;
+use pallet_gear_gas::migrations::v1::MigrateToV1 as GasTreeMigration;
 
 pub struct SessionValidatorSetMigration;
 
@@ -14,4 +15,4 @@ impl OnRuntimeUpgrade for SessionValidatorSetMigration {
     }
 }
 
-pub type Migrations = (SessionValidatorSetMigration,);
+pub type Migrations = (SessionValidatorSetMigration, GasTreeMigration<Runtime>);

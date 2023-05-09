@@ -39,17 +39,27 @@ async fn test_command_upload_works() {
         .expect("get signer failed");
 
     let code_id = CodeId::generate(demo_new_meta::WASM_BINARY);
-    assert!(signer.api().code_storage(code_id).await.is_err());
+    assert!(
+        signer.api().code_storage(code_id).await.is_err(),
+        "code should not exist"
+    );
 
     let output = node
         .run(Args::new("upload").program(env::wasm_bin("demo_new_meta.opt.wasm")))
         .expect("run command upload failed");
 
-    assert!(output
-        .stderr
-        .convert()
-        .contains(logs::gear_program::EX_UPLOAD_PROGRAM));
-    assert!(signer.api().code_storage(code_id).await.is_ok());
+    assert!(
+        output
+            .stderr
+            .convert()
+            .contains(logs::gear_program::EX_UPLOAD_PROGRAM),
+        "code should be uploaded, but got: {:?}",
+        output.stderr
+    );
+    assert!(
+        signer.api().code_storage(code_id).await.is_ok(),
+        "code should exist"
+    );
 }
 
 #[tokio::test]
@@ -64,9 +74,11 @@ async fn test_command_upload_program_works() -> Result<()> {
             .program(env::wasm_bin("demo_meta.opt.wasm")),
     )?;
 
-    assert!(output
-        .stderr
-        .convert()
-        .contains(logs::gear_program::EX_UPLOAD_CODE));
+    let stderr = output.stderr.convert();
+
+    assert!(
+        stderr.contains(logs::gear_program::EX_UPLOAD_CODE),
+        "code should be uploaded, but got: {stderr:?}",
+    );
     Ok(())
 }

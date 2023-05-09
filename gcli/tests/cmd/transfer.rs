@@ -53,7 +53,12 @@ async fn test_command_transfer_works() -> Result<()> {
     )?;
 
     let after = signer.api().get_balance(ADDRESS).await?;
-    assert_eq!(after.saturating_sub(before), value);
+    assert_eq!(
+        after.saturating_sub(before),
+        value,
+        "Alice should have received {value}. Balance must be {correct_balance}, but now it is {after}",
+        correct_balance = before.saturating_add(value)
+    );
 
     Ok(())
 }

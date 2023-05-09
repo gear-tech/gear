@@ -11,7 +11,7 @@ use pwasm_utils::{
 use std::process::Command;
 use std::{
     ffi::OsStr,
-    fs::metadata,
+    fs::{self, metadata},
     path::{Path, PathBuf},
 };
 
@@ -40,19 +40,30 @@ pub enum OptType {
 pub struct OptimizerError(pwasm_utils::OptimizerError);
 
 pub struct Optimizer {
+    module_bytes: Option<Vec<u8>>,
     module: Module,
     file: PathBuf,
 }
 
 impl Optimizer {
     pub fn new(file: PathBuf) -> Result<Self> {
-        let module =
-            parity_wasm::deserialize_file(&file).with_context(|| format!("File path: {file:?}"))?;
-        Ok(Self { module, file })
+        let contents = fs::read(&file)?;
+        let module = parity_wasm::deserialize_buffer(&contents)
+            .with_context(|| format!("File path: {file:?}"))?;
+        Ok(Self {
+            module_bytes: Some(contents),
+            module,
+            file,
+        })
     }
 
     pub fn insert_stack_and_export(&mut self) {
-        let _ = crate::insert_stack_end_export(&mut self.module).map_err(|s| log::debug!("{}", s));
+        let module_bytes = self
+            .module_bytes
+            .take()
+            .expect("self exists so do the field 'module_bytes'");
+        let _ = crate::insert_stack_end_export(&module_bytes, &mut self.module)
+            .map_err(|s| log::debug!("{}", s));
     }
 
     /// Strips all custom sections.

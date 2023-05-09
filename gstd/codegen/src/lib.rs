@@ -328,12 +328,12 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// outputs:
 ///
 /// ```ignore
-/// /// Same as [`send_bytes`](crate::msg::send_bytes), but the program
+/// /// Same as [`send_bytes`](self::send_bytes), but the program
 /// /// will interrupt until the reply is received.
 /// ///
 /// /// # See also
 /// ///
-/// /// - [`send_bytes_for_reply_as`](crate::msg::send_bytes_for_reply_as)
+/// /// - [`send_bytes_for_reply_as`](self::send_bytes_for_reply_as)
 /// pub fn send_bytes_for_reply<T: AsRef<[u8]>>(
 ///     program: ActorId,
 ///     payload: T,
@@ -345,15 +345,15 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     Ok(MessageFuture { waiting_reply_to })
 /// }
 ///
-/// /// Same as [`send_bytes`](crate::msg::send_bytes), but the program
+/// /// Same as [`send_bytes`](self::send_bytes), but the program
 /// /// will interrupt until the reply is received.
 /// ///
 /// /// The output should be decodable via SCALE codec.
 /// ///
 /// /// # See also
 /// ///
-/// /// - [`send_bytes_for_reply`](crate::msg::send_bytes_for_reply)
-/// /// - <https://docs.substrate.io/v3/advanced/scale-codec>
+/// /// - [`send_bytes_for_reply`](self::send_bytes_for_reply)
+/// /// - <https://docs.substrate.io/reference/scale-codec>
 /// pub fn send_bytes_for_reply_as<T: AsRef<[u8]>, D: Decode>(
 ///     program: ActorId,
 ///     payload: T,
@@ -380,7 +380,13 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     );
 
     // Generate docs.
-    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string());
+    let style = if !attr.is_empty() {
+        utils::DocumentationStyle::Method
+    } else {
+        utils::DocumentationStyle::Function
+    };
+
+    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string(), style);
 
     // Generate arguments.
     let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
@@ -438,7 +444,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
 
-    let ident = &function.sig.ident;
+    let function_ident = &function.sig.ident;
 
     let ident = if !attr.is_empty() {
         assert_eq!(
@@ -447,9 +453,9 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
             "Proc macro attribute should be used only to specify Self source of the function"
         );
 
-        quote! { Self::#ident }
+        quote! { Self::#function_ident }
     } else {
-        quote! { #ident }
+        quote! { #function_ident }
     };
 
     // Generate functions' idents.
@@ -459,7 +465,14 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
     );
 
     // Generate docs.
-    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string());
+    let style = if !attr.is_empty() {
+        utils::DocumentationStyle::Method
+    } else {
+        utils::DocumentationStyle::Function
+    };
+
+    let (for_reply_docs, for_reply_as_docs) =
+        utils::wait_for_reply_docs(function_ident.to_string(), style);
 
     // Generate arguments.
     let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());

@@ -32,7 +32,7 @@ impl Convert<String> for Vec<u8> {
 }
 
 /// Run node.
-pub(crate) trait NodeExec {
+pub trait NodeExec {
     /// Exec command gcli with Node instance.
     ///
     /// # Example

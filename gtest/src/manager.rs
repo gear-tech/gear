@@ -529,6 +529,61 @@ impl ExtManager {
         }
     }
 
+    pub(crate) fn override_balance(&mut self, id: &ProgramId, balance: Balance) {
+        if self.is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
+            panic!(
+                "An attempt to override balance with value ({}) less than existential deposit ({})",
+                balance,
+                crate::EXISTENTIAL_DEPOSIT
+            );
+        }
+
+        let (_, actor_balance) = self.actors.entry(*id).or_insert((TestActor::User, 0));
+        *actor_balance = balance;
+    }
+
+    pub(crate) fn read_memory_pages(&self, program_id: &ProgramId) -> &BTreeMap<GearPage, PageBuf> {
+        let program = &self
+            .actors
+            .get(program_id)
+            .unwrap_or_else(|| panic!("Actor {program_id} not found"))
+            .0;
+
+        let program = match program {
+            TestActor::Initialized(program) => program,
+            TestActor::Uninitialized(_, program) => program.as_ref().unwrap(),
+            TestActor::Dormant | TestActor::User => panic!("Actor {program_id} isn't a program"),
+        };
+
+        match program {
+            Program::Genuine { pages_data, .. } => pages_data,
+            Program::Mock(_) => panic!("Can't read memory of mock program"),
+        }
+    }
+
+    pub(crate) fn override_memory_pages(
+        &mut self,
+        program_id: &ProgramId,
+        memory_pages: BTreeMap<GearPage, PageBuf>,
+    ) {
+        let program = &mut self
+            .actors
+            .get_mut(program_id)
+            .unwrap_or_else(|| panic!("Actor {program_id} not found"))
+            .0;
+
+        let program = match program {
+            TestActor::Initialized(program) => program,
+            TestActor::Uninitialized(_, program) => program.as_mut().unwrap(),
+            TestActor::Dormant | TestActor::User => panic!("Actor {program_id} isn't a program"),
+        };
+
+        match program {
+            Program::Genuine { pages_data, .. } => *pages_data = memory_pages,
+            Program::Mock(_) => panic!("Can't read memory of mock program"),
+        }
+    }
+
     fn prepare_for(&mut self, dispatch: &Dispatch) {
         self.msg_id = dispatch.id();
         self.origin = dispatch.source();
