@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::common::{self, logs, Result};
+use crate::common::{self, logs, NodeExec, Result};
 use gear_core::ids::CodeId;
 use gsdk::Api;
 use scale_info::scale::Encode;
 
 #[tokio::test]
 async fn test_calculate_upload_gas() -> Result<()> {
-    let mut node = common::Node::dev()?;
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+    let mut node = common::dev()?;
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let api = Api::new(Some(&node.ws())).await?;
     let alice_account_id = common::alice_account_id();
@@ -46,8 +46,8 @@ async fn test_calculate_upload_gas() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_create_gas() -> Result<()> {
-    let mut node = common::Node::dev()?;
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+    let mut node = common::dev()?;
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     // 1. upload code.
     let signer = Api::new(Some(&node.ws())).await?.signer("//Alice", None)?;
@@ -69,8 +69,8 @@ async fn test_calculate_create_gas() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_handle_gas() -> Result<()> {
-    let mut node = common::Node::dev()?;
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+    let mut node = common::dev()?;
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let salt = vec![];
     let pid = common::program_id(messager::WASM_BINARY, &salt);
@@ -104,8 +104,8 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_reply_gas() -> Result<()> {
-    let mut node = common::Node::dev()?;
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+    let mut node = common::dev()?;
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let alice_account_id = common::alice_account_id();
     let alice: [u8; 32] = *alice_account_id.as_ref();

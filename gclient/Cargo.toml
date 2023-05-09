@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 gear-utils.workspace = true
-gsdk.workspace = true
+gsdk = { workspace = true, features = ["testing"] }
 gear-core.workspace = true
 gear-common = { workspace = true, default-features = true }
 

@@ -17,7 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `deploy`
-use crate::common::{self, logs, traits::Convert, Args, Result};
+use crate::common::{
+    self, logs,
+    traits::{Convert, NodeExec},
+    Args, Result,
+};
 
 #[cfg(not(feature = "vara-testing"))]
 const EXPECTED_BALANCE: &str = r#"
@@ -57,11 +61,6 @@ const EXPECTED_MAILBOX: &str = r#"
     payload: "0x",
     value: 0,
     details: None,
-    interval: Interval {
-        start: 3,
-        finish: 32,
-    },
-}
 "#;
 
 #[cfg(not(feature = "vara-testing"))]
@@ -70,18 +69,13 @@ const EXPECTED_MAILBOX: &str = r#"
     payload: "0x",
     value: 5000,
     details: None,
-    interval: Interval {
-        start: 3,
-        finish: 32,
-    },
-}
 "#;
 
 #[tokio::test]
 async fn test_action_balance_works() -> Result<()> {
     common::login_as_alice().expect("login failed");
-    let mut node = common::Node::dev()?;
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+    let mut node = common::dev()?;
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let output = node.run(Args::new("info").address("//Alice").action("balance"))?;
     let stdout = output.stdout.convert();
