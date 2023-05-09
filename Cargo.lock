@@ -3600,7 +3600,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "0.1.4"
+version = "0.1.6"
 dependencies = [
  "clap 4.2.1",
  "frame-benchmarking",
