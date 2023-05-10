@@ -32,9 +32,9 @@ pub use frame_support::{
     dispatch::{DispatchClass, WeighData},
     parameter_types,
     traits::{
-        ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOfDiverse, EqualPrivilegeOnly,
-        Everything, FindAuthor, KeyOwnerProofSystem, LockIdentifier, Nothing, OnUnbalanced,
-        Randomness, StorageInfo, U128CurrencyToVote, WithdrawReasons,
+        ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
+        EqualPrivilegeOnly, Everything, FindAuthor, KeyOwnerProofSystem, LockIdentifier, Nothing,
+        OnUnbalanced, Randomness, StorageInfo, U128CurrencyToVote, WithdrawReasons,
     },
     weights::{
         constants::{
@@ -107,7 +107,7 @@ pub use constants::{currency::*, time::*};
 mod weights;
 
 pub mod governance;
-use governance::pallet_custom_origins;
+use governance::{pallet_custom_origins, GeneralAdmin, Treasurer, TreasurySpender};
 
 mod extensions;
 pub use extensions::DisableValueTransfers;
@@ -489,7 +489,7 @@ impl pallet_staking::Config for Runtime {
     type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
     type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
     type VoterList = BagsList;
-    type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
+    type MaxUnlockingChunks = ConstU32<32>;
     type BenchmarkingConfig = StakingBenchmarkingConfig;
     type OnStakerSlash = ();
     type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
@@ -559,8 +559,8 @@ impl pallet_identity::Config for Runtime {
     type MaxAdditionalFields = MaxAdditionalFields;
     type MaxRegistrars = MaxRegistrars;
     type Slashed = Treasury;
-    type ForceOrigin = EnsureRoot<AccountId>;
-    type RegistrarOrigin = EnsureRoot<AccountId>;
+    type ForceOrigin = EitherOf<EnsureRoot<AccountId>, GeneralAdmin>;
+    type RegistrarOrigin = EitherOf<EnsureRoot<AccountId>, GeneralAdmin>;
     type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
 }
 
@@ -576,8 +576,8 @@ parameter_types! {
 impl pallet_treasury::Config for Runtime {
     type PalletId = TreasuryPalletId;
     type Currency = Balances;
-    type ApproveOrigin = EnsureRoot<AccountId>;
-    type RejectOrigin = EnsureRoot<AccountId>;
+    type ApproveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
+    type RejectOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
     type RuntimeEvent = RuntimeEvent;
     type OnSlash = ();
     type ProposalBond = ProposalBond;
@@ -589,7 +589,7 @@ impl pallet_treasury::Config for Runtime {
     type SpendFunds = (); // TODO: set to Bounties in NPoS
     type WeightInfo = pallet_treasury::weights::SubstrateWeight<Runtime>;
     type MaxApprovals = MaxApprovals;
-    type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u128>;
+    type SpendOrigin = TreasurySpender;
 }
 
 impl pallet_sudo::Config for Runtime {
