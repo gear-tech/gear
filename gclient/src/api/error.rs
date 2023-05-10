@@ -112,7 +112,7 @@ pub enum Error {
     /// let error: Error = SubxtError::Runtime(DispatchError::Module(SubxtModuleError {
     ///     error_data: ModuleErrorData {
     ///         pallet_index: 14,
-    //          error: [3, 0, 0, 0],
+    ///          error: [3, 0, 0, 0],
     ///     },
     ///     description: vec![],
     ///     pallet: "".into(),
