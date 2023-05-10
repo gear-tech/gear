@@ -16,67 +16,69 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::fmt::{Debug, Display};
+use std::{
+    error::Error,
+    fmt::{Debug, Display},
+};
 use subxt::ext::codec::Decode;
-
-/// Common error type for modules.
-pub trait ModuleError: Debug {
-    /// Returns the pallet index of this error.
-    fn pallet_index(&self) -> u8;
-}
-
-impl ModuleError for subxt::error::ModuleError {
-    fn pallet_index(&self) -> u8 {
-        self.error_data.pallet_index
-    }
-}
-
-// TODO: apply `Display` with docs to all module errors in #2618
-impl Display for dyn ModuleError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
 
 // TODO: refactor this after #2618
 macro_rules! export_module_error {
     ($($path:ident)::* => $error:ident => $index:expr) => {
         pub use crate::metadata::runtime_types::$($path)::*::pallet::Error as $error;
-
-        impl ModuleError for $error {
-            fn pallet_index(&self) -> u8 {
-                $index
-            }
-        }
     };
     ($($($path:ident)::* => $error:ident => $index:expr),*) => {
         $(
             export_module_error!($($path)::* => $error => $index);
         )*
 
-        impl From<subxt::error::ModuleError> for Box<dyn ModuleError> {
-            fn from(error: subxt::error::ModuleError) -> Box<dyn ModuleError> {
+        /// Common error type for runtime modules.
+        #[derive(Debug, PartialEq, Eq)]
+        pub enum ModuleError {
+            $($error($error)),*,
+            Unknown {
+                pallet_index: u8,
+                error: [u8; 4],
+            }
+        }
+
+        impl Display for ModuleError {
+             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                 write!(f, "{:?}", self)
+             }
+        }
+
+        impl std::error::Error for ModuleError {}
+
+        impl From<subxt::error::ModuleError> for ModuleError {
+            fn from(error: subxt::error::ModuleError) -> ModuleError {
                 match error.error_data.pallet_index {
-                    $($index => {
-                        let mb_error = $error::decode(&mut error.error_data.error.as_ref());
-                        match mb_error {
-                            Ok(e) => Box::new(e),
-                            Err(_) => Box::new(error)
-                        }
-                    }),*,
-                    // `pallet_fellowship_referenda => 19`
-                    //
-                    // shares the same error with
-                    //
-                    // `pallet_fellowship_collective => 18`
-                    19 => {
-                        let mb_error = RanckedCollective::decode(&mut error.error_data.error.as_ref());
-                        match mb_error {
-                            Ok(e) => Box::new(e),
-                            Err(_) => Box::new(error)
-                        }
-                    },
-                    _ => Box::new(error)
+                     $($index => match $error::decode(&mut [error.error_data.error[0]].as_ref()) {
+                         Ok(e) => ModuleError::$error(e),
+                         Err(_) => ModuleError::Unknown {
+                             pallet_index: error.error_data.pallet_index,
+                             error: error.error_data.error,
+                         },
+                     }),*,
+                     // `pallet_fellowship_referenda => 19`
+                     //
+                     // shares the same error with
+                     //
+                     // `pallet_fellowship_collective => 18`
+                     19 => {
+                         let mb_error = RanckedCollective::decode(&mut error.error_data.error.as_ref());
+                         match mb_error {
+                             Ok(e) => ModuleError::RanckedCollective(e),
+                             Err(_) => ModuleError::Unknown {
+                                 pallet_index: error.error_data.pallet_index,
+                                 error: error.error_data.error,
+                             },
+                         }
+                     },
+                     _ => ModuleError::Unknown {
+                         pallet_index: error.error_data.pallet_index,
+                         error: error.error_data.error,
+                     }
                 }
             }
         }

@@ -19,7 +19,7 @@
 use crate::node::result::Error as NodeError;
 use anyhow::Error as AError;
 use std::{io::Error as IOError, result::Result as StdResult};
-use subxt::error::Error as SubxtError;
+use subxt::error::{DispatchError, Error as SubxtError};
 
 /// `Result` type with a predefined error type ([`Error`]).
 pub type Result<T, E = Error> = StdResult<T, E>;
@@ -89,10 +89,80 @@ pub enum Error {
     /// Occurs when node spawining failed.
     #[error(transparent)]
     Node(#[from] NodeError),
+    /// A wrapper of module error [`gsdk::metadata::ModuleError`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use crate::{
+    /// errors::{self, ModuleError},
+    ///     Error,
+    /// };
+    /// use subxt::{
+    ///     error::{DispatchError, ModuleError as SubxtModuleError, ModuleErrorData},
+    ///     Error as SubxtError,
+    /// };
+    ///
+    /// let error: Error = SubxtError::Runtime(DispatchError::Module(SubxtModuleError {
+    ///     error_data: ModuleErrorData {
+    ///         pallet_index: 14,
+    //          error: [3, 0, 0, 0],
+    ///     },
+    ///     description: vec![],
+    ///     pallet: "".into(),
+    ///     error: "".into(),
+    /// })).into();
+    ///
+    /// assert!(matches!(
+    ///     error,
+    ///     Error::Module(ModuleError::Treasury(
+    ///         errors::Treasury::InsufficientPermission
+    ///     ))
+    /// ));
+    /// ```
+    #[error(transparent)]
+    Module(gsdk::metadata::ModuleError),
 }
 
 impl From<SubxtError> for Error {
     fn from(e: SubxtError) -> Self {
-        Self::Subxt(e)
+        if let SubxtError::Runtime(DispatchError::Module(m)) = e {
+            return Error::Module(m.into());
+        }
+
+        Error::Subxt(e)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        errors::{self, ModuleError},
+        Error,
+    };
+    use subxt::{
+        error::{DispatchError, ModuleError as SubxtModuleError, ModuleErrorData},
+        Error as SubxtError,
+    };
+
+    #[test]
+    fn test_parsing_module_error() {
+        let error: Error = SubxtError::Runtime(DispatchError::Module(SubxtModuleError {
+            error_data: ModuleErrorData {
+                pallet_index: 14,
+                error: [3, 0, 0, 0],
+            },
+            description: vec![],
+            pallet: "".into(),
+            error: "".into(),
+        }))
+        .into();
+
+        assert!(matches!(
+            error,
+            Error::Module(ModuleError::Treasury(
+                errors::Treasury::InsufficientPermission
+            ))
+        ));
     }
 }
