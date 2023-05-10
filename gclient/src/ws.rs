@@ -16,14 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{Error, Result};
-use std::{borrow::Cow, fmt};
+use crate::{Error, Result};
+use anyhow::anyhow;
+use std::{
+    fmt,
+    net::{AddrParseError, SocketAddrV4},
+};
 use url::Url;
 
 /// Full WebSocket address required to specify the node.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct WSAddress {
-    domain: Cow<'static, str>,
+    // Host domain name or IP address.
+    //
+    // TODO: `String` here for saving lives, could be
+    // `Ipv4Address`(ip) + tls(wss?) after then.
+    domain: String,
     port: Option<u16>,
 }
 
@@ -45,9 +53,9 @@ impl WSAddress {
     ///
     /// This method does not do any validation of `domain`,
     /// see [`WSAddress::try_new`] if you need it.
-    pub fn new(domain: impl Into<Cow<'static, str>>, port: impl Into<Option<u16>>) -> Self {
+    pub fn new(domain: impl AsRef<str>, port: impl Into<Option<u16>>) -> Self {
         Self {
-            domain: domain.into(),
+            domain: domain.as_ref().into(),
             port: port.into(),
         }
     }
@@ -56,11 +64,8 @@ impl WSAddress {
     ///
     /// Unlike the [`WSAddress::new`] method, this function checks
     /// that the `domain` is valid.
-    pub fn try_new(
-        domain: impl Into<Cow<'static, str>>,
-        port: impl Into<Option<u16>>,
-    ) -> Result<Self> {
-        let domain = domain.into();
+    pub fn try_new(domain: impl AsRef<str>, port: impl Into<Option<u16>>) -> Result<Self> {
+        let domain = domain.as_ref().to_string();
         let port = port.into();
 
         let url = Url::parse(domain.as_ref())?;
@@ -73,7 +78,7 @@ impl WSAddress {
             && url.fragment().is_none();
 
         if !valid_domain {
-            return Err(Error::IncorrectWSDomain);
+            return Err(Error::WSDomainInvalid);
         }
 
         Ok(Self { domain, port })
@@ -165,5 +170,35 @@ impl fmt::Debug for WSAddress {
 impl fmt::Display for WSAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.url())
+    }
+}
+
+impl From<SocketAddrV4> for WSAddress {
+    fn from(addr: SocketAddrV4) -> Self {
+        let tls = addr.port() == 443;
+        let scheme_prefix = if tls { "wss" } else { "ws" }.to_string() + "://";
+
+        Self::new(scheme_prefix + &addr.ip().to_string(), addr.port())
+    }
+}
+
+impl TryInto<SocketAddrV4> for WSAddress {
+    type Error = Error;
+
+    fn try_into(self) -> Result<SocketAddrV4, Self::Error> {
+        let domain = self.domain.split("://").collect::<Vec<_>>();
+        let (ip, mb_port) = if domain.len() != 2 {
+            return Err(anyhow!("Invalid domain").into());
+        } else {
+            match domain[0] {
+                "ws" => (domain[1], 80),
+                "wss" => (domain[1], 443),
+                _ => return Err(anyhow!("Invalid scheme").into()),
+            }
+        };
+
+        Ok(format!("{}:{}", ip, self.port.unwrap_or(mb_port))
+            .parse()
+            .map_err(|e: AddrParseError| anyhow!(e))?)
     }
 }

@@ -18,6 +18,8 @@
 
 //! Shared traits.
 
+use crate::common::{Args, Output, Result};
+
 /// Convert self into `String`.
 pub trait Convert<T> {
     fn convert(&self) -> T;
@@ -27,4 +29,28 @@ impl Convert<String> for Vec<u8> {
     fn convert(&self) -> String {
         String::from_utf8_lossy(self).to_string()
     }
+}
+
+/// Run node.
+pub trait NodeExec {
+    /// Exec command gcli with Node instance.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let node = Node::new();
+    /// let args = Args::new("upload")
+    ///              .flag("--code-only")
+    ///              .program(env::wasm_bin("demo_meta.opt.wasm"));
+    /// let output = node.run(args)
+    ///
+    /// // ...
+    /// ```
+    fn run(&self, args: Args) -> Result<Output>;
+
+    /// Formats websocket address to string.
+    ///
+    /// This interface is used for constructing the `endpoint`
+    /// argument of gcli as the command line input.
+    fn ws(&self) -> String;
 }

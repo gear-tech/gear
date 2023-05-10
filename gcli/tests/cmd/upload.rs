@@ -17,15 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `upload`
-use crate::common::{self, env, logs, traits::Convert, Args, Result};
+use crate::common::{
+    self, env, logs,
+    traits::{Convert, NodeExec},
+    Args, Result,
+};
 use gear_core::ids::CodeId;
 use gsdk::Api;
 
 #[tokio::test]
 async fn test_command_upload_works() {
     common::login_as_alice().expect("login failed");
-    let mut node = common::Node::dev().expect("failed to start node");
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)
+    let mut node = common::dev().expect("failed to start node");
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)
         .expect("node timeout");
 
     let signer = Api::new(Some(&node.ws()))
@@ -61,8 +65,8 @@ async fn test_command_upload_works() {
 #[tokio::test]
 async fn test_command_upload_program_works() -> Result<()> {
     common::login_as_alice().expect("login failed");
-    let mut node = common::Node::dev()?;
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+    let mut node = common::dev()?;
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let output = node.run(
         Args::new("upload")

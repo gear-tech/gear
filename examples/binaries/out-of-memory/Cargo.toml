@@ -7,11 +7,12 @@ license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-gstd = { workspace = true, features = ["debug"] }
+gstd.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
 
 [features]
+debug = ["gstd/debug"]
 std = []
 default = ["std"]

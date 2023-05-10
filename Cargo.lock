@@ -3399,7 +3399,7 @@ dependencies = [
 
 [[package]]
 name = "gcli"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "base64 0.21.0",
@@ -3600,7 +3600,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "0.1.4"
+version = "0.1.6"
 dependencies = [
  "clap 4.2.1",
  "frame-benchmarking",
@@ -4326,6 +4326,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "primitive-types",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "sp-core",

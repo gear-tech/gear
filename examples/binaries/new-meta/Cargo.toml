@@ -7,12 +7,12 @@ license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-demo-meta-io = { path = "io" }
-gstd = { workspace = true, features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
+demo-meta-io = { path = "io" }
 demo-meta-state-v1 = { path = "state-v1", default-features = false, optional = true }
 demo-meta-state-v2 = { path = "state-v2", default-features = false, optional = true }
 demo-meta-state-v3 = { path = "state-v3", default-features = false, optional = true }
+gstd.workspace = true
 
 [build-dependencies]
 demo-meta-io = { path = "io" }
@@ -22,6 +22,7 @@ gear-wasm-builder.workspace = true
 gtest.workspace = true
 
 [features]
+debug = ["gstd/debug"]
 default = ["std"]
 std = [
     "demo-meta-state-v1/std",

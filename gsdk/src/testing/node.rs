@@ -1,46 +1,43 @@
 // This file is part of Gear.
-
+//
 // Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-
+//
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
-
+//
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use result::{Error, Result};
+use crate::testing::{port, Error, Result};
 use std::{
     ffi::OsStr,
     io::{BufRead, BufReader},
+    net::{Ipv4Addr, SocketAddrV4},
     process::{Child, Command, Stdio},
 };
-use ws::WSAddress;
-
-mod port;
-pub(crate) mod result;
-pub(crate) mod ws;
 
 /// A struct representing a node running on local PC.
 #[derive(Debug)]
-pub(crate) struct Node {
+pub struct Node {
     process: Child,
-    ws_address: WSAddress,
+    address: SocketAddrV4,
 }
 
 impl Node {
-    /// Returns Web Socket address the node is listening to.
-    pub fn ws_address(&self) -> &WSAddress {
-        &self.ws_address
+    /// Returns the socket address the node is listening to.
+    pub fn address(&self) -> SocketAddrV4 {
+        self.address
     }
 
+    /// Run node from path with localhost as host.
     pub fn try_from_path(path: impl AsRef<OsStr>, args: Vec<&str>) -> Result<Self> {
         let port = port::pick();
         let port_string = port.to_string();
@@ -57,7 +54,7 @@ impl Node {
 
         let mut node = Self {
             process,
-            ws_address: WSAddress::dev_with_port(port),
+            address: SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port),
         };
 
         node.wait_while_initialized()?;
@@ -66,10 +63,11 @@ impl Node {
     }
 
     fn wait_while_initialized(&mut self) -> Result<String> {
-        self.wait_for_log_record("Imported #2 ")
+        // `#1` here is enough to ensure that node is initialized.
+        self.wait_for_log_record("Imported #1 ")
     }
 
-    fn wait_for_log_record(&mut self, log: &str) -> Result<String> {
+    pub fn wait_for_log_record(&mut self, log: &str) -> Result<String> {
         let stderr = self.process.stderr.as_mut();
         let reader = BufReader::new(stderr.ok_or(Error::EmptyStderr)?);
         for line in reader.lines().flatten() {
