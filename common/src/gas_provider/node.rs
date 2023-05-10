@@ -17,8 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use core::ops::{Add, Index, IndexMut};
+use enum_iterator::cardinality;
 use frame_support::{codec, dispatch::MaxEncodedLen, scale_info};
 use gear_core::ids::ReservationId;
+use sp_runtime::traits::Zero;
 
 /// ID of the [`GasNode`].
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
@@ -70,6 +73,60 @@ impl<T> From<ReservationId> for GasNodeId<T, ReservationId> {
     }
 }
 
+#[derive(Clone, Copy, Decode, Encode, Debug, Default, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub struct NodeLock<Balance>([Balance; cardinality::<LockId>()]);
+
+impl<Balance> Index<LockId> for NodeLock<Balance> {
+    type Output = Balance;
+
+    fn index(&self, index: LockId) -> &Self::Output {
+        &self.0[index as usize]
+    }
+}
+
+impl<Balance> IndexMut<LockId> for NodeLock<Balance> {
+    fn index_mut(&mut self, index: LockId) -> &mut Self::Output {
+        &mut self.0[index as usize]
+    }
+}
+
+impl<Balance: Zero + Copy> Zero for NodeLock<Balance> {
+    fn zero() -> Self {
+        Self([Balance::zero(); cardinality::<LockId>()])
+    }
+
+    fn is_zero(&self) -> bool {
+        self.0.iter().all(|x| x.is_zero())
+    }
+}
+
+impl<Balance: Add<Output = Balance> + Copy> Add<Self> for NodeLock<Balance> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        let NodeLock(mut inner) = self;
+        let NodeLock(other) = other;
+
+        for (i, elem) in inner.iter_mut().enumerate() {
+            *elem = *elem + other[i];
+        }
+
+        Self(inner)
+    }
+}
+
+// TODO: decide whether this method should stay or be removed as unused.
+// The only use case curretnly is to check Gas Tree migration upon runtime upgrade.
+impl<Balance: Zero + Copy + sp_runtime::traits::Saturating> NodeLock<Balance> {
+    pub fn total_locked(&self) -> Balance {
+        self.0
+            .iter()
+            .fold(Balance::zero(), |acc, v| acc.saturating_add(*v))
+    }
+}
+
 /// Node of the ['Tree'] gas tree
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 #[codec(crate = codec)]
@@ -81,7 +138,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     External {
         id: ExternalId,
         value: Balance,
-        lock: Balance,
+        lock: NodeLock<Balance>,
         system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
@@ -94,7 +151,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     Cut {
         id: ExternalId,
         value: Balance,
-        lock: Balance,
+        lock: NodeLock<Balance>,
     },
 
     /// A node used for gas reservation feature.
@@ -103,7 +160,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     Reserved {
         id: ExternalId,
         value: Balance,
-        lock: Balance,
+        lock: NodeLock<Balance>,
         refs: ChildrenRefs,
         consumed: bool,
     },
@@ -119,7 +176,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     SpecifiedLocal {
         parent: Id,
         value: Balance,
-        lock: Balance,
+        lock: NodeLock<Balance>,
         system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
@@ -131,7 +188,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// Such nodes don't have children references.
     UnspecifiedLocal {
         parent: Id,
-        lock: Balance,
+        lock: NodeLock<Balance>,
         system_reserve: Balance,
     },
 }
@@ -145,7 +202,7 @@ pub struct ChildrenRefs {
     unspec_refs: u32,
 }
 
-impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
+impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy>
     GasNode<ExternalId, Id, Balance>
 {
     /// Creates a new `GasNode::External` root node for a new tree.
@@ -250,18 +307,18 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     }
 
     /// Returns node's locked gas balance, if it can have any.
-    pub fn lock(&self) -> Balance {
+    pub fn lock(&self) -> &NodeLock<Balance> {
         match self {
             Self::External { lock, .. }
             | Self::UnspecifiedLocal { lock, .. }
             | Self::SpecifiedLocal { lock, .. }
             | Self::Reserved { lock, .. }
-            | Self::Cut { lock, .. } => *lock,
+            | Self::Cut { lock, .. } => lock,
         }
     }
 
     /// Get's a mutable access to node's locked gas balance, if it can have any.
-    pub fn lock_mut(&mut self) -> &mut Balance {
+    pub fn lock_mut(&mut self) -> &mut NodeLock<Balance> {
         match self {
             Self::External { ref mut lock, .. }
             | Self::UnspecifiedLocal { ref mut lock, .. }

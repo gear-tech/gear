@@ -251,6 +251,17 @@ pub mod pallet {
         fn dispatch_stash() -> Self::Cost {
             T::DispatchHoldCost::get()
         }
+
+        fn by_storage_type(storage: StorageType) -> Self::Cost {
+            match storage {
+                StorageType::Code => Self::code(),
+                StorageType::Mailbox => Self::mailbox(),
+                StorageType::Program => Self::program(),
+                StorageType::Waitlist => Self::waitlist(),
+                StorageType::Reservation => Self::reservation(),
+                StorageType::DispatchStash => Self::dispatch_stash(),
+            }
+        }
     }
 
     // Below goes final `Scheduler` implementation for

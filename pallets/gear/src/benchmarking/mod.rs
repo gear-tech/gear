@@ -63,6 +63,7 @@ use common::{
     self, benchmarking,
     storage::{Counter, *},
     ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, ProgramStorage,
+    ReservableTree,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},

@@ -121,6 +121,7 @@ pub(crate) type DispatchStashOf<T> = <<T as Config>::Messenger as Messenger>::Di
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
+pub type GasNodeIdOf<T> = <GasHandlerOf<T> as GasTree>::NodeId;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
 pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
@@ -241,8 +242,7 @@ pub mod pallet {
         /// Implementation of a ledger to account for gas creation and consumption
         type GasProvider: GasProvider<
             ExternalOrigin = Self::AccountId,
-            Key = MessageId,
-            ReservationKey = ReservationId,
+            NodeId = GasNodeId<MessageId, ReservationId>,
             Balance = u64,
             Error = DispatchError,
         >;

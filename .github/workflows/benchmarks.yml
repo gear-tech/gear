@@ -58,6 +58,9 @@ jobs:
           cp ./scripts/benchmarking/weights-output/* runtime/gear/src/weights
           ./scripts/benchmarking/run_all_benchmarks.sh -b -c vara-dev -m || true # -b to skip build
           cp ./scripts/benchmarking/weights-output/* runtime/vara/src/weights
+          # apply some patches for `pallets/gear/src/weights.rs`
+          cp runtime/gear/src/weights/pallet_gear.rs pallets/gear/src/weights.rs
+          sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear/src/weights.rs
 
       - name: "ACTIONS: Upload artifact with updated weights (gear)"
         uses: actions/upload-artifact@v3
@@ -77,6 +80,7 @@ jobs:
         with:
           token: ${{ secrets.GH_TOKEN_FOR_PR }}
           add-paths: |
+            pallets/gear/src/
             runtime/gear/src/weights/
             runtime/vara/src/weights/
           commit-message: update weights
@@ -84,5 +88,6 @@ jobs:
           branch-suffix: short-commit-hash
           title: >-
             chore: update weights
-          body: >-
-            `run_all_benchmarks.sh` script is applied to update weights
+          body: |
+            `run_all_benchmarks.sh` script is applied to update weights (branch: `${{ github.ref_name }}`, commit ${{ github.sha }})
+            **Note:** If CI fails, try manually updating the heuristic tests: `runtime/{gear, vara}/src/tests.rs`

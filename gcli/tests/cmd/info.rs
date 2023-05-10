@@ -17,7 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `deploy`
-use crate::common::{self, logs, traits::Convert, Args, Result};
+use crate::common::{
+    self, logs,
+    traits::{Convert, NodeExec},
+    Args, Result,
+};
 
 #[cfg(not(feature = "vara-testing"))]
 const EXPECTED_BALANCE: &str = r#"
@@ -57,11 +61,6 @@ const EXPECTED_MAILBOX: &str = r#"
     payload: "0x",
     value: 0,
     details: None,
-    interval: Interval {
-        start: 3,
-        finish: 32,
-    },
-}
 "#;
 
 #[cfg(not(feature = "vara-testing"))]
@@ -70,21 +69,21 @@ const EXPECTED_MAILBOX: &str = r#"
     payload: "0x",
     value: 5000,
     details: None,
-    interval: Interval {
-        start: 3,
-        finish: 32,
-    },
-}
 "#;
 
 #[tokio::test]
 async fn test_action_balance_works() -> Result<()> {
     common::login_as_alice().expect("login failed");
-    let mut node = common::Node::dev()?;
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+    let mut node = common::dev()?;
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let output = node.run(Args::new("info").address("//Alice").action("balance"))?;
-    assert_eq!(EXPECTED_BALANCE.trim(), output.stdout.convert().trim());
+    let stdout = output.stdout.convert();
+    assert_eq!(
+        EXPECTED_BALANCE.trim(),
+        stdout.trim(),
+        "Wrong balance. Expected:\n{EXPECTED_BALANCE}\nGot:\n{stdout}",
+    );
     Ok(())
 }
 
@@ -95,7 +94,7 @@ async fn test_action_mailbox_works() -> Result<()> {
 
     let stdout = output.stdout.convert();
     if !stdout.contains(EXPECTED_MAILBOX.trim()) {
-        panic!("{stdout}")
+        panic!("Wrong mailbox response. Expected:\n{EXPECTED_MAILBOX}\nGot:\n{stdout}",);
     }
     Ok(())
 }

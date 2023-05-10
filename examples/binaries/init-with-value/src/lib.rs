@@ -25,8 +25,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-#[cfg(not(feature = "std"))]
-use gstd::prelude::*;
+use gstd::{prelude::*, ActorId};
 
 #[cfg(feature = "std")]
 mod code {
@@ -42,7 +41,7 @@ pub const GAS_LIMIT: u64 = 200_000_001;
 pub enum SendMessage {
     Init { value: u128 },
     InitWithoutGas { value: u128 },
-    Handle { destination: u64, value: u128 },
+    Handle { destination: ActorId, value: u128 },
 }
 
 #[cfg(not(feature = "std"))]

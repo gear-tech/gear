@@ -160,10 +160,10 @@ pub enum MessageError {
 #[non_exhaustive]
 #[repr(u8)]
 pub enum WaitError {
-    /// An error occurs in attempt to wait duration greater than could be payed.
+    /// An error occurs in attempt to wait duration greater than could be paid.
     #[display(fmt = "Not enough gas to cover holding in waitlist")]
     NotEnoughGas = 0,
-    /// An error occurs in attempt to wait duration greater than could be payed.
+    /// An error occurs in attempt to wait duration greater than could be paid.
     #[display(fmt = "Provided incorrect argument for wait (zero case)")]
     InvalidArgument = 1,
 }

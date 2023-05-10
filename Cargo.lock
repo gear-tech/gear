@@ -3399,7 +3399,7 @@ dependencies = [
 
 [[package]]
 name = "gcli"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "base64 0.21.0",
@@ -3458,6 +3458,7 @@ dependencies = [
  "env_logger",
  "futures",
  "futures-timer",
+ "gear-common",
  "gear-core",
  "gear-utils",
  "gsdk",
@@ -3467,6 +3468,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
+ "static_assertions",
  "subxt",
  "thiserror",
  "tokio",
@@ -3598,7 +3600,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "0.1.4"
+version = "0.1.6"
 dependencies = [
  "clap 4.2.1",
  "frame-benchmarking",
@@ -3635,6 +3637,7 @@ name = "gear-common"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "enum-iterator 1.4.0",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -3642,11 +3645,15 @@ dependencies = [
  "gear-core",
  "gear-utils",
  "gear-wasm-instrument",
+ "hex",
  "hex-literal 0.3.4",
  "log",
  "mutagen",
+ "path-clean",
  "primitive-types",
  "proptest",
+ "serde",
+ "serde_json",
  "sp-arithmetic",
  "sp-core",
  "sp-io",
@@ -4083,11 +4090,13 @@ dependencies = [
  "anyhow",
  "cargo_metadata",
  "colored",
+ "filetime",
  "gear-wasm-instrument",
  "gmeta",
  "log",
  "pathdiff",
  "pwasm-utils",
+ "regex",
  "thiserror",
  "toml 0.7.3",
  "wabt",
@@ -4317,6 +4326,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "primitive-types",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "sp-core",
@@ -4367,6 +4377,7 @@ dependencies = [
  "env_logger",
  "gear-backend-common",
  "gear-backend-wasmi",
+ "gear-common",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
@@ -7034,21 +7045,27 @@ dependencies = [
  "env_logger",
  "frame-benchmarking",
  "frame-support",
+ "frame-support-test",
  "frame-system",
  "gear-common",
  "gear-core",
  "log",
+ "pallet-authorship",
  "pallet-balances",
+ "pallet-gear",
+ "pallet-gear-messenger",
+ "pallet-gear-program",
+ "pallet-gear-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
  "primitive-types",
  "scale-info",
  "serde",
+ "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std 5.0.0",
- "wabt",
 ]
 
 [[package]]
@@ -13123,7 +13140,7 @@ dependencies = [
 [[package]]
 name = "wasmi-validation"
 version = "0.5.0"
-source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
+source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#d230c9bba8e763d03b390038750cee07ee937416"
 dependencies = [
  "parity-wasm 0.45.0",
 ]

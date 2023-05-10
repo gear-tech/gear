@@ -19,7 +19,7 @@
 use core::convert::TryInto;
 
 use crate::{
-    internal::HoldBound,
+    internal::HoldBoundBuilder,
     manager::HandleKind,
     mock::{
         self,
@@ -45,8 +45,8 @@ use crate::{
     WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree,
-    Origin as _, PausedProgramStorage, ProgramStorage,
+    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
+    LockableTree, Origin as _, PausedProgramStorage, ProgramStorage, ReservableTree,
 };
 use core_processor::{common::ActorExecutionErrorReason, ActorPrepareMemoryError};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
@@ -473,7 +473,7 @@ fn delayed_user_replacement() {
 fn delayed_send_user_message_payment() {
     use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    // Testing that correct gas amount will be reserved and payed for holding.
+    // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: u64) {
         // Upload program that sends message to any user.
         assert_ok!(Gear::upload_program(
@@ -518,7 +518,7 @@ fn delayed_send_user_message_payment() {
                 .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
 
-        // Gas should be reserved until message is holding.
+        // Gas should be reserved while message is being held in storage.
         assert_eq!(Balances::reserved_balance(USER_1), delay_holding_fee);
         let total_balance = Balances::free_balance(USER_1) + Balances::reserved_balance(USER_1);
 
@@ -573,7 +573,7 @@ fn delayed_send_user_message_payment() {
 fn delayed_send_user_message_with_reservation() {
     use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    // Testing that correct gas amount will be reserved and payed for holding.
+    // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: u64) {
         let reservation_amount = 6_000_000_000u64;
 
@@ -623,7 +623,9 @@ fn delayed_send_user_message_with_reservation() {
 
         let mailbox_gas_threshold = GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
 
-        // Gas should be reserved until message is holding.
+        // At this point a `Cut` node has been created with `mailbox_threshold` as value and
+        // `delay` + 1 locked for using dispatch stash storage.
+        // Other gas nodes have been consumed with all gas released to the user.
         assert_eq!(
             Balances::reserved_balance(USER_1),
             mailbox_gas_threshold + delay_holding_fee
@@ -661,7 +663,10 @@ fn delayed_send_user_message_with_reservation() {
         // Mailbox should not be empty.
         assert!(!MailboxOf::<Test>::is_empty(&USER_2));
 
-        // TODO: deal with reserve_for in reserve.
+        // At this point the `Cut` node has all its value locked for using mailbox storage.
+        // The extra `reserve_for_fee` as a leftover from the message having been charged exactly
+        // for the `delay` number of blocks spent in the dispatch stash so that the "+ 1" security
+        // margin remained unused and was simply added back to the `Cut` node value.
         assert_eq!(
             Balances::reserved_balance(USER_1),
             mailbox_gas_threshold + reserve_for_fee
@@ -679,7 +684,7 @@ fn delayed_send_user_message_with_reservation() {
 fn delayed_send_program_message_payment() {
     use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    // Testing that correct gas amount will be reserved and payed for holding.
+    // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: u64) {
         // Upload empty program that receive the message.
         assert_ok!(Gear::upload_program(
@@ -736,7 +741,7 @@ fn delayed_send_program_message_payment() {
                 .saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
 
-        // Gas should be reserved until message is holding.
+        // Gas should be reserved while message is being held in storage.
         assert_eq!(Balances::reserved_balance(USER_1), delay_holding_fee);
         let total_balance = Balances::free_balance(USER_1) + Balances::reserved_balance(USER_1);
 
@@ -776,7 +781,7 @@ fn delayed_send_program_message_payment() {
 fn delayed_send_program_message_with_reservation() {
     use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    // Testing that correct gas amount will be reserved and payed for holding.
+    // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: u64) {
         // Upload empty program that receive the message.
         assert_ok!(Gear::upload_program(
@@ -845,10 +850,11 @@ fn delayed_send_program_message_with_reservation() {
         ));
 
         // Check that correct amount locked for dispatch stash
-        let gas_locked_in_gas_node = GasPrice::gas_price(Gas::get_lock(delayed_id).unwrap());
+        let gas_locked_in_gas_node =
+            GasPrice::gas_price(Gas::get_lock(delayed_id, LockId::DispatchStash).unwrap());
         assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
 
-        // Gas should be reserved until message is holding.
+        // Gas should be reserved while message is being held in storage.
         assert_eq!(
             Balances::reserved_balance(USER_1),
             GasPrice::gas_price(reservation_amount) + reservation_holding_fee
@@ -883,7 +889,7 @@ fn delayed_send_program_message_with_reservation() {
 fn delayed_send_program_message_with_low_reservation() {
     use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
-    // Testing that correct gas amount will be reserved and payed for holding.
+    // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: u64) {
         // Upload empty program that receive the message.
         assert_ok!(Gear::upload_program(
@@ -952,10 +958,11 @@ fn delayed_send_program_message_with_low_reservation() {
         ));
 
         // Check that correct amount locked for dispatch stash
-        let gas_locked_in_gas_node = GasPrice::gas_price(Gas::get_lock(delayed_id).unwrap());
+        let gas_locked_in_gas_node =
+            GasPrice::gas_price(Gas::get_lock(delayed_id, LockId::DispatchStash).unwrap());
         assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
 
-        // Gas should be reserved until message is holding.
+        // Gas should be reserved while message is being held in storage.
         assert_eq!(
             Balances::reserved_balance(USER_1),
             GasPrice::gas_price(reservation_amount) + reservation_holding_fee
@@ -1460,7 +1467,7 @@ fn mailbox_rent_out_of_rent() {
 
             run_to_next_block(None);
 
-            let hold_bound = HoldBound::<Test>::by(CostsPerBlockOf::<Test>::mailbox())
+            let hold_bound = HoldBoundBuilder::<Test>::new(StorageType::Mailbox)
                 .maximum_for(data.gas_limit_to_send);
 
             let expected_duration = data.gas_limit_to_send / mb_cost - reserve_for;
@@ -1860,7 +1867,12 @@ fn mailbox_threshold_works() {
                 // * message has been inserted into the mailbox.
                 // * the ValueNode has been created.
                 assert!(MailboxOf::<Test>::contains(&mailbox_key, &message_id));
-                assert_ok!(GasHandlerOf::<Test>::get_limit(message_id), rent);
+                // All gas in the gas node has been locked
+                assert_ok!(GasHandlerOf::<Test>::get_limit(message_id), 0);
+                assert_ok!(
+                    GasHandlerOf::<Test>::get_lock(message_id, LockId::Mailbox),
+                    rent
+                );
             } else {
                 // * message has not been inserted into the mailbox.
                 // * the ValueNode has not been created.
@@ -6429,11 +6441,11 @@ fn test_create_program_with_value_lt_ed() {
             // so messages will go to mailbox
             vec![
                 SendMessage::Handle {
-                    destination: msg_receiver_1,
+                    destination: msg_receiver_1.into(),
                     value: 500
                 },
                 SendMessage::Handle {
-                    destination: msg_receiver_2,
+                    destination: msg_receiver_2.into(),
                     value: 500
                 },
                 SendMessage::Init { value: 0 },
@@ -6468,11 +6480,11 @@ fn test_create_program_with_value_lt_ed() {
             // The last message value (which is the value of init message) will end execution with trap
             vec![
                 SendMessage::Handle {
-                    destination: msg_receiver_1,
+                    destination: msg_receiver_1.into(),
                     value: 500
                 },
                 SendMessage::Handle {
-                    destination: msg_receiver_2,
+                    destination: msg_receiver_2.into(),
                     value: 500
                 },
                 SendMessage::Init { value: ed - 1 },
@@ -6534,11 +6546,11 @@ fn test_create_program_with_exceeding_value() {
             b"test1".to_vec(),
             vec![
                 SendMessage::Handle {
-                    destination: random_receiver,
+                    destination: random_receiver.into(),
                     value: sending_to_program / 3
                 },
                 SendMessage::Handle {
-                    destination: random_receiver,
+                    destination: random_receiver.into(),
                     value: sending_to_program / 3
                 },
                 SendMessage::Init {
@@ -6944,8 +6956,8 @@ fn free_storage_hold_on_scheduler_overwhelm() {
 
         run_to_next_block(None);
 
-        let hold_bound = HoldBound::<Test>::by(CostsPerBlockOf::<Test>::mailbox())
-            .maximum_for(data.gas_limit_to_send);
+        let hold_bound =
+            HoldBoundBuilder::<Test>::new(StorageType::Mailbox).maximum_for(data.gas_limit_to_send);
 
         let expected_duration = data.gas_limit_to_send / mb_cost - reserve_for;
 
@@ -6971,7 +6983,7 @@ fn free_storage_hold_on_scheduler_overwhelm() {
         run_to_block(hold_bound.deadline(), Some(0));
         assert!(!MailboxOf::<Test>::is_empty(&USER_2));
 
-        // Block which already can't be payed.
+        // Block which already can't be paid.
         run_to_next_block(None);
 
         let gas_totally_burned = GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send);
