@@ -100,8 +100,8 @@ pub enum Error {
     /// # Example
     ///
     /// ```
-    /// use crate::{
-    /// errors::{self, ModuleError},
+    /// use gclient::{
+    ///     errors::{self, ModuleError},
     ///     Error,
     /// };
     /// use subxt::{
