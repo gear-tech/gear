@@ -41,7 +41,7 @@ pub enum Error {
     EventsStopped,
     /// A wrapper around [`subxt::error::Error`].
     #[error(transparent)]
-    Subxt(#[from] SubxtError),
+    Subxt(SubxtError),
     /// Occurs when an event of the expected type cannot be found.
     #[error("Expected event wasn't found")]
     EventNotFound,
@@ -89,4 +89,10 @@ pub enum Error {
     /// Occurs when node spawining failed.
     #[error(transparent)]
     Node(#[from] NodeError),
+}
+
+impl From<SubxtError> for Error {
+    fn from(e: SubxtError) -> Self {
+        Self::Subxt(e)
+    }
 }
