@@ -89,5 +89,5 @@ jobs:
           title: >-
             chore: update weights
           body: |
-            `run_all_benchmarks.sh` script is applied to update weights
+            `run_all_benchmarks.sh` script is applied to update weights (branch: `${{ github.ref_name }}`, commit ${{ github.sha }})
             **Note:** If CI fails, try manually updating the heuristic tests: `runtime/{gear, vara}/src/tests.rs`
