@@ -271,25 +271,18 @@ impl<'a> Program<'a> {
         );
         let is_opt = filename.ends_with(".opt.wasm");
 
-        let (opt_code, meta_code) = if !is_opt {
+        let opt_code = if !is_opt {
             let mut optimizer = Optimizer::new(path).expect("Failed to create optimizer");
             optimizer.insert_stack_and_export();
             optimizer.strip_custom_sections();
-            let opt_code = optimizer
+            optimizer
                 .optimize(OptType::Opt)
-                .expect("Failed to produce optimized binary");
-            let meta_code = optimizer
-                .optimize(OptType::Meta)
-                .expect("Failed to produce metadata binary");
-            (opt_code, Some(meta_code))
+                .expect("Failed to produce optimized binary")
         } else {
-            (
-                fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path)),
-                None,
-            )
+            fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
         };
 
-        Self::from_opt_and_meta_code_with_id(system, id, opt_code, meta_code)
+        Self::from_opt_and_meta_code_with_id(system, id, opt_code, None)
     }
 
     pub fn from_opt_and_meta<P: AsRef<Path>>(

@@ -164,7 +164,7 @@ pub fn optimize_wasm(
     let optimized_size = metadata(&dest_optimized)?.len() as f64 / 1000.0;
 
     // overwrite existing destination wasm file with the optimized version
-    std::fs::rename(&dest_optimized, &source)?;
+    fs::rename(&dest_optimized, &source)?;
     Ok(OptimizationResult {
         dest_wasm: source,
         original_size,
