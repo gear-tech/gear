@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::builder_error::BuilderError;
 use anyhow::Result;
 use std::{borrow::Cow, ffi::OsStr, path::PathBuf};
 
@@ -39,7 +40,7 @@ impl Toolchain {
             .iter()
             .nth_back(2)
             .and_then(OsStr::to_str)
-            .ok_or_else(|| anyhow::anyhow!("Invalid cargo path: {}", path.display()))?;
+            .ok_or_else(|| BuilderError::CargoPathInvalid(path.clone()))?;
 
         // Toolchain name format:
         // "**toolchain**-arch-arch-arch-arch"
@@ -47,7 +48,7 @@ impl Toolchain {
             .rsplitn(5, '-')
             .last()
             .map(String::from)
-            .ok_or_else(|| anyhow::anyhow!("Invalid cargo toolchain name: {}", toolchain_name))?;
+            .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_name.into()))?;
 
         Ok(Self(toolchain))
     }
@@ -55,18 +56,21 @@ impl Toolchain {
     /// Returns toolchain string specification without target triple
     /// as it was passed during initialization.
     ///
-    /// <channel>[-<date>]
-    /// <channel> = stable|beta|nightly|<major.minor>|<major.minor.patch>
-    /// <date>    = YYYY-MM-DD
+    /// `<channel>[-<date>]`
+    ///
+    /// `<channel> = stable|beta|nightly|<major.minor>|<major.minor.patch>`
+    ///
+    /// `<date>    = YYYY-MM-DD`
     pub fn raw_toolchain_str(&'_ self) -> Cow<'_, str> {
         self.0.as_str().into()
     }
 
     /// Returns toolchain string specification without target triple
-    /// with raw <channel> substituted by "nightly".
+    /// and with raw `<channel>` substituted by `nightly`.
     ///
-    /// nightly[-<date>]
-    /// <date>    = YYYY-MM-DD
+    /// `nightly[-<date>]`
+    ///
+    /// `<date>    = YYYY-MM-DD`
     pub fn nightly_toolchain_str(&'_ self) -> Cow<'_, str> {
         if !self.is_nightly() {
             let date_start_idx = self
@@ -81,7 +85,7 @@ impl Toolchain {
         }
     }
 
-    /// Returns bool representing nightly toolchain.
+    // Returns bool representing nightly toolchain.
     fn is_nightly(&self) -> bool {
         self.0.starts_with("nightly")
     }
