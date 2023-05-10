@@ -118,6 +118,10 @@ struct Args {
     /// Path to WASMs, accepts multiple files
     #[arg(value_parser)]
     path: Vec<String>,
+
+    /// Create legacy meta file until `gear-test` has been removed
+    #[arg(long)]
+    legacy_meta: bool,
 }
 
 fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Result<(), String> {
@@ -145,6 +149,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         strip_custom_sections,
         check_runtime_imports,
         verbose,
+        legacy_meta,
     } = Args::parse();
 
     let mut env = env_logger::Env::default();
@@ -183,6 +188,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if strip_custom_sections {
             optimizer.strip_custom_sections();
+        }
+
+        if legacy_meta {
+            let path = file.with_extension("meta.wasm");
+            log::debug!("*** Processing metadata optimization: {}", path.display());
+            let code = optimizer.optimize(OptType::Meta)?;
+            log::debug!("Metadata wasm: {}", path.to_string_lossy());
+            fs::write(path, code)?;
         }
 
         let path = file.with_extension("opt.wasm");
