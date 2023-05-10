@@ -164,3 +164,13 @@
 
 //     send_messages(&api, &progs).await
 // }
+
+
+// crate gear_protocol_testing
+
+trait GearProtocol: pallet_gear::Config + pallet_gear_debug::Config {
+    fn last_program_id() -> ProgramId;
+    fn message_result(message_id: MessageId) -> ExecutionResult;
+    fn send_message(from: AccountId, to: ProgramId, .. ) -> Result<MessageId>;
+    // .. //
+}
