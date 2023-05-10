@@ -25,6 +25,9 @@ pub mod event;
 pub mod scheduler;
 pub mod storage;
 
+#[cfg(feature = "std")]
+pub mod memory_dump;
+
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
@@ -69,7 +72,9 @@ use sp_std::{
 use storage::ValueStorage;
 extern crate alloc;
 
-pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
+pub use gas_provider::{
+    LockId, LockableTree, Provider as GasProvider, ReservableTree, Tree as GasTree,
+};
 
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;

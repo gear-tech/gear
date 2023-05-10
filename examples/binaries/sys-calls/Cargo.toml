@@ -1,13 +1,13 @@
 [package]
 name = "test-syscalls"
 version = "0.1.0"
-authors = ["Gear Technologies"]
+authors.workspace = true
 edition = "2021"
 license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-gstd = { workspace = true, features = ["debug"] }
+gstd = { workspace = true }
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
 
 [build-dependencies]
@@ -16,6 +16,7 @@ gear-wasm-builder.workspace = true
 [lib]
 
 [features]
+debug = ["gstd/debug"]
 wasm-wrapper = []
 std = ["wasm-wrapper", "codec/std"]
 default = ["std"]

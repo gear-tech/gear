@@ -18,7 +18,11 @@
 
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
-use gear_core::ids::*;
+use gear_common::memory_dump::{MemoryPageDump, ProgramMemoryDump};
+use gear_core::{
+    ids::*,
+    memory::{GearPage, PageBuf, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+};
 use gsdk::{
     config::GearConfig,
     ext::{
@@ -30,7 +34,10 @@ use gsdk::{
         gear::Event as GearEvent,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
-            gear_common::event::{CodeChangeKind, MessageEntry},
+            gear_common::{
+                event::{CodeChangeKind, MessageEntry},
+                gas_provider::lockable::LockId,
+            },
             gear_runtime::RuntimeCall,
             pallet_balances::{pallet::Call as BalancesCall, AccountData},
             pallet_gear::pallet::Call as GearCall,
@@ -43,9 +50,9 @@ use gsdk::{
     types, Error as GsdkError,
 };
 use hex::ToHex;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::Path,
 };
 use subxt::blocks::ExtrinsicEvents;
@@ -289,7 +296,7 @@ impl GearApi {
             } = &gas_node.1
             {
                 accounts_with_reserved_funds.insert(id);
-                src_program_reserved_gas_total += value + lock;
+                src_program_reserved_gas_total += value + lock[LockId::Reservation];
             } else {
                 unreachable!("Unexpected gas node type");
             }
@@ -391,6 +398,94 @@ impl GearApi {
             .await?;
 
         Ok(dest_program_id)
+    }
+
+    /// Save program (identified by `program_id`) memory dump to the file for
+    /// further restoring in gclient/gtest. Program memory dumped at the
+    /// time of `block_hash` if presented or the most recent block.
+    pub async fn save_program_memory_dump_at<P: AsRef<Path>>(
+        &self,
+        program_id: ProgramId,
+        block_hash: Option<H256>,
+        file_path: P,
+    ) -> Result {
+        let program = self.0.api().gprog_at(program_id, block_hash).await?;
+
+        static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
+        assert!(program.static_pages.0 > 0);
+        let static_page_count =
+            (program.static_pages.0 as usize - 1) * WASM_PAGE_SIZE / GEAR_PAGE_SIZE;
+
+        let program_pages = self
+            .0
+            .api()
+            .gpages_at(program_id, &program, block_hash)
+            .await?
+            .into_iter()
+            .filter_map(|(page_number, page_data)| {
+                if page_number < static_page_count as u32 {
+                    None
+                } else {
+                    Some(MemoryPageDump::new(
+                        GearPage::new(page_number).unwrap_or_else(|_| {
+                            panic!("Couldn't decode GearPage from u32: {}", page_number)
+                        }),
+                        PageBuf::decode(&mut &*page_data).expect("Couldn't decode PageBuf"),
+                    ))
+                }
+            })
+            .collect();
+
+        let program_account_data =
+            self.account_data_at(program_id, block_hash)
+                .await
+                .or_else(|e| {
+                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                        Ok(AccountData {
+                            free: 0u128,
+                            reserved: 0,
+                            misc_frozen: 0,
+                            fee_frozen: 0,
+                        })
+                    } else {
+                        Err(e)
+                    }
+                })?;
+
+        ProgramMemoryDump {
+            pages: program_pages,
+            balance: program_account_data.free,
+            reserved_balance: program_account_data.reserved,
+        }
+        .save_to_file(file_path);
+
+        Ok(())
+    }
+
+    /// Replace entire program memory with one saved earlier in gclient/gtest
+    pub async fn replace_program_memory<P: AsRef<Path>>(
+        &self,
+        program_id: ProgramId,
+        file_path: P,
+    ) -> Result {
+        let memory_dump = ProgramMemoryDump::load_from_file(file_path);
+        let pages = memory_dump
+            .pages
+            .into_iter()
+            .map(|page| page.into_gear_page())
+            .map(|(page_number, page_data)| (page_number.raw(), page_data.encode()))
+            .collect::<HashMap<_, _>>();
+
+        self.set_balance(
+            MultiAddress::Id(program_id.into_account_id()),
+            memory_dump.balance,
+            memory_dump.reserved_balance,
+        )
+        .await?;
+
+        self.0.set_gpages(program_id, &pages).await?;
+
+        Ok(())
     }
 
     /// Claim value from the mailbox message identified by `message_id`.

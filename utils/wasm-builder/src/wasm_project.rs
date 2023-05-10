@@ -60,6 +60,7 @@ pub struct WasmProject {
     file_base_name: Option<String>,
     profile: String,
     project_type: ProjectType,
+    features: Option<Vec<String>>,
 }
 
 impl WasmProject {
@@ -109,6 +110,7 @@ impl WasmProject {
             file_base_name: None,
             profile,
             project_type,
+            features: None,
         }
     }
 
@@ -125,6 +127,13 @@ impl WasmProject {
     /// Return the profile name based on the `OUT_DIR` path.
     pub fn profile(&self) -> &str {
         &self.profile
+    }
+
+    /// Return features available in the generated `Cargo.toml`.
+    pub fn features(&self) -> &[String] {
+        self.features
+            .as_ref()
+            .expect("Run `WasmProject::generate()` first")
     }
 
     /// Generate a temporary cargo project that includes the original package as a dependency.
@@ -177,6 +186,7 @@ impl WasmProject {
                 );
             }
         }
+        self.features = Some(features.keys().cloned().collect());
 
         let mut cargo_toml = Table::new();
         cargo_toml.insert("package".into(), package.into());
@@ -231,7 +241,7 @@ impl WasmProject {
         let file_base_name = self
             .file_base_name
             .as_ref()
-            .expect("Run `WasmProject::create_project()` first");
+            .expect("Run `WasmProject::generate()` first");
 
         let from_path = self
             .target_dir
@@ -247,7 +257,7 @@ impl WasmProject {
         // Optimize source.
         if !self.project_type.is_metawasm() {
             fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
-            let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
+            _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
         }
 
         let metadata = self
