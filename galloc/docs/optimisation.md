@@ -23,6 +23,8 @@ The gas measurements were made via `debug` and `gas_available` syscalls, which w
 
 Then the gas consumption was calculated as a percentage of total gas spent on the test case.
 
+We've intentionally did not put any info about testing machine, because we measure only gas consumption, which will be same for every machine, since we have fixed weights for every instruction and syscall.
+
 The test cases were:
 - `NFT init -> mint -> burn`: This test case is for measuring the performance of the NFT contract, which is the one of the common cases of smart contracts. The test case consists of the following steps:
   - `init`: Initialise the NFT contract.
