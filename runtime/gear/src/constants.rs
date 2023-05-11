@@ -22,6 +22,11 @@ pub mod currency {
 
     /// The existential deposit.
     pub const EXISTENTIAL_DEPOSIT: Balance = 500;
+
+    // TODO: the actual numbers, if matter, are subject to review
+    pub const fn deposit(items: u32, bytes: u32) -> Balance {
+        items as Balance * 150 + (bytes as Balance) * 60
+    }
 }
 
 /// Time and block constants
