@@ -1735,7 +1735,7 @@ pub mod pallet {
                 },
             )
             .map_err(|e| {
-                log::debug!("update_active_program failed: {e:?}");
+                log::debug!("update_active_program {program_id} failed: {e:?}");
                 Error::<T>::ProgramNotFound
             })??;
 

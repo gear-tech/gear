@@ -662,7 +662,9 @@ where
             });
         })
         .unwrap_or_else(|e| {
-            log::debug!("Hold period may only be set for active program {e:?}");
+            log::debug!(
+                "Could not update active program {program_id}: {e:?}. Program is not active?"
+            );
         });
     }
 }
