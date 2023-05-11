@@ -282,19 +282,29 @@ fn test_read_as_with_invalid_pointer() {
 }
 
 #[test]
-fn test_write_with_zero_size_interval() {
+fn test_write_of_zero_size_buf() {
     let mut gas_left = GAS_LEFT;
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
-    memory_access_manager.register_write(0, 0);
+    let mut memory = MockMemory::new(0);
+    let write = memory_access_manager.register_write(0, 0);
 
-    let result = memory_access_manager.write(
-        &mut MockMemory::new(1),
-        WasmMemoryWrite { ptr: 0, size: 0 },
-        &[],
-        &mut gas_left,
-    );
+    let result = memory_access_manager.write(&mut memory, write, &[], &mut gas_left);
 
     assert!(result.is_ok());
+    assert_eq!(memory.write_attempt_count(), 0);
+}
+
+#[test]
+fn test_write_of_zero_size_struct() {
+    let mut gas_left = GAS_LEFT;
+    let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
+    let mut memory = MockMemory::new(0);
+    let write = memory_access_manager.register_write_as::<ZeroSizeStruct>(0);
+
+    let result = memory_access_manager.write_as(&mut memory, write, ZeroSizeStruct, &mut gas_left);
+
+    assert!(result.is_ok());
+    assert_eq!(memory.write_attempt_count(), 0);
 }
 
 #[test]
@@ -313,20 +323,22 @@ fn test_write_with_zero_buffer_size() {
 }
 
 #[test]
-fn test_write_with_same_buffer_size() {
+fn test_write_of_some_size_buf() {
     let mut gas_left = GAS_LEFT;
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
+    let mut memory = MockMemory::new(1);
     memory_access_manager.register_write(0, 10);
     let buffer = [0u8; 10];
 
     let result = memory_access_manager.write(
-        &mut MockMemory::new(1),
+        &mut memory,
         WasmMemoryWrite { ptr: 0, size: 10 },
         &buffer,
         &mut gas_left,
     );
 
     assert!(result.is_ok());
+    assert_eq!(memory.write_attempt_count(), 1);
 }
 
 #[test]
@@ -520,7 +532,7 @@ fn test_register_read_decoded_with_zero_size() {
 }
 
 #[test]
-fn test_register_write_with_valid_interval() {
+fn test_register_write_of_valid_interval() {
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
 
     let result = memory_access_manager.register_write(0, 10);
@@ -532,7 +544,7 @@ fn test_register_write_with_valid_interval() {
 }
 
 #[test]
-fn test_register_write_with_zero_size() {
+fn test_register_write_of_zero_size_buf() {
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
 
     let result = memory_access_manager.register_write(0, 0);
@@ -540,7 +552,16 @@ fn test_register_write_with_zero_size() {
     assert_eq!(result.ptr, 0);
     assert_eq!(result.size, 0);
     assert_eq!(memory_access_manager.reads.len(), 0);
-    assert_eq!(memory_access_manager.writes.len(), 1);
+    assert_eq!(memory_access_manager.writes.len(), 0);
+}
+
+#[test]
+fn test_register_write_of_zero_size_struct() {
+    let mut mem_access_manager = MemoryAccessManager::<()>::default();
+
+    mem_access_manager.register_write_as::<ZeroSizeStruct>(142);
+
+    assert_eq!(mem_access_manager.writes.len(), 0);
 }
 
 #[test]
