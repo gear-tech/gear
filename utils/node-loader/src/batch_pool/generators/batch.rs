@@ -227,7 +227,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         let inner: Vec<_> = utils::iterator_with_args(batch_size, || fuzzer_args_fn(&mut rng))
             .enumerate()
             .map(|(i, fuzzer_args)| {
-                tracing::debug_span!("generator", name = T::name(), call_id = i + 1)
+                tracing::debug_span!("gen_batch iteration", generator_for = T::name(), call_id = i + 1)
                     .in_scope(|| T::generate::<Rng>(fuzzer_args, const_args_fn()))
             })
             .collect();
