@@ -18,6 +18,10 @@ Here are some of the optimisation attempts we've tried:
 
 All optimisation attempts were tested 3 times on the different test cases, and the average of the results was used to compare the performance. Our main metric is gas consumption: the less gas is consumed, the better. All optimisations were measured in release mode binaries with most optimisations enabled and compared to current perfomance.
 
+The gas measurements were made via `debug` and `gas_available` syscalls, which was temporarily made free. Each allocation top-level operation (i.e. malloc, calloc, ...) was measured separately, the gas was measured before and after function call and calculated as substraction result of gas before and gas after.
+
+Then the gas consumption was calculated as a percentage of total gas spent on the test case.
+
 The test cases were:
 - `NFT init -> mint -> burn`: This test case is for measuring the performance of the NFT contract, which is the one of the common cases of smart contracts. The test case consists of the following steps:
   - `init`: Initialise the NFT contract.
