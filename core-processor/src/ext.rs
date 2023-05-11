@@ -674,7 +674,7 @@ impl EnvExt for Ext {
         Ok(self.context.message_context.current().id())
     }
 
-    fn pay_rent(&mut self, program_id: ProgramId, rent: u128) -> Result<(), Self::Error> {
+    fn pay_rent(&mut self, program_id: ProgramId, rent: u128) -> Result<u128, Self::Error> {
         let block_count = u32::try_from(rent / self.context.rent_cost).unwrap_or(u32::MAX);
 
         let old_paid_blocks = self
@@ -690,7 +690,7 @@ impl EnvExt for Ext {
         };
 
         if blocks_to_pay == 0 {
-            return Ok(());
+            return Ok(rent);
         }
 
         let cost = self.context.rent_cost * u128::from(blocks_to_pay);
@@ -711,7 +711,7 @@ impl EnvExt for Ext {
             }
         }
 
-        Ok(())
+        Ok(rent.saturating_sub(cost))
     }
 
     fn program_id(&mut self) -> Result<ProgramId, Self::Error> {

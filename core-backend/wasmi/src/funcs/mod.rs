@@ -39,7 +39,7 @@ use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
-    LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
+    LengthWithHandle, LengthWithHash, LengthWithTwoHashes, LengthWithValue, TwoHashesWithValue,
 };
 use wasmi::{
     core::{Trap, TrapCode, Value},
@@ -1287,7 +1287,7 @@ where
             syscall_trace!("pay_rent", rent_pid_ptr, err_ptr);
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::PayRent, |ctx| {
+            ctx.run_fallible::<_, _, LengthWithValue>(err_ptr, RuntimeCosts::PayRent, |ctx| {
                 let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
 
                 let HashWithValue {

@@ -233,6 +233,33 @@ where
     }
 }
 
+/// Represents type defining concatenated hash with value. 20 bytes.
+#[repr(C, packed)]
+#[derive(Default)]
+pub struct LengthWithValue {
+    pub length: Length,
+    pub value: Value,
+}
+
+impl LengthWithValue {
+    pub fn as_mut_ptr(&mut self) -> *mut Self {
+        self as _
+    }
+}
+
+impl From<Result<Value, Length>> for LengthWithValue {
+    fn from(result: Result<Value, Length>) -> Self {
+        let mut res: Self = Default::default();
+
+        match result {
+            Ok(v) => res.value = v,
+            Err(length) => res.length = length,
+        }
+
+        res
+    }
+}
+
 /// Represents type defining concatenated two hashes. 64 bytes.
 #[repr(C, packed)]
 #[derive(Default)]
@@ -385,8 +412,8 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `rent_pid`: `const ptr` for program id and rent value.
-    /// - `err`: `mut ptr` for `u32` error length.
-    pub fn gr_pay_rent(rent_pid: *const HashWithValue, err: *mut Length);
+    /// - `err_value`: `mut ptr` for concatenated error length and remaining rent value.
+    pub fn gr_pay_rent(rent_pid: *const HashWithValue, err_value: *mut LengthWithValue);
 
     /// Infallible `gr_program_id` get syscall.
     ///

@@ -163,7 +163,7 @@ pub trait Ext {
     fn message_id(&mut self) -> Result<MessageId, Self::Error>;
 
     /// Pay rent for the specified program.
-    fn pay_rent(&mut self, program_id: ProgramId, rent: u128) -> Result<(), Self::Error>;
+    fn pay_rent(&mut self, program_id: ProgramId, rent: u128) -> Result<u128, Self::Error>;
 
     /// Get the id of program itself
     fn program_id(&mut self) -> Result<ProgramId, Self::Error>;

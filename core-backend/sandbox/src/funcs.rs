@@ -36,7 +36,7 @@ use gear_core::{
 use gear_core_errors::ExtError;
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
-    LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
+    LengthWithHandle, LengthWithHash, LengthWithTwoHashes, LengthWithValue, TwoHashesWithValue,
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
@@ -913,7 +913,7 @@ where
 
         syscall_trace!("pay_rent", rent_pid_ptr, err_ptr);
 
-        ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::PayRent, |ctx| {
+        ctx.run_fallible::<_, _, LengthWithValue>(err_ptr, RuntimeCosts::PayRent, |ctx| {
             let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
 
             let HashWithValue {

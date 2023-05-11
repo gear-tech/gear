@@ -25,7 +25,7 @@ use crate::{
     errors::{Result, SyscallError},
     ActorId, MessageId, ReservationId,
 };
-use gsys::{BlockNumberWithHash, HashWithValue, LengthWithGas, LengthWithHash};
+use gsys::{BlockNumberWithHash, HashWithValue, LengthWithGas, LengthWithHash, LengthWithValue};
 
 /// Get the current block height.
 ///
@@ -392,17 +392,18 @@ pub fn origin() -> ActorId {
 ///     exec::pay_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
-pub fn pay_rent(program_id: ActorId, value: u128) -> Result<()> {
+pub fn pay_rent(program_id: ActorId, value: u128) -> Result<u128> {
     let rent_pid = HashWithValue {
         hash: program_id.0,
         value,
     };
 
-    let mut len = 0u32;
+    let mut res: LengthWithValue = Default::default();
 
-    unsafe { gsys::gr_pay_rent(&rent_pid, &mut len) }
+    unsafe { gsys::gr_pay_rent(&rent_pid, res.as_mut_ptr()) }
 
-    SyscallError(len).into_result()
+    SyscallError(res.length).into_result()?;
+    Ok(res.value)
 }
 
 /// Get the random seed, along with the block number from which it is
