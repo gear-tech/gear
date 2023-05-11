@@ -90,7 +90,7 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
     gcore::exec::wake_delayed(message_id.into(), delay).map_err(Into::into)
 }
 
-/// Pay program rent for the specified amount of blocks.
+/// Pay specified rent for the program.
 ///
 /// # Examples
 ///
@@ -99,11 +99,11 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     exec::pay_rent(exec::program_id(), 100).expect("Unable to pay rent");
+///     exec::pay_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
-pub fn pay_rent(program_id: ActorId, block_count: u32) -> Result<()> {
-    Ok(gcore::exec::pay_rent(program_id.into(), block_count)?)
+pub fn pay_rent(program_id: ActorId, value: u128) -> Result<()> {
+    Ok(gcore::exec::pay_rent(program_id.into(), value)?)
 }
 
 /// Return the identifier of the current program.

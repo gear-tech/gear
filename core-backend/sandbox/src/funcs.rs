@@ -909,20 +909,20 @@ where
 
     /// Fallible `gr_pay_rent` syscall.
     pub fn pay_rent(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (bn_pid_ptr, err_ptr) = args.iter().read_2();
+        let (rent_pid_ptr, err_ptr) = args.iter().read_2();
 
-        syscall_trace!("pay_rent", bn_pid_ptr, err_ptr);
+        syscall_trace!("pay_rent", rent_pid_ptr, err_ptr);
 
         ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::PayRent, |ctx| {
-            let read_bn_pid = ctx.register_read_as(bn_pid_ptr);
+            let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
 
-            let BlockNumberWithHash {
+            let HashWithValue {
                 hash: program_id,
-                bn: block_count,
-            } = ctx.read_as(read_bn_pid)?;
+                value: rent,
+            } = ctx.read_as(read_rent_pid)?;
 
             ctx.ext
-                .pay_rent(program_id.into(), block_count)
+                .pay_rent(program_id.into(), rent)
                 .map_err(Into::into)
         })
     }

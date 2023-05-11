@@ -25,7 +25,7 @@ use crate::{
     errors::{Result, SyscallError},
     ActorId, MessageId, ReservationId,
 };
-use gsys::{BlockNumberWithHash, LengthWithGas, LengthWithHash};
+use gsys::{BlockNumberWithHash, HashWithValue, LengthWithGas, LengthWithHash};
 
 /// Get the current block height.
 ///
@@ -380,7 +380,7 @@ pub fn origin() -> ActorId {
     origin
 }
 
-/// Pay program rent for the specified amount of blocks.
+/// Pay specified rent for the program.
 ///
 /// # Examples
 ///
@@ -389,18 +389,18 @@ pub fn origin() -> ActorId {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     exec::pay_rent(exec::program_id(), 100).expect("Unable to pay rent");
+///     exec::pay_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
-pub fn pay_rent(program_id: ActorId, block_count: u32) -> Result<()> {
-    let bn_pid = BlockNumberWithHash {
-        bn: block_count,
+pub fn pay_rent(program_id: ActorId, value: u128) -> Result<()> {
+    let rent_pid = HashWithValue {
         hash: program_id.0,
+        value,
     };
 
     let mut len = 0u32;
 
-    unsafe { gsys::gr_pay_rent(&bn_pid, &mut len) }
+    unsafe { gsys::gr_pay_rent(&rent_pid, &mut len) }
 
     SyscallError(len).into_result()
 }

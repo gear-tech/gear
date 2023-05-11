@@ -384,9 +384,9 @@ extern "C" {
     /// Fallible `gr_pay_rent` syscall.
     ///
     /// Arguments type:
-    /// - `bn_pid`: `const ptr` for program id and block number count.
+    /// - `rent_pid`: `const ptr` for program id and rent value.
     /// - `err`: `mut ptr` for `u32` error length.
-    pub fn gr_pay_rent(bn_pid: *const BlockNumberWithHash, err: *mut Length);
+    pub fn gr_pay_rent(rent_pid: *const HashWithValue, err: *mut Length);
 
     /// Infallible `gr_program_id` get syscall.
     ///

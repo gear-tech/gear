@@ -674,7 +674,9 @@ impl EnvExt for Ext {
         Ok(self.context.message_context.current().id())
     }
 
-    fn pay_rent(&mut self, program_id: ProgramId, block_count: u32) -> Result<(), Self::Error> {
+    fn pay_rent(&mut self, program_id: ProgramId, rent: u128) -> Result<(), Self::Error> {
+        let block_count = u32::try_from(rent / self.context.rent_cost).unwrap_or(u32::MAX);
+
         let old_paid_blocks = self
             .context
             .program_rents

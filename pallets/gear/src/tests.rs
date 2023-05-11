@@ -41,8 +41,8 @@ use crate::{
         USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, RentFreePeriodOf, Schedule, TaskPoolOf,
-    WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, RentCostPerBlockOf, RentFreePeriodOf,
+    Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
@@ -5433,11 +5433,12 @@ fn test_pay_rent_syscall_works() {
             .expect("program should exist");
         let old_block = program.expiration_block;
 
-        let block_count = 2_000;
+        let block_count = 2_000u32;
+        let rent = RentCostPerBlockOf::<Test>::get() * u128::from(block_count);
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_2),
             pay_rent_id,
-            test_syscalls::Kind::PayRent(pay_rent_id.into_origin().into(), block_count).encode(),
+            test_syscalls::Kind::PayRent(pay_rent_id.into_origin().into(), rent).encode(),
             20_000_000_000,
             0,
         ));
@@ -5456,7 +5457,7 @@ fn test_pay_rent_syscall_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_2),
             pay_rent_id,
-            test_syscalls::Kind::PayRent([0u8; 32], block_count).encode(),
+            test_syscalls::Kind::PayRent([0u8; 32], rent).encode(),
             20_000_000_000,
             0,
         ));
