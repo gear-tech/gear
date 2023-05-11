@@ -80,11 +80,11 @@ struct GlobalsAccessNativeRuntime<'a, 'b> {
 
 impl<'a, 'b> GlobalsAccessor for GlobalsAccessNativeRuntime<'a, 'b> {
     fn get_i64(&self, name: &TrimmedString) -> Result<i64, GlobalsAccessError> {
-        self.inner_access_provider.get_i64(&name)
+        self.inner_access_provider.get_i64(name)
     }
 
     fn set_i64(&mut self, name: &TrimmedString, value: i64) -> Result<(), GlobalsAccessError> {
-        self.inner_access_provider.set_i64(&name, value)
+        self.inner_access_provider.set_i64(name, value)
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
