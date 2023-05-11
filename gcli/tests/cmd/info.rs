@@ -75,7 +75,6 @@ const EXPECTED_MAILBOX: &str = r#"
 async fn test_action_balance_works() -> Result<()> {
     common::login_as_alice().expect("login failed");
     let mut node = common::dev()?;
-    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let output = node.run(Args::new("info").address("//Alice").action("balance"))?;
     let stdout = output.stdout.convert();

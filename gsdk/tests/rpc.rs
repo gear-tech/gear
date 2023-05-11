@@ -15,10 +15,3 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-//! Logs from binaries
-
-pub mod gear_program {
-    pub const EX_UPLOAD_PROGRAM: &str = "Successfully submitted call Gear::upload_program";
-    pub const EX_UPLOAD_CODE: &str = "Successfully submitted call Gear::upload_code";
-}

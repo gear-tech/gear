@@ -38,8 +38,6 @@ async fn test_command_transfer_works() -> Result<()> {
     common::login_as_alice()?;
     let mut node = common::dev()?;
 
-    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
-
     // Get balance of the testing address
     let signer = Api::new(Some(&node.ws())).await?.signer(SURI, None)?;
     let before = signer.api().get_balance(ADDRESS).await.unwrap_or(0);

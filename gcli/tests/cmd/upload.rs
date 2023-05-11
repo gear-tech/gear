@@ -29,8 +29,6 @@ use gsdk::Api;
 async fn test_command_upload_works() {
     common::login_as_alice().expect("login failed");
     let mut node = common::dev().expect("failed to start node");
-    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)
-        .expect("node timeout");
 
     let signer = Api::new(Some(&node.ws()))
         .await
@@ -66,7 +64,6 @@ async fn test_command_upload_works() {
 async fn test_command_upload_program_works() -> Result<()> {
     common::login_as_alice().expect("login failed");
     let mut node = common::dev()?;
-    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let output = node.run(
         Args::new("upload")

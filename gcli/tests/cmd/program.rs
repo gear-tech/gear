@@ -31,7 +31,6 @@ async fn test_command_program_state_works() -> Result<()> {
 
     // Setup node.
     let mut node = common::dev()?;
-    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     // Deploy demo_new_meta.
     let opt = env::wasm_bin("demo_new_meta.opt.wasm");
