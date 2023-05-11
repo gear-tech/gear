@@ -107,6 +107,13 @@ macro_rules! impl_convert_traits {
             }
         }
 
+        $crate::impl_named_call_args!($args, $gear_call_name);
+    };
+}
+
+#[macro_export]
+macro_rules! impl_named_call_args {
+    ($args:tt, $gear_call_name:tt) => {
         impl $crate::NamedCallArgs for $args {
             fn name() -> &'static str {
                 $gear_call_name
