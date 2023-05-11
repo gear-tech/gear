@@ -14,7 +14,7 @@ Here are some of the optimisation attempts we've tried:
 
 ## 0. Measuring current performance
 <a name="current"></a>
-We've measured the current [(commit 9135baa)](https://github.com/gear-tech/dlmalloc-rust/commit/9135baa728ef9a9a04a887998e019733c4b093af) performance of dlmalloc to have a baseline for comparison.
+We've measured the current [(commit 9135baa)](https://github.com/gear-tech/dlmalloc-rust/tree/9135baa728ef9a9a04a887998e019733c4b093af) performance of dlmalloc to have a baseline for comparison.
 ### How we measured
 
 All optimisation attempts were tested 3 times on the different test cases, and the average of the results was used to compare the performance. Our main metric is gas consumption: the less gas is consumed, the better. All optimisations were measured in release mode binaries with most optimisations enabled and compared to current perfomance.
@@ -30,6 +30,8 @@ The test cases were:
   - `burn`: Burn 1 NFT.
 
   This is quite simple case and it's not the most common case, but it's the most simple case we can think of.
+
+  You can see the code of the test case [here](https://github.com/gear-dapps/non-fungible-token/blob/0.2.10/tests/node_tests.rs) (`burn-test`).
 - `FT stress-test` with <kbd>gtest</kbd>: This test case is for measuring the performance of the FT contract, which is also the one of the common cases of smart contracts. The test case consists of the following steps:
   - `init`: Initialise the FT contract.
   - `mint`: Mint 1 000 000 FT to the first user.
