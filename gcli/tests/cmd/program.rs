@@ -18,7 +18,7 @@
 
 //! Integration tests for command `program`
 use crate::common::{
-    self, env, logs,
+    self, env,
     traits::{Convert, NodeExec},
     Args, Result,
 };
@@ -30,7 +30,7 @@ async fn test_command_program_state_works() -> Result<()> {
     common::login_as_alice().expect("login failed");
 
     // Setup node.
-    let mut node = common::dev()?;
+    let node = common::dev()?;
 
     // Deploy demo_new_meta.
     let opt = env::wasm_bin("demo_new_meta.opt.wasm");

@@ -15,7 +15,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-#![cfg(test)] // workaround for using `testing` module.
+#![cfg(feature = "testing")]
 
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{

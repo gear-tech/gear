@@ -240,6 +240,9 @@ jobs:
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
 
+      - name: "Test: `gsdk`"
+        run: ./scripts/gear.sh test gsdk --release --locked --retries 3
+
       - name: "Test: `gcli`"
         run: ./scripts/gear.sh test gcli --release --locked --retries 3
 

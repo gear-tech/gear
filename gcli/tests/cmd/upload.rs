@@ -28,7 +28,7 @@ use gsdk::Api;
 #[tokio::test]
 async fn test_command_upload_works() {
     common::login_as_alice().expect("login failed");
-    let mut node = common::dev().expect("failed to start node");
+    let node = common::dev().expect("failed to start node");
 
     let signer = Api::new(Some(&node.ws()))
         .await
@@ -63,7 +63,7 @@ async fn test_command_upload_works() {
 #[tokio::test]
 async fn test_command_upload_program_works() -> Result<()> {
     common::login_as_alice().expect("login failed");
-    let mut node = common::dev()?;
+    let node = common::dev()?;
 
     let output = node.run(
         Args::new("upload")
