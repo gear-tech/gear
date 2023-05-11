@@ -43,14 +43,13 @@ The test cases were:
   - `balance`: Check the balance of users 87..120 to prove they've received 5 000 FT after mint.
   - `transfer`: Transfer 1 000 FT from users 87..120 to the first user.
   - `total_supply`: Check the total supply of FT to prove it's sums up to correct value.
-
-  The next two steps are repeated 30 times:
-  - `balance`: Check the balance of users 1..130
-  - `transfer`: Transfer 1 FT from users 1..130 to the first user.
-
   - `balance`: Check the balance of users 918..13400
   - `mint`: Mint 5 000 FT to users 918..13400.
   - `transfer`: Transfer `i / 4` FT from users 918..13400 to the user `i * 2`.
+
+  The next two steps were repeated 30 times:
+  - `balance`: Check the balance of users 1..130
+  - `transfer`: Transfer 1 FT from users 1..130 to the first user.
 
   This test tries to imitate what happens when the FT contract is used in the real world, with many clients and memory allocations therefore.
 
