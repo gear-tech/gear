@@ -51,7 +51,7 @@ pub use prelude::*;
 
 impl NodeExec for Node {
     fn ws(&self) -> String {
-        "ws://".to_string() + &self.address().to_string()
+        format!("ws://{}", self.address())
     }
 
     /// Run binary `gcli`

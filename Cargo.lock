@@ -4319,6 +4319,7 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "base64 0.21.0",
+ "demo-waiter",
  "futures",
  "futures-util",
  "gear-core",
@@ -4334,6 +4335,7 @@ dependencies = [
  "sp-runtime",
  "subxt",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

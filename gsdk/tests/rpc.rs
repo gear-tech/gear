@@ -15,3 +15,183 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+#![cfg(test)] // workaround for using `testing` module.
+
+use gear_core::ids::{CodeId, ProgramId};
+use gsdk::{
+    ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
+    testing::Node,
+    Api, Result,
+};
+use parity_scale_codec::Encode;
+
+/// AccountId32 of Alice
+fn alice_account_id() -> AccountId32 {
+    AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY")
+        .expect("Invalid address")
+}
+
+/// Generate program id from code id and salt
+fn program_id(bin: &[u8], salt: &[u8]) -> ProgramId {
+    ProgramId::generate(CodeId::generate(bin), salt)
+}
+
+/// Websocket address of the node.
+fn ws(node: &Node) -> String {
+    format!("ws://{}", node.address())
+}
+
+/// Run the dev node
+fn dev() -> Node {
+    #[cfg(not(feature = "vara-testing"))]
+    let args = vec!["--tmp", "--dev"];
+    #[cfg(feature = "vara-testing")]
+    let args = vec![
+        "--tmp",
+        "--chain=vara-dev",
+        "--alice",
+        "--validator",
+        "--reserved-only",
+    ];
+
+    let gear = {
+        let root = env!("CARGO_MANIFEST_DIR").to_owned() + "/../";
+
+        root + &format!(
+            "target/{}/gear",
+            if cfg!(debug_assertions) {
+                "debug"
+            } else {
+                "release"
+            }
+        )
+    };
+
+    Node::try_from_path(gear, args).expect("Failed to start node")
+}
+
+#[tokio::test]
+async fn test_calculate_upload_gas() -> Result<()> {
+    let node = dev();
+
+    let api = Api::new(Some(&ws(&node))).await?;
+    let alice_account_id = alice_account_id();
+    let alice: [u8; 32] = *alice_account_id.as_ref();
+
+    api.calculate_upload_gas(
+        alice.into(),
+        demo_waiter::WASM_BINARY.to_vec(),
+        vec![],
+        0,
+        true,
+        None,
+    )
+    .await
+    .unwrap();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_calculate_create_gas() -> Result<()> {
+    let node = dev();
+
+    // 1. upload code.
+    let signer = Api::new(Some(&ws(&node))).await?.signer("//Alice", None)?;
+    signer
+        .upload_code(demo_waiter::WASM_BINARY.to_vec())
+        .await?;
+
+    // 2. calculate create gas and create program.
+    let code_id = CodeId::generate(demo_waiter::WASM_BINARY);
+    let gas_info = signer
+        .calculate_create_gas(None, code_id, vec![], 0, true, None)
+        .await?;
+
+    signer
+        .create_program(code_id, vec![], vec![], gas_info.min_limit, 0)
+        .await
+        .unwrap();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_calculate_handle_gas() -> Result<()> {
+    let node = dev();
+    let salt = vec![];
+    let pid = program_id(demo_waiter::WASM_BINARY, &salt);
+
+    // 1. upload program.
+    let signer = Api::new(Some(&ws(&node))).await?.signer("//Alice", None)?;
+
+    signer
+        .upload_program(
+            demo_waiter::WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            100_000_000_000,
+            0,
+        )
+        .await?;
+
+    assert!(signer.api().gprog(pid).await.is_ok());
+    let cmd = demo_waiter::Command::Wait;
+
+    // 2. calculate handle gas and send message.
+    let gas_info = signer
+        .calculate_handle_gas(None, pid, cmd.encode(), 0, true, None)
+        .await?;
+
+    signer
+        .send_message(pid, cmd.encode(), gas_info.min_limit, 0)
+        .await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_calculate_reply_gas() -> Result<()> {
+    let node = dev();
+
+    let alice_account_id = alice_account_id();
+    let alice: [u8; 32] = *alice_account_id.as_ref();
+    let salt = vec![];
+    let pid = program_id(demo_waiter::WASM_BINARY, &salt);
+    let payload = demo_waiter::Command::SendUpTo(alice.into(), 10);
+
+    // 1. upload program.
+    let signer = Api::new(Some(&ws(&node))).await?.signer("//Alice", None)?;
+    signer
+        .upload_program(
+            demo_waiter::WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            100_000_000_000,
+            0,
+        )
+        .await?;
+
+    assert!(signer.api().gprog(pid).await.is_ok());
+
+    // 2. send wait message.
+    signer
+        .send_message(pid, payload.encode(), 100_000_000_000, 0)
+        .await?;
+
+    let mailbox = signer.api().mailbox(Some(alice_account_id), 10).await?;
+    assert_eq!(mailbox.len(), 1);
+    let message_id = mailbox[0].0.id.into();
+
+    // 3. calculate reply gas and send reply.
+    let gas_info = signer
+        .calculate_reply_gas(None, message_id, 1, vec![], 0, true, None)
+        .await?;
+
+    signer
+        .send_reply(message_id, vec![], gas_info.min_limit, 0)
+        .await
+        .unwrap();
+
+    Ok(())
+}

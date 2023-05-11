@@ -30,5 +30,11 @@ sp-core.workspace = true
 # deps for features `testing`
 rand = { workspace = true, optional = true }
 
+[dev-dependencies]
+rand = { workspace = true }
+demo-waiter.workspace = true
+tokio = { workspace = true, features = [ "macros" ] }
+
 [features]
 testing = [ "rand" ]
+vara-testing = []
