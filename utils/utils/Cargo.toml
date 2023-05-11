@@ -1,8 +1,8 @@
 [package]
 name = "gear-utils"
 version = "0.1.0"
-edition.workspace = true
+edition = { workspace = true }
 
 [dependencies]
-nonempty.workspace = true
-env_logger.workspace = true
+nonempty = { workspace = true }
+env_logger = { workspace = true }

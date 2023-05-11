@@ -1,22 +1,22 @@
 [package]
 name = "gear-backend-wasmi"
 version = "0.1.0"
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [dependencies]
-gear-core.workspace = true
+gear-core = { workspace = true }
 gear-core-errors = { workspace = true, features = ["codec"] }
-gear-backend-common.workspace = true
+gear-backend-common = { workspace = true }
 gsys ={ workspace = true }
 
-gear-wasm-instrument.workspace = true
-wasmi.workspace = true
-log.workspace = true
-derive_more.workspace = true
-codec.workspace = true
-blake2-rfc.workspace = true
+gear-wasm-instrument = { workspace = true }
+wasmi = { workspace = true }
+log = { workspace = true }
+derive_more = { workspace = true }
+codec = { workspace = true }
+blake2-rfc = { workspace = true }
 
 [dev-dependencies]
 gear-backend-common = { workspace = true, features = ["mock"] }

@@ -1,27 +1,27 @@
 [package]
 name = "gear-core"
 version = "0.1.0"
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [dependencies]
-gear-core-errors.workspace = true
-blake2-rfc.workspace = true
+gear-core-errors = { workspace = true }
+blake2-rfc = { workspace = true }
 parity-scale-codec = { workspace = true, features = [ "derive", "max-encoded-len" ] }
 scale-info = { workspace = true, features = ["derive"] }
-derive_more.workspace = true
-log.workspace = true
-gear-wasm-instrument.workspace = true
-wasmparser.workspace = true
+derive_more = { workspace = true }
+log = { workspace = true }
+gear-wasm-instrument = { workspace = true }
+wasmparser = { workspace = true }
 hex = { workspace = true, features = ["alloc"] }
-hashbrown.workspace = true
-static_assertions.workspace = true
+hashbrown = { workspace = true }
+static_assertions = { workspace = true }
 paste = { workspace = true }
 
 [dev-dependencies]
-wabt.workspace = true
-env_logger.workspace = true
+wabt = { workspace = true }
+env_logger = { workspace = true }
 
 [features]
 strict = []

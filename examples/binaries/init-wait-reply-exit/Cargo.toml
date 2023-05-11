@@ -1,16 +1,16 @@
 [package]
 name = "demo-init-wait-reply-exit"
 version = "0.1.0"
-authors.workspace = true
+authors = { workspace = true }
 edition = "2021"
 license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-gstd.workspace = true
+gstd = { workspace = true }
 
 [build-dependencies]
-gear-wasm-builder.workspace = true
+gear-wasm-builder = { workspace = true }
 
 [lib]
 

@@ -1,25 +1,25 @@
 [package]
 name = "gear-runtime-test-cli"
 version = "0.1.0"
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [dependencies]
-anyhow.workspace = true
+anyhow = { workspace = true }
 codec = { workspace = true, features = ["derive"] }
-colored.workspace = true
+colored = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-log.workspace = true
-serde_json.workspace = true
+log = { workspace = true }
+serde_json = { workspace = true }
 quick-xml = { workspace = true, features = [ "serialize" ] }
-rayon.workspace = true
+rayon = { workspace = true }
 
 # Substrate
 frame-support = { workspace = true, features = ["std"] }
 frame-system = { workspace = true, features = ["std"] }
-sc-cli.workspace = true
-sc-service.workspace = true
+sc-cli = { workspace = true }
+sc-service = { workspace = true }
 sp-authority-discovery = { workspace = true, optional = true, features = ["std"]  }
 sp-core = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
@@ -34,16 +34,16 @@ pallet-im-online = { workspace = true, optional = true, features = ["std"]  }
 # Gear
 runtime-primitives = { workspace = true, features = ["std"] }
 gear-common = { workspace = true, features = ["std"] }
-gear-core.workspace = true
+gear-core = { workspace = true }
 gear-runtime = { workspace = true, optional = true, features = ["debug-mode", "std"] }
 vara-runtime = { workspace = true, optional = true, features = ["debug-mode", "std"] }
-gear-test.workspace = true
+gear-test = { workspace = true }
 pallet-gear = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-debug = { workspace = true, features = ["std"] }
-gear-core-processor.workspace = true
-junit-common.workspace = true
+gear-core-processor = { workspace = true }
+junit-common = { workspace = true }
 
 [features]
 gear-native = ["gear-runtime"]

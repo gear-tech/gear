@@ -1,18 +1,18 @@
 [package]
 name = "gear-call-gen"
 version = "0.1.0"
-edition.workspace = true
+edition = { workspace = true }
 
 [dependencies]
 # Internal deps
-gear-wasm-gen.workspace = true
-gear-core.workspace = true
-gear-utils.workspace = true
+gear-wasm-gen = { workspace = true }
+gear-core = { workspace = true }
+gear-utils = { workspace = true }
 
 # External deps
-arbitrary.workspace = true
-dyn-clonable.workspace = true
-hex.workspace = true
-log.workspace = true
-rand.workspace = true
-thiserror.workspace = true
+arbitrary = { workspace = true }
+dyn-clonable = { workspace = true }
+hex = { workspace = true }
+log = { workspace = true }
+rand = { workspace = true }
+thiserror = { workspace = true }

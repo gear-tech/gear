@@ -3,7 +3,7 @@ name = "pallet-gear-debug"
 version = "2.0.0"
 authors = ['Gear Technologies']
 edition = '2021'
-license.workspace = true
+license = { workspace = true }
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 description = "Gear main pallet"
@@ -16,37 +16,37 @@ targets = ["x86_64-unknown-linux-gnu"]
 parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
-log.workspace = true
+log = { workspace = true }
 
 # Internal deps
-common.workspace = true
-gear-core.workspace = true
-pallet-gear.workspace = true
+common = { workspace = true }
+gear-core = { workspace = true }
+pallet-gear = { workspace = true }
 
 # Substrate deps
-frame-support.workspace = true
-frame-system.workspace = true
+frame-support = { workspace = true }
+frame-system = { workspace = true }
 frame-benchmarking = { workspace = true, optional = true }
-sp-core.workspace = true
-sp-std.workspace = true
-sp-io.workspace = true
-sp-runtime.workspace = true
-pallet-balances.workspace = true
-pallet-authorship.workspace = true
+sp-core = { workspace = true }
+sp-std = { workspace = true }
+sp-io = { workspace = true }
+sp-runtime = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-authorship = { workspace = true }
 
 [dev-dependencies]
-serde.workspace = true
-env_logger.workspace = true
-wabt.workspace = true
-gear-backend-sandbox.workspace = true
-hex-literal.workspace = true
+serde = { workspace = true }
+env_logger = { workspace = true }
+wabt = { workspace = true }
+gear-backend-sandbox = { workspace = true }
+hex-literal = { workspace = true }
 frame-support-test = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["debug-mode", "std"] }
-gear-wasm-instrument.workspace = true
+gear-wasm-instrument = { workspace = true }
 
 [features]
 default = ['std']

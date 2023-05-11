@@ -1,21 +1,21 @@
 [package]
 name = "gear-lazy-pages-common"
 version = "0.1.0"
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [dependencies]
-derive_more.workspace = true
-log.workspace = true
+derive_more = { workspace = true }
+log = { workspace = true }
 
-gear-core.workspace = true
-gear-backend-common.workspace = true
-gear-common.workspace = true
-gear-runtime-interface.workspace = true
-gear-wasm-instrument.workspace = true
+gear-core = { workspace = true }
+gear-backend-common = { workspace = true }
+gear-common = { workspace = true }
+gear-runtime-interface = { workspace = true }
+gear-wasm-instrument = { workspace = true }
 
-sp-std.workspace = true
+sp-std = { workspace = true }
 
 [features]
 default = ["std"]

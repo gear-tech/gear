@@ -1,8 +1,8 @@
 [package]
 name = "demo-async-sign"
 version = "0.1.0"
-authors.workspace = true
-edition.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 crate-type = ["cdylib"]

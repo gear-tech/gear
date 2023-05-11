@@ -3,7 +3,7 @@ name = "pallet-gear"
 version = "2.0.0"
 authors = ['Gear Technologies']
 edition = '2021'
-license.workspace = true
+license = { workspace = true }
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 description = "Gear main pallet"
@@ -15,37 +15,37 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
-log.workspace = true
+log = { workspace = true }
 primitive-types = { workspace = true, features = ["scale-info"] }
-gear-wasm-instrument.workspace = true
-derive_more.workspace = true
+gear-wasm-instrument = { workspace = true }
+derive_more = { workspace = true }
 env_logger = { workspace = true, optional = true }
-scopeguard.workspace = true
+scopeguard = { workspace = true }
 
 # Internal deps
-common.workspace = true
+common = { workspace = true }
 gear-lazy-pages-common = { workspace = true, optional = true }
-core-processor.workspace = true
-gear-core.workspace = true
-gear-core-errors.workspace = true
-gear-backend-common.workspace = true
-gear-backend-sandbox.workspace = true
+core-processor = { workspace = true }
+gear-core = { workspace = true }
+gear-core-errors = { workspace = true }
+gear-backend-common = { workspace = true }
+gear-backend-sandbox = { workspace = true }
 gear-backend-wasmi = { workspace = true, optional = true }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 gsys = { workspace = true, optional = true }
 
 # Substrate deps
-frame-support.workspace = true
-frame-system.workspace = true
+frame-support = { workspace = true }
+frame-system = { workspace = true }
 frame-benchmarking = { workspace = true, optional = true }
-sp-core.workspace = true
-sp-std.workspace = true
-sp-io.workspace = true
-sp-runtime.workspace = true
-sp-externalities.workspace = true
-pallet-balances.workspace = true
-pallet-authorship.workspace = true
-pallet-timestamp.workspace = true
+sp-core = { workspace = true }
+sp-std = { workspace = true }
+sp-io = { workspace = true }
+sp-runtime = { workspace = true }
+sp-externalities = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-authorship = { workspace = true }
+pallet-timestamp = { workspace = true }
 sp-consensus-babe = { workspace = true, optional = true}
 
 # Benchmark deps
@@ -58,53 +58,53 @@ test-syscalls = { workspace = true, optional = true }
 demo-proxy = { workspace = true, optional = true }
 
 [dev-dependencies]
-wabt.workspace = true
-hex.workspace = true
-blake2-rfc.workspace = true
-demo-async-tester.workspace = true
-demo-backend-error.workspace = true
-demo-btree.workspace = true
-demo-delayed-sender.workspace = true
-demo-distributor.workspace = true
-demo-init-fail-sender.workspace = true
-demo-init-wait.workspace = true
-demo-init-wait-reply-exit.workspace = true
-demo-new-meta.workspace = true
-demo-exit-init.workspace = true
-demo-exit-handle.workspace = true
-demo-exit-handle-sender.workspace = true
-demo-program-factory.workspace = true
-demo-proxy.workspace = true
-demo-proxy-relay.workspace = true
-demo-proxy-with-gas.workspace = true
-demo-proxy-reservation-with-gas.workspace = true
+wabt = { workspace = true }
+hex = { workspace = true }
+blake2-rfc = { workspace = true }
+demo-async-tester = { workspace = true }
+demo-backend-error = { workspace = true }
+demo-btree = { workspace = true }
+demo-delayed-sender = { workspace = true }
+demo-distributor = { workspace = true }
+demo-init-fail-sender = { workspace = true }
+demo-init-wait = { workspace = true }
+demo-init-wait-reply-exit = { workspace = true }
+demo-new-meta = { workspace = true }
+demo-exit-init = { workspace = true }
+demo-exit-handle = { workspace = true }
+demo-exit-handle-sender = { workspace = true }
+demo-program-factory = { workspace = true }
+demo-proxy = { workspace = true }
+demo-proxy-relay = { workspace = true }
+demo-proxy-with-gas = { workspace = true }
+demo-proxy-reservation-with-gas = { workspace = true }
 demo-init-with-value = { workspace = true, features = ["debug"] } # The `debug` feature is required for assering debug output
-demo-gasless-wasting.workspace = true
-demo-gas-burned.workspace = true
-demo-waiting-proxy.workspace = true
-demo-calc-hash.workspace = true
-demo-calc-hash-over-blocks.workspace = true
-demo-calc-hash-in-one-block.workspace = true
-demo-compose.workspace = true
-demo-mul-by-const.workspace = true
-demo-value-sender.workspace = true
-demo-waiter.workspace = true
-demo-wait-timeout.workspace = true
-demo-wait-wake.workspace = true
-demo-reserve-gas.workspace = true
-demo-send-from-reservation.workspace = true
-demo-signal-entry.workspace = true
-demo-async-signal-entry.workspace = true
-demo-async-custom-entry.workspace = true
-demo-out-of-memory.workspace = true
-page_size.workspace = true
+demo-gasless-wasting = { workspace = true }
+demo-gas-burned = { workspace = true }
+demo-waiting-proxy = { workspace = true }
+demo-calc-hash = { workspace = true }
+demo-calc-hash-over-blocks = { workspace = true }
+demo-calc-hash-in-one-block = { workspace = true }
+demo-compose = { workspace = true }
+demo-mul-by-const = { workspace = true }
+demo-value-sender = { workspace = true }
+demo-waiter = { workspace = true }
+demo-wait-timeout = { workspace = true }
+demo-wait-wake = { workspace = true }
+demo-reserve-gas = { workspace = true }
+demo-send-from-reservation = { workspace = true }
+demo-signal-entry = { workspace = true }
+demo-async-signal-entry = { workspace = true }
+demo-async-custom-entry = { workspace = true }
+demo-out-of-memory = { workspace = true }
+page_size = { workspace = true }
 frame-support-test = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, features = ["std"] }
-gmeta.workspace = true
+gmeta = { workspace = true }
 
 [features]
 default = ['std']

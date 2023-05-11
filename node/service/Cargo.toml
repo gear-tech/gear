@@ -1,10 +1,10 @@
 [package]
 name = "gear-service"
 version = "0.1.0"
-authors.workspace = true
+authors = { workspace = true }
 description = "Gear Node"
-edition.workspace = true
-license.workspace = true
+edition = { workspace = true }
+license = { workspace = true }
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
@@ -13,19 +13,19 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { workspace = true, features = ["derive"] }
-futures.workspace = true
-futures-timer.workspace = true
-hex-literal.workspace = true
+futures = { workspace = true }
+futures-timer = { workspace = true }
+hex-literal = { workspace = true }
 jsonrpsee = { workspace = true, features = ["server"] }
-log.workspace = true
+log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 
 # Gear
-pallet-gear-rpc.workspace = true
+pallet-gear-rpc = { workspace = true }
 pallet-gear-rpc-runtime-api = { workspace = true, features = ["std"] }
 runtime-primitives = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, features = ["std"] }
-authorship.workspace = true
+authorship = { workspace = true }
 
 # Gear Runtimes
 common = { workspace = true, features = ["std"] }
@@ -34,44 +34,44 @@ gear-runtime = { workspace = true, optional = true, features = ["std"] }
 vara-runtime = { workspace = true, optional = true, features = ["std"] }
 
 # Substrate Client
-sc-block-builder.workspace = true
-sc-chain-spec.workspace = true
-sc-authority-discovery.workspace = true
+sc-block-builder = { workspace = true }
+sc-chain-spec = { workspace = true }
+sc-authority-discovery = { workspace = true }
 sc-executor = { workspace = true, features = [ "host-sandbox", "wasmer-cache" ] }
-sc-service.workspace = true
-sc-telemetry.workspace = true
-sc-keystore.workspace = true
-sc-network.workspace = true
-sc-network-common.workspace = true
-sc-network-sync.workspace = true
-sc-consensus-slots.workspace = true
-sc-transaction-pool.workspace = true
-sc-transaction-pool-api.workspace = true
-sc-rpc-api.workspace = true
-sc-consensus.workspace = true
-sc-consensus-epochs.workspace = true
-sc-consensus-babe.workspace = true
-sc-consensus-babe-rpc.workspace = true
-sc-consensus-grandpa.workspace = true
-sc-consensus-grandpa-rpc.workspace = true
-sc-client-api.workspace = true
-sc-rpc.workspace = true
-sc-rpc-spec-v2.workspace = true
-sc-sync-state-rpc.workspace = true
-sc-sysinfo.workspace = true
+sc-service = { workspace = true }
+sc-telemetry = { workspace = true }
+sc-keystore = { workspace = true }
+sc-network = { workspace = true }
+sc-network-common = { workspace = true }
+sc-network-sync = { workspace = true }
+sc-consensus-slots = { workspace = true }
+sc-transaction-pool = { workspace = true }
+sc-transaction-pool-api = { workspace = true }
+sc-rpc-api = { workspace = true }
+sc-consensus = { workspace = true }
+sc-consensus-epochs = { workspace = true }
+sc-consensus-babe = { workspace = true }
+sc-consensus-babe-rpc = { workspace = true }
+sc-consensus-grandpa = { workspace = true }
+sc-consensus-grandpa-rpc = { workspace = true }
+sc-client-api = { workspace = true }
+sc-rpc = { workspace = true }
+sc-rpc-spec-v2 = { workspace = true }
+sc-sync-state-rpc = { workspace = true }
+sc-sysinfo = { workspace = true }
 
 # Substrate Primitives
 sp-core = { workspace = true, features = ["std"] }
 sp-api = { workspace = true, features = ["std"] }
 sp-authority-discovery = { workspace = true, optional = true, features = ["std"] }
-sp-consensus.workspace = true
+sp-consensus = { workspace = true }
 sp-consensus-babe = { workspace = true, features = ["std"] }
 sp-transaction-pool = { workspace = true, features = ["std"] }
 sp-transaction-storage-proof = { workspace = true, features = ["std"] }
 sp-consensus-grandpa = { workspace = true, features = ["std"] }
 sp-runtime = { workspace = true, features = ["std"] }
 sp-timestamp = { workspace = true, features = ["std"] }
-sp-blockchain.workspace = true
+sp-blockchain = { workspace = true }
 sp-block-builder = { workspace = true, features = ["std"] }
 sp-keystore = { workspace = true, features = ["std"] }
 sp-trie = { workspace = true, features = ["std"] }
@@ -80,24 +80,24 @@ sp-offchain = { workspace = true, features = ["std"] }
 sp-session = { workspace = true, features = ["std"] }
 
 # Frame Pallets
-pallet-transaction-payment.workspace = true
-pallet-transaction-payment-rpc.workspace = true
+pallet-transaction-payment = { workspace = true }
+pallet-transaction-payment-rpc = { workspace = true }
 pallet-transaction-payment-rpc-runtime-api = { workspace = true, features = ["std"] }
 pallet-staking = { workspace = true, optional = true }
 pallet-im-online = { workspace = true, optional = true }
 
 # Substrate Other
 frame-benchmarking = { workspace = true, features = ["std"] }
-frame-benchmarking-cli.workspace = true
-substrate-frame-rpc-system.workspace = true
+frame-benchmarking-cli = { workspace = true }
+substrate-frame-rpc-system = { workspace = true }
 frame-support = { workspace = true, features = ["std"] }
 frame-system = { workspace = true, features = ["std"] }
 frame-system-rpc-runtime-api = { workspace = true, features = ["std"] }
-substrate-state-trie-migration-rpc.workspace = true
+substrate-state-trie-migration-rpc = { workspace = true }
 try-runtime-cli = { workspace = true, optional = true }
 
 [build-dependencies]
-substrate-build-script-utils.workspace = true
+substrate-build-script-utils = { workspace = true }
 
 [features]
 gear-native = [

@@ -1,8 +1,8 @@
 [package]
 name = "gear-cli"
 version = "0.1.6"
-authors.workspace = true
-edition.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -18,14 +18,14 @@ path = "src/main.rs"
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
 mimalloc = { workspace = true, default-features = false }
-scale-info.workspace = true
+scale-info = { workspace = true }
 log = { workspace = true, features = ["std"] }
-futures.workspace = true
+futures = { workspace = true }
 
 # Gear
-runtime-primitives.workspace = true
+runtime-primitives = { workspace = true }
 gear-runtime-test-cli = { workspace = true, optional = true }
-service.workspace = true
+service = { workspace = true }
 pallet-gear-payment = { workspace = true, features = ["std"] }
 pallet-gear-staking-rewards = { workspace = true, optional = true, features = ["std"] }
 
@@ -34,16 +34,16 @@ gear-runtime = { workspace = true, optional = true, features = ["std"] }
 vara-runtime = { workspace = true, optional = true, features = ["std"] }
 
 # Substrate client
-sc-cli.workspace = true
-sc-executor.workspace = true
-sc-service.workspace = true
-sc-client-api.workspace = true
+sc-cli = { workspace = true }
+sc-executor = { workspace = true }
+sc-service = { workspace = true }
+sc-client-api = { workspace = true }
 
 # Substrate primitives
 sp-core = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
 sp-inherents = { workspace = true, features = ["std"] }
-sp-keyring.workspace = true
+sp-keyring = { workspace = true }
 sp-runtime = { workspace = true, features = ["std"] }
 sp-timestamp = { workspace = true, features = ["std"] }
 
@@ -57,7 +57,7 @@ try-runtime-cli = { workspace = true, optional = true }
 gcli = { workspace = true, optional = true }
 
 [build-dependencies]
-substrate-build-script-utils.workspace = true
+substrate-build-script-utils = { workspace = true }
 
 [features]
 default = ["gear-native", "vara-native", "lazy-pages"]

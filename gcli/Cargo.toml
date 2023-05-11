@@ -1,11 +1,11 @@
 [package]
 name = "gcli"
 version = "0.1.6"
-authors.workspace = true
-edition.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
 description = "gear program cli"
 repository = "https://github.com/gear-tech/gear/tree/master/program"
-license.workspace = true
+license = { workspace = true }
 documentation = "https://docs.rs/gear-program"
 homepage = "https://github.com/gear-tech/gear/tree/master/program"
 keywords = ["gear", "cli", "wasm"]
@@ -16,37 +16,37 @@ path = "bin/gcli.rs"
 name = "gcli"
 
 [dependencies]
-gsdk.workspace = true
-anyhow.workspace = true
-base64.workspace = true
-color-eyre.workspace = true
-dirs.workspace = true
-env_logger.workspace = true
-gmeta.workspace = true
-gear-core.workspace = true
-hex.workspace = true
+gsdk = { workspace = true }
+anyhow = { workspace = true }
+base64 = { workspace = true }
+color-eyre = { workspace = true }
+dirs = { workspace = true }
+env_logger = { workspace = true }
+gmeta = { workspace = true }
+gear-core = { workspace = true }
+hex = { workspace = true }
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
-keyring.workspace = true
-lazy_static.workspace = true
+keyring = { workspace = true }
+lazy_static = { workspace = true }
 libp2p = { workspace = true, features = [ "identify" ], optional = true }
-log.workspace = true
-nacl.workspace = true
-scale-info.workspace = true
-schnorrkel.workspace = true
-serde.workspace = true
-serde_json.workspace = true
+log = { workspace = true }
+nacl = { workspace = true }
+scale-info = { workspace = true }
+schnorrkel = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-thiserror.workspace = true
+thiserror = { workspace = true }
 tokio = { workspace = true, features = [ "full" ] }
-whoami.workspace = true
-core-processor.workspace = true
+whoami = { workspace = true }
+core-processor = { workspace = true }
 gear-backend-wasmi = { workspace = true, features = [ "std" ] }
 
 [dev-dependencies]
-rand.workspace = true
+rand = { workspace = true }
 messager = { path = "./res/messager" }
-demo-new-meta.workspace = true
-demo-waiter.workspace = true
+demo-new-meta = { workspace = true }
+demo-waiter = { workspace = true }
 gsdk = { workspace = true, features = ["testing"] }
 
 [features]

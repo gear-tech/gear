@@ -1,19 +1,19 @@
 [package]
 name = "runtime-fuzzer-fuzz"
 version = "0.1.0"
-authors.workspace = true
-edition.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
 
 [package.metadata]
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys.workspace = true
+libfuzzer-sys = { workspace = true }
 runtime-fuzzer = { path = ".." }
-gear-utils.workspace = true
-env_logger.workspace = true
-log.workspace = true
-once_cell.workspace = true
+gear-utils = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }
+once_cell = { workspace = true }
 
 [[bin]]
 name = "main"

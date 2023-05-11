@@ -1,39 +1,39 @@
 [package]
 name = "gear-common"
 version = "0.1.0"
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [dependencies]
 primitive-types = { workspace = true, features = ["scale-info"] }
-log.workspace = true
-derive_more.workspace = true
-enum-iterator.workspace = true
+log = { workspace = true }
+derive_more = { workspace = true }
+enum-iterator = { workspace = true }
 mutagen = { workspace = true, optional = true }
-hex.workspace = true
+hex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
-path-clean.workspace = true
+serde_json = { workspace = true }
+path-clean = { workspace = true }
 
 # Internal deps
-gear-core.workspace = true
-gear-common-codegen.workspace = true
+gear-core = { workspace = true }
+gear-common-codegen = { workspace = true }
 gear-wasm-instrument = { workspace = true, optional = true }
 
 # Substrate deps
-sp-core.workspace = true
-sp-io.workspace = true
-sp-std.workspace = true
-sp-arithmetic.workspace = true
-frame-support.workspace = true
+sp-core = { workspace = true }
+sp-io = { workspace = true }
+sp-std = { workspace = true }
+sp-arithmetic = { workspace = true }
+frame-support = { workspace = true }
 frame-system = { workspace = true, optional = true }
 frame-benchmarking = { workspace = true, optional = true }
 
 [dev-dependencies]
-hex-literal.workspace = true
-proptest.workspace = true
-gear-utils.workspace = true
+hex-literal = { workspace = true }
+proptest = { workspace = true }
+gear-utils = { workspace = true }
 
 [features]
 default = ["std"]

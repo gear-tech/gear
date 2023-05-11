@@ -1,31 +1,31 @@
 [package]
 name = "gsdk"
 version = "0.1.0"
-edition.workspace = true
-authors.workspace = true
+edition = { workspace = true }
+authors = { workspace = true }
 description = "Gear network rust sdk."
-license.workspace = true
+license = { workspace = true }
 homepage = "https://github.com/gear-tech/gear/tree/master/gsdk"
 readme = "./README.md"
 
 [dependencies]
-anyhow.workspace = true
-async-recursion.workspace = true
-base64.workspace = true
-futures-util.workspace = true
-futures.workspace = true
-gear-core.workspace = true
-hex.workspace = true
+anyhow = { workspace = true }
+async-recursion = { workspace = true }
+base64 = { workspace = true }
+futures-util = { workspace = true }
+futures = { workspace = true }
+gear-core = { workspace = true }
+hex = { workspace = true }
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
-log.workspace = true
-parity-scale-codec.workspace = true
+log = { workspace = true }
+parity-scale-codec = { workspace = true }
 primitive-types = { workspace = true, features = ["codec", "scale-info", "serde"] }
-serde.workspace = true
-serde_json.workspace = true
-subxt.workspace = true
-thiserror.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+subxt = { workspace = true }
+thiserror = { workspace = true }
 sp-runtime = { workspace = true, features = [ "std" ] }
-sp-core.workspace = true
+sp-core = { workspace = true }
 
 # deps for features `testing`
 rand = { workspace = true, optional = true }

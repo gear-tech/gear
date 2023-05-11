@@ -1,19 +1,19 @@
 [package]
 name = "gcore"
 version = "0.1.0"
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [dependencies]
-gsys.workspace = true
-gear-core-errors.workspace = true
+gsys = { workspace = true }
+gear-core-errors = { workspace = true }
 codec = { workspace = true, optional = true }
-static_assertions.workspace = true
+static_assertions = { workspace = true }
 
 [dev-dependencies]
-hex-literal.workspace = true
-galloc.workspace = true
+hex-literal = { workspace = true }
+galloc = { workspace = true }
 
 [features]
 codec = ["dep:codec", "gear-core-errors/codec"]

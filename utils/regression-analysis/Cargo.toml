@@ -1,19 +1,19 @@
 [package]
 name = "regression-analysis"
 version = "0.1.0"
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
 quick-xml = { workspace = true, features = [ "serialize" ] }
-tabled.workspace = true
-junit-common.workspace = true
+tabled = { workspace = true }
+junit-common = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
-thousands.workspace = true
+serde_json = { workspace = true }
+thousands = { workspace = true }
 
-gear-runtime.workspace = true
-pallet-gear.workspace = true
-frame-support.workspace = true
+gear-runtime = { workspace = true }
+pallet-gear = { workspace = true }
+frame-support = { workspace = true }
