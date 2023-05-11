@@ -50,7 +50,7 @@ struct GlobalsAccessWasmRuntime<'a> {
 }
 
 impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
-    fn get_i64(&self, name: TrimmedString) -> Result<i64, GlobalsAccessError> {
+    fn get_i64(&self, name: &TrimmedString) -> Result<i64, GlobalsAccessError> {
         self.instance
             .get_global_val(name.as_str())
             .and_then(|value| match value {
@@ -60,7 +60,7 @@ impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
             .ok_or(GlobalsAccessError)
     }
 
-    fn set_i64(&mut self, name: TrimmedString, value: i64) -> Result<(), GlobalsAccessError> {
+    fn set_i64(&mut self, name: &TrimmedString, value: i64) -> Result<(), GlobalsAccessError> {
         self.instance
             .set_global_val(name.as_str(), Value::I64(value))
             .ok()
@@ -79,12 +79,12 @@ struct GlobalsAccessNativeRuntime<'a, 'b> {
 }
 
 impl<'a, 'b> GlobalsAccessor for GlobalsAccessNativeRuntime<'a, 'b> {
-    fn get_i64(&self, name: TrimmedString) -> Result<i64, GlobalsAccessError> {
-        self.inner_access_provider.get_i64(name)
+    fn get_i64(&self, name: &TrimmedString) -> Result<i64, GlobalsAccessError> {
+        self.inner_access_provider.get_i64(&name)
     }
 
-    fn set_i64(&mut self, name: TrimmedString, value: i64) -> Result<(), GlobalsAccessError> {
-        self.inner_access_provider.set_i64(name, value)
+    fn set_i64(&mut self, name: &TrimmedString, value: i64) -> Result<(), GlobalsAccessError> {
+        self.inner_access_provider.set_i64(&name, value)
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -100,9 +100,9 @@ fn apply_for_global_internal(
     let name =
         TrimmedString::try_from(name).map_err(|_| Error::AccessGlobal(GlobalsAccessError))?;
 
-    let current_value = globals_access_provider.get_i64(name.clone())? as u64;
+    let current_value = globals_access_provider.get_i64(&name)? as u64;
     if let Some(new_value) = f(current_value)? {
-        globals_access_provider.set_i64(name, new_value as i64)?;
+        globals_access_provider.set_i64(&name, new_value as i64)?;
         Ok(new_value)
     } else {
         Ok(current_value)
