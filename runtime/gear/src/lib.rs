@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![feature(const_option)]
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
@@ -121,19 +120,14 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
         allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
     };
 
-// We'll check that WEIGHT_REF_TIME_PER_SECOND is not overflows so we can use
-// checked_div instead of saturating one.
+// We'll verify that WEIGHT_REF_TIME_PER_SECOND does not overflow,
+// allowing us to use the simple divide operator instead of a saturating or checked one.
 const_assert!(WEIGHT_REF_TIME_PER_SECOND.checked_div(3).is_some());
 
 /// We allow for 1/3 of block time for computations, with maximum proof size.
 ///
 /// It's 1/3 sec for gear runtime with 1 second block duration.
-const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
-    WEIGHT_REF_TIME_PER_SECOND
-        .checked_div(3)
-        .expect("cannot divide WEIGHT_REF_TIME_PER_SECOND by 3"),
-    u64::MAX,
-);
+const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND / 3, u64::MAX);
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
