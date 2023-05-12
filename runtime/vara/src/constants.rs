@@ -29,8 +29,9 @@ pub mod currency {
     pub const CENTS: Balance = DOLLARS / 100; // 200_000_000_000
     pub const MILLICENTS: Balance = CENTS / 1_000; // 200_000_000
 
-    /// Function that defines runtime constants used in voting
+    /// Helper function to calculate various deposits for using pallets' storage
     pub const fn deposit(items: u32, bytes: u32) -> Balance {
+        // TODO: review numbers (#2650)
         items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
     }
 }

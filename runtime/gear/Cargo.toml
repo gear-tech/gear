@@ -27,6 +27,8 @@ pallet-authorship.workspace = true
 pallet-babe.workspace = true
 pallet-balances.workspace = true
 pallet-grandpa.workspace = true
+pallet-multisig.workspace = true
+pallet-proxy.workspace = true
 pallet-session.workspace = true
 pallet-sudo.workspace = true
 pallet-timestamp.workspace = true
@@ -93,6 +95,8 @@ std = [
 	"runtime-primitives/std",
 	"validator-set/std",
 	"pallet-grandpa/std",
+	"pallet-multisig/std",
+	"pallet-proxy/std",
 	"pallet-session/std",
 	"pallet-sudo/std",
 	"pallet-timestamp/std",
@@ -150,6 +154,8 @@ try-runtime = [
 	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-grandpa/try-runtime",
+	"pallet-multisig/try-runtime",
+	"pallet-proxy/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-sudo/try-runtime",
 	"pallet-timestamp/try-runtime",

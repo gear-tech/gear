@@ -26,11 +26,13 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use frame_support::weights::ConstantMultiplier;
 pub use frame_support::{
+    codec::{Decode, Encode, MaxEncodedLen},
     construct_runtime,
     dispatch::{DispatchClass, WeighData},
     parameter_types,
     traits::{
-        ConstU128, ConstU32, Contains, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo,
+        ConstU128, ConstU32, Contains, FindAuthor, InstanceFilter, KeyOwnerProofSystem, Randomness,
+        StorageInfo,
     },
     weights::{
         constants::{
@@ -39,7 +41,7 @@ pub use frame_support::{
         },
         Weight,
     },
-    StorageValue,
+    RuntimeDebug, StorageValue,
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
@@ -310,6 +312,107 @@ impl pallet_utility::Config for Runtime {
     type PalletsOrigin = OriginCaller;
 }
 
+parameter_types! {
+    // One storage item; key size is 32; value is size 4+4+16+32 bytes = 56 bytes.
+    pub const DepositBase: Balance = deposit(1, 88);
+    // Additional storage item size of 32 bytes.
+    pub const DepositFactor: Balance = deposit(0, 32);
+}
+
+impl pallet_multisig::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type Currency = Balances;
+    type DepositBase = DepositBase;
+    type DepositFactor = DepositFactor;
+    type MaxSignatories = ConstU32<100>;
+    type WeightInfo = pallet_multisig::weights::SubstrateWeight<Runtime>;
+}
+
+parameter_types! {
+    // One storage item; key size 32, value size 8; .
+    pub const ProxyDepositBase: Balance = deposit(1, 8);
+    // Additional storage item size of 33 bytes.
+    pub const ProxyDepositFactor: Balance = deposit(0, 33);
+    pub const AnnouncementDepositBase: Balance = deposit(1, 8);
+    pub const AnnouncementDepositFactor: Balance = deposit(0, 66);
+}
+
+/// The type used to represent the kinds of proxying allowed.
+#[derive(
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Encode,
+    Decode,
+    RuntimeDebug,
+    MaxEncodedLen,
+    scale_info::TypeInfo,
+)]
+pub enum ProxyType {
+    Any,
+    NonTransfer,
+    CancelProxy,
+    SudoBalances,
+}
+
+impl Default for ProxyType {
+    fn default() -> Self {
+        Self::Any
+    }
+}
+
+impl InstanceFilter<RuntimeCall> for ProxyType {
+    fn filter(&self, c: &RuntimeCall) -> bool {
+        match self {
+            ProxyType::Any => true,
+            ProxyType::NonTransfer => {
+                !matches!(c, RuntimeCall::Balances(..) | RuntimeCall::Sudo(..))
+            }
+            ProxyType::CancelProxy => {
+                matches!(
+                    c,
+                    RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. })
+                )
+            }
+            ProxyType::SudoBalances => match c {
+                RuntimeCall::Sudo(pallet_sudo::Call::sudo { call: x }) => {
+                    matches!(x.as_ref(), &RuntimeCall::Balances(..))
+                }
+                RuntimeCall::Utility(..) => true,
+                _ => false,
+            },
+        }
+    }
+    fn is_superset(&self, o: &Self) -> bool {
+        match (self, o) {
+            (x, y) if x == y => true,
+            (ProxyType::Any, _) => true,
+            (_, ProxyType::Any) => false,
+            (ProxyType::NonTransfer, _) => true,
+            _ => false,
+        }
+    }
+}
+
+impl pallet_proxy::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type Currency = Balances;
+    type ProxyType = ProxyType;
+    type ProxyDepositBase = ProxyDepositBase;
+    type ProxyDepositFactor = ProxyDepositFactor;
+    type MaxProxies = ConstU32<32>;
+    type WeightInfo = pallet_proxy::weights::SubstrateWeight<Runtime>;
+    type MaxPending = ConstU32<32>;
+    type CallHasher = BlakeTwo256;
+    type AnnouncementDepositBase = AnnouncementDepositBase;
+    type AnnouncementDepositFactor = AnnouncementDepositFactor;
+}
+
 impl pallet_gear_program::Config for Runtime {
     type Scheduler = GearScheduler;
     type CurrentBlockNumber = Gear;
@@ -442,6 +545,8 @@ construct_runtime!(
         TransactionPayment: pallet_transaction_payment = 6,
         Session: pallet_session = 7,
         Utility: pallet_utility = 8,
+        Proxy: pallet_proxy = 9,
+        Multisig: pallet_multisig = 10,
         ValidatorSet: validator_set = 98,
         Sudo: pallet_sudo = 99,
 
@@ -474,6 +579,8 @@ construct_runtime!(
         TransactionPayment: pallet_transaction_payment = 6,
         Session: pallet_session = 7,
         Utility: pallet_utility = 8,
+        Proxy: pallet_proxy = 9,
+        Multisig: pallet_multisig = 10,
         ValidatorSet: validator_set = 98,
         Sudo: pallet_sudo = 99,
 
