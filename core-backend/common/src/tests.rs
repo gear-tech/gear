@@ -308,6 +308,37 @@ fn test_write_of_zero_size_struct() {
 }
 
 #[test]
+fn test_write_of_buf_to_no_write_ptr() {
+    let mut gas_left = GAS_LEFT;
+    let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
+    let mut memory = MockMemory::new(1);
+    let write = memory_access_manager.register_write(NO_WRITE_PTR, 1);
+
+    let result = memory_access_manager.write(&mut memory, write, &[0u8; 1], &mut gas_left);
+
+    assert!(result.is_ok());
+    assert_eq!(memory.write_attempt_count(), 0);
+}
+
+#[test]
+fn test_write_of_struct_to_no_write_ptr() {
+    let mut gas_left = GAS_LEFT;
+    let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
+    let mut memory = MockMemory::new(1);
+    let write = memory_access_manager.register_write_as::<TestStruct>(NO_WRITE_PTR);
+
+    let result = memory_access_manager.write_as(
+        &mut memory,
+        write,
+        TestStruct { a: 1, b: 1 },
+        &mut gas_left,
+    );
+
+    assert!(result.is_ok());
+    assert_eq!(memory.write_attempt_count(), 0);
+}
+
+#[test]
 #[should_panic(expected = "buffer size is not equal to registered buffer size")]
 fn test_write_with_zero_buffer_size() {
     let mut gas_left = GAS_LEFT;
@@ -562,6 +593,24 @@ fn test_register_write_of_zero_size_struct() {
     mem_access_manager.register_write_as::<ZeroSizeStruct>(142);
 
     assert_eq!(mem_access_manager.writes.len(), 0);
+}
+
+#[test]
+fn test_register_write_of_buf_to_no_write_ptr() {
+    let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
+
+    memory_access_manager.register_write(NO_WRITE_PTR, 10);
+
+    assert_eq!(memory_access_manager.writes.len(), 0);
+}
+
+#[test]
+fn test_register_write_of_struct_to_no_write_ptr() {
+    let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
+
+    memory_access_manager.register_write_as::<TestStruct>(NO_WRITE_PTR);
+
+    assert_eq!(memory_access_manager.writes.len(), 0);
 }
 
 #[test]

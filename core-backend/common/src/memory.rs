@@ -36,7 +36,11 @@ use gear_core::{
 use gear_core_errors::MemoryError;
 use scale_info::scale::{self, Decode, DecodeAll, Encode, MaxEncodedLen};
 
+/// Denotes that write operation should result in no write to it.
+pub const NO_WRITE_PTR: u32 = u32::MAX;
+
 /// Memory access error during sys-call that lazy-pages have caught.
+/// One of the usages is ignoring a sys-call result.
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = scale)]
 pub enum ProcessAccessError {
@@ -180,7 +184,7 @@ impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
     }
 
     fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
-        if size > 0 {
+        if size > 0 && ptr != NO_WRITE_PTR {
             self.writes.push(MemoryInterval { offset: ptr, size });
         }
         WasmMemoryWrite { ptr, size }
@@ -188,7 +192,7 @@ impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
 
     fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
         let size = size_of::<T>() as u32;
-        if size > 0 {
+        if size > 0 && ptr != NO_WRITE_PTR {
             self.writes.push(MemoryInterval { offset: ptr, size });
         }
         WasmMemoryWriteAs {
@@ -286,7 +290,7 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         if buff.len() != write.size as usize {
             unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
         }
-        if write.size == 0 {
+        if write.size == 0 || write.ptr == NO_WRITE_PTR {
             Ok(())
         } else {
             self.pre_process_memory_accesses(gas_left)?;
@@ -314,7 +318,7 @@ fn write_memory_as<T: Sized>(
     obj: T,
 ) -> Result<(), MemoryError> {
     let size = mem::size_of::<T>();
-    if size > 0 {
+    if size > 0 && ptr != NO_WRITE_PTR {
         // # Safety:
         //
         // Given object is `Sized` and we own them in the context of calling this
