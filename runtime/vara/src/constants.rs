@@ -31,8 +31,7 @@ pub mod currency {
 
     /// Helper function to calculate various deposits for using pallets' storage
     pub const fn deposit(items: u32, bytes: u32) -> Balance {
-        // TODO: review numbers. Current values are defaults from Substrate. For reference,
-        // in Polkadot/Kusama it's 20 * `DOLLARS` per item and 100 * `MILLICENTS` per byte.
+        // TODO: review numbers (#2650)
         items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
     }
 }
