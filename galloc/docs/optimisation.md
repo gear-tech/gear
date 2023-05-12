@@ -1,11 +1,11 @@
-# Optimisation of galloc
-We've tried to optimise galloc in some ways, but none of them showed significant performance improvement, so we'd **strongly suggest to keep the current implementation.**
+# Optimization of galloc
+We've tried to optimize galloc in some ways, but none of them showed significant performance improvement, so we'd **strongly suggest keeping the current implementation.**
 
-The current implementation uses static buffer in addition to standard <kbd>dlmalloc</kbd>-like implementation.
+The current implementation uses a static buffer in addition to standard <kbd>dlmalloc</kbd>-like implementation.
 
 ![Total perfomance comparison](./images/total-performance-comparison.png)
 
-Here are some of the optimisation attempts we've tried:
+Here are some of the optimization attempts we've tried:
 
 1. [Measuring current performance](#current)
 1. [Remove static buffer](#remove)
@@ -17,31 +17,31 @@ Here are some of the optimisation attempts we've tried:
 We've measured the current [(commit 9135baa)](https://github.com/gear-tech/dlmalloc-rust/tree/9135baa728ef9a9a04a887998e019733c4b093af) performance of dlmalloc to have a baseline for comparison.
 ### How we measured
 
-All optimisation attempts were tested 3 times on the different test cases, and the average of the results was used to compare the performance. Our main metric is gas consumption: the less gas is consumed, the better. All optimisations were measured in release mode binaries with most optimisations enabled and compared to current perfomance.
+All optimization attempts were tested 3 times on the different test cases, and the average of the results was used to compare the performance. Our main metric is gas consumption: the less gas is consumed, the better. All optimizations were measured in release mode binaries with most optimizations enabled and compared to current performance.
 
-The gas measurements were made via `debug` and `gas_available` syscalls, which was temporarily made free. Each allocation top-level operation (i.e. malloc, calloc, ...) was measured separately, the gas was measured before and after function call and calculated as substraction result of gas before and gas after.
+The gas measurements were made via `debug` and `gas_available` syscalls, which were temporarily made free. Each allocation top-level operation (i.e., malloc, calloc, ...) was measured separately; the gas was measured before and after the function call and calculated as the subtraction result of gas before and gas after.
 
-Then the gas consumption was calculated as a percentage of total gas spent on the test case.
+Then the gas consumption was calculated as a percentage of the total gas spent on the test case.
 
-We've intentionally did not put any info about testing machine, because we measure only gas consumption, which will be same for every machine, since we have fixed weights for every instruction and syscall.
+We've intentionally not put any info about the testing machine because we measure only gas consumption, which will be the same for every machine since we have fixed weights for every instruction and syscall.
 
 The test cases were:
-- `NFT init -> mint -> burn`: This test case is for measuring the performance of the NFT contract, which is the one of the common cases of smart contracts. The test case consists of the following steps:
+- `NFT init -> mint -> burn`: This test case is for measuring the performance of the NFT contract, which is one of the common cases of smart contracts. The test case consists of the following steps:
   - `init`: Initialise the NFT contract.
   - `mint`: Mint 1 NFT.
   - `burn`: Burn 1 NFT.
 
-  This is quite simple case and it's not the most common case, but it's the most simple case we can think of.
+  This is quite a simple case, and it's not the most common case, but it's the simplest case we can think of.
 
   You can see the code of the test case [here](https://github.com/gear-dapps/non-fungible-token/blob/0.2.10/tests/node_tests.rs) (`burn-test`).
-- `FT stress-test` with <kbd>gtest</kbd>: This test case is for measuring the performance of the FT contract, which is also the one of the common cases of smart contracts. The test case consists of the following steps:
+- `FT stress-test` with <kbd>gtest</kbd>: This test case is for measuring the performance of the FT contract, which is also one of the common cases of smart contracts. The test case consists of the following steps:
   - `init`: Initialise the FT contract.
   - `mint`: Mint 1 000 000 FT to the first user.
-  - `transfer`: Transfer 6 000 FT to the first 20 accounts from first user.
-  - `balance`: Check the balance of first account to prove it sent 6 000 FT to the first 20 accounts.
-  - `balance`: Check the balance of first 20 accounts.
+  - `transfer`: Transfer 6 000 FT to the first 20 accounts from the first user.
+  - `balance`: Check the balance of the first account to prove it sent 6 000 FT to the first 20 accounts.
+  - `balance`: Check the balance of the first 20 accounts.
   - `transfer`: Transfer 1 000 FT from the first 20 accounts to users 21-100.
-  - `balance`: Check the balance of first 20 accounts to prove it sent 1 000 FT to users 21-100.
+  - `balance`: Check the balance of the first 20 accounts to prove it sent 1 000 FT to users 21-100.
   - `balance`: Check the balance of users 21-100 to prove they've received 1 000 FT from the first 20 accounts.
   - `mint`: Mint 1 000 000 FT to the second user. 
   - `mint`: Mint 5 000 FT to users 87..120.
@@ -58,7 +58,7 @@ The test cases were:
 
   This test tries to imitate what happens when the FT contract is used in the real world, with many clients and memory allocations therefore.
 
-- `FT stress-test` with <kbd>gclient</kbd>: This test case has the same steps as the previous one, but it's executed with <kbd>gclient</kbd> instead of <kbd>gtest</kbd>. This test is most similar to the real world case, because it's executed with the real node and will give the most real gas usage. 
+- `FT stress-test` with <kbd>gclient</kbd>: This test case has the same steps as the previous one, but it's executed with <kbd>gclient</kbd> instead of <kbd>gtest</kbd>. This test is most similar to the real world case because it's executed with the real node and will give the most realistic gas usage. 
 
 ### Current performance
 
@@ -119,7 +119,7 @@ Here are the results of the current implementation of galloc (with static buffer
 
 ## 1. Remove static buffer
 <a name="remove"></a>
-We've tried to remove static buffer and use only <kbd>dlmalloc</kbd>-like implementation, but it showed no significant performance improvement. In most cases, it even showed worse performance. So it seems that the static buffer is not the bottleneck.
+We've tried to remove the static buffer and use only <kbd>dlmalloc</kbd>-like implementation, but it showed no significant performance improvement. In most cases, it even showed worse performance. So it seems that the static buffer is not the bottleneck.
 
 ### Test data
 
@@ -180,7 +180,7 @@ We've tried to remove static buffer and use only <kbd>dlmalloc</kbd>-like implem
 
 ## 2. Increase static buffer size by two
 <a name="increase"></a>
-We've tried to increase static buffer size by two, and it's perfomance was slightly better than the current implementation. But it's not significant enough to change the current implementation.
+We've tried to increase the static buffer size by two, and its performance was slightly better than the current implementation. But it's not significant enough to change the current implementation.
 
 ### Tests data
 
@@ -245,7 +245,7 @@ We've tried to increase static buffer size by two, and it's perfomance was sligh
 
 ## 3. Multiple static buffers
 <a name="multiple"></a>
-We've tried to implement not only one static buffer, but multiple static buffers, with different sizes. But the study showed that it's not worth the effort and most allocations was done in the largest static buffer, which perfomance was even worster to the current implementation.
+We've tried to implement not only one static buffer but multiple static buffers with different sizes. But the study showed that it's not worth the effort, and most allocations were done in the largest static buffer, which performance was even worse than the current implementation.
 
 The best-performed buffer combination was:
 - 1-byte buffer with 2 cells
@@ -317,4 +317,4 @@ The best-performed buffer combination was:
 [Go to top](#)
 
 # Conclusion
-We've tried to optimise galloc in some ways, but none of them showed significant performance improvement, so we'd suggest to keep the current implementation. All the tests showed that the current implementation is the best one.
+We've tried to optimize galloc in some ways, but none of them showed significant performance improvement, so we'd suggest keeping the current implementation. All the tests showed that the current implementation is the best one.
