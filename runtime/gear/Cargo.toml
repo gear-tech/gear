@@ -15,6 +15,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 log.workspace = true
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
+static_assertions.workspace = true
 
 validator-set.workspace = true
 
@@ -75,9 +76,9 @@ substrate-wasm-builder = { workspace = true, optional = true }
 default = ["std"]
 std = [
 	"common/std",
- 	"frame-try-runtime?/std",
- 	"frame-system-benchmarking?/std",
- 	"frame-benchmarking?/std",
+	"frame-try-runtime?/std",
+	"frame-system-benchmarking?/std",
+	"frame-benchmarking?/std",
 	"frame-executive/std",
 	"frame-support/std",
 	"frame-system/std",

@@ -82,6 +82,7 @@ use sp_std::{
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
+use static_assertions::const_assert;
 
 #[cfg(any(feature = "std", test))]
 pub use frame_system::Call as SystemCall;
@@ -137,15 +138,16 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
         allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
     };
 
+// We'll verify that WEIGHT_REF_TIME_PER_SECOND does not overflow, allowing us to use
+// simple multiply and divide operators instead of saturating or checked ones.
+const_assert!(WEIGHT_REF_TIME_PER_SECOND.checked_div(3).is_some());
+const_assert!((WEIGHT_REF_TIME_PER_SECOND / 3).checked_mul(2).is_some());
+
 /// We allow for 1/3 of block time for computations, with maximum proof size.
 ///
 /// It's 2/3 sec for vara runtime with 2 second block duration.
-const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
-    WEIGHT_REF_TIME_PER_SECOND
-        .saturating_mul(2)
-        .saturating_div(3),
-    u64::MAX,
-);
+const MAXIMUM_BLOCK_WEIGHT: Weight =
+    Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND * 2 / 3, u64::MAX);
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
