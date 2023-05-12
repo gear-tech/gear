@@ -67,7 +67,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
         if current == 2 && onchain == 1 {
             ProgramStorage::<T>::translate(
                 |program_id, (program, _bn): (v1::Program, <T as frame_system::Config>::BlockNumber)| {
-                    weight += T::DbWeight::get().reads_writes(1, 1);
+                    weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
                     let block_number = T::CurrentBlockNumber::get();
                     let expiration_block = block_number.saturating_add(FREE_PERIOD.into());
