@@ -193,7 +193,7 @@ async fn send_messages(api: &GearApi, progs: &HashMap<&str, ProgramId>) -> Resul
             }
             .encode(),
         ),
-        ("demo_node", demo_node::Request::Add(42).encode()),
+        ("demo_node", demo_node::Request::Add(42.into()).encode()),
         (
             "demo_program_factory",
             demo_program_factory::CreateProgram::Default.encode(),

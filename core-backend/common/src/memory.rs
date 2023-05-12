@@ -25,6 +25,7 @@ use core::{
     marker::PhantomData,
     mem,
     mem::{size_of, MaybeUninit},
+    result::Result,
     slice,
 };
 use gear_core::{
@@ -129,6 +130,7 @@ pub trait MemoryOwner {
 /// ```
 #[derive(Debug)]
 pub struct MemoryAccessManager<E> {
+    // Contains non-zero length intervals only.
     pub(crate) reads: Vec<MemoryInterval>,
     pub(crate) writes: Vec<MemoryInterval>,
     pub(crate) _phantom: PhantomData<E>,
@@ -146,15 +148,17 @@ impl<E> Default for MemoryAccessManager<E> {
 
 impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
-        self.reads.push(MemoryInterval { offset: ptr, size });
+        if size > 0 {
+            self.reads.push(MemoryInterval { offset: ptr, size });
+        }
         WasmMemoryRead { ptr, size }
     }
 
     fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
-        self.reads.push(MemoryInterval {
-            offset: ptr,
-            size: size_of::<T>() as u32,
-        });
+        let size = size_of::<T>() as u32;
+        if size > 0 {
+            self.reads.push(MemoryInterval { offset: ptr, size });
+        }
         WasmMemoryReadAs {
             ptr,
             _phantom: PhantomData,
@@ -165,10 +169,10 @@ impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
         &mut self,
         ptr: u32,
     ) -> WasmMemoryReadDecoded<T> {
-        self.reads.push(MemoryInterval {
-            offset: ptr,
-            size: T::max_encoded_len() as u32,
-        });
+        let size = T::max_encoded_len() as u32;
+        if size > 0 {
+            self.reads.push(MemoryInterval { offset: ptr, size });
+        }
         WasmMemoryReadDecoded {
             ptr,
             _phantom: PhantomData,
@@ -211,7 +215,7 @@ impl<E: BackendExt> MemoryAccessManager<E> {
     }
 
     /// Pre-process registered accesses if need and read data from `memory` to `buff`.
-    pub(crate) fn read_into_buf<M: Memory>(
+    fn read_into_buf<M: Memory>(
         &mut self,
         memory: &M,
         ptr: u32,
@@ -229,8 +233,13 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         read: WasmMemoryRead,
         gas_left: &mut GasLeft,
     ) -> Result<Vec<u8>, MemoryAccessError> {
-        let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
-        self.read_into_buf(memory, read.ptr, &mut buff, gas_left)?;
+        let buff = if read.size == 0 {
+            Vec::new()
+        } else {
+            let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
+            self.read_into_buf(memory, read.ptr, &mut buff, gas_left)?;
+            buff
+        };
         Ok(buff)
     }
 
@@ -241,8 +250,14 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         read: WasmMemoryReadDecoded<T>,
         gas_left: &mut GasLeft,
     ) -> Result<T, MemoryAccessError> {
-        let mut buff = RuntimeBuffer::try_new_default(T::max_encoded_len())?.into_vec();
-        self.read_into_buf(memory, read.ptr, &mut buff, gas_left)?;
+        let size = T::max_encoded_len();
+        let buff = if size == 0 {
+            Vec::new()
+        } else {
+            let mut buff = RuntimeBuffer::try_new_default(size)?.into_vec();
+            self.read_into_buf(memory, read.ptr, &mut buff, gas_left)?;
+            buff
+        };
         let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
         Ok(decoded)
     }
@@ -311,21 +326,23 @@ fn write_memory_as<T: Sized>(
 fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryError> {
     let mut buf = MaybeUninit::<T>::uninit();
 
-    // # Safety:
-    //
-    // Usage of mutable slice is safe for the same reason from `write_memory_as`.
-    // `MaybeUninit` is presented on stack with continuos sequence of bytes.
-    //
-    // It's also safe to construct T from any bytes, because we use the fn
-    // only for reading primitive const-size types that are `[repr(C)]`,
-    // so they always represented from sequence of bytes.
-    //
-    // Bytes in memory always stored continuously and without paddings, properly
-    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-    let mut_slice =
-        unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, mem::size_of::<T>()) };
+    let size = mem::size_of::<T>();
+    if size > 0 {
+        // # Safety:
+        //
+        // Usage of mutable slice is safe for the same reason from `write_memory_as`.
+        // `MaybeUninit` is presented on stack with continuos sequence of bytes.
+        //
+        // It's also safe to construct T from any bytes, because we use the fn
+        // only for reading primitive const-size types that are `[repr(C)]`,
+        // so they always represented from sequence of bytes.
+        //
+        // Bytes in memory always stored continuously and without paddings, properly
+        // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
+        let mut_slice = unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, size) };
 
-    memory.read(ptr, mut_slice)?;
+        memory.read(ptr, mut_slice)?;
+    }
 
     // # Safety:
     //

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};
+use crate::{cargo_command::CargoCommand, cargo_toolchain::Toolchain, wasm_project::WasmProject};
 use anyhow::Result;
 use filetime::{set_file_mtime, FileTime};
 use gmeta::{Metadata, MetadataRepr};
@@ -26,6 +26,7 @@ use wasm_project::ProjectType;
 
 mod builder_error;
 mod cargo_command;
+mod cargo_toolchain;
 mod crate_info;
 pub mod optimize;
 mod smart_fs;
@@ -89,9 +90,14 @@ impl WasmBuilder {
     }
 
     fn build_project(mut self) -> Result<()> {
-        // TODO: Check nightly toolchain
+        let cargo_path = env::var("CARGO")?;
+
         self.wasm_project.generate()?;
 
+        self.cargo
+            .set_toolchain(Toolchain::try_from_cargo_path(Path::new(
+                cargo_path.as_str(),
+            ))?);
         self.cargo
             .set_manifest_path(self.wasm_project.manifest_path());
         self.cargo.set_target_dir(self.wasm_project.target_dir());

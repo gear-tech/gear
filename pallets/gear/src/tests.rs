@@ -6377,11 +6377,11 @@ fn test_create_program_with_value_lt_ed() {
             // so messages will go to mailbox
             vec![
                 SendMessage::Handle {
-                    destination: msg_receiver_1,
+                    destination: msg_receiver_1.into(),
                     value: 500
                 },
                 SendMessage::Handle {
-                    destination: msg_receiver_2,
+                    destination: msg_receiver_2.into(),
                     value: 500
                 },
                 SendMessage::Init { value: 0 },
@@ -6416,11 +6416,11 @@ fn test_create_program_with_value_lt_ed() {
             // The last message value (which is the value of init message) will end execution with trap
             vec![
                 SendMessage::Handle {
-                    destination: msg_receiver_1,
+                    destination: msg_receiver_1.into(),
                     value: 500
                 },
                 SendMessage::Handle {
-                    destination: msg_receiver_2,
+                    destination: msg_receiver_2.into(),
                     value: 500
                 },
                 SendMessage::Init { value: ed - 1 },
@@ -6482,11 +6482,11 @@ fn test_create_program_with_exceeding_value() {
             b"test1".to_vec(),
             vec![
                 SendMessage::Handle {
-                    destination: random_receiver,
+                    destination: random_receiver.into(),
                     value: sending_to_program / 3
                 },
                 SendMessage::Handle {
-                    destination: random_receiver,
+                    destination: random_receiver.into(),
                     value: sending_to_program / 3
                 },
                 SendMessage::Init {

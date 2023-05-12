@@ -50,7 +50,7 @@ fn heuristics_test() {
     check_weight_inbounds_interval!(instruction_weights, br, 3_300);
     check_weight_inbounds_interval!(instruction_weights, br_if, 6_000);
     check_weight_inbounds_interval!(instruction_weights, br_table, 10_900);
-    check_weight_inbounds_interval!(instruction_weights, br_table_per_entry, 435);
+    check_weight_inbounds_interval!(instruction_weights, br_table_per_entry, 300);
 
     check_weight_inbounds_interval!(instruction_weights, call, 4_900);
     check_weight_inbounds_interval!(instruction_weights, call_per_local, 0);

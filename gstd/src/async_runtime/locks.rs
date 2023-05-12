@@ -177,7 +177,11 @@ impl LocksMap {
     }
 
     pub fn remove_message_entry(&mut self, message_id: MessageId) {
-        // TODO: check this place #2385
+        // We're removing locks for the message to keep contract's state clean.
+        //
+        // The locks for the message may not exist but this is ok, because not all
+        // contracts use locks. We'll still try to remove them.
+
         self.0.remove(&message_id);
     }
 

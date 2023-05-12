@@ -1,6 +1,6 @@
 [package]
 name = "gcli"
-version = "0.1.5"
+version = "0.1.6"
 authors.workspace = true
 edition.workspace = true
 description = "gear program cli"
@@ -47,6 +47,7 @@ rand.workspace = true
 messager = { path = "./res/messager" }
 demo-new-meta.workspace = true
 demo-waiter.workspace = true
+gsdk = { workspace = true, features = ["testing"] }
 
 [features]
 node-key = [ "libp2p" ]
