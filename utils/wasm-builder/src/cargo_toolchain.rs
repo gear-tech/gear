@@ -43,9 +43,12 @@ impl Toolchain {
             .ok_or_else(|| BuilderError::CargoPathInvalid(path.clone()))?;
 
         // Toolchain name format:
-        // "**toolchain**-arch-arch-arch-arch"
+        // "**toolchain**-arch-arch-arch-arch" (linux/windows?)
+        // or
+        // "**toolchain**-arch-arch-arch" (mac)
+        let toolchain_part_count = if cfg!(target_os = "macos") { 4 } else { 5 };
         let toolchain = toolchain_name
-            .rsplitn(5, '-')
+            .rsplitn(toolchain_part_count, '-')
             .last()
             .map(String::from)
             .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_name.into()))?;
