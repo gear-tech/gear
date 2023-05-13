@@ -38,6 +38,7 @@ jobs:
       - name: Build and push Node Fuzzer
         uses: docker/build-push-action@master
         with:
+          context: .
           file: ./docker/runtime-fuzzer/Dockerfile
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-node-fuzzer:latest
