@@ -48,8 +48,21 @@ pub trait CallArgs: GeneratableCallArgs + NamedCallArgs {}
 
 impl<T: GeneratableCallArgs + NamedCallArgs> CallArgs for T {}
 
-/// Describes the type that is used for fuzzing by the
-/// `gear-node-load` and `runtime-fuzzer` crates
+/// Describes type that can generate arguments of 
+/// the `gear` call.
+///
+/// Generates arguments for [`GearCall`] enum variants.
+/// These arguments are later used to fuzz `gear` runtime
+/// through `gear-node-loader` and `runtime-fuzzer`.
+///
+/// The trait is implemented for types, which can generate 
+/// arguments for this set of `gear` calls:
+/// 1. `upload_program`
+/// 2. `upload_code`
+/// 3. `create_program`
+/// 4. `send_message`
+/// 5. `send_reply`
+/// 6. `claim_value`
 pub trait GeneratableCallArgs {
     /// Describes the arguments of the test environment,
     /// which are written as a tuple of type `(T1, T2, T3, ...)`.
