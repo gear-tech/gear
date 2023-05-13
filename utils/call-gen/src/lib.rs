@@ -78,7 +78,9 @@ pub trait GeneratableCallArgs {
     fn generate<Rng: CallGenRng>(_: Self::FuzzerArgs, _: Self::ConstArgs) -> Self;
 }
 
-/// This trait is used to get the name from the argument type
+/// Describes type that can tell for which `gear` call it carries arguments.
+///
+/// Intended to be implemented by the [`GeneratableCallArgs`] implementor.
 pub trait NamedCallArgs {
     /// Returns name of gear-call argument type
     fn name() -> &'static str;
