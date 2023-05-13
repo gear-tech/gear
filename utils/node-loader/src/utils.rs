@@ -10,7 +10,6 @@ use std::{
     collections::{BTreeSet, HashMap},
     fs::File,
     io::Write,
-    iter,
     result::Result as StdResult,
     time::Duration,
 };

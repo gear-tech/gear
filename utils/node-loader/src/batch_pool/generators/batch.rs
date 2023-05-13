@@ -2,7 +2,6 @@ use super::seed;
 use crate::{
     args::SeedVariant,
     batch_pool::{api::GearApiFacade, context::Context, Seed},
-    utils,
 };
 use anyhow::Result;
 use futures::FutureExt;
