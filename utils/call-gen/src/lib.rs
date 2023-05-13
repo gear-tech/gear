@@ -52,7 +52,7 @@ impl<T: GeneratableCallArgs + NamedCallArgs> CallArgs for T {}
 /// `gear-node-load` and `runtime-fuzzer` crates
 pub trait GeneratableCallArgs {
     /// Describes the arguments of the test environment,
-    /// which are written as a tuple of type `(T1, T2, T3, ...)`
+    /// which are written as a tuple of type `(T1, T2, T3, ...)`.
     ///
     /// Fuzzer args are those which are randomly generated
     /// by the PRNG before being passed to the `generate` method.
