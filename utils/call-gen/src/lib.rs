@@ -82,7 +82,7 @@ pub trait GeneratableCallArgs {
 ///
 /// Intended to be implemented by the [`GeneratableCallArgs`] implementor.
 pub trait NamedCallArgs {
-    /// Returns name of gear-call argument type
+    /// Returns name of the `gear` call for which `Self` carries arguments.
     fn name() -> &'static str;
 }
 
