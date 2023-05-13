@@ -18,7 +18,18 @@
 
 use crate::builder_error::BuilderError;
 use anyhow::Result;
+use lazy_static::lazy_static;
+use regex::Regex;
 use std::{borrow::Cow, ffi::OsStr, path::PathBuf};
+
+// The channel patterns we support (borrowed from the rustup code)
+static TOOLCHAIN_CHANNELS: &[&str] = &[
+    "nightly",
+    "beta",
+    "stable",
+    // Allow from 1.0.0 through to 9.999.99 with optional patch version
+    r"\d{1}\.\d{1,3}(?:\.\d{1,2})?",
+];
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Toolchain(String);
@@ -35,23 +46,32 @@ impl Toolchain {
         let path = path.into();
 
         // Cargo path format:
-        // "$RUSTUP_HOME/toolchains/**toolchain_name**/bin/cargo"
-        let toolchain_name = path
+        // "$RUSTUP_HOME/toolchains/**toolchain_desc**/bin/cargo"
+        let toolchain_desc = path
             .iter()
             .nth_back(2)
             .and_then(OsStr::to_str)
             .ok_or_else(|| BuilderError::CargoPathInvalid(path.clone()))?;
 
-        // Toolchain name format:
-        // "**toolchain**-arch-arch-arch-arch" (linux/windows?)
-        // or
-        // "**toolchain**-arch-arch-arch" (mac)
-        let toolchain_part_count = if cfg!(target_os = "macos") { 4 } else { 5 };
-        let toolchain = toolchain_name
-            .rsplitn(toolchain_part_count, '-')
-            .last()
-            .map(String::from)
-            .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_name.into()))?;
+        // This regex is borrowed from the rustup code
+        lazy_static! {
+            static ref TOOLCHAIN_CHANNEL_PATTERN: String = format!(
+                r"^({})(?:-(\d{{4}}-\d{{2}}-\d{{2}}))?(?:-(.+))?$",
+                TOOLCHAIN_CHANNELS.join("|")
+            );
+            // Note this regex gives you a guaranteed match of the channel (1)
+            // and an optional match of the date (2) and target (3)
+            static ref TOOLCHAIN_CHANNEL_RE: Regex = Regex::new(&TOOLCHAIN_CHANNEL_PATTERN).unwrap();
+        }
+
+        let toolchain = TOOLCHAIN_CHANNEL_RE
+            .captures(toolchain_desc)
+            .map(|captures| {
+                // It is safe to use unwrap here because we know the regex matches
+                let channel = captures.get(1).unwrap().as_str().to_string();
+                channel + captures.get(2).map_or("", |date| date.as_str())
+            })
+            .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_desc.into()))?;
 
         Ok(Self(toolchain))
     }

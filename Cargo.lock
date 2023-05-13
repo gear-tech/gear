@@ -4096,6 +4096,7 @@ dependencies = [
  "filetime",
  "gear-wasm-instrument",
  "gmeta",
+ "lazy_static",
  "log",
  "pathdiff",
  "pwasm-utils",
