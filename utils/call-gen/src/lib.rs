@@ -48,14 +48,14 @@ pub trait CallArgs: GeneratableCallArgs + NamedCallArgs {}
 
 impl<T: GeneratableCallArgs + NamedCallArgs> CallArgs for T {}
 
-/// Describes type that can generate arguments of 
+/// Describes type that can generate arguments of
 /// the `gear` call.
 ///
 /// Generates arguments for [`GearCall`] enum variants.
 /// These arguments are later used to fuzz `gear` runtime
 /// through `gear-node-loader` and `runtime-fuzzer`.
 ///
-/// The trait is implemented for types, which can generate 
+/// The trait is implemented for types, which can generate
 /// arguments for this set of `gear` calls:
 /// 1. `upload_program`
 /// 2. `upload_code`
