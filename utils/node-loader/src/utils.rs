@@ -53,22 +53,6 @@ pub fn str_to_wsaddr(endpoint: String) -> WSAddress {
     WSAddress::new(domain, port)
 }
 
-pub fn iterator_with_args<T, F: FnMut() -> T>(
-    max_size: usize,
-    mut args: F,
-) -> impl Iterator<Item = T> {
-    let mut size = 0;
-    iter::from_fn(move || {
-        if size >= max_size {
-            return None;
-        }
-
-        size += 1;
-
-        Some(args())
-    })
-}
-
 pub fn convert_iter<V, T: Into<V> + Clone>(args: Vec<T>) -> impl IntoIterator<Item = V> + Clone {
     args.into_iter().map(Into::into)
 }

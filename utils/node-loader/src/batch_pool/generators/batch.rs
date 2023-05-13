@@ -11,6 +11,7 @@ use gear_call_gen::{
     SendMessageArgs, SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
 };
 use gear_utils::NonEmpty;
+use std::iter;
 use tracing::instrument;
 
 #[derive(Clone, Copy)]
@@ -224,13 +225,13 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         Batch: From<Vec<T>>,
     {
         let mut rng = Rng::seed_from_u64(seed);
-        let inner: Vec<_> = utils::iterator_with_args(batch_size, || fuzzer_args_fn(&mut rng))
-            .enumerate()
+        let inner: Vec<_> = iter::zip(1_usize.., iter::repeat_with(|| fuzzer_args_fn(&mut rng)))
+            .take(batch_size)
             .map(|(i, fuzzer_args)| {
                 tracing::debug_span!(
                     "gen_batch iteration",
                     generator_for = T::name(),
-                    call_id = i + 1
+                    call_id = i
                 )
                 .in_scope(|| T::generate::<Rng>(fuzzer_args, const_args_fn()))
             })
