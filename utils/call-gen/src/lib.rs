@@ -74,8 +74,7 @@ pub trait GeneratableCallArgs {
     /// that are taken from the it's configuration.
     type ConstArgs;
 
-    /// Returns argument type for `GearCall::Variant(_)`
-    /// that is filled with random values
+    /// Generates random arguments for [`GearCall`] variant.
     fn generate<Rng: CallGenRng>(_: Self::FuzzerArgs, _: Self::ConstArgs) -> Self;
 }
 
