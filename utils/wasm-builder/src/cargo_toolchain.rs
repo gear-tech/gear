@@ -53,25 +53,23 @@ impl Toolchain {
             .and_then(OsStr::to_str)
             .ok_or_else(|| BuilderError::CargoPathInvalid(path.clone()))?;
 
-        // This regex is borrowed from the rustup code
+        // This regex is borrowed from the rustup code and modified (added non-capturing groups)
         lazy_static! {
             static ref TOOLCHAIN_CHANNEL_PATTERN: String = format!(
-                r"^({})(?:-(\d{{4}}-\d{{2}}-\d{{2}}))?(?:-(.+))?$",
+                r"^((?:{})(?:-(?:\d{{4}}-\d{{2}}-\d{{2}}))?)(?:-(?:.+))?$",
                 TOOLCHAIN_CHANNELS.join("|")
             );
-            // Note this regex gives you a guaranteed match of the channel (1)
-            // and an optional match of the date (2) and target (3)
+            // Note this regex gives you a guaranteed match of the channel[-date] as group 1
             static ref TOOLCHAIN_CHANNEL_RE: Regex = Regex::new(&TOOLCHAIN_CHANNEL_PATTERN).unwrap();
         }
 
         let toolchain = TOOLCHAIN_CHANNEL_RE
             .captures(toolchain_desc)
-            .map(|captures| {
-                // It is safe to use unwrap here because we know the regex matches
-                let channel = captures.get(1).unwrap().as_str().to_string();
-                channel + captures.get(2).map_or("", |date| date.as_str())
-            })
-            .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_desc.into()))?;
+            .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_desc.into()))?
+            .get(1)
+            .unwrap() // It is safe to use unwrap here because we know the regex matches
+            .as_str()
+            .to_owned();
 
         Ok(Self(toolchain))
     }
