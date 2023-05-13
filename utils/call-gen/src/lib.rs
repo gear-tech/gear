@@ -57,11 +57,8 @@ pub trait GeneratableCallArgs {
     /// Fuzzer args are those which are randomly generated
     /// by the PRNG before being passed to the `generate` method.
     type FuzzerArgs;
-    /// Also describes the arguments of the test environment,
-    /// but they are not randomly generated.
-    ///
-    /// Instead, the arguments are taken from the
-    /// default configuration of the test environment
+    /// Describes arguments of the test environment,
+    /// that are taken from the it's configuration.
     type ConstArgs;
 
     /// Returns argument type for `GearCall::Variant(_)`
