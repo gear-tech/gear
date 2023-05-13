@@ -64,7 +64,7 @@ impl<T: GeneratableCallArgs + NamedCallArgs> CallArgs for T {}
 /// 5. `send_reply`
 /// 6. `claim_value`
 pub trait GeneratableCallArgs {
-    /// Describes the arguments of the test environment,
+    /// Describes arguments of the test environment,
     /// which are written as a tuple of type `(T1, T2, T3, ...)`.
     ///
     /// Fuzzer args are those which are randomly generated
