@@ -43,7 +43,7 @@ pub type Seed = u64;
 pub type GearProgGenConfig = gear_wasm_gen::GearConfig;
 
 /// This trait must be implemented for all argument types
-/// that are used in `GearCall::Variant(_)`
+/// that are defined in [`GearCall`] variants.
 pub trait CallArgs: GeneratableCallArgs + NamedCallArgs {}
 
 impl<T: GeneratableCallArgs + NamedCallArgs> CallArgs for T {}
