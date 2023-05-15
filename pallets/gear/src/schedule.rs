@@ -530,39 +530,44 @@ pub struct HostFnWeights<T: Config> {
 }
 
 /// Describes the weight for memory interaction.
+///
+/// Each weight with `lazy_pages_` prefix includes weight for storage read,
+/// because for each first page access we need to at least check whether page exists in storage.
+/// But they do not include cost for loading page data from storage into program memory.
+/// This weight is taken in account separately, when loading occurs.
+///
+/// Lazy-pages write accesses does not include cost for uploading page data to storage,
+/// because uploading happens after execution, so benchmarks do not include this cost.
+/// But they include cost for processing changed page data in runtime.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct MemoryWeights<T: Config> {
     /// Cost per one [GearPage] signal `read` processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
     pub lazy_pages_signal_read: Weight,
 
     /// Cost per one [GearPage] signal `write` processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
     pub lazy_pages_signal_write: Weight,
 
     /// Cost per one [GearPage] signal `write after read` processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
     pub lazy_pages_signal_write_after_read: Weight,
 
     /// Cost per one [GearPage] host func `read` access processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
     pub lazy_pages_host_func_read: Weight,
 
     /// Cost per one [GearPage] host func `write` access processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
     pub lazy_pages_host_func_write: Weight,
 
     /// Cost per one [GearPage] host func `write after read` access processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
     pub lazy_pages_host_func_write_after_read: Weight,
 
-    /// Cost per one [GearPage] data loading from storage
-    /// and moving it in program memory.
+    /// Cost per one [GearPage] data loading from storage and moving it in program memory.
+    /// Does not include cost for storage read, because it is taken in account separately.
     pub load_page_data: Weight,
 
     /// Cost per one [GearPage] uploading data to storage.
+    /// Does not include cost for processing changed page data in runtime,
+    /// cause it is taken in account separately.
     pub upload_page_data: Weight,
 
     /// Cost per one [WasmPage] static page. Static pages can have static data,
@@ -1017,9 +1022,9 @@ impl<T: Config> Default for MemoryWeights<T> {
             }};
         }
 
-        const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GEAR_PAGE_SIZE as u64 / 1024;
+        const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GEAR_PAGE_SIZE as u64 / KB_SIZE;
         static_assertions::const_assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
-        static_assertions::const_assert!(GEAR_PAGE_SIZE % 1024 == 0);
+        static_assertions::const_assert!(GEAR_PAGE_SIZE as u64 % KB_SIZE == 0);
 
         Self {
             lazy_pages_signal_read: to_weight!(to_cost_per_gear_page!(lazy_pages_signal_read)),

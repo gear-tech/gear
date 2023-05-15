@@ -1258,7 +1258,6 @@ pub mod pallet {
             <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
         )]
         pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
-            log::trace!("upload code man");
             let who = ensure_signed(origin)?;
 
             let code_id = Self::set_code_with_metadata(Self::check_code(code)?, who.into_origin())?;
@@ -1324,7 +1323,6 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
-            log::trace!("upload program eeee {gas_limit}");
             let who = ensure_signed(origin)?;
 
             Self::check_gas_limit_and_value(gas_limit, value)?;
@@ -1386,7 +1384,6 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
-            log::trace!("create program mather fucker");
             let who = ensure_signed(origin)?;
 
             // Check if code exists.

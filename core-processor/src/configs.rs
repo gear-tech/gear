@@ -40,46 +40,44 @@ pub struct BlockInfo {
     pub timestamp: u64,
 }
 
-/// Memory/allocation config.
+/// Memory operations costs.
+///
+/// Each weight with `lazy_pages_` prefix contains weight for storage read,
+/// because for each first page access we need at least check if page exists in storage.
+/// But they do not include cost for loading page data from storage into program memory.
+/// This weight is taken in account separately, when loading occurs.
+///
+/// Lazy-pages write accesses does not include cost for uploading page data to storage,
+/// because uploading happens after execution, so benchmarks do not include this cost.
+/// But they include cost for processing changed page data in runtime.
 #[derive(Clone, Debug, Decode, Encode, Default)]
 #[codec(crate = scale)]
 pub struct PageCosts {
     /// Cost per one [GearPage] signal `read` processing in lazy-pages.
-    /// Does not include cost for loading page data from storage.
     pub lazy_pages_signal_read: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] signal `write` processing in lazy-pages,
-    /// Does not include cost for loading page data from storage.
-    /// Does not include cost for uploading page data to storage,
-    /// but includes cost for processing changed page data in runtime.
     pub lazy_pages_signal_write: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] signal `write after read` processing in lazy-pages.
-    /// Does not include cost for loading page data from storage.
-    /// Does not include cost for uploading page data to storage,
-    /// but includes cost for processing changed page data in runtime.
     pub lazy_pages_signal_write_after_read: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] host func `read` access processing in lazy-pages.
-    /// Does not include cost for loading page data from storage.
     pub lazy_pages_host_func_read: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] host func `write` access processing in lazy-pages.
-    /// Does not include cost for loading page data from storage.
-    /// Does not include cost for uploading page data to storage,
-    /// but includes cost for processing changed page data in runtime.
     pub lazy_pages_host_func_write: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] host func `write after read` access processing in lazy-pages,
-    /// Does not include cost for loading page data from storage.
-    /// Does not include cost for uploading page data to storage,
-    /// but includes cost for processing changed page data in runtime.
     pub lazy_pages_host_func_write_after_read: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] data loading from storage and moving it in program memory.
+    /// Does not include cost for storage read, because it is taken in account separately.
     pub load_page_data: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] uploading data to storage.
+    /// Does not include cost for processing changed page data in runtime,
+    /// cause it is taken in account separately.
     pub upload_page_data: CostPerPage<GearPage>,
 
     /// Cost per one [WasmPage] static page. Static pages can have static data,
