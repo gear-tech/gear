@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Requires node to be built in release mode
+
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
@@ -26,14 +28,8 @@ use lazy_static::lazy_static;
 use parity_scale_codec::Encode;
 
 lazy_static! {
-    static ref GEAR_BIN_PATH: String = env!("CARGO_MANIFEST_DIR").to_owned()
-        + "/../target/"
-        + if cfg!(debug_assertions) {
-            "debug"
-        } else {
-            "release"
-        }
-        + "/gear";
+    static ref GEAR_BIN_PATH: String =
+        env!("CARGO_MANIFEST_DIR").to_owned() + "/../target/release/gear";
     static ref ALICE_ACCOUNT_ID: AccountId32 =
         AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY").unwrap();
 }
