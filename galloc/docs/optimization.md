@@ -25,15 +25,15 @@ The current implementation uses a static buffer in addition to standard <kbd>dlm
 
 ### Benchmark
 <a name="benchmark"></a>
-We've measured the current [(commit 9135baa)](https://github.com/gear-tech/dlmalloc-rust/tree/9135baa728ef9a9a04a887998e019733c4b093af) performance of dlmalloc to have a baseline for comparison.
+We measured the performance of dlmalloc in its current state [(commit 9135baa)](https://github.com/gear-tech/dlmalloc-rust/tree/9135baa728ef9a9a04a887998e019733c4b093af) to establish a baseline for comparison.
 
-All optimization attempts were tested 3 times on the different test cases, and the average of the results was used to compare the performance. Our main metric is gas consumption: the less gas is consumed, the better. All optimizations were measured in release mode binaries with most optimizations enabled and compared to current performance.
+All optimization attempts were tested three times on different test cases, and the average of the results was used for performance comparison. Our primary metric is gas consumption, where lower gas consumption is considered better. All optimizations were measured using release mode binaries with most optimizations enabled, and the results were compared against the current performance.
 
-The gas measurements were made via `debug` and `gas_available` syscalls, which were temporarily made free. Each allocation top-level operation (i.e., malloc, calloc, ...) was measured separately; the gas was measured before and after the function call and calculated as the subtraction result of gas before and gas after.
+Gas measurements were obtained through `debug` and `gas_available` syscalls, which were temporarily made free. Each allocation top-level operation (e.g., malloc, calloc, ...) was measured separately. The gas was measured before and after the function call, and the gas consumed was calculated as the difference between the before and after gas values.
 
-Then the gas consumption was calculated as a percentage of the total gas spent on the test case.
+The gas consumption was then calculated as a percentage of the total gas spent on the test case.
 
-We've intentionally not put any info about the testing machine because we measure only gas consumption, which will be the same for every machine since we have fixed weights for every instruction and syscall.
+We intentionally did not provide any information about the testing machine since we only measure gas consumption, which remains the same across machines due to fixed weights assigned to each instruction and syscall.
 
 The test cases were:
 - `NFT init -> mint -> burn`: This test case is for measuring the performance of the NFT contract, which is one of the common cases of smart contracts. The test case consists of the following steps:
@@ -99,7 +99,7 @@ Here are the results of the current implementation of galloc (with static buffer
 
 ### Implementation without static buffer
 <a name="without"></a>
-We've tried to remove the static buffer and use only <kbd>dlmalloc</kbd>-like implementation, but it showed no significant performance improvement. In most cases, it even showed worse performance. So it seems that the static buffer is not the bottleneck.
+We attempted to eliminate the static buffer and instead utilize a <kbd>dlmalloc</kbd> default implementation, but it did not result in any significant performance improvement. In fact, in most cases, it actually demonstrated worse performance. Hence, it appears that the static buffer is not the bottleneck.
 
 ### Test data
 
@@ -131,7 +131,7 @@ We've tried to remove the static buffer and use only <kbd>dlmalloc</kbd>-like im
 
 ## Increase static buffer size by two
 <a name="increased-twice"></a>
-We've tried to increase the static buffer size by two, and its performance was slightly better than the current implementation. But it's not significant enough to change the current implementation.
+We attempted to increase the size of the static buffer by two, and while its performance showed a slight improvement over the current implementation, it was not significant enough to change the current implementation.
 
 ### Tests data
 
@@ -163,9 +163,9 @@ We've tried to increase the static buffer size by two, and its performance was s
 
 ## Multiple static buffers
 <a name="multiple"></a>
-We've tried to implement not only one static buffer but multiple static buffers with different sizes. But the study showed that it's not worth the effort, and most allocations were done in the largest static buffer, which performance was even worse than the current implementation.
+We tried to implement not just one static buffer, but multiple static buffers with different sizes. However, the study revealed that this effort was not worthwhile, as most allocations were still being done in the largest static buffer, resulting in even worse performance compared to the current implementation.
 
-The best-performed buffer combination was:
+The best-performing combination of buffers was as follows:
 - 1-byte buffer with 2 cells
 - 2-byte buffer with 2 cells
 - 4-byte buffer with 4 cells
