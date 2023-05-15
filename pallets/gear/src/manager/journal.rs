@@ -633,21 +633,8 @@ where
         let block_count = block_count.unique_saturated_into();
 
         ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-            let (new_expiration_block, blocks_to_pay) =
-                Pallet::<T>::calculate_new_expiration(program.expiration_block, block_count);
-            if blocks_to_pay.is_zero() {
-                return;
-            }
-
-            CurrencyOf::<T>::transfer(
-                &from,
-                &block_author,
-                Pallet::<T>::rent_fee_for(blocks_to_pay),
-                ExistenceRequirement::AllowDeath,
-            )
-            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
-
-            Pallet::<T>::update_expiration_block(program_id, program, new_expiration_block);
+            Pallet::<T>::pay_rent_impl(program_id, program, &from, &block_author, block_count)
+                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
         })
         .unwrap_or_else(|e| {
             log::debug!(

@@ -25,7 +25,9 @@ use crate::{
     errors::{Result, SyscallError},
     ActorId, MessageId, ReservationId,
 };
-use gsys::{BlockNumberWithHash, HashWithValue, LengthWithGas, LengthWithHash, LengthWithValue};
+use gsys::{
+    BlockNumberWithHash, HashWithValue, LengthWithBlockNumberValue, LengthWithGas, LengthWithHash,
+};
 
 /// Get the current block height.
 ///
@@ -380,7 +382,8 @@ pub fn origin() -> ActorId {
     origin
 }
 
-/// Pay specified rent for the program.
+/// Pay specified rent for the program. The result contains the remainder of
+/// rent value and the count of paid blocks.
 ///
 /// # Examples
 ///
@@ -389,21 +392,22 @@ pub fn origin() -> ActorId {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     exec::pay_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
+///     let (remaining_rent, paid_block_count) =
+///         exec::pay_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
-pub fn pay_rent(program_id: ActorId, value: u128) -> Result<u128> {
+pub fn pay_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
     let rent_pid = HashWithValue {
         hash: program_id.0,
         value,
     };
 
-    let mut res: LengthWithValue = Default::default();
+    let mut res: LengthWithBlockNumberValue = Default::default();
 
     unsafe { gsys::gr_pay_rent(&rent_pid, res.as_mut_ptr()) }
 
     SyscallError(res.length).into_result()?;
-    Ok(res.value)
+    Ok((res.value, res.bn))
 }
 
 /// Get the random seed, along with the block number from which it is

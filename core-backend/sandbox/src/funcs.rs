@@ -35,8 +35,9 @@ use gear_core::{
 };
 use gear_core_errors::ExtError;
 use gsys::{
-    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
-    LengthWithHandle, LengthWithHash, LengthWithTwoHashes, LengthWithValue, TwoHashesWithValue,
+    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberValue,
+    LengthWithCode, LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithTwoHashes,
+    TwoHashesWithValue,
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
@@ -909,22 +910,26 @@ where
 
     /// Fallible `gr_pay_rent` syscall.
     pub fn pay_rent(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (rent_pid_ptr, err_value_ptr) = args.iter().read_2();
+        let (rent_pid_ptr, err_bn_value_ptr) = args.iter().read_2();
 
-        syscall_trace!("pay_rent", rent_pid_ptr, err_value_ptr);
+        syscall_trace!("pay_rent", rent_pid_ptr, err_bn_value_ptr);
 
-        ctx.run_fallible::<_, _, LengthWithValue>(err_value_ptr, RuntimeCosts::PayRent, |ctx| {
-            let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
+        ctx.run_fallible::<_, _, LengthWithBlockNumberValue>(
+            err_bn_value_ptr,
+            RuntimeCosts::PayRent,
+            |ctx| {
+                let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
 
-            let HashWithValue {
-                hash: program_id,
-                value: rent,
-            } = ctx.read_as(read_rent_pid)?;
+                let HashWithValue {
+                    hash: program_id,
+                    value: rent,
+                } = ctx.read_as(read_rent_pid)?;
 
-            ctx.ext
-                .pay_rent(program_id.into(), rent)
-                .map_err(Into::into)
-        })
+                ctx.ext
+                    .pay_rent(program_id.into(), rent)
+                    .map_err(Into::into)
+            },
+        )
     }
 
     /// Infallible `gr_source` syscall.

@@ -1699,33 +1699,20 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
+            let block_author = Authorship::<T>::author()
+                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
+
             ProgramStorageOf::<T>::update_active_program(
                 program_id,
                 |program| -> Result<(), Error<T>> {
-                    let block_author =
-                        Authorship::<T>::author().ok_or(Error::<T>::BlockAuthorNotFound)?;
-
-                    let (new_expiration_block, blocks_to_pay) =
-                        Self::calculate_new_expiration(program.expiration_block, block_count);
-                    if blocks_to_pay.is_zero() {
-                        return Ok(());
-                    }
-
-                    CurrencyOf::<T>::transfer(
-                        &who,
-                        &block_author,
-                        Self::rent_fee_for(blocks_to_pay),
-                        ExistenceRequirement::AllowDeath,
-                    )
-                    .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
-
-                    Self::update_expiration_block(program_id, program, new_expiration_block);
-
-                    Ok(())
+                    Self::pay_rent_impl(program_id, program, &who, &block_author, block_count)
+                        .map_err(|_| Error::<T>::InsufficientBalanceForReserve)
                 },
             )
             .map_err(|e| {
-                log::debug!("update_active_program {program_id} failed: {e:?}");
+                log::debug!(
+                    "Failed to update an expiration block of an active program {program_id}: {e:?}"
+                );
                 Error::<T>::ProgramNotFound
             })??;
 

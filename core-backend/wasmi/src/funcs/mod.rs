@@ -38,8 +38,9 @@ use gear_core::{
 use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
-    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
-    LengthWithHandle, LengthWithHash, LengthWithTwoHashes, LengthWithValue, TwoHashesWithValue,
+    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberValue,
+    LengthWithCode, LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithTwoHashes,
+    TwoHashesWithValue,
 };
 use wasmi::{
     core::{Trap, TrapCode, Value},
@@ -1282,25 +1283,29 @@ where
     pub fn pay_rent(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
                          rent_pid_ptr: u32,
-                         err_value_ptr: u32|
+                         err_bn_value_ptr: u32|
               -> EmptyOutput {
-            syscall_trace!("pay_rent", rent_pid_ptr, err_value_ptr);
+            syscall_trace!("pay_rent", rent_pid_ptr, err_bn_value_ptr);
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithValue>(err_value_ptr, RuntimeCosts::PayRent, |ctx| {
-                let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
+            ctx.run_fallible::<_, _, LengthWithBlockNumberValue>(
+                err_bn_value_ptr,
+                RuntimeCosts::PayRent,
+                |ctx| {
+                    let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
 
-                let HashWithValue {
-                    hash: program_id,
-                    value: rent,
-                } = ctx.read_as(read_rent_pid)?;
+                    let HashWithValue {
+                        hash: program_id,
+                        value: rent,
+                    } = ctx.read_as(read_rent_pid)?;
 
-                let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .pay_rent(program_id.into(), rent)
-                    .map_err(Into::into)
-            })
+                    let state = ctx.host_state_mut();
+                    state
+                        .ext
+                        .pay_rent(program_id.into(), rent)
+                        .map_err(Into::into)
+                },
+            )
         };
 
         Func::wrap(store, func)

@@ -43,8 +43,11 @@ use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
     message::{Dispatch, DispatchKind, Message, StoredDispatch, StoredMessage},
 };
-use sp_runtime::traits::{
-    Bounded, CheckedAdd, Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero,
+use sp_runtime::{
+    traits::{
+        Bounded, CheckedAdd, Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero,
+    },
+    DispatchError,
 };
 
 /// [`HoldBound`] builder
@@ -982,33 +985,42 @@ where
         inheritor
     }
 
-    pub(crate) fn calculate_new_expiration(
-        old_expiration_block: BlockNumberFor<T>,
+    pub(crate) fn pay_rent_impl(
+        program_id: ProgramId,
+        program: &mut ActiveProgram<BlockNumberFor<T>>,
+        from: &T::AccountId,
+        block_author: &T::AccountId,
         block_count: BlockNumberFor<T>,
-    ) -> (BlockNumberFor<T>, BlockNumberFor<T>) {
-        old_expiration_block
+    ) -> Result<(), DispatchError> {
+        let old_expiration_block = program.expiration_block;
+        let (new_expiration_block, blocks_to_pay) = old_expiration_block
             .checked_add(&block_count)
             .map(|count| (count, block_count))
             .unwrap_or_else(|| {
                 let max = BlockNumberFor::<T>::max_value();
 
                 (max, max - old_expiration_block)
-            })
-    }
+            });
 
-    pub(crate) fn update_expiration_block(
-        program_id: ProgramId,
-        program: &mut ActiveProgram<BlockNumberFor<T>>,
-        new_expiration_block: BlockNumberFor<T>,
-    ) {
+        if blocks_to_pay.is_zero() {
+            return Ok(());
+        }
+
+        CurrencyOf::<T>::transfer(
+            from,
+            block_author,
+            Self::rent_fee_for(blocks_to_pay),
+            ExistenceRequirement::AllowDeath,
+        )?;
+
         let task = ScheduledTask::PauseProgram(program_id);
-        let r = TaskPoolOf::<T>::delete(program.expiration_block, task.clone());
-        log::debug!("TaskPool::delete result = {r:?}");
+        TaskPoolOf::<T>::delete(program.expiration_block, task.clone())
+            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
         program.expiration_block = new_expiration_block;
 
-        let r = TaskPoolOf::<T>::add(new_expiration_block, task);
-        log::debug!("TaskPool::add result = {r:?}");
+        TaskPoolOf::<T>::add(new_expiration_block, task)
+            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
         Self::deposit_event(Event::ProgramChanged {
             id: program_id,
@@ -1016,5 +1028,7 @@ where
                 expiration: new_expiration_block,
             },
         });
+
+        Ok(())
     }
 }

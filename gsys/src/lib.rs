@@ -236,23 +236,27 @@ where
 /// Represents type defining concatenated hash with value. 20 bytes.
 #[repr(C, packed)]
 #[derive(Default)]
-pub struct LengthWithValue {
+pub struct LengthWithBlockNumberValue {
     pub length: Length,
+    pub bn: BlockNumber,
     pub value: Value,
 }
 
-impl LengthWithValue {
+impl LengthWithBlockNumberValue {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
     }
 }
 
-impl From<Result<Value, Length>> for LengthWithValue {
-    fn from(result: Result<Value, Length>) -> Self {
+impl From<Result<(Value, BlockNumber), Length>> for LengthWithBlockNumberValue {
+    fn from(result: Result<(Value, BlockNumber), Length>) -> Self {
         let mut res: Self = Default::default();
 
         match result {
-            Ok(v) => res.value = v,
+            Ok((v, bn)) => {
+                res.value = v;
+                res.bn = bn;
+            }
             Err(length) => res.length = length,
         }
 
@@ -413,7 +417,7 @@ extern "C" {
     /// Arguments type:
     /// - `rent_pid`: `const ptr` for program id and rent value.
     /// - `err_value`: `mut ptr` for concatenated error length and remaining rent value.
-    pub fn gr_pay_rent(rent_pid: *const HashWithValue, err_value: *mut LengthWithValue);
+    pub fn gr_pay_rent(rent_pid: *const HashWithValue, err_value: *mut LengthWithBlockNumberValue);
 
     /// Infallible `gr_program_id` get syscall.
     ///
