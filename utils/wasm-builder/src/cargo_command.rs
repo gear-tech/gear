@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::cargo_toolchain::Toolchain;
 use anyhow::{ensure, Context, Result};
 use std::{path::PathBuf, process::Command};
 
@@ -25,11 +26,11 @@ use crate::builder_error::BuilderError;
 pub struct CargoCommand {
     path: String,
     manifest_path: PathBuf,
-    args: Vec<&'static str>,
     profile: String,
     rustc_flags: Vec<&'static str>,
     target_dir: PathBuf,
     features: Vec<String>,
+    toolchain: Toolchain,
 }
 
 impl CargoCommand {
@@ -38,17 +39,11 @@ impl CargoCommand {
         CargoCommand {
             path: "rustup".to_string(),
             manifest_path: "Cargo.toml".into(),
-            args: vec![
-                "run",
-                "nightly",
-                "cargo",
-                "rustc",
-                "--target=wasm32-unknown-unknown",
-            ],
             profile: "dev".to_string(),
             rustc_flags: vec!["-C", "link-arg=--import-memory", "-C", "linker-plugin-lto"],
             target_dir: "target".into(),
             features: vec![],
+            toolchain: Toolchain::nightly(),
         }
     }
 
@@ -74,11 +69,20 @@ impl CargoCommand {
         self.features = features.into();
     }
 
+    /// Set toolchain.
+    pub(crate) fn set_toolchain(&mut self, toolchain: Toolchain) {
+        self.toolchain = toolchain;
+    }
+
     /// Execute the `cargo` command with invoking supplied arguments.
     pub fn run(&self) -> Result<()> {
         let mut cargo = Command::new(&self.path);
         cargo
-            .args(&self.args)
+            .arg("run")
+            .arg(self.toolchain.nightly_toolchain_str().as_ref())
+            .arg("cargo")
+            .arg("rustc")
+            .arg("--target=wasm32-unknown-unknown")
             .arg("--color=always")
             .arg(format!("--manifest-path={}", self.manifest_path.display()))
             .arg("--profile")

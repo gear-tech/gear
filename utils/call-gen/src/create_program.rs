@@ -18,7 +18,7 @@
 
 //! Create program call generator.
 
-use crate::{impl_convert_traits, CallGenRng, Seed};
+use crate::{impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed};
 use gear_core::ids::CodeId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -38,12 +38,14 @@ impl_convert_traits!(
     "create_program"
 );
 
-impl CreateProgramArgs {
+impl GeneratableCallArgs for CreateProgramArgs {
+    type FuzzerArgs = (NonEmpty<CodeId>, Seed);
+    type ConstArgs = (u64,);
+
     /// Generates `pallet_gear::Pallet::<T>::create_program` call arguments.
-    pub fn generate<Rng: CallGenRng>(
-        existing_codes: NonEmpty<CodeId>,
-        rng_seed: Seed,
-        gas_limit: u64,
+    fn generate<Rng: CallGenRng>(
+        (existing_codes, rng_seed): Self::FuzzerArgs,
+        (gas_limit,): Self::ConstArgs,
     ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
@@ -56,8 +58,9 @@ impl CreateProgramArgs {
         let mut payload = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut payload);
 
+        let name = Self::name();
         log::debug!(
-            "Generated `create_program` call with code id = {code}, salt = {} payload = {}",
+            "Generated `{name}` call with code id = {code}, salt = {} payload = {}",
             hex::encode(&salt),
             hex::encode(&payload)
         );

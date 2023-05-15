@@ -21,7 +21,7 @@ use crate::{
     SystemReservationContext, TerminationReason,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
-use core::{fmt, fmt::Debug};
+use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
     env::Ext,
@@ -273,6 +273,8 @@ impl BackendExt for MockExt {
 #[derive(Debug)]
 pub struct MockMemory {
     pages: Vec<u8>,
+    read_attempt_count: Cell<u32>,
+    write_attempt_count: Cell<u32>,
 }
 
 impl MockMemory {
@@ -280,7 +282,19 @@ impl MockMemory {
         let size = initial_pages as usize * WASM_PAGE_SIZE;
         let pages = vec![0; size];
 
-        Self { pages }
+        Self {
+            pages,
+            read_attempt_count: Cell::new(0),
+            write_attempt_count: Cell::new(0),
+        }
+    }
+
+    pub fn read_attempt_count(&self) -> u32 {
+        self.read_attempt_count.get()
+    }
+
+    pub fn write_attempt_count(&self) -> u32 {
+        self.write_attempt_count.get()
     }
 
     fn page_index(&self, offset: u32) -> Option<usize> {
@@ -306,6 +320,7 @@ impl Memory for MockMemory {
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+        self.write_attempt_count.set(self.write_attempt_count() + 1);
         let page_index = self
             .page_index(offset)
             .ok_or(MemoryError::RuntimeAllocOutOfBounds)?;
@@ -329,6 +344,7 @@ impl Memory for MockMemory {
     }
 
     fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
+        self.read_attempt_count.set(self.read_attempt_count() + 1);
         let page_index = self
             .page_index(offset)
             .ok_or(MemoryError::AccessOutOfBounds)?;
