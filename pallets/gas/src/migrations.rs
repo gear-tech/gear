@@ -32,6 +32,8 @@ pub mod v1 {
     use gear_core::ids::{MessageId, ProgramId, ReservationId};
     use sp_runtime::traits::{Saturating, Zero};
     use sp_std::collections::btree_set::BTreeSet;
+    #[cfg(feature = "try-runtime")]
+    use sp_std::vec::Vec;
 
     pub const PALLET_GEAR_MESSENGER_NAME: &str = "GearMessenger";
     pub const WAITLIST_STORAGE_NAME: &str = "Waitlist";
