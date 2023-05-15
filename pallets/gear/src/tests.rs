@@ -25,6 +25,7 @@ use crate::{
         self,
         new_test_ext,
         run_to_block,
+        run_to_block_maybe_with_queue,
         run_to_next_block,
         Balances,
         Gear,
@@ -9042,6 +9043,60 @@ fn signal_on_uninitialized_program() {
         assert!(!Gear::is_initialized(pid));
         assert!(GasHandlerOf::<Test>::get_system_reserve(init_mid).is_err());
         assert!(GasHandlerOf::<Test>::get_system_reserve(reply_mid).is_err());
+    });
+}
+
+#[test]
+fn missing_block_tasks_handled() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // https://github.com/gear-tech/gear/pull/2404#pullrequestreview-1399996879
+        // possible case described by @breathx:
+        // block N contains no tasks, first missed block = None
+        // block N+1 contains tasks, but block producer missed run_queue extrinsic or runtime upgrade occurs
+        // block N+2 contains tasks and starts execute them because missed blocks = None so tasks from block N+1 lost forever
+        const N: u64 = 3;
+
+        let pid =
+            upload_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle).unwrap();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            100_000_000,
+            1000
+        ));
+
+        run_to_block(N - 1, None);
+
+        let mid = get_last_message_id();
+        let task = ScheduledTask::RemoveFromMailbox(USER_1, mid);
+        TaskPoolOf::<Test>::add(N + 1, task.clone()).unwrap();
+
+        assert!(MailboxOf::<Test>::contains(&USER_1, &mid));
+
+        // insert task
+        run_to_block(N, None);
+
+        // task was inserted
+        assert!(TaskPoolOf::<Test>::contains(&(N + 1), &task));
+        assert!(MailboxOf::<Test>::contains(&USER_1, &mid));
+
+        // task must be skipped in this block
+        run_to_block_maybe_with_queue(N + 1, Some(0), false);
+        System::reset_events(); // remove `QueueProcessingReverted` event to run to block N + 2
+
+        // task could be processed in N + 1 block but `Gear::run` extrinsic have been skipped
+        assert!(TaskPoolOf::<Test>::contains(&(N + 1), &task));
+        assert!(MailboxOf::<Test>::contains(&USER_1, &mid));
+
+        // continue to process task from previous block
+        run_to_block(N + 2, None);
+
+        // task have been processed
+        assert!(!TaskPoolOf::<Test>::contains(&(N + 1), &task));
+        // so message should be removed from mailbox
+        assert!(!MailboxOf::<Test>::contains(&USER_1, &mid));
     });
 }
 
