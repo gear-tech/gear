@@ -44,32 +44,39 @@ pub struct BlockInfo {
 #[derive(Clone, Debug, Decode, Encode, Default)]
 #[codec(crate = scale)]
 pub struct PageCosts {
-    /// Cost per one [GearPage] signal `read` processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
-    pub signal_read: CostPerPage<GearPage>,
+    /// Cost per one [GearPage] signal `read` processing in lazy-pages.
+    /// Does not include cost for loading page data from storage.
+    pub lazy_pages_signal_read: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] signal `write` processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
-    pub signal_write: CostPerPage<GearPage>,
+    /// Does not include cost for loading page data from storage.
+    /// Does not include cost for uploading page data to storage,
+    /// but includes cost for processing changed page data in runtime.
+    pub lazy_pages_signal_write: CostPerPage<GearPage>,
 
-    /// Cost per one [GearPage] signal `write after read` processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
+    /// Cost per one [GearPage] signal `write after read` processing in lazy-pages.
+    /// Does not include cost for loading page data from storage.
+    /// Does not include cost for uploading page data to storage,
+    /// but includes cost for processing changed page data in runtime.
     pub lazy_pages_signal_write_after_read: CostPerPage<GearPage>,
 
-    /// Cost per one [GearPage] host func `read` access processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
+    /// Cost per one [GearPage] host func `read` access processing in lazy-pages.
+    /// Does not include cost for loading page data from storage.
     pub lazy_pages_host_func_read: CostPerPage<GearPage>,
 
-    /// Cost per one [GearPage] host func `write` access processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
+    /// Cost per one [GearPage] host func `write` access processing in lazy-pages.
+    /// Does not include cost for loading page data from storage.
+    /// Does not include cost for uploading page data to storage,
+    /// but includes cost for processing changed page data in runtime.
     pub lazy_pages_host_func_write: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] host func `write after read` access processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
+    /// Does not include cost for loading page data from storage.
+    /// Does not include cost for uploading page data to storage,
+    /// but includes cost for processing changed page data in runtime.
     pub lazy_pages_host_func_write_after_read: CostPerPage<GearPage>,
 
-    /// Cost per one [GearPage] data loading from storage
-    /// and moving it in program memory.
+    /// Cost per one [GearPage] data loading from storage and moving it in program memory.
     pub load_page_data: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] uploading data to storage.
@@ -89,9 +96,17 @@ pub struct PageCosts {
 impl PageCosts {
     /// Calculates and returns weights for lazy-pages.
     pub fn lazy_pages_weights(&self) -> LazyPagesWeights {
+        // Because page may have not data in storage, we do not include
+        // cost for loading page data from storage in weights. We provide
+        // this cost in `load_page_data` field, so lazy-pages can use it
+        // when page data is in storage and must be loaded.
+        // On other hand we include cost for uploading page data to storage
+        // in each `write` weight, because each write cause page uploading.
         LazyPagesWeights {
-            signal_read: self.signal_read,
-            signal_write: self.signal_write.saturating_add(self.upload_page_data),
+            signal_read: self.lazy_pages_signal_read,
+            signal_write: self
+                .lazy_pages_signal_write
+                .saturating_add(self.upload_page_data),
             signal_write_after_read: self
                 .lazy_pages_signal_write_after_read
                 .saturating_add(self.upload_page_data),
@@ -112,8 +127,8 @@ impl PageCosts {
         let a = 1000.into();
         let b = 4000.into();
         Self {
-            signal_read: a,
-            signal_write: a,
+            lazy_pages_signal_read: a,
+            lazy_pages_signal_write: a,
             lazy_pages_signal_write_after_read: a,
             lazy_pages_host_func_read: a,
             lazy_pages_host_func_write: a,
