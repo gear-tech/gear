@@ -26,6 +26,7 @@ use signer::Signer;
 use std::sync::Arc;
 pub use subxt::dynamic::Value;
 use subxt::OnlineClient;
+pub mod testing;
 
 mod client;
 pub mod config;

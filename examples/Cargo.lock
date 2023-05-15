@@ -178,13 +178,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-capacitor"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-chat"
 version = "0.1.0"
 dependencies = [
@@ -204,20 +197,6 @@ version = "0.1.0"
 dependencies = [
  "gstd",
  "hex-literal",
-]
-
-[[package]]
-name = "demo-decoder"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-fib"
-version = "0.1.0"
-dependencies = [
- "gstd",
 ]
 
 [[package]]
@@ -253,25 +232,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-mem"
-version = "0.1.0"
-dependencies = [
- "gcore",
- "gstd",
-]
-
-[[package]]
 name = "demo-minimal"
 version = "0.1.0"
 dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-multiping"
-version = "0.1.0"
-dependencies = [
- "gcore",
  "gstd",
 ]
 
@@ -343,21 +306,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-state-rollback"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-status-code"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-sum"
 version = "0.1.0"
 dependencies = [
  "gstd",
@@ -370,21 +319,6 @@ dependencies = [
  "gcore",
  "gstd",
  "hex",
-]
-
-[[package]]
-name = "demo-vec"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-wait"
-version = "0.1.0"
-dependencies = [
- "gcore",
- "gstd",
 ]
 
 [[package]]

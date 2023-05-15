@@ -15,6 +15,7 @@ derive_more.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
+parity-scale-codec = { workspace = true }
 rand = { workspace = true, features = ["std", "std_rng"] }
 
 [features]
