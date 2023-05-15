@@ -32,6 +32,13 @@ sp-std.workspace = true
 sp-io.workspace = true
 sp-runtime.workspace = true
 
+[dev-dependencies]
+pallet-balances = { workspace = true, features = ["std"] }
+pallet-authorship = { workspace = true, features = ["std"] }
+pallet-timestamp = { workspace = true, features = ["std"] }
+pallet-gear-gas = { workspace = true, features = ["std"] }
+pallet-gear-scheduler = { workspace = true, features = ["std"] }
+
 [features]
 default = ['std']
 std = [
