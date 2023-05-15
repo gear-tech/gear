@@ -11,7 +11,7 @@ readme = "README.md"
 [dependencies]
 anyhow.workspace = true
 cargo_metadata.workspace = true
-lazy_static.workspace = true
+once_cell.workspace = true
 pwasm-utils = { workspace = true, features = ["sign_ext"] }
 toml.workspace = true
 thiserror.workspace = true

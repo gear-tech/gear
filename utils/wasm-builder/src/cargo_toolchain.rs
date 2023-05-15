@@ -18,7 +18,7 @@
 
 use crate::builder_error::BuilderError;
 use anyhow::Result;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use std::{borrow::Cow, ffi::OsStr, path::PathBuf};
 
@@ -53,15 +53,15 @@ impl Toolchain {
             .and_then(OsStr::to_str)
             .ok_or_else(|| BuilderError::CargoPathInvalid(path.clone()))?;
 
-        // This regex is borrowed from the rustup code and modified (added non-capturing groups)
-        lazy_static! {
-            static ref TOOLCHAIN_CHANNEL_PATTERN: String = format!(
+        static TOOLCHAIN_CHANNEL_RE: Lazy<Regex> = Lazy::new(|| {
+            // This regex is borrowed from the rustup code and modified (added non-capturing groups)
+            let pattern = format!(
                 r"^((?:{})(?:-(?:\d{{4}}-\d{{2}}-\d{{2}}))?)(?:-(?:.+))?$",
                 TOOLCHAIN_CHANNELS.join("|")
             );
             // Note this regex gives you a guaranteed match of the channel[-date] as group 1
-            static ref TOOLCHAIN_CHANNEL_RE: Regex = Regex::new(&TOOLCHAIN_CHANNEL_PATTERN).unwrap();
-        }
+            Regex::new(&pattern).unwrap()
+        });
 
         let toolchain = TOOLCHAIN_CHANNEL_RE
             .captures(toolchain_desc)
