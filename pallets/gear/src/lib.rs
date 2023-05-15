@@ -80,7 +80,7 @@ use gear_core::{
 };
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
-use sp_runtime::traits::{Bounded, CheckedAdd, One, Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{One, Saturating, UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
@@ -1239,7 +1239,7 @@ pub mod pallet {
         pub fn rent_fee_for(block_count: BlockNumberFor<T>) -> BalanceOf<T> {
             let block_count: u64 = block_count.unique_saturated_into();
 
-            RentCostPerBlockOf::<T>::get() * block_count.unique_saturated_into()
+            RentCostPerBlockOf::<T>::get().saturating_mul(block_count.unique_saturated_into())
         }
     }
 
@@ -1705,16 +1705,8 @@ pub mod pallet {
                     let block_author =
                         Authorship::<T>::author().ok_or(Error::<T>::BlockAuthorNotFound)?;
 
-                    let old_expiration = program.expiration_block;
-                    let (expiration_block, blocks_to_pay) = old_expiration
-                        .checked_add(&block_count)
-                        .map(|count| (count, block_count))
-                        .unwrap_or_else(|| {
-                            let max = BlockNumberFor::<T>::max_value();
-
-                            (max, max - old_expiration)
-                        });
-
+                    let (new_expiration_block, blocks_to_pay) =
+                        Self::calculate_new_expiration(program.expiration_block, block_count);
                     if blocks_to_pay.is_zero() {
                         return Ok(());
                     }
@@ -1727,21 +1719,7 @@ pub mod pallet {
                     )
                     .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
-                    program.expiration_block = expiration_block;
-
-                    let task = ScheduledTask::PauseProgram(program_id);
-                    let r = TaskPoolOf::<T>::delete(old_expiration, task.clone());
-                    log::debug!("TaskPool::delete result = {r:?}");
-
-                    let r = TaskPoolOf::<T>::add(expiration_block, task);
-                    log::debug!("TaskPool::add result = {r:?}");
-
-                    Self::deposit_event(Event::ProgramChanged {
-                        id: program_id,
-                        change: ProgramChangeKind::ExpirationChanged {
-                            expiration: expiration_block,
-                        },
-                    });
+                    Self::update_expiration_block(program_id, program, new_expiration_block);
 
                     Ok(())
                 },

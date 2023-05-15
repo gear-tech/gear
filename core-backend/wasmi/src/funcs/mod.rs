@@ -1282,12 +1282,12 @@ where
     pub fn pay_rent(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
                          rent_pid_ptr: u32,
-                         err_ptr: u32|
+                         err_value_ptr: u32|
               -> EmptyOutput {
-            syscall_trace!("pay_rent", rent_pid_ptr, err_ptr);
+            syscall_trace!("pay_rent", rent_pid_ptr, err_value_ptr);
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithValue>(err_ptr, RuntimeCosts::PayRent, |ctx| {
+            ctx.run_fallible::<_, _, LengthWithValue>(err_value_ptr, RuntimeCosts::PayRent, |ctx| {
                 let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
 
                 let HashWithValue {

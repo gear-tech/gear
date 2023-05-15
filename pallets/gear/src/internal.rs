@@ -27,13 +27,13 @@ use alloc::collections::BTreeSet;
 use common::{
     event::{
         MessageWaitedReason, MessageWaitedRuntimeReason::*,
-        MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, Reason, Reason::*,
-        UserMessageReadReason, UserMessageReadRuntimeReason,
+        MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, ProgramChangeKind,
+        Reason, Reason::*, UserMessageReadReason, UserMessageReadRuntimeReason,
     },
     gas_provider::{GasNodeId, Imbalance},
     scheduler::*,
     storage::*,
-    GasPrice, GasTree, LockId, LockableTree, Origin,
+    ActiveProgram, GasPrice, GasTree, LockId, LockableTree, Origin,
 };
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReason;
@@ -43,7 +43,9 @@ use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
     message::{Dispatch, DispatchKind, Message, StoredDispatch, StoredMessage},
 };
-use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{
+    Bounded, CheckedAdd, Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero,
+};
 
 /// [`HoldBound`] builder
 #[derive(Clone, Debug)]
@@ -978,5 +980,41 @@ where
         }
 
         inheritor
+    }
+
+    pub(crate) fn calculate_new_expiration(
+        old_expiration_block: BlockNumberFor<T>,
+        block_count: BlockNumberFor<T>,
+    ) -> (BlockNumberFor<T>, BlockNumberFor<T>) {
+        old_expiration_block
+            .checked_add(&block_count)
+            .map(|count| (count, block_count))
+            .unwrap_or_else(|| {
+                let max = BlockNumberFor::<T>::max_value();
+
+                (max, max - old_expiration_block)
+            })
+    }
+
+    pub(crate) fn update_expiration_block(
+        program_id: ProgramId,
+        program: &mut ActiveProgram<BlockNumberFor<T>>,
+        new_expiration_block: BlockNumberFor<T>,
+    ) {
+        let task = ScheduledTask::PauseProgram(program_id);
+        let r = TaskPoolOf::<T>::delete(program.expiration_block, task.clone());
+        log::debug!("TaskPool::delete result = {r:?}");
+
+        program.expiration_block = new_expiration_block;
+
+        let r = TaskPoolOf::<T>::add(new_expiration_block, task);
+        log::debug!("TaskPool::add result = {r:?}");
+
+        Self::deposit_event(Event::ProgramChanged {
+            id: program_id,
+            change: ProgramChangeKind::ExpirationChanged {
+                expiration: new_expiration_block,
+            },
+        });
     }
 }

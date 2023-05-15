@@ -693,14 +693,10 @@ impl EnvExt for Ext {
             return Ok(rent);
         }
 
-        let cost = self.context.rent_cost * u128::from(blocks_to_pay);
+        let cost = self.context.rent_cost.saturating_mul(blocks_to_pay.into());
         match self.context.value_counter.reduce(cost) {
             ChargeResult::Enough => {
-                self.context
-                    .program_rents
-                    .entry(program_id)
-                    .and_modify(|rent_blocks| *rent_blocks = paid_blocks)
-                    .or_insert(block_count);
+                self.context.program_rents.insert(program_id, paid_blocks);
             }
             ChargeResult::NotEnough => {
                 return Err(ExecutionError::NotEnoughValueForRent {

@@ -909,11 +909,11 @@ where
 
     /// Fallible `gr_pay_rent` syscall.
     pub fn pay_rent(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (rent_pid_ptr, err_ptr) = args.iter().read_2();
+        let (rent_pid_ptr, err_value_ptr) = args.iter().read_2();
 
-        syscall_trace!("pay_rent", rent_pid_ptr, err_ptr);
+        syscall_trace!("pay_rent", rent_pid_ptr, err_value_ptr);
 
-        ctx.run_fallible::<_, _, LengthWithValue>(err_ptr, RuntimeCosts::PayRent, |ctx| {
+        ctx.run_fallible::<_, _, LengthWithValue>(err_value_ptr, RuntimeCosts::PayRent, |ctx| {
             let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
 
             let HashWithValue {

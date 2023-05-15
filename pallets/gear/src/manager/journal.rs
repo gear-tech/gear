@@ -631,35 +631,23 @@ where
 
         let from = <T::AccountId as Origin>::from_origin(payer.into_origin());
         let block_count = block_count.unique_saturated_into();
-        let value = Pallet::<T>::rent_fee_for(block_count);
 
         ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            let (new_expiration_block, blocks_to_pay) =
+                Pallet::<T>::calculate_new_expiration(program.expiration_block, block_count);
+            if blocks_to_pay.is_zero() {
+                return;
+            }
+
             CurrencyOf::<T>::transfer(
                 &from,
                 &block_author,
-                value,
+                Pallet::<T>::rent_fee_for(blocks_to_pay),
                 ExistenceRequirement::AllowDeath,
             )
             .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
 
-            let old_block = program.expiration_block;
-            let block_count = block_count.unique_saturated_into();
-            let expiration_block = old_block.saturating_add(block_count);
-            program.expiration_block = expiration_block;
-
-            let task = ScheduledTask::PauseProgram(program_id);
-            let r = TaskPoolOf::<T>::delete(old_block, task.clone());
-            log::debug!("TaskPool::delete result = {r:?}");
-
-            let r = TaskPoolOf::<T>::add(expiration_block, task);
-            log::debug!("TaskPool::add result = {r:?}");
-
-            Pallet::<T>::deposit_event(Event::ProgramChanged {
-                id: program_id,
-                change: ProgramChangeKind::ExpirationChanged {
-                    expiration: expiration_block,
-                },
-            });
+            Pallet::<T>::update_expiration_block(program_id, program, new_expiration_block);
         })
         .unwrap_or_else(|e| {
             log::debug!(
