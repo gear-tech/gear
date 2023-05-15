@@ -80,7 +80,7 @@ use gear_core::{
 };
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
-use sp_runtime::traits::{One, Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{Bounded, CheckedAdd, One, Saturating, UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
@@ -1705,20 +1705,32 @@ pub mod pallet {
                     let block_author =
                         Authorship::<T>::author().ok_or(Error::<T>::BlockAuthorNotFound)?;
 
+                    let old_expiration = program.expiration_block;
+                    let (expiration_block, blocks_to_pay) = old_expiration
+                        .checked_add(&block_count)
+                        .map(|count| (count, block_count))
+                        .unwrap_or_else(|| {
+                            let max = BlockNumberFor::<T>::max_value();
+
+                            (max, max - old_expiration)
+                        });
+
+                    if blocks_to_pay.is_zero() {
+                        return Ok(());
+                    }
+
                     CurrencyOf::<T>::transfer(
                         &who,
                         &block_author,
-                        Self::rent_fee_for(block_count),
+                        Self::rent_fee_for(blocks_to_pay),
                         ExistenceRequirement::AllowDeath,
                     )
                     .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
-                    let old_block = program.expiration_block;
-                    let expiration_block = old_block.saturating_add(block_count);
                     program.expiration_block = expiration_block;
 
                     let task = ScheduledTask::PauseProgram(program_id);
-                    let r = TaskPoolOf::<T>::delete(old_block, task.clone());
+                    let r = TaskPoolOf::<T>::delete(old_expiration, task.clone());
                     log::debug!("TaskPool::delete result = {r:?}");
 
                     let r = TaskPoolOf::<T>::add(expiration_block, task);
