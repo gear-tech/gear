@@ -359,7 +359,7 @@ jobs:
           path: artifact
 
   build-win-native:
-    if: github.ref == 'refs/heads/master'
+    if: ${{ github.ref == 'refs/heads/master' }}
     needs: build
     runs-on: ci-win
     defaults:
