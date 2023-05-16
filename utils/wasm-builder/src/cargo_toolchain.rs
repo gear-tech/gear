@@ -18,7 +18,18 @@
 
 use crate::builder_error::BuilderError;
 use anyhow::Result;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use std::{borrow::Cow, ffi::OsStr, path::PathBuf};
+
+// The channel patterns we support (borrowed from the rustup code)
+static TOOLCHAIN_CHANNELS: &[&str] = &[
+    "nightly",
+    "beta",
+    "stable",
+    // Allow from 1.0.0 through to 9.999.99 with optional patch version
+    r"\d{1}\.\d{1,3}(?:\.\d{1,2})?",
+];
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Toolchain(String);
@@ -35,20 +46,30 @@ impl Toolchain {
         let path = path.into();
 
         // Cargo path format:
-        // "$RUSTUP_HOME/toolchains/**toolchain_name**/bin/cargo"
-        let toolchain_name = path
+        // "$RUSTUP_HOME/toolchains/**toolchain_desc**/bin/cargo"
+        let toolchain_desc = path
             .iter()
             .nth_back(2)
             .and_then(OsStr::to_str)
             .ok_or_else(|| BuilderError::CargoPathInvalid(path.clone()))?;
 
-        // Toolchain name format:
-        // "**toolchain**-arch-arch-arch-arch"
-        let toolchain = toolchain_name
-            .rsplitn(5, '-')
-            .last()
-            .map(String::from)
-            .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_name.into()))?;
+        static TOOLCHAIN_CHANNEL_RE: Lazy<Regex> = Lazy::new(|| {
+            // This regex is borrowed from the rustup code and modified (added non-capturing groups)
+            let pattern = format!(
+                r"^((?:{})(?:-(?:\d{{4}}-\d{{2}}-\d{{2}}))?)(?:-(?:.+))?$",
+                TOOLCHAIN_CHANNELS.join("|")
+            );
+            // Note this regex gives you a guaranteed match of the channel[-date] as group 1
+            Regex::new(&pattern).unwrap()
+        });
+
+        let toolchain = TOOLCHAIN_CHANNEL_RE
+            .captures(toolchain_desc)
+            .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_desc.into()))?
+            .get(1)
+            .unwrap() // It is safe to use unwrap here because we know the regex matches
+            .as_str()
+            .to_owned();
 
         Ok(Self(toolchain))
     }

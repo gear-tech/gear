@@ -4098,6 +4098,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gmeta",
  "log",
+ "once_cell",
  "pathdiff",
  "pwasm-utils",
  "regex",
