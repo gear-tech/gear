@@ -65,13 +65,13 @@ impl StorageQueryBuilder {
     }
 
     /// Build storage query for the latest state.
-    fn full(&self) -> ItemFn {
-        let mut full = self.0.clone();
+    fn latest(&self) -> ItemFn {
+        let mut latest = self.0.clone();
 
         // reset function docs.
         //
         // - remove `at specified block` suffix.
-        full.attrs.iter_mut().for_each(|attr| {
+        latest.attrs.iter_mut().for_each(|attr| {
             if let Meta::NameValue(MetaNameValue {
                 value:
                     Expr::Lit(ExprLit {
@@ -88,15 +88,15 @@ impl StorageQueryBuilder {
         // reset function name.
         //
         // - `storage_query_at` -> `storage_query`
-        full.sig.ident = Ident::new(
-            full.sig.ident.to_string().trim_end_matches(AT_SUFFIX),
-            full.sig.ident.span(),
+        latest.sig.ident = Ident::new(
+            latest.sig.ident.to_string().trim_end_matches(AT_SUFFIX),
+            latest.sig.ident.span(),
         );
 
         // reset function inputs.
         //
         // - remove `block_hash: Option<H256>`
-        full.sig.inputs = Punctuated::from_iter(full.sig.inputs.into_iter().filter(|v| {
+        latest.sig.inputs = Punctuated::from_iter(latest.sig.inputs.into_iter().filter(|v| {
             if let FnArg::Typed(PatType { ty, .. }) = v {
                 return !ty
                     .to_token_stream()
@@ -117,7 +117,7 @@ impl StorageQueryBuilder {
         // ```
         {
             let fn_at = &self.0.sig.ident;
-            let args = full
+            let args = latest
                 .sig
                 .inputs
                 .iter()
@@ -133,21 +133,21 @@ impl StorageQueryBuilder {
                 })
                 .collect::<Vec<Ident>>();
 
-            full.block.stmts = parse_quote! {
+            latest.block.stmts = parse_quote! {
                 self.#fn_at(#(#args,)* None).await
             };
         }
 
-        full
+        latest
     }
 
     /// Build all storage queries.
     pub fn build(&self) -> TokenStream {
-        let (at, full) = (self.at(), self.full());
+        let (at, latest) = (self.at(), self.latest());
         quote! {
             #at
 
-            #full
+            #latest
         }
         .into()
     }
