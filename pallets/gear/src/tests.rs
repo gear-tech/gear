@@ -69,7 +69,10 @@ use gear_core::{
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
+use sp_runtime::{
+    traits::{UniqueSaturatedFrom, UniqueSaturatedInto},
+    SaturatedConversion,
+};
 use sp_std::convert::TryFrom;
 use test_syscalls::WASM_BINARY as TEST_SYSCALLS_BINARY;
 pub use utils::init_logger;
@@ -1282,11 +1285,6 @@ fn read_state_bn_and_timestamp_works() {
         ));
 
         let program_id = utils::get_last_program_id();
-        assert_ok!(Gear::pay_rent(
-            RuntimeOrigin::signed(USER_2),
-            program_id,
-            1_000
-        ));
 
         run_to_next_block(None);
         assert!(Gear::is_initialized(program_id));
@@ -1416,7 +1414,6 @@ fn mailbox_rent_out_of_rent() {
         ));
 
         let sender = utils::get_last_program_id();
-        assert_ok!(Gear::pay_rent(RuntimeOrigin::signed(USER_2), sender, 1_000));
 
         run_to_next_block(None);
 
@@ -1519,7 +1516,6 @@ fn mailbox_rent_claimed() {
         ));
 
         let sender = utils::get_last_program_id();
-        assert_ok!(Gear::pay_rent(RuntimeOrigin::signed(USER_2), sender, 1_000));
 
         run_to_next_block(None);
 
@@ -5417,13 +5413,14 @@ fn test_pay_rent_syscall_works() {
     new_test_ext().execute_with(|| {
         let pay_rent_id = generate_program_id(TEST_SYSCALLS_BINARY, DEFAULT_SALT);
 
+        let program_value = 10_000_000;
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_2),
             TEST_SYSCALLS_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             pay_rent_id.into_bytes().to_vec(),
             20_000_000_000,
-            10_000_000,
+            program_value,
         ));
 
         run_to_block(2, None);
@@ -5448,7 +5445,8 @@ fn test_pay_rent_syscall_works() {
         let program = ProgramStorageOf::<Test>::get_program(pay_rent_id)
             .and_then(|p| ActiveProgram::try_from(p).ok())
             .expect("program should exist");
-        assert_eq!(old_block + u64::from(block_count), program.expiration_block);
+        let expiration_block = program.expiration_block;
+        assert_eq!(old_block + u64::from(block_count), expiration_block);
 
         // attempt to pay rent for not existing program
         let pay_rent_account_id = AccountId::from_origin(pay_rent_id.into_origin());
@@ -5465,6 +5463,114 @@ fn test_pay_rent_syscall_works() {
         run_to_next_block(None);
 
         assert_eq!(balance_before, Balances::free_balance(pay_rent_account_id));
+
+        // try to pay greater rent than available value
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            pay_rent_id,
+            test_syscalls::Kind::PayRent(pay_rent_id.into_origin().into(), program_value).encode(),
+            20_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert_eq!(balance_before, Balances::free_balance(pay_rent_account_id));
+        let program = ProgramStorageOf::<Test>::get_program(pay_rent_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        assert_eq!(expiration_block, program.expiration_block);
+
+        // pay maximum possible rent
+        let block_count: BlockNumberFor<Test> = u32::MAX.into();
+        let rent = Gear::rent_fee_for(block_count);
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            pay_rent_id,
+            test_syscalls::Kind::PayRent(pay_rent_id.into_origin().into(), rent).encode(),
+            20_000_000_000,
+            rent,
+        ));
+
+        run_to_next_block(None);
+
+        assert_eq!(balance_before, Balances::free_balance(pay_rent_account_id));
+        let program = ProgramStorageOf::<Test>::get_program(pay_rent_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        assert_eq!(
+            expiration_block.saturating_add(block_count),
+            program.expiration_block
+        );
+        assert!(TaskPoolOf::<Test>::contains(
+            &program.expiration_block,
+            &ScheduledTask::PauseProgram(pay_rent_id)
+        ));
+    });
+}
+
+#[test]
+fn pay_rent_extrinsic_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let program_id = upload_program_default(USER_2, ProgramCodeKind::Default)
+            .expect("program upload should not fail");
+
+        run_to_block(2, None);
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let old_block = program.expiration_block;
+
+        assert!(TaskPoolOf::<Test>::contains(
+            &old_block,
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
+        let block_count = 10_000;
+        assert_ok!(Gear::pay_rent(
+            RuntimeOrigin::signed(USER_3),
+            program_id,
+            block_count
+        ));
+
+        run_to_next_block(None);
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expiration_block = program.expiration_block;
+        assert_eq!(old_block + block_count, expiration_block);
+
+        assert!(!TaskPoolOf::<Test>::contains(
+            &old_block,
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
+        assert!(TaskPoolOf::<Test>::contains(
+            &expiration_block,
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
+        // attempt to pay rent for not existing program
+        assert_err!(
+            Gear::pay_rent(RuntimeOrigin::signed(USER_1), [0u8; 32].into(), block_count),
+            pallet::Error::<Test>::ProgramNotFound
+        );
+
+        // attempt to pay rent that is greater than payer's balance
+        let block_count = BlockNumberFor::<Test>::unique_saturated_from(
+            Balances::free_balance(LOW_BALANCE_USER) / RentCostPerBlockOf::<Test>::get(),
+        ) + 100;
+        assert_err!(
+            Gear::pay_rent(
+                RuntimeOrigin::signed(LOW_BALANCE_USER),
+                program_id,
+                block_count
+            ),
+            pallet::Error::<Test>::InsufficientBalanceForReserve
+        );
     });
 }
 
@@ -7119,11 +7225,6 @@ fn execution_over_blocks() {
             0,
         ));
         let over_blocks = get_last_program_id();
-        assert_ok!(Gear::pay_rent(
-            RuntimeOrigin::signed(USER_1),
-            over_blocks,
-            10_000
-        ));
 
         assert!(ProgramStorageOf::<Test>::program_exists(over_blocks));
 
@@ -7215,7 +7316,6 @@ fn test_async_messages() {
         ));
 
         let pid = get_last_program_id();
-        assert_ok!(Gear::pay_rent(RuntimeOrigin::signed(USER_1), pid, 1_000));
 
         for kind in &[
             Kind::Reply,
