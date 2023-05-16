@@ -27,6 +27,7 @@ mod tests {
     ///
     /// See [galloc optimization doc](../galloc/docs/optimization.md) for
     /// reference.
+    #[ignore = "reason: this test requires a running node, so it is ignored by default"]
     #[test]
     fn stress_test_fungible_token() -> Result<()> {
         return tokio::runtime::Builder::new_multi_thread()
