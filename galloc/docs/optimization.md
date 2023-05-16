@@ -1,5 +1,7 @@
 # Galloc implementations comparison
 
+
+## Contents
 1. [Summary](#summary)
 1. [Benchmark](#benchmark)
 1. [Current implementation](#current)
@@ -7,9 +9,7 @@
 1. [Implementation with increased by two static buffer](#increased-twice)
 1. [Implementation with multiple static buffers](#multiple)
 
-## Content
-
-### Summary
+## Summary
 <a name="summary"></a>
 We've tried to optimize galloc in some ways, but none of them showed significant performance improvement, so we'd **strongly suggest keeping the current implementation.**
 
@@ -23,7 +23,7 @@ The current implementation uses a static buffer in addition to standard <kbd>dlm
 | Implementation with multiple static buffers | 8.23% | 1.88% | 7.01% |
 
 
-### Benchmark
+## Benchmark
 <a name="benchmark"></a>
 We measured the performance of dlmalloc in its current state [(commit 9135baa)](https://github.com/gear-tech/dlmalloc-rust/tree/9135baa728ef9a9a04a887998e019733c4b093af) to establish a baseline for comparison.
 
@@ -72,7 +72,7 @@ The test cases were:
 
   You can see the code of the test case [here](../../gstd/src/benchmarks/mod.rs).
 
-### Current implementation
+## Current implementation
 <a name="current"></a>
 Here are the results of the current implementation of galloc (with static buffer):
 
@@ -82,28 +82,26 @@ Here are the results of the current implementation of galloc (with static buffer
 | `FT stress-test` with <kbd>gtest</kbd> | 1.82% |
 | `FT stress-test` with <kbd>gclient</kbd> | 6.59% |
 
-#### `NFT init -> mint -> burn`
+### `NFT init -> mint -> burn`
 | | malloc        | calloc      | realloc          | free           |
 | -------------------------- | ------------- | ----------- | ---------------- | -------------- |
 | % of total gas spent | 3,00%         | 4,32%       | 0,91%            | 0,77%          |
 
-#### `FT stress-test` with <kbd>gtest</kbd>
+### `FT stress-test` with <kbd>gtest</kbd>
 |       | malloc        | calloc      | realloc          | free            |
 | -------------------------- | ------------- | ----------- | ---------------- | --------------- |
 | % of total gas spent | 0,42%         | 0,57%       | 0,43%            | 0,39%           |
 
-#### `FT stress-test` with <kbd>gclient</kbd>
+### `FT stress-test` with <kbd>gclient</kbd>
 |  | malloc             | calloc            | realloc           | free                |
 | -------------------------- | ------------------ | ----------------- | ----------------- | ------------------- |
 | % of total gas spent | 0,81%              | 1,10%             | 1,82%             | 2,86%               |
 
 [Go to top](#)
 
-### Implementation without static buffer
+## Implementation without static buffer
 <a name="without"></a>
 We attempted to eliminate the static buffer and instead utilize a <kbd>dlmalloc</kbd> default implementation, but it did not result in any significant performance improvement. In fact, in most cases, it actually demonstrated worse performance. Hence, it appears that the static buffer is not the bottleneck.
-
-### Test data
 
 | Test case | Allocator gas consumption |
 | --- | --- |
@@ -111,19 +109,19 @@ We attempted to eliminate the static buffer and instead utilize a <kbd>dlmalloc<
 | `FT stress-test` with <kbd>gtest</kbd> | 1.81% |
 | `FT stress-test` with <kbd>gclient</kbd> | 6.69% |
 
-#### `NFT init -> mint -> burn`
+### `NFT init -> mint -> burn`
 
 || malloc        | calloc      | realloc          | free           |
 | -------------------------- | ------------- | ----------- | ---------------- | -------------- |
 | % of total gas spent | 3,62%         | 4,77%       | 1,08%            | 0,77%          |
 
-#### `FT stress-test` with <kbd>gtest</kbd>
+### `FT stress-test` with <kbd>gtest</kbd>
 
 | | malloc        | calloc      | realloc          | free            |
 | -------------------------- | ------------- | ----------- | ---------------- | --------------- |
 | % of total gas spent | 0,40%         | 0,56%       | 0,46%            | 0,40%           |
 
-#### `FT stress-test` with <kbd>gclient</kbd>
+### `FT stress-test` with <kbd>gclient</kbd>
 
 | | malloc             | calloc            | realloc           | free                |
 | -------------------------- | ------------------ | ----------------- | ----------------- | ------------------- |
@@ -135,27 +133,25 @@ We attempted to eliminate the static buffer and instead utilize a <kbd>dlmalloc<
 <a name="increased-twice"></a>
 We attempted to increase the size of the static buffer by two, and while its performance showed a slight improvement over the current implementation, it was not significant enough to change the current implementation.
 
-### Tests data
-
 | Test case | Allocator gas consumption |
 | --- | --- |
 | `NFT init -> mint -> burn` | 8.30% |
 | `FT stress-test` with <kbd>gtest</kbd> | 1.82% |
 | `FT stress-test` with <kbd>gclient</kbd> | 6.60% |
 
-#### `NFT init -> mint -> burn`
+### `NFT init -> mint -> burn`
 
 |  | malloc        | calloc      | realloc          | free           |
 | -------------------------- | ------------- | ----------- | ---------------- | -------------- |
 | % of total gas spent | 2,82%         | 4,02%       | 0,70%            | 0,76%          |
 
-#### `FT stress-test` with <kbd>gtest</kbd>
+### `FT stress-test` with <kbd>gtest</kbd>
 
 | | malloc        | calloc      | realloc          | free            |
 | -------------------------- | ------------- | ----------- | ---------------- | --------------- |
 | % of total gas spent | 0,42%         | 0,57%       | 0,43%            | 0,39%           |
 
-#### `FT stress-test` with <kbd>gclient</kbd>
+### `FT stress-test` with <kbd>gclient</kbd>
 
 | | malloc             | calloc            | realloc           | free                |
 | -------------------------- | ------------------ | ----------------- | ----------------- | ------------------- |
@@ -175,27 +171,25 @@ The best-performing combination of buffers was as follows:
 - 8-byte buffer with 8 cells
 - 32-byte buffer with 4 cells
 
-### Tests data
-
 | Test case | Allocator gas consumption |
 | --- | --- |
 | `NFT init -> mint -> burn` | 8.23% |
 | `FT stress-test` with <kbd>gtest</kbd> | 1.88% |
 | `FT stress-test` with <kbd>gclient</kbd> | 7.01% |
 
-#### `NFT init -> mint -> burn`
+### `NFT init -> mint -> burn`
 
 | | malloc        | calloc      | realloc          | free           |
 | -------------------------- | ------------- | ----------- | ---------------- | -------------- |
 | % of total gas spent | 2,47%         | 4,37%       | 0,61%            | 0,78%          |
 
-#### `FT stress-test` with <kbd>gtest</kbd>
+### `FT stress-test` with <kbd>gtest</kbd>
 
 | FT stress-test gtest       | malloc        | calloc      | realloc          | free            |
 | -------------------------- | ------------- | ----------- | ---------------- | --------------- |
 | % of total gas spent | 0,42%         | 0,56%       | 0,49%            | 0,42%           |
 
-#### `FT stress-test` with <kbd>gclient</kbd>
+### `FT stress-test` with <kbd>gclient</kbd>
 
 |   | malloc             | calloc            | realloc           | free                |
 | -------------------------- | ------------------ | ----------------- | ----------------- | ------------------- |
