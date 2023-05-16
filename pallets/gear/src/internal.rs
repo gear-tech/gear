@@ -985,7 +985,7 @@ where
         inheritor
     }
 
-    pub(crate) fn pay_rent_impl(
+    pub(crate) fn pay_program_rent_impl(
         program_id: ProgramId,
         program: &mut ActiveProgram<BlockNumberFor<T>>,
         from: &T::AccountId,

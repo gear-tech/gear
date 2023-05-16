@@ -347,8 +347,8 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_origin`.
     pub gr_origin: Weight,
 
-    /// Weight of calling `gr_pay_rent`.
-    pub gr_pay_rent: Weight,
+    /// Weight of calling `gr_pay_program_rent`.
+    pub gr_pay_program_rent: Weight,
 
     /// Weight of calling `gr_program_id`.
     pub gr_program_id: Weight,
@@ -834,7 +834,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_gas_available: self.gr_gas_available.ref_time(),
             gr_message_id: self.gr_message_id.ref_time(),
             gr_origin: self.gr_origin.ref_time(),
-            gr_pay_rent: self.gr_pay_rent.ref_time(),
+            gr_pay_program_rent: self.gr_pay_program_rent.ref_time(),
             gr_program_id: self.gr_program_id.ref_time(),
             gr_source: self.gr_source.ref_time(),
             gr_value: self.gr_value.ref_time(),
@@ -948,7 +948,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_gas_available: to_weight!(cost_batched!(gr_gas_available)),
             gr_message_id: to_weight!(cost_batched!(gr_message_id)),
             gr_origin: to_weight!(cost_batched!(gr_origin)),
-            gr_pay_rent: to_weight!(cost_batched!(gr_pay_rent)),
+            gr_pay_program_rent: to_weight!(cost_batched!(gr_pay_program_rent)),
             gr_program_id: to_weight!(cost_batched!(gr_program_id)),
             gr_source: to_weight!(cost_batched!(gr_source)),
             gr_value: to_weight!(cost_batched!(gr_value)),

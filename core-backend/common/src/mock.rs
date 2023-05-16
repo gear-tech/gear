@@ -157,7 +157,7 @@ impl Ext for MockExt {
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
         Ok(0.into())
     }
-    fn pay_rent(
+    fn pay_program_rent(
         &mut self,
         _program_id: ProgramId,
         _rent: u128,

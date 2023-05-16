@@ -41,7 +41,7 @@ pub trait WeightInfo {
     fn db_read_per_kb(c: u32, ) -> Weight;
     fn instantiate_module_per_kb(c: u32, ) -> Weight;
     fn claim_value() -> Weight;
-    fn pay_rent() -> Weight;
+    fn pay_program_rent() -> Weight;
     fn upload_code(c: u32, ) -> Weight;
     fn create_program(s: u32, ) -> Weight;
     fn upload_program(c: u32, s: u32, ) -> Weight;
@@ -57,7 +57,7 @@ pub trait WeightInfo {
     fn gr_system_reserve_gas(r: u32, ) -> Weight;
     fn gr_message_id(r: u32, ) -> Weight;
     fn gr_origin(r: u32, ) -> Weight;
-    fn gr_pay_rent(r: u32, ) -> Weight;
+    fn gr_pay_program_rent(r: u32, ) -> Weight;
     fn gr_program_id(r: u32, ) -> Weight;
     fn gr_source(r: u32, ) -> Weight;
     fn gr_value(r: u32, ) -> Weight;
@@ -272,7 +272,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(7_u64))
             .saturating_add(T::DbWeight::get().writes(5_u64))
     }
-    fn pay_rent() -> Weight {
+    fn pay_program_rent() -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `679`
         //  Estimated: `15019`
@@ -450,7 +450,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(210_028_622, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_pay_rent(r: u32, ) -> Weight {
+    fn gr_pay_program_rent(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2022,7 +2022,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().reads(7_u64))
             .saturating_add(RocksDbWeight::get().writes(5_u64))
     }
-    fn pay_rent() -> Weight {
+    fn pay_program_rent() -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `679`
         //  Estimated: `15019`
@@ -2200,7 +2200,7 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(210_028_622, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
-    fn gr_pay_rent(r: u32, ) -> Weight {
+    fn gr_pay_program_rent(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`

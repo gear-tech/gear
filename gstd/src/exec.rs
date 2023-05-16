@@ -101,11 +101,11 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 /// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let (remaining_rent, paid_block_count) =
-///         exec::pay_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
+///         exec::pay_program_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
-pub fn pay_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
-    Ok(gcore::exec::pay_rent(program_id.into(), value)?)
+pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
+    Ok(gcore::exec::pay_program_rent(program_id.into(), value)?)
 }
 
 /// Return the identifier of the current program.

@@ -125,7 +125,7 @@ impl SysCallName {
             SysCallName::Origin => "gr_origin",
             SysCallName::OutOfAllowance => "gr_out_of_allowance",
             SysCallName::OutOfGas => "gr_out_of_gas",
-            SysCallName::PayRent => "gr_pay_rent",
+            SysCallName::PayRent => "gr_pay_program_rent",
             SysCallName::ProgramId => "gr_program_id",
             SysCallName::Random => "gr_random",
             SysCallName::Read => "gr_read",

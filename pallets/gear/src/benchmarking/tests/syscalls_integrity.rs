@@ -98,12 +98,12 @@ where
             SysCallName::ReservationReply => check_gr_reservation_reply::<T>(),
             SysCallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
             SysCallName::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
-            SysCallName::PayRent => check_gr_pay_rent::<T>(),
+            SysCallName::PayRent => check_gr_pay_program_rent::<T>(),
         }
     });
 }
 
-fn check_gr_pay_rent<T>()
+fn check_gr_pay_program_rent<T>()
 where
     T: Config,
     T::AccountId: Origin,
@@ -913,7 +913,7 @@ where
 
     utils::run_to_next_block::<T>(None);
 
-    assert_ok!(Gear::<T>::pay_rent(
+    assert_ok!(Gear::<T>::pay_program_rent(
         RawOrigin::Signed(default_account).into(),
         tester_pid,
         1_000u32.into()

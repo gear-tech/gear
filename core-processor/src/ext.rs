@@ -674,7 +674,11 @@ impl EnvExt for Ext {
         Ok(self.context.message_context.current().id())
     }
 
-    fn pay_rent(&mut self, program_id: ProgramId, rent: u128) -> Result<(u128, u32), Self::Error> {
+    fn pay_program_rent(
+        &mut self,
+        program_id: ProgramId,
+        rent: u128,
+    ) -> Result<(u128, u32), Self::Error> {
         if self.context.rent_cost == 0 {
             return Ok((rent, 0));
         }

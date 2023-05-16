@@ -1280,12 +1280,16 @@ where
         Func::wrap(store, func)
     }
 
-    pub fn pay_rent(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
+    pub fn pay_program_rent(
+        store: &mut Store<HostState<E>>,
+        forbidden: bool,
+        memory: WasmiMemory,
+    ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
                          rent_pid_ptr: u32,
                          err_bn_value_ptr: u32|
               -> EmptyOutput {
-            syscall_trace!("pay_rent", rent_pid_ptr, err_bn_value_ptr);
+            syscall_trace!("pay_program_rent", rent_pid_ptr, err_bn_value_ptr);
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithBlockNumberValue>(
@@ -1302,7 +1306,7 @@ where
                     let state = ctx.host_state_mut();
                     state
                         .ext
-                        .pay_rent(program_id.into(), rent)
+                        .pay_program_rent(program_id.into(), rent)
                         .map_err(Into::into)
                 },
             )

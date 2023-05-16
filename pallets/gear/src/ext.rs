@@ -256,8 +256,12 @@ impl EnvExt for LazyPagesExt {
         self.inner.message_id()
     }
 
-    fn pay_rent(&mut self, program_id: ProgramId, rent: u128) -> Result<(u128, u32), Self::Error> {
-        self.inner.pay_rent(program_id, rent)
+    fn pay_program_rent(
+        &mut self,
+        program_id: ProgramId,
+        rent: u128,
+    ) -> Result<(u128, u32), Self::Error> {
+        self.inner.pay_program_rent(program_id, rent)
     }
 
     fn program_id(&mut self) -> Result<ProgramId, Self::Error> {

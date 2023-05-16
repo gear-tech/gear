@@ -178,6 +178,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-capacitor"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+]
+
+[[package]]
 name = "demo-chat"
 version = "0.1.0"
 dependencies = [
@@ -319,6 +326,14 @@ dependencies = [
  "gcore",
  "gstd",
  "hex",
+]
+
+[[package]]
+name = "demo-wait"
+version = "0.1.0"
+dependencies = [
+ "gcore",
+ "gstd",
 ]
 
 [[package]]

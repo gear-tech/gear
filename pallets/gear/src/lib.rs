@@ -1683,8 +1683,8 @@ pub mod pallet {
 
         /// Pay additional rent for the program.
         #[pallet::call_index(8)]
-        #[pallet::weight(<T as Config>::WeightInfo::pay_rent())]
-        pub fn pay_rent(
+        #[pallet::weight(<T as Config>::WeightInfo::pay_program_rent())]
+        pub fn pay_program_rent(
             origin: OriginFor<T>,
             program_id: ProgramId,
             block_count: BlockNumberFor<T>,
@@ -1697,8 +1697,14 @@ pub mod pallet {
             ProgramStorageOf::<T>::update_active_program(
                 program_id,
                 |program| -> Result<(), Error<T>> {
-                    Self::pay_rent_impl(program_id, program, &who, &block_author, block_count)
-                        .map_err(|_| Error::<T>::InsufficientBalanceForReserve)
+                    Self::pay_program_rent_impl(
+                        program_id,
+                        program,
+                        &who,
+                        &block_author,
+                        block_count,
+                    )
+                    .map_err(|_| Error::<T>::InsufficientBalanceForReserve)
                 },
             )
             .map_err(|e| {

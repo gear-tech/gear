@@ -422,7 +422,7 @@ pub trait JournalHandler {
         err: SimpleSignalError,
     );
     /// Pay rent for the program.
-    fn pay_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32);
+    fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32);
 }
 
 /// Execution error

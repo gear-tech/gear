@@ -1420,7 +1420,7 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn gr_pay_rent(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_pay_program_rent(r: u32) -> Result<Exec<T>, &'static str> {
         let bn_pid_offset = COMMON_OFFSET;
         let res_offset = bn_pid_offset + PID_SIZE + BLOCK_NUMBER_SIZE;
 

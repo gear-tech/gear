@@ -239,7 +239,7 @@ mod wasm {
                 assert_eq!(expected_mid, actual_mid, "Kind::MessageId: mid test failed");
             }
             Kind::PayRent(program_id, rent) => {
-                exec::pay_rent(program_id.into(), rent).expect("Not enough value");
+                exec::pay_program_rent(program_id.into(), rent).expect("Not enough value");
             }
             Kind::ProgramId(expected_pid) => {
                 let actual_pid: [u8; 32] = exec::program_id().into();

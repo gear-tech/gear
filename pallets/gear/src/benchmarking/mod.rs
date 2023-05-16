@@ -422,7 +422,7 @@ benchmarks! {
         assert!(MailboxOf::<T>::is_empty(&caller));
     }
 
-    pay_rent {
+    pay_program_rent {
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
@@ -1371,10 +1371,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_pay_rent {
+    gr_pay_program_rent {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::gr_pay_rent(r)?;
+        let exec = Benches::<T>::gr_pay_program_rent(r)?;
     }: {
         res.replace(run_process(exec));
     }

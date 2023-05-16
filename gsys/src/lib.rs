@@ -412,12 +412,15 @@ extern "C" {
     /// - `program_id`: `const ptr` for program id.
     pub fn gr_origin(program_id: *mut Hash);
 
-    /// Fallible `gr_pay_rent` syscall.
+    /// Fallible `gr_pay_program_rent` syscall.
     ///
     /// Arguments type:
     /// - `rent_pid`: `const ptr` for program id and rent value.
     /// - `err_value`: `mut ptr` for concatenated error length and remaining rent value.
-    pub fn gr_pay_rent(rent_pid: *const HashWithValue, err_value: *mut LengthWithBlockNumberValue);
+    pub fn gr_pay_program_rent(
+        rent_pid: *const HashWithValue,
+        err_value: *mut LengthWithBlockNumberValue,
+    );
 
     /// Infallible `gr_program_id` get syscall.
     ///

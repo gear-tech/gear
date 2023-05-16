@@ -5409,7 +5409,7 @@ fn uninitialized_program_terminates_on_pause() {
 }
 
 #[test]
-fn test_pay_rent_syscall_works() {
+fn pay_program_rent_syscall_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let pay_rent_id = generate_program_id(TEST_SYSCALLS_BINARY, DEFAULT_SALT);
@@ -5511,7 +5511,7 @@ fn test_pay_rent_syscall_works() {
 }
 
 #[test]
-fn pay_rent_extrinsic_works() {
+fn pay_program_rent_extrinsic_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let program_id = upload_program_default(USER_2, ProgramCodeKind::Default)
@@ -5530,7 +5530,7 @@ fn pay_rent_extrinsic_works() {
         ));
 
         let block_count = 10_000;
-        assert_ok!(Gear::pay_rent(
+        assert_ok!(Gear::pay_program_rent(
             RuntimeOrigin::signed(USER_3),
             program_id,
             block_count
@@ -5556,7 +5556,7 @@ fn pay_rent_extrinsic_works() {
 
         // attempt to pay rent for not existing program
         assert_err!(
-            Gear::pay_rent(RuntimeOrigin::signed(USER_1), [0u8; 32].into(), block_count),
+            Gear::pay_program_rent(RuntimeOrigin::signed(USER_1), [0u8; 32].into(), block_count),
             pallet::Error::<Test>::ProgramNotFound
         );
 
@@ -5565,7 +5565,7 @@ fn pay_rent_extrinsic_works() {
             Balances::free_balance(LOW_BALANCE_USER) / RentCostPerBlockOf::<Test>::get(),
         ) + 100;
         assert_err!(
-            Gear::pay_rent(
+            Gear::pay_program_rent(
                 RuntimeOrigin::signed(LOW_BALANCE_USER),
                 program_id,
                 block_count

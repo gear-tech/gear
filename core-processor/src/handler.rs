@@ -112,7 +112,7 @@ pub fn handle_journal(
                 payer,
                 program_id,
                 block_count,
-            } => handler.pay_rent(payer, program_id, block_count),
+            } => handler.pay_program_rent(payer, program_id, block_count),
         }
     }
 

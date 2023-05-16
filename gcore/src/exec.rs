@@ -393,10 +393,10 @@ pub fn origin() -> ActorId {
 /// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let (remaining_rent, paid_block_count) =
-///         exec::pay_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
+///         exec::pay_program_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
-pub fn pay_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
+pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
     let rent_pid = HashWithValue {
         hash: program_id.0,
         value,
@@ -404,7 +404,7 @@ pub fn pay_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
 
     let mut res: LengthWithBlockNumberValue = Default::default();
 
-    unsafe { gsys::gr_pay_rent(&rent_pid, res.as_mut_ptr()) }
+    unsafe { gsys::gr_pay_program_rent(&rent_pid, res.as_mut_ptr()) }
 
     SyscallError(res.length).into_result()?;
     Ok((res.value, res.bn))
