@@ -19,7 +19,10 @@
 mod runtime;
 
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
-use gear_call_gen::{CallGenRng, GearCall, GearProgGenConfig, SendMessageArgs, UploadProgramArgs};
+use gear_call_gen::{
+    CallGenRng, GearCall, GearProgGenConfig, GeneratableCallArgs, SendMessageArgs,
+    UploadProgramArgs,
+};
 use gear_common::event::ProgramChangeKind;
 use gear_core::ids::ProgramId;
 use gear_runtime::{AccountId, Gear, Runtime, RuntimeEvent, RuntimeOrigin, System};
@@ -90,26 +93,19 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
 
     match rand.gen_range(0..=1) {
         0 => UploadProgramArgs::generate::<Rng>(
-            rand.next_u64(),
-            rand.next_u64(),
-            default_gas_limit(),
-            config,
-            programs,
+            (programs, rand.next_u64(), rand.next_u64()),
+            (default_gas_limit(), config),
         )
         .into(),
         1 => match NonEmpty::from_vec(context.lock().programs.clone()) {
             Some(existing_programs) => SendMessageArgs::generate::<Rng>(
-                existing_programs,
-                rand.next_u64(),
-                default_gas_limit(),
+                (existing_programs, rand.next_u64()),
+                (default_gas_limit(),),
             )
             .into(),
             None => UploadProgramArgs::generate::<Rng>(
-                rand.next_u64(),
-                rand.next_u64(),
-                default_gas_limit(),
-                config,
-                programs,
+                (programs, rand.next_u64(), rand.next_u64()),
+                (default_gas_limit(), config),
             )
             .into(),
         },

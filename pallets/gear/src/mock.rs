@@ -286,6 +286,10 @@ pub fn get_weight_of_adding_task() -> Weight {
 }
 
 pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
+    run_to_block_maybe_with_queue(n, remaining_weight, true)
+}
+
+pub fn run_to_block_maybe_with_queue(n: u64, remaining_weight: Option<u64>, run_queue: bool) {
     while System::block_number() < n {
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
@@ -303,15 +307,20 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             );
         }
 
-        Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+        if run_queue {
+            Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+        }
+
         Gear::on_finalize(System::block_number());
 
-        assert!(!System::events().iter().any(|e| {
-            matches!(
-                e.event,
-                RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
-            )
-        }))
+        if run_queue {
+            assert!(!System::events().iter().any(|e| {
+                matches!(
+                    e.event,
+                    RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+                )
+            }))
+        }
     }
 }
 

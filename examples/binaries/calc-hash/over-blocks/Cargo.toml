@@ -1,21 +1,20 @@
 [package]
 name = "demo-calc-hash-over-blocks"
 version = "0.1.0"
-authors = ["Gear Technologies"]
+authors.workspace = true
 edition = "2021"
 license = "GPL-3.0"
 workspace = "../../../../"
 
 [dependencies]
-gstd = { workspace = true, features = ["debug"] }
-
-# encoding
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"]}
+gstd.workspace = true
 shared = { path = "../", package = "demo-calc-hash" }
 
 [build-dependencies]
 gear-wasm-builder = { path = "../../../../utils/wasm-builder" }
 
 [features]
+debug = ["gstd/debug"]
 std = []
 default = ["std"]

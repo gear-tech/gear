@@ -1,6 +1,6 @@
 [workspace.package]
-edition = "2021"
 authors = ["Gear Technologies"]
+edition = "2021"
 license = "GPL-3.0"
 
 [workspace]
@@ -145,6 +145,7 @@ subxt = { version = "^0.27.1", default-features = false }
 syn = { version = "2.0.13" }
 thiserror = "1.0.40"
 tokio = { version = "1.27.0" }
+url = "2.3.1"
 wat = "1.0.61"
 wabt = "0.10.0"
 wasmi = { version = "0.14.0", default-features = false }
@@ -232,7 +233,9 @@ pallet-election-provider-multi-phase = { version = "4.0.0-dev", git = "https://g
 pallet-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-identity = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-multisig = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-preimage = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-proxy = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-ranked-collective = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-referenda = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-scheduler = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }

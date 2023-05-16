@@ -10,7 +10,6 @@ use std::{
     collections::{BTreeSet, HashMap},
     fs::File,
     io::Write,
-    iter,
     result::Result as StdResult,
     time::Duration,
 };
@@ -51,22 +50,6 @@ pub fn str_to_wsaddr(endpoint: String) -> WSAddress {
     let port = addr_parts.next().and_then(|v| v.parse().ok());
 
     WSAddress::new(domain, port)
-}
-
-pub fn iterator_with_args<T, F: FnMut() -> T>(
-    max_size: usize,
-    mut args: F,
-) -> impl Iterator<Item = T> {
-    let mut size = 0;
-    iter::from_fn(move || {
-        if size >= max_size {
-            return None;
-        }
-
-        size += 1;
-
-        Some(args())
-    })
 }
 
 pub fn convert_iter<V, T: Into<V> + Clone>(args: Vec<T>) -> impl IntoIterator<Item = V> + Clone {

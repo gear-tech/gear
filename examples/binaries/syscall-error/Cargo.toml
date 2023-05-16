@@ -1,15 +1,15 @@
 [package]
 name = "demo-syscall-error"
 version = "0.1.0"
-authors = ["Gear Technologies"]
+authors.workspace = true
 edition = "2021"
 license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-gstd = { workspace = true, features = ["debug"] }
-gsys.workspace = true
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
+gstd.workspace = true
+gsys.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
@@ -20,5 +20,6 @@ gtest.workspace = true
 [lib]
 
 [features]
+debug = ["gstd/debug"]
 std = ["codec/std"]
 default = ["std"]

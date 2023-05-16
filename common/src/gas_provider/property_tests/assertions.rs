@@ -107,7 +107,7 @@ fn assert_removed_nodes_have_no_lock(removed_nodes: &RemovedNodes) {
     for node in removed_nodes.values() {
         let lock = node.lock();
 
-        assert_eq!(lock, 0);
+        assert!(lock.is_zero());
     }
 }
 

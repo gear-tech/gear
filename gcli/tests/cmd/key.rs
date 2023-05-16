@@ -62,7 +62,7 @@ fn test_sign_and_verify() -> Result<()> {
         .stdout
         .convert();
 
-    assert!(verify_info.contains("true"));
+    assert!(verify_info.contains("true"), "Verify failed");
     Ok(())
 }
 
@@ -83,6 +83,6 @@ fn test_node_key() -> Result<()> {
         .stdout
         .convert();
 
-    assert!(key_info.contains(&inspect_info));
+    assert!(key_info.contains(&inspect_info), "Inspect failed");
     Ok(())
 }

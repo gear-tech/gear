@@ -41,12 +41,6 @@ mod wasm {
 
     static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
 
-    gstd::metadata! {
-        title: "tests-proxy",
-        handle:
-            input: InputArgs,
-    }
-
     #[no_mangle]
     extern "C" fn handle() {
         let payload = msg::load_bytes().expect("failed to load bytes");

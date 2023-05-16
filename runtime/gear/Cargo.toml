@@ -1,10 +1,10 @@
 [package]
 name = "gear-runtime"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 build = "build.rs"
-license = "GPL-3.0"
+license.workspace = true
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
@@ -15,6 +15,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 log.workspace = true
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
+static_assertions.workspace = true
 
 validator-set.workspace = true
 
@@ -27,6 +28,8 @@ pallet-authorship.workspace = true
 pallet-babe.workspace = true
 pallet-balances.workspace = true
 pallet-grandpa.workspace = true
+pallet-multisig.workspace = true
+pallet-proxy.workspace = true
 pallet-session.workspace = true
 pallet-sudo.workspace = true
 pallet-timestamp.workspace = true
@@ -73,9 +76,9 @@ substrate-wasm-builder = { workspace = true, optional = true }
 default = ["std"]
 std = [
 	"common/std",
- 	"frame-try-runtime?/std",
- 	"frame-system-benchmarking?/std",
- 	"frame-benchmarking?/std",
+	"frame-try-runtime?/std",
+	"frame-system-benchmarking?/std",
+	"frame-benchmarking?/std",
 	"frame-executive/std",
 	"frame-support/std",
 	"frame-system/std",
@@ -93,6 +96,8 @@ std = [
 	"runtime-primitives/std",
 	"validator-set/std",
 	"pallet-grandpa/std",
+	"pallet-multisig/std",
+	"pallet-proxy/std",
 	"pallet-session/std",
 	"pallet-sudo/std",
 	"pallet-timestamp/std",
@@ -150,6 +155,8 @@ try-runtime = [
 	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-grandpa/try-runtime",
+	"pallet-multisig/try-runtime",
+	"pallet-proxy/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-sudo/try-runtime",
 	"pallet-timestamp/try-runtime",

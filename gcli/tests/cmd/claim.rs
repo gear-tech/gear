@@ -18,7 +18,9 @@
 
 //! Integration tests for command `send`
 #![cfg(not(feature = "vara-testing"))]
-use crate::common::{self, Args, Result, ALICE_SS58_ADDRESS as ADDRESS, MESSAGER_SENT_VALUE};
+use crate::common::{
+    self, traits::NodeExec, Args, Result, ALICE_SS58_ADDRESS as ADDRESS, MESSAGER_SENT_VALUE,
+};
 use gsdk::Api;
 
 const REWARD_PER_BLOCK: u128 = 3_000_000; // 3_000 gas * 1_000 value per gas
@@ -46,9 +48,11 @@ async fn test_command_claim_works() -> Result<()> {
     //
     // not using `//Alice` or estimating the reward
     // before this checking.
+    let expected = MESSAGER_SENT_VALUE + REWARD_PER_BLOCK;
     assert_eq!(
         after.saturating_sub(before),
-        MESSAGER_SENT_VALUE + REWARD_PER_BLOCK
+        expected,
+        "Alice should have received the value of the message plus the reward ({expected})"
     );
 
     Ok(())
