@@ -3254,6 +3254,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "ft-io"
+version = "0.1.4"
+dependencies = [
+ "gmeta",
+ "gstd",
+]
+
+[[package]]
+name = "fungible-token"
+version = "0.1.4"
+dependencies = [
+ "blake2-rfc",
+ "ft-io",
+ "gear-wasm-builder",
+ "gmeta",
+ "gstd",
+ "hashbrown 0.13.2",
+ "primitive-types",
+ "rand 0.8.5",
+ "tokio",
+]
+
+[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4341,8 +4364,10 @@ name = "gstd"
 version = "0.1.0"
 dependencies = [
  "bs58",
+ "fungible-token",
  "futures",
  "galloc",
+ "gclient",
  "gcore",
  "gear-core-errors",
  "gstd-codegen",
@@ -4351,6 +4376,7 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "static_assertions",
+ "tokio",
 ]
 
 [[package]]

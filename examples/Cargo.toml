@@ -50,14 +50,14 @@ members = [
     "token-vendor/workshop-example",
 ]
 
-exclude = [
-    "binaries/*"
-]
+exclude = ["binaries/*"]
 
 [workspace.dependencies]
 galloc = { path = "../galloc" }
 gcore = { path = "../gcore" }
 gstd = { path = "../gstd" }
+gmeta = { path = "../gmeta" }
+gear-wasm-builder = { path = "../utils/wasm-builder" }
 
 [profile.release]
 lto = true

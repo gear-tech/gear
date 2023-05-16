@@ -1,0 +1,13 @@
+[package]
+name = "ft-state"
+version = "0.1.4"
+edition = "2021"
+
+[dependencies]
+gstd = { path = "../../gear/gstd" }
+gmeta = { path = "../../gear/gmeta", features = ["codegen"] }
+
+[build-dependencies]
+gear-wasm-builder = { path = "../../gear/utils/wasm-builder", features = [
+    "metawasm",
+] }

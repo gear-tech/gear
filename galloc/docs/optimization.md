@@ -70,6 +70,8 @@ The test cases were:
 
 - `FT stress-test` with <kbd>gclient</kbd>: This test case has the same steps as the previous one, but it's executed with <kbd>gclient</kbd> instead of <kbd>gtest</kbd>. This test is most similar to the real world case because it's executed with the real node and will give the most realistic gas usage. 
 
+  You can see the code of the test case [here](../../gstd/src/benchmarks/mod.rs).
+
 ### Current implementation
 <a name="current"></a>
 Here are the results of the current implementation of galloc (with static buffer):

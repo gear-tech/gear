@@ -159,6 +159,9 @@ pub mod prelude;
 pub mod prog;
 pub mod util;
 
+#[cfg(test)]
+mod benchmarks;
+
 pub use async_runtime::{handle_signal, message_loop, record_reply};
 pub use common::{errors, primitives::*};
 pub use config::Config;

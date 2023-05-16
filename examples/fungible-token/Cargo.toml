@@ -1,17 +1,33 @@
 [package]
 name = "fungible-token"
-version = "0.1.0"
+version = "0.1.4"
+authors.workspace = true
 edition.workspace = true
 license.workspace = true
-authors.workspace = true
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[lib]
-crate-type = ["cdylib"]
 
 [dependencies]
-gstd = {workspace = true, features = ["debug"] }
-codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
-scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
-primitive-types = { version = "0.12.1", default-features = false, features = ["scale-info"]}
+gstd = { workspace = true }
+hashbrown = "0.13.1"
+gmeta = { workspace = true }
+ft-io = { path = "io" }
+
+[dev-dependencies]
+gstd = { workspace = true, features = ["debug"] }
+blake2-rfc = { version = "0.2.18", default-features = false }
+tokio = { version = "1.21.2", features = ["full", "test-util"] }
+rand = "0.8.5"
+primitive-types = { version = "0.12.0", default-features = false }
+
+[build-dependencies]
+gear-wasm-builder = { workspace = true }
+ft-io = { path = "io" }
+
+[features]
+# Used for inserting constants with WASM binaries (NOT paths) of the contract in
+# the root crate. Usually these constants used in gclient tests instead of
+# strings with paths to the binaries in the "target" directory. If you don't
+# like this approach or don't use gclient tests, you can freely remove this
+# feature from here and from the rest of the code.
+binary-vendor = []
+std = []
+default = ["std"]
