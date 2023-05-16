@@ -115,9 +115,10 @@ where
             100_000_000_000_000_u128.unique_saturated_into(),
         );
 
-        let mp =
-            MessageParamsBuilder::new(Kind::PayProgramRent(tester_pid.into_origin().into(), 1_000_000_000).encode())
-                .with_value(1_000_000_000);
+        let mp = MessageParamsBuilder::new(
+            Kind::PayProgramRent(tester_pid.into_origin().into(), 1_000_000_000).encode(),
+        )
+        .with_value(1_000_000_000);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });

@@ -5563,9 +5563,10 @@ fn pay_program_rent_extrinsic_works() {
         );
 
         // attempt to pay rent that is greater than payer's balance
-        let block_count = 100 + BlockNumberFor::<Test>::unique_saturated_from(
-            Balances::free_balance(LOW_BALANCE_USER) / RentCostPerBlockOf::<Test>::get(),
-        );
+        let block_count = 100
+            + BlockNumberFor::<Test>::unique_saturated_from(
+                Balances::free_balance(LOW_BALANCE_USER) / RentCostPerBlockOf::<Test>::get(),
+            );
         assert_err!(
             Gear::pay_program_rent(
                 RuntimeOrigin::signed(LOW_BALANCE_USER),
