@@ -18,8 +18,12 @@ mod tests {
         ActorId::from_slice(&convert_i32_to_u8_array(index)).unwrap_or_default()
     }
 
-    const MAX_GAS_LIMIT: u64 = 250_000_000_000;
+    /// This constant defines the number of messages in the batch.
+    /// It is calculated empirically, and 25 is considered the optimal value for
+    /// messages in this test. If the value were larger, transactions would
+    /// exhaust the block limits.
     const BATCH_CHUNK_SIZE: usize = 25;
+    const MAX_GAS_LIMIT: u64 = 250_000_000_000;
 
     /// This test runs stress-loading for the fungible token contract.
     /// Its primary purpose is to benchmark memory allocator gas consumption.
