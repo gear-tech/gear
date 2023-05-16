@@ -56,7 +56,7 @@ use self::{
 use crate::{
     manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BTreeMap, BalanceOf,
     BenchmarkStorage, Call, Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf,
-    MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
+    MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf, Schedule,
 };
 use ::alloc::vec;
 use common::{
@@ -80,7 +80,7 @@ use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    ids::{MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, GearPage, PageBuf, PageU32Size, WasmPage},
     message::{ContextSettings, DispatchKind, MessageContext},
     reservation::GasReserver,
@@ -424,22 +424,23 @@ benchmarks! {
 
     pay_program_rent {
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
-        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
+        let salt = vec![];
+        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
 
-        let hold_period = 1_000u32.into();
+        let block_count = 1_000u32.into();
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller.clone()), program_id, hold_period)
+    }: _(RawOrigin::Signed(caller.clone()), program_id, block_count)
     verify {
         let program: ActiveProgram<_> = <T as pallet::Config>::ProgramStorage::get_program(program_id)
             .expect("program should exist")
             .try_into()
             .expect("program should be active");
-        assert_eq!(program.expiration_block, hold_period);
+        assert_eq!(program.expiration_block, RentFreePeriodOf::<T>::get() + block_count);
     }
 
     // This constructs a program that is maximal expensive to instrument.
