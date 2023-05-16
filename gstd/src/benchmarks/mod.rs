@@ -1,14 +1,14 @@
-#[cfg(test)]
 mod tests {
     use crate::{alloc::string::ToString, prelude::*, vec, Encode, Vec};
     use fungible_token::{contract::ActorId, ft_io::*, WASM_BINARY};
     use gclient::{EventProcessor, GearApi, Result, WSAddress};
 
     fn convert_i32_to_u8_array(value: i32) -> [u8; 32] {
+        let bytes = value.to_le_bytes();
         let mut result: [u8; 32] = [0; 32];
 
-        for i in 0..4 {
-            result[i] = ((value >> (i * 8)) & 0xFF) as u8;
+        for (i, &byte) in bytes.iter().enumerate() {
+            result[i] = byte;
         }
 
         result
@@ -25,7 +25,8 @@ mod tests {
     /// Its primary purpose is to benchmark memory allocator gas consumption.
     /// It does not verify whether the contract or the runtime works correctly.
     ///
-    /// See [galloc optimization doc](../galloc/docs/optimization.md) for reference.
+    /// See [galloc optimization doc](../galloc/docs/optimization.md) for
+    /// reference.
     #[test]
     fn stress_test_fungible_token() -> Result<()> {
         return tokio::runtime::Builder::new_multi_thread()
@@ -65,8 +66,6 @@ mod tests {
                     let api = GearApi::init_with(WSAddress::dev(), user).await?;
                     let actor_id = ActorId::from_slice(&api.account_id().encode())
                         .expect("failed to create actor id");
-
-                    let mut listener = api.subscribe().await?;
 
                     // Mint 1_000_000 tokens to main user
                     let mint_payload = FTAction::Mint(1_000_000);
@@ -121,12 +120,14 @@ mod tests {
                             to: convert_index_to_actor_id(i),
                             amount: 5_000,
                         };
+                        batch.push(transfer_payload);
 
                         let balance_payload = FTAction::BalanceOf(convert_index_to_actor_id(i));
                         batch.push(balance_payload);
                     }
 
-                    // Same as above, but for users 918-1339 and then these users send 1_000 tokens to user i*2
+                    // Same as above, but for users 918-1339 and then these users send 1_000 tokens
+                    // to user i*2
                     for i in 918..=1339 {
                         let mint_payload = FTAction::Mint(5_000);
                         batch.push(mint_payload);
@@ -136,6 +137,7 @@ mod tests {
                             to: convert_index_to_actor_id(i),
                             amount: 5_000,
                         };
+                        batch.push(transfer_payload);
 
                         let transfer_payload = FTAction::Transfer {
                             from: convert_index_to_actor_id(i),
@@ -149,11 +151,10 @@ mod tests {
                 // Converting batch
                 let batch: Vec<(_, Vec<u8>, u64, _)> = batch
                     .iter()
-                    .map(|x| (program_id, x.clone().encode(), MAX_GAS_LIMIT, 0))
+                    .map(|x| (program_id, x.encode(), MAX_GAS_LIMIT, 0))
                     .collect();
 
                 // Sending batch
-
                 for chunk in batch.chunks_exact(BATCH_CHUNK_SIZE) {
                     api.send_message_bytes_batch(chunk.to_vec()).await?;
                 }
