@@ -233,7 +233,7 @@ where
     }
 }
 
-/// Represents type defining concatenated hash with value. 20 bytes.
+/// Represents type defining concatenated block number and value with length. 24 bytes.
 #[repr(C, packed)]
 #[derive(Default)]
 pub struct LengthWithBlockNumberValue {
@@ -416,10 +416,10 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `rent_pid`: `const ptr` for program id and rent value.
-    /// - `err_value`: `mut ptr` for concatenated error length and remaining rent value.
+    /// - `err_bn_value`: `mut ptr` for concatenated error length, paid block count and remaining rent value.
     pub fn gr_pay_program_rent(
         rent_pid: *const HashWithValue,
-        err_value: *mut LengthWithBlockNumberValue,
+        err_bn_value: *mut LengthWithBlockNumberValue,
     );
 
     /// Infallible `gr_program_id` get syscall.

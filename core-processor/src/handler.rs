@@ -108,7 +108,7 @@ pub fn handle_journal(
                 destination,
                 err,
             } => handler.send_signal(message_id, destination, err),
-            JournalNote::PayRent {
+            JournalNote::PayProgramRent {
                 payer,
                 program_id,
                 block_count,

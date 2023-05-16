@@ -434,8 +434,6 @@ pub mod pallet {
         MessageQueueProcessingDisabled,
         /// Program with the specified id is not found.
         ProgramNotFound,
-        /// Failed to determine the author of a block.
-        BlockAuthorNotFound,
     }
 
     #[cfg(feature = "runtime-benchmarks")]

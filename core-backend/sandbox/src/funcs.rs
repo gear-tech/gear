@@ -916,7 +916,7 @@ where
 
         ctx.run_fallible::<_, _, LengthWithBlockNumberValue>(
             err_bn_value_ptr,
-            RuntimeCosts::PayRent,
+            RuntimeCosts::PayProgramRent,
             |ctx| {
                 let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
 

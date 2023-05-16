@@ -362,7 +362,7 @@ pub fn process_success(
     // Must be handled after processing programs creation.
     let payer = program_id;
     for (program_id, block_count) in program_rents {
-        journal.push(JournalNote::PayRent {
+        journal.push(JournalNote::PayProgramRent {
             payer,
             program_id,
             block_count,

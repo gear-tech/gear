@@ -328,7 +328,7 @@ pub enum JournalNote {
         err: SimpleSignalError,
     },
     /// Pay rent for the program.
-    PayRent {
+    PayProgramRent {
         /// Rent payer.
         payer: ProgramId,
         /// Program whose rent will be paid.

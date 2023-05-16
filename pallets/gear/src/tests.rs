@@ -5410,6 +5410,8 @@ fn uninitialized_program_terminates_on_pause() {
 
 #[test]
 fn pay_program_rent_syscall_works() {
+    use test_syscalls::Kind;
+
     init_logger();
     new_test_ext().execute_with(|| {
         let pay_rent_id = generate_program_id(TEST_SYSCALLS_BINARY, DEFAULT_SALT);
@@ -5424,7 +5426,7 @@ fn pay_program_rent_syscall_works() {
             program_value,
         ));
 
-        run_to_block(2, None);
+        run_to_next_block(None);
 
         let program = ProgramStorageOf::<Test>::get_program(pay_rent_id)
             .and_then(|p| ActiveProgram::try_from(p).ok())
@@ -5436,7 +5438,7 @@ fn pay_program_rent_syscall_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_2),
             pay_rent_id,
-            test_syscalls::Kind::PayRent(pay_rent_id.into_origin().into(), rent).encode(),
+            Kind::PayProgramRent(pay_rent_id.into_origin().into(), rent).encode(),
             20_000_000_000,
             0,
         ));
@@ -5456,7 +5458,7 @@ fn pay_program_rent_syscall_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_2),
             pay_rent_id,
-            test_syscalls::Kind::PayRent([0u8; 32], rent).encode(),
+            Kind::PayProgramRent([0u8; 32], rent).encode(),
             20_000_000_000,
             0,
         ));
@@ -5469,7 +5471,7 @@ fn pay_program_rent_syscall_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_2),
             pay_rent_id,
-            test_syscalls::Kind::PayRent(pay_rent_id.into_origin().into(), program_value).encode(),
+            Kind::PayProgramRent(pay_rent_id.into_origin().into(), program_value).encode(),
             20_000_000_000,
             0,
         ));
@@ -5488,7 +5490,7 @@ fn pay_program_rent_syscall_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_2),
             pay_rent_id,
-            test_syscalls::Kind::PayRent(pay_rent_id.into_origin().into(), rent).encode(),
+            Kind::PayProgramRent(pay_rent_id.into_origin().into(), rent).encode(),
             20_000_000_000,
             rent,
         ));
@@ -5517,7 +5519,7 @@ fn pay_program_rent_extrinsic_works() {
         let program_id = upload_program_default(USER_2, ProgramCodeKind::Default)
             .expect("program upload should not fail");
 
-        run_to_block(2, None);
+        run_to_next_block(None);
 
         let program = ProgramStorageOf::<Test>::get_program(program_id)
             .and_then(|p| ActiveProgram::try_from(p).ok())
@@ -5561,9 +5563,9 @@ fn pay_program_rent_extrinsic_works() {
         );
 
         // attempt to pay rent that is greater than payer's balance
-        let block_count = BlockNumberFor::<Test>::unique_saturated_from(
+        let block_count = 100 + BlockNumberFor::<Test>::unique_saturated_from(
             Balances::free_balance(LOW_BALANCE_USER) / RentCostPerBlockOf::<Test>::get(),
-        ) + 100;
+        );
         assert_err!(
             Gear::pay_program_rent(
                 RuntimeOrigin::signed(LOW_BALANCE_USER),
@@ -7317,7 +7319,6 @@ fn test_async_messages() {
         ));
 
         let pid = get_last_program_id();
-
         for kind in &[
             Kind::Reply,
             Kind::ReplyWithGas(DEFAULT_GAS_LIMIT),

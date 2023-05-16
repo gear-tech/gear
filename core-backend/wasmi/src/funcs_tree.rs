@@ -130,7 +130,7 @@ where
         f.build(ReservationReplyCommit, |forbidden| {
             F::reservation_reply_commit(store, forbidden, memory)
         }),
-        f.build(PayRent, |forbidden| {
+        f.build(PayProgramRent, |forbidden| {
             F::pay_program_rent(store, forbidden, memory)
         }),
         f.build(ProgramId, |forbidden| {

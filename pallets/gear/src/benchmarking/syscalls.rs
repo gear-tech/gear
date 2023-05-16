@@ -60,8 +60,6 @@ const PID_SIZE: u32 = size_of::<ProgramId>() as u32;
 const MID_SIZE: u32 = size_of::<MessageId>() as u32;
 /// Random subject size
 const RANDOM_SUBJECT_SIZE: u32 = 32;
-/// Size of block number.
-const BLOCK_NUMBER_SIZE: u32 = size_of::<gsys::BlockNumber>() as u32;
 
 /// Size of struct with fields: error len and handle
 const ERR_HANDLE_SIZE: u32 = ERR_LEN_SIZE + HANDLE_SIZE;
@@ -1421,18 +1419,18 @@ where
     }
 
     pub fn gr_pay_program_rent(r: u32) -> Result<Exec<T>, &'static str> {
-        let bn_pid_offset = COMMON_OFFSET;
-        let res_offset = bn_pid_offset + PID_SIZE + BLOCK_NUMBER_SIZE;
+        let pid_value_offset = COMMON_OFFSET;
+        let res_offset = pid_value_offset + PID_SIZE + VALUE_SIZE;
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::PayRent],
+            imported_functions: vec![SysCallName::PayProgramRent],
             handle_body: Some(body::fallible_syscall(
                 r,
                 res_offset,
                 &[
                     // block_number & program_id offset
-                    InstrI32Const(bn_pid_offset),
+                    InstrI32Const(pid_value_offset),
                 ],
             )),
             ..Default::default()

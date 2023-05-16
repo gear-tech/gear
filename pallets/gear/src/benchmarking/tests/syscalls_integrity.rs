@@ -30,7 +30,7 @@
 use super::*;
 
 use crate::WaitlistOf;
-use frame_support::{assert_ok, traits::Randomness};
+use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
 use gear_core_errors::{ExtError, MessageError};
 use gear_wasm_instrument::syscalls::SysCallName;
@@ -98,7 +98,7 @@ where
             SysCallName::ReservationReply => check_gr_reservation_reply::<T>(),
             SysCallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
             SysCallName::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
-            SysCallName::PayRent => check_gr_pay_program_rent::<T>(),
+            SysCallName::PayProgramRent => check_gr_pay_program_rent::<T>(),
         }
     });
 }
@@ -116,8 +116,8 @@ where
         );
 
         let mp =
-            MessageParamsBuilder::new(Kind::PayRent(tester_pid.into_origin().into(), 100).encode())
-                .with_value(10_000_000);
+            MessageParamsBuilder::new(Kind::PayProgramRent(tester_pid.into_origin().into(), 1_000_000_000).encode())
+                .with_value(1_000_000_000);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -902,7 +902,7 @@ where
         100_000_000_000_000_u128.unique_saturated_into(),
     );
     Gear::<T>::upload_program(
-        RawOrigin::Signed(default_account.clone()).into(),
+        RawOrigin::Signed(default_account).into(),
         SYSCALLS_TEST_WASM_BINARY.to_vec(),
         b"".to_vec(),
         child_code_hash.encode(),
@@ -912,12 +912,6 @@ where
     .expect("sys-call check program deploy failed");
 
     utils::run_to_next_block::<T>(None);
-
-    assert_ok!(Gear::<T>::pay_program_rent(
-        RawOrigin::Signed(default_account).into(),
-        tester_pid,
-        1_000u32.into()
-    ));
 
     let (call, post_check) = get_test_call_params(tester_pid, child_code_hash);
     let sender;
