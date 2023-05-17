@@ -395,9 +395,7 @@ trybuild = "1"                                                            # gstd
 wasm-opt = "0.111.0"                                                      # utils/wasm-builder
 wasmprinter = "0.2"                                                       # utils/wasm-gen
 whoami = "1.4.0"                                                          # gcli
-which = "4.4.0"                                                           # utils/wasm-builder
-scale-encode = "^0.1.0"                                                   # gsdk/api-gen
-scale-decode = "^0.5.0"                                                   # gsdk/api-gen
+which = "4.4.0"                                                           # utils/wasm-builder                                                   # gsdk/api-gen
 # TODO #2551 commit is used until `mutagen` version 2 becomes is released to the crates.io
 mutagen = { git = "https://github.com/llogiq/mutagen", rev = "a6377c4c" } # gear-common
 

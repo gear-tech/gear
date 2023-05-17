@@ -2,7 +2,7 @@
 #![allow(clippy::all)]
 #![allow(unused)]
 
-// mod generated;
+mod generated;
 mod impls;
 
 #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]

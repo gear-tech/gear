@@ -1,6 +1,11 @@
-use std::{env, fs, path::PathBuf, process::Command};
+use std::{
+    env, fs,
+    io::Write,
+    path::PathBuf,
+    process::{Command, Stdio},
+};
 
-const GSDK_GEN_API: &'static str = "GSDK_GEN_API";
+const GSDK_API_GEN: &'static str = "GSDK_API_GEN";
 const GSDK_API_GEN_PKG: &'static str = "gsdk-api-gen";
 const GSDK_API_GEN_RELATIVE_PATH: &'static str = "gsdk-api-gen";
 const VARA_RUNTIME_PKG: &'static str = "vara-runtime";
@@ -9,22 +14,31 @@ const VARA_RUNTIME_RELATIVE_PATH: &'static str =
 const GENERATED_API_PATH: &'static str = "src/metadata/generated.rs";
 const ENV_RUNTIME_WASM: &'static str = "RUNTIME_WASM";
 
+// These attributes are not supported by subxt 0.27.0.
+//
+// TODO: (issue #2666)
+const INCOMPATIBLE_LINES: [&str; 4] = [
+    ":: subxt :: ext :: scale_encode :: EncodeAsType ,",
+    ":: subxt :: ext :: scale_decode :: DecodeAsType ,",
+    r#"# [encode_as_type (crate_path = ":: subxt :: ext :: scale_encode")]"#,
+    r#"# [decode_as_type (crate_path = ":: subxt :: ext :: scale_decode")]"#,
+];
+
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=../Cargo.lock");
     println!("cargo:rerun-if-changed=../runtime");
     println!("cargo:rerun-if-changed=../pallets/gear");
-    println!("cargo:rerun-if-env-changed={}", GSDK_GEN_API);
+    println!("cargo:rerun-if-env-changed={}", GSDK_API_GEN);
 
     // This build script should only work when building gsdk as the primary package,
-    // and the environment variable GSDK_GEN_API should be set to true.
-    if env!("CARGO_PRIMARY_PACKAGE") != "1" || env::var(GSDK_GEN_API) != Ok("true".into()) {
+    // and the environment variable GSDK_API_GEN should be set to true.
+    if env!("CARGO_PRIMARY_PACKAGE") != "1" || env::var(GSDK_API_GEN) != Ok("true".into()) {
         return;
     }
 
     let generated = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), GENERATED_API_PATH);
     fs::write(generated, generate_api()).expect("Failed to write generated api");
-    post_fmt();
 }
 
 // Generate the node api for the client with the client-api-gen tool.
@@ -46,23 +60,40 @@ fn generate_api() -> Vec<u8> {
     .map(|(relative_path, pkg)| get_path(root, &profile, relative_path, pkg));
 
     // Generate api
-    Command::new(api_gen)
+    let code = Command::new(api_gen)
         .env(ENV_RUNTIME_WASM, vara_runtime)
         .output()
         .expect("Failed to generate client api.")
-        .stdout
+        .stdout;
+
+    format(&code).into_bytes()
 }
 
-// Post format code since `cargo +nightly fmt` doesn't support pipe,
-// not using `rustfmt` binary is beacuse our CI runs format check with
-// the nightly version, but rustfmt could be stable version on our
-// machines.
-fn post_fmt() {
-    let mut cargo = Command::new("cargo");
-    cargo
-        .args(["+nightly", "fmt", "-p", env!("CARGO_PKG_NAME")])
-        .status()
-        .expect("Format code failed.");
+// Format generated code with rustfmt.
+fn format(stream: &[u8]) -> String {
+    let mut raw = String::from_utf8_lossy(stream).to_string();
+    for line in INCOMPATIBLE_LINES.iter() {
+        raw = raw.replace(line, "");
+    }
+
+    let mut rustfmt = Command::new("rustfmt");
+    let mut code = rustfmt
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Spawn rustfmt failed");
+
+    code.stdin
+        .as_mut()
+        .expect("Get stdin of rustfmt failed")
+        .write_all(raw.as_bytes())
+        .expect("pipe generated code to rustfmt failed");
+
+    let out = code.wait_with_output().expect("Run rustfmt failed").stdout;
+    String::from_utf8_lossy(&out)
+        .to_string()
+        .replace(":: subxt", "::subxt")
+        .replace(" :: ", "::")
 }
 
 // Get the path of the compiled package.

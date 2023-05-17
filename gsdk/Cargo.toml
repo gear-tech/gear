@@ -26,8 +26,6 @@ thiserror.workspace = true
 sp-runtime = { workspace = true, features = [ "std" ] }
 sp-core.workspace = true
 gsdk-codegen = { path = "codegen" }
-scale-encode.workspace = true
-scale-decode.workspace = true
 
 # deps for feature `testing`
 rand = { workspace = true, optional = true }

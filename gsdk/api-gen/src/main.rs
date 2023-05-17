@@ -6,7 +6,7 @@ use std::{
     env, fs,
     io::{self, Write},
 };
-use subxt_codegen::{CratePath, DerivesRegistry, RuntimeGenerator, TypeSubstitutes};
+use subxt_codegen::{DerivesRegistry, RuntimeGenerator, TypeSubstitutes};
 
 const RUNTIME_WASM: &'static str = "RUNTIME_WASM";
 const USAGE: &'static str = r#"
@@ -36,8 +36,8 @@ fn main() -> Result<()> {
     }
 
     // Generate api.
-    let runtime_types = generate_runtime_types(metadata);
-    io::stdout().write_all(runtime_types.to_string().as_bytes())?;
+    let runtime_types = generate_runtime_types(metadata).to_string();
+    io::stdout().write_all(runtime_types.as_bytes())?;
 
     Ok(())
 }
@@ -77,7 +77,7 @@ fn generate_runtime_types(metadata: RuntimeMetadataPrefixed) -> TokenStream {
         pub mod runtime_types {}
     );
 
-    let crate_path = CratePath::new(syn::parse_quote!(crate));
+    let crate_path = Default::default();
     generator
         .generate_runtime_types(
             runtime_types_mod,

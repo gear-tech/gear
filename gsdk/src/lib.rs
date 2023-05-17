@@ -40,8 +40,6 @@ mod storage;
 pub mod types;
 mod utils;
 pub mod ext {
-    pub use scale_decode;
-    pub use scale_encode;
     pub use sp_core;
     pub use sp_runtime::{self, codec, scale_info};
 }
