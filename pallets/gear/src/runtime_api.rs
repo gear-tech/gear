@@ -137,8 +137,7 @@ where
                 // It does not make sense to set it any bigger due to the fact users can't call extrinsics
                 // with bigger 'gas_limit' anyway (see 'check_gas_limit_and_value')
                 let gas_allowance = GasAllowanceOf::<T>::get();
-                let max_gas_allowance = BlockGasLimitOf::<T>::get();
-                GasAllowanceOf::<T>::put(max_gas_allowance * 5);
+                GasAllowanceOf::<T>::put(BlockGasLimitOf::<T>::get());
                 // Do calculations.
                 let precharged_dispatch = core_processor::precharge_for_program(
                     &block_config,
