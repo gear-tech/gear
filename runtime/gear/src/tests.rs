@@ -22,6 +22,8 @@ use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core_processor::configs::PageCosts;
 use pallet_gear::{InstructionWeights, MemoryWeights};
 
+// TODO: move differences check logic to runtime-common #2664.
+
 #[track_caller]
 fn assert_spreading(weight: u64, expected: u64, spread: u8) {
     let left = expected - expected * spread as u64 / 100;

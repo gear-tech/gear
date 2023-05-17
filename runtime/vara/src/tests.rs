@@ -22,24 +22,27 @@ use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core_processor::configs::PageCosts;
 use pallet_gear::{InstructionWeights, MemoryWeights};
 
-#[track_caller]
-fn check_instruction_weight(weight: u32, expected: u32) {
-    let interval_start = expected - expected / 2; // 50% error
-    let interval_end = expected + expected / 2;
+// TODO: move differences check logic to runtime-common #2664.
 
-    if weight < interval_start || weight > interval_end {
-        panic!("Weight is {weight} ps. Expected interval is [{interval_start}, {interval_end}] ps");
-    }
+#[track_caller]
+fn assert_spreading(weight: u64, expected: u64, spread: u8) {
+    let left = expected - expected * spread as u64 / 100;
+    let right = expected + expected * spread as u64 / 100;
+
+    assert!(
+        left <= weight && weight <= right,
+        "Weight is {weight} ps. Expected weight is {expected} ps. {spread}% spread interval: [{left} ps, {right} ps]"
+    );
 }
 
 #[track_caller]
-fn check_pages_weight(weight: u64, expected: u64) {
-    let interval_start = expected - expected / 10; // 10% error
-    let interval_end = expected + expected / 10;
+fn assert_instruction_weight(weight: u32, expected: u32) {
+    assert_spreading(weight.into(), expected.into(), 50);
+}
 
-    if weight < interval_start || weight > interval_end {
-        panic!("Weight is {weight} ps. Expected interval is [{interval_start}, {interval_end}] ps");
-    }
+#[track_caller]
+fn assert_pages_weight(weight: u64, expected: u64) {
+    assert_spreading(weight, expected, 10);
 }
 
 #[test]
