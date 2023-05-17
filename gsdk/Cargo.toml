@@ -2,7 +2,7 @@
 name = "gsdk"
 version = "0.1.0"
 edition.workspace = true
-authors.workspace = trueauthors.workspace = true
+authors.workspace = true
 description = "Gear network rust sdk."
 license.workspace = true
 homepage = "https://github.com/gear-tech/gear/tree/master/gsdk"

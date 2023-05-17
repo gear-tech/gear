@@ -49,7 +49,7 @@ fn main() -> Result<()> {
         .expect("decode metadata failed");
 
     {
-        // TODO: customized code here.
+        // TODO: customized code here. ( #2668 )
     }
 
     // Generate api.

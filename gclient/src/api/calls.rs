@@ -293,7 +293,7 @@ impl GearApi {
             } = &gas_node.1
             {
                 accounts_with_reserved_funds.insert(id);
-                // TODO: find the replacement for the previous LockId.
+                // TODO: find the replacement of the previous LockId.
                 src_program_reserved_gas_total += value + lock.0[2];
             } else {
                 unreachable!("Unexpected gas node type");
