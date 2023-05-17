@@ -77,9 +77,7 @@ where
                 )?;
             }
             HandleKind::Signal(_signal_from, _status_code) => {
-                return Err("Gas calculation for `handle_signal` is not supported"
-                    .as_bytes()
-                    .to_vec());
+                return Err(b"Gas calculation for `handle_signal` is not supported".to_vec());
             }
         };
 
@@ -113,9 +111,14 @@ where
 
         let mut ext_manager = ExtManager::<T>::default();
 
-        while let Some(queued_dispatch) =
-            QueueOf::<T>::dequeue().map_err(|_| b"MQ storage corrupted".to_vec())?
-        {
+        loop {
+            if QueueProcessingOf::<T>::denied() {
+                return Err(b"Internal error: queue processing denied".to_vec());
+            }
+
+            let Some(queued_dispatch) = QueueOf::<T>::dequeue()
+                .map_err(|_| b"MQ storage corrupted".to_vec())? else { break; };
+
             let actor_id = queued_dispatch.destination();
 
             let actor = ext_manager
@@ -129,12 +132,25 @@ where
             // todo #1987 : consider to make more common for use in process_queue too
             let build_journal = || {
                 let program_id = queued_dispatch.destination();
-                let precharged_dispatch = match core_processor::precharge_for_program(
+                // Gas calculation info should not depend on the current block gas allowance.
+                // So we set it to some big value (max_gas_allowance * 5, suggested by @breathx)
+                // for the calculation purposes with a subsequent restore.
+                let gas_allowance = GasAllowanceOf::<T>::get();
+                let max_gas_allowance = <T as frame_system::Config>::BlockWeights::get()
+                    .max_block
+                    .ref_time();
+                GasAllowanceOf::<T>::put(max_gas_allowance * 5);
+                // Do calculations.
+                let precharged_dispatch = core_processor::precharge_for_program(
                     &block_config,
                     GasAllowanceOf::<T>::get(),
                     queued_dispatch.into_incoming(gas_limit),
                     actor_id,
-                ) {
+                );
+                // Restore gas allowance.
+                GasAllowanceOf::<T>::put(gas_allowance);
+                // Continue calculations.
+                let precharged_dispatch = match precharged_dispatch {
                     Ok(d) => d,
                     Err(journal) => {
                         return journal;

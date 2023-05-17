@@ -2812,8 +2812,12 @@ fn block_gas_limit_works() {
         // both processed if gas allowance equals only burned count
         run_to_next_block(Some(weight.ref_time() + gas1.burned + gas2.burned));
         assert_last_dequeued(2);
+        assert_eq!(GasAllowanceOf::<Test>::get(), 0);
 
         // =========== BLOCK 5 ============
+        let (gas1, gas2) = calc_gas();
+        // Check that gas allowance has not changed after calc_gas execution
+        assert_eq!(GasAllowanceOf::<Test>::get(), 0);
 
         send_with_min_limit_to(pid1, &gas1);
         send_with_min_limit_to(pid2, &gas2);
