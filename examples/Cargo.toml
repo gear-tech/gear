@@ -18,7 +18,6 @@ members = [
     "chat/room",
     "capacitor",
     "collector",
-    "create-program",
     "status-code",
     "fungible-token",
     "futures-unordered",
