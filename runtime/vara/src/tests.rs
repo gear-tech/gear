@@ -25,7 +25,7 @@ use pallet_gear::{InstructionWeights, MemoryWeights};
 // TODO: move differences check logic to runtime-common #2664.
 
 #[track_caller]
-fn assert_spreading(weight: u64, expected: u64, spread: u8) {
+fn check_spreading(weight: u64, expected: u64, spread: u8) {
     let left = expected - expected * spread as u64 / 100;
     let right = expected + expected * spread as u64 / 100;
 
@@ -36,13 +36,13 @@ fn assert_spreading(weight: u64, expected: u64, spread: u8) {
 }
 
 #[track_caller]
-fn assert_instruction_weight(weight: u32, expected: u32) {
-    assert_spreading(weight.into(), expected.into(), 50);
+fn check_instruction_weight(weight: u32, expected: u32) {
+    check_spreading(weight.into(), expected.into(), 50);
 }
 
 #[track_caller]
-fn assert_pages_weight(weight: u64, expected: u64) {
-    assert_spreading(weight, expected, 10);
+fn check_pages_weight(weight: u64, expected: u64) {
+    check_spreading(weight, expected, 10);
 }
 
 #[test]
