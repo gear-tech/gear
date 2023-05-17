@@ -111,7 +111,6 @@ fn accesses_pages(
         .try_for_each(|access| -> Result<(), Error> {
             // TODO: here we suppose zero byte access like one byte access, because
             // backend memory impl can access memory even in case access has size 0.
-            // We can optimize this if will ignore zero bytes access in core-backend (issue #2095).
             let last_byte = access
                 .offset
                 .checked_add(access.size.saturating_sub(1))

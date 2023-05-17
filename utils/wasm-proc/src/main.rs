@@ -97,22 +97,8 @@ const RT_ALLOWED_IMPORTS: [&str; 62] = [
     "ext_trie_blake2_256_ordered_root_version_2",
 ];
 
-#[derive(Debug, thiserror::Error)]
-enum Error {
-    #[error("Multiple skipping functional")]
-    InvalidSkip,
-}
-
 #[derive(Debug, clap::Parser)]
 struct Args {
-    /// Don't generate `.meta.wasm` file with meta functions
-    #[arg(long)]
-    skip_meta: bool,
-
-    /// Don't generate `.opt.wasm` file
-    #[arg(long)]
-    skip_opt: bool,
-
     /// Don't create gear stack end export
     #[arg(long)]
     skip_stack_end: bool,
@@ -132,6 +118,10 @@ struct Args {
     /// Path to WASMs, accepts multiple files
     #[arg(value_parser)]
     path: Vec<String>,
+
+    /// Create legacy meta file until `gear-test` has been removed
+    #[arg(long)]
+    legacy_meta: bool,
 }
 
 fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Result<(), String> {
@@ -155,12 +145,11 @@ fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Resu
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let Args {
         path: wasm_files,
-        skip_meta,
-        skip_opt,
         skip_stack_end,
         strip_custom_sections,
         check_runtime_imports,
         verbose,
+        legacy_meta,
     } = Args::parse();
 
     let mut env = env_logger::Env::default();
@@ -168,10 +157,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         env = env.default_filter_or("debug");
     }
     env_logger::Builder::from_env(env).init();
-
-    if skip_meta && skip_opt {
-        return Err(Box::new(Error::InvalidSkip));
-    }
 
     let rt_allowed_imports: HashSet<&str> = RT_ALLOWED_IMPORTS.into();
 
@@ -205,25 +190,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             optimizer.strip_custom_sections();
         }
 
-        if !skip_opt {
-            let path = file.with_extension("opt.wasm");
-
-            log::debug!("*** Processing chain optimization: {}", path.display());
-            let code = optimizer.optimize(OptType::Opt)?;
-            log::debug!("Optimized wasm: {}", path.to_string_lossy());
-
-            fs::write(path, code)?;
-        }
-
-        if !skip_meta {
+        if legacy_meta {
             let path = file.with_extension("meta.wasm");
-
             log::debug!("*** Processing metadata optimization: {}", path.display());
             let code = optimizer.optimize(OptType::Meta)?;
             log::debug!("Metadata wasm: {}", path.to_string_lossy());
-
             fs::write(path, code)?;
         }
+
+        let path = file.with_extension("opt.wasm");
+
+        log::debug!("*** Processing chain optimization: {}", path.display());
+        let code = optimizer.optimize(OptType::Opt)?;
+        log::debug!("Optimized wasm: {}", path.to_string_lossy());
+
+        fs::write(path, code)?;
     }
 
     Ok(())

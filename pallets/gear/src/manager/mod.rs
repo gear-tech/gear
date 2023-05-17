@@ -51,15 +51,12 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{
-    Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf,
-    TaskPoolOf,
-};
+use crate::{Config, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf};
 use common::{
     event::*,
-    scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
+    scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
     storage::{Interval, Queue},
-    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState, ProgramStorage,
+    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState, ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -192,7 +189,7 @@ where
             true
         } else if self.users.contains(id) {
             false
-        } else if ProgramStorageOf::<T>::program_exists(*id) {
+        } else if Pallet::<T>::program_exists(*id) {
             self.programs.insert(*id);
             true
         } else {
@@ -221,7 +218,7 @@ where
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
-        let active: ActiveProgram = ProgramStorageOf::<T>::get_program(id)?.0.try_into().ok()?;
+        let active: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(id)?.try_into().ok()?;
         let code_id = CodeId::from_origin(active.code_hash);
 
         let balance =
@@ -248,7 +245,7 @@ where
         program_id: ProgramId,
         code_info: &CodeInfo,
         message_id: MessageId,
-        block_number: <T as frame_system::Config>::BlockNumber,
+        expiration_block: BlockNumberFor<T>,
     ) {
         // Program can be added to the storage only with code, which is done in
         // `submit_program` or `upload_code` extrinsic.
@@ -268,15 +265,16 @@ where
             static_pages: code_info.static_pages,
             state: common::ProgramState::Uninitialized { message_id },
             gas_reservation_map: Default::default(),
+            expiration_block,
         };
 
-        ProgramStorageOf::<T>::add_program(program_id, program, block_number)
+        ProgramStorageOf::<T>::add_program(program_id, program)
             .expect("set_program shouldn't be called for the existing id");
     }
 
     fn clean_reservation_tasks(&mut self, program_id: ProgramId, maybe_inactive: bool) {
         let maybe_active_program = ProgramStorageOf::<T>::get_program(program_id)
-            .and_then(|(p, _bn)| ActiveProgram::try_from(p).ok());
+            .and_then(|program| ActiveProgram::try_from(program).ok());
 
         if maybe_active_program.is_none() && maybe_inactive {
             return;
@@ -300,11 +298,27 @@ where
         }
     }
 
+    fn remove_gas_reservation_slot(
+        reservation_id: ReservationId,
+        slot: GasReservationSlot,
+    ) -> GasReservationSlot {
+        let interval = Interval {
+            start: BlockNumberFor::<T>::from(slot.start),
+            finish: BlockNumberFor::<T>::from(slot.finish),
+        };
+
+        Pallet::<T>::charge_for_hold(reservation_id, interval, StorageType::Reservation);
+
+        Pallet::<T>::consume_and_retrieve(reservation_id);
+
+        slot
+    }
+
     pub fn remove_gas_reservation_impl(
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -> GasReservationSlot {
-        let slot = ProgramStorageOf::<T>::update_active_program(program_id, |p, _bn| {
+        let slot = ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             p.gas_reservation_map
                 .remove(&reservation_id)
                 .unwrap_or_else(|| {
@@ -321,23 +335,25 @@ where
             )
         });
 
-        GasHandlerOf::<T>::unlock_all(reservation_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        Self::remove_gas_reservation_slot(reservation_id, slot)
+    }
 
-        let interval = Interval {
-            start: BlockNumberFor::<T>::from(slot.start),
-            finish: BlockNumberFor::<T>::from(slot.finish),
-        };
+    pub fn remove_gas_reservation_map(
+        program_id: ProgramId,
+        gas_reservation_map: BTreeMap<ReservationId, GasReservationSlot>,
+    ) {
+        for (reservation_id, slot) in gas_reservation_map {
+            let slot = Self::remove_gas_reservation_slot(reservation_id, slot);
 
-        Pallet::<T>::charge_for_hold(
-            reservation_id,
-            interval,
-            CostsPerBlockOf::<T>::reservation(),
-        );
+            let result = TaskPoolOf::<T>::delete(
+                BlockNumberFor::<T>::from(slot.finish),
+                ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+            );
 
-        Pallet::<T>::consume_and_retrieve(reservation_id);
-
-        slot
+            log::debug!(
+                "remove_gas_reservation_map; program_id = {program_id:?}, result = {result:?}"
+            );
+        }
     }
 
     fn send_signal(

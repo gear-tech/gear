@@ -53,6 +53,7 @@ use std::{
 };
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
+const DEFAULT_INTERVAL: u32 = 1_000;
 
 impl CliConfiguration for RuntimeTestCmd {
     fn shared_params(&self) -> &SharedParams {
@@ -250,12 +251,9 @@ macro_rules! command {
                     static_pages: 0.into(),
                     state: gear_common::ProgramState::Initialized,
                     gas_reservation_map: Default::default(),
+                    expiration_block: DEFAULT_BLOCK_NUMBER.saturating_add(DEFAULT_INTERVAL).into(),
                 };
-                ProgramStorageOf::<Runtime>::add_program(
-                    ProgramId::from_origin(*id),
-                    program,
-                    DEFAULT_BLOCK_NUMBER.into(),
-                );
+                ProgramStorageOf::<Runtime>::add_program(ProgramId::from_origin(*id), program);
             }
 
             // Enable remapping of the source and destination of messages
@@ -465,12 +463,12 @@ macro_rules! command {
 
                             let memory = info.persistent_pages.clone();
                             let gas_reservation_map = {
-                                let (prog, _bn) =
+                                let program =
                                     ProgramStorageOf::<Runtime>::get_program(*pid).unwrap();
                                 if let gear_common::Program::Active(gear_common::ActiveProgram {
                                     gas_reservation_map,
                                     ..
-                                }) = prog
+                                }) = program
                                 {
                                     gas_reservation_map
                                 } else {

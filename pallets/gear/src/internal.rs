@@ -20,7 +20,8 @@
 
 use crate::{
     Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
-    GasBalanceOf, GasHandlerOf, MailboxOf, Pallet, SchedulingCostOf, TaskPoolOf, WaitlistOf,
+    GasBalanceOf, GasHandlerOf, GasNodeIdOf, MailboxOf, Pallet, SchedulingCostOf, TaskPoolOf,
+    WaitlistOf,
 };
 use alloc::collections::BTreeSet;
 use common::{
@@ -29,17 +30,14 @@ use common::{
         MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, Reason::*,
         UserMessageReadReason,
     },
-    gas_provider::{GasNodeId, GasNodeIdOf, Imbalance},
+    gas_provider::{GasNodeId, Imbalance},
     scheduler::*,
     storage::*,
-    GasPrice, GasTree, Origin,
+    GasPrice, GasTree, LockId, LockableTree, Origin,
 };
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReason;
-use frame_support::{
-    codec::{Decode, Encode},
-    traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
-};
+use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
@@ -47,17 +45,29 @@ use gear_core::{
 };
 use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
 
-/// Cost builder for `HoldBound<T>`.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct HoldBoundCost<T: Config>(SchedulingCostOf<T>);
+/// [`HoldBound`] builder
+#[derive(Clone, Debug)]
+pub(crate) struct HoldBoundBuilder<T: Config> {
+    storage_type: StorageType,
+    cost: SchedulingCostOf<T>,
+}
 
 #[allow(unused)]
-impl<T: Config> HoldBoundCost<T> {
+impl<T: Config> HoldBoundBuilder<T> {
+    /// Creates a builder
+    pub fn new(storage_type: StorageType) -> Self {
+        Self {
+            storage_type,
+            cost: CostsPerBlockOf::<T>::by_storage_type(storage_type),
+        }
+    }
+
     /// Creates bound to specific given block number.
     pub fn at(self, expected: BlockNumberFor<T>) -> HoldBound<T> {
         HoldBound {
-            cost: self.0,
+            cost: self.cost,
             expected,
+            lock_id: self.storage_type.try_into().ok(),
         }
     }
 
@@ -78,7 +88,7 @@ impl<T: Config> HoldBoundCost<T> {
     /// Creates maximal available bound for given gas limit.
     pub fn maximum_for(self, gas: GasBalanceOf<T>) -> HoldBound<T> {
         let deadline_duration = gas
-            .saturating_div(self.0.max(One::one()))
+            .saturating_div(self.cost.max(One::one()))
             .saturated_into::<BlockNumberFor<T>>();
 
         let deadline = Pallet::<T>::block_number().saturating_add(deadline_duration);
@@ -102,26 +112,22 @@ impl<T: Config> HoldBoundCost<T> {
     }
 }
 
-/// Hold bound, specifying cost of storing, expected block number for task to
+/// Hold bound, specifying cost of storage, expected block number for task to
 /// create on it, deadlines and durations of holding.
-#[derive(Clone, Debug, Decode, Encode, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct HoldBound<T: Config> {
     /// Cost of storing per block.
     cost: SchedulingCostOf<T>,
     /// Expected block number task to be processed.
     expected: BlockNumberFor<T>,
+    /// Appropriate lock id, if exists for storage type
+    lock_id: Option<LockId>,
 }
 
 // `unused` allowed because some fns may be used in future, but clippy
 // doesn't allow this due to `pub(crate)` visibility.
 #[allow(unused)]
 impl<T: Config> HoldBound<T> {
-    /// Creates cost builder for hold bound.
-    pub fn by(cost: SchedulingCostOf<T>) -> HoldBoundCost<T> {
-        assert!(!cost.is_zero());
-        HoldBoundCost(cost)
-    }
-
     /// Returns cost of storing per block, related to current hold bound.
     pub fn cost(&self) -> SchedulingCostOf<T> {
         self.cost
@@ -130,6 +136,11 @@ impl<T: Config> HoldBound<T> {
     /// Returns expected block number task to be processed.
     pub fn expected(&self) -> BlockNumberFor<T> {
         self.expected
+    }
+
+    /// Appropriate lock id for the HoldBound.
+    pub fn lock_id(&self) -> Option<LockId> {
+        self.lock_id
     }
 
     /// Returns expected duration before task will be processed, since now.
@@ -152,7 +163,7 @@ impl<T: Config> HoldBound<T> {
     }
 
     /// Returns amount of gas should be locked for rent of the hold afterward.
-    pub fn lock(&self) -> GasBalanceOf<T> {
+    pub fn lock_amount(&self) -> GasBalanceOf<T> {
         self.deadline_duration()
             .saturated_into::<GasBalanceOf<T>>()
             .saturating_mul(self.cost())
@@ -240,7 +251,7 @@ where
     ///
     /// Represents logic of burning gas by transferring gas from
     /// current `GasTree` owner to actual block producer.
-    pub(crate) fn spend_gas(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>, amount: GasBalanceOf<T>) {
+    pub(crate) fn spend_gas(id: impl Into<GasNodeIdOf<T>>, amount: GasBalanceOf<T>) {
         let id = id.into();
 
         // If amount is zero, nothing to do.
@@ -270,7 +281,7 @@ where
     /// Consumes message by given `MessageId` or gas reservation by `ReservationId`.
     ///
     /// Updates currency and balances data on imbalance creation.
-    pub(crate) fn consume_and_retrieve(id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>) {
+    pub(crate) fn consume_and_retrieve(id: impl Into<GasNodeIdOf<T>>) {
         let id = id.into();
 
         // Consuming `GasNode`, returning optional outcome with imbalance.
@@ -302,11 +313,21 @@ where
         }
     }
 
-    /// Charges for holding in some storage.
+    /// Charges for holding in some storage. In order to be placed into a holding storage
+    /// a message must lock some funds as a deposit to "book" the storage until some time
+    /// in the future.
+    /// Basic invariant is that we can't charge for storing an item more than had been deposited,
+    /// regardless whether storage costs or the safety margin have changed in the meantime
+    /// (via storage migration). The actual "prepaid" amount is determined through releasing
+    /// the lock corresponding to the `storage_type` inside the fucntion.
+    ///
+    /// `id` - parameter convertible to the respective gas node id;
+    /// `hold_interval` - determines the time interval to charge rent for;
+    /// `storage_type` - storage type that determines the lock and the cost for holding a message.
     pub(crate) fn charge_for_hold(
-        id: impl Into<GasNodeIdOf<GasHandlerOf<T>>>,
+        id: impl Into<GasNodeIdOf<T>>,
         hold_interval: Interval<BlockNumberFor<T>>,
-        cost: SchedulingCostOf<T>,
+        storage_type: StorageType,
     ) {
         let id = id.into();
 
@@ -315,25 +336,37 @@ where
 
         // Deadline of the task.
         //
-        // NOTE: make sure to work around it, while doing db migrations,
-        // changing `ReserveFor` value.
+        // NOTE: the `ReserveFor` value may have changed due to storage migration thereby
+        // leading to a mismatch between the amount due and the amount deposited upfront.
         let deadline = hold_interval
             .finish
             .saturating_add(CostsPerBlockOf::<T>::reserve_for());
 
-        // The block number, which was the last payed for hold.
+        // The block number, which was the last paid for hold.
         //
-        // Outdated tasks can store for free, but this case is under
-        // control of correct `ReserveFor` constant set.
-        let payed_till = current.min(deadline);
+        // Outdated tasks can end up being store for free - this case has to be controlled by
+        // a correct selection of the `ReserveFor` constant.
+        let paid_until = current.min(deadline);
 
         // Holding duration.
-        let duration: u64 = payed_till
+        let duration: u64 = paid_until
             .saturating_sub(hold_interval.start)
             .unique_saturated_into();
 
-        // Amount of gas to charge for holding.
-        let amount = duration.saturating_mul(cost);
+        // Cost per block based on the storage used for holding
+        let cost = CostsPerBlockOf::<T>::by_storage_type(storage_type);
+
+        // Amount of gas to be charged for holding.
+        // Note: unlocking of all funds that had been locked under the respective lock defines
+        // the maximum amount that can be charged for using storage.
+        let amount = storage_type.try_into().map_or_else(
+            |_| duration.saturating_mul(cost),
+            |lock_id| {
+                let prepaid = GasHandlerOf::<T>::unlock_all(id, lock_id)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                prepaid.min(duration.saturating_mul(cost))
+            },
+        );
 
         // Spending gas, if need.
         if !amount.is_zero() {
@@ -348,8 +381,8 @@ where
         duration: Option<BlockNumberFor<T>>,
         reason: MessageWaitedReason,
     ) {
-        // `HoldBound` cost builder.
-        let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist());
+        // `HoldBound` builder.
+        let hold_builder = HoldBoundBuilder::<T>::new(StorageType::Waitlist);
 
         // Maximal hold bound for the message.
         let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
@@ -370,7 +403,10 @@ where
         }
 
         // Locking funds for holding.
-        GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
+        let lock_id = hold.lock_id().unwrap_or_else(|| {
+            unreachable!("Waitlist storage is guaranteed to have an associated lock id")
+        });
+        GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying origin message id. Fails in cases of `GasTree` invalidations.
@@ -430,16 +466,8 @@ where
         // Expected block number to finish task.
         let expected = hold_interval.finish;
 
-        // Unlocking all funds, that were locked for storing.
-        GasHandlerOf::<T>::unlock_all(waitlisted.id())
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
         // Charging for holding.
-        Self::charge_for_hold(
-            waitlisted.id(),
-            hold_interval,
-            CostsPerBlockOf::<T>::waitlist(),
-        );
+        Self::charge_for_hold(waitlisted.id(), hold_interval, StorageType::Waitlist);
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::MessageWoken {
@@ -482,11 +510,7 @@ where
         let expected = hold_interval.finish;
 
         // Charging for holding.
-        Self::charge_for_hold(
-            mailboxed.id(),
-            hold_interval,
-            CostsPerBlockOf::<T>::mailbox(),
-        );
+        Self::charge_for_hold(mailboxed.id(), hold_interval, StorageType::Mailbox);
 
         // Consuming message.
         Self::consume_and_retrieve(mailboxed.id());
@@ -556,13 +580,13 @@ where
         let from = <T::AccountId as Origin>::from_origin(dispatch.source().into_origin());
         let value = dispatch.value().unique_saturated_into();
 
-        // `HoldBound` cost builder.
-        let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
+        // `HoldBound` builder.
+        let hold_builder = HoldBoundBuilder::<T>::new(StorageType::DispatchStash);
 
         // Calculating correct gas amount for delay.
         let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
         let delay_hold = hold_builder.clone().duration(bn_delay);
-        let gas_for_delay = delay_hold.lock();
+        let gas_for_delay = delay_hold.lock_amount();
 
         let interval_finish = if to_user {
             // Querying `MailboxThreshold`, that represents minimal amount of gas
@@ -610,7 +634,10 @@ where
             let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
-            GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
+            let lock_id = hold.lock_id().unwrap_or_else(|| {
+                unreachable!("DispatchStash storage is guaranteed to have an associated lock id")
+            });
+            GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if hold.expected_duration().is_zero() {
@@ -659,15 +686,18 @@ where
                 }
             }
 
-            // `HoldBound` cost builder.
-            let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::dispatch_stash());
+            // `HoldBound` builder.
+            let hold_builder = HoldBoundBuilder::<T>::new(StorageType::DispatchStash);
 
             // Calculating correct hold bound to lock gas.
             let maximal_hold = hold_builder.maximum_for_message(dispatch.id());
             let hold = delay_hold.min(maximal_hold);
 
             // Locking funds for holding.
-            GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
+            let lock_id = hold.lock_id().unwrap_or_else(|| {
+                unreachable!("DispatchStash storage is guaranteed to have an associated lock id")
+            });
+            GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             if hold.expected_duration().is_zero() {
@@ -771,7 +801,7 @@ where
         // task created and funds reserved.
         let expiration = if !message.is_error_reply() && gas_limit >= threshold {
             // Figuring out hold bound for given gas limit.
-            let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::mailbox()).maximum_for(gas_limit);
+            let hold = HoldBoundBuilder::<T>::new(StorageType::Mailbox).maximum_for(gas_limit);
 
             // Validating holding duration.
             if hold.expected_duration().is_zero() {
@@ -790,6 +820,10 @@ where
             // Reserving value from source for future transfer or unreserve.
             CurrencyOf::<T>::reserve(&from, value)
                 .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
+
+            // Lock the entire `gas_limit` since the only purpose of it is payment for storage.
+            GasHandlerOf::<T>::lock(message.id(), LockId::Mailbox, gas_limit)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Inserting message in mailbox.
             MailboxOf::<T>::insert(message.clone(), hold.expected())
@@ -854,12 +888,16 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Figuring out hold bound for given gas limit.
-            let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::mailbox()).maximum_for(gas_limit);
+            let hold = HoldBoundBuilder::<T>::new(StorageType::Mailbox).maximum_for(gas_limit);
 
             // Validating holding duration.
             if hold.expected_duration().is_zero() {
                 unreachable!("Threshold for mailbox invalidated")
             }
+
+            // Lock the entire `gas_limit` since the only purpose of it is payment for storage.
+            GasHandlerOf::<T>::lock(message.id(), LockId::Mailbox, gas_limit)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Inserting message in mailbox.
             MailboxOf::<T>::insert(message.clone(), hold.expected())

@@ -26,6 +26,7 @@ use signer::Signer;
 use std::sync::Arc;
 pub use subxt::dynamic::Value;
 use subxt::OnlineClient;
+pub mod testing;
 
 mod client;
 pub mod config;
@@ -42,6 +43,8 @@ pub mod ext {
     pub use sp_core;
     pub use sp_runtime;
 }
+
+pub type BlockNumber = u32;
 
 /// Gear api wrapper.
 #[derive(Clone)]

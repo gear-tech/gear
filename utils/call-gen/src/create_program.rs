@@ -18,7 +18,7 @@
 
 //! Create program call generator.
 
-use crate::{CallGenRng, GearCall, GearCallConversionError, Seed};
+use crate::{impl_convert_traits, CallGenRng, GeneratableCallArgs, NamedCallArgs, Seed};
 use gear_core::ids::CodeId;
 use gear_utils::{NonEmpty, RingGet};
 
@@ -31,36 +31,21 @@ type CreateProgramArgsInner = (CodeId, Vec<u8>, Vec<u8>, u64, u128);
 #[derive(Debug, Clone)]
 pub struct CreateProgramArgs(pub CreateProgramArgsInner);
 
-impl From<CreateProgramArgs> for CreateProgramArgsInner {
-    fn from(args: CreateProgramArgs) -> Self {
-        args.0
-    }
-}
+impl_convert_traits!(
+    CreateProgramArgs,
+    CreateProgramArgsInner,
+    CreateProgram,
+    "create_program"
+);
 
-impl From<CreateProgramArgs> for GearCall {
-    fn from(args: CreateProgramArgs) -> Self {
-        GearCall::CreateProgram(args)
-    }
-}
+impl GeneratableCallArgs for CreateProgramArgs {
+    type FuzzerArgs = (NonEmpty<CodeId>, Seed);
+    type ConstArgs = (u64,);
 
-impl TryFrom<GearCall> for CreateProgramArgs {
-    type Error = GearCallConversionError;
-
-    fn try_from(call: GearCall) -> Result<Self, Self::Error> {
-        if let GearCall::CreateProgram(call) = call {
-            Ok(call)
-        } else {
-            Err(GearCallConversionError("create_program"))
-        }
-    }
-}
-
-impl CreateProgramArgs {
     /// Generates `pallet_gear::Pallet::<T>::create_program` call arguments.
-    pub fn generate<Rng: CallGenRng>(
-        existing_codes: NonEmpty<CodeId>,
-        rng_seed: Seed,
-        gas_limit: u64,
+    fn generate<Rng: CallGenRng>(
+        (existing_codes, rng_seed): Self::FuzzerArgs,
+        (gas_limit,): Self::ConstArgs,
     ) -> Self {
         let mut rng = Rng::seed_from_u64(rng_seed);
 
@@ -73,8 +58,9 @@ impl CreateProgramArgs {
         let mut payload = vec![0; rng.gen_range(1..=100)];
         rng.fill_bytes(&mut payload);
 
+        let name = Self::name();
         log::debug!(
-            "Generated `create_program` call with code id = {code}, salt = {} payload = {}",
+            "Generated `{name}` call with code id = {code}, salt = {} payload = {}",
             hex::encode(&salt),
             hex::encode(&payload)
         );

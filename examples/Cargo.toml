@@ -1,3 +1,8 @@
+[workspace.package]
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "GPL-3.0"
+
 [workspace]
 resolver = "2"
 
@@ -12,21 +17,17 @@ members = [
     "chat",
     "chat/bot",
     "chat/room",
-    "collector",
     "capacitor",
+    "collector",
     "create-program",
-    "decoder",
     "status-code",
-    "fib",
     "fungible-token",
     "futures-unordered",
-    "mem",
     "guestbook",
     "gui-test",
     "incomplete_async_payloads",
     "loop",
     "minimal",
-    "multiping",
     "mutex",
     "panicker",
     "piggy-bank",
@@ -36,13 +37,10 @@ members = [
     "program-id",
     "rwlock",
     "rwlock_write",
-    "state_rollback",
-    "sum",
     "sync_duplicate",
-    "vec",
-    "wait",
     "token-vendor",
     "token-vendor/workshop-example",
+    "wait"
 ]
 
 exclude = [

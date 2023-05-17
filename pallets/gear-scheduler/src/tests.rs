@@ -22,7 +22,7 @@ extern crate alloc;
 
 use crate::{mock::*, *};
 use alloc::string::ToString;
-use common::{scheduler::*, storage::*, GasPrice as _, GasTree, Origin};
+use common::{scheduler::*, storage::*, GasPrice as _, GasTree, LockId, LockableTree as _, Origin};
 use frame_support::traits::ReservableCurrency;
 use gear_core::{ids::*, message::*};
 use gear_core_errors::{SimpleCodec, SimpleReplyError};
@@ -71,9 +71,16 @@ fn populate_wl_from(
 
     TaskPoolOf::<Test>::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid))
         .expect("Failed to insert task");
-    WaitlistOf::<Test>::insert(dispatch, u64::MAX).expect("Failed to insert to waitlist");
+    WaitlistOf::<Test>::insert(dispatch, bn).expect("Failed to insert to waitlist");
     Balances::reserve(&src, GasPrice::gas_price(DEFAULT_GAS)).expect("Cannot reserve gas");
     GasHandlerOf::<Test>::create(src, mid, DEFAULT_GAS).expect("Failed to create gas handler");
+    // Locking funds for holding.
+    GasHandlerOf::<Test>::lock(
+        mid,
+        LockId::Waitlist,
+        <Pallet<Test> as Scheduler>::CostsPerBlock::waitlist() * bn,
+    )
+    .expect("GasTree corrupted");
 
     (mid, pid)
 }
@@ -137,7 +144,7 @@ fn gear_handles_tasks() {
         // We start from block 2 for confidence.
         let initial_block = 2;
         run_to_block(initial_block, Some(u64::MAX));
-        // Read of missed blocks.
+        // Read of the first block of incomplete tasks.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
             u64::MAX - db_r_w(1, 0).ref_time()
@@ -170,7 +177,7 @@ fn gear_handles_tasks() {
 
         // Check if task and message exist before start of block `bn`.
         run_to_block(bn - 1, Some(u64::MAX));
-        // Read of missed blocks.
+        // Read of the first block of incomplete tasks
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
             u64::MAX - db_r_w(1, 0).ref_time()
@@ -193,7 +200,7 @@ fn gear_handles_tasks() {
 
         // Check if task and message got processed in block `bn`.
         run_to_block(bn, Some(u64::MAX));
-        // Read of missed blocks and write for removal of task.
+        // Read of the first block of incomplete tasks and write for removal of task.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
             u64::MAX - db_r_w(1, 1).ref_time()
@@ -225,7 +232,7 @@ fn gear_handles_outdated_tasks() {
         // We start from block 2 for confidence.
         let initial_block = 2;
         run_to_block(initial_block, Some(u64::MAX));
-        // Read of missed blocks.
+        // Read of the first block of incomplete tasks.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
             u64::MAX - db_r_w(1, 0).ref_time()
@@ -306,7 +313,7 @@ fn gear_handles_outdated_tasks() {
         // Check if task and message got processed before start of block `bn`.
         // But due to the low gas allowance, we may process the only first task.
         run_to_block(bn, Some(db_r_w(1, 2).ref_time() + 1));
-        // Read of missed blocks, write to it afterwards + single task processing.
+        // Read of the first block of incomplete tasks, write to it afterwards + single task processing.
         assert_eq!(GasAllowanceOf::<Test>::get(), 1);
 
         let cost1 = wl_cost_for(bn - initial_block);
@@ -333,7 +340,7 @@ fn gear_handles_outdated_tasks() {
 
         // Check if missed task and message got processed in block `bn`.
         run_to_block(bn + 1, Some(u64::MAX));
-        // Delete of missed blocks + single task processing.
+        // Delete of the first block of incomplete tasks + single task processing.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
             u64::MAX - db_r_w(0, 2).ref_time()

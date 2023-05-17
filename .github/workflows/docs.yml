@@ -21,11 +21,11 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
           components: clippy, rustfmt
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
 
       - name: "Install: Show specific nightly version"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
@@ -33,11 +33,11 @@ jobs:
 
       - name: "Install: Specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
           components: clippy, rustfmt
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
 
       - name: "Install: Pin to specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}

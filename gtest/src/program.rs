@@ -23,6 +23,7 @@ use crate::{
     Result,
 };
 use codec::{Codec, Decode, Encode};
+use gear_common::memory_dump::{MemoryPageDump, ProgramMemoryDump};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -270,25 +271,18 @@ impl<'a> Program<'a> {
         );
         let is_opt = filename.ends_with(".opt.wasm");
 
-        let (opt_code, meta_code) = if !is_opt {
+        let opt_code = if !is_opt {
             let mut optimizer = Optimizer::new(path).expect("Failed to create optimizer");
             optimizer.insert_stack_and_export();
             optimizer.strip_custom_sections();
-            let opt_code = optimizer
+            optimizer
                 .optimize(OptType::Opt)
-                .expect("Failed to produce optimized binary");
-            let meta_code = optimizer
-                .optimize(OptType::Meta)
-                .expect("Failed to produce metadata binary");
-            (opt_code, Some(meta_code))
+                .expect("Failed to produce optimized binary")
         } else {
-            (
-                fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path)),
-                None,
-            )
+            fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
         };
 
-        Self::from_opt_and_meta_code_with_id(system, id, opt_code, meta_code)
+        Self::from_opt_and_meta_code_with_id(system, id, opt_code, None)
     }
 
     pub fn from_opt_and_meta<P: AsRef<Path>>(
@@ -306,18 +300,6 @@ impl<'a> Program<'a> {
         optimized: P,
         metadata: P,
     ) -> Self {
-        let read_file = |path: P, ext| {
-            let path = env::current_dir()
-                .expect("Unable to get root directory of the project")
-                .join(path)
-                .clean();
-
-            let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
-            assert!(filename.ends_with(ext), "{}", "Wrong file extension: {ext}");
-
-            fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
-        };
-
         let opt_code = read_file(optimized, ".opt.wasm");
         let meta_code = read_file(metadata, ".meta.wasm");
 
@@ -497,6 +479,60 @@ impl<'a> Program<'a> {
         relative_path.set_extension(extension);
         current_dir.join(relative_path)
     }
+
+    pub fn save_memory_dump(&self, path: impl AsRef<Path>) {
+        let manager = self.manager.borrow();
+        let mem = manager.read_memory_pages(&self.id);
+        let balance = manager.balance_of(&self.id);
+
+        ProgramMemoryDump {
+            balance,
+            reserved_balance: 0,
+            pages: mem
+                .iter()
+                .map(|(page_number, page_data)| {
+                    MemoryPageDump::new(*page_number, page_data.clone())
+                })
+                .collect(),
+        }
+        .save_to_file(path);
+    }
+
+    pub fn load_memory_dump(&mut self, path: impl AsRef<Path>) {
+        let memory_dump = ProgramMemoryDump::load_from_file(path);
+        let mem = memory_dump
+            .pages
+            .into_iter()
+            .map(MemoryPageDump::into_gear_page)
+            .collect();
+
+        // @TODO : add support for gas reservation when implemented
+        let balance = memory_dump
+            .balance
+            .saturating_add(memory_dump.reserved_balance);
+
+        self.manager
+            .borrow_mut()
+            .override_memory_pages(&self.id, mem);
+        self.manager
+            .borrow_mut()
+            .override_balance(&self.id, balance);
+    }
+}
+
+fn read_file<P: AsRef<Path>>(path: P, extension: &str) -> Vec<u8> {
+    let path = env::current_dir()
+        .expect("Unable to get root directory of the project")
+        .join(path)
+        .clean();
+
+    let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
+    assert!(
+        filename.ends_with(extension),
+        "Wrong file extension: {extension}",
+    );
+
+    fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
 }
 
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
@@ -662,5 +698,65 @@ mod tests {
         // Check receiver's balance
         sys.claim_value_from_mailbox(receiver);
         assert_eq!(sys.balance_of(receiver), 2 * crate::EXISTENTIAL_DEPOSIT);
+    }
+
+    struct CleanupFolderOnDrop {
+        path: String,
+    }
+
+    impl Drop for CleanupFolderOnDrop {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.path).expect("Failed to cleanup after test")
+        }
+    }
+
+    #[test]
+    fn save_load_memory_dump() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let mut prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_capacitor.wasm",
+        );
+
+        let signer = 42;
+
+        // Init capacitor with CAPACITY = 15
+        prog.send_bytes(signer, b"15");
+
+        // Charge capacitor with CHARGE = 10
+        let response = prog.send_bytes(signer, b"10");
+        let log = Log::builder()
+            .source(prog.id())
+            .dest(signer)
+            .payload_bytes([]);
+        assert!(response.contains(&log));
+
+        let cleanup = CleanupFolderOnDrop {
+            path: "./296c6962726".to_string(),
+        };
+        prog.save_memory_dump("./296c6962726/demo_capacitor.dump");
+
+        // Charge capacitor with CHARGE = 10
+        let response = prog.send_bytes(signer, b"10");
+        let log = Log::builder()
+            .source(prog.id())
+            .dest(signer)
+            .payload_bytes("Discharged: 20");
+        assert!(response.contains(&log));
+        sys.claim_value_from_mailbox(signer);
+
+        prog.load_memory_dump("./296c6962726/demo_capacitor.dump");
+        drop(cleanup);
+
+        // Charge capacitor with CHARGE = 10
+        let response = prog.send_bytes(signer, b"10");
+        let log = Log::builder()
+            .source(prog.id())
+            .dest(signer)
+            .payload_bytes("Discharged: 20");
+        assert!(response.contains(&log));
+        sys.claim_value_from_mailbox(signer);
     }
 }

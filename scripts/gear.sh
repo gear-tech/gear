@@ -113,6 +113,10 @@ case "$COMMAND" in
         header "Building gear workspace"
         gear_build "$@"; ;;
 
+      fuzz)
+        header "Builder fuzzer crates"
+        fuzzer_build "$@"; ;;
+
       gear-test)
         header "Building gear test"
         gear_test_build "$@"; ;;

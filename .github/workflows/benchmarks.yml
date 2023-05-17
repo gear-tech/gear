@@ -1,0 +1,93 @@
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_pr:
+        description: Whether to create a pull request after the benchmarks are completed
+        required: false
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+  TERM: xterm-256color
+  NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
+
+jobs:
+  benchmarks:
+    runs-on: bench
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v3
+
+      - name: "Install: Nightly toolchain"
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+          components: clippy, rustfmt
+          targets: wasm32-unknown-unknown
+
+      - name: "Install: Show specific nightly version"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+          components: clippy, rustfmt
+          targets: wasm32-unknown-unknown
+
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: |
+          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+
+      - name: "Install: Build deps"
+        run: |
+          sudo apt update
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
+
+      - name: Run all benchmarks
+        run: |
+          ./scripts/benchmarking/run_all_benchmarks.sh -c gear-dev -m || true
+          cp ./scripts/benchmarking/weights-output/* runtime/gear/src/weights
+          ./scripts/benchmarking/run_all_benchmarks.sh -b -c vara-dev -m || true # -b to skip build
+          cp ./scripts/benchmarking/weights-output/* runtime/vara/src/weights
+          # apply some patches for `pallets/gear/src/weights.rs`
+          cp runtime/gear/src/weights/pallet_gear.rs pallets/gear/src/weights.rs
+          sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear/src/weights.rs
+
+      - name: "ACTIONS: Upload artifact with updated weights (gear)"
+        uses: actions/upload-artifact@v3
+        with:
+          name: weights-gear
+          path: runtime/gear/src/weights/
+
+      - name: "ACTIONS: Upload artifact with updated weights (vara)"
+        uses: actions/upload-artifact@v3
+        with:
+          name: weights-vara
+          path: runtime/vara/src/weights/
+
+      - name: Create Pull Request
+        if: ${{ inputs.create_pr }}
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GH_TOKEN_FOR_PR }}
+          add-paths: |
+            pallets/gear/src/
+            runtime/gear/src/weights/
+            runtime/vara/src/weights/
+          commit-message: update weights
+          branch: weights/patch
+          branch-suffix: short-commit-hash
+          title: >-
+            chore: update weights
+          body: |
+            `run_all_benchmarks.sh` script is applied to update weights (branch: `${{ github.ref_name }}`, commit ${{ github.sha }})
+            **Note:** If CI fails, try manually updating the heuristic tests: `runtime/{gear, vara}/src/tests.rs`
