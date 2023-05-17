@@ -1,7 +1,9 @@
 [package]
 name = "gsdk-api-gen"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+authors.workspace = true
+description = "gsdk api generator"
 
 [dependencies]
 sc-executor.workspace = true

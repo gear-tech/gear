@@ -5,14 +5,13 @@ use std::{
     process::{Command, Stdio},
 };
 
-const GSDK_API_GEN: &'static str = "GSDK_API_GEN";
-const GSDK_API_GEN_PKG: &'static str = "gsdk-api-gen";
-const GSDK_API_GEN_RELATIVE_PATH: &'static str = "gsdk-api-gen";
-const VARA_RUNTIME_PKG: &'static str = "vara-runtime";
-const VARA_RUNTIME_RELATIVE_PATH: &'static str =
-    "wbuild/vara-runtime/vara_runtime.compact.compressed.wasm";
-const GENERATED_API_PATH: &'static str = "src/metadata/generated.rs";
-const ENV_RUNTIME_WASM: &'static str = "RUNTIME_WASM";
+const GSDK_API_GEN: &str = "GSDK_API_GEN";
+const GSDK_API_GEN_PKG: &str = "gsdk-api-gen";
+const GSDK_API_GEN_RELATIVE_PATH: &str = "gsdk-api-gen";
+const VARA_RUNTIME_PKG: &str = "vara-runtime";
+const VARA_RUNTIME_RELATIVE_PATH: &str = "wbuild/vara-runtime/vara_runtime.compact.compressed.wasm";
+const GENERATED_API_PATH: &str = "src/metadata/generated.rs";
+const ENV_RUNTIME_WASM: &str = "RUNTIME_WASM";
 
 // These attributes are not supported by subxt 0.27.0.
 //
@@ -33,7 +32,7 @@ fn main() {
 
     // This build script should only work when building gsdk as the primary package,
     // and the environment variable GSDK_API_GEN should be set to true.
-    if env::var("CARGO_PRIMARY_PACKAGE") != Some("1".into())
+    if env::var("CARGO_PRIMARY_PACKAGE") != Ok("1".into())
         || env::var(GSDK_API_GEN) != Ok("true".into())
     {
         return;
