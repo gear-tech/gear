@@ -275,9 +275,13 @@ jobs:
       - name: "Test: Sys-calls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls --release
         
+      - name: "Test: `try-runtime` feature tests"
+        run: |
+          cargo test --workspace --features try-runtime --release --locked
+
       - name: "Test: Try runtime migrations"
         run: |
-          cargo build -p gear-cli --release --features try-runtime
+          cargo build -p gear-cli --features try-runtime --release --locked
           ./target/release/gear try-runtime --runtime ./target/release/wbuild/gear-runtime/gear_runtime.wasm on-runtime-upgrade --checks live --uri wss://rpc-private-testnet.gear-tech.io
         env:
           RUST_LOG: info
