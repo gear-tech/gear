@@ -70,6 +70,9 @@ fn generate_api() -> Vec<u8> {
 }
 
 // Format generated code with rustfmt.
+//
+// - remove the incompatible attributes.
+// - remove verbose whitespaces.
 fn format(stream: &[u8]) -> String {
     let mut raw = String::from_utf8_lossy(stream).to_string();
     for line in INCOMPATIBLE_LINES.iter() {
@@ -94,6 +97,8 @@ fn format(stream: &[u8]) -> String {
         .to_string()
         .replace(":: subxt", "::subxt")
         .replace(" :: ", "::")
+        .replace("::subxt::utils::MultiAddress", "sp_runtime::MultiAddress")
+        .replace("::subxt::utils::AccountId32", "sp_runtime::AccountId32")
 }
 
 // Get the path of the compiled package.

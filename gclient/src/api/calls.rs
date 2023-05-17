@@ -32,13 +32,10 @@ use gsdk::{
     metadata::{
         balances::Event as BalancesEvent,
         gear::Event as GearEvent,
+        gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
-            gear_common::{
-                event::{CodeChangeKind, MessageEntry},
-                gas_provider::lockable::LockId,
-            },
-            gear_runtime::RuntimeCall,
+            gear_common::event::{CodeChangeKind, MessageEntry},
             pallet_balances::{pallet::Call as BalancesCall, AccountData},
             pallet_gear::pallet::Call as GearCall,
             sp_weights::weight_v2::Weight,
@@ -296,7 +293,8 @@ impl GearApi {
             } = &gas_node.1
             {
                 accounts_with_reserved_funds.insert(id);
-                src_program_reserved_gas_total += value + lock[LockId::Reservation];
+                // TODO: find the replacement for the previous LockId.
+                src_program_reserved_gas_total += value + lock.0[2];
             } else {
                 unreachable!("Unexpected gas node type");
             }
