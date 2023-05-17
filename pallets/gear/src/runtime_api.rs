@@ -133,12 +133,11 @@ where
             let build_journal = || {
                 let program_id = queued_dispatch.destination();
                 // Gas calculation info should not depend on the current block gas allowance.
-                // So we set it to some big value (max_gas_allowance * 5, suggested by @breathx)
-                // for the calculation purposes with a subsequent restore.
+                // We set it to max block gas limit for the calculation purposes with a subsequent restore.
+                // It does not make sense to set it any bigger due to the fact users can't call extrinsics
+                // with bigger 'gas_limit' anyway (see 'check_gas_limit_and_value')
                 let gas_allowance = GasAllowanceOf::<T>::get();
-                let max_gas_allowance = <T as frame_system::Config>::BlockWeights::get()
-                    .max_block
-                    .ref_time();
+                let max_gas_allowance = BlockGasLimitOf::<T>::get();
                 GasAllowanceOf::<T>::put(max_gas_allowance * 5);
                 // Do calculations.
                 let precharged_dispatch = core_processor::precharge_for_program(
