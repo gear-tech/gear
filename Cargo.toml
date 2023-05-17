@@ -66,6 +66,7 @@ members = [
     "gmeta",
     "gsdk",
     "gsdk/codegen",
+    "gsdk/api-gen",
     "gstd",
     "gsys",
     "gtest",
@@ -142,7 +143,7 @@ serde_json = "^1"
 serde_yaml = "0.8.26"
 static_assertions = "1"
 subxt = { version = "^0.27.1", default-features = false }
-syn = { version = "2.0.13" }
+syn = { version = "2.0.15" }
 thiserror = "1.0.40"
 tokio = { version = "1.27.0" }
 url = "2.3.1"
@@ -395,6 +396,8 @@ wasm-opt = "0.111.0"                                                      # util
 wasmprinter = "0.2"                                                       # utils/wasm-gen
 whoami = "1.4.0"                                                          # gcli
 which = "4.4.0"                                                           # utils/wasm-builder
+scale-encode = "^0.1.0"                                                   # gsdk/api-gen
+scale-decode = "^0.5.0"                                                   # gsdk/api-gen
 # TODO #2551 commit is used until `mutagen` version 2 becomes is released to the crates.io
 mutagen = { git = "https://github.com/llogiq/mutagen", rev = "a6377c4c" } # gear-common
 
