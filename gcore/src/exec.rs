@@ -26,7 +26,8 @@ use crate::{
     ActorId, MessageId, ReservationId,
 };
 use gsys::{
-    BlockNumberWithHash, HashWithValue, LengthWithBlockNumberValue, LengthWithGas, LengthWithHash,
+    BlockNumberWithHash, HashWithValue, LengthWithBlockNumberAndValue, LengthWithGas,
+    LengthWithHash,
 };
 
 /// Get the current block height.
@@ -392,7 +393,7 @@ pub fn origin() -> ActorId {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     let (remaining_rent, paid_block_count) =
+///     let (unused_value, paid_block_count) =
 ///         exec::pay_program_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
@@ -402,7 +403,7 @@ pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)>
         value,
     };
 
-    let mut res: LengthWithBlockNumberValue = Default::default();
+    let mut res: LengthWithBlockNumberAndValue = Default::default();
 
     unsafe { gsys::gr_pay_program_rent(&rent_pid, res.as_mut_ptr()) }
 

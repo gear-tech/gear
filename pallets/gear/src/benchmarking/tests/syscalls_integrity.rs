@@ -29,12 +29,13 @@
 
 use super::*;
 
-use crate::WaitlistOf;
+use crate::{RentCostPerBlockOf, WaitlistOf};
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
 use gear_core_errors::{ExtError, MessageError};
 use gear_wasm_instrument::syscalls::SysCallName;
 use pallet_timestamp::Pallet as TimestampPallet;
+use sp_runtime::SaturatedConversion;
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
 
 pub fn main_test<T>()
@@ -115,10 +116,18 @@ where
             100_000_000_000_000_u128.unique_saturated_into(),
         );
 
+        let block_count = 10;
+        let unused_rent: BalanceOf<T> = 1u32.into();
+        let rent = RentCostPerBlockOf::<T>::get() * block_count.into() + unused_rent;
         let mp = MessageParamsBuilder::new(
-            Kind::PayProgramRent(tester_pid.into_origin().into(), 1_000_000_000).encode(),
+            vec![Kind::PayProgramRent(
+                tester_pid.into_origin().into(),
+                rent.saturated_into(),
+                Some((unused_rent.saturated_into(), block_count)),
+            )]
+            .encode(),
         )
-        .with_value(1_000_000_000);
+        .with_value(10_000_000_000);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -146,7 +155,7 @@ where
             );
         };
 
-        let mp = Kind::SystemReserveGas(reserve_amount).encode().into();
+        let mp = vec![Kind::SystemReserveGas(reserve_amount)].encode().into();
 
         (TestCall::send_message(mp), Some(post_check))
     });
@@ -162,7 +171,9 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
 
-        let mp = Kind::ReservationSend(expected_mid.into()).encode().into();
+        let mp = vec![Kind::ReservationSend(expected_mid.into())]
+            .encode()
+            .into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -188,9 +199,12 @@ where
             );
         };
 
-        let mp = Kind::ReservationSendRaw(payload.to_vec(), expected_mid.into())
-            .encode()
-            .into();
+        let mp = vec![Kind::ReservationSendRaw(
+            payload.to_vec(),
+            expected_mid.into(),
+        )]
+        .encode()
+        .into();
 
         (TestCall::send_message(mp), Some(post_test))
     });
@@ -206,7 +220,9 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let expected_mid = MessageId::generate_reply(next_user_mid, 0);
 
-        let mp = Kind::ReservationReply(expected_mid.into()).encode().into();
+        let mp = vec![Kind::ReservationReply(expected_mid.into())]
+            .encode()
+            .into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -231,9 +247,12 @@ where
             );
         };
 
-        let mp = Kind::ReservationReplyCommit(payload.to_vec(), expected_mid.into())
-            .encode()
-            .into();
+        let mp = vec![Kind::ReservationReplyCommit(
+            payload.to_vec(),
+            expected_mid.into(),
+        )]
+        .encode()
+        .into();
 
         (TestCall::send_message(mp), Some(post_test))
     });
@@ -303,7 +322,9 @@ where
         });
         let expected_err = ::alloc::format!("API error: {expected_err}");
 
-        let mp = Kind::Error(message_value, expected_err).encode().into();
+        let mp = vec![Kind::Error(message_value, expected_err)]
+            .encode()
+            .into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -315,10 +336,9 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        // One byte for enum variant, four bytes for u32 value
-        let expected_size = 5;
+        let expected_size = vec![Kind::Size(0)].encoded_size() as u32;
 
-        let mp = Kind::Size(expected_size).encode().into();
+        let mp = vec![Kind::Size(expected_size)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -333,7 +353,7 @@ where
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
 
-        let mp = Kind::MessageId(next_user_mid.into()).encode().into();
+        let mp = vec![Kind::MessageId(next_user_mid.into())].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -345,7 +365,7 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|id, _| {
-        let mp = Kind::ProgramId(id.into()).encode().into();
+        let mp = vec![Kind::ProgramId(id.into())].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -363,7 +383,10 @@ where
             50_000_000_000_000_u128.unique_saturated_into(),
         );
         let mp = MessageParamsBuilder::new(
-            Kind::Source(message_sender.clone().into_origin().to_fixed_bytes()).encode(),
+            vec![Kind::Source(
+                message_sender.clone().into_origin().to_fixed_bytes(),
+            )]
+            .encode(),
         )
         .with_sender(message_sender);
 
@@ -378,7 +401,7 @@ where
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let sending_value = u16::MAX as u128;
-        let mp = MessageParamsBuilder::new(Kind::Value(sending_value).encode())
+        let mp = MessageParamsBuilder::new(vec![Kind::Value(sending_value)].encode())
             .with_value(sending_value);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
@@ -393,8 +416,9 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let sending_value = 10_000;
         // Program sends 2000
-        let mp = MessageParamsBuilder::new(Kind::ValueAvailable(sending_value - 2000).encode())
-            .with_value(sending_value);
+        let mp =
+            MessageParamsBuilder::new(vec![Kind::ValueAvailable(sending_value - 2000)].encode())
+                .with_value(sending_value);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -413,9 +437,13 @@ where
         let salt = 10u64;
         let expected_pid = ProgramId::generate(simplest_gear_wasm::<T>().hash, &salt.to_le_bytes());
 
-        let mp = Kind::CreateProgram(salt, gas, (expected_mid.into(), expected_pid.into()))
-            .encode()
-            .into();
+        let mp = vec![Kind::CreateProgram(
+            salt,
+            gas,
+            (expected_mid.into(), expected_pid.into()),
+        )]
+        .encode()
+        .into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -432,7 +460,10 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
 
-        let mp = Kind::Send(gas, expected_mid.into()).encode().into();
+        let payload = vec![Kind::Send(gas, expected_mid.into())].encode();
+        log::debug!("payload = {payload:?}");
+        let mp = payload.into();
+        // log::debug!("mp = {mp:?}");
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
@@ -459,7 +490,7 @@ where
             );
         };
 
-        let mp = Kind::SendRaw(payload.to_vec(), gas, expected_mid.into())
+        let mp = vec![Kind::SendRaw(payload.to_vec(), gas, expected_mid.into())]
             .encode()
             .into();
 
@@ -478,7 +509,7 @@ where
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
         let expected_message_id = MessageId::generate_outgoing(next_message_id, 0);
 
-        let payload = Kind::SendInput(gas, expected_message_id.into()).encode();
+        let payload = vec![Kind::SendInput(gas, expected_message_id.into())].encode();
         let message = payload.clone().into();
 
         let post_test = move || {
@@ -506,7 +537,7 @@ where
         // Program increases local nonce by sending messages twice before `send_init`.
         let expected_message_id = MessageId::generate_outgoing(next_message_id, 2);
 
-        let payload = Kind::SendPushInput(expected_message_id.into()).encode();
+        let payload = vec![Kind::SendPushInput(expected_message_id.into())].encode();
         let message = payload.clone().into();
 
         let post_test = move || {
@@ -532,7 +563,7 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let expected_mid = MessageId::generate_reply(next_user_mid, 0);
 
-        let mp = Kind::Reply(gas, expected_mid.into()).encode().into();
+        let mp = vec![Kind::Reply(gas, expected_mid.into())].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -558,7 +589,7 @@ where
             );
         };
 
-        let mp = Kind::ReplyRaw(payload.to_vec(), gas, expected_mid.into())
+        let mp = vec![Kind::ReplyRaw(payload.to_vec(), gas, expected_mid.into())]
             .encode()
             .into();
 
@@ -577,7 +608,7 @@ where
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
         let expected_message_id = MessageId::generate_reply(next_message_id, 0);
 
-        let payload = Kind::ReplyInput(gas, expected_message_id.into()).encode();
+        let payload = vec![Kind::ReplyInput(gas, expected_message_id.into())].encode();
         let message = payload.clone().into();
 
         let post_test = move || {
@@ -603,7 +634,7 @@ where
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
         let expected_message_id = MessageId::generate_reply(next_message_id, 0);
 
-        let payload = Kind::ReplyPushInput(expected_message_id.into()).encode();
+        let payload = vec![Kind::ReplyPushInput(expected_message_id.into())].encode();
         let message = payload.clone().into();
 
         let post_test = move || {
@@ -634,7 +665,7 @@ where
             RawOrigin::Signed(default_sender.clone()).into(),
             tester_pid,
             // random params in ReplyDetails, because they aren't checked
-            Kind::ReplyDetails([255u8; 32], 0).encode(),
+            vec![Kind::ReplyDetails([255u8; 32], 0)].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
         )
@@ -671,7 +702,7 @@ where
         Gear::<T>::send_message(
             RawOrigin::Signed(default_sender.clone()).into(),
             tester_pid,
-            Kind::SignalDetails.encode(),
+            vec![Kind::SignalDetails].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
         )
@@ -703,7 +734,7 @@ where
         let height_delta = 15;
         utils::run_to_block::<T>(current_height + height_delta, None);
 
-        let mp = Kind::BlockHeight(current_height + height_delta + 1)
+        let mp = vec![Kind::BlockHeight(current_height + height_delta + 1)]
             .encode()
             .into();
 
@@ -725,7 +756,7 @@ where
         )
         .expect("failed to put timestamp");
 
-        let mp = Kind::BlockTimestamp(block_timestamp).encode().into();
+        let mp = vec![Kind::BlockTimestamp(block_timestamp)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -746,7 +777,10 @@ where
             100_000_000_000_000_u128.unique_saturated_into(),
         );
 
-        let payload = Kind::Origin(message_sender.clone().into_origin().to_fixed_bytes()).encode();
+        let payload = vec![Kind::Origin(
+            message_sender.clone().into_origin().to_fixed_bytes(),
+        )]
+        .encode();
 
         // Upload proxy
         Gear::<T>::upload_program(
@@ -792,7 +826,7 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         // Nonce in program is set to 2 due to 3 times reservation is called.
         let expected_reservation_id = ReservationId::generate(next_user_mid, 2).encode();
-        let mp = Kind::Reserve(expected_reservation_id).encode().into();
+        let mp = vec![Kind::Reserve(expected_reservation_id)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -804,7 +838,7 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let mp = Kind::Unreserve(10_000).encode().into();
+        let mp = vec![Kind::Unreserve(10_000)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -834,9 +868,12 @@ where
             sp_io::hashing::blake2_256(&salt_vec)
         };
 
-        let mp = Kind::Random(salt, (expected_hash, expected_bn.unique_saturated_into()))
-            .encode()
-            .into();
+        let mp = vec![Kind::Random(
+            salt,
+            (expected_hash, expected_bn.unique_saturated_into()),
+        )]
+        .encode()
+        .into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -854,7 +891,7 @@ where
         // Provided gas in the test by default is 50_000_000_000
         let lower = 50_000_000_000 - 1_000_000_000;
         let upper = 50_000_000_000 - 200_000_000;
-        let mp = Kind::GasAvailable(lower, upper).encode().into();
+        let mp = vec![Kind::GasAvailable(lower, upper)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })

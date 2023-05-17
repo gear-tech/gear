@@ -35,7 +35,7 @@ use gear_core::{
 };
 use gear_core_errors::ExtError;
 use gsys::{
-    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberValue,
+    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberAndValue,
     LengthWithCode, LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithTwoHashes,
     TwoHashesWithValue,
 };
@@ -914,7 +914,7 @@ where
 
         syscall_trace!("pay_program_rent", rent_pid_ptr, err_bn_value_ptr);
 
-        ctx.run_fallible::<_, _, LengthWithBlockNumberValue>(
+        ctx.run_fallible::<_, _, LengthWithBlockNumberAndValue>(
             err_bn_value_ptr,
             RuntimeCosts::PayProgramRent,
             |ctx| {

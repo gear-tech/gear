@@ -24,7 +24,7 @@ pub mod currency {
     pub const EXISTENTIAL_DEPOSIT: Balance = 500;
 
     /// The program rent cost per block.
-    pub const COST_PER_BLOCK: Balance = 125_000_000;
+    pub const RENT_COST_PER_BLOCK: Balance = 125_000_000;
 
     // TODO: the actual numbers, if matter, are subject to review (#2655)
     pub const fn deposit(items: u32, bytes: u32) -> Balance {

@@ -19,8 +19,8 @@
 use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
-    Authorship, Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, Pallet, ProgramStorageOf,
-    QueueOf, RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
+    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf,
+    RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -625,22 +625,12 @@ where
     }
 
     fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32) {
-        // Querying actual block author to reward.
-        let block_author = Authorship::<T>::author()
-            .unwrap_or_else(|| unreachable!("Failed to find block author!"));
-
         let from = <T::AccountId as Origin>::from_origin(payer.into_origin());
         let block_count = block_count.unique_saturated_into();
 
         ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-            Pallet::<T>::pay_program_rent_impl(
-                program_id,
-                program,
-                &from,
-                &block_author,
-                block_count,
-            )
-            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+            Pallet::<T>::pay_program_rent_impl(program_id, program, &from, block_count)
+                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
         })
         .unwrap_or_else(|e| {
             log::debug!(

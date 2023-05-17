@@ -448,7 +448,7 @@ impl common::ProgramRentConfig for ProgramRentConfig {
     type Balance = Balance;
 
     type FreePeriod = ConstU32<RENT_FREE_PERIOD>;
-    type CostPerBlock = ConstU128<COST_PER_BLOCK>;
+    type CostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
     type MinimalResumePeriod = ConstU32<RENT_RESUME_PERIOD>;
 }
 

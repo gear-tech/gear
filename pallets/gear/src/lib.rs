@@ -1689,20 +1689,11 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let block_author = Authorship::<T>::author()
-                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
-
             ProgramStorageOf::<T>::update_active_program(
                 program_id,
                 |program| -> Result<(), Error<T>> {
-                    Self::pay_program_rent_impl(
-                        program_id,
-                        program,
-                        &who,
-                        &block_author,
-                        block_count,
-                    )
-                    .map_err(|_| Error::<T>::InsufficientBalanceForReserve)
+                    Self::pay_program_rent_impl(program_id, program, &who, block_count)
+                        .map_err(|_| Error::<T>::InsufficientBalanceForReserve)
                 },
             )
             .map_err(|e| {

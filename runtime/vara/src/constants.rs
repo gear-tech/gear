@@ -24,7 +24,7 @@ pub mod currency {
     pub const EXISTENTIAL_DEPOSIT: Balance = 10_000_000_000_000; // 10 Vara
 
     /// The program rent cost per block.
-    pub const COST_PER_BLOCK: Balance = 125_000_000;
+    pub const RENT_COST_PER_BLOCK: Balance = 125_000_000;
 
     // TODO: review quantities based on economic model (issue #1277)
     pub const UNITS: Balance = 1_000_000_000_000; // 10^(-12) precision

@@ -100,7 +100,7 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     let (remaining_rent, paid_block_count) =
+///     let (unused_value, paid_block_count) =
 ///         exec::pay_program_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```

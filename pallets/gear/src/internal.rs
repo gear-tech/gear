@@ -989,7 +989,6 @@ where
         program_id: ProgramId,
         program: &mut ActiveProgram<BlockNumberFor<T>>,
         from: &T::AccountId,
-        block_author: &T::AccountId,
         block_count: BlockNumberFor<T>,
     ) -> Result<(), DispatchError> {
         let old_expiration_block = program.expiration_block;
@@ -1006,15 +1005,17 @@ where
             return Ok(());
         }
 
+        let block_author = Authorship::<T>::author()
+            .unwrap_or_else(|| unreachable!("Failed to find block author!"));
         CurrencyOf::<T>::transfer(
             from,
-            block_author,
+            &block_author,
             Self::rent_fee_for(blocks_to_pay),
             ExistenceRequirement::AllowDeath,
         )?;
 
         let task = ScheduledTask::PauseProgram(program_id);
-        TaskPoolOf::<T>::delete(program.expiration_block, task.clone())
+        TaskPoolOf::<T>::delete(old_expiration_block, task.clone())
             .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
         program.expiration_block = new_expiration_block;

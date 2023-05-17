@@ -38,7 +38,7 @@ use gear_core::{
 use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
 use gsys::{
-    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberValue,
+    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberAndValue,
     LengthWithCode, LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithTwoHashes,
     TwoHashesWithValue,
 };
@@ -1292,7 +1292,7 @@ where
             syscall_trace!("pay_program_rent", rent_pid_ptr, err_bn_value_ptr);
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-            ctx.run_fallible::<_, _, LengthWithBlockNumberValue>(
+            ctx.run_fallible::<_, _, LengthWithBlockNumberAndValue>(
                 err_bn_value_ptr,
                 RuntimeCosts::PayProgramRent,
                 |ctx| {
