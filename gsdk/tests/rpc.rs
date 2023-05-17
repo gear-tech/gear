@@ -39,7 +39,7 @@ async fn test_calculate_upload_gas() -> Result<()> {
     let args = vec!["--tmp", "--dev"];
     let node = Node::try_from_path(&*GEAR_BIN_PATH, args).unwrap();
     let uri = "ws://".to_string() + &node.address().to_string();
-    let api = Api::new(Some(&uri)).await.unwrap();
+    let api = Api::new(Some(&uri)).await?;
 
     let alice: [u8; 32] = *ALICE_ACCOUNT_ID.as_ref();
 
@@ -51,8 +51,7 @@ async fn test_calculate_upload_gas() -> Result<()> {
         true,
         None,
     )
-    .await
-    .unwrap();
+    .await?;
 
     Ok(())
 }
@@ -64,27 +63,20 @@ async fn test_calculate_create_gas() -> Result<()> {
     let uri = "ws://".to_string() + &node.address().to_string();
 
     // 1. upload code.
-    let signer = Api::new(Some(&uri))
-        .await
-        .unwrap()
-        .signer("//Alice", None)
-        .unwrap();
+    let signer = Api::new(Some(&uri)).await?.signer("//Alice", None)?;
     signer
         .upload_code(demo_messager::WASM_BINARY.to_vec())
-        .await
-        .unwrap();
+        .await?;
 
     // 2. calculate create gas and create program.
     let code_id = CodeId::generate(demo_messager::WASM_BINARY);
     let gas_info = signer
         .calculate_create_gas(None, code_id, vec![], 0, true, None)
-        .await
-        .unwrap();
+        .await?;
 
     signer
         .create_program(code_id, vec![], vec![], gas_info.min_limit, 0)
-        .await
-        .unwrap();
+        .await?;
 
     Ok(())
 }
@@ -99,11 +91,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
     let pid = ProgramId::generate(CodeId::generate(demo_messager::WASM_BINARY), &salt);
 
     // 1. upload program.
-    let signer = Api::new(Some(&uri))
-        .await
-        .unwrap()
-        .signer("//Alice", None)
-        .unwrap();
+    let signer = Api::new(Some(&uri)).await?.signer("//Alice", None)?;
 
     signer
         .upload_program(
@@ -113,21 +101,18 @@ async fn test_calculate_handle_gas() -> Result<()> {
             100_000_000_000,
             0,
         )
-        .await
-        .unwrap();
+        .await?;
 
     assert!(signer.api().gprog(pid).await.is_ok());
 
     // 2. calculate handle gas and send message.
     let gas_info = signer
         .calculate_handle_gas(None, pid, vec![], 0, true, None)
-        .await
-        .unwrap();
+        .await?;
 
     signer
         .send_message(pid, vec![], gas_info.min_limit, 0)
-        .await
-        .unwrap();
+        .await?;
 
     Ok(())
 }
@@ -145,11 +130,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
     let payload = demo_waiter::Command::SendUpTo(alice.into(), 10);
 
     // 1. upload program.
-    let signer = Api::new(Some(&uri))
-        .await
-        .unwrap()
-        .signer("//Alice", None)
-        .unwrap();
+    let signer = Api::new(Some(&uri)).await?.signer("//Alice", None)?;
     signer
         .upload_program(
             demo_waiter::WASM_BINARY.to_vec(),
@@ -158,35 +139,30 @@ async fn test_calculate_reply_gas() -> Result<()> {
             100_000_000_000,
             0,
         )
-        .await
-        .unwrap();
+        .await?;
 
     assert!(signer.api().gprog(pid).await.is_ok());
 
     // 2. send wait message.
     signer
         .send_message(pid, payload.encode(), 100_000_000_000, 0)
-        .await
-        .unwrap();
+        .await?;
 
     let mailbox = signer
         .api()
         .mailbox(Some(ALICE_ACCOUNT_ID.clone()), 10)
-        .await
-        .unwrap();
+        .await?;
     assert_eq!(mailbox.len(), 1);
     let message_id = mailbox[0].0.id.into();
 
     // 3. calculate reply gas and send reply.
     let gas_info = signer
         .calculate_reply_gas(None, message_id, 1, vec![], 0, true, None)
-        .await
-        .unwrap();
+        .await?;
 
     signer
         .send_reply(message_id, vec![], gas_info.min_limit, 0)
-        .await
-        .unwrap();
+        .await?;
 
     Ok(())
 }
