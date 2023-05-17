@@ -12,7 +12,6 @@ members = [
     "async-multisig",
     "async-sign",
     "async-recursion",
-    "block-info",
     "bot",
     "chat",
     "chat/bot",

@@ -69,7 +69,7 @@ gtest() {
 
   if [ -z "$YAMLS" ]
   then
-    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_runtime/*.yaml"
+    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
   fi
 
   $ROOT_DIR/target/release/gear-test $YAMLS "$@"

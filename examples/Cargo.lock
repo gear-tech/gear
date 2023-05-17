@@ -162,13 +162,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-block-info"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-bot"
 version = "0.1.0"
 dependencies = [
