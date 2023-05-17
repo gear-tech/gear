@@ -209,15 +209,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-gui-test"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
 name = "demo-incomplete-async-payloads"
 version = "0.1.0"
 dependencies = [

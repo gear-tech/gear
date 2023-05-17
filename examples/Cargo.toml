@@ -23,7 +23,6 @@ members = [
     "fungible-token",
     "futures-unordered",
     "guestbook",
-    "gui-test",
     "incomplete_async_payloads",
     "loop",
     "minimal",
