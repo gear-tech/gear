@@ -27,6 +27,7 @@ use gsdk::{
 use parity_scale_codec::Encode;
 
 fn dev_node() -> Node {
+    // Use release build because of performance reasons.
     let bin_path = env!("CARGO_MANIFEST_DIR").to_owned() + "/../target/release/gear";
 
     #[cfg(not(feature = "vara-testing"))]
@@ -40,7 +41,8 @@ fn dev_node() -> Node {
         "--reserved-only",
     ];
 
-    Node::try_from_path(bin_path, args).unwrap()
+    Node::try_from_path(bin_path, args)
+        .expect("Failed to start node: Maybe it isn't built with --release flag?")
 }
 
 fn node_uri(node: &Node) -> String {
