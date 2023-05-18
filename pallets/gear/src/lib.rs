@@ -432,6 +432,8 @@ pub mod pallet {
         MessagesStorageCorrupted,
         /// Message queue processing is disabled.
         MessageQueueProcessingDisabled,
+        /// Program with the specified id is not found.
+        ProgramNotFound,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -1011,6 +1013,7 @@ pub mod pallet {
                 max_reservations: T::ReservationsLimit::get(),
                 code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
+                rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
             }
         }
 
@@ -1221,6 +1224,12 @@ pub mod pallet {
 
         pub fn run_call() -> Call<T> {
             Call::run {}
+        }
+
+        pub fn rent_fee_for(block_count: BlockNumberFor<T>) -> BalanceOf<T> {
+            let block_count: u64 = block_count.unique_saturated_into();
+
+            RentCostPerBlockOf::<T>::get().saturating_mul(block_count.unique_saturated_into())
         }
     }
 
@@ -1668,6 +1677,33 @@ pub mod pallet {
             ExecuteInherent::<T>::put(value);
 
             Ok(())
+        }
+
+        /// Pay additional rent for the program.
+        #[pallet::call_index(8)]
+        #[pallet::weight(<T as Config>::WeightInfo::pay_program_rent())]
+        pub fn pay_program_rent(
+            origin: OriginFor<T>,
+            program_id: ProgramId,
+            block_count: BlockNumberFor<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            ProgramStorageOf::<T>::update_active_program(
+                program_id,
+                |program| -> Result<(), Error<T>> {
+                    Self::pay_program_rent_impl(program_id, program, &who, block_count)
+                        .map_err(|_| Error::<T>::InsufficientBalanceForReserve)
+                },
+            )
+            .map_err(|e| {
+                log::debug!(
+                    "Failed to update an expiration block of an active program {program_id}: {e:?}"
+                );
+                Error::<T>::ProgramNotFound
+            })??;
+
+            Ok(().into())
         }
     }
 

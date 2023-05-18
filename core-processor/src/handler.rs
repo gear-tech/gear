@@ -108,6 +108,11 @@ pub fn handle_journal(
                 destination,
                 err,
             } => handler.send_signal(message_id, destination, err),
+            JournalNote::PayProgramRent {
+                payer,
+                program_id,
+                block_count,
+            } => handler.pay_program_rent(payer, program_id, block_count),
         }
     }
 

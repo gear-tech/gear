@@ -22,6 +22,7 @@ use super::Exec;
 use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, QueueOf,
+    RentCostPerBlockOf,
 };
 use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin};
 use core_processor::{
@@ -85,6 +86,7 @@ where
         max_reservations: T::ReservationsLimit::get(),
         code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
         code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
+        rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
     }
 }
 

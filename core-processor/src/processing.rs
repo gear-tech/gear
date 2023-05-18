@@ -66,6 +66,7 @@ where
         reserve_for,
         reservation,
         write_cost,
+        rent_cost,
         ..
     } = block_config.clone();
 
@@ -82,6 +83,7 @@ where
         reserve_for,
         reservation,
         random_data,
+        rent_cost,
     };
 
     let dispatch = execution_context.dispatch;
@@ -280,6 +282,7 @@ pub fn process_success(
         generated_dispatches,
         awakening,
         program_candidates,
+        program_rents,
         gas_amount,
         gas_reserver,
         system_reservation_context,
@@ -353,6 +356,16 @@ pub fn process_success(
         journal.push(JournalNote::StoreNewPrograms {
             code_id,
             candidates,
+        });
+    }
+
+    // Must be handled after processing programs creation.
+    let payer = program_id;
+    for (program_id, block_count) in program_rents {
+        journal.push(JournalNote::PayProgramRent {
+            payer,
+            program_id,
+            block_count,
         });
     }
 

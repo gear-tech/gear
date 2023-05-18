@@ -157,6 +157,13 @@ impl Ext for MockExt {
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
         Ok(0.into())
     }
+    fn pay_program_rent(
+        &mut self,
+        _program_id: ProgramId,
+        _rent: u128,
+    ) -> Result<(u128, u32), Self::Error> {
+        Ok((0, 0))
+    }
     fn program_id(&mut self) -> Result<ProgramId, Self::Error> {
         Ok(0.into())
     }
@@ -249,6 +256,7 @@ impl BackendExt for MockExt {
             generated_dispatches: Default::default(),
             awakening: Default::default(),
             program_candidates_data: Default::default(),
+            program_rents: Default::default(),
             context_store: Default::default(),
         })
     }
