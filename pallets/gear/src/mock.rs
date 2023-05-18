@@ -286,10 +286,14 @@ pub fn get_weight_of_adding_task() -> Weight {
 }
 
 pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
-    run_to_block_maybe_with_queue(n, remaining_weight, true)
+    run_to_block_maybe_with_queue(n, remaining_weight, Some(true))
 }
 
-pub fn run_to_block_maybe_with_queue(n: u64, remaining_weight: Option<u64>, run_queue: bool) {
+pub fn run_to_block_maybe_with_queue(
+    n: u64,
+    remaining_weight: Option<u64>,
+    gear_run: Option<bool>,
+) {
     while System::block_number() < n {
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
@@ -307,13 +311,17 @@ pub fn run_to_block_maybe_with_queue(n: u64, remaining_weight: Option<u64>, run_
             );
         }
 
-        if run_queue {
+        if let Some(process_messages) = gear_run {
+            if !process_messages {
+                QueueProcessingOf::<Test>::deny();
+            }
+
             Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
         }
 
         Gear::on_finalize(System::block_number());
 
-        if run_queue {
+        if gear_run.is_some() {
             assert!(!System::events().iter().any(|e| {
                 matches!(
                     e.event,

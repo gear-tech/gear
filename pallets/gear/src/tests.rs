@@ -42,8 +42,8 @@ use crate::{
         USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, RentFreePeriodOf, Schedule, TaskPoolOf,
-    WaitlistOf,
+    GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, QueueOf, RentFreePeriodOf, Schedule,
+    TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
@@ -219,6 +219,70 @@ fn auto_reply_out_of_rent_waitlist() {
         run_to_next_block(None);
         assert_last_dequeued(2); // Signal for waiter program since it has system reservation
                                  // + auto error reply to proxy contract
+    });
+}
+
+#[test]
+fn auto_reply_out_of_rent_mailbox() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let value = 1_000;
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            value,
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(program_id));
+
+        let user1_balance = Balances::free_balance(USER_1);
+        assert_balance(program_id, value, 0u128);
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let message_id = utils::get_last_message_id();
+
+        run_to_next_block(None);
+        assert_succeed(message_id);
+
+        assert_balance(program_id, 0u128, value);
+
+        let mailed_msg = utils::get_last_mail(USER_1);
+        let expiration = utils::get_mailbox_expiration(mailed_msg.id());
+
+        // Hack to fast spend blocks till expiration.
+        System::set_block_number(expiration - 1);
+        Gear::set_block_number((expiration - 1).try_into().unwrap());
+
+        assert_eq!(user1_balance, Balances::free_balance(USER_1));
+
+        run_to_block_maybe_with_queue(expiration, None, Some(false));
+        assert_balance(program_id, 0u128, 0u128);
+        assert_eq!(user1_balance + value, Balances::free_balance(USER_1));
+
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+        let dispatch = QueueOf::<Test>::dequeue()
+            .expect("Infallible")
+            .expect("Should be");
+        let err = SimpleReplyError::OutOfRent;
+        assert_eq!(dispatch.payload(), err.to_string().into_bytes());
+        assert_eq!(
+            dispatch.status_code().expect("Should be"),
+            err.into_status_code()
+        );
     });
 }
 
@@ -9287,7 +9351,7 @@ fn missing_block_tasks_handled() {
         assert!(MailboxOf::<Test>::contains(&USER_1, &mid));
 
         // task must be skipped in this block
-        run_to_block_maybe_with_queue(N + 1, Some(0), false);
+        run_to_block_maybe_with_queue(N + 1, Some(0), None);
         System::reset_events(); // remove `QueueProcessingReverted` event to run to block N + 2
 
         // task could be processed in N + 1 block but `Gear::run` extrinsic have been skipped
@@ -9788,6 +9852,31 @@ mod utils {
                 _ => false,
             })
             .expect("Failed to find appropriate MessageWaited event");
+
+        exp.unwrap()
+    }
+
+    #[track_caller]
+    pub(super) fn get_mailbox_expiration(message_id: MessageId) -> BlockNumberFor<Test> {
+        let mut exp = None;
+        System::events()
+            .into_iter()
+            .rfind(|e| match &e.event {
+                MockRuntimeEvent::Gear(Event::UserMessageSent {
+                    message,
+                    expiration: Some(expiration),
+                    ..
+                }) => {
+                    if message.id() == message_id {
+                        exp = Some(*expiration);
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            })
+            .expect("Failed to find appropriate UserMessageSent event");
 
         exp.unwrap()
     }
