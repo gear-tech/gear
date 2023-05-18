@@ -57,6 +57,7 @@ pub const INITIAL_RANDOM_SEED: u64 = 42;
 pub const MODULE_INSTRUMENTATION_BYTE_COST: u64 = 13;
 pub const MODULE_INSTRUMENTATION_COST: u64 = 297;
 pub const DISPATCH_HOLD_COST: u64 = 200;
+pub const RENT_COST: u128 = 330;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -488,5 +489,6 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         max_reservations: MAX_RESERVATIONS,
         code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
         code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
+        rent_cost: RENT_COST,
     }
 }

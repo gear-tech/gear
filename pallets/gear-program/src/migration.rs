@@ -26,9 +26,12 @@ use sp_runtime::Saturating;
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
-use frame_support::{
-    codec::{Decode, Encode},
-    traits::StorageVersion,
+use {
+    frame_support::{
+        codec::{Decode, Encode},
+        traits::StorageVersion,
+    },
+    sp_std::vec::Vec,
 };
 
 // almost 2 month for networks with 1-second block production

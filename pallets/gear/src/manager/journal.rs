@@ -623,4 +623,19 @@ where
     ) {
         ExtManager::send_signal(self, message_id, destination, err)
     }
+
+    fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32) {
+        let from = <T::AccountId as Origin>::from_origin(payer.into_origin());
+        let block_count = block_count.unique_saturated_into();
+
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            Pallet::<T>::pay_program_rent_impl(program_id, program, &from, block_count)
+                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+        })
+        .unwrap_or_else(|e| {
+            log::debug!(
+                "Could not update active program {program_id}: {e:?}. Program is not active?"
+            );
+        });
+    }
 }

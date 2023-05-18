@@ -29,7 +29,7 @@ use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
 use sp_core::{ConstU128, H256};
 use sp_runtime::{
-    testing::Header,
+    generic,
     traits::{BlakeTwo256, IdentityLookup},
     Perbill,
 };
@@ -38,7 +38,7 @@ use sp_std::convert::{TryFrom, TryInto};
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
-type BlockNumber = u64;
+pub type BlockNumber = u32;
 type Balance = u128;
 
 type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
@@ -98,7 +98,7 @@ impl pallet_balances::Config for Test {
 }
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
+    pub const BlockHashCount: BlockNumber = 250;
     pub RuntimeBlockWeights: BlockWeights = BlockWeights::with_sensible_defaults(
         Weight::from_parts(MAX_BLOCK, u64::MAX),
         NORMAL_DISPATCH_RATIO,
@@ -121,7 +121,7 @@ impl system::Config for Test {
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
+    type Header = generic::Header<BlockNumber, BlakeTwo256>;
     type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();
@@ -150,6 +150,7 @@ parameter_types! {
     // Match the default `max_block` set in frame_system::limits::BlockWeights::with_sensible_defaults()
     pub const BlockGasLimit: u64 = MAX_BLOCK;
     pub const OutgoingLimit: u32 = 1024;
+    pub ReserveThreshold: BlockNumber = 1;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
@@ -190,7 +191,7 @@ impl pallet_gear::Config for Test {
 
 impl pallet_gear_scheduler::Config for Test {
     type BlockLimiter = GearGas;
-    type ReserveThreshold = ConstU64<1>;
+    type ReserveThreshold = ReserveThreshold;
     type WaitlistCost = ConstU64<100>;
     type MailboxCost = ConstU64<100>;
     type ReservationCost = ConstU64<100>;
@@ -285,12 +286,12 @@ pub fn get_weight_of_adding_task() -> Weight {
     }) - minimal_weight
 }
 
-pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
+pub fn run_to_block(n: BlockNumber, remaining_weight: Option<u64>) {
     run_to_block_maybe_with_queue(n, remaining_weight, Some(true))
 }
 
 pub fn run_to_block_maybe_with_queue(
-    n: u64,
+    n: BlockNumber,
     remaining_weight: Option<u64>,
     gear_run: Option<bool>,
 ) {

@@ -102,6 +102,7 @@ pub enum SysCallName {
     ReserveGas,
     UnreserveGas,
     SystemReserveGas,
+    PayProgramRent,
 }
 
 impl SysCallName {
@@ -124,6 +125,7 @@ impl SysCallName {
             SysCallName::Origin => "gr_origin",
             SysCallName::OutOfAllowance => "gr_out_of_allowance",
             SysCallName::OutOfGas => "gr_out_of_gas",
+            SysCallName::PayProgramRent => "gr_pay_program_rent",
             SysCallName::ProgramId => "gr_program_id",
             SysCallName::Random => "gr_random",
             SysCallName::Read => "gr_read",
@@ -186,6 +188,7 @@ impl SysCallName {
             Self::BlockTimestamp,
             Self::Exit,
             Self::GasAvailable,
+            Self::PayProgramRent,
             Self::ProgramId,
             Self::Origin,
             Self::Leave,
@@ -247,6 +250,7 @@ impl SysCallName {
             Self::BlockTimestamp => SysCallSignature::gr([Ptr]),
             Self::Exit => SysCallSignature::gr([Ptr]),
             Self::GasAvailable => SysCallSignature::gr([Ptr]),
+            Self::PayProgramRent => SysCallSignature::gr([Ptr, Ptr]),
             Self::ProgramId => SysCallSignature::gr([Ptr]),
             Self::Origin => SysCallSignature::gr([Ptr]),
             Self::Leave => SysCallSignature::gr([]),
