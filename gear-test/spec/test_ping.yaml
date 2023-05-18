@@ -24,6 +24,18 @@ fixtures:
 
     expected:
       - log:
+        # 2 auto replies on init of 2 programs
+        - destination:
+            kind: account
+            value: alice
+          payload: &auto
+            kind: bytes
+            value: 0x
+        - destination:
+            kind: account
+            value: alice
+          payload: *auto
+
         - destination: 1000001
           payload:
             kind: utf-8
@@ -43,6 +55,16 @@ fixtures:
 
     expected:
       - log:
+        # 2 auto replies on init of 2 programs
+        - destination:
+            kind: account
+            value: alice
+          payload: *auto
+        - destination:
+            kind: account
+            value: alice
+          payload: *auto
+
         - destination: 1000001
           payload:
             kind: utf-8
