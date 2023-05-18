@@ -5500,13 +5500,18 @@ fn pay_program_rent_syscall_works() {
 
         run_to_next_block(None);
 
-        let error_text = format!(
-            "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-            TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValueForRent {
-                rent: program_value,
-                value_left: balance_before
-            }))
-        );
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            format!(
+                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
+                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValueForRent {
+                    rent: program_value,
+                    value_left: balance_before
+                }))
+            )
+        } else {
+            String::from("no info")
+        };
+
         assert_failed(
             message_id,
             ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.into())),
@@ -5543,10 +5548,14 @@ fn pay_program_rent_syscall_works() {
 
         run_to_next_block(None);
 
-        let error_text = format!(
-            "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-            TrapExplanation::Ext(ExtError::Execution(ExecutionError::MaximumBlockCountPaid))
-        );
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            format!(
+                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
+                TrapExplanation::Ext(ExtError::Execution(ExecutionError::MaximumBlockCountPaid))
+            )
+        } else {
+            String::from("no info")
+        };
         assert_failed(
             message_id,
             ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.into())),
