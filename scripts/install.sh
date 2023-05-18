@@ -15,7 +15,6 @@ USAGE:
 
 FLAGS:
     -h, --help      Display this message
-    -f, --force     Force overwriting an existing binary
 
 OPTIONS:
     --tag TAG       Tag (version) of the crate to install, defaults to latest release
@@ -132,12 +131,9 @@ curl --proto =https --tlsv1.2 -SfL $archive | tar -C $td -xJv
 for f in $(ls $td); do
   test -x $td/$f || continue
 
-  if [ -e "$dest/$f" ] && [ $force = false ]; then
-    err "$f already exists in $dest"
-  else
-    mkdir -p $dest
-    sudo install -m 755 $td/$f $dest
-  fi
+  mkdir -p $dest
+  sudo install -m 755 $td/$f $dest
+
 done
 
 rm -rf $td
