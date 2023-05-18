@@ -51,6 +51,12 @@ Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in
 
 ## Run Gear Node
 
+For Linux/MacOS users install script is available:
+
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://get.gear.rs/install.sh | sh 
+  ```
+
 Gear node can run in a single Dev Net mode or you can create a Multi-Node local testnet or make your own build of Gear node.
 
 1. Compile and launch node as described in [Gear Node README](https://github.com/gear-tech/gear/tree/master/node/README.md). Alternatively, download nightly build of Gear node:
