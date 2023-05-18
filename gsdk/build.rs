@@ -31,9 +31,8 @@ fn main() {
     println!("cargo:rerun-if-env-changed={}", GSDK_API_GEN);
 
     // This build script should only work when building gsdk as the primary package,
-    // and the environment variable GSDK_API_GEN should be set to true.
-    if env::var("CARGO_PRIMARY_PACKAGE") != Ok("1".into())
-        || env::var(GSDK_API_GEN) != Ok("true".into())
+    // and the environment variable GSDK_API_GEN should be set to 1.
+    if option_env!("CARGO_PRIMARY_PACKAGE") != Some("1") || env::var(GSDK_API_GEN) != Ok("1".into())
     {
         return;
     }

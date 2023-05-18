@@ -18,7 +18,10 @@
 
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
-use gear_common::memory_dump::{MemoryPageDump, ProgramMemoryDump};
+use gear_common::{
+    memory_dump::{MemoryPageDump, ProgramMemoryDump},
+    LockId,
+};
 use gear_core::{
     ids::*,
     memory::{GearPage, PageBuf, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
@@ -293,8 +296,7 @@ impl GearApi {
             } = &gas_node.1
             {
                 accounts_with_reserved_funds.insert(id);
-                // TODO: find the replacement of the previous LockId.
-                src_program_reserved_gas_total += value + lock.0[2];
+                src_program_reserved_gas_total += value + lock.0[LockId::Reservation as usize];
             } else {
                 unreachable!("Unexpected gas node type");
             }
