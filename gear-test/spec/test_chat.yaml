@@ -31,6 +31,13 @@ fixtures:
     expected:
       - step: 4
         messages:
+          # 2 auto replies from demo room to bots who send join requests from init
+          - destination: 2
+            payload: &auto
+              kind: bytes
+              value: 0x
+          - destination: 3
+            payload: *auto
           - payload:
               kind: bytes
               value: "0x012c746573743a2068656c6c6f"
