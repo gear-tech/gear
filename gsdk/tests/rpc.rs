@@ -27,8 +27,7 @@ use gsdk::{
 use parity_scale_codec::Encode;
 
 fn dev_node() -> Node {
-    let bin_path = env!("CARGO_MANIFEST_DIR").to_owned()
-        + "/../target/release/gear";
+    let bin_path = env!("CARGO_MANIFEST_DIR").to_owned() + "/../target/release/gear";
 
     #[cfg(not(feature = "vara-testing"))]
     let args = vec!["--tmp", "--dev"];
