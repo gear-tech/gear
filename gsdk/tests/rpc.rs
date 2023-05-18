@@ -24,24 +24,40 @@ use gsdk::{
     testing::Node,
     Api, Result,
 };
-use lazy_static::lazy_static;
 use parity_scale_codec::Encode;
 
-lazy_static! {
-    static ref GEAR_BIN_PATH: String =
-        env!("CARGO_MANIFEST_DIR").to_owned() + "/../target/release/gear";
-    static ref ALICE_ACCOUNT_ID: AccountId32 =
-        AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY").unwrap();
+fn dev_node() -> Node {
+    let bin_path = env!("CARGO_MANIFEST_DIR").to_owned()
+        + "/../target/release/gear";
+
+    #[cfg(not(feature = "vara-testing"))]
+    let args = vec!["--tmp", "--dev"];
+    #[cfg(feature = "vara-testing")]
+    let args = vec![
+        "--tmp",
+        "--chain=vara-dev",
+        "--alice",
+        "--validator",
+        "--reserved-only",
+    ];
+
+    Node::try_from_path(bin_path, args).unwrap()
+}
+
+fn node_uri(node: &Node) -> String {
+    format!("ws://{}", &node.address())
+}
+
+fn alice_account_id() -> AccountId32 {
+    AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY").unwrap()
 }
 
 #[tokio::test]
 async fn test_calculate_upload_gas() -> Result<()> {
-    let args = vec!["--tmp", "--dev"];
-    let node = Node::try_from_path(&*GEAR_BIN_PATH, args).unwrap();
-    let uri = "ws://".to_string() + &node.address().to_string();
-    let api = Api::new(Some(&uri)).await?;
+    let node = dev_node();
+    let api = Api::new(Some(&node_uri(&node))).await?;
 
-    let alice: [u8; 32] = *ALICE_ACCOUNT_ID.as_ref();
+    let alice: [u8; 32] = *alice_account_id().as_ref();
 
     api.calculate_upload_gas(
         alice.into(),
@@ -58,12 +74,12 @@ async fn test_calculate_upload_gas() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_create_gas() -> Result<()> {
-    let args = vec!["--tmp", "--dev"];
-    let node = Node::try_from_path(&*GEAR_BIN_PATH, args).unwrap();
-    let uri = "ws://".to_string() + &node.address().to_string();
+    let node = dev_node();
 
     // 1. upload code.
-    let signer = Api::new(Some(&uri)).await?.signer("//Alice", None)?;
+    let signer = Api::new(Some(&node_uri(&node)))
+        .await?
+        .signer("//Alice", None)?;
     signer
         .upload_code(demo_messager::WASM_BINARY.to_vec())
         .await?;
@@ -83,15 +99,15 @@ async fn test_calculate_create_gas() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_handle_gas() -> Result<()> {
-    let args = vec!["--tmp", "--dev"];
-    let node = Node::try_from_path(&*GEAR_BIN_PATH, args).unwrap();
-    let uri = "ws://".to_string() + &node.address().to_string();
+    let node = dev_node();
 
     let salt = vec![];
     let pid = ProgramId::generate(CodeId::generate(demo_messager::WASM_BINARY), &salt);
 
     // 1. upload program.
-    let signer = Api::new(Some(&uri)).await?.signer("//Alice", None)?;
+    let signer = Api::new(Some(&node_uri(&node)))
+        .await?
+        .signer("//Alice", None)?;
 
     signer
         .upload_program(
@@ -119,18 +135,18 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_reply_gas() -> Result<()> {
-    let args = vec!["--tmp", "--dev"];
-    let node = Node::try_from_path(&*GEAR_BIN_PATH, args).unwrap();
-    let uri = "ws://".to_string() + &node.address().to_string();
+    let node = dev_node();
 
-    let alice: [u8; 32] = *ALICE_ACCOUNT_ID.as_ref();
+    let alice: [u8; 32] = *alice_account_id().as_ref();
 
     let salt = vec![];
     let pid = ProgramId::generate(CodeId::generate(demo_waiter::WASM_BINARY), &salt);
     let payload = demo_waiter::Command::SendUpTo(alice.into(), 10);
 
     // 1. upload program.
-    let signer = Api::new(Some(&uri)).await?.signer("//Alice", None)?;
+    let signer = Api::new(Some(&node_uri(&node)))
+        .await?
+        .signer("//Alice", None)?;
     signer
         .upload_program(
             demo_waiter::WASM_BINARY.to_vec(),
@@ -150,7 +166,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     let mailbox = signer
         .api()
-        .mailbox(Some(ALICE_ACCOUNT_ID.clone()), 10)
+        .mailbox(Some(alice_account_id().clone()), 10)
         .await?;
     assert_eq!(mailbox.len(), 1);
     let message_id = mailbox[0].0.id.into();

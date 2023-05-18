@@ -4330,7 +4330,6 @@ dependencies = [
  "gsdk-codegen",
  "hex",
  "jsonrpsee",
- "lazy_static",
  "log",
  "parity-scale-codec",
  "primitive-types",
