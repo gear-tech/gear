@@ -13,10 +13,8 @@ ft-io = { path = "io" }
 
 [dev-dependencies]
 gstd = { workspace = true, features = ["debug"] }
-blake2-rfc = { version = "0.2.18", default-features = false }
 tokio = { version = "1.21.2", features = ["full", "test-util"] }
-rand = "0.8.5"
-primitive-types = { version = "0.12.0", default-features = false }
+gclient = { path = "../../gclient" }
 
 [build-dependencies]
 gear-wasm-builder = { workspace = true }
@@ -28,6 +26,5 @@ ft-io = { path = "io" }
 # strings with paths to the binaries in the "target" directory. If you don't
 # like this approach or don't use gclient tests, you can freely remove this
 # feature from here and from the rest of the code.
-binary-vendor = []
 std = []
 default = ["std"]

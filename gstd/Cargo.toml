@@ -19,13 +19,5 @@ futures = { workspace = true, features = ["alloc"] }
 
 static_assertions.workspace = true
 
-[dev-dependencies]
-fungible-token = { path = "../examples/fungible-token", features = [
-    "binary-vendor",
-    "std",
-] }
-gclient = { workspace = true }
-tokio = { workspace = true, features = ["full"] }
-
 [features]
 debug = ["galloc/debug", "gcore/debug"]

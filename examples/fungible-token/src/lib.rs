@@ -1,7 +1,4 @@
-#![no_std]
-
-pub use ft_io;
-pub mod contract;
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "std")]
 mod code {
@@ -10,3 +7,6 @@ mod code {
 
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
+
+#[cfg(not(feature = "std"))]
+pub mod contract;

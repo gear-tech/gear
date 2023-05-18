@@ -1,6 +1,6 @@
 use ft_io::*;
 use gmeta::Metadata;
-pub use gstd::ActorId;
+use gstd::ActorId;
 use gstd::{debug, errors::Result as GstdResult, exec, msg, prelude::*, MessageId};
 use hashbrown::HashMap;
 

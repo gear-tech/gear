@@ -8,6 +8,7 @@
 1. [Implementation without static buffer](#without)
 1. [Implementation with increased by two static buffer](#increased-twice)
 1. [Implementation with multiple static buffers](#multiple)
+1. [Conclusion](#conclusion)
 
 ## Summary
 <a name="summary"></a>
@@ -196,3 +197,8 @@ The best-performing combination of buffers was as follows:
 | % of total gas spent | 0,83%              | 1,08%             | 2,15%             | 2,95%               |
 
 [Go to top](#)
+
+## Conclusion
+<a name="conclusion"></a>
+
+In this research, we compared different implementations of the `galloc` memory allocator. However, none of the optimizations showed significant performance improvement compared to the current implementation. We recommend keeping the current implementation, which utilizes a static buffer alongside <kbd>dlmalloc</kbd>-like implementation. It consistently demonstrated the lowest gas consumption and proved to be efficient in all test cases. Further exploration of alternative strategies or specific optimizations may be considered in the future, but based on our findings, the current implementation remains the most suitable choice for optimal memory allocation in our project.
