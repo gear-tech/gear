@@ -127,7 +127,7 @@ say "Destination: $dest"
 say "Archive:     $archive"
 
 td=$(mktemp -d || mktemp -d -t tmp)
-curl --proto =https --tlsv1.2 -SfL $archive | tar -C $td -xz
+curl --proto =https --tlsv1.2 -SfL $archive | tar -C $td -xJv
 
 for f in $(ls $td); do
   test -x $td/$f || continue
