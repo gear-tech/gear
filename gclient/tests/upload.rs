@@ -218,8 +218,7 @@ async fn test_upload_failed() -> anyhow::Result<()> {
     let err = api
         .upload_program(vec![], vec![], b"", u64::MAX, 0)
         .await
-        .err()
-        .expect("Should fail");
+        .expect_err("Should fail");
 
     assert!(matches!(
         err,
