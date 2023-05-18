@@ -1,7 +1,7 @@
-use gclient::{EventProcessor, GearApi, Result, WSAddress};
-use gstd::{vec, Encode, Vec, ActorId};
-use fungible_token::{WASM_BINARY};
 use ft_io::*;
+use fungible_token::WASM_BINARY;
+use gclient::{EventProcessor, GearApi, Result, WSAddress};
+use gstd::{vec, ActorId, Encode, Vec};
 
 /// This constant defines the number of messages in the batch.
 /// It is calculated empirically, and 25 is considered the optimal value for

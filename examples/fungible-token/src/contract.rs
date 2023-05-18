@@ -1,7 +1,6 @@
 use ft_io::*;
 use gmeta::Metadata;
-use gstd::ActorId;
-use gstd::{debug, errors::Result as GstdResult, exec, msg, prelude::*, MessageId};
+use gstd::{debug, errors::Result as GstdResult, exec, msg, prelude::*, ActorId, MessageId};
 use hashbrown::HashMap;
 
 const ZERO_ID: ActorId = ActorId::new([0u8; 32]);
