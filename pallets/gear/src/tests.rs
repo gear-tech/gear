@@ -5563,6 +5563,7 @@ fn pay_program_rent_syscall_works() {
 
         // pay maximum possible rent
         let block_count = u32::MAX;
+        assert_ne!(expiration_block, block_count);
         let required_value = Gear::rent_fee_for(block_count - expiration_block);
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_2),
@@ -5577,8 +5578,14 @@ fn pay_program_rent_syscall_works() {
             required_value,
         ));
 
+        let message_id = get_last_message_id();
+
         run_to_next_block(None);
 
+        assert_succeed(message_id);
+
+        // we sent with the message value that is equal to rent value for (u32::MAX - expiration_block) blocks
+        // so the program's balance shouldn't change.
         assert_eq!(balance_before, Balances::free_balance(pay_rent_account_id));
         let program = ProgramStorageOf::<Test>::get_program(pay_rent_id)
             .and_then(|p| ActiveProgram::try_from(p).ok())
