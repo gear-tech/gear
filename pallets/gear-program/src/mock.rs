@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,18 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gear;
+use crate as pallet_gear_program;
 use crate::*;
 use frame_support::{
     construct_runtime,
     pallet_prelude::*,
     parameter_types,
-    traits::{ConstU64, FindAuthor, Get},
+    traits::{ConstU64, FindAuthor},
     weights::RuntimeDbWeight,
 };
-use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
-use sp_core::{ConstU128, H256};
+use sp_core::H256;
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
@@ -41,8 +40,6 @@ type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
 
-type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
-
 pub(crate) const USER_1: AccountId = 1;
 pub(crate) const USER_2: AccountId = 2;
 pub(crate) const USER_3: AccountId = 3;
@@ -50,21 +47,6 @@ pub(crate) const LOW_BALANCE_USER: AccountId = 4;
 pub(crate) const BLOCK_AUTHOR: AccountId = 255;
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 const MAX_BLOCK: u64 = 100_000_000_000;
-
-macro_rules! dry_run {
-    (
-        $weight:ident,
-        $initial_weight:expr
-    ) => {
-        GasAllowanceOf::<Test>::put($initial_weight);
-
-        let mut ext_manager = Default::default();
-        pallet_gear::Pallet::<Test>::process_tasks(&mut ext_manager);
-        pallet_gear::Pallet::<Test>::process_queue(ext_manager);
-
-        let $weight = $initial_weight.saturating_sub(GasAllowanceOf::<Test>::get());
-    };
-}
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -75,9 +57,7 @@ construct_runtime!(
     {
         System: system,
         GearProgram: pallet_gear_program,
-        GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
-        Gear: pallet_gear,
         GearGas: pallet_gear_gas,
         Balances: pallet_balances,
         Authorship: pallet_authorship,
@@ -98,6 +78,7 @@ impl pallet_balances::Config for Test {
 }
 
 parameter_types! {
+    pub const BlockGasLimit: u64 = MAX_BLOCK;
     pub const BlockHashCount: u64 = 250;
     pub RuntimeBlockWeights: BlockWeights = BlockWeights::with_sensible_defaults(
         Weight::from_parts(MAX_BLOCK, u64::MAX),
@@ -135,57 +116,9 @@ impl system::Config for Test {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-pub struct GasConverter;
-impl common::GasPrice for GasConverter {
-    type Balance = Balance;
-    type GasToBalanceMultiplier = ConstU128<1_000>;
-}
-
 impl pallet_gear_program::Config for Test {
     type Scheduler = GearScheduler;
     type CurrentBlockNumber = ();
-}
-
-parameter_types! {
-    // Match the default `max_block` set in frame_system::limits::BlockWeights::with_sensible_defaults()
-    pub const BlockGasLimit: u64 = MAX_BLOCK;
-    pub const OutgoingLimit: u32 = 1024;
-    pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
-    pub RentFreePeriod: BlockNumber = 1_000;
-    pub RentCostPerBlock: Balance = 11;
-    pub RentResumePeriod: BlockNumber = 100;
-}
-
-pub struct ProgramRentConfig;
-
-impl common::ProgramRentConfig for ProgramRentConfig {
-    type BlockNumber = BlockNumber;
-    type Balance = Balance;
-
-    type FreePeriod = RentFreePeriod;
-    type CostPerBlock = RentCostPerBlock;
-    type MinimalResumePeriod = RentResumePeriod;
-}
-
-impl pallet_gear::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type Randomness = TestRandomness<Self>;
-    type Currency = Balances;
-    type GasPrice = GasConverter;
-    type WeightInfo = ();
-    type Schedule = GearSchedule;
-    type OutgoingLimit = OutgoingLimit;
-    type DebugInfo = ();
-    type CodeStorage = GearProgram;
-    type ProgramStorage = GearProgram;
-    type MailboxThreshold = ConstU64<3000>;
-    type ReservationsLimit = ConstU64<256>;
-    type Messenger = GearMessenger;
-    type GasProvider = GearGas;
-    type BlockLimiter = GearGas;
-    type Scheduler = GearScheduler;
-    type QueueRunner = Gear;
-    type ProgramRentConfig = ProgramRentConfig;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -199,11 +132,6 @@ impl pallet_gear_scheduler::Config for Test {
 
 impl pallet_gear_gas::Config for Test {
     type BlockGasLimit = BlockGasLimit;
-}
-
-impl pallet_gear_messenger::Config for Test {
-    type BlockLimiter = GearGas;
-    type CurrentBlockNumber = Gear;
 }
 
 pub struct FixedBlockAuthor;
@@ -255,75 +183,6 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| {
         System::set_block_number(1);
-        Gear::on_initialize(System::block_number());
     });
     ext
-}
-
-pub fn get_min_weight() -> Weight {
-    new_test_ext().execute_with(|| {
-        dry_run!(weight, BlockGasLimitOf::<Test>::get());
-        Weight::from_parts(weight, 0)
-    })
-}
-
-pub fn get_weight_of_adding_task() -> Weight {
-    let minimal_weight = get_min_weight();
-
-    new_test_ext().execute_with(|| {
-        let gas_allowance = GasAllowanceOf::<Test>::get();
-
-        dry_run!(_weight, BlockGasLimitOf::<Test>::get());
-
-        TaskPoolOf::<Test>::add(
-            100,
-            ScheduledTask::RemoveFromMailbox(USER_2, Default::default()),
-        )
-        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-        Weight::from_parts(gas_allowance - GasAllowanceOf::<Test>::get(), 0)
-    }) - minimal_weight
-}
-
-pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
-    run_to_block_maybe_with_queue(n, remaining_weight, true)
-}
-
-pub fn run_to_block_maybe_with_queue(n: u64, remaining_weight: Option<u64>, run_queue: bool) {
-    while System::block_number() < n {
-        System::on_finalize(System::block_number());
-        System::set_block_number(System::block_number() + 1);
-        System::on_initialize(System::block_number());
-        GearGas::on_initialize(System::block_number());
-        GearMessenger::on_initialize(System::block_number());
-        Gear::on_initialize(System::block_number());
-
-        if let Some(remaining_weight) = remaining_weight {
-            GasAllowanceOf::<Test>::put(remaining_weight);
-            let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
-            System::register_extra_weight_unchecked(
-                max_block_weight.saturating_sub(Weight::from_parts(remaining_weight, 0)),
-                DispatchClass::Normal,
-            );
-        }
-
-        if run_queue {
-            Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
-        }
-
-        Gear::on_finalize(System::block_number());
-
-        if run_queue {
-            assert!(!System::events().iter().any(|e| {
-                matches!(
-                    e.event,
-                    RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
-                )
-            }))
-        }
-    }
-}
-
-pub fn run_to_next_block(remaining_weight: Option<u64>) {
-    run_to_block(System::block_number() + 1, remaining_weight);
 }

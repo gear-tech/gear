@@ -36,7 +36,6 @@ members = [
     "examples/binaries/init-wait",
     "examples/binaries/init-wait-reply-exit",
     "examples/binaries/init-with-value",
-    "examples/binaries/meta",
     "examples/binaries/mul-by-const",
     "examples/binaries/ncompose",
     "examples/binaries/new-meta",
@@ -65,6 +64,7 @@ members = [
     "gear-test",
     "gmeta",
     "gsdk",
+    "gsdk/codegen",
     "gstd",
     "gsys",
     "gtest",
@@ -232,7 +232,9 @@ pallet-election-provider-multi-phase = { version = "4.0.0-dev", git = "https://g
 pallet-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-identity = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-multisig = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-preimage = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
+pallet-proxy = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-ranked-collective = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-referenda = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
 pallet-scheduler = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary", default-features = false }
@@ -339,7 +341,6 @@ demo-init-fail-sender = { path = "examples/binaries/init-fail-sender" }
 demo-init-wait = { path = "examples/binaries/init-wait" }
 demo-init-wait-reply-exit = { path = "examples/binaries/init-wait-reply-exit" }
 demo-init-with-value = { path = "examples/binaries/init-with-value" }
-demo-meta = { path = "examples/binaries/meta" }
 demo-meta-io = { path = "examples/binaries/new-meta/io" }
 demo-mul-by-const = { path = "examples/binaries/mul-by-const" }
 demo-new-meta = { path = "examples/binaries/new-meta" }

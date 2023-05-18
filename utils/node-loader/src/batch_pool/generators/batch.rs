@@ -2,16 +2,15 @@ use super::seed;
 use crate::{
     args::SeedVariant,
     batch_pool::{api::GearApiFacade, context::Context, Seed},
-    utils,
 };
 use anyhow::Result;
 use futures::FutureExt;
 use gear_call_gen::{
-    CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, GearProgGenConfig,
+    CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, GearProgGenConfig,
     SendMessageArgs, SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
 };
-use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
+use std::iter;
 use tracing::instrument;
 
 #[derive(Clone, Copy)]
@@ -46,6 +45,27 @@ pub enum Batch {
     SendReply(Vec<SendReplyArgs>),
     ClaimValue(Vec<ClaimValueArgs>),
 }
+
+macro_rules! impl_convert_for_batch {
+    ($($args:ident $batch_variant:ident,)*) => {
+        $(
+            impl From<Vec<$args>> for Batch {
+                fn from(vec: Vec<$args>) -> Self {
+                    Self::$batch_variant(vec)
+                }
+            }
+        )*
+    };
+}
+
+impl_convert_for_batch![
+    UploadProgramArgs UploadProgram,
+    UploadCodeArgs UploadCode,
+    SendMessageArgs SendMessage,
+    CreateProgramArgs CreateProgram,
+    SendReplyArgs SendReply,
+    ClaimValueArgs ClaimValue,
+];
 
 pub struct BatchWithSeed {
     pub seed: Seed,
@@ -127,182 +147,95 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         match batch_id {
             0 => {
                 let existing_programs = context.programs.iter().copied().collect::<Vec<_>>();
-                self.gen_upload_program_batch(existing_programs, seed, rt_settings)
+                Self::gen_batch::<UploadProgramArgs, _, _>(
+                    self.batch_size,
+                    seed,
+                    |rng| {
+                        (
+                            existing_programs.clone(),
+                            self.code_seed_gen.next_u64(),
+                            rng.next_u64(),
+                        )
+                    },
+                    || (rt_settings.gas_limit, self.prog_gen_config.clone()),
+                )
             }
             1 => {
                 let existing_programs = context.programs.iter().copied().collect::<Vec<_>>();
-                let span = tracing::debug_span!(
-                    "gen_upload_code_batch",
-                    seed = seed,
-                    batch_type = "upload_code"
-                );
-                span.in_scope(|| self.gen_upload_code_batch(existing_programs))
+                Self::gen_batch::<UploadCodeArgs, _, _>(
+                    self.batch_size,
+                    seed,
+                    |_| (existing_programs.clone(), self.code_seed_gen.next_u64()),
+                    || (self.prog_gen_config.clone(),),
+                )
             }
             2 => match NonEmpty::from_vec(context.programs.iter().copied().collect()) {
-                Some(existing_programs) => {
-                    self.gen_send_message_batch(existing_programs, seed, rt_settings)
-                }
+                Some(existing_programs) => Self::gen_batch::<SendMessageArgs, _, _>(
+                    self.batch_size,
+                    seed,
+                    |rng| (existing_programs.clone(), rng.next_u64()),
+                    || (rt_settings.gas_limit,),
+                ),
                 None => self.generate_batch(0, context, seed, rt_settings),
             },
             3 => match NonEmpty::from_vec(context.codes.iter().copied().collect()) {
-                Some(existing_codes) => {
-                    self.gen_create_program_batch(existing_codes, seed, rt_settings)
-                }
+                Some(existing_codes) => Self::gen_batch::<CreateProgramArgs, _, _>(
+                    self.batch_size,
+                    seed,
+                    |rng| (existing_codes.clone(), rng.next_u64()),
+                    || (rt_settings.gas_limit,),
+                ),
                 None => self.generate_batch(0, context, seed, rt_settings),
             },
             4 => match NonEmpty::from_vec(context.mailbox_state.iter().copied().collect()) {
-                Some(mailbox_messages) => {
-                    self.gen_send_reply_batch(mailbox_messages, seed, rt_settings)
-                }
+                Some(mailbox_messages) => Self::gen_batch::<SendReplyArgs, _, _>(
+                    self.batch_size,
+                    seed,
+                    |rng| (mailbox_messages.clone(), rng.next_u64()),
+                    || (rt_settings.gas_limit,),
+                ),
                 None => self.generate_batch(0, context, seed, rt_settings),
             },
             5 => match NonEmpty::from_vec(context.mailbox_state.iter().copied().collect()) {
-                Some(mailbox_messages) => self.gen_claim_value_batch(mailbox_messages, seed),
+                Some(mailbox_messages) => Self::gen_batch::<ClaimValueArgs, _, _>(
+                    self.batch_size,
+                    seed,
+                    |rng| (mailbox_messages.clone(), rng.next_u64()),
+                    || (),
+                ),
                 None => self.generate_batch(0, context, seed, rt_settings),
             },
             _ => unreachable!(),
         }
     }
 
-    #[instrument(skip_all, fields(seed = seed, batch_type = "upload_program"))]
-    fn gen_upload_program_batch(
-        &mut self,
-        existing_programs: Vec<ProgramId>,
+    #[instrument(skip_all, fields(seed = seed, batch_type = T::name()))]
+    fn gen_batch<
+        T: CallArgs,
+        FuzzerArgsFn: FnMut(&mut Rng) -> T::FuzzerArgs,
+        ConstArgsFn: Fn() -> T::ConstArgs,
+    >(
+        batch_size: usize,
         seed: Seed,
-        rt_settings: RuntimeSettings,
-    ) -> Batch {
+        mut fuzzer_args_fn: FuzzerArgsFn,
+        const_args_fn: ConstArgsFn,
+    ) -> Batch
+    where
+        Batch: From<Vec<T>>,
+    {
         let mut rng = Rng::seed_from_u64(seed);
-        let inner = utils::iterator_with_args(self.batch_size, || {
-            (
-                existing_programs.clone(),
-                self.code_seed_gen.next_u64(),
-                rng.next_u64(),
-            )
-        })
-        .enumerate()
-        .map(|(i, (existing_programs, code_seed, rng_seed))| {
-            tracing::debug_span!("`upload_program` generator", call_id = i + 1).in_scope(|| {
-                UploadProgramArgs::generate::<Rng>(
-                    code_seed,
-                    rng_seed,
-                    rt_settings.gas_limit,
-                    self.prog_gen_config.clone(),
-                    existing_programs,
+        let inner: Vec<_> = iter::zip(1_usize.., iter::repeat_with(|| fuzzer_args_fn(&mut rng)))
+            .take(batch_size)
+            .map(|(i, fuzzer_args)| {
+                tracing::debug_span!(
+                    "gen_batch iteration",
+                    generator_for = T::name(),
+                    call_id = i
                 )
+                .in_scope(|| T::generate::<Rng>(fuzzer_args, const_args_fn()))
             })
-        })
-        .collect();
+            .collect();
 
-        Batch::UploadProgram(inner)
-    }
-
-    fn gen_upload_code_batch(&mut self, existing_programs: Vec<ProgramId>) -> Batch {
-        let inner = utils::iterator_with_args(self.batch_size, || {
-            (existing_programs.clone(), self.code_seed_gen.next_u64())
-        })
-        .enumerate()
-        .map(|(i, (existing_programs, code_seed))| {
-            tracing::debug_span!("`upload_code` generator", call_id = i + 1).in_scope(|| {
-                UploadCodeArgs::generate::<Rng>(
-                    code_seed,
-                    self.prog_gen_config.clone(),
-                    existing_programs,
-                )
-            })
-        })
-        .collect();
-
-        Batch::UploadCode(inner)
-    }
-
-    #[instrument(skip_all, fields(seed = seed, batch_type = "send_message"))]
-    fn gen_send_message_batch(
-        &mut self,
-        existing_programs: NonEmpty<ProgramId>,
-        seed: Seed,
-        rt_settings: RuntimeSettings,
-    ) -> Batch {
-        let mut rng = Rng::seed_from_u64(seed);
-        let inner = utils::iterator_with_args(self.batch_size, || {
-            (existing_programs.clone(), rng.next_u64())
-        })
-        .enumerate()
-        .map(|(i, (existing_programs, rng_seed))| {
-            tracing::debug_span!("`send_message` generator", call_id = i + 1).in_scope(|| {
-                SendMessageArgs::generate::<Rng>(existing_programs, rng_seed, rt_settings.gas_limit)
-            })
-        })
-        .collect();
-
-        Batch::SendMessage(inner)
-    }
-
-    #[instrument(skip_all, fields(seed = seed, batch_type = "create_program"))]
-    fn gen_create_program_batch(
-        &mut self,
-        existing_codes: NonEmpty<CodeId>,
-        seed: Seed,
-        rt_settings: RuntimeSettings,
-    ) -> Batch {
-        let mut rng = Rng::seed_from_u64(seed);
-        let inner =
-            utils::iterator_with_args(self.batch_size, || (existing_codes.clone(), rng.next_u64()))
-                .enumerate()
-                .map(|(i, (existing_codes, rng_seed))| {
-                    tracing::debug_span!("`create_program` generator", call_id = i + 1).in_scope(
-                        || {
-                            CreateProgramArgs::generate::<Rng>(
-                                existing_codes,
-                                rng_seed,
-                                rt_settings.gas_limit,
-                            )
-                        },
-                    )
-                })
-                .collect();
-
-        Batch::CreateProgram(inner)
-    }
-
-    #[instrument(skip_all, fields(seed = seed, batch_type = "send_reply"))]
-    fn gen_send_reply_batch(
-        &mut self,
-        mailbox_messages: NonEmpty<MessageId>,
-        seed: Seed,
-        rt_settings: RuntimeSettings,
-    ) -> Batch {
-        let mut rng = Rng::seed_from_u64(seed);
-        let inner = utils::iterator_with_args(self.batch_size, || {
-            (mailbox_messages.clone(), rng.next_u64())
-        })
-        .enumerate()
-        .map(|(i, (mailbox_messages, rng_seed))| {
-            tracing::debug_span!("`send_reply` generator", call_id = i + 1).in_scope(|| {
-                SendReplyArgs::generate::<Rng>(mailbox_messages, rng_seed, rt_settings.gas_limit)
-            })
-        })
-        .collect();
-
-        Batch::SendReply(inner)
-    }
-
-    #[instrument(skip_all, fields(seed = seed, batch_type = "claim_value"))]
-    fn gen_claim_value_batch(
-        &mut self,
-        mailbox_messages: NonEmpty<MessageId>,
-        seed: Seed,
-    ) -> Batch {
-        let mut rng = Rng::seed_from_u64(seed);
-        let inner = utils::iterator_with_args(self.batch_size, || {
-            (mailbox_messages.clone(), rng.next_u64())
-        })
-        .enumerate()
-        .map(|(i, (mailbox_messages, rng_seed))| {
-            tracing::debug_span!("`claim_value` generator", call_id = i + 1)
-                .in_scope(|| ClaimValueArgs::generate::<Rng>(mailbox_messages, rng_seed))
-        })
-        .collect();
-
-        Batch::ClaimValue(inner)
+        inner.into()
     }
 }
