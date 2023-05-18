@@ -192,12 +192,15 @@ jobs:
           mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
 
       - name: "Install: grcov"
-        run: curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
+        run: |
+          curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-musl.tar.bz2 | tar jxf -
+          ./grcov --version
 
       - name: "Install: rust-covfix"
         run: |
           curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
           mv rust-covfix-linux-x86_64/rust-covfix ./
+          ./rust-covfix --version
 
       - name: "Cache: Unpack"
         if: ${{ github.event_name == 'pull_request' }}
@@ -597,14 +600,6 @@ jobs:
         run: |
           curl -L https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz | tar zxf -
           mv ./sccache-*-x86_64-unknown-linux-musl/sccache ${CARGO_HOME:-~/.cargo}/bin/sccache
-
-      - name: "Install: grcov"
-        run: curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -
-
-      - name: "Install: rust-covfix"
-        run: |
-          curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
-          mv rust-covfix-linux-x86_64/rust-covfix ./
 
       - name: "Install: cargo-xwin"
         run: |

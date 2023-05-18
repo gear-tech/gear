@@ -1919,16 +1919,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-meta"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
 name = "demo-meta-io"
 version = "0.1.0"
 dependencies = [
@@ -3446,7 +3436,6 @@ dependencies = [
  "demo-distributor",
  "demo-exit-handle-sender",
  "demo-gasless-wasting",
- "demo-meta",
  "demo-meta-io",
  "demo-mul-by-const",
  "demo-node",
