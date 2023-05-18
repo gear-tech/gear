@@ -95,16 +95,22 @@ fixtures:
             payload: &auto
               kind: bytes
               value: 0x
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: &success
               kind: utf-8

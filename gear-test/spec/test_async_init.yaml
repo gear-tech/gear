@@ -69,10 +69,13 @@ fixtures:
             payload: &auto
               kind: bytes
               value: 0x
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
 
       - step: 1
         messages:
@@ -175,6 +178,7 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
 
       - step: 10
         messages:
@@ -188,6 +192,7 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
           - destination: 1
             source:
               kind: account
@@ -202,6 +207,7 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
           - destination: 1
             payload: *two
           # auto reply
@@ -210,6 +216,7 @@ fixtures:
               kind: account
               value: alice
             payload: *auto
+            statusCode: 0
 
       - step: 12
         allowError: true
@@ -222,6 +229,7 @@ fixtures:
               kind: account
               value: alice
             payload: *auto
+            statusCode: 0
           # error reply on auto reply #1
           - destination:
               kind: account
@@ -240,6 +248,7 @@ fixtures:
               kind: account
               value: alice
             payload: *auto
+            statusCode: 0
           # error reply on auto reply #1
           - destination:
               kind: account
@@ -309,12 +318,16 @@ fixtures:
             payload: &auto
               kind: bytes
               value: 0x
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
 
           - destination: 1000001
             payload:
@@ -329,12 +342,16 @@ fixtures:
             payload: &auto
               kind: bytes
               value: 0x
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
 
           - destination: 1000001
             payload:

@@ -164,16 +164,22 @@ fixtures:
             payload: &auto
               kind: bytes
               value: 0x
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: *auto
+            statusCode: 0
 
       - step: 1
         messages:
@@ -448,6 +454,7 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
 
       - step: 4
         messages:
@@ -459,6 +466,7 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
           - destination: 2
             payload: &rejected_by_alice
               kind: bytes
@@ -472,6 +480,7 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
           - destination: 2
             payload: *rejected_by_alice
           - destination: 2
@@ -665,6 +674,7 @@ fixtures:
               kind: account
               value: bob
             payload: *auto
+            statusCode: 0
 
       - step: 3
         messages:
@@ -678,6 +688,7 @@ fixtures:
               kind: account
               value: bob
             payload: *auto
+            statusCode: 0
           - destination: 3
             payload: &signed_by_eve
               kind: bytes
@@ -691,6 +702,7 @@ fixtures:
               kind: account
               value: bob
             payload: *auto
+            statusCode: 0
           - destination: 3
             payload: *signed_by_eve
           - destination: 3
@@ -810,6 +822,7 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
 
       - step: 4
         messages:
@@ -821,6 +834,7 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
           - destination: 3
             payload: &signed_by_alice
               kind: bytes
@@ -834,6 +848,7 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
           - destination: 3
             payload: *signed_by_alice
           - destination: 3
@@ -908,6 +923,7 @@ fixtures:
               kind: account
               value: bob
             payload: *auto
+            statusCode: 0
 
       - step: 11
         allowError: true
@@ -977,6 +993,7 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
 
       - step: 4
         messages:
@@ -988,6 +1005,7 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
           - destination: 3
             payload: &incorrect_alice
               kind: bytes
@@ -1001,6 +1019,7 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
           - destination: 3
             payload: *incorrect_alice
           - destination: 3
@@ -1100,6 +1119,7 @@ fixtures:
               kind: account
               value: bob
             payload: *auto
+            statusCode: 0
 
       - step: 3
         messages:
@@ -1113,11 +1133,13 @@ fixtures:
               kind: account
               value: bob
             payload: *auto
+            statusCode: 0
           - destination: 3
             source:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
 
       - step: 4
         messages:
@@ -1127,16 +1149,19 @@ fixtures:
               kind: account
               value: bob
             payload: *auto
+            statusCode: 0
           - destination: 3
             source:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
           - destination: 3
             source:
               kind: account
               value: alice
             payload: *auto
+            statusCode: 0
 
       - step: 5
         allowError: true
@@ -1147,11 +1172,13 @@ fixtures:
               kind: account
               value: eve
             payload: *auto
+            statusCode: 0
           - destination: 3
             source:
               kind: account
               value: alice
             payload: *auto
+            statusCode: 0
           # error reply on auto reply
           - destination:
               kind: account
@@ -1171,6 +1198,7 @@ fixtures:
               kind: account
               value: alice
             payload: *auto
+            statusCode: 0
           # error replies on auto replies
           - destination:
               kind: account

@@ -173,3 +173,4 @@ fixtures:
             payload: &auto
               kind: bytes
               value: 0x
+            statusCode: 0

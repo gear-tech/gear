@@ -36,8 +36,10 @@ fixtures:
             payload: &auto
               kind: bytes
               value: 0x
+            statusCode: 0
           - destination: 3
             payload: *auto
+            statusCode: 0
           - payload:
               kind: bytes
               value: "0x012c746573743a2068656c6c6f"

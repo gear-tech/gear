@@ -362,15 +362,16 @@ pub fn process_success(
         && !dispatch.is_reply()
         && dispatch.kind() != DispatchKind::Signal
     {
-        let dispatch = ReplyMessage::auto(dispatch.id()).into_dispatch(
+        let auto_reply = ReplyMessage::auto(dispatch.id()).into_dispatch(
             program_id,
             dispatch.source(),
             dispatch.id(),
         );
 
+        log::debug!("SENDING AUTO REPLY {auto_reply:?} on dispatch: {dispatch:?}");
         journal.push(JournalNote::SendDispatch {
             message_id,
-            dispatch,
+            dispatch: auto_reply,
             delay: 0,
             reservation: None,
         })
@@ -488,7 +489,7 @@ pub fn process_non_executable(
     }
 
     // Reply back to the message `source`
-    if !dispatch.is_error_reply() {
+    if !dispatch.is_error_reply() && dispatch.kind() != DispatchKind::Signal {
         // This expect panic is unreachable, unless error message is too large or max payload size is too small.
         let err = SimpleReplyError::NonExecutable;
         let err_payload = err
