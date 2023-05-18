@@ -282,7 +282,7 @@ jobs:
       - name: "Test: Try runtime migrations"
         run: |
           cargo build -p gear-cli --features try-runtime --release --locked
-          ./target/release/gear try-runtime --runtime ./target/release/wbuild/gear-runtime/gear_runtime.wasm on-runtime-upgrade --checks live --uri wss://rpc-private-testnet.gear-tech.io
+          ./target/release/gear try-runtime --runtime ./target/release/wbuild/gear-runtime/gear_runtime.wasm on-runtime-upgrade --checks live --uri wss://rpc-private-testnet.gear-tech.io:443
         env:
           RUST_LOG: info
 
