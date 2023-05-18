@@ -368,7 +368,6 @@ pub fn process_success(
             dispatch.id(),
         );
 
-        log::debug!("SENDING AUTO REPLY {auto_reply:?} on dispatch: {dispatch:?}");
         journal.push(JournalNote::SendDispatch {
             message_id,
             dispatch: auto_reply,
