@@ -277,7 +277,7 @@ jobs:
         
       - name: "Test: `try-runtime` feature tests"
         run: |
-          cargo test --workspace --features try-runtime --release --locked
+          cargo test --workspace --features try-runtime --release --locked --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz
 
       - name: "Test: Try runtime migrations"
         run: |
