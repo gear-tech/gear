@@ -15,5 +15,11 @@ fixtures:
       - step: 1
         allowError: true
         log:
+          # 1 auto replies on init of 1 programs
+          - destination: 1000001
+            payload: &auto
+              kind: bytes
+              value: 0x
+
           - destination: 1000001
             statusCode: 769 # SimpleReplyError::Execution(SimpleExecutionError::Panic)
