@@ -29,8 +29,9 @@ pub mod currency {
     pub const CENTS: Balance = DOLLARS / 100; // 200_000_000_000
     pub const MILLICENTS: Balance = CENTS / 1_000; // 200_000_000
 
-    /// Function that defines runtime constants used in voting
+    /// Helper function to calculate various deposits for using pallets' storage
     pub const fn deposit(items: u32, bytes: u32) -> Balance {
+        // TODO: review numbers (#2650)
         items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
     }
 }
@@ -83,4 +84,10 @@ pub mod time {
 
     // 1 in 4 blocks (on average, not counting collisions) will be primary BABE blocks.
     pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
+
+    // The free of charge period of rent.
+    pub const RENT_FREE_PERIOD: BlockNumber = pallet_gear_program::migration::FREE_PERIOD;
+
+    // The minimal amount of blocks to resume.
+    pub const RENT_RESUME_PERIOD: BlockNumber = 86_400;
 }

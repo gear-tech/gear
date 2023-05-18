@@ -27,14 +27,15 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::weights::ConstantMultiplier;
 pub use frame_support::{
-    codec::Encode,
+    codec::{Decode, Encode, MaxEncodedLen},
     construct_runtime,
     dispatch::{DispatchClass, WeighData},
     parameter_types,
     traits::{
-        ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOfDiverse, EqualPrivilegeOnly,
-        Everything, FindAuthor, KeyOwnerProofSystem, LockIdentifier, Nothing, OnUnbalanced,
-        Randomness, StorageInfo, U128CurrencyToVote, WithdrawReasons,
+        ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
+        EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
+        LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo, U128CurrencyToVote,
+        WithdrawReasons,
     },
     weights::{
         constants::{
@@ -43,7 +44,7 @@ pub use frame_support::{
         },
         Weight,
     },
-    PalletId, StorageValue,
+    PalletId, RuntimeDebug, StorageValue,
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
@@ -81,6 +82,7 @@ use sp_std::{
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
+use static_assertions::const_assert;
 
 #[cfg(any(feature = "std", test))]
 pub use frame_system::Call as SystemCall;
@@ -107,11 +109,14 @@ pub use constants::{currency::*, time::*};
 mod weights;
 
 pub mod governance;
-use governance::pallet_custom_origins;
+use governance::{pallet_custom_origins, GeneralAdmin, Treasurer, TreasurySpender};
 
 mod extensions;
 pub use extensions::DisableValueTransfers;
 
+mod migrations;
+
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
@@ -119,7 +124,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 130,
+    spec_version: 160,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -133,15 +138,16 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
         allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
     };
 
+// We'll verify that WEIGHT_REF_TIME_PER_SECOND does not overflow, allowing us to use
+// simple multiply and divide operators instead of saturating or checked ones.
+const_assert!(WEIGHT_REF_TIME_PER_SECOND.checked_div(3).is_some());
+const_assert!((WEIGHT_REF_TIME_PER_SECOND / 3).checked_mul(2).is_some());
+
 /// We allow for 1/3 of block time for computations, with maximum proof size.
 ///
 /// It's 2/3 sec for vara runtime with 2 second block duration.
-const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
-    WEIGHT_REF_TIME_PER_SECOND
-        .saturating_mul(2)
-        .saturating_div(3),
-    u64::MAX,
-);
+const MAXIMUM_BLOCK_WEIGHT: Weight =
+    Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND * 2 / 3, u64::MAX);
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
@@ -327,6 +333,16 @@ impl pallet_transaction_payment::Config for Runtime {
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Runtime, QueueLengthStep>;
 }
 
+parameter_types! {
+    pub const MinAuthorities: u32 = 1;
+}
+
+impl validator_set::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type AddRemoveOrigin = EnsureRoot<AccountId>;
+    type MinAuthorities = MinAuthorities;
+}
+
 impl_opaque_keys! {
     pub struct SessionKeys {
         pub babe: Babe,
@@ -339,10 +355,10 @@ impl_opaque_keys! {
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
-    type ValidatorIdOf = pallet_staking::StashOf<Self>;
+    type ValidatorIdOf = validator_set::ValidatorOf<Self>;
     type ShouldEndSession = Babe;
     type NextSessionRotation = Babe;
-    type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
+    type SessionManager = ValidatorSet;
     type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
     type Keys = SessionKeys;
     type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
@@ -378,6 +394,10 @@ impl Contains<RuntimeCall> for BondCallFilter {
                     _ => (),
                 }
                 false
+            }
+            RuntimeCall::Proxy(pallet_proxy::Call::proxy { call, .. })
+            | RuntimeCall::Proxy(pallet_proxy::Call::proxy_announced { call, .. }) => {
+                Self::contains(call)
             }
             _ => false,
         }
@@ -476,7 +496,7 @@ impl pallet_staking::Config for Runtime {
     type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
     type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
     type VoterList = BagsList;
-    type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
+    type MaxUnlockingChunks = ConstU32<32>;
     type BenchmarkingConfig = StakingBenchmarkingConfig;
     type OnStakerSlash = ();
     type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
@@ -546,8 +566,8 @@ impl pallet_identity::Config for Runtime {
     type MaxAdditionalFields = MaxAdditionalFields;
     type MaxRegistrars = MaxRegistrars;
     type Slashed = Treasury;
-    type ForceOrigin = EnsureRoot<AccountId>;
-    type RegistrarOrigin = EnsureRoot<AccountId>;
+    type ForceOrigin = EitherOf<EnsureRoot<AccountId>, GeneralAdmin>;
+    type RegistrarOrigin = EitherOf<EnsureRoot<AccountId>, GeneralAdmin>;
     type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
 }
 
@@ -563,8 +583,8 @@ parameter_types! {
 impl pallet_treasury::Config for Runtime {
     type PalletId = TreasuryPalletId;
     type Currency = Balances;
-    type ApproveOrigin = EnsureRoot<AccountId>;
-    type RejectOrigin = EnsureRoot<AccountId>;
+    type ApproveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
+    type RejectOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
     type RuntimeEvent = RuntimeEvent;
     type OnSlash = ();
     type ProposalBond = ProposalBond;
@@ -576,7 +596,7 @@ impl pallet_treasury::Config for Runtime {
     type SpendFunds = (); // TODO: set to Bounties in NPoS
     type WeightInfo = pallet_treasury::weights::SubstrateWeight<Runtime>;
     type MaxApprovals = MaxApprovals;
-    type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u128>;
+    type SpendOrigin = TreasurySpender;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -591,7 +611,125 @@ impl pallet_utility::Config for Runtime {
     type PalletsOrigin = OriginCaller;
 }
 
-impl pallet_gear_program::Config for Runtime {}
+parameter_types! {
+    // One storage item; key size is 32; value is size 4+4+16+32 bytes = 56 bytes.
+    pub const DepositBase: Balance = deposit(1, 88);
+    // Additional storage item size of 32 bytes.
+    pub const DepositFactor: Balance = deposit(0, 32);
+}
+
+impl pallet_multisig::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type Currency = Balances;
+    type DepositBase = DepositBase;
+    type DepositFactor = DepositFactor;
+    type MaxSignatories = ConstU32<100>;
+    type WeightInfo = pallet_multisig::weights::SubstrateWeight<Runtime>;
+}
+
+parameter_types! {
+    // One storage item; key size 32, value size 8; .
+    pub const ProxyDepositBase: Balance = deposit(1, 8);
+    // Additional storage item size of 33 bytes.
+    pub const ProxyDepositFactor: Balance = deposit(0, 33);
+    pub const AnnouncementDepositBase: Balance = deposit(1, 8);
+    pub const AnnouncementDepositFactor: Balance = deposit(0, 66);
+}
+
+/// The type used to represent the kinds of proxying allowed.
+#[derive(
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Encode,
+    Decode,
+    RuntimeDebug,
+    MaxEncodedLen,
+    scale_info::TypeInfo,
+)]
+pub enum ProxyType {
+    Any,
+    NonTransfer,
+    Governance,
+    Staking,
+    IdentityJudgement,
+    CancelProxy,
+}
+
+impl Default for ProxyType {
+    fn default() -> Self {
+        Self::Any
+    }
+}
+
+impl InstanceFilter<RuntimeCall> for ProxyType {
+    fn filter(&self, c: &RuntimeCall) -> bool {
+        match self {
+            ProxyType::Any => true,
+            ProxyType::NonTransfer => !matches!(
+                c,
+                RuntimeCall::Balances(..)
+                    | RuntimeCall::Sudo(..)
+                    | RuntimeCall::Vesting(pallet_vesting::Call::vested_transfer { .. })
+                    | RuntimeCall::Vesting(pallet_vesting::Call::force_vested_transfer { .. })
+            ),
+            ProxyType::Governance => matches!(
+                c,
+                RuntimeCall::Treasury(..)
+                    | RuntimeCall::ConvictionVoting(..)
+                    | RuntimeCall::Referenda(..)
+                    | RuntimeCall::FellowshipCollective(..)
+                    | RuntimeCall::FellowshipReferenda(..)
+                    | RuntimeCall::Whitelist(..)
+            ),
+            ProxyType::Staking => matches!(c, RuntimeCall::Staking(..)),
+            ProxyType::IdentityJudgement => matches!(
+                c,
+                RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. })
+                    | RuntimeCall::Utility(..)
+            ),
+            ProxyType::CancelProxy => {
+                matches!(
+                    c,
+                    RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. })
+                )
+            }
+        }
+    }
+    fn is_superset(&self, o: &Self) -> bool {
+        match (self, o) {
+            (x, y) if x == y => true,
+            (ProxyType::Any, _) => true,
+            (_, ProxyType::Any) => false,
+            (ProxyType::NonTransfer, _) => true,
+            _ => false,
+        }
+    }
+}
+
+impl pallet_proxy::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type Currency = Balances;
+    type ProxyType = ProxyType;
+    type ProxyDepositBase = ProxyDepositBase;
+    type ProxyDepositFactor = ProxyDepositFactor;
+    type MaxProxies = ConstU32<32>;
+    type WeightInfo = pallet_proxy::weights::SubstrateWeight<Runtime>;
+    type MaxPending = ConstU32<32>;
+    type CallHasher = BlakeTwo256;
+    type AnnouncementDepositBase = AnnouncementDepositBase;
+    type AnnouncementDepositFactor = AnnouncementDepositFactor;
+}
+
+impl pallet_gear_program::Config for Runtime {
+    type Scheduler = GearScheduler;
+    type CurrentBlockNumber = Gear;
+}
 
 parameter_types! {
     pub const GasLimitMaxPercentage: Percent = Percent::from_percent(GAS_LIMIT_MIN_PERCENTAGE_NUM);
@@ -612,6 +750,17 @@ parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
 }
 
+pub struct ProgramRentConfig;
+
+impl common::ProgramRentConfig for ProgramRentConfig {
+    type BlockNumber = BlockNumber;
+    type Balance = Balance;
+
+    type FreePeriod = ConstU32<RENT_FREE_PERIOD>;
+    type CostPerBlock = ConstU128<EXISTENTIAL_DEPOSIT>;
+    type MinimalResumePeriod = ConstU32<RENT_RESUME_PERIOD>;
+}
+
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -630,6 +779,7 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type ProgramRentConfig = ProgramRentConfig;
 }
 
 #[cfg(feature = "debug-mode")]
@@ -739,10 +889,15 @@ construct_runtime!(
         Origins: pallet_custom_origins = 20,
         Whitelist: pallet_whitelist = 21,
 
+        // TODO: Remove in stage 2
+        ValidatorSet: validator_set = 98,
         Sudo: pallet_sudo = 99,
+
         Scheduler: pallet_scheduler = 22,
         Preimage: pallet_preimage = 23,
         Identity: pallet_identity = 24,
+        Proxy: pallet_proxy = 25,
+        Multisig: pallet_multisig = 26,
         Utility: pallet_utility = 8,
         GearProgram: pallet_gear_program = 100,
         GearMessenger: pallet_gear_messenger = 101,
@@ -791,10 +946,15 @@ construct_runtime!(
         Origins: pallet_custom_origins = 20,
         Whitelist: pallet_whitelist = 21,
 
+        // TODO: Remove in stage 2
+        ValidatorSet: validator_set = 98,
         Sudo: pallet_sudo = 99,
+
         Scheduler: pallet_scheduler = 22,
         Preimage: pallet_preimage = 23,
         Identity: pallet_identity = 24,
+        Proxy: pallet_proxy = 25,
+        Multisig: pallet_multisig = 26,
         Utility: pallet_utility = 8,
         GearProgram: pallet_gear_program = 100,
         GearMessenger: pallet_gear_messenger = 101,
@@ -842,6 +1002,7 @@ pub type Executive = frame_executive::Executive<
     frame_system::ChainContext<Runtime>,
     Runtime,
     AllPalletsWithSystem,
+    migrations::Migrations,
 >;
 
 #[cfg(test)]
@@ -869,7 +1030,6 @@ mod benches {
         [pallet_utility, Utility]
         // Gear pallets
         [pallet_gear, Gear]
-        [pallet_airdrop, Airdrop]
     );
 }
 

@@ -1,10 +1,10 @@
 [package]
 name = "gear-runtime"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 build = "build.rs"
-license = "GPL-3.0"
+license.workspace = true
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
@@ -15,6 +15,9 @@ targets = ["x86_64-unknown-linux-gnu"]
 log.workspace = true
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
+static_assertions.workspace = true
+
+validator-set.workspace = true
 
 # Substrate deps
 frame-support.workspace = true
@@ -25,6 +28,8 @@ pallet-authorship.workspace = true
 pallet-babe.workspace = true
 pallet-balances.workspace = true
 pallet-grandpa.workspace = true
+pallet-multisig.workspace = true
+pallet-proxy.workspace = true
 pallet-session.workspace = true
 pallet-sudo.workspace = true
 pallet-timestamp.workspace = true
@@ -67,13 +72,17 @@ runtime-primitives.workspace = true
 [build-dependencies]
 substrate-wasm-builder = { workspace = true, optional = true }
 
+[dev-dependencies]
+gear-core-processor.workspace = true
+gear-backend-common.workspace = true
+
 [features]
 default = ["std"]
 std = [
 	"common/std",
- 	"frame-try-runtime?/std",
- 	"frame-system-benchmarking?/std",
- 	"frame-benchmarking?/std",
+	"frame-try-runtime?/std",
+	"frame-system-benchmarking?/std",
+	"frame-benchmarking?/std",
 	"frame-executive/std",
 	"frame-support/std",
 	"frame-system/std",
@@ -89,7 +98,10 @@ std = [
 	"pallet-gear-payment/std",
 	"pallet-gear-rpc-runtime-api/std",
 	"runtime-primitives/std",
+	"validator-set/std",
 	"pallet-grandpa/std",
+	"pallet-multisig/std",
+	"pallet-proxy/std",
 	"pallet-session/std",
 	"pallet-sudo/std",
 	"pallet-timestamp/std",
@@ -123,6 +135,11 @@ runtime-benchmarks = [
 	"pallet-gear/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
+fuzz = [
+	"common/fuzz",
+	"pallet-gear/fuzz",
+	"pallet-gear-gas/fuzz"
+]
 runtime-benchmarks-checkers = [
 	"pallet-gear/runtime-benchmarks-checkers",
 ]
@@ -142,11 +159,14 @@ try-runtime = [
 	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-grandpa/try-runtime",
+	"pallet-multisig/try-runtime",
+	"pallet-proxy/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-sudo/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-utility/try-runtime",
+	"validator-set/try-runtime",
 ]
 debug-mode = ["pallet-gear-debug", "pallet-gear-program/debug-mode"]
 lazy-pages = [

@@ -26,6 +26,8 @@
 //! Note: currently we restrict twice write signal from same page during one execution.
 //! It's not necessary behavior, but more simple and safe.
 
+#![allow(clippy::items_after_test_module)]
+
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
 use gear_backend_common::lazy_pages::{GlobalsAccessConfig, Status};
 use pages::{PageNumber, WasmPageNumber};

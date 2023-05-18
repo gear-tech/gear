@@ -1,10 +1,10 @@
 [package]
 name = "gear-runtime-interface"
 version = "0.1.0"
-authors = ["Gear Technologies"]
+authors.workspace = true
 description = "Gear Runtime Interface"
-edition = "2021"
-license = "GPL-3.0"
+edition.workspace = true
+license.workspace = true
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 

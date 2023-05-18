@@ -22,6 +22,11 @@ pub mod currency {
 
     /// The existential deposit.
     pub const EXISTENTIAL_DEPOSIT: Balance = 500;
+
+    // TODO: the actual numbers, if matter, are subject to review (#2655)
+    pub const fn deposit(items: u32, bytes: u32) -> Balance {
+        items as Balance * 150 + (bytes as Balance) * 60
+    }
 }
 
 /// Time and block constants
@@ -63,4 +68,10 @@ pub mod time {
 
     // 1 in 4 blocks (on average, not counting collisions) will be primary BABE blocks.
     pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
+
+    // The free of charge period of rent.
+    pub const RENT_FREE_PERIOD: BlockNumber = pallet_gear_program::migration::FREE_PERIOD;
+
+    // The minimal amount of blocks to resume.
+    pub const RENT_RESUME_PERIOD: BlockNumber = 86_400;
 }

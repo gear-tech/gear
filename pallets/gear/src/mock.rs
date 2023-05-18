@@ -38,6 +38,8 @@ use sp_std::convert::{TryFrom, TryInto};
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
+type BlockNumber = u64;
+type Balance = u128;
 
 type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
 
@@ -87,7 +89,7 @@ impl pallet_balances::Config for Test {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    type Balance = u128;
+    type Balance = Balance;
     type DustRemoval = ();
     type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
@@ -102,7 +104,7 @@ parameter_types! {
         NORMAL_DISPATCH_RATIO,
     );
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 500;
+    pub const ExistentialDeposit: Balance = 500;
     pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 1110, write: 2300 };
 }
 
@@ -114,7 +116,7 @@ impl system::Config for Test {
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
@@ -135,17 +137,34 @@ impl system::Config for Test {
 
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
-    type Balance = u128;
+    type Balance = Balance;
     type GasToBalanceMultiplier = ConstU128<1_000>;
 }
 
-impl pallet_gear_program::Config for Test {}
+impl pallet_gear_program::Config for Test {
+    type Scheduler = GearScheduler;
+    type CurrentBlockNumber = ();
+}
 
 parameter_types! {
     // Match the default `max_block` set in frame_system::limits::BlockWeights::with_sensible_defaults()
     pub const BlockGasLimit: u64 = MAX_BLOCK;
     pub const OutgoingLimit: u32 = 1024;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
+    pub RentFreePeriod: BlockNumber = 1_000;
+    pub RentCostPerBlock: Balance = 11;
+    pub RentResumePeriod: BlockNumber = 100;
+}
+
+pub struct ProgramRentConfig;
+
+impl common::ProgramRentConfig for ProgramRentConfig {
+    type BlockNumber = BlockNumber;
+    type Balance = Balance;
+
+    type FreePeriod = RentFreePeriod;
+    type CostPerBlock = RentCostPerBlock;
+    type MinimalResumePeriod = RentResumePeriod;
 }
 
 impl pallet_gear::Config for Test {
@@ -166,6 +185,7 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type ProgramRentConfig = ProgramRentConfig;
 }
 
 impl pallet_gear_scheduler::Config for Test {
@@ -243,7 +263,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 pub fn get_min_weight() -> Weight {
     new_test_ext().execute_with(|| {
         dry_run!(weight, BlockGasLimitOf::<Test>::get());
-        Weight::from_ref_time(weight)
+        Weight::from_parts(weight, 0)
     })
 }
 
@@ -261,11 +281,15 @@ pub fn get_weight_of_adding_task() -> Weight {
         )
         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
-        Weight::from_ref_time(gas_allowance - GasAllowanceOf::<Test>::get())
+        Weight::from_parts(gas_allowance - GasAllowanceOf::<Test>::get(), 0)
     }) - minimal_weight
 }
 
 pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
+    run_to_block_maybe_with_queue(n, remaining_weight, true)
+}
+
+pub fn run_to_block_maybe_with_queue(n: u64, remaining_weight: Option<u64>, run_queue: bool) {
     while System::block_number() < n {
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
@@ -278,20 +302,25 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             GasAllowanceOf::<Test>::put(remaining_weight);
             let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
             System::register_extra_weight_unchecked(
-                max_block_weight.saturating_sub(Weight::from_ref_time(remaining_weight)),
+                max_block_weight.saturating_sub(Weight::from_parts(remaining_weight, 0)),
                 DispatchClass::Normal,
             );
         }
 
-        Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+        if run_queue {
+            Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+        }
+
         Gear::on_finalize(System::block_number());
 
-        assert!(!System::events().iter().any(|e| {
-            matches!(
-                e.event,
-                RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
-            )
-        }))
+        if run_queue {
+            assert!(!System::events().iter().any(|e| {
+                matches!(
+                    e.event,
+                    RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+                )
+            }))
+        }
     }
 }
 

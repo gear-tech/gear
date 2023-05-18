@@ -16,6 +16,7 @@ build_usage() {
     help           show help message and exit
 
     gear           build gear workspace
+    fuzz           build fuzzer crates
     gear-test      build gear-test binary
     examples       build gear program examples,
                    you can specify yaml list to build coresponding examples
@@ -23,12 +24,17 @@ build_usage() {
     wasm-proc      build wasm-proc util
     examples-proc  process built examples via wasm-proc
     node           build node
+    wat-examples   build wat-examples
 
 EOF
 }
 
 gear_build() {
-  $CARGO build --workspace "$@"
+  $CARGO build --workspace "$@" --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz
+}
+
+fuzzer_build() {
+  $CARGO +nightly build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
 }
 
 gear_test_build() {
@@ -45,7 +51,7 @@ wasm_proc_build() {
 
 # $1 = TARGET DIR
 examples_proc() {
-  "$1"/release/wasm-proc "$1"/wasm32-unknown-unknown/release/*.wasm
+  "$1"/release/wasm-proc --legacy-meta "$1"/wasm32-unknown-unknown/release/*.wasm
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR

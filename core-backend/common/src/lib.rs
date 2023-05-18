@@ -26,7 +26,7 @@ pub mod lazy_pages;
 
 mod utils;
 
-#[cfg(feature = "mock")]
+#[cfg(any(feature = "mock", test))]
 pub mod mock;
 
 pub mod memory;
@@ -247,6 +247,7 @@ pub trait BackendExtError: Clone + Sized {
     fn into_termination_reason(self) -> TerminationReason;
 }
 
+// TODO: consider to remove this trait and use Result<Result<Page, AllocError>, GasError> instead #2571
 pub trait BackendAllocExtError: Sized {
     type ExtError: BackendExtError;
 
@@ -340,6 +341,7 @@ pub trait BackendState {
                 )) = err
                 {
                     let len = ext_err.encoded_size() as u32;
+                    log::trace!(target: "syscalls", "fallible syscall error: {ext_err}");
                     self.set_fallible_syscall_error(ext_err);
                     Ok(Err(len))
                 } else {
@@ -440,3 +442,6 @@ macro_rules! syscall_trace {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

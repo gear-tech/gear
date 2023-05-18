@@ -131,9 +131,9 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 
 mod api;
-mod node;
 mod utils;
+mod ws;
 
 pub use api::{calls::*, error::*, listener::*, GearApi};
-pub use node::ws::WSAddress;
 pub use utils::*;
+pub use ws::WSAddress;

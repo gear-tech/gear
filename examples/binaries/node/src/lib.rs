@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg_attr(not(feature = "std"), feature(alloc_error_handler))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
@@ -45,7 +44,7 @@ pub enum Request {
     IsReady,
     Begin(Operation),
     Commit,
-    Add(u64),
+    Add(ActorId),
 }
 
 #[derive(Encode, Debug, Decode, PartialEq, Eq)]
@@ -237,7 +236,7 @@ fn process(request: Request) -> Reply {
             }
         }
         Request::Add(sub_node) => {
-            state().sub_nodes.insert(sub_node.into());
+            state().sub_nodes.insert(sub_node);
             Reply::Success
         }
     }
@@ -368,14 +367,14 @@ mod tests {
         let program_3 = Program::current_with_id(&system, program_3_id);
         let _res = program_3.send(from, Initialization { status: 9 });
 
-        let res = program_1.send(from, Request::Add(program_2_id));
+        let res = program_1.send(from, Request::Add(program_2_id.into()));
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)
             .payload(Reply::Success);
         assert!(res.contains(&log));
 
-        let res = program_1.send(from, Request::Add(program_3_id));
+        let res = program_1.send(from, Request::Add(program_3_id.into()));
         let log = Log::builder()
             .source(program_1.id())
             .dest(from)

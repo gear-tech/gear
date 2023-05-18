@@ -1,0 +1,13 @@
+[Unit]
+Description=Run fuzzer.sh
+Requires=docker.service
+After=docker.service
+
+[Service]
+WorkingDirectory=work dir
+User=root
+ExecStart=/bin/bash fuzzer.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

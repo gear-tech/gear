@@ -63,6 +63,10 @@ impl Contains<RuntimeCall> for ValueTransferCallFilter {
                 }
                 false
             }
+            RuntimeCall::Proxy(pallet_proxy::Call::proxy { call, .. })
+            | RuntimeCall::Proxy(pallet_proxy::Call::proxy_announced { call, .. }) => {
+                Self::contains(call)
+            }
             _ => false,
         }
     }

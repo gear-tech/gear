@@ -18,8 +18,6 @@
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("No stderr was found.")]
-    EmptyStderr,
     #[error(transparent)]
     GCli(#[from] gcli::result::Error),
     #[error(transparent)]
@@ -28,6 +26,8 @@ pub enum Error {
     Hex(#[from] hex::FromHexError),
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Node(#[from] gsdk::testing::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

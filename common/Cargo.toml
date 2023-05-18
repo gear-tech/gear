@@ -1,14 +1,20 @@
 [package]
 name = "gear-common"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2021"
-license = "GPL-3.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
 derive_more.workspace = true
+enum-iterator.workspace = true
+mutagen = { workspace = true, optional = true }
+hex.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+path-clean.workspace = true
 
 # Internal deps
 gear-core.workspace = true
@@ -46,3 +52,4 @@ runtime-benchmarks = [
     "frame-support/runtime-benchmarks",
     "gear-wasm-instrument",
 ]
+fuzz = ["mutagen"]

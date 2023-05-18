@@ -41,6 +41,8 @@ type TestXt = sp_runtime::testing::TestXt<RuntimeCall, SignedExtra>;
 type Block = TestBlock<TestXt>;
 type UncheckedExtrinsic = TestXt;
 type AccountId = u64;
+type BlockNumber = u64;
+type Balance = u128;
 
 pub(crate) type Executive = frame_executive::Executive<
     Test,
@@ -103,7 +105,7 @@ impl pallet_balances::Config for Test {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
-    type Balance = u128;
+    type Balance = Balance;
     type DustRemoval = ();
     type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
@@ -114,7 +116,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u128 = EXISTENTIAL_DEPOSIT;
+    pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 }
 
 impl system::Config for Test {
@@ -125,7 +127,7 @@ impl system::Config for Test {
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
@@ -428,25 +430,25 @@ pub type ValidatorAccountId = (
 #[derive(Default)]
 pub struct ExtBuilder {
     initial_authorities: Vec<ValidatorAccountId>,
-    stash: u128,
+    stash: Balance,
     endowed_accounts: Vec<AccountId>,
-    endowment: u128,
+    endowment: Balance,
     root: Option<AccountId>,
-    total_supply: u128,
+    total_supply: Balance,
     non_stakeable: Perquintill,
-    pool_balance: u128,
+    pool_balance: Balance,
     ideal_stake: Perquintill,
     target_inflation: Perquintill,
     filtered_accounts: Vec<AccountId>,
 }
 
 impl ExtBuilder {
-    pub fn stash(mut self, s: u128) -> Self {
+    pub fn stash(mut self, s: Balance) -> Self {
         self.stash = s;
         self
     }
 
-    pub fn endowment(mut self, e: u128) -> Self {
+    pub fn endowment(mut self, e: Balance) -> Self {
         self.endowment = e;
         self
     }
@@ -466,7 +468,7 @@ impl ExtBuilder {
         self
     }
 
-    pub fn total_supply(mut self, e: u128) -> Self {
+    pub fn total_supply(mut self, e: Balance) -> Self {
         self.total_supply = e;
         self
     }
@@ -476,7 +478,7 @@ impl ExtBuilder {
         self
     }
 
-    pub fn pool_balance(mut self, e: u128) -> Self {
+    pub fn pool_balance(mut self, e: Balance) -> Self {
         self.pool_balance = e;
         self
     }

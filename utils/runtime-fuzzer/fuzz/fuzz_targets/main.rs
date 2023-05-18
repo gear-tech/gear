@@ -26,7 +26,7 @@ use std::{
     path::Path,
 };
 
-const SEEDS_STORE_DIR: &str = "/fuzzing-seeds-dir";
+const SEEDS_STORE_DIR: &str = "/tmp/fuzzing-seeds-dir";
 const SEEDS_STORE_FILE: &str = "fuzzing-seeds";
 
 static RUN_INTIALIZED: OnceCell<String> = OnceCell::new();

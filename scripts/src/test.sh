@@ -25,6 +25,8 @@ test_usage() {
     client         run client tests via gclient
     fuzz           run fuzzer with a fuzz target
     syscalls       run syscalls integrity test in benchmarking module of pallet-gear
+    docs           run doc tests
+    validators     run validator checks
 
 EOF
 }
@@ -35,9 +37,9 @@ test_run_node() {
 
 workspace_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test --workspace "$@" --no-fail-fast
+    $CARGO test --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz "$@" --no-fail-fast
   else
-    cargo +nightly nextest run --workspace "$@" --profile ci --no-fail-fast
+    cargo +nightly nextest run --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz "$@" --profile ci --no-fail-fast
   fi
 }
 
@@ -67,7 +69,7 @@ gtest() {
 
   if [ -z "$YAMLS" ]
   then
-    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_runtime/*.yaml"
+    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
   fi
 
   $ROOT_DIR/target/release/gear-test $YAMLS "$@"
@@ -118,7 +120,7 @@ run_fuzzer() {
 
   # Run fuzzer
   RUST_LOG="debug,runtime_fuzzer_fuzz=debug,wasmi,libfuzzer_sys,node_fuzzer=debug,gear,pallet_gear,gear-core-processor,gear-backend-wasmi,gwasm'" \
-  cargo fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192
+  cargo +nightly fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192
 }
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
@@ -130,5 +132,5 @@ doc_test() {
   MANIFEST="$1"
   shift
 
-  cargo test --doc --workspace --manifest-path="$MANIFEST" -- "$@"
+  cargo test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" -- "$@"
 }

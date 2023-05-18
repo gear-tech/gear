@@ -23,10 +23,10 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum BuilderError {
     #[error("invalid manifest path `{0}`")]
-    InvalidManifestPath(PathBuf),
+    ManifestPathInvalid(PathBuf),
 
     #[error("please add \"rlib\" to [lib.crate-type]")]
-    InvalidCrateType,
+    CrateTypeInvalid,
 
     #[error("cargo command run failed: {0}")]
     CargoRunFailed(String),
@@ -41,4 +41,10 @@ pub enum BuilderError {
         "WASM module doesn't contain required export funtions (init/handle) after optimized `{0}`"
     )]
     RequiredExportFnNotFound(PathBuf),
+
+    #[error("cargo path is invalid `{0}`")]
+    CargoPathInvalid(PathBuf),
+
+    #[error("cargo toolchain is invalid `{0}`")]
+    CargoToolchainInvalid(String),
 }
