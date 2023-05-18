@@ -100,6 +100,8 @@ sp-io.workspace = true
 sp-keyring.workspace = true
 env_logger.workspace = true
 wat.workspace = true
+gear-core-processor.workspace = true
+gear-backend-common.workspace = true
 
 [build-dependencies]
 substrate-wasm-builder = { workspace = true, optional = true }
