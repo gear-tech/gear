@@ -76,6 +76,8 @@ pub struct DispatchResult {
     pub awakening: Vec<(MessageId, u32)>,
     /// New programs to be created with additional data (corresponding code hash and init message id).
     pub program_candidates: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
+    /// Map of program ids to paid blocks.
+    pub program_rents: BTreeMap<ProgramId, u32>,
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Gas amount programs reserved.
@@ -126,6 +128,7 @@ impl DispatchResult {
             generated_dispatches: Default::default(),
             awakening: Default::default(),
             program_candidates: Default::default(),
+            program_rents: Default::default(),
             gas_amount,
             gas_reserver: None,
             system_reservation_context,
@@ -324,6 +327,15 @@ pub enum JournalNote {
         /// Simple signal error.
         err: SimpleSignalError,
     },
+    /// Pay rent for the program.
+    PayProgramRent {
+        /// Rent payer.
+        payer: ProgramId,
+        /// Program whose rent will be paid.
+        program_id: ProgramId,
+        /// Amount of blocks to pay for.
+        block_count: u32,
+    },
 }
 
 /// Journal handler.
@@ -409,6 +421,8 @@ pub trait JournalHandler {
         destination: ProgramId,
         err: SimpleSignalError,
     );
+    /// Pay rent for the program.
+    fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32);
 }
 
 /// Execution error
