@@ -35,14 +35,6 @@ fixtures:
           - destination: 1
             payload: *third
 
-        log:
-          # 1 auto replies on init of 1 program
-          - destination: 1000001
-            payload: &auto
-              kind: bytes
-              value: 0x
-            statusCode: 0
-
       - step: 1 # First message processed
         messages:
           - destination: 1
@@ -67,7 +59,9 @@ fixtures:
       - log: # First and second message processed
           # 1 auto replies on init of 1 program
           - destination: 1000001
-            payload: *auto
+            payload: &auto
+              kind: bytes
+              value: 0x
             statusCode: 0
 
           # auto reply on first message

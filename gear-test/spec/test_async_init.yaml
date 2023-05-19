@@ -62,21 +62,6 @@ fixtures:
           value: "PING"
 
     expected:
-      - step: 0
-        log:
-          # 3 auto replies on init of 3 programs (async_init goes to wait to will reply later)
-          - destination: 1000001
-            payload: &auto
-              kind: bytes
-              value: 0x
-            statusCode: 0
-          - destination: 1000001
-            payload: *auto
-            statusCode: 0
-          - destination: 1000001
-            payload: *auto
-            statusCode: 0
-
       - step: 1
         messages:
           - destination:
@@ -177,7 +162,9 @@ fixtures:
             source:
               kind: account
               value: eve
-            payload: *auto
+            payload: &auto
+              kind: bytes
+              value: 0x
             statusCode: 0
 
       - step: 10

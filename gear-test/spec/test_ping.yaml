@@ -3,15 +3,9 @@ title: Ping-pong
 programs:
   - id: 1
     path: target/wasm32-unknown-unknown/release/demo_ping.opt.wasm
-    source:
-      kind: account
-      value: alice
 
   - id: 2
     path: target/wasm32-unknown-unknown/release/demo_ping_gas.opt.wasm
-    source:
-      kind: account
-      value: alice
 
 fixtures:
   - title: ping-pong
@@ -25,16 +19,12 @@ fixtures:
     expected:
       - log:
         # 2 auto replies on init of 2 programs
-        - destination:
-            kind: account
-            value: alice
+        - destination: 1000001
           payload: &auto
             kind: bytes
             value: 0x
           statusCode: 0
-        - destination:
-            kind: account
-            value: alice
+        - destination: 1000001
           payload: *auto
           statusCode: 0
 
@@ -58,14 +48,10 @@ fixtures:
     expected:
       - log:
         # 2 auto replies on init of 2 programs
-        - destination:
-            kind: account
-            value: alice
+        - destination: 1000001
           payload: *auto
           statusCode: 0
-        - destination:
-            kind: account
-            value: alice
+        - destination: 1000001
           payload: *auto
           statusCode: 0
 

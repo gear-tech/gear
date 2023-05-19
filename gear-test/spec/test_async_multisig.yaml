@@ -157,30 +157,6 @@ fixtures:
           value: "0x50494e47"
 
     expected:
-      - step: 0
-        log:
-          # 6 auto replies on init of 6 programs
-          - destination: 1000001
-            payload: &auto
-              kind: bytes
-              value: 0x
-            statusCode: 0
-          - destination: 1000001
-            payload: *auto
-            statusCode: 0
-          - destination: 1000001
-            payload: *auto
-            statusCode: 0
-          - destination: 1000001
-            payload: *auto
-            statusCode: 0
-          - destination: 1000001
-            payload: *auto
-            statusCode: 0
-          - destination: 1000001
-            payload: *auto
-            statusCode: 0
-
       - step: 1
         messages:
           - destination:
@@ -215,6 +191,33 @@ fixtures:
             payload:
               kind: utf-8
               value: "PONG"
+
+      - log:
+          # 6 auto replies on init of 6 programs
+          - destination: 1000001
+            payload: &auto
+              kind: bytes
+              value: 0x
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          # 1 auto reply on finished message
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
 
   - title: Three signatories & redundant threshold
 

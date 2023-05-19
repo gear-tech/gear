@@ -200,8 +200,7 @@ fixtures:
           - destination: 1
             payload: *getNping # from waitlist
 
-      - step: 6
-        log:
+      - log:
           # 2 auto replies on init of 2 programs
           - destination: 1000001
             payload: *auto
@@ -218,6 +217,11 @@ fixtures:
             payload:
               kind: i32
               value: 0 # should be 0
+
+          # auto reply from `inc`
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
 
   - title: forever lock
 
