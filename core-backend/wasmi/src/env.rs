@@ -29,7 +29,7 @@ use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
     BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
-    TrimmedString,
+    LimitedStr,
 };
 use gear_core::{
     env::Ext,
@@ -95,7 +95,7 @@ impl<E: Ext> GlobalsAccessProvider<E> {
 }
 
 impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
-    fn get_i64(&self, name: &TrimmedString) -> Result<i64, GlobalsAccessError> {
+    fn get_i64(&self, name: LimitedStr) -> Result<i64, GlobalsAccessError> {
         self.get_global(name.as_str())
             .and_then(|global| {
                 let store = self.store.as_ref()?;
@@ -108,7 +108,7 @@ impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
             .ok_or(GlobalsAccessError)
     }
 
-    fn set_i64(&mut self, name: &TrimmedString, value: i64) -> Result<(), GlobalsAccessError> {
+    fn set_i64(&mut self, name: LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
         self.get_global(name.as_str())
             .and_then(|global| {
                 let store = self.store.as_mut()?;

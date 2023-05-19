@@ -61,6 +61,7 @@ use scale_info::{
     TypeInfo,
 };
 
+pub use crate::utils::LimitedStr;
 pub use crate::utils::TrimmedString;
 pub use log;
 
