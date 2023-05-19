@@ -230,13 +230,17 @@ test-release: test-gear-release test-js gtest rtest
 test-gear: init-js examples # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
-	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages
+	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
 
 .PHONY: test-gear-release
 test-gear-release: init-js examples # \
 	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
 	and fact that pallet-gear default is lazy-pages.
-	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages
+	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk --features pallet-gear-debug/lazy-pages
+
+.PHONY: test-gsdk
+test-gsdk: node-release
+	@ ./scripts/gear.sh test gsdk
 
 .PHONY: test-gcli
 test-gcli: node

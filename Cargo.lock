@@ -1962,13 +1962,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-meta"
+name = "demo-messager"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
@@ -3436,6 +3434,7 @@ dependencies = [
  "base64 0.21.0",
  "clap 4.2.7",
  "color-eyre",
+ "demo-messager",
  "demo-new-meta",
  "demo-waiter",
  "dirs",
@@ -3451,7 +3450,6 @@ dependencies = [
  "lazy_static",
  "libp2p",
  "log",
- "messager",
  "nacl",
  "rand 0.8.5",
  "scale-info",
@@ -3477,7 +3475,6 @@ dependencies = [
  "demo-distributor",
  "demo-exit-handle-sender",
  "demo-gasless-wasting",
- "demo-meta",
  "demo-meta-io",
  "demo-mul-by-const",
  "demo-node",
@@ -3862,7 +3859,9 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gear-backend-common",
  "gear-common",
+ "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "hex-literal 0.3.4",
@@ -4354,9 +4353,13 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "base64 0.21.0",
+ "demo-messager",
+ "demo-new-meta",
+ "demo-waiter",
  "futures",
  "futures-util",
  "gear-core",
+ "gsdk",
  "gsdk-codegen",
  "hex",
  "jsonrpsee",
@@ -4369,6 +4372,7 @@ dependencies = [
  "sp-runtime",
  "subxt",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -6099,14 +6103,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "messager"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
 name = "mimalloc"
 version = "0.1.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7057,6 +7053,7 @@ dependencies = [
  "sp-runtime",
  "sp-sandbox",
  "sp-std 5.0.0",
+ "static_assertions",
  "test-syscalls",
  "wabt",
 ]
@@ -12650,7 +12647,9 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gear-backend-common",
  "gear-common",
+ "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "hex-literal 0.3.4",

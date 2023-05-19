@@ -16,6 +16,7 @@ test_usage() {
     help           show help message and exit
 
     gear           run workspace tests
+    gsdk           run gsdk package tests
     gcli           run gcli package tests
     js             run metadata js tests
     gtest          run gear-test testing tool,
@@ -41,6 +42,11 @@ workspace_test() {
   else
     cargo +nightly nextest run --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz "$@" --profile ci --no-fail-fast
   fi
+}
+
+gsdk_test() {
+  $CARGO test -p gsdk
+  $CARGO test -p gsdk --features vara-testing
 }
 
 gcli_test() {
@@ -69,7 +75,7 @@ gtest() {
 
   if [ -z "$YAMLS" ]
   then
-    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_runtime/*.yaml"
+    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
   fi
 
   $ROOT_DIR/target/release/gear-test $YAMLS "$@"

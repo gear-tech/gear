@@ -160,21 +160,6 @@ pub trait GasPrice {
     }
 }
 
-/// Trait defines basic parameters of programs rent charging.
-pub trait ProgramRentConfig {
-    /// Type representing an index of a block.
-    type BlockNumber;
-    /// Type representing a quantity of value.
-    type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
-
-    /// The free of charge period of rent.
-    type FreePeriod: Get<Self::BlockNumber>;
-    /// The program rent cost per block.
-    type CostPerBlock: Get<Self::Balance>;
-    /// The minimal amount of blocks to resume.
-    type MinimalResumePeriod: Get<Self::BlockNumber>;
-}
-
 pub trait QueueRunner {
     type Gas;
 

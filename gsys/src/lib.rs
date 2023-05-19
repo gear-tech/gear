@@ -92,17 +92,6 @@ impl LengthWithCode {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
     }
-
-    pub fn from(result: Result<StatusCode, Length>) -> Self {
-        let mut res: Self = Default::default();
-
-        match result {
-            Ok(code) => res.code = code,
-            Err(length) => res.length = length,
-        }
-
-        res
-    }
 }
 
 impl From<Result<StatusCode, Length>> for LengthWithCode {
@@ -236,6 +225,37 @@ where
             Ok((v1, v2)) => {
                 res.hash1 = v1.into();
                 res.hash2 = v2.into();
+            }
+            Err(length) => res.length = length,
+        }
+
+        res
+    }
+}
+
+/// Represents type defining concatenated block number and value with length. 24 bytes.
+#[repr(C, packed)]
+#[derive(Default)]
+pub struct LengthWithBlockNumberAndValue {
+    pub length: Length,
+    pub bn: BlockNumber,
+    pub value: Value,
+}
+
+impl LengthWithBlockNumberAndValue {
+    pub fn as_mut_ptr(&mut self) -> *mut Self {
+        self as _
+    }
+}
+
+impl From<Result<(Value, BlockNumber), Length>> for LengthWithBlockNumberAndValue {
+    fn from(result: Result<(Value, BlockNumber), Length>) -> Self {
+        let mut res: Self = Default::default();
+
+        match result {
+            Ok((v, bn)) => {
+                res.value = v;
+                res.bn = bn;
             }
             Err(length) => res.length = length,
         }
@@ -391,6 +411,16 @@ extern "C" {
     /// Arguments type:
     /// - `program_id`: `const ptr` for program id.
     pub fn gr_origin(program_id: *mut Hash);
+
+    /// Fallible `gr_pay_program_rent` syscall.
+    ///
+    /// Arguments type:
+    /// - `rent_pid`: `const ptr` for program id and rent value.
+    /// - `err_bn_value`: `mut ptr` for concatenated error length, paid block count and unused rent value.
+    pub fn gr_pay_program_rent(
+        rent_pid: *const HashWithValue,
+        err_bn_value: *mut LengthWithBlockNumberAndValue,
+    );
 
     /// Infallible `gr_program_id` get syscall.
     ///

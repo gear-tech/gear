@@ -41,7 +41,7 @@ pub trait NodeExec {
     /// let node = Node::new();
     /// let args = Args::new("upload")
     ///              .flag("--code-only")
-    ///              .program(env::wasm_bin("demo_meta.opt.wasm"));
+    ///              .program(env::wasm_bin("demo_new_meta.opt.wasm"));
     /// let output = node.run(args)
     ///
     /// // ...
