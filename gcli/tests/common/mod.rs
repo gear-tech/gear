@@ -117,7 +117,8 @@ pub async fn create_messager() -> Result<Node> {
     let mut node = dev()?;
     node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let args = Args::new("upload").program(env::wasm_bin("messager.opt.wasm"));
+    let args = Args::new("upload").program(env::wasm_bin("demo_messager.opt.wasm"));
+
     #[cfg(not(feature = "vara-testing"))]
     let args = args
         .payload("0x".to_owned() + &hex::encode(MESSAGER_SENT_VALUE.encode()))

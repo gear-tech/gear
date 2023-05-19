@@ -31,5 +31,13 @@ gsdk-codegen = { path = "codegen" }
 # deps for features `testing`
 rand = { workspace = true, optional = true }
 
+[dev-dependencies]
+gsdk = { path = ".", features = ["testing"] }
+tokio = { workspace = true, features = [ "full" ] }
+demo-messager.workspace = true
+demo-new-meta.workspace = true
+demo-waiter.workspace = true
+
 [features]
 testing = [ "rand" ]
+vara-testing = []

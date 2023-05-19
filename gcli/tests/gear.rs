@@ -22,7 +22,6 @@ use std::path::PathBuf;
 
 mod cmd;
 mod common;
-mod rpc;
 
 #[tokio::test]
 async fn api_timeout() {

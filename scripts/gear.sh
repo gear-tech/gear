@@ -307,6 +307,10 @@ case "$COMMAND" in
         header "Running gear tests"
         workspace_test "$@"; ;;
 
+      gsdk)
+        header "Running gsdk tests"
+        gsdk_test "$@"; ;;
+
       gcli)
         header "Running gcli tests"
         gcli_test "$@"; ;;

@@ -255,6 +255,9 @@ jobs:
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client
 
+      - name: "Test: gsdk tests"
+        run: ./scripts/gear.sh test gsdk
+
       - name: "Test: Process node runtime spec tests"
         run: |
           cargo build -p gear-cli --release --features=runtime-test
@@ -490,6 +493,9 @@ jobs:
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client
+
+      - name: "Test: gsdk tests"
+        run: ./scripts/gear.sh test gsdk
 
       - name: "Test: Process node runtime spec tests"
         run: |
