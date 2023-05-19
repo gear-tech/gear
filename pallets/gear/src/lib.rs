@@ -53,7 +53,7 @@ use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
     CodeStorage, GasPrice, GasProvider, GasTree, Origin, PausedProgramStorage, Program,
-    ProgramRentConfig, ProgramState, ProgramStorage, QueueRunner,
+    ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -129,9 +129,8 @@ pub type GasNodeIdOf<T> = <GasHandlerOf<T> as GasTree>::NodeId;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
 pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
-pub type RentFreePeriodOf<T> = <<T as Config>::ProgramRentConfig as ProgramRentConfig>::FreePeriod;
-pub type RentCostPerBlockOf<T> =
-    <<T as Config>::ProgramRentConfig as ProgramRentConfig>::CostPerBlock;
+pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
+pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -264,10 +263,17 @@ pub mod pallet {
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
 
-        type ProgramRentConfig: ProgramRentConfig<
-            BlockNumber = Self::BlockNumber,
-            Balance = BalanceOf<Self>,
-        >;
+        /// The free of charge period of rent.
+        #[pallet::constant]
+        type ProgramRentFreePeriod: Get<BlockNumberFor<Self>>;
+
+        /// The minimal amount of blocks to resume.
+        #[pallet::constant]
+        type ProgramRentMinimalResumePeriod: Get<BlockNumberFor<Self>>;
+
+        /// The program rent cost per block.
+        #[pallet::constant]
+        type ProgramRentCostPerBlock: Get<BalanceOf<Self>>;
     }
 
     #[pallet::pallet]
