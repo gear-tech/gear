@@ -2,8 +2,8 @@ use gear_backend_common::lazy_pages::LazyPagesWeights;
 use gear_core_processor::configs::PageCosts;
 use pallet_gear::InstructionWeights;
 
-const INSTRUCTIONS_SPREAD: u64 = 50;
-const PAGES_SPREAD: u64 = 10;
+const INSTRUCTIONS_SPREAD: u8 = 50;
+const PAGES_SPREAD: u8 = 10;
 
 #[track_caller]
 fn check_spreading(weight: u64, expected: u64, spread: u8) {
