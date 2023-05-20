@@ -418,7 +418,9 @@ benchmarks! {
         init_block::<T>(None);
     }: _(RawOrigin::Signed(caller.clone()), original_message_id)
     verify {
-        assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
+        let auto_reply = QueueOf::<T>::dequeue().expect("Error in algorithm").expect("Element should be");
+        assert!(auto_reply.payload().is_empty());
+        assert_eq!(auto_reply.status_code().expect("Should be"), 0);
         assert!(MailboxOf::<T>::is_empty(&caller));
     }
 
