@@ -61,7 +61,7 @@ use scale_info::{
     TypeInfo,
 };
 
-pub use crate::utils::TrimmedString;
+pub use crate::utils::{LimitedStr, TrimmedString};
 pub use log;
 
 pub const PTR_SPECIAL: u32 = u32::MAX;
