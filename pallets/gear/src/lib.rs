@@ -16,6 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+// TODO (breathx):
+// - [ ] add error
+// - [ ] deny syscalls
+// - [ ] don't insert replies into mailbox
+// - [ ] remove limitations on gas limit for reply from syscall
+// - [ ] fix demos and tests
+// - [ ] write test that reply banned in handle_reply + reply never added into Mailbox
+
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "512")]
 
