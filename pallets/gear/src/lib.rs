@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 // TODO (breathx):
-// - [ ] add error
+// - [x] add error
 // - [ ] deny syscalls
 // - [ ] don't insert replies into mailbox
 // - [ ] remove limitations on gas limit for reply from syscall
