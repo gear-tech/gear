@@ -3881,10 +3881,13 @@ dependencies = [
  "frame-support",
  "frame-system",
  "frame-system-benchmarking",
+ "gear-backend-common",
  "gear-common",
+ "gear-core-processor",
  "gear-runtime-primitives",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gear",
  "sp-runtime",
  "sp-std 5.0.0",
 ]
