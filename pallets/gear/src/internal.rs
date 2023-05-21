@@ -325,7 +325,7 @@ where
     /// Basic invariant is that we can't charge for storing an item more than had been deposited,
     /// regardless whether storage costs or the safety margin have changed in the meantime
     /// (via storage migration). The actual "prepaid" amount is determined through releasing
-    /// the lock corresponding to the `storage_type` inside the fucntion.
+    /// the lock corresponding to the `storage_type` inside the function.
     ///
     /// `id` - parameter convertible to the respective gas node id;
     /// `hold_interval` - determines the time interval to charge rent for;
@@ -640,7 +640,7 @@ where
             // Message is going to be inserted into mailbox.
             //
             // No hold bound checks required, because gas_limit isn't less than threshold.
-            to_mailbox = gas_limit >= threshold;
+            to_mailbox = !dispatch.is_reply() && gas_limit >= threshold;
             let gas_amount = if to_mailbox {
                 // Cutting gas for storing in mailbox.
                 gas_for_delay.saturating_add(gas_limit)
@@ -743,7 +743,7 @@ where
         // Saving id to allow moving dispatch further.
         let message_id = dispatch.id();
 
-        // Add block number of insertation.
+        // Add block number of insertion.
         let start_bn = Self::block_number();
         let delay_interval = Interval {
             start: start_bn,
@@ -826,7 +826,7 @@ where
 
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
-        let expiration = if !message.is_error_reply() && gas_limit >= threshold {
+        let expiration = if !message.is_reply() && gas_limit >= threshold {
             // Figuring out hold bound for given gas limit.
             let hold = HoldBoundBuilder::<T>::new(StorageType::Mailbox).maximum_for(gas_limit);
 
