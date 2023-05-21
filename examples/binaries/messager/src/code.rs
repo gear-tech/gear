@@ -32,5 +32,5 @@ extern "C" fn handle() {
 
 #[no_mangle]
 extern "C" fn handle_reply() {
-    msg::reply(REPLY_REPLY, 0).unwrap();
+    msg::send(msg::source(), REPLY_REPLY, 0).unwrap();
 }

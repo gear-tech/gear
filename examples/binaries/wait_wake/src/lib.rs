@@ -67,9 +67,6 @@ extern "C" fn handle() {
     }
 }
 
-#[no_mangle]
-extern "C" fn handle_reply() {}
-
 #[cfg(test)]
 mod tests {
     extern crate std;
