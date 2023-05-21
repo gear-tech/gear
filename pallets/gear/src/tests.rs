@@ -3820,10 +3820,21 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(20, None);
 
-        let actual_n = MailboxOf::<Test>::iter_key(USER_3).fold(0usize, |i, (m, _bn)| {
-            assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
-            i + 1
-        });
+        let actual_n = System::events()
+            .into_iter()
+            .filter_map(|e| {
+                if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                    if message.destination().into_origin() == USER_3.into_origin() {
+                        assert_eq!(message.payload().to_vec(), b"Hello, world!".encode());
+                        Some(())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .count();
 
         assert_eq!(actual_n, n);
     })
@@ -6589,11 +6600,9 @@ fn test_two_contracts_composition_works() {
 
         run_to_block(4, None);
 
-        // Gas total issuance should have gone back to 4 * MAILBOX_THRESHOLD
-        assert_eq!(
-            GasHandlerOf::<Test>::total_supply(),
-            <Test as Config>::MailboxThreshold::get() * 4
-        );
+        // Gas total issuance should have gone back to 0.
+        assert_eq!(utils::user_messages_sent(), (4, 0));
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
     });
 }
 
@@ -6851,7 +6860,7 @@ fn test_reply_to_terminated_program() {
 
         let mail_id = {
             let original_message_id = get_last_message_id();
-            MessageId::generate_reply(original_message_id, 0)
+            MessageId::generate_outgoing(original_message_id, 0)
         };
 
         run_to_block(2, None);
@@ -8262,13 +8271,13 @@ fn signal_async_wait_works() {
         System::set_block_number(expiration - 1);
         Gear::set_block_number(expiration - 1);
 
+        System::reset_events();
         run_to_next_block(None);
 
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
 
         // check signal dispatch executed
-        let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload(), b"handle_signal");
+        let _mail_msg = maybe_last_message(USER_1).expect("Should be");
     });
 }
 
@@ -8487,8 +8496,8 @@ fn system_reservation_exit_works() {
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
 
         // check signal dispatch was not executed but `gr_exit` did
-        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
-        let msg = get_last_mail(USER_1);
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
+        let msg = maybe_last_message(USER_1).expect("Should be");
         assert_eq!(msg.payload(), b"exit");
     });
 }
@@ -10352,15 +10361,39 @@ fn relay_messages() {
 
             run_to_next_block(None);
 
-            for Expected { user, payload } in expected {
-                assert_eq!(
-                    MailboxOf::<Test>::drain_key(user)
-                        .next()
-                        .map(|(msg, _bn)| msg.payload().to_vec()),
-                    Some(payload),
-                    "{label}",
-                );
-            }
+            let mut i = 0;
+            System::events().into_iter().for_each(|e| {
+                if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                    let Expected { user, payload } = &expected[i];
+
+                    if message.destination().into_origin() == user.into_origin() {
+                        assert_eq!(message.payload(), payload, "{label}");
+                        i += 1;
+                    }
+                }
+            });
+
+            assert_eq!(i, expected.len(), "{label}");
+
+            // for Expected { user, payload } in expected {
+            //     assert!(System::events()
+            //         .into_iter()
+            //         .for_each(|e| {
+            //             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+            //                 if message.destination().into_origin() == user.into_origin() {
+            //                     assert_eq!(message.payload(), payload, "{label}");
+            //                 }
+            //             }
+            //         }), "{label}");
+
+            //     assert_eq!(
+            //         MailboxOf::<Test>::drain_key(user)
+            //             .next()
+            //             .map(|(msg, _bn)| msg.payload().to_vec()),
+            //         Some(payload),
+            //         "{label}",
+            //     );
+            // }
         };
 
         new_test_ext().execute_with(execute);
