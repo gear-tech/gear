@@ -839,11 +839,6 @@ where
             GasHandlerOf::<T>::cut(msg_id, message.id(), gas_limit)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-            // TODO: adapt this line if gasful sending appears for reservations (#1828)
-            if let Some(reservation_id) = reservation {
-                Self::remove_gas_reservation_with_task(message.source(), reservation_id);
-            }
-
             // Reserving value from source for future transfer or unreserve.
             CurrencyOf::<T>::reserve(&from, value)
                 .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
@@ -873,6 +868,11 @@ where
             // No expiration block due to absence of insertion in storage.
             None
         };
+
+        // TODO: adapt if gasful sending appears for reservations (#1828)
+        if let Some(reservation_id) = reservation {
+            Self::remove_gas_reservation_with_task(message.source(), reservation_id);
+        }
 
         // Depositing appropriate event.
         Self::deposit_event(Event::UserMessageSent {

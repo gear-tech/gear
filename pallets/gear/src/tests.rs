@@ -7903,7 +7903,7 @@ fn reply_from_reservation() {
 
             run_to_block(3, None);
 
-            let msg = get_last_mail(USER_1);
+            let msg = maybe_last_message(USER_1).expect("Should be");
             assert_eq!(msg.value(), 900);
             assert_eq!(msg.payload(), b"reply_to_user");
             let map = get_reservation_map(pid).unwrap();
@@ -7931,7 +7931,7 @@ fn reply_from_reservation() {
 
             assert_succeed(mid);
 
-            let msg = get_last_mail(USER_1);
+            let msg = maybe_last_message(USER_1).expect("Should be");
             assert_eq!(msg.value(), 900);
             assert_eq!(msg.payload(), b"reply");
             let map = get_reservation_map(pid).unwrap();
@@ -7955,7 +7955,7 @@ fn reply_from_reservation() {
 
             run_to_block(6, None);
 
-            let msg = get_last_mail(USER_1);
+            let msg = maybe_last_message(USER_1).expect("Should be");
             assert_eq!(msg.value(), 1000);
             assert_eq!(msg.payload(), b"reply_to_user_delayed");
             let map = get_reservation_map(pid).unwrap();
@@ -7986,7 +7986,7 @@ fn reply_from_reservation() {
 
             run_to_block(8, None);
 
-            let msg = get_last_mail(USER_1);
+            let msg = maybe_last_message(USER_1).expect("Should be");
             assert_eq!(msg.value(), 1000);
             assert_eq!(msg.payload(), b"reply_delayed");
             let map = get_reservation_map(pid).unwrap();
