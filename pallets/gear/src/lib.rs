@@ -18,11 +18,14 @@
 
 // TODO (breathx):
 // - [x] add error
-// - [ ] deny syscalls
+// - [x] deny syscalls
 // - [ ] don't insert replies into mailbox
 // - [ ] remove limitations on gas limit for reply from syscall
 // - [ ] fix demos and tests
-// - [ ] write test that reply banned in handle_reply + reply never added into Mailbox
+// - [ ] write tests:
+//       - [ ] that reply banned in handle_reply
+//       - [ ] reply never added into Mailbox
+// - [ ] WasmProgram trait: handle_reply
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "512")]

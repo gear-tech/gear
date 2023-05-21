@@ -235,6 +235,14 @@ impl MessageContext {
         &self.settings
     }
 
+    fn check_reply_availability(&self) -> Result<(), Error> {
+        if !matches!(self.kind, DispatchKind::Init | DispatchKind::Handle) {
+            return Err(Error::IncorrectEntryForReply);
+        }
+
+        Ok(())
+    }
+
     /// Send a new program initialization message.
     ///
     /// Generates a new message from provided data packet.
@@ -384,6 +392,8 @@ impl MessageContext {
         delay: u32,
         reservation: Option<ReservationId>,
     ) -> Result<MessageId, Error> {
+        self.check_reply_availability()?;
+
         if !self.store.reply_sent {
             let data = self.store.reply.take().unwrap_or_default();
 
@@ -409,6 +419,8 @@ impl MessageContext {
 
     /// Pushes payload into stored reply payload.
     pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
+        self.check_reply_availability()?;
+
         if !self.store.reply_sent {
             let data = self.store.reply.get_or_insert_with(Default::default);
             data.try_extend_from_slice(buffer)
@@ -427,6 +439,8 @@ impl MessageContext {
 
     /// Pushes the incoming message buffer into stored reply payload.
     pub fn reply_push_input(&mut self, range: CheckedRange) -> Result<(), Error> {
+        self.check_reply_availability()?;
+
         if !self.store.reply_sent {
             let CheckedRange {
                 offset,
