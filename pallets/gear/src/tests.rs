@@ -3463,25 +3463,17 @@ fn distributor_distribute() {
 
         run_to_block(3, None);
 
-        // We sent two messages in mailbox
-        let mail_box_len = 2;
-        assert_eq!(MailboxOf::<Test>::len(&USER_1), mail_box_len);
+        // We sent two messages to user
+        assert_eq!(utils::user_messages_sent(), (2, 0));
 
         // Despite some messages are still in the mailbox all gas locked in value trees
         // has been refunded to the sender so the free balances should add up
         let final_balance = Balances::free_balance(USER_1) + Balances::free_balance(BLOCK_AUTHOR);
 
-        let mailbox_threshold_gas_limit =
-            mail_box_len as u64 * <Test as Config>::MailboxThreshold::get();
-        let mailbox_threshold_reserved =
-            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
-        assert_eq!(initial_balance - mailbox_threshold_reserved, final_balance);
+        assert_eq!(initial_balance, final_balance);
 
         // All gas cancelled out in the end
-        assert_eq!(
-            GasHandlerOf::<Test>::total_supply(),
-            mailbox_threshold_gas_limit
-        );
+        assert!(GasHandlerOf::<Test>::total_supply().is_zero());
     });
 }
 
@@ -3767,12 +3759,11 @@ fn defer_program_initialization() {
 
         run_to_block(4, None);
 
-        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
         assert_eq!(
-            MailboxOf::<Test>::iter_key(USER_1)
-                .next()
-                .map(|(msg, _bn)| msg.payload().to_vec())
-                .expect("Element should be"),
+            maybe_last_message(USER_1)
+                .expect("Event should be")
+                .payload(),
             b"Hello, world!".encode()
         );
     })
@@ -6941,7 +6932,13 @@ fn delayed_sending() {
             run_to_next_block(None);
         }
 
-        assert_eq!(get_last_mail(USER_1).payload(), b"Delayed hello!");
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+        assert_eq!(
+            maybe_last_message(USER_1)
+                .expect("Event should be")
+                .payload(),
+            b"Delayed hello!".encode()
+        );
     });
 }
 
@@ -7071,14 +7068,10 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         let user_initial_balance = Balances::free_balance(USER_1);
 
-        let mailbox_threshold_reserved =
-            <Test as Config>::GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
-
         assert_eq!(user_balance_before_calculating, user_initial_balance);
-        assert_eq!(
-            Balances::reserved_balance(USER_1),
-            mailbox_threshold_reserved * 2
-        );
+        // Zero because no message added into mailbox.
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -7092,27 +7085,15 @@ fn cascading_messages_with_value_do_not_overcharge() {
         let gas_reserved = GasPrice::gas_price(gas_reserved);
         let reserved_balance = gas_reserved + value;
 
-        assert_eq!(
-            Balances::free_balance(USER_1),
-            user_initial_balance - reserved_balance
+        assert_balance(
+            USER_1,
+            user_initial_balance - reserved_balance,
+            reserved_balance,
         );
-
-        assert_eq!(
-            Balances::reserved_balance(USER_1),
-            reserved_balance + mailbox_threshold_reserved * 2
-        );
-
         run_to_block(5, None);
 
-        assert_eq!(
-            Balances::reserved_balance(USER_1),
-            mailbox_threshold_reserved * 3
-        );
-
-        assert_eq!(
-            Balances::free_balance(USER_1),
-            user_initial_balance - gas_to_spend - value - mailbox_threshold_reserved
-        );
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+        assert_balance(USER_1, user_initial_balance - gas_to_spend - value, 0u128);
     });
 }
 
@@ -9881,6 +9862,28 @@ mod utils {
                 None
             }
         })
+    }
+
+    #[track_caller]
+    // returns (amount of messages sent, amount of messages sent **to mailbox**)
+    pub(super) fn user_messages_sent() -> (usize, usize) {
+        let mut total = 0;
+        let mut to_mailbox = 0;
+
+        System::events().into_iter().for_each(|e| {
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent {
+                message,
+                expiration,
+            }) = e.event
+            {
+                total += 1;
+                if expiration.is_some() {
+                    to_mailbox += 1;
+                }
+            };
+        });
+
+        (total, to_mailbox)
     }
 
     #[track_caller]
