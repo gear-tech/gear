@@ -23,8 +23,8 @@
 // - [x] remove reply_for_reply etc api from gstd and gcore
 // - [x] fix demos and tests
 // - [x] remove limitations on gas limit for reply from syscall
-// - [ ] adjust error replies
-// - [ ] fix tests one more time
+// - [x] adjust error replies
+// - [x] fix tests one more time
 // - [ ] write tests:
 //       - [ ] that reply banned in handle_reply
 //       - [ ] reply never added into Mailbox

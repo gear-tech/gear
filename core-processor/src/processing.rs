@@ -218,7 +218,7 @@ pub fn process_error(
         journal.push(JournalNote::SystemUnreserveGas { message_id });
     }
 
-    if !dispatch.is_error_reply() && dispatch.kind() != DispatchKind::Signal {
+    if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
         // This expect panic is unreachable, unless error message is too large or max payload size is too small.
         let err_payload = err
             .to_string()
@@ -481,7 +481,7 @@ pub fn process_non_executable(
     }
 
     // Reply back to the message `source`
-    if !dispatch.is_error_reply() {
+    if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
         // This expect panic is unreachable, unless error message is too large or max payload size is too small.
         let err = SimpleReplyError::NonExecutable;
         let err_payload = err

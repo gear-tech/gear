@@ -344,7 +344,11 @@ impl Ext {
         Ok(())
     }
 
-    fn charge_expiring_resources<T: Packet>(&mut self, packet: &T, check_gas_limit: bool) -> Result<(), ProcessorError> {
+    fn charge_expiring_resources<T: Packet>(
+        &mut self,
+        packet: &T,
+        check_gas_limit: bool,
+    ) -> Result<(), ProcessorError> {
         self.check_message_value(packet.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         let gas_limit = if check_gas_limit {
