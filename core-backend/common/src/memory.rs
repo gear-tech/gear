@@ -180,15 +180,17 @@ impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
     }
 
     fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
-        self.writes.push(MemoryInterval { offset: ptr, size });
+        if size > 0 {
+            self.writes.push(MemoryInterval { offset: ptr, size });
+        }
         WasmMemoryWrite { ptr, size }
     }
 
     fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
-        self.writes.push(MemoryInterval {
-            offset: ptr,
-            size: size_of::<T>() as u32,
-        });
+        let size = size_of::<T>() as u32;
+        if size > 0 {
+            self.writes.push(MemoryInterval { offset: ptr, size });
+        }
         WasmMemoryWriteAs {
             ptr,
             _phantom: PhantomData,
@@ -284,8 +286,12 @@ impl<E: BackendExt> MemoryAccessManager<E> {
         if buff.len() != write.size as usize {
             unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
         }
-        self.pre_process_memory_accesses(gas_left)?;
-        memory.write(write.ptr, buff).map_err(Into::into)
+        if write.size == 0 {
+            Ok(())
+        } else {
+            self.pre_process_memory_accesses(gas_left)?;
+            memory.write(write.ptr, buff).map_err(Into::into)
+        }
     }
 
     /// Pre-process registered accesses if need and write `obj` data to `memory`.
@@ -307,19 +313,23 @@ fn write_memory_as<T: Sized>(
     ptr: u32,
     obj: T,
 ) -> Result<(), MemoryError> {
-    // # Safety:
-    //
-    // Given object is `Sized` and we own them in the context of calling this
-    // function (it's on stack), it's safe to take ptr on the object and
-    // represent it as slice. Object will be dropped after `memory.write`
-    // finished execution and no one will rely on this slice.
-    //
-    // Bytes in memory always stored continuously and without paddings, properly
-    // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-    let slice =
-        unsafe { slice::from_raw_parts(&obj as *const T as *const u8, mem::size_of::<T>()) };
+    let size = mem::size_of::<T>();
+    if size > 0 {
+        // # Safety:
+        //
+        // Given object is `Sized` and we own them in the context of calling this
+        // function (it's on stack), it's safe to take ptr on the object and
+        // represent it as slice. Object will be dropped after `memory.write`
+        // finished execution and no one will rely on this slice.
+        //
+        // Bytes in memory always stored continuously and without paddings, properly
+        // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
+        let slice = unsafe { slice::from_raw_parts(&obj as *const T as *const u8, size) };
 
-    memory.write(ptr, slice)
+        memory.write(ptr, slice)
+    } else {
+        Ok(())
+    }
 }
 
 /// Reads bytes from given pointer to construct type T from them.

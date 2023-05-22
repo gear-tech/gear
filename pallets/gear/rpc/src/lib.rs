@@ -46,7 +46,7 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
     .into()
 }
 
-#[rpc(client, server)]
+#[rpc(server)]
 pub trait GearApi<BlockHash, ResponseType> {
     #[method(name = "gear_calculateInitCreateGas")]
     fn get_init_create_gas_spent(

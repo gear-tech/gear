@@ -40,7 +40,7 @@ impl CrateInfo {
     pub fn from_manifest(manifest_path: &Path) -> Result<Self> {
         anyhow::ensure!(
             manifest_path.exists(),
-            BuilderError::InvalidManifestPath(manifest_path.to_path_buf())
+            BuilderError::ManifestPathInvalid(manifest_path.to_path_buf())
         );
 
         let mut meta_cmd = MetadataCommand::new();
@@ -92,7 +92,7 @@ impl CrateInfo {
             .find(|target| {
                 target.name.eq(&pkg.name) && target.crate_types.iter().any(validated_lib)
             })
-            .ok_or(BuilderError::InvalidCrateType)?;
+            .ok_or(BuilderError::CrateTypeInvalid)?;
 
         Ok(pkg)
     }

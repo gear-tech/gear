@@ -172,17 +172,6 @@ parameter_types! {
     pub RentResumePeriod: BlockNumber = 100;
 }
 
-pub struct ProgramRentConfig;
-
-impl common::ProgramRentConfig for ProgramRentConfig {
-    type BlockNumber = BlockNumber;
-    type Balance = Balance;
-
-    type FreePeriod = RentFreePeriod;
-    type CostPerBlock = RentCostPerBlock;
-    type MinimalResumePeriod = RentResumePeriod;
-}
-
 impl pallet_gear::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = TestRandomness<Self>;
@@ -201,7 +190,9 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
-    type ProgramRentConfig = ProgramRentConfig;
+    type ProgramRentFreePeriod = RentFreePeriod;
+    type ProgramRentMinimalResumePeriod = RentResumePeriod;
+    type ProgramRentCostPerBlock = RentCostPerBlock;
 }
 
 impl pallet_gear_program::Config for Test {

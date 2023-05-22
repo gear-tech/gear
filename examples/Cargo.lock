@@ -162,13 +162,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-block-info"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-bot"
 version = "0.1.0"
 dependencies = [
@@ -199,43 +192,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-create-program"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "hex-literal",
-]
-
-[[package]]
-name = "demo-decoder"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-fib"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-futures-unordered"
 version = "0.1.0"
 dependencies = [
  "futures",
  "gstd",
  "hex",
-]
-
-[[package]]
-name = "demo-gui-test"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
@@ -253,25 +215,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-mem"
-version = "0.1.0"
-dependencies = [
- "gcore",
- "gstd",
-]
-
-[[package]]
 name = "demo-minimal"
 version = "0.1.0"
 dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-multiping"
-version = "0.1.0"
-dependencies = [
- "gcore",
  "gstd",
 ]
 
@@ -343,21 +289,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-state-rollback"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-status-code"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-sum"
 version = "0.1.0"
 dependencies = [
  "gstd",
@@ -370,13 +302,6 @@ dependencies = [
  "gcore",
  "gstd",
  "hex",
-]
-
-[[package]]
-name = "demo-vec"
-version = "0.1.0"
-dependencies = [
- "gstd",
 ]
 
 [[package]]

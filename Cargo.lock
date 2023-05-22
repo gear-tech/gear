@@ -1975,13 +1975,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-meta"
+name = "demo-messager"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
@@ -3457,6 +3455,7 @@ dependencies = [
  "base64 0.21.1",
  "clap 4.3.0",
  "color-eyre",
+ "demo-messager",
  "demo-new-meta",
  "demo-waiter",
  "dirs",
@@ -3472,7 +3471,6 @@ dependencies = [
  "lazy_static",
  "libp2p",
  "log",
- "messager",
  "nacl",
  "rand 0.8.5",
  "scale-info",
@@ -3498,7 +3496,6 @@ dependencies = [
  "demo-distributor",
  "demo-exit-handle-sender",
  "demo-gasless-wasting",
- "demo-meta",
  "demo-meta-io",
  "demo-mul-by-const",
  "demo-node",
@@ -3883,7 +3880,9 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gear-backend-common",
  "gear-common",
+ "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "hex-literal 0.3.4",
@@ -3900,6 +3899,8 @@ dependencies = [
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-scheduler",
  "pallet-grandpa",
+ "pallet-multisig",
+ "pallet-proxy",
  "pallet-session",
  "pallet-sudo",
  "pallet-timestamp",
@@ -3919,6 +3920,7 @@ dependencies = [
  "sp-std 5.0.0",
  "sp-transaction-pool",
  "sp-version",
+ "static_assertions",
  "substrate-validator-set",
  "substrate-wasm-builder",
 ]
@@ -3931,10 +3933,13 @@ dependencies = [
  "frame-support",
  "frame-system",
  "frame-system-benchmarking",
+ "gear-backend-common",
  "gear-common",
+ "gear-core-processor",
  "gear-runtime-primitives",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gear",
  "sp-runtime",
  "sp-std 5.0.0",
 ]
@@ -4147,6 +4152,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gmeta",
  "log",
+ "once_cell",
  "pathdiff",
  "pwasm-utils",
  "regex",
@@ -4371,9 +4377,14 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "base64 0.21.1",
+ "demo-messager",
+ "demo-new-meta",
+ "demo-waiter",
  "futures",
  "futures-util",
  "gear-core",
+ "gsdk",
+ "gsdk-codegen",
  "hex",
  "jsonrpsee",
  "log",
@@ -4386,6 +4397,16 @@ dependencies = [
  "sp-runtime",
  "subxt",
  "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "gsdk-codegen"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -6090,14 +6111,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "messager"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
 name = "mimalloc"
 version = "0.1.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7048,6 +7061,7 @@ dependencies = [
  "sp-runtime",
  "sp-sandbox",
  "sp-std 5.0.0",
+ "static_assertions",
  "test-syscalls",
  "wabt",
 ]
@@ -7190,6 +7204,11 @@ dependencies = [
  "gear-core",
  "hashbrown 0.13.2",
  "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear-gas",
+ "pallet-gear-scheduler",
+ "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -7349,6 +7368,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-multisig"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary#34efda72d128b336f3afd72d70098deccd79c6c2"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 5.0.0",
+]
+
+[[package]]
 name = "pallet-preimage"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary#34efda72d128b336f3afd72d70098deccd79c6c2"
@@ -7360,6 +7395,21 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 5.0.0",
+]
+
+[[package]]
+name = "pallet-proxy"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary#34efda72d128b336f3afd72d70098deccd79c6c2"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
  "sp-io",
  "sp-runtime",
  "sp-std 5.0.0",
@@ -12551,7 +12601,9 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gear-backend-common",
  "gear-common",
+ "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "hex-literal 0.3.4",
@@ -12576,7 +12628,9 @@ dependencies = [
  "pallet-grandpa",
  "pallet-identity",
  "pallet-im-online",
+ "pallet-multisig",
  "pallet-preimage",
+ "pallet-proxy",
  "pallet-ranked-collective",
  "pallet-referenda",
  "pallet-scheduler",
