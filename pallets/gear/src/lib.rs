@@ -16,21 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// TODO (breathx):
-// - [x] add error
-// - [x] deny syscalls
-// - [x] don't insert replies into mailbox
-// - [x] remove reply_for_reply etc api from gstd and gcore
-// - [x] fix demos and tests
-// - [x] remove limitations on gas limit for reply from syscall
-// - [x] adjust error replies
-// - [x] fix tests one more time
-// - [x] WasmProgram trait: handle_reply
-// - [x] write tests:
-//       - [x] that reply banned in handle_reply
-//       - [x] ~~reply never added into Mailbox~~ (indirectly tested)
-//       - [x] reply can be sent with 1 gas
-
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "512")]
 
