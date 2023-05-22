@@ -3,6 +3,7 @@ use ft_io::*;
 use gclient::{EventProcessor, GearApi, Result, WSAddress};
 use gstd::{vec, ActorId, Encode, Vec};
 
+/// Path to the gear node binary.
 const GEAR_PATH: &str = "../../../target/release/gear";
 
 /// This constant defines the number of messages in the batch.
@@ -49,7 +50,7 @@ async fn stress_test() -> Result<()> {
     let mut batch: Vec<FTAction> = vec![];
 
     for user in users {
-        let api = GearApi::init_with(WSAddress::dev(), user).await?;
+        let api = api.clone().with(user)?;
         let actor_id =
             ActorId::from_slice(&api.account_id().encode()).expect("failed to create actor id");
 
