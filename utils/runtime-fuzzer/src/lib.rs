@@ -91,21 +91,22 @@ fn generate_gear_call<Rng: CallGenRng>(seed: u64, context: &ContextMutex) -> Gea
     let mut rand = Rng::seed_from_u64(seed);
     let programs = context.lock().programs.clone();
 
+    let gas_limit = rand.gen_range(0..=default_gas_limit());
+
     match rand.gen_range(0..=1) {
         0 => UploadProgramArgs::generate::<Rng>(
             (programs, rand.next_u64(), rand.next_u64()),
-            (default_gas_limit(), config),
+            (gas_limit, config),
         )
         .into(),
         1 => match NonEmpty::from_vec(context.lock().programs.clone()) {
-            Some(existing_programs) => SendMessageArgs::generate::<Rng>(
-                (existing_programs, rand.next_u64()),
-                (default_gas_limit(),),
-            )
-            .into(),
+            Some(existing_programs) => {
+                SendMessageArgs::generate::<Rng>((existing_programs, rand.next_u64()), (gas_limit,))
+                    .into()
+            }
             None => UploadProgramArgs::generate::<Rng>(
                 (programs, rand.next_u64(), rand.next_u64()),
-                (default_gas_limit(), config),
+                (gas_limit, config),
             )
             .into(),
         },
