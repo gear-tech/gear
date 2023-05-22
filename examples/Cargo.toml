@@ -19,7 +19,6 @@ members = [
     "capacitor",
     "collector",
     "status-code",
-    "fib",
     "futures-unordered",
     "guestbook",
     "incomplete_async_payloads",
