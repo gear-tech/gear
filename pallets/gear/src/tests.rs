@@ -7415,12 +7415,6 @@ fn test_async_messages() {
 
         let pid = get_last_program_id();
         for kind in &[
-            Kind::Reply,
-            Kind::ReplyWithGas(DEFAULT_GAS_LIMIT),
-            Kind::ReplyBytes,
-            Kind::ReplyBytesWithGas(DEFAULT_GAS_LIMIT),
-            Kind::ReplyCommit,
-            Kind::ReplyCommitWithGas(DEFAULT_GAS_LIMIT),
             Kind::Send,
             Kind::SendWithGas(DEFAULT_GAS_LIMIT),
             Kind::SendBytes,

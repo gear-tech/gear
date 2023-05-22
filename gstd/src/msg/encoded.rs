@@ -109,7 +109,6 @@ pub fn load<D: Decode>() -> Result<D> {
 /// - [`reply_push`](super::reply_push), [`reply_commit`](super::reply_commit)
 ///   functions allow forming a reply message in parts.
 /// - [`send`] function sends a new message to the program or user.
-#[wait_for_reply]
 pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
     super::reply_bytes(payload.encode(), value)
 }
@@ -156,7 +155,6 @@ pub fn reply_delayed<E: Encode>(payload: E, value: u128, delay: u32) -> Result<M
 ///
 /// - [`send_from_reservation`] function sends a new message to the program or
 ///   user by using gas from a reservation.
-#[wait_for_reply]
 pub fn reply_from_reservation<E: Encode>(
     id: ReservationId,
     payload: E,
@@ -200,7 +198,6 @@ pub fn reply_delayed_from_reservation<E: Encode>(
 ///     msg::reply_with_gas(payload, exec::gas_available() / 2, 0).expect("Unable to reply");
 /// }
 /// ```
-#[wait_for_reply]
 pub fn reply_with_gas<E: Encode>(payload: E, gas_limit: u64, value: u128) -> Result<MessageId> {
     super::reply_bytes_with_gas(payload.encode(), gas_limit, value)
 }
@@ -243,7 +240,6 @@ pub fn reply_with_gas_delayed<E: Encode>(
 /// - [`MessageHandle::push_input`](super::MessageHandle::push_input) function
 ///   allows using the input buffer as a payload source for an outcoming
 ///   message.
-#[wait_for_reply]
 pub fn reply_input<Range: RangeBounds<usize>>(value: u128, range: Range) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
@@ -263,7 +259,6 @@ pub fn reply_input_delayed<Range: RangeBounds<usize>>(
 }
 
 /// Same as [`reply_input`], but with an explicit gas limit.
-#[wait_for_reply]
 pub fn reply_input_with_gas<Range: RangeBounds<usize>>(
     gas_limit: u64,
     value: u128,
