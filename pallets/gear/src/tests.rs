@@ -108,17 +108,16 @@ fn auto_reply_sent() {
 
         // asserting auto_reply
         assert!(System::events().into_iter().any(|e| {
-            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                if message.destination().into_origin() == USER_1.into_origin() {
+            match e.event {
+                MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. })
+                    if message.destination().into_origin() == USER_1.into_origin() =>
+                {
                     message
                         .details()
                         .and_then(|d| d.to_reply_details().map(|d| d.status_code() == 0))
                         .unwrap_or(false)
-                } else {
-                    false
                 }
-            } else {
-                false
+                _ => false,
             }
         }));
 
@@ -209,7 +208,8 @@ fn auto_reply_out_of_rent_waitlist() {
 
         run_to_next_block(None);
 
-        assert_last_dequeued(2); // message to proxy program and its message to waiter
+        // Message to proxy program and its message to waiter.
+        assert_last_dequeued(2);
         let (_msg_waited, expiration) = get_last_message_waited();
 
         // Hack to fast spend blocks till expiration.
@@ -217,8 +217,9 @@ fn auto_reply_out_of_rent_waitlist() {
         Gear::set_block_number(expiration - 1);
 
         run_to_next_block(None);
-        assert_last_dequeued(2); // Signal for waiter program since it has system reservation
-                                 // + auto error reply to proxy contract
+        // Signal for waiter program since it has system reservation
+        // + auto error reply to proxy contract.
+        assert_last_dequeued(2);
     });
 }
 
