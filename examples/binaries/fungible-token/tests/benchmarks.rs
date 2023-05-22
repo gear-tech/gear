@@ -1,6 +1,6 @@
 use demo_fungible_token::WASM_BINARY;
 use ft_io::*;
-use gclient::{EventProcessor, GearApi, Result, WSAddress};
+use gclient::{EventProcessor, GearApi, Result};
 use gstd::{vec, ActorId, Encode, Vec};
 
 /// Path to the gear node binary.
