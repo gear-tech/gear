@@ -20,7 +20,7 @@
 
 use codec::{Decode, Encode};
 use gstd::{
-    errors::{ContractError, ExtError},
+    errors::{ContractError, ExtError, ReservationError},
     exec, msg,
     prelude::*,
     MessageId, ReservationId,
@@ -33,9 +33,9 @@ mod code {
 
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
-use gstd::errors::ReservationError;
 
 static mut RESERVATION_ID: Option<ReservationId> = None;
+static mut RESERVATIONS: Vec<ReservationId> = Vec::new();
 static mut INIT_MSG: MessageId = MessageId::new([0; 32]);
 static mut WAKE_STATE: WakeState = WakeState::Initial;
 
@@ -61,6 +61,9 @@ pub enum HandleAction {
     Unreserve,
     Exit,
     ReplyFromReservation,
+    AddReservationToList(GasAmount, BlockCount),
+    ConsumeReservationsFromList,
+    RunInifitely,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -68,6 +71,9 @@ pub enum ReplyAction {
     Panic,
     Exit,
 }
+
+pub type GasAmount = u64;
+pub type BlockCount = u32;
 
 #[no_mangle]
 extern "C" fn init() {
@@ -161,6 +167,33 @@ extern "C" fn handle() {
             let id = unsafe { RESERVATION_ID.take().unwrap() };
             msg::reply_from_reservation(id, REPLY_FROM_RESERVATION_PAYLOAD, 0)
                 .expect("unable to reply from reservation");
+        }
+        HandleAction::AddReservationToList(amount, block_count) => {
+            let reservation_id =
+                ReservationId::reserve(amount, block_count).expect("Unable to reserve gas");
+            unsafe {
+                RESERVATIONS.push(reservation_id);
+            }
+        }
+        HandleAction::ConsumeReservationsFromList => {
+            let reservations = unsafe { mem::take(&mut RESERVATIONS) };
+            for reservation_id in reservations {
+                msg::send_from_reservation(
+                    reservation_id,
+                    exec::program_id(),
+                    HandleAction::RunInifitely,
+                    0,
+                )
+                .expect("Unable to send using reservation");
+            }
+        }
+        HandleAction::RunInifitely => {
+            if msg::source() != exec::program_id() {
+                panic!("Invalid caller, this is a private method reserved for the program itself.");
+            }
+            loop {
+                let _msg_source = msg::source();
+            }
         }
     }
 }

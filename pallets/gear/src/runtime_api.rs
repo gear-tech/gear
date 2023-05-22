@@ -111,9 +111,21 @@ where
 
         let mut ext_manager = ExtManager::<T>::default();
 
+        // Gas calculation info should not depend on the current block gas allowance.
+        // We set it to 'block gas limit" * 5 for the calculation purposes with a subsequent restore.
+        // This is done in order to avoid abusing running node. If one wants to check
+        // executions exceeding the set threshold, they can build their own node with that
+        // parameter set to a higher value.
+        let gas_allowance = GasAllowanceOf::<T>::get();
+        GasAllowanceOf::<T>::put(BlockGasLimitOf::<T>::get() * 5);
+        // Restore gas allowance.
+        let _guard = scopeguard::guard((), |_| GasAllowanceOf::<T>::put(gas_allowance));
+
         loop {
             if QueueProcessingOf::<T>::denied() {
-                return Err(b"Internal error: queue processing denied".to_vec());
+                return Err(
+                    b"Calculation gas limit exceeded. Consider using custom built node.".to_vec(),
+                );
             }
 
             let Some(queued_dispatch) = QueueOf::<T>::dequeue()
@@ -132,23 +144,12 @@ where
             // todo #1987 : consider to make more common for use in process_queue too
             let build_journal = || {
                 let program_id = queued_dispatch.destination();
-                // Gas calculation info should not depend on the current block gas allowance.
-                // We set it to max block gas limit for the calculation purposes with a subsequent restore.
-                // It does not make sense to set it any bigger due to the fact users can't call extrinsics
-                // with bigger 'gas_limit' anyway (see 'check_gas_limit_and_value')
-                let gas_allowance = GasAllowanceOf::<T>::get();
-                GasAllowanceOf::<T>::put(BlockGasLimitOf::<T>::get());
-                // Do calculations.
-                let precharged_dispatch = core_processor::precharge_for_program(
+                let precharged_dispatch = match core_processor::precharge_for_program(
                     &block_config,
                     GasAllowanceOf::<T>::get(),
                     queued_dispatch.into_incoming(gas_limit),
                     actor_id,
-                );
-                // Restore gas allowance.
-                GasAllowanceOf::<T>::put(gas_allowance);
-                // Continue calculations.
-                let precharged_dispatch = match precharged_dispatch {
+                ) {
                     Ok(d) => d,
                     Err(journal) => {
                         return journal;
@@ -296,9 +297,10 @@ where
                     }
 
                     JournalNote::MessageDispatched {
-                        outcome: CoreDispatchOutcome::MessageTrap { trap, program_id },
+                        outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
+                        message_id,
                         ..
-                    } if program_id == main_program_id || !allow_other_panics => {
+                    } if message_id == main_message_id || !allow_other_panics => {
                         return Err(format!("Program terminated with a trap: {trap}").into_bytes());
                     }
 
