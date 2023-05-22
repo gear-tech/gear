@@ -20,9 +20,11 @@
 // - [x] add error
 // - [x] deny syscalls
 // - [x] don't insert replies into mailbox
-// - [ ] remove limitations on gas limit for reply from syscall
 // - [x] remove reply_for_reply etc api from gstd and gcore
 // - [x] fix demos and tests
+// - [ ] remove limitations on gas limit for reply from syscall
+// - [ ] adjust error replies
+// - [ ] fix tests one more time
 // - [ ] write tests:
 //       - [ ] that reply banned in handle_reply
 //       - [ ] reply never added into Mailbox
