@@ -10340,8 +10340,10 @@ fn reply_with_small_non_zero_gas() {
 
         run_to_next_block(None);
         assert_succeed(message_id);
-        assert_eq!(maybe_last_message(USER_1).expect("Should be").payload(), payload);
-
+        assert_eq!(
+            maybe_last_message(USER_1).expect("Should be").payload(),
+            payload
+        );
     });
 }
 
@@ -10355,7 +10357,10 @@ fn replies_denied_in_handle_reply() {
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            InputArgs { destination: USER_1.into_origin().into() }.encode(),
+            InputArgs {
+                destination: USER_1.into_origin().into()
+            }
+            .encode(),
             50_000_000_000,
             0u128
         ));

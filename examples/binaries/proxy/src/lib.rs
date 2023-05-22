@@ -38,7 +38,7 @@ pub const HANDLE_REPLY_EXPECT: &str = "I will fail";
 
 #[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
-    use crate::{HANDLE_REPLY_EXPECT, InputArgs};
+    use crate::{InputArgs, HANDLE_REPLY_EXPECT};
     use gstd::{msg, ActorId, ToString};
 
     static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
