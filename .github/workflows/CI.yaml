@@ -424,7 +424,7 @@ jobs:
       - name: "Install: Pin to specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         run: |
-          rm -r $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
+          Remove-Item -Recurse -Force $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
           New-Item -Path $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc -ItemType SymbolicLink -Value $env:USERPROFILE\.rustup\toolchains\nightly-$env:NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc
         shell: powershell
 
