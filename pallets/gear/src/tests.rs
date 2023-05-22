@@ -10304,6 +10304,98 @@ fn check_random_works() {
 }
 
 #[test]
+fn reply_with_small_non_zero_gas() {
+    use demo_proxy_relay::{RelayCall, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let gas_limit = 1;
+        assert!(gas_limit < <Test as Config>::MailboxThreshold::get());
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            RelayCall::RereplyWithGas(gas_limit).encode(),
+            50_000_000_000,
+            0u128
+        ));
+
+        let proxy = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(proxy));
+
+        let payload = b"it works";
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy,
+            payload.to_vec(),
+            DEFAULT_GAS_LIMIT * 10,
+            0,
+        ));
+
+        let message_id = utils::get_last_message_id();
+
+        run_to_next_block(None);
+        assert_succeed(message_id);
+        assert_eq!(maybe_last_message(USER_1).expect("Should be").payload(), payload);
+
+    });
+}
+
+#[test]
+fn replies_denied_in_handle_reply() {
+    use demo_proxy::{InputArgs, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InputArgs { destination: USER_1.into_origin().into() }.encode(),
+            50_000_000_000,
+            0u128
+        ));
+
+        let proxy = utils::get_last_program_id();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy,
+            vec![],
+            50_000_000_000,
+            0
+        ));
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(proxy));
+        assert_succeed(message_id);
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            get_last_mail(USER_1).id(),
+            vec![],
+            50_000_000_000,
+            0,
+        ));
+
+        let reply_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        // we don't assert fail reason since no error reply sent on reply,
+        // but message id has stamp in MessagesDispatched event.
+        let status = dispatch_status(reply_id).expect("Not found in `MessagesDispatched`");
+        assert_eq!(status, DispatchStatus::Failed);
+    });
+}
+
+#[test]
 fn relay_messages() {
     use demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY};
 
@@ -10368,26 +10460,6 @@ fn relay_messages() {
             });
 
             assert_eq!(i, expected.len(), "{label}");
-
-            // for Expected { user, payload } in expected {
-            //     assert!(System::events()
-            //         .into_iter()
-            //         .for_each(|e| {
-            //             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-            //                 if message.destination().into_origin() == user.into_origin() {
-            //                     assert_eq!(message.payload(), payload, "{label}");
-            //                 }
-            //             }
-            //         }), "{label}");
-
-            //     assert_eq!(
-            //         MailboxOf::<Test>::drain_key(user)
-            //             .next()
-            //             .map(|(msg, _bn)| msg.payload().to_vec()),
-            //         Some(payload),
-            //         "{label}",
-            //     );
-            // }
         };
 
         new_test_ext().execute_with(execute);

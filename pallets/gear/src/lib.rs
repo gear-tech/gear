@@ -26,10 +26,10 @@
 // - [x] adjust error replies
 // - [x] fix tests one more time
 // - [x] WasmProgram trait: handle_reply
-// - [ ] write tests:
-//       - [ ] that reply banned in handle_reply
-//       - [ ] reply never added into Mailbox
-//       - [ ] reply can be sent with 1 gas
+// - [x] write tests:
+//       - [x] that reply banned in handle_reply
+//       - [x] ~~reply never added into Mailbox~~ (indirectly tested)
+//       - [x] reply can be sent with 1 gas
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "512")]
