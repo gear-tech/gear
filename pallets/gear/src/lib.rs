@@ -22,7 +22,7 @@
 // - [x] don't insert replies into mailbox
 // - [x] remove reply_for_reply etc api from gstd and gcore
 // - [x] fix demos and tests
-// - [ ] remove limitations on gas limit for reply from syscall
+// - [x] remove limitations on gas limit for reply from syscall
 // - [ ] adjust error replies
 // - [ ] fix tests one more time
 // - [ ] write tests:
