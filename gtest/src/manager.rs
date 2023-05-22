@@ -41,7 +41,7 @@ use gear_core::{
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::SimpleSignalError;
+use gear_core_errors::{SimpleExecutionError, SimpleReplyError, SimpleSignalError};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
@@ -680,22 +680,40 @@ impl ExtManager {
                     );
                 }
 
-                if let Some(payload) = reply {
+                let reply_message = if let Some(payload) = reply {
                     let id = MessageId::generate_reply(message_id);
                     let packet = ReplyPacket::new(payload.try_into().unwrap(), 0);
-                    let reply_message = ReplyMessage::from_packet(id, packet);
+                    ReplyMessage::from_packet(id, packet)
+                } else {
+                    ReplyMessage::auto(message_id)
+                };
 
-                    self.send_dispatch(
-                        message_id,
-                        reply_message.into_dispatch(program_id, dispatch.source(), message_id),
-                        0,
-                        None,
-                    );
-                }
+                self.send_dispatch(
+                    message_id,
+                    reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                    0,
+                    None,
+                );
             }
             Ok(Mocked::Signal) => {}
             Err(expl) => {
                 mock.debug(expl);
+
+                let err = SimpleReplyError::Execution(SimpleExecutionError::Panic);
+                let err_payload = expl
+                    .as_bytes()
+                    .to_vec()
+                    .try_into()
+                    .unwrap_or_else(|_| unreachable!("Error message is too large"));
+
+                let reply_message = ReplyMessage::system(message_id, err_payload, err);
+
+                self.send_dispatch(
+                    message_id,
+                    reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                    0,
+                    None,
+                );
 
                 if let DispatchKind::Init = dispatch.kind() {
                     self.message_dispatched(
