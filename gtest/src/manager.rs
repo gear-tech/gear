@@ -699,21 +699,23 @@ impl ExtManager {
             Err(expl) => {
                 mock.debug(expl);
 
-                let err = SimpleReplyError::Execution(SimpleExecutionError::Panic);
-                let err_payload = expl
-                    .as_bytes()
-                    .to_vec()
-                    .try_into()
-                    .unwrap_or_else(|_| unreachable!("Error message is too large"));
+                if !dispatch.is_error_reply() && dispatch.kind() != DispatchKind::Signal {
+                    let err = SimpleReplyError::Execution(SimpleExecutionError::Panic);
+                    let err_payload = expl
+                        .as_bytes()
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_else(|_| unreachable!("Error message is too large"));
 
-                let reply_message = ReplyMessage::system(message_id, err_payload, err);
+                    let reply_message = ReplyMessage::system(message_id, err_payload, err);
 
-                self.send_dispatch(
-                    message_id,
-                    reply_message.into_dispatch(program_id, dispatch.source(), message_id),
-                    0,
-                    None,
-                );
+                    self.send_dispatch(
+                        message_id,
+                        reply_message.into_dispatch(program_id, dispatch.source(), message_id),
+                        0,
+                        None,
+                    );
+                }
 
                 if let DispatchKind::Init = dispatch.kind() {
                     self.message_dispatched(
