@@ -395,8 +395,7 @@ wasm-opt = "0.111.0"                                                      # util
 wasmprinter = "0.2"                                                       # utils/wasm-gen
 whoami = "1.4.0"                                                          # gcli
 which = "4.4.0"                                                           # utils/wasm-builder
-# TODO #2551 commit is used until `mutagen` version 2 becomes is released to the crates.io
-mutagen = { git = "https://github.com/llogiq/mutagen", rev = "a6377c4c" } # gear-common
+fail = "0.5"                                                              # gear-common
 
 [profile.release]
 panic = "unwind"
