@@ -1,20 +1,21 @@
 [package]
-name = "fungible-token"
+name = "demo-fungible-token"
 version = "0.1.4"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+workspace = "../../../"
 
 [dependencies]
 gstd = { workspace = true }
-hashbrown = "0.13.1"
+hashbrown = { workspace = true }
 gmeta = { workspace = true }
 ft-io = { path = "io" }
 
 [dev-dependencies]
 gstd = { workspace = true, features = ["debug"] }
-tokio = { version = "1.21.2", features = ["full", "test-util"] }
-gclient = { path = "../../gclient" }
+tokio = { workspace = true, features = ["full", "test-util"] }
+gclient = { workspace = true }
 
 [build-dependencies]
 gear-wasm-builder = { workspace = true }

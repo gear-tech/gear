@@ -1,7 +1,9 @@
+use demo_fungible_token::WASM_BINARY;
 use ft_io::*;
-use fungible_token::WASM_BINARY;
 use gclient::{EventProcessor, GearApi, Result, WSAddress};
 use gstd::{vec, ActorId, Encode, Vec};
+
+const GEAR_PATH: &str = "../../../target/release/gear";
 
 /// This constant defines the number of messages in the batch.
 /// It is calculated empirically, and 25 is considered the optimal value for
@@ -16,10 +18,9 @@ const MAX_GAS_LIMIT: u64 = 250_000_000_000;
 ///
 /// See [galloc optimization doc](../../../galloc/docs/optimization.md) for
 /// reference.
-#[ignore = "reason: this test requires a running node, so it is ignored by default"]
 #[tokio::test]
 async fn stress_test() -> Result<()> {
-    let api = GearApi::dev().await?;
+    let api = GearApi::dev_from_path(GEAR_PATH).await?;
 
     // Subscribing for events.
     let mut listener = api.subscribe().await?;

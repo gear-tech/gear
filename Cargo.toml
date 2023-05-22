@@ -30,6 +30,7 @@ members = [
     "examples/binaries/exit-handle",
     "examples/binaries/exit-handle-sender",
     "examples/binaries/exit-init",
+    "examples/binaries/fungible-token",
     "examples/binaries/gas-burned",
     "examples/binaries/gasless-wasting",
     "examples/binaries/init-fail-sender",
@@ -259,7 +260,9 @@ sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-te
 sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
 sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
-sc-client-db = { version = "0.10.0-dev", features = ["rocksdb"], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
+sc-client-db = { version = "0.10.0-dev", features = [
+    "rocksdb",
+], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
 sc-executor-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
 sc-consensus-grandpa = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary" }
@@ -333,6 +336,7 @@ demo-distributor = { path = "examples/binaries/distributor" }
 demo-exit-handle = { path = "examples/binaries/exit-handle" }
 demo-exit-handle-sender = { path = "examples/binaries/exit-handle-sender" }
 demo-exit-init = { path = "examples/binaries/exit-init" }
+demo-fungible-token = { path = "examples/binaries/fungible-token" }
 demo-gas-burned = { path = "examples/binaries/gas-burned" }
 demo-gasless-wasting = { path = "examples/binaries/gasless-wasting" }
 demo-init-fail-sender = { path = "examples/binaries/init-fail-sender" }
@@ -362,36 +366,36 @@ demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
 # Dependencies that only used in one package
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
-cfg-if = "1.0.0"                                                          # gear-lazy-pages
-cargo_metadata = "0.15.3"                                                 # utils/wasm-builder
-errno = "0.3"                                                             # gear-lazy-pages
-impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
-indicatif = "*"                                                           # utils/wasm-gen
-keyring = "1.2.1"                                                         # gcli
-libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
-mimalloc = { version = "0.1.34", default-features = false }               # node/cli
-nacl = "0.5.3"                                                            # gcli
-nix = "0.26.2"                                                            # gear-lazy-pages
-nonempty = "0.8.1"                                                        # utils/utils
-libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
-pwasm-utils = "0.19.0"                                                    # utils/wasm-builder
-page_size = { version = "0.5", default-features = false }                 # pallets/gear
-pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
-rand_pcg = "0.3.1"                                                        # pallets/gear
-reqwest = { version = "0.11.16", default-features = false }               # utils/node-loder
-schnorrkel = "0.9.1"                                                      # gcli
-scopeguard = { version = "1.1.0", default-features = false }              # pallets/gear
-tabled = "0.10.0"                                                         # utils/regression-analysis
-thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.7.3"                                                            # utils/wasm-builder
-tracing = "0.1.37"                                                        # utils/node-loder
-tracing-appender = "0.2"                                                  # utils/node-loder
-tracing-subscriber = "0.3.16"                                             # utils/node-loder
-trybuild = "1"                                                            # gstd/codegen
-wasm-opt = "0.111.0"                                                      # utils/wasm-builder
-wasmprinter = "0.2"                                                       # utils/wasm-gen
-whoami = "1.4.0"                                                          # gcli
-which = "4.4.0"                                                           # utils/wasm-builder
+cfg-if = "1.0.0"                                             # gear-lazy-pages
+cargo_metadata = "0.15.3"                                    # utils/wasm-builder
+errno = "0.3"                                                # gear-lazy-pages
+impl-trait-for-tuples = "0.2.2"                              # pallets/staking-rewards
+indicatif = "*"                                              # utils/wasm-gen
+keyring = "1.2.1"                                            # gcli
+libp2p = "=0.50.1"                                           # gcli (same version as sc-consensus)
+mimalloc = { version = "0.1.34", default-features = false }  # node/cli
+nacl = "0.5.3"                                               # gcli
+nix = "0.26.2"                                               # gear-lazy-pages
+nonempty = "0.8.1"                                           # utils/utils
+libfuzzer-sys = "0.4"                                        # utils/runtime-fuzzer/fuzz
+pwasm-utils = "0.19.0"                                       # utils/wasm-builder
+page_size = { version = "0.5", default-features = false }    # pallets/gear
+pathdiff = { version = "0.2.1", default-features = false }   # utils/wasm-builder
+rand_pcg = "0.3.1"                                           # pallets/gear
+reqwest = { version = "0.11.16", default-features = false }  # utils/node-loder
+schnorrkel = "0.9.1"                                         # gcli
+scopeguard = { version = "1.1.0", default-features = false } # pallets/gear
+tabled = "0.10.0"                                            # utils/regression-analysis
+thousands = "0.2.0"                                          # utils/regression-analysis
+toml = "0.7.3"                                               # utils/wasm-builder
+tracing = "0.1.37"                                           # utils/node-loder
+tracing-appender = "0.2"                                     # utils/node-loder
+tracing-subscriber = "0.3.16"                                # utils/node-loder
+trybuild = "1"                                               # gstd/codegen
+wasm-opt = "0.111.0"                                         # utils/wasm-builder
+wasmprinter = "0.2"                                          # utils/wasm-gen
+whoami = "1.4.0"                                             # gcli
+which = "4.4.0"                                              # utils/wasm-builder
 # TODO #2551 commit is used until `mutagen` version 2 becomes is released to the crates.io
 mutagen = { git = "https://github.com/llogiq/mutagen", rev = "a6377c4c" } # gear-common
 

@@ -23,7 +23,6 @@ members = [
     "decoder",
     "status-code",
     "fib",
-    "fungible-token",
     "futures-unordered",
     "mem",
     "guestbook",
@@ -56,8 +55,6 @@ exclude = ["binaries/*"]
 galloc = { path = "../galloc" }
 gcore = { path = "../gcore" }
 gstd = { path = "../gstd" }
-gmeta = { path = "../gmeta" }
-gear-wasm-builder = { path = "../utils/wasm-builder" }
 
 [profile.release]
 lto = true

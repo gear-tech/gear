@@ -12,7 +12,7 @@ derive_more.workspace = true
 enum-iterator.workspace = true
 mutagen = { workspace = true, optional = true }
 hex.workspace = true
-serde.workspace = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 path-clean.workspace = true
 
