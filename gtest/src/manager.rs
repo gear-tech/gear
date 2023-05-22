@@ -666,7 +666,7 @@ impl ExtManager {
         let response = match dispatch.kind() {
             DispatchKind::Init => mock.init(payload).map(Mocked::Reply),
             DispatchKind::Handle => mock.handle(payload).map(Mocked::Reply),
-            DispatchKind::Reply => mock.handle_reply(payload).map(Mocked::Reply),
+            DispatchKind::Reply => mock.handle_reply(payload).map(|()| Mocked::Reply(None)),
             DispatchKind::Signal => mock.handle_signal(payload).map(|()| Mocked::Signal),
         };
 
