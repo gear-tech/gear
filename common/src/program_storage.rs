@@ -35,6 +35,12 @@ pub trait Error {
 
     /// There is no data for specified `program_id` and `page`.
     fn cannot_find_page_data() -> Self;
+
+    /// Resume session is not found in the storage.
+    fn resume_session_not_found() -> Self;
+
+    /// Specified user is not an owner of the resume session.
+    fn not_session_owner() -> Self;
 }
 
 pub type MemoryMap = BTreeMap<GearPage, PageBuf>;

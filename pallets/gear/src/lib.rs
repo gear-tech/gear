@@ -185,7 +185,9 @@ pub mod pallet {
         frame_system::Config + pallet_authorship::Config + pallet_timestamp::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+        type RuntimeEvent: From<Event<Self>>
+            + TryInto<Event<Self>>
+            + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
         /// The generator used to supply randomness to contracts through `seal_random`
         type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
@@ -1841,6 +1843,25 @@ pub mod pallet {
             //         });
             //     }
             // }
+
+            Ok(().into())
+        }
+
+        #[pallet::call_index(10)]
+        // #[pallet::weight(<T as Config>::WeightInfo::pay_rent())]
+        #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
+        pub fn resume_session_append(
+            origin: OriginFor<T>,
+            session_id: u64,
+            memory_pages: Vec<(GearPage, PageBuf)>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            ProgramStorageOf::<T>::resume_session_append(
+                session_id,
+                AccountId32::from_origin(who.into_origin()),
+                memory_pages,
+            )?;
 
             Ok(().into())
         }

@@ -113,7 +113,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         Ok(gas_reservations)
     }
 
-    /// Create a resume program session. Returns the session id on success.
+    /// Create a session for program resume. Returns the session id on success.
     fn start_program_resume(
         user: AccountId32,
         block_number: u128,
@@ -164,6 +164,30 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     /// Get the count of uploaded memory pages of the specified session.
     fn resume_session_page_count(session_id: &u64) -> Option<u32> {
         Self::ResumeSessions::get(session_id).map(|session| session.page_count)
+    }
+
+    /// Append program memory pages to the session data.
+    fn resume_session_append(
+        session_id: u64,
+        user: AccountId32,
+        memory_pages: Vec<(GearPage, PageBuf)>,
+    ) -> Result<(), Self::Error> {
+        Self::ResumeSessions::mutate(session_id, |maybe_session| {
+            let Some(session) = maybe_session.as_mut() else {
+                return Err(Self::InternalError::resume_session_not_found().into())
+            };
+
+            if session.user != user {
+                return Err(Self::InternalError::not_session_owner().into());
+            }
+
+            session.page_count += memory_pages.len() as u32;
+            for page in memory_pages {
+                Self::SessionMemoryPages::append(session_id, page);
+            }
+
+            Ok(())
+        })
     }
 
     /// Resume program with the given key `program_id`.

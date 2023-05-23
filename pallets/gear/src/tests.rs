@@ -5362,6 +5362,112 @@ fn start_program_resume_works() {
     })
 }
 
+#[test]
+fn resume_session_append_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_btree::Request;
+
+        let code = demo_btree::WASM_BINARY;
+        let program_id = generate_program_id(code, DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        ));
+
+        let request = Request::Insert(0, 1).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            request,
+            1_000_000_000,
+            0
+        ));
+
+        run_to_next_block(None);
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
+
+        let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
+            program_id,
+            program.pages_with_data.iter(),
+        )
+        .unwrap();
+
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number(expected_block - 1);
+
+        run_to_next_block(None);
+
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
+
+        assert_ok!(Gear::start_program_resume(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            Default::default(),
+            Default::default(),
+            100
+        ));
+
+        let (session_id, session_end_block) = match get_last_event() {
+            MockRuntimeEvent::Gear(Event::ProgramResumeSessionStarted {
+                session_id,
+                session_end_block,
+                ..
+            }) => {
+                (session_id, session_end_block)
+            }
+            _ => unreachable!(),
+        };
+
+        // another user may not append memory pages to the session
+        assert_err!(
+            Gear::resume_session_append(RuntimeOrigin::signed(USER_2), session_id, Default::default()),
+            pallet_gear_program::Error::<Test>::NotSessionOwner,
+        );
+
+        // append to inexistent session fails
+        assert_err!(
+            Gear::resume_session_append(RuntimeOrigin::signed(USER_1), session_id.wrapping_add(1), Default::default()),
+            pallet_gear_program::Error::<Test>::ResumeSessionNotFound,
+        );
+
+        assert_ok!(
+            Gear::resume_session_append(RuntimeOrigin::signed(USER_1), session_id, memory_pages.clone().into_iter().collect())
+        );
+        assert!(
+            matches!(ProgramStorageOf::<Test>::resume_session_page_count(&session_id), Some(count) if count == memory_pages.len() as u32)
+        );
+
+        System::set_block_number(session_end_block - 1);
+        Gear::set_block_number(session_end_block - 1);
+
+        run_to_next_block(None);
+
+        assert_err!(
+            Gear::resume_session_append(RuntimeOrigin::signed(USER_1), session_id, memory_pages.into_iter().collect()),
+            pallet_gear_program::Error::<Test>::ResumeSessionNotFound,
+        );
+        assert!(
+            ProgramStorageOf::<Test>::resume_session_page_count(&session_id).is_none()
+        );
+        assert!(ProgramStorageOf::<Test>::get_program_data_for_pages(
+            program_id,
+            program.pages_with_data.iter(),
+        ).is_err());
+
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
+    })
+}
+
 /*
 #[test]
 fn resume_program_works() {

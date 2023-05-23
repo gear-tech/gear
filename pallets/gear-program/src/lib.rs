@@ -187,6 +187,8 @@ pub mod pallet {
         ItemNotFound,
         NotActiveProgram,
         CannotFindDataForPage,
+        ResumeSessionNotFound,
+        NotSessionOwner,
     }
 
     impl<T: Config> common::ProgramStorageError for Error<T> {
@@ -204,6 +206,14 @@ pub mod pallet {
 
         fn cannot_find_page_data() -> Self {
             Self::CannotFindDataForPage
+        }
+
+        fn resume_session_not_found() -> Self {
+            Self::ResumeSessionNotFound
+        }
+
+        fn not_session_owner() -> Self {
+            Self::NotSessionOwner
         }
     }
 
