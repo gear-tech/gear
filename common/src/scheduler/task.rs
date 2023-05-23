@@ -67,8 +67,8 @@ pub enum ScheduledTask<AccountId> {
     /// Remove gas reservation.
     RemoveGasReservation(ProgramId, ReservationId),
 
-    /// Remove resume data.
-    RemoveResumeData(ProgramId),
+    /// Remove resume program session.
+    RemoveResumeSession(u64),
 }
 
 impl<AccountId> ScheduledTask<AccountId> {
@@ -94,7 +94,7 @@ impl<AccountId> ScheduledTask<AccountId> {
             RemoveGasReservation(program_id, reservation_id) => {
                 handler.remove_gas_reservation(program_id, reservation_id)
             }
-            RemoveResumeData(program_id) => handler.remove_resume_data(program_id),
+            RemoveResumeSession(session_id) => handler.remove_resume_session(session_id),
         }
     }
 }
@@ -128,8 +128,8 @@ pub trait TaskHandler<AccountId> {
     /// Remove gas reservation action.
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId);
 
-    /// Remove data created by resume program operation.
-    fn remove_resume_data(&mut self, program_id: ProgramId);
+    /// Remove data created by resume program session.
+    fn remove_resume_session(&mut self, session_id: u64);
 }
 
 #[test]

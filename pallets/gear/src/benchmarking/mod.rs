@@ -56,14 +56,15 @@ use self::{
 use crate::{
     manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BTreeMap, BalanceOf,
     BenchmarkStorage, Call, Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf,
-    MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf, Schedule,
+    MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf,
+    ResumeMinimalPeriodOf, Schedule,
 };
 use ::alloc::vec;
 use common::{
     self, benchmarking,
     storage::{Counter, *},
-    ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, ProgramStorage,
-    ReservableTree,
+    ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, PausedProgramStorage,
+    ProgramStorage, ReservableTree,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -436,11 +437,32 @@ benchmarks! {
         init_block::<T>(None);
     }: _(RawOrigin::Signed(caller.clone()), program_id, block_count)
     verify {
-        let program: ActiveProgram<_> = <T as pallet::Config>::ProgramStorage::get_program(program_id)
+        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
             .expect("program should exist")
             .try_into()
             .expect("program should be active");
         assert_eq!(program.expiration_block, RentFreePeriodOf::<T>::get() + block_count);
+    }
+
+    start_program_resume {
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let salt = vec![];
+        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+
+        init_block::<T>(None);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
+            .expect("program should exist")
+            .try_into()
+            .expect("program should be active");
+        ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
+    }: _(RawOrigin::Signed(caller.clone()), program_id, program.allocations, program.code_hash, ResumeMinimalPeriodOf::<T>::get())
+    verify {
+        assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
     }
 
     // This constructs a program that is maximal expensive to instrument.

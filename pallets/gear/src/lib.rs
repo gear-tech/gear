@@ -53,7 +53,7 @@ use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
     CodeStorage, GasPrice, GasProvider, GasTree, Origin, PausedProgramStorage, Program,
-    ProgramState, ProgramStorage, QueueRunner, ResumeResult,
+    ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -82,7 +82,7 @@ use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
 use sp_runtime::{
     traits::{One, Saturating, UniqueSaturatedInto, Zero},
-    SaturatedConversion,
+    AccountId32, SaturatedConversion,
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -131,10 +131,8 @@ pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
 pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
 pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
-pub type ResumeMinimalPeriodOf<T> =
-    <T as Config>::ProgramResumeMinimalRentPeriod;
-pub type ResumeSessionDurationOf<T> =
-    <T as Config>::ProgramResumeSessionDuration;
+pub type ResumeMinimalPeriodOf<T> = <T as Config>::ProgramResumeMinimalRentPeriod;
+pub type ResumeSessionDurationOf<T> = <T as Config>::ProgramResumeSessionDuration;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -404,12 +402,14 @@ pub mod pallet {
         /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
         QueueProcessingReverted,
 
-        /// Provided data for resuming is incomplete or incorrect.
-        ResumeProgramIncompleteData {
+        /// Program resume session has been started.
+        ProgramResumeSessionStarted {
+            /// Id of the session.
+            session_id: u64,
             /// Id of the program affected.
-            id: ProgramId,
-            /// Block number when resume data will be removed.
-            resume_end_block: T::BlockNumber,
+            program_id: ProgramId,
+            /// Block number when the session will be removed if not finished.
+            session_end_block: T::BlockNumber,
         },
     }
 
@@ -461,6 +461,8 @@ pub mod pallet {
         ProgramNotFound,
         /// Block count doesn't cover MinimalResumePeriod.
         ResumePeriodLessThanMinimal,
+        /// Session of program resume cannot be started.
+        ProgramResumeSessionCannotBeStarted,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -1747,11 +1749,10 @@ pub mod pallet {
         #[pallet::call_index(9)]
         // #[pallet::weight(<T as Config>::WeightInfo::pay_rent())]
         #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
-        pub fn resume_program(
+        pub fn start_program_resume(
             origin: OriginFor<T>,
             program_id: ProgramId,
             allocations: BTreeSet<WasmPage>,
-            memory_pages: BTreeMap<GearPage, PageBuf>,
             code_hash: H256,
             block_count: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
@@ -1768,59 +1769,78 @@ pub mod pallet {
                 Error::<T>::InsufficientBalanceForReserve
             );
 
+            let block_number = Self::block_number();
+            let expiration_block = block_number.saturating_add(block_count);
+            let Some(session_id) = ProgramStorageOf::<T>::start_program_resume(
+                AccountId32::from_origin(who.clone().into_origin()),
+                block_number.unique_saturated_into(),
+                program_id,
+                allocations,
+                code_hash,
+                expiration_block,
+            ) else {
+                return Err(Error::<T>::ProgramResumeSessionCannotBeStarted.into());
+            };
+
             let block_author = Authorship::<T>::author()
                 .unwrap_or_else(|| unreachable!("Failed to find block author!"));
 
-            let block_number = Self::block_number();
-            let expiration_block = block_number.saturating_add(block_count);
-            match ProgramStorageOf::<T>::resume_program(
+            CurrencyOf::<T>::transfer(
+                &who,
+                &block_author,
+                rent_fee,
+                ExistenceRequirement::AllowDeath,
+            )
+            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+
+            let task = ScheduledTask::RemoveResumeSession(session_id);
+            let session_end_block =
+                block_number.saturating_add(ResumeSessionDurationOf::<T>::get());
+            TaskPoolOf::<T>::add(session_end_block, task)
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+            Self::deposit_event(Event::ProgramResumeSessionStarted {
+                session_id,
                 program_id,
-                allocations,
-                memory_pages,
-                code_hash,
-                expiration_block,
-                block_number,
-            )? {
-                ResumeResult::Ok(resume_start_block) => {
-                    let task = ScheduledTask::RemoveResumeData(program_id);
-                    let result = TaskPoolOf::<T>::delete(
-                        resume_start_block.saturating_add(ResumeSessionDurationOf::<T>::get()),
-                        task,
-                    );
-                    log::debug!("resume_program; ok, task result = {result:?}");
+                session_end_block,
+            });
 
-                    CurrencyOf::<T>::transfer(
-                        &who,
-                        &block_author,
-                        rent_fee,
-                        ExistenceRequirement::AllowDeath,
-                    )
-                    .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+            // match ProgramStorageOf::<T>::resume_program(
+            //     program_id,
+            //     allocations,
+            //     memory_pages,
+            //     code_hash,
+            //     expiration_block,
+            //     block_number,
+            // )? {
+            //     ResumeResult::Ok(resume_start_block) => {
+            //         let task = ScheduledTask::RemoveResumeData(program_id);
+            //         let result = TaskPoolOf::<T>::delete(
+            //             resume_start_block.saturating_add(ResumeDataPeriodOf::<T>::get()),
+            //             task,
+            //         );
+            //         log::debug!("resume_program; ok, task result = {result:?}");
 
-                    let task = ScheduledTask::PauseProgram(program_id);
-                    TaskPoolOf::<T>::add(expiration_block, task)
-                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+            //         CurrencyOf::<T>::transfer(
+            //             &who,
+            //             &block_author,
+            //             rent_fee,
+            //             ExistenceRequirement::AllowDeath,
+            //         )
+            //         .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
 
-                    Self::deposit_event(Event::ProgramChanged {
-                        id: program_id,
-                        change: ProgramChangeKind::Active {
-                            expiration: expiration_block,
-                        },
-                    });
-                }
-                ResumeResult::IncompleteData(resume_start_block) => {
-                    let task = ScheduledTask::RemoveResumeData(program_id);
-                    let resume_end_block =
-                        resume_start_block.saturating_add(ResumeSessionDurationOf::<T>::get());
-                    let result = TaskPoolOf::<T>::add(resume_end_block, task);
-                    log::debug!("resume_program; incomplete data, task result = {result:?}");
+            //         let task = ScheduledTask::PauseProgram(program_id);
+            //         TaskPoolOf::<T>::add(expiration_block, task)
+            //             .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
-                    Self::deposit_event(Event::ResumeProgramIncompleteData {
-                        id: program_id,
-                        resume_end_block,
-                    });
-                }
-            }
+            //         Self::deposit_event(Event::ProgramChanged {
+            //             id: program_id,
+            //             change: ProgramChangeKind::Active {
+            //                 expiration: expiration_block,
+            //             },
+            //         });
+            //     }
+            // }
 
             Ok(().into())
         }

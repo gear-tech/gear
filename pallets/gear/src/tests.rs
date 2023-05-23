@@ -41,8 +41,8 @@ use crate::{
         USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasBalanceOf, GasHandlerOf, GasInfo, MailboxOf, ResumeMinimalPeriodOf, ProgramStorageOf, RentCostPerBlockOf,
-    RentFreePeriodOf, Schedule, TaskPoolOf, WaitlistOf,
+    GasBalanceOf, GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, RentCostPerBlockOf,
+    RentFreePeriodOf, ResumeSessionDurationOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
@@ -5240,6 +5240,130 @@ fn test_pausing_programs_works() {
 }
 
 #[test]
+fn start_program_resume_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let program_id = {
+            let res = upload_program_default(USER_2, ProgramCodeKind::Default);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        run_to_next_block(None);
+
+        // attempt to resume an active program should fail
+        assert_err!(
+            Gear::start_program_resume(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                Default::default(),
+                Default::default(),
+                100
+            ),
+            Error::<Test>::ProgramResumeSessionCannotBeStarted,
+        );
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
+
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number(expected_block - 1);
+
+        run_to_next_block(None);
+
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
+
+        // attempt to resume for the amout of blocks that is less than the minimum should fail
+        assert_err!(
+            Gear::start_program_resume(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                Default::default(),
+                Default::default(),
+                0
+            ),
+            Error::<Test>::ResumePeriodLessThanMinimal,
+        );
+
+        // there should be enough funds to start resume session
+        assert_err!(
+            Gear::start_program_resume(
+                RuntimeOrigin::signed(LOW_BALANCE_USER),
+                program_id,
+                Default::default(),
+                Default::default(),
+                u32::MAX
+            ),
+            Error::<Test>::InsufficientBalanceForReserve,
+        );
+
+        assert_ok!(Gear::start_program_resume(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            Default::default(),
+            Default::default(),
+            100
+        ));
+
+        let (session_id, session_end_block) = match get_last_event() {
+            MockRuntimeEvent::Gear(Event::ProgramResumeSessionStarted {
+                session_id,
+                program_id: resume_program_id,
+                session_end_block,
+            }) => {
+                assert_eq!(resume_program_id, program_id);
+                assert_eq!(
+                    session_end_block,
+                    Gear::block_number().saturating_add(ResumeSessionDurationOf::<Test>::get())
+                );
+
+                (session_id, session_end_block)
+            }
+            _ => unreachable!(),
+        };
+
+        assert!(TaskPoolOf::<Test>::contains(
+            &session_end_block,
+            &ScheduledTask::RemoveResumeSession(session_id)
+        ));
+
+        // user is able to start several resume sessions
+        assert_ok!(Gear::start_program_resume(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            Default::default(),
+            Default::default(),
+            101
+        ));
+
+        // another user can start resume session
+        assert_ok!(Gear::start_program_resume(
+            RuntimeOrigin::signed(USER_2),
+            program_id,
+            Default::default(),
+            Default::default(),
+            102
+        ));
+
+        System::set_block_number(session_end_block - 1);
+        Gear::set_block_number(session_end_block - 1);
+
+        run_to_next_block(None);
+
+        // the session should be removed since it wasn't finished
+        assert!(!TaskPoolOf::<Test>::contains(
+            &session_end_block,
+            &ScheduledTask::RemoveResumeSession(session_id)
+        ));
+
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
+    })
+}
+
+/*
+#[test]
 fn resume_program_works() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5309,7 +5433,7 @@ fn resume_program_works() {
         ));
 
         let resume_end_block = match get_last_event() {
-            MockRuntimeEvent::Gear(Event::ResumeProgramIncompleteData {
+            MockRuntimeEvent::Gear(Event::ResumeProgramSessionCreated {
                 id,
                 resume_end_block,
             }) => {
@@ -5321,7 +5445,7 @@ fn resume_program_works() {
         };
         assert!(TaskPoolOf::<Test>::contains(
             &resume_end_block,
-            &ScheduledTask::RemoveResumeData(program_id)
+            &ScheduledTask::RemoveResumeSession(program_id)
         ));
 
         assert_ok!(Gear::resume_program(
@@ -5334,7 +5458,7 @@ fn resume_program_works() {
         ));
         assert!(!TaskPoolOf::<Test>::contains(
             &resume_end_block,
-            &ScheduledTask::RemoveResumeData(program_id)
+            &ScheduledTask::RemoveResumeSession(program_id)
         ));
 
         let program_change = match get_last_event() {
@@ -5383,6 +5507,7 @@ fn resume_program_works() {
         }
     })
 }
+*/
 
 #[test]
 fn test_no_messages_to_paused_program() {

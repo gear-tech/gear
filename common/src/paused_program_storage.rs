@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{program_storage::MemoryMap, *};
-use crate::storage::MapStorage;
+use crate::storage::{AppendMapStorage, MapStorage, ValueStorage};
 use core::fmt::Debug;
+use sp_runtime::AccountId32;
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
 #[codec(crate = codec)]
@@ -63,11 +64,26 @@ pub enum ResumeResult<BlockNumber> {
     IncompleteData(BlockNumber),
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+pub struct ResumeSession<BlockNumber> {
+    page_count: u32,
+    user: AccountId32,
+    program_id: ProgramId,
+    allocations: BTreeSet<WasmPage>,
+    code_hash: H256,
+    expiration_block: BlockNumber,
+}
+
 /// Trait to pause/resume programs.
 pub trait PausedProgramStorage: super::ProgramStorage {
     type PausedProgramMap: MapStorage<Key = ProgramId, Value = (Self::BlockNumber, H256)>;
     type ResumePageMap: MapStorage<Key = ProgramId, Value = (Self::BlockNumber, BTreeSet<GearPage>)>;
     type CodeStorage: super::CodeStorage;
+    type NonceStorage: ValueStorage<Value = u128>;
+    type ResumeSessions: MapStorage<Key = u64, Value = ResumeSession<Self::BlockNumber>>;
+    type SessionMemoryPages: AppendMapStorage<(GearPage, PageBuf), u64, Vec<(GearPage, PageBuf)>>;
 
     /// Attempt to remove all items from all the associated maps.
     fn reset() {
@@ -95,6 +111,59 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         );
 
         Ok(gas_reservations)
+    }
+
+    /// Create a resume program session. Returns the session id on success.
+    fn start_program_resume(
+        user: AccountId32,
+        block_number: u128,
+        program_id: ProgramId,
+        allocations: BTreeSet<WasmPage>,
+        code_hash: H256,
+        expiration_block: Self::BlockNumber,
+    ) -> Option<u64> {
+        if !Self::paused_program_exists(&program_id) {
+            return None;
+        }
+
+        let nonce = Self::NonceStorage::mutate(|nonce| match nonce {
+            Some(n) => {
+                let result = *n;
+                *n = n.wrapping_add(1);
+
+                result
+            }
+            None => {
+                *nonce = Some(1);
+
+                0
+            }
+        });
+
+        let session_id = u64::from_le_bytes(
+            (program_id, block_number, nonce).using_encoded(sp_io::hashing::twox_64),
+        );
+        Self::ResumeSessions::mutate(session_id, |session| {
+            if session.is_some() {
+                return None;
+            }
+
+            *session = Some(ResumeSession {
+                page_count: 0,
+                user,
+                program_id,
+                allocations,
+                code_hash,
+                expiration_block,
+            });
+
+            Some(session_id)
+        })
+    }
+
+    /// Get the count of uploaded memory pages of the specified session.
+    fn resume_session_page_count(session_id: &u64) -> Option<u32> {
+        Self::ResumeSessions::get(session_id).map(|session| session.page_count)
     }
 
     /// Resume program with the given key `program_id`.
@@ -162,15 +231,15 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         Ok(ResumeResult::Ok(block))
     }
 
-    /// Remove all data created by a call to `resume_program`.
-    fn remove_resume_data(program_id: ProgramId) -> Result<(), Self::Error> {
-        if !Self::PausedProgramMap::contains_key(&program_id) {
-            return Err(Self::InternalError::item_not_found().into());
-        }
+    /// Remove all data created by a call to `start_program_resume`.
+    fn remove_resume_session(session_id: u64) -> Result<(), Self::Error> {
+        Self::ResumeSessions::mutate(session_id, |maybe_session| match maybe_session.take() {
+            Some(_) => {
+                Self::SessionMemoryPages::remove(session_id);
 
-        Self::ResumePageMap::remove(program_id);
-        Self::remove_program_pages(program_id);
-
-        Ok(())
+                Ok(())
+            }
+            None => Err(Self::InternalError::item_not_found().into()),
+        })
     }
 }
