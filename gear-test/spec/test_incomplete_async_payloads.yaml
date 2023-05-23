@@ -38,7 +38,20 @@ fixtures:
     expected:
       - allowError: true
         log:
+          # 2 auto replies on init of 2 programs
+          - destination: 1000001
+            payload: &auto
+              kind: bytes
+              value: 0x
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+
           # from "handle"
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload:
               kind: utf-8
@@ -54,6 +67,9 @@ fixtures:
               kind: utf-8
               value: FIRST
           # from "handle store"
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload:
               kind: utf-8

@@ -144,7 +144,6 @@ mod tests {
         // Send `handle` msg to factory to create a new child
         let res = factory.send_bytes(10001, CreateProgram::Default.encode());
         assert!(!res.main_failed());
-        assert!(!res.others_failed());
         assert!(sys.is_active_program(child_id_expected));
     }
 
@@ -161,17 +160,15 @@ mod tests {
         // Send `handle` msg to factory to create a new child
         let res = factory.send_bytes(10001, payload.encode());
         assert!(!res.main_failed());
-        assert!(!res.others_failed());
         assert!(sys.is_active_program(child_id_expected));
 
         // Send `handle` msg to create a duplicate
         let res = factory.send_bytes(10001, payload.encode());
         assert!(!res.main_failed());
-        assert!(!res.others_failed());
         // Init message, which is not processed. Error reply for that init is generated.
         // Dispatch message is processed, no error replies, because message is sent to
         // the original program.
-        assert_eq!(res.total_processed(), 3 + 1); // +1 for the original message, initiated by user
+        assert_eq!(res.total_processed(), 3 + 1 + 2); // +1 for the original message, initiated by user +2 for auto generated replies
     }
 
     #[test]

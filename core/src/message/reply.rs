@@ -64,9 +64,17 @@ impl ReplyMessage {
         payload: Payload,
         simple_err: SimpleReplyError,
     ) -> Self {
+        let id = MessageId::generate_reply(origin_msg_id);
         let status_code = simple_err.into_status_code();
-        let id = MessageId::generate_reply(origin_msg_id, status_code);
         let packet = ReplyPacket::system(payload, status_code);
+
+        Self::from_packet(id, packet)
+    }
+
+    /// Create new auto-generated ReplyMessage.
+    pub fn auto(origin_msg_id: MessageId) -> Self {
+        let id = MessageId::generate_reply(origin_msg_id);
+        let packet = ReplyPacket::auto();
 
         Self::from_packet(id, packet)
     }
@@ -193,6 +201,14 @@ impl ReplyPacket {
         Self {
             payload,
             status_code,
+            ..Default::default()
+        }
+    }
+
+    /// Auto-generated reply after success execution.
+    pub fn auto() -> Self {
+        Self {
+            gas_limit: Some(0),
             ..Default::default()
         }
     }

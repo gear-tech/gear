@@ -359,6 +359,26 @@ pub fn process_success(
         });
     }
 
+    // Sending auto-generated reply about success execution.
+    if matches!(kind, SuccessfulDispatchResultKind::Success)
+        && !context_store.reply_sent()
+        && !dispatch.is_reply()
+        && dispatch.kind() != DispatchKind::Signal
+    {
+        let auto_reply = ReplyMessage::auto(dispatch.id()).into_dispatch(
+            program_id,
+            dispatch.source(),
+            dispatch.id(),
+        );
+
+        journal.push(JournalNote::SendDispatch {
+            message_id,
+            dispatch: auto_reply,
+            delay: 0,
+            reservation: None,
+        });
+    }
+
     // Must be handled after processing programs creation.
     let payer = program_id;
     for (program_id, block_count) in program_rents {
@@ -481,7 +501,7 @@ pub fn process_non_executable(
     }
 
     // Reply back to the message `source`
-    if !dispatch.is_error_reply() {
+    if !dispatch.is_error_reply() && dispatch.kind() != DispatchKind::Signal {
         // This expect panic is unreachable, unless error message is too large or max payload size is too small.
         let err = SimpleReplyError::NonExecutable;
         let err_payload = err
