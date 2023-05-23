@@ -23,6 +23,9 @@ mod manager;
 mod program;
 mod system;
 
+#[cfg(test)]
+mod tests;
+
 pub use error::{Result, TestError};
 pub use log::{CoreLog, Log, RunResult};
 pub use program::{calculate_program_id, Gas, Program, WasmProgram};

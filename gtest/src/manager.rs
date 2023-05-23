@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    log::{CoreLog, RunResult},
+    log::{self, CoreLog, RunResult},
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
@@ -30,6 +30,7 @@ use core_processor::{
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_backend_wasmi::WasmiEnvironment;
+use gear_common::scheduler::TaskHandler;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -633,7 +634,7 @@ impl ExtManager {
     fn move_waiting_msgs_to_queue(&mut self, message_id: MessageId, program_id: ProgramId) {
         if let Some(ids) = self.wait_init_list.remove(&program_id) {
             for id in ids {
-                self.wake_message(message_id, program_id, id, 0);
+                JournalHandler::wake_message(self, message_id, program_id, id, 0);
             }
         }
     }
@@ -685,7 +686,8 @@ impl ExtManager {
                     let packet = ReplyPacket::new(payload.try_into().unwrap(), 0);
                     let reply_message = ReplyMessage::from_packet(id, packet);
 
-                    self.send_dispatch(
+                    JournalHandler::send_dispatch(
+                        self,
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                         0,
@@ -724,7 +726,8 @@ impl ExtManager {
                     let packet = ReplyPacket::new(Default::default(), 1);
                     let reply_message = ReplyMessage::from_packet(id, packet);
 
-                    self.send_dispatch(
+                    JournalHandler::send_dispatch(
+                        self,
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                         0,
@@ -1118,4 +1121,122 @@ impl JournalHandler for ExtManager {
     }
 
     fn pay_program_rent(&mut self, _payer: ProgramId, _program_id: ProgramId, _block_count: u32) {}
+}
+
+type AccountId = u64;
+
+impl TaskHandler<AccountId> for ExtManager {
+    // Rent charging section.
+    // ---------------------
+
+    /// Pause program action.
+    /// # Panics
+    /// This method will panic if program id is incorrect or program is not initialized.
+    fn pause_program(&mut self, program_id: ProgramId) {
+        logger::debug!("Pausing program {:?}", program_id);
+        let (actor, _) = self
+            .actors
+            .get_mut(&program_id)
+            .expect("Program to pause must exist");
+        if let TestActor::Initialized(program) = actor {
+            match program {
+                Program::Genuine {
+                    program,
+                    code_id,
+                    pages_data,
+                    gas_reservation_map,
+                } => {
+                    // mark program as uninitialized
+                    let pages_data = pages_data.clone();
+                    let gas_reservation_map = gas_reservation_map.clone();
+                    let code_id = *code_id;
+                    let program = program.clone();
+                    *actor = TestActor::Uninitialized(
+                        Some(MessageId::default()), //TODO: is it ok?
+                        Some(Program::Genuine {
+                            program,
+                            code_id,
+                            pages_data,
+                            gas_reservation_map,
+                        }),
+                    );
+
+                    // remove waitlist entries
+                    self.wait_list.retain(|key, _| {
+                        if key.0 == program_id {
+                            logger::debug!("Removing waitlist entry for program {:?}", program_id);
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                }
+                Program::Mock(_) => {
+                    unimplemented!("Mock programs are not supported yet")
+                }
+            }
+        } else {
+            panic!("Program to pause must be initialized");
+        }
+    }
+
+    fn remove_code(&mut self, _code_id: CodeId) {
+        todo!("#646")
+    }
+
+    fn remove_from_mailbox(&mut self, user_id: AccountId, message_id: MessageId) {
+        logger::debug!(
+            "Removing message {:?} from mailbox of user {:?}",
+            message_id,
+            user_id
+        );
+
+        let mailbox = self
+            .mailbox
+            .get_mut(&user_id.into())
+            .expect("Mailbox to remove message from must exist");
+
+        let mut i = 0;
+        while i < mailbox.len() {
+            if mailbox[i].id() == message_id {
+                mailbox.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) {
+        logger::debug!(
+            "Removing message {:?} from waitlist of program {:?}",
+            message_id,
+            program_id
+        );
+
+        self.wait_list
+            .remove(&(program_id, message_id))
+            .expect("Waitlist to remove message from must exist");
+    }
+
+    fn remove_paused_program(&mut self, program_id: ProgramId) {
+        todo!("#646");
+    }
+
+    // Time chained section.
+    // ---------------------
+    fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) {
+        todo!()
+    }
+
+    fn send_dispatch(&mut self, stashed_message_id: MessageId) {
+        todo!()
+    }
+
+    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) {
+        todo!()
+    }
+
+    fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {
+        todo!()
+    }
 }

@@ -172,6 +172,7 @@ impl From<&str> for ProgramIdWrapper {
     }
 }
 
+#[derive(Debug)]
 pub struct Program<'a> {
     pub(crate) manager: &'a RefCell<ExtManager>,
     pub(crate) id: ProgramId,

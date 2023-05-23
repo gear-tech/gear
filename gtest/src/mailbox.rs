@@ -25,6 +25,7 @@ use gear_core::{
 };
 use std::{cell::RefCell, convert::TryInto};
 
+#[derive(Debug)]
 pub struct Mailbox<'a> {
     manager: &'a RefCell<ExtManager>,
     user_id: ProgramId,
