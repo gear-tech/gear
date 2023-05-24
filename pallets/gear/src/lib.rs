@@ -721,6 +721,7 @@ pub mod pallet {
                 payload,
                 value,
                 allow_other_panics,
+                false,
             )
         }
 
@@ -731,6 +732,7 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
             allow_other_panics: bool,
+            allow_skip_zero_replies: bool,
         ) -> Result<GasInfo, String> {
             log::debug!("\n===== CALCULATE GAS INFO =====\n");
             log::debug!("\n--- FIRST TRY ---\n");
@@ -746,6 +748,7 @@ pub mod pallet {
                     payload.clone(),
                     value,
                     allow_other_panics,
+                    allow_skip_zero_replies,
                 )
                 .map_err(|e| {
                     String::from_utf8(e)
@@ -763,6 +766,7 @@ pub mod pallet {
                     payload,
                     value,
                     allow_other_panics,
+                    allow_skip_zero_replies,
                 )
                 .map(
                     |GasInfo {
@@ -1561,7 +1565,7 @@ pub mod pallet {
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
-                MessageId::generate_reply(mailboxed.id(), 0),
+                MessageId::generate_reply(mailboxed.id()),
                 ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into()),
             );
 
@@ -1613,12 +1617,40 @@ pub mod pallet {
             origin: OriginFor<T>,
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
+            // Validating origin.
+            let origin = ensure_signed(origin)?;
+
             // Reason for reading from mailbox.
             let reason = UserMessageReadRuntimeReason::MessageClaimed.into_reason();
 
             // Reading message, if found, or failing extrinsic.
-            Self::read_message(ensure_signed(origin)?, message_id, reason)
+            let mailboxed = Self::read_message(origin.clone(), message_id, reason)
                 .ok_or(Error::<T>::MessageNotFound)?;
+
+            if Self::is_active(mailboxed.source()) {
+                // Creating reply message.
+                let message = ReplyMessage::auto(mailboxed.id());
+
+                // Creating `GasNode` for the reply.
+                //
+                // # Safety
+                //
+                //  The error is unreachable since the `message_id` is new generated
+                //  from the checked `original_message`."
+                GasHandlerOf::<T>::create(origin.clone(), message.id(), 0)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+                // Converting reply message into appropriate type for queueing.
+                let dispatch = message.into_stored_dispatch(
+                    ProgramId::from_origin(origin.into_origin()),
+                    mailboxed.source(),
+                    mailboxed.id(),
+                );
+
+                // Queueing dispatch.
+                QueueOf::<T>::queue(dispatch)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            };
 
             Ok(().into())
         }

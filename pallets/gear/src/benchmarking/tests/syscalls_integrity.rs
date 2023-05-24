@@ -218,7 +218,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
         let mp = vec![Kind::ReservationReply(expected_mid.into())]
             .encode()
@@ -237,7 +237,7 @@ where
         let payload = b"HI_RRC!!";
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
         let post_test = move || {
             assert!(
@@ -561,7 +561,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
         let mp = vec![Kind::Reply(gas, expected_mid.into())].encode().into();
 
@@ -579,7 +579,7 @@ where
         let payload = b"HI_RR!!";
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
         let post_test = move || {
             assert!(
@@ -606,7 +606,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_message_id = MessageId::generate_reply(next_message_id, 0);
+        let expected_message_id = MessageId::generate_reply(next_message_id);
 
         let payload = vec![Kind::ReplyInput(gas, expected_message_id.into())].encode();
         let message = payload.clone().into();
@@ -632,7 +632,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_message_id = MessageId::generate_reply(next_message_id, 0);
+        let expected_message_id = MessageId::generate_reply(next_message_id);
 
         let payload = vec![Kind::ReplyPushInput(expected_message_id.into())].encode();
         let message = payload.clone().into();
@@ -658,7 +658,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
         // trigger sending message to default_sender's mailbox
         Gear::<T>::send_message(
@@ -696,7 +696,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
         // setup signal details
         Gear::<T>::send_message(

@@ -52,14 +52,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bot"
-version = "0.1.0"
-dependencies = [
- "demo-chat",
- "gstd",
-]
-
-[[package]]
 name = "bs58"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -175,13 +167,6 @@ name = "demo-capacitor"
 version = "0.1.0"
 dependencies = [
  "gstd",
-]
-
-[[package]]
-name = "demo-chat"
-version = "0.1.0"
-dependencies = [
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -731,14 +716,6 @@ name = "rand_core"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
-
-[[package]]
-name = "room"
-version = "0.1.0"
-dependencies = [
- "demo-chat",
- "gstd",
-]
 
 [[package]]
 name = "rustc_version"
