@@ -18,8 +18,8 @@
 
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
-use quote::{quote, ToTokens};
-use syn::{parse_quote, Block, Expr, ItemFn, Signature};
+use quote::ToTokens;
+use syn::{parse_quote, Block, Expr, FnArg, ItemFn, Pat, PatType, Signature};
 
 /// Host function builder
 pub struct HostFn {
@@ -93,6 +93,7 @@ impl HostFn {
     }
 
     fn build_block(&self) -> Box<Block> {
+        let name = self.item.sig.ident.clone().to_string();
         let inner_block = self.item.block.clone();
         let inner_args = self
             .item
@@ -103,18 +104,23 @@ impl HostFn {
             .skip(1)
             .collect::<Vec<_>>();
 
-        let costs: Expr = {
-            // let mut var_str = name.to_string();
-            // var_str
-            //     .get_mut(0..1)
-            //     .expect("Function name must be valid")
-            //     .make_ascii_uppercase();
-            // let var = Ident::new(&var_str, Span::call_site());
-            // self.runtime_costs
-            //     .unwrap_or_else(|| parse_quote! { RuntimeCost::#var })
+        let log_args = self
+            .item
+            .sig
+            .inputs
+            .clone()
+            .into_iter()
+            .skip(1)
+            .filter_map(|a| match a {
+                FnArg::Typed(PatType { pat, .. }) => match pat.as_ref() {
+                    Pat::Ident(ident) => Some(ident.clone()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect::<Vec<_>>();
 
-            parse_quote!(RuntimeCosts::send(len))
-        };
+        let _costs = self.build_runtime_costs();
 
         parse_quote! ({
             let func = move |
@@ -122,7 +128,7 @@ impl HostFn {
                 #(#inner_args,)*
                 err_mid_ptr: u32,
             | -> EmptyOutput {
-                // syscall_trace!(name.to_string(), pid_value_ptr, payload_ptr, len, delay, err_mid_ptr);
+                syscall_trace!(#name, #(#log_args,)* err_mid_ptr);
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
                 ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Send(len), |ctx| {

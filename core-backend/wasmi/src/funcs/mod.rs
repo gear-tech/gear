@@ -33,7 +33,6 @@ use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
     env::Ext,
-    ids::MessageId,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
@@ -55,7 +54,6 @@ pub(crate) struct FuncsHandler<E: Ext + 'static> {
 
 type FnResult<T> = Result<(T,), Trap>;
 type EmptyOutput = Result<(), Trap>;
-type ExtResult<T> = Result<T, dyn BackendExtError>;
 
 impl<E> FuncsHandler<E>
 where
@@ -70,7 +68,7 @@ where
         payload_ptr: u32,
         len: u32,
         delay: u32,
-    ) -> ExtResult<MessageId> {
+    ) -> Result<MessageId> {
         let read_hash_val = ctx.register_read_as(pid_value_ptr);
         let read_payload = ctx.register_read(payload_ptr, len);
 
