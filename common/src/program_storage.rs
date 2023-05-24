@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use sp_arithmetic::traits::UniqueSaturatedInto;
+
 use super::*;
 use crate::storage::{AppendMapStorage, DoubleMapStorage, MapStorage};
 use core::fmt::Debug;
@@ -41,6 +43,12 @@ pub trait Error {
 
     /// Specified user is not an owner of the resume session.
     fn not_session_owner() -> Self;
+
+    /// Failed to resume the program due to incorrect provided data.
+    fn resume_session_failed() -> Self;
+
+    /// Failed to find the program binary code.
+    fn program_code_not_found() -> Self;
 }
 
 pub type MemoryMap = BTreeMap<GearPage, PageBuf>;
@@ -49,7 +57,7 @@ pub type MemoryMap = BTreeMap<GearPage, PageBuf>;
 pub trait ProgramStorage {
     type InternalError: Error;
     type Error: From<Self::InternalError> + Debug;
-    type BlockNumber: Copy + Saturating;
+    type BlockNumber: Copy + Saturating + UniqueSaturatedInto<u128>;
 
     type ProgramMap: MapStorage<Key = ProgramId, Value = Program<Self::BlockNumber>>;
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;

@@ -1766,38 +1766,24 @@ pub mod pallet {
             );
 
             let rent_fee = Self::rent_fee_for(block_count);
-            ensure!(
-                CurrencyOf::<T>::free_balance(&who) >= rent_fee,
-                Error::<T>::InsufficientBalanceForReserve
-            );
+            CurrencyOf::<T>::reserve(&who, rent_fee)
+                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
-            let block_number = Self::block_number();
-            let expiration_block = block_number.saturating_add(block_count);
+            let start_block = Self::block_number();
             let Some(session_id) = ProgramStorageOf::<T>::start_program_resume(
-                AccountId32::from_origin(who.clone().into_origin()),
-                block_number.unique_saturated_into(),
+                AccountId32::from_origin(who.into_origin()),
+                start_block,
                 program_id,
                 allocations,
                 code_hash,
-                expiration_block,
+                block_count,
+                rent_fee.saturated_into(),
             ) else {
                 return Err(Error::<T>::ProgramResumeSessionCannotBeStarted.into());
             };
 
-            let block_author = Authorship::<T>::author()
-                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
-
-            CurrencyOf::<T>::transfer(
-                &who,
-                &block_author,
-                rent_fee,
-                ExistenceRequirement::AllowDeath,
-            )
-            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
-
             let task = ScheduledTask::RemoveResumeSession(session_id);
-            let session_end_block =
-                block_number.saturating_add(ResumeSessionDurationOf::<T>::get());
+            let session_end_block = start_block.saturating_add(ResumeSessionDurationOf::<T>::get());
             TaskPoolOf::<T>::add(session_end_block, task)
                 .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
@@ -1806,43 +1792,6 @@ pub mod pallet {
                 program_id,
                 session_end_block,
             });
-
-            // match ProgramStorageOf::<T>::resume_program(
-            //     program_id,
-            //     allocations,
-            //     memory_pages,
-            //     code_hash,
-            //     expiration_block,
-            //     block_number,
-            // )? {
-            //     ResumeResult::Ok(resume_start_block) => {
-            //         let task = ScheduledTask::RemoveResumeData(program_id);
-            //         let result = TaskPoolOf::<T>::delete(
-            //             resume_start_block.saturating_add(ResumeDataPeriodOf::<T>::get()),
-            //             task,
-            //         );
-            //         log::debug!("resume_program; ok, task result = {result:?}");
-
-            //         CurrencyOf::<T>::transfer(
-            //             &who,
-            //             &block_author,
-            //             rent_fee,
-            //             ExistenceRequirement::AllowDeath,
-            //         )
-            //         .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
-
-            //         let task = ScheduledTask::PauseProgram(program_id);
-            //         TaskPoolOf::<T>::add(expiration_block, task)
-            //             .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-            //         Self::deposit_event(Event::ProgramChanged {
-            //             id: program_id,
-            //             change: ProgramChangeKind::Active {
-            //                 expiration: expiration_block,
-            //             },
-            //         });
-            //     }
-            // }
 
             Ok(().into())
         }
@@ -1862,6 +1811,62 @@ pub mod pallet {
                 AccountId32::from_origin(who.into_origin()),
                 memory_pages,
             )?;
+
+            Ok(().into())
+        }
+
+        #[pallet::call_index(11)]
+        // #[pallet::weight(<T as Config>::WeightInfo::pay_rent())]
+        #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
+        pub fn resume_session_finish(
+            origin: OriginFor<T>,
+            session_id: u64,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            let result = ProgramStorageOf::<T>::resume_session_finish(
+                session_id,
+                AccountId32::from_origin(who.clone().into_origin()),
+                Self::block_number(),
+            )?;
+
+            let task = ScheduledTask::RemoveResumeSession(session_id);
+            let session_end_block = result
+                .start_block
+                .saturating_add(ResumeSessionDurationOf::<T>::get());
+            TaskPoolOf::<T>::delete(session_end_block, task)
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+            let block_author = Authorship::<T>::author()
+                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
+            if let Some((program_id, expiration_block)) = result.info {
+                let task = ScheduledTask::PauseProgram(program_id);
+                TaskPoolOf::<T>::add(expiration_block, task)
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+                let leftover = CurrencyOf::<T>::repatriate_reserved(
+                    &who,
+                    &block_author,
+                    result.rent_fee.saturated_into(),
+                    BalanceStatus::Free,
+                )
+                .unwrap_or_else(|e| unreachable!("Failed to repatriate reserved funds: {:?}", e));
+                if !leftover.is_zero() {
+                    unreachable!("Reserved funds wasn't fully repatriated: {:?}", leftover)
+                }
+
+                Self::deposit_event(Event::ProgramChanged {
+                    id: program_id,
+                    change: ProgramChangeKind::Active {
+                        expiration: expiration_block,
+                    },
+                });
+            } else {
+                let leftover = CurrencyOf::<T>::unreserve(&who, result.rent_fee.saturated_into());
+                if !leftover.is_zero() {
+                    unreachable!("Not all requested value was unreserved: {:?}", leftover);
+                }
+            }
 
             Ok(().into())
         }

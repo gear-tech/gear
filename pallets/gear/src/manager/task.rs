@@ -31,13 +31,13 @@ use common::{
     Origin, PausedProgramStorage, Program, ProgramStorage,
 };
 use core::convert::TryInto;
-use frame_support::traits::{Currency, ExistenceRequirement};
+use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::ReplyMessage,
 };
 use gear_core_errors::{SimpleReplyError, SimpleSignalError};
-use sp_runtime::traits::Zero;
+use sp_runtime::traits::{SaturatedConversion, Zero};
 
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
@@ -268,7 +268,13 @@ where
 
     fn remove_resume_session(&mut self, session_id: u64) {
         log::debug!("Execute task to remove resume session with session_id = {session_id}");
-        ProgramStorageOf::<T>::remove_resume_session(session_id)
+        let (user, rent_fee) = ProgramStorageOf::<T>::remove_resume_session(session_id)
             .unwrap_or_else(|e| unreachable!("ProgramStorage corrupted! {:?}", e));
+
+        let account = T::AccountId::from_origin(user.into_origin());
+        let leftover = CurrencyOf::<T>::unreserve(&account, rent_fee.saturated_into());
+        if !leftover.is_zero() {
+            unreachable!("Not all requested value was unreserved: {:?}", leftover);
+        }
     }
 }

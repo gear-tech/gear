@@ -19,11 +19,12 @@
 use super::{program_storage::MemoryMap, *};
 use crate::storage::{AppendMapStorage, MapStorage, ValueStorage};
 use core::fmt::Debug;
+use sp_arithmetic::traits::UniqueSaturatedInto;
+use sp_io::hashing;
 use sp_runtime::AccountId32;
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, Encode)]
 #[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
 struct Item {
     allocations: BTreeSet<WasmPage>,
     memory_pages: MemoryMap,
@@ -48,20 +49,8 @@ impl<BlockNumber: Copy + Saturating> From<(ActiveProgram<BlockNumber>, MemoryMap
 
 impl Item {
     fn hash(&self) -> H256 {
-        self.using_encoded(sp_io::hashing::blake2_256).into()
+        self.using_encoded(hashing::blake2_256).into()
     }
-}
-
-/// Successfull result of calling `resume_program`.
-/// Both variants contain block number when `resume_program`
-/// was called the first time.
-pub enum ResumeResult<BlockNumber> {
-    /// Program resumed successfully.
-    Ok(BlockNumber),
-    /// Provided data is incomplete or incorrect. The data
-    /// saved to the storage so a caller is able to call `resume_program`
-    /// again with remaining data.
-    IncompleteData(BlockNumber),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
@@ -73,7 +62,15 @@ pub struct ResumeSession<BlockNumber> {
     program_id: ProgramId,
     allocations: BTreeSet<WasmPage>,
     code_hash: H256,
-    expiration_block: BlockNumber,
+    start_block: BlockNumber,
+    rent_blocks: BlockNumber,
+    rent_fee: u128,
+}
+
+pub struct ResumeResult<BlockNumber> {
+    pub start_block: BlockNumber,
+    pub rent_fee: u128,
+    pub info: Option<(ProgramId, BlockNumber)>,
 }
 
 /// Trait to pause/resume programs.
@@ -116,11 +113,12 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     /// Create a session for program resume. Returns the session id on success.
     fn start_program_resume(
         user: AccountId32,
-        block_number: u128,
+        start_block: Self::BlockNumber,
         program_id: ProgramId,
         allocations: BTreeSet<WasmPage>,
         code_hash: H256,
-        expiration_block: Self::BlockNumber,
+        rent_blocks: Self::BlockNumber,
+        rent_fee: u128,
     ) -> Option<u64> {
         if !Self::paused_program_exists(&program_id) {
             return None;
@@ -140,9 +138,10 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             }
         });
 
-        let session_id = u64::from_le_bytes(
-            (program_id, block_number, nonce).using_encoded(sp_io::hashing::twox_64),
-        );
+        let session_id = {
+            let start_block: u128 = start_block.unique_saturated_into();
+            u64::from_le_bytes((program_id, start_block, nonce).using_encoded(hashing::twox_64))
+        };
         Self::ResumeSessions::mutate(session_id, |session| {
             if session.is_some() {
                 return None;
@@ -154,7 +153,9 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 program_id,
                 allocations,
                 code_hash,
-                expiration_block,
+                start_block,
+                rent_blocks,
+                rent_fee,
             });
 
             Some(session_id)
@@ -190,78 +191,92 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         })
     }
 
-    /// Resume program with the given key `program_id`.
-    fn resume_program(
-        program_id: ProgramId,
-        allocations: BTreeSet<WasmPage>,
-        mut memory_pages: MemoryMap,
-        code_hash: H256,
-        expiration_block: Self::BlockNumber,
+    /// Finish program resume session with the given key `session_id`.
+    fn resume_session_finish(
+        session_id: u64,
+        user: AccountId32,
         current_block: Self::BlockNumber,
     ) -> Result<ResumeResult<Self::BlockNumber>, Self::Error> {
-        let Some((_block_number, hash)) = Self::PausedProgramMap::get(&program_id) else {
-            return Err(Self::InternalError::item_not_found().into());
-        };
+        Self::ResumeSessions::mutate(session_id, |maybe_session| {
+            let session = match maybe_session.as_mut() {
+                None => return Err(Self::InternalError::resume_session_not_found().into()),
+                Some(s) if s.user != user => {
+                    return Err(Self::InternalError::not_session_owner().into())
+                }
+                Some(s) => s,
+            };
 
-        let (block, uploaded_pages) = match Self::ResumePageMap::get(&program_id) {
-            Some((block, uploaded_pages)) => (block, uploaded_pages),
-            None => (current_block, Default::default()),
-        };
+            let Some((_block_number, hash)) = Self::PausedProgramMap::get(&session.program_id) else {
+                let result = ResumeResult {
+                    start_block: session.start_block,
+                    rent_fee: session.rent_fee,
+                    info: None,
+                };
 
-        // at first upload new memory pages (they could overwrite the old ones)
-        for (page, page_buf) in memory_pages.iter() {
-            Self::set_program_page_data(program_id, *page, page_buf.clone());
-        }
+                // it means that the program has been already resumed within another session
+                Self::SessionMemoryPages::remove(session_id);
+                *maybe_session = None;
 
-        // then load remaining memory pages
-        let pages = uploaded_pages
-            .iter()
-            .filter(|k| !memory_pages.contains_key(*k));
-        let mut pages_data = Self::get_program_data_for_pages(program_id, pages)?;
-        memory_pages.append(&mut pages_data);
+                return Ok(result)
+            };
 
-        // and check hash
-        let uploaded_pages = memory_pages.keys().copied().collect();
-        let current_hash = Item::from((allocations.clone(), code_hash, memory_pages)).hash();
-        if current_hash != hash {
-            Self::ResumePageMap::insert(program_id, (block, uploaded_pages));
+            let memory_pages: MemoryMap = Self::SessionMemoryPages::get(&session_id)
+                .unwrap_or_default()
+                .into_iter()
+                .collect();
+            let code_hash = session.code_hash;
+            let item = Item::from((session.allocations.clone(), code_hash, memory_pages));
+            if item.hash() != hash {
+                return Err(Self::InternalError::resume_session_failed().into());
+            }
 
-            return Ok(ResumeResult::IncompleteData(block));
-        }
+            let code =
+                Self::CodeStorage::get_code(CodeId::from_origin(code_hash)).ok_or_else(|| {
+                    log::debug!("Failed to find the code {code_hash} to resume program");
 
-        let code =
-            Self::CodeStorage::get_code(CodeId::from_origin(code_hash)).ok_or_else(|| {
-                log::debug!("resume_program: code {code_hash} not found");
+                    Self::InternalError::program_code_not_found()
+                })?;
+            let program = ActiveProgram {
+                allocations: item.allocations,
+                pages_with_data: item.memory_pages.keys().copied().collect(),
+                gas_reservation_map: Default::default(),
+                code_hash,
+                code_exports: code.exports().clone(),
+                static_pages: code.static_pages(),
+                state: ProgramState::Initialized,
+                expiration_block: current_block.saturating_add(session.rent_blocks),
+            };
 
-                Self::InternalError::item_not_found()
-            })?;
-        let program = ActiveProgram {
-            allocations,
-            pages_with_data: uploaded_pages,
-            gas_reservation_map: Default::default(),
-            code_hash,
-            code_exports: code.exports().clone(),
-            static_pages: code.static_pages(),
-            state: ProgramState::Initialized,
-            expiration_block,
-        };
+            let program_id = session.program_id;
+            let result = ResumeResult {
+                start_block: session.start_block,
+                rent_fee: session.rent_fee,
+                info: Some((program_id, program.expiration_block)),
+            };
 
-        Self::PausedProgramMap::remove(program_id);
-        Self::ResumePageMap::remove(program_id);
+            // wipe all uploaded data out
+            *maybe_session = None;
+            Self::PausedProgramMap::remove(program_id);
+            Self::SessionMemoryPages::remove(session_id);
 
-        Self::add_program(program_id, program)
-            .expect("invariant kept by the PausedProgramStorage trait");
+            // set program memory pages
+            for (page, page_buf) in item.memory_pages {
+                Self::set_program_page_data(program_id, page, page_buf);
+            }
+            // and finally start the program
+            Self::ProgramMap::insert(program_id, Program::Active(program));
 
-        Ok(ResumeResult::Ok(block))
+            Ok(result)
+        })
     }
 
     /// Remove all data created by a call to `start_program_resume`.
-    fn remove_resume_session(session_id: u64) -> Result<(), Self::Error> {
+    fn remove_resume_session(session_id: u64) -> Result<(AccountId32, u128), Self::Error> {
         Self::ResumeSessions::mutate(session_id, |maybe_session| match maybe_session.take() {
-            Some(_) => {
+            Some(s) => {
                 Self::SessionMemoryPages::remove(session_id);
 
-                Ok(())
+                Ok((s.user, s.rent_fee))
             }
             None => Err(Self::InternalError::item_not_found().into()),
         })
