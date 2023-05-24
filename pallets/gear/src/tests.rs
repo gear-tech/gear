@@ -5360,7 +5360,7 @@ fn test_create_program_simple() {
 
         // First extrinsic call with successful program creation dequeues and executes init and dispatch messages
         // Second extrinsic is failing one, for each message it generates replies, which are executed (4 dequeued, 2 dispatched)
-        assert_total_dequeued(6 + 3 + 4); // +3 for extrinsics +4 for auto generated replies
+        assert_total_dequeued(6 + 3 + 2); // +3 for extrinsics +2 for auto generated replies
         assert_init_success(1 + 1); // +1 for submitting factory
 
         System::reset_events();
@@ -5393,7 +5393,7 @@ fn test_create_program_simple() {
         ));
         run_to_block(6, None);
 
-        assert_total_dequeued(12 + 2 + 8); // +2 for extrinsics +8 for auto generated replies
+        assert_total_dequeued(12 + 2 + 4); // +2 for extrinsics +4 for auto generated replies
         assert_init_success(2);
     })
 }
@@ -5981,7 +5981,7 @@ fn test_create_program_duplicate() {
         // When duplicate try happens, init is not executed, a reply is generated and executed (+2 dequeued, +1 dispatched)
         // Concerning dispatch message, it is executed, because destination exists (+1 dispatched, +1 dequeued)
         assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
-        assert_total_dequeued(3 + 3 + 2); // +3 from extrinsics (2 upload_program, 1 send_message) +2 for auto generated replies
+        assert_total_dequeued(3 + 3 + 1); // +3 from extrinsics (2 upload_program, 1 send_message) +1 for auto generated reply
         assert_init_success(2); // +2 from extrinsics (2 upload_program)
 
         System::reset_events();
@@ -6013,7 +6013,7 @@ fn test_create_program_duplicate() {
         // Second call will not cause init message execution, but a reply will be generated (+2 dequeued, +1 dispatched)
         // Handle message from the second call will be executed (addressed for existing destination) (+1 dequeued, +1 dispatched)
         assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
-        assert_total_dequeued(5 + 2 + 6); // +2 from extrinsics (send_message) +6 for auto generated replies
+        assert_total_dequeued(5 + 2 + 3); // +2 from extrinsics (send_message) +3 for auto generated replies
         assert_init_success(1);
 
         assert_noop!(
@@ -6087,7 +6087,7 @@ fn test_create_program_duplicate_in_one_execution() {
 
         run_to_block(4, None);
 
-        assert_total_dequeued(2 + 1 + 4); // 1 for extrinsics +4 for auto generated replies
+        assert_total_dequeued(2 + 1 + 2); // 1 for extrinsics +2 for auto generated replies
         assert_init_success(1);
     });
 }
@@ -6187,7 +6187,7 @@ fn test_create_program_miscellaneous() {
 
         run_to_block(5, None);
 
-        assert_total_dequeued(18 + 4 + 12); // +4 for 3 send_message calls and 1 upload_program call +12 for auto generated replies
+        assert_total_dequeued(18 + 4 + 6); // +4 for 3 send_message calls and 1 upload_program call +6 for auto generated replies
         assert_init_success(3 + 1); // +1 for submitting factory
     });
 }
@@ -6927,7 +6927,7 @@ fn test_create_program_with_value_lt_ed() {
         run_to_block(2, None);
 
         // init messages sent by user and by program
-        assert_total_dequeued(2 + 2);
+        assert_total_dequeued(2 + 1);
         // programs deployed by user and by program
         assert_init_success(2);
 
@@ -7088,7 +7088,7 @@ fn test_create_program_without_gas_works() {
 
         run_to_block(2, None);
 
-        assert_total_dequeued(2 + 2);
+        assert_total_dequeued(2 + 1);
         assert_init_success(2);
     })
 }
@@ -10744,6 +10744,9 @@ fn relay_messages() {
                 "{}",
                 label
             );
+
+            // To clear auto reply on init message.
+            System::reset_events();
 
             run_to_next_block(None);
 
