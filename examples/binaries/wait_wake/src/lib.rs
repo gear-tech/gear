@@ -163,13 +163,21 @@ mod tests {
             from,
             Request::Wake(MessageId::new(msg_id_1.as_ref().try_into().unwrap())),
         );
-        assert!(res.log().is_empty());
+        let log = Log::builder()
+            .source(program_2.id())
+            .dest(from)
+            .payload_bytes([]);
+        assert!(res.contains(&log));
 
         let res = program_1.send(
             from,
             Request::Wake(MessageId::new(msg_id_2.as_ref().try_into().unwrap())),
         );
-        assert!(res.log().is_empty());
+        let log = Log::builder()
+            .source(program_1.id())
+            .dest(from)
+            .payload_bytes([]);
+        assert!(res.contains(&log));
 
         // wake msg_1 for program_1 and msg_2 for program_2
         let res = program_1.send(

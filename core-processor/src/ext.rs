@@ -504,15 +504,15 @@ impl EnvExt for Ext {
             .map_err(Into::into)
     }
 
-    fn block_height(&mut self) -> Result<u32, Self::Error> {
+    fn block_height(&self) -> Result<u32, Self::Error> {
         Ok(self.context.block_info.height)
     }
 
-    fn block_timestamp(&mut self) -> Result<u64, Self::Error> {
+    fn block_timestamp(&self) -> Result<u64, Self::Error> {
         Ok(self.context.block_info.timestamp)
     }
 
-    fn origin(&mut self) -> Result<gear_core::ids::ProgramId, Self::Error> {
+    fn origin(&self) -> Result<gear_core::ids::ProgramId, Self::Error> {
         Ok(self.context.origin)
     }
 
@@ -628,7 +628,7 @@ impl EnvExt for Ext {
         Ok(msg_id)
     }
 
-    fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
+    fn reply_to(&self) -> Result<MessageId, Self::Error> {
         self.context
             .message_context
             .current()
@@ -638,7 +638,7 @@ impl EnvExt for Ext {
             .ok_or_else(|| MessageError::NoReplyContext.into())
     }
 
-    fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
+    fn signal_from(&self) -> Result<MessageId, Self::Error> {
         self.context
             .message_context
             .current()
@@ -657,11 +657,11 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn source(&mut self) -> Result<ProgramId, Self::Error> {
+    fn source(&self) -> Result<ProgramId, Self::Error> {
         Ok(self.context.message_context.current().source())
     }
 
-    fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
+    fn status_code(&self) -> Result<StatusCode, Self::Error> {
         self.context
             .message_context
             .current()
@@ -670,7 +670,7 @@ impl EnvExt for Ext {
             .ok_or_else(|| MessageError::NoStatusCodeContext.into())
     }
 
-    fn message_id(&mut self) -> Result<MessageId, Self::Error> {
+    fn message_id(&self) -> Result<MessageId, Self::Error> {
         Ok(self.context.message_context.current().id())
     }
 
@@ -717,11 +717,11 @@ impl EnvExt for Ext {
         Ok((rent.saturating_sub(cost), blocks_to_pay))
     }
 
-    fn program_id(&mut self) -> Result<ProgramId, Self::Error> {
+    fn program_id(&self) -> Result<ProgramId, Self::Error> {
         Ok(self.context.program_id)
     }
 
-    fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
+    fn debug(&self, data: &str) -> Result<(), Self::Error> {
         log::debug!(target: "gwasm", "DEBUG: {}", data);
         Ok(())
     }
@@ -745,7 +745,7 @@ impl EnvExt for Ext {
         Ok((&msg[at as usize..end as usize], self.gas_left()))
     }
 
-    fn size(&mut self) -> Result<usize, Self::Error> {
+    fn size(&self) -> Result<usize, Self::Error> {
         Ok(self.context.message_context.current().payload().len())
     }
 
@@ -804,15 +804,15 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn gas_available(&mut self) -> Result<u64, Self::Error> {
+    fn gas_available(&self) -> Result<u64, Self::Error> {
         Ok(self.context.gas_counter.left())
     }
 
-    fn value(&mut self) -> Result<u128, Self::Error> {
+    fn value(&self) -> Result<u128, Self::Error> {
         Ok(self.context.message_context.current().value())
     }
 
-    fn value_available(&mut self) -> Result<u128, Self::Error> {
+    fn value_available(&self) -> Result<u128, Self::Error> {
         Ok(self.context.value_counter.left())
     }
 
@@ -907,7 +907,7 @@ impl EnvExt for Ext {
         Ok((mid, pid))
     }
 
-    fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
+    fn random(&self) -> Result<(&[u8], u32), Self::Error> {
         Ok((&self.context.random_data.0, self.context.random_data.1))
     }
 
