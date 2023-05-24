@@ -23,6 +23,7 @@ use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
 use codec::{Decode, Encode};
 use core::{convert::TryInto, marker::PhantomData};
+use gear_backend_codegen::host;
 use gear_backend_common::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
     syscall_trace, ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError,
@@ -32,6 +33,7 @@ use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
     env::Ext,
+    ids::MessageId,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
 };
@@ -53,6 +55,7 @@ pub(crate) struct FuncsHandler<E: Ext + 'static> {
 
 type FnResult<T> = Result<(T,), Trap>;
 type EmptyOutput = Result<(), Trap>;
+type ExtResult<T> = Result<T, dyn BackendExtError>;
 
 impl<E> FuncsHandler<E>
 where
@@ -60,6 +63,29 @@ where
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
+    #[host]
+    pub fn send_test(
+        ctx: CallerWrap<E>,
+        pid_value_ptr: u32,
+        payload_ptr: u32,
+        len: u32,
+        delay: u32,
+    ) -> ExtResult<MessageId> {
+        let read_hash_val = ctx.register_read_as(pid_value_ptr);
+        let read_payload = ctx.register_read(payload_ptr, len);
+
+        let HashWithValue {
+            hash: destination,
+            value,
+        } = ctx.read_as(read_hash_val)?;
+        let payload = ctx.read(read_payload)?.try_into()?;
+
+        let state = ctx.host_state_mut();
+        state
+            .ext
+            .send(HandlePacket::new(destination.into(), payload, value), delay)
+    }
+
     pub fn send(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
                          pid_value_ptr: u32,

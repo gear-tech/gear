@@ -15,6 +15,7 @@ members = [
     "core-backend/common",
     "core-backend/sandbox",
     "core-backend/wasmi",
+    "core-backend/codegen",
     "core-processor",
     "core-errors",
     "examples/binaries/async-custom-entry",
@@ -168,6 +169,7 @@ gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gear-authorship = { path = "node/authorship" }
 gear-backend-common = { path = "core-backend/common" }
+gear-backend-codegen = { path = "core-backend/codegen", default-features = false }
 gear-backend-sandbox = { path = "core-backend/sandbox", default-features = false }
 gear-backend-wasmi = { path = "core-backend/wasmi", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
