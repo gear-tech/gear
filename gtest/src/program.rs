@@ -727,7 +727,11 @@ mod tests {
 
         // Charge capacitor with CHARGE = 10
         let response = prog.send_bytes(signer, b"10");
-        assert_eq!(response.log().len(), 0);
+        let log = Log::builder()
+            .source(prog.id())
+            .dest(signer)
+            .payload_bytes([]);
+        assert!(response.contains(&log));
 
         let cleanup = CleanupFolderOnDrop {
             path: "./296c6962726".to_string(),
@@ -736,15 +740,11 @@ mod tests {
 
         // Charge capacitor with CHARGE = 10
         let response = prog.send_bytes(signer, b"10");
-        assert_eq!(
-            response
-                .log()
-                .iter()
-                .map(|log| { String::from_utf8(log.payload().to_vec()).unwrap() })
-                .find(|_| true)
-                .unwrap(),
-            "Discharged: 20"
-        );
+        let log = Log::builder()
+            .source(prog.id())
+            .dest(signer)
+            .payload_bytes("Discharged: 20");
+        assert!(response.contains(&log));
         sys.claim_value_from_mailbox(signer);
 
         prog.load_memory_dump("./296c6962726/demo_capacitor.dump");
@@ -752,15 +752,11 @@ mod tests {
 
         // Charge capacitor with CHARGE = 10
         let response = prog.send_bytes(signer, b"10");
-        assert_eq!(
-            response
-                .log()
-                .iter()
-                .map(|log| { String::from_utf8(log.payload().to_vec()).unwrap() })
-                .find(|_| true)
-                .unwrap(),
-            "Discharged: 20"
-        );
+        let log = Log::builder()
+            .source(prog.id())
+            .dest(signer)
+            .payload_bytes("Discharged: 20");
+        assert!(response.contains(&log));
         sys.claim_value_from_mailbox(signer);
     }
 }

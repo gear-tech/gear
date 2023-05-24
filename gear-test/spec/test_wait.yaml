@@ -57,10 +57,31 @@ fixtures:
             payload: *second
 
       - log: # First and second message processed
+          # 1 auto replies on init of 1 program
+          - destination: 1000001
+            payload: &auto
+              kind: bytes
+              value: 0x
+            statusCode: 0
+
+          # auto reply on first message
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+
+          # auto reply on second message
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload:
               kind: utf-8
               value: WAITED
+
+          # auto reply on third message
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload:
               kind: utf-8

@@ -105,13 +105,13 @@ impl Ext for MockExt {
     fn free(&mut self, _page: WasmPage) -> Result<(), Self::AllocError> {
         Err(Error)
     }
-    fn block_height(&mut self) -> Result<u32, Self::Error> {
+    fn block_height(&self) -> Result<u32, Self::Error> {
         Ok(0)
     }
-    fn block_timestamp(&mut self) -> Result<u64, Self::Error> {
+    fn block_timestamp(&self) -> Result<u64, Self::Error> {
         Ok(0)
     }
-    fn origin(&mut self) -> Result<ProgramId, Self::Error> {
+    fn origin(&self) -> Result<ProgramId, Self::Error> {
         Ok(ProgramId::from(0))
     }
     fn send_init(&mut self) -> Result<u32, Self::Error> {
@@ -142,19 +142,19 @@ impl Ext for MockExt {
     ) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
-    fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
+    fn reply_to(&self) -> Result<MessageId, Self::Error> {
         Ok(Default::default())
     }
     fn reply_push_input(&mut self, _offset: u32, _len: u32) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn source(&mut self) -> Result<ProgramId, Self::Error> {
+    fn source(&self) -> Result<ProgramId, Self::Error> {
         Ok(ProgramId::from(0))
     }
-    fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
+    fn status_code(&self) -> Result<StatusCode, Self::Error> {
         Ok(Default::default())
     }
-    fn message_id(&mut self) -> Result<MessageId, Self::Error> {
+    fn message_id(&self) -> Result<MessageId, Self::Error> {
         Ok(0.into())
     }
     fn pay_program_rent(
@@ -164,28 +164,28 @@ impl Ext for MockExt {
     ) -> Result<(u128, u32), Self::Error> {
         Ok((0, 0))
     }
-    fn program_id(&mut self) -> Result<ProgramId, Self::Error> {
+    fn program_id(&self) -> Result<ProgramId, Self::Error> {
         Ok(0.into())
     }
-    fn debug(&mut self, _data: &str) -> Result<(), Self::Error> {
+    fn debug(&self, _data: &str) -> Result<(), Self::Error> {
         Ok(())
     }
     fn read(&mut self, _at: u32, _len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
         Ok((&[], Default::default()))
     }
-    fn size(&mut self) -> Result<usize, Self::Error> {
+    fn size(&self) -> Result<usize, Self::Error> {
         Ok(0)
     }
-    fn gas_available(&mut self) -> Result<u64, Self::Error> {
+    fn gas_available(&self) -> Result<u64, Self::Error> {
         Ok(1_000_000)
     }
-    fn value(&mut self) -> Result<u128, Self::Error> {
+    fn value(&self) -> Result<u128, Self::Error> {
         Ok(0)
     }
-    fn value_available(&mut self) -> Result<u128, Self::Error> {
+    fn value_available(&self) -> Result<u128, Self::Error> {
         Ok(1_000_000)
     }
-    fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
+    fn random(&self) -> Result<(&[u8], u32), Self::Error> {
         Ok(([0u8; 32].as_ref(), 0))
     }
     fn wait(&mut self) -> Result<(), Self::Error> {
@@ -240,7 +240,7 @@ impl Ext for MockExt {
         Ok(MessageId::default())
     }
 
-    fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
+    fn signal_from(&self) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
 }

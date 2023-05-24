@@ -200,6 +200,11 @@ impl ContextStore {
     pub fn system_reservation(&self) -> Option<u64> {
         self.system_reservation
     }
+
+    /// Get info about was reply sent.
+    pub fn reply_sent(&self) -> bool {
+        self.reply_sent
+    }
 }
 
 /// Context of currently processing incoming message.
@@ -405,7 +410,7 @@ impl MessageContext {
                 packet
             };
 
-            let message_id = MessageId::generate_reply(self.current.id(), packet.status_code());
+            let message_id = MessageId::generate_reply(self.current.id());
             let message = ReplyMessage::from_packet(message_id, packet);
 
             self.outcome.reply = Some((message, delay, reservation));

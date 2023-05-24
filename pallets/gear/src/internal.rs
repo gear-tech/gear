@@ -28,7 +28,7 @@ use common::{
     event::{
         MessageWaitedReason, MessageWaitedRuntimeReason::*,
         MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, ProgramChangeKind,
-        Reason, Reason::*, UserMessageReadReason, UserMessageReadRuntimeReason,
+        Reason::*, UserMessageReadReason,
     },
     gas_provider::{GasNodeId, Imbalance},
     scheduler::*,
@@ -493,7 +493,7 @@ where
     /// Removes message from mailbox, permanently charged for hold with
     /// appropriate event depositing, if found.
     ///
-    /// Note: message auto-consumes, if reason is claim or reply.
+    /// Note: message consumes automatically.
     pub(crate) fn read_message(
         user_id: T::AccountId,
         message_id: MessageId,
@@ -512,42 +512,21 @@ where
         (mailboxed, hold_interval): (StoredMessage, Interval<BlockNumberFor<T>>),
         reason: UserMessageReadReason,
     ) -> StoredMessage {
-        use UserMessageReadRuntimeReason::{MessageClaimed, MessageReplied};
-
         // Expected block number to finish task.
         let expected = hold_interval.finish;
 
         // Charging for holding.
         Self::charge_for_hold(mailboxed.id(), hold_interval, StorageType::Mailbox);
 
-        // Determining if the reason is user action.
-        let user_queries = matches!(reason, Reason::Runtime(MessageClaimed | MessageReplied));
-
-        // Optionally consuming message.
-        user_queries.then(|| Self::consume_and_retrieve(mailboxed.id()));
+        // Consuming message.
+        Self::consume_and_retrieve(mailboxed.id());
 
         // Taking data for funds transfer.
-        let user_id = mailboxed.destination();
-        let from = mailboxed.source();
-        let value = mailboxed.value().unique_saturated_into();
-
-        // Determining recipients id.
-        //
-        // If message was claimed or replied, destination user takes value,
-        // otherwise, it returns back (got unreserved).
-        let to = if user_queries {
-            user_id
-        } else {
-            Self::inheritor_for(from)
-        };
-
-        // Converting into `AccountId`.
-        let user_id = <T::AccountId as Origin>::from_origin(user_id.into_origin());
-        let from = <T::AccountId as Origin>::from_origin(from.into_origin());
-        let to = <T::AccountId as Origin>::from_origin(to.into_origin());
+        let user_id = <T::AccountId as Origin>::from_origin(mailboxed.destination().into_origin());
+        let from = <T::AccountId as Origin>::from_origin(mailboxed.source().into_origin());
 
         // Transferring reserved funds, associated with the message.
-        Self::transfer_reserved(&from, &to, value);
+        Self::transfer_reserved(&from, &user_id, mailboxed.value().unique_saturated_into());
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::UserMessageRead {
