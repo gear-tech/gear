@@ -19,43 +19,21 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::ToTokens;
-use syn::{parse_quote, Block, Expr, FnArg, ItemFn, Pat, PatType, Signature};
+use syn::{
+    parse::Parse, parse_quote, punctuated::Punctuated, Block, Expr, FnArg, ItemFn, Meta, Pat,
+    PatType, Signature, Token,
+};
 
 /// Host function builder
 pub struct HostFn {
     item: ItemFn,
-    fallible: bool,
-    wgas: bool,
-    runtime_costs: Option<Expr>,
+    meta: HostFnMeta,
 }
 
 impl HostFn {
     /// Create a new host function builder.
-    pub fn new(item: ItemFn) -> Self {
-        Self {
-            item,
-            fallible: false,
-            wgas: false,
-            runtime_costs: None,
-        }
-    }
-
-    /// Set the function as fallible.
-    pub fn fallible(mut self) -> Self {
-        self.fallible = true;
-        self
-    }
-
-    /// Set the function as wgas.
-    pub fn wgas(mut self) -> Self {
-        self.wgas = true;
-        self
-    }
-
-    /// Set the runtime cost of the function.
-    pub fn runtime_costs(mut self, expr: Expr) -> Self {
-        self.runtime_costs = Some(expr);
-        self
+    pub fn new(meta: HostFnMeta, item: ItemFn) -> Self {
+        Self { item, meta }
     }
 
     /// Build the host function.
@@ -80,6 +58,10 @@ impl HostFn {
 
     /// Build the runtime costs of the function.
     fn build_runtime_costs(&self) -> Expr {
+        if let Some(runtime_costs) = self.meta.runtime_costs.clone() {
+            return runtime_costs;
+        }
+
         let mut var_str = self.item.sig.ident.to_string();
         var_str
             .get_mut(0..1)
@@ -87,29 +69,16 @@ impl HostFn {
             .make_ascii_uppercase();
         let var = Ident::new(&var_str, Span::call_site());
 
-        self.runtime_costs
-            .clone()
-            .unwrap_or_else(|| parse_quote! { RuntimeCost::#var })
+        parse_quote!(RuntimeCost::#var)
     }
 
     fn build_block(&self) -> Box<Block> {
         let name = self.item.sig.ident.clone().to_string();
         let inner_block = self.item.block.clone();
-        let inner_args = self
-            .item
-            .sig
-            .inputs
+        let inputs = self.item.sig.inputs.iter();
+        let inner_args = inputs.clone().skip(1).collect::<Vec<_>>();
+        let log_args = inputs
             .clone()
-            .into_iter()
-            .skip(1)
-            .collect::<Vec<_>>();
-
-        let log_args = self
-            .item
-            .sig
-            .inputs
-            .clone()
-            .into_iter()
             .skip(1)
             .filter_map(|a| match a {
                 FnArg::Typed(PatType { pat, .. }) => match pat.as_ref() {
@@ -120,7 +89,9 @@ impl HostFn {
             })
             .collect::<Vec<_>>();
 
-        let _costs = self.build_runtime_costs();
+        let cost = self.build_runtime_costs();
+
+        // TODO: check fallible
 
         parse_quote! ({
             let func = move |
@@ -131,7 +102,7 @@ impl HostFn {
                 syscall_trace!(#name, #(#log_args,)* err_mid_ptr);
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
-                ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Send(len), |ctx| {
+                ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, #cost, |ctx| {
                     #inner_block.map_err(Into::into)
                 })
             };
@@ -141,14 +112,42 @@ impl HostFn {
     }
 }
 
-impl From<ItemFn> for HostFn {
-    fn from(item: ItemFn) -> Self {
-        Self::new(item)
-    }
-}
-
 impl From<HostFn> for TokenStream {
     fn from(host_fn: HostFn) -> Self {
         host_fn.build()
+    }
+}
+
+pub struct HostFnMeta {
+    /// If the host function is fallible.
+    pub fallible: bool,
+    /// If the host function is wgas.
+    pub wgas: bool,
+    /// The runtime costs of the host function.
+    pub runtime_costs: Option<Expr>,
+}
+
+impl Parse for HostFnMeta {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let mut fallible = false;
+        let mut wgas = false;
+        let mut runtime_costs = None;
+
+        let meta_list = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
+        for meta in meta_list {
+            if meta.path().is_ident("fallible") {
+                fallible = true;
+            } else if meta.path().is_ident("wgas") {
+                wgas = true;
+            } else if meta.path().is_ident("cost") {
+                runtime_costs = Some(meta.require_name_value()?.value.clone());
+            }
+        }
+
+        Ok(Self {
+            fallible,
+            wgas,
+            runtime_costs,
+        })
     }
 }

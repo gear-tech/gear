@@ -61,8 +61,8 @@ where
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
-    #[host]
-    pub fn send_test(
+    #[host(fallible, cost = RuntimeCosts::Send(len))]
+    pub fn send(
         ctx: CallerWrap<E>,
         pid_value_ptr: u32,
         payload_ptr: u32,
@@ -82,38 +82,6 @@ where
         state
             .ext
             .send(HandlePacket::new(destination.into(), payload, value), delay)
-    }
-
-    pub fn send(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>,
-                         pid_value_ptr: u32,
-                         payload_ptr: u32,
-                         len: u32,
-                         delay: u32,
-                         err_mid_ptr: u32|
-              -> EmptyOutput {
-            syscall_trace!("send", pid_value_ptr, payload_ptr, len, delay, err_mid_ptr);
-            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-
-            ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Send(len), |ctx| {
-                let read_hash_val = ctx.register_read_as(pid_value_ptr);
-                let read_payload = ctx.register_read(payload_ptr, len);
-
-                let HashWithValue {
-                    hash: destination,
-                    value,
-                } = ctx.read_as(read_hash_val)?;
-                let payload = ctx.read(read_payload)?.try_into()?;
-
-                let state = ctx.host_state_mut();
-                state
-                    .ext
-                    .send(HandlePacket::new(destination.into(), payload, value), delay)
-                    .map_err(Into::into)
-            })
-        };
-
-        Func::wrap(store, func)
     }
 
     pub fn send_wgas(

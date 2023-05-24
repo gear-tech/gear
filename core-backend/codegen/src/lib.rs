@@ -16,14 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use host::HostFn;
+use host::{HostFn, HostFnMeta};
 use proc_macro::TokenStream;
 use syn::ItemFn;
 
 mod host;
 
 #[proc_macro_attribute]
-pub fn host(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let raw: ItemFn = syn::parse_macro_input!(item);
-    HostFn::from(raw).into()
+pub fn host(meta: TokenStream, item: TokenStream) -> TokenStream {
+    let meta: HostFnMeta = syn::parse_macro_input!(meta);
+    let item: ItemFn = syn::parse_macro_input!(item);
+
+    HostFn::new(meta, item).into()
 }
