@@ -104,13 +104,15 @@ pub fn input<'a, Range: RangeBounds<usize> + Copy>() -> InputMessageBuilder<'a, 
 ///
 /// Instead of writing imperative code like this:
 /// ```no_run
+/// use gstd::{msg, ActorId};
+///
 /// msg::send_bytes_with_gas_delayed(ActorId::zero(), b"PING", 1_000_000, 0, 60)
 ///     .expect("failed to send msg");
 /// ```
 ///
 /// This wrapper allows you to write code like this:
 /// ```no_run
-/// use gstd::builder;
+/// use gstd::{builder, ActorId};
 ///
 /// builder::bytes::<_>()
 ///     .to(ActorId::zero())
