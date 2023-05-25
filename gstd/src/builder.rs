@@ -88,8 +88,7 @@ pub const fn encode<'a, Encodable: Encode>() -> EncodeMessageBuilder<'a, Encodab
 }
 
 /// This data type provides a more convenient wrapper over functions
-/// such as `msg::send_input<R: RangeBounds<usize>>()`, `msg::reply_input<R:
-/// ...>()`.
+/// such as `msg::send_input<R: RangeBounds<usize>>()`, `msg::reply_input<R>()`.
 pub type InputMessageBuilder<'a, Range> = MessageBuilder<'a, [u8; 0], (), Range>;
 
 /// Create a new [`InputMessageBuilder`].
