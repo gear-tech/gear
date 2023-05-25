@@ -98,6 +98,7 @@ impl HostFn {
         new_inputs
     }
 
+    /// Build the function body.
     fn build_block(&self) -> Box<Block> {
         let name = self.item.sig.ident.clone().to_string();
         let cost = self.meta.runtime_costs.clone();
@@ -195,6 +196,7 @@ pub enum CallType {
     FallibleStateTaken,
 }
 
+/// Attribute meta of the host function.
 pub struct HostFnMeta {
     /// Call type of the host function.
     pub call_type: CallType,
