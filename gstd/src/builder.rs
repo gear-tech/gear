@@ -74,7 +74,7 @@ where
 pub type BytesMessageBuilder<'a, Buffer> = MessageBuilder<'a, Buffer, (), RangeFull>;
 
 /// Create a new [`BytesMessageBuilder`].
-pub fn bytes<'a, Buffer: AsRef<[u8]>>() -> BytesMessageBuilder<'a, Buffer> {
+pub const fn bytes<'a, Buffer: AsRef<[u8]>>() -> BytesMessageBuilder<'a, Buffer> {
     BytesMessageBuilder::new()
 }
 
@@ -83,7 +83,7 @@ pub fn bytes<'a, Buffer: AsRef<[u8]>>() -> BytesMessageBuilder<'a, Buffer> {
 pub type EncodeMessageBuilder<'a, Encodable> = MessageBuilder<'a, [u8; 0], Encodable, RangeFull>;
 
 /// Create a new [`EncodeMessageBuilder`].
-pub fn encode<'a, Encodable: Encode>() -> EncodeMessageBuilder<'a, Encodable> {
+pub const fn encode<'a, Encodable: Encode>() -> EncodeMessageBuilder<'a, Encodable> {
     EncodeMessageBuilder::new()
 }
 
@@ -93,7 +93,7 @@ pub fn encode<'a, Encodable: Encode>() -> EncodeMessageBuilder<'a, Encodable> {
 pub type InputMessageBuilder<'a, Range> = MessageBuilder<'a, [u8; 0], (), Range>;
 
 /// Create a new [`InputMessageBuilder`].
-pub fn input<'a, Range: RangeBounds<usize> + Copy>() -> InputMessageBuilder<'a, Range> {
+pub const fn input<'a, Range: RangeBounds<usize> + Copy>() -> InputMessageBuilder<'a, Range> {
     InputMessageBuilder::new()
 }
 
