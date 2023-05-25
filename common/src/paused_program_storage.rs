@@ -16,36 +16,52 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::*;
+use super::{program_storage::MemoryMap, *};
 use crate::storage::MapStorage;
-use core::fmt::Debug;
+use gear_core::{
+    code::MAX_WASM_PAGE_COUNT,
+    memory::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+};
+use sp_core::MAX_POSSIBLE_ALLOCATION;
+use sp_io::hashing;
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
-#[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
+const SPLIT_COUNT: u16 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 * MAX_WASM_PAGE_COUNT / 2;
+
+// The entity helps to calculate hash of program's data and memory pages.
+// Its structure designed that way to avoid memory allocation of more than MAX_POSSIBLE_ALLOCATION bytes.
 struct Item {
-    allocations: BTreeSet<WasmPage>,
-    memory_pages: BTreeMap<GearPage, PageBuf>,
-    code_hash: H256,
+    data: (BTreeSet<WasmPage>, H256, MemoryMap),
+    remaining_pages: MemoryMap,
 }
 
-impl<BlockNumber: Copy + Saturating> From<(ActiveProgram<BlockNumber>, BTreeMap<GearPage, PageBuf>)>
-    for Item
-{
+impl From<(BTreeSet<WasmPage>, H256, MemoryMap)> for Item {
     fn from(
-        (program, memory_pages): (ActiveProgram<BlockNumber>, BTreeMap<GearPage, PageBuf>),
+        (allocations, code_hash, mut memory_pages): (BTreeSet<WasmPage>, H256, MemoryMap),
     ) -> Self {
+        let remaining_pages = memory_pages.split_off(&GearPage::from(SPLIT_COUNT));
         Self {
-            allocations: program.allocations,
-            memory_pages,
-            code_hash: program.code_hash,
+            data: (allocations, code_hash, memory_pages),
+            remaining_pages,
         }
+    }
+}
+
+impl<BlockNumber: Copy + Saturating> From<(ActiveProgram<BlockNumber>, MemoryMap)> for Item {
+    fn from((program, memory_pages): (ActiveProgram<BlockNumber>, MemoryMap)) -> Self {
+        From::from((program.allocations, program.code_hash, memory_pages))
     }
 }
 
 impl Item {
     fn hash(&self) -> H256 {
-        self.using_encoded(sp_io::hashing::blake2_256).into()
+        // hash program info with the first part of memory pages
+        let hash = self.data.using_encoded(hashing::blake2_256);
+        // hash the remaining memory pages prepended with the first hash
+        let mut array = Vec::with_capacity(MAX_POSSIBLE_ALLOCATION as usize);
+        array.extend_from_slice(&hash);
+        self.remaining_pages.encode_to(&mut array);
+
+        hashing::blake2_256(&array).into()
     }
 }
 
