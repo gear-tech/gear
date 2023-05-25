@@ -88,7 +88,8 @@ pub fn encode<'a, Encodable: Encode>() -> EncodeMessageBuilder<'a, Encodable> {
 }
 
 /// This data type provides a more convenient wrapper over functions
-/// such as `msg::send_input<R: RangeBounds<usize>>()`, `msg::reply_input<R: ...>()`.
+/// such as `msg::send_input<R: RangeBounds<usize>>()`, `msg::reply_input<R:
+/// ...>()`.
 pub type InputMessageBuilder<'a, Range> = MessageBuilder<'a, [u8; 0], (), Range>;
 
 /// Create a new [`InputMessageBuilder`].
@@ -154,7 +155,8 @@ where
         }
     }
 
-    /// Sets `code_id` which can be used to call [`create_program`](Self::create_program) later.
+    /// Sets `code_id` which can be used to call
+    /// [`create_program`](Self::create_program) later.
     pub const fn code_id(mut self, code_id: CodeId) -> Self {
         self.code_id = Some(code_id);
         self
@@ -209,7 +211,8 @@ where
     }
 
     /// This internal function performs some basic integrity checks.
-    /// Also this is a constant function that allows the rust compiler to perform optimizations.
+    /// Also this is a constant function that allows the rust compiler to
+    /// perform optimizations.
     const fn finalize(self) -> Result<FinalizedMessage<'a, Buffer, Encodable, Range>> {
         let call_type = match (self.code_id, self.program) {
             (None, None) => CallType::ReplyMessage,
@@ -273,7 +276,8 @@ where
         MessageBuilderForReply { inner: self }
     }
 
-    /// Returns a wrapper that works with `*_for_reply_as::<D: Decode>` functions.
+    /// Returns a wrapper that works with `*_for_reply_as::<D: Decode>`
+    /// functions.
     #[inline(always)]
     pub fn for_reply_as<Decodable: Decode>(
         self,
@@ -456,8 +460,8 @@ where
         }
     }
 
-    /// Tries to call one of the `ProgramGenerator::create_program*` functions depending
-    /// on how the arguments were constructed.
+    /// Tries to call one of the `ProgramGenerator::create_program*` functions
+    /// depending on how the arguments were constructed.
     #[inline(always)]
     pub fn create_program(self) -> Result<(MessageId, ActorId)> {
         let FinalizedMessage {
@@ -630,8 +634,8 @@ where
         }
     }
 
-    /// Tries to call one of the `ProgramGenerator::create_program*_for_reply` functions depending
-    /// on how the arguments were constructed.
+    /// Tries to call one of the `ProgramGenerator::create_program*_for_reply`
+    /// functions depending on how the arguments were constructed.
     #[inline(always)]
     pub fn create_program(self) -> Result<CreateProgramFuture> {
         let FinalizedMessage {
@@ -688,8 +692,8 @@ where
     Range: RangeBounds<usize> + Copy,
     Decodable: Decode,
 {
-    /// Tries to call one of the `msg::send*_for_reply_as::<D: Decode>` functions depending
-    /// on how the arguments were constructed.
+    /// Tries to call one of the `msg::send*_for_reply_as::<D: Decode>`
+    /// functions depending on how the arguments were constructed.
     #[inline(always)]
     pub fn send(self) -> Result<CodecMessageFuture<Decodable>> {
         let FinalizedMessage {
@@ -760,8 +764,8 @@ where
         }
     }
 
-    /// Tries to call one of the `msg::reply*_for_reply_as::<D: Decode>` functions depending
-    /// on how the arguments were constructed.
+    /// Tries to call one of the `msg::reply*_for_reply_as::<D: Decode>`
+    /// functions depending on how the arguments were constructed.
     #[inline(always)]
     pub fn reply(self) -> Result<CodecMessageFuture<Decodable>> {
         let FinalizedMessage {
@@ -823,7 +827,8 @@ where
         }
     }
 
-    /// Tries to call one of the `ProgramGenerator::create_program*_for_reply_as::<D: Decode>`
+    /// Tries to call one of the
+    /// `ProgramGenerator::create_program*_for_reply_as::<D: Decode>`
     /// functions depending on how the arguments were constructed.
     #[inline(always)]
     pub fn create_program(self) -> Result<CodecCreateProgramFuture<Decodable>> {
