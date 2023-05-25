@@ -61,7 +61,7 @@ where
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
-    #[host(fallible, cost = RuntimeCosts::Send(len))]
+    #[host(fallible, wgas, cost = RuntimeCosts::Send(len))]
     pub fn send(
         ctx: CallerWrap<E>,
         pid_value_ptr: u32,
@@ -84,64 +84,7 @@ where
             .send(HandlePacket::new(destination.into(), payload, value), delay)
     }
 
-    pub fn send_wgas(
-        store: &mut Store<HostState<E>>,
-        forbidden: bool,
-        memory: WasmiMemory,
-    ) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>,
-                         pid_value_ptr: u32,
-                         payload_ptr: u32,
-                         len: u32,
-                         gas_limit: u64,
-                         delay: u32,
-                         err_mid_ptr: u32|
-              -> EmptyOutput {
-            syscall_trace!(
-                "send",
-                pid_value_ptr,
-                payload_ptr,
-                len,
-                gas_limit,
-                delay,
-                err_mid_ptr
-            );
-            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-
-            ctx.run_fallible::<_, _, LengthWithHash>(
-                err_mid_ptr,
-                RuntimeCosts::SendWGas(len),
-                |ctx| {
-                    let read_hash_val = ctx.register_read_as(pid_value_ptr);
-                    let read_payload = ctx.register_read(payload_ptr, len);
-
-                    let HashWithValue {
-                        hash: destination,
-                        value,
-                    } = ctx.read_as(read_hash_val)?;
-                    let payload = ctx.read(read_payload)?.try_into()?;
-
-                    let state = ctx.host_state_mut();
-                    state
-                        .ext
-                        .send(
-                            HandlePacket::new_with_gas(
-                                destination.into(),
-                                payload,
-                                gas_limit,
-                                value,
-                            ),
-                            delay,
-                        )
-                        .map_err(Into::into)
-                },
-            )
-        };
-
-        Func::wrap(store, func)
-    }
-
-    #[host(fallible, cost = RuntimeCosts::SendCommit)]
+    #[host(fallible, wgas, cost = RuntimeCosts::SendCommit)]
     pub fn send_commit(
         ctx: CallerWrap<E>,
         handle: u32,
@@ -161,61 +104,6 @@ where
             HandlePacket::new(destination.into(), Default::default(), value),
             delay,
         )
-    }
-
-    pub fn send_commit_wgas(
-        store: &mut Store<HostState<E>>,
-        forbidden: bool,
-        memory: WasmiMemory,
-    ) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>,
-                         handle: u32,
-                         pid_value_ptr: u32,
-                         gas_limit: u64,
-                         delay: u32,
-                         err_mid_ptr: u32|
-              -> EmptyOutput {
-            syscall_trace!(
-                "send_commit_wgas",
-                handle,
-                pid_value_ptr,
-                gas_limit,
-                delay,
-                err_mid_ptr
-            );
-
-            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-
-            ctx.run_fallible::<_, _, LengthWithHash>(
-                err_mid_ptr,
-                RuntimeCosts::SendCommitWGas,
-                |ctx| {
-                    let read_pid_value = ctx.register_read_as(pid_value_ptr);
-
-                    let HashWithValue {
-                        hash: destination,
-                        value,
-                    } = ctx.read_as(read_pid_value)?;
-
-                    let state = ctx.host_state_mut();
-                    state
-                        .ext
-                        .send_commit(
-                            handle,
-                            HandlePacket::new_with_gas(
-                                destination.into(),
-                                Default::default(),
-                                gas_limit,
-                                value,
-                            ),
-                            delay,
-                        )
-                        .map_err(Into::into)
-                },
-            )
-        };
-
-        Func::wrap(store, func)
     }
 
     #[host(fallible, cost = RuntimeCosts::SendInit, err_len = LengthWithHandle)]
@@ -283,37 +171,20 @@ where
         )
     }
 
-    pub fn read(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>,
-                         at: u32,
-                         len: u32,
-                         buffer_ptr: u32,
-                         err_len_ptr: u32|
-              -> EmptyOutput {
-            syscall_trace!("read", at, len, buffer_ptr, err_len_ptr);
-            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
+    #[host(fallible_state_taken, cost = RuntimeCosts::Read, err_len = LengthBytes)]
+    pub fn read(ctx: CallerWrap<E>, at: u32, len: u32, buffer_ptr: u32) -> Func {
+        // State is taken, so we cannot use `MemoryOwner` functions from `CallerWrap`.
+        let (buffer, mut gas_left) = state.ext.read(at, len)?;
 
-            ctx.run_fallible_state_taken::<_, _, LengthBytes>(
-                err_len_ptr,
-                RuntimeCosts::Read,
-                |ctx, state| {
-                    // State is taken, so we cannot use `MemoryOwner` functions from `CallerWrap`.
-                    let (buffer, mut gas_left) = state.ext.read(at, len)?;
+        let write_buffer = ctx.register_write(buffer_ptr, len);
 
-                    let write_buffer = ctx.register_write(buffer_ptr, len);
+        let mut memory = CallerWrap::memory(&mut ctx.caller, ctx.memory);
+        ctx.manager
+            .write(&mut memory, write_buffer, buffer, &mut gas_left)?;
 
-                    let mut memory = CallerWrap::memory(&mut ctx.caller, ctx.memory);
-                    ctx.manager
-                        .write(&mut memory, write_buffer, buffer, &mut gas_left)?;
+        state.ext.set_gas_left(gas_left);
 
-                    state.ext.set_gas_left(gas_left);
-
-                    Ok(())
-                },
-            )
-        };
-
-        Func::wrap(store, func)
+        Result::<(), TerminationReason>::Ok(())
     }
 
     #[host(cost = RuntimeCosts::Size)]
@@ -329,7 +200,7 @@ where
         let read_inheritor_id = ctx.register_read_decoded(inheritor_id_ptr);
         let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
 
-        Result::<(), ActorTerminationReason>::Err(ActorTerminationReason::Exit(inheritor_id).into())
+        Result::<(), ActorTerminationReason>::Err(ActorTerminationReason::Exit(inheritor_id))
     }
 
     #[host(fallible, cost = RuntimeCosts::StatusCode, err_len = LengthWithCode)]
@@ -402,7 +273,7 @@ where
         ctx.write_as(write_origin, origin.into_bytes())
     }
 
-    #[host(fallible, cost = RuntimeCosts::Reply(len))]
+    #[host(fallible, wgas, cost = RuntimeCosts::Reply(len))]
     pub fn reply(
         ctx: CallerWrap<E>,
         payload_ptr: u32,
@@ -418,51 +289,7 @@ where
         state.ext.reply(ReplyPacket::new(payload, value), delay)
     }
 
-    pub fn reply_wgas(
-        store: &mut Store<HostState<E>>,
-        forbidden: bool,
-        memory: WasmiMemory,
-    ) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>,
-                         payload_ptr: u32,
-                         len: u32,
-                         gas_limit: u64,
-                         value_ptr: u32,
-                         delay: u32,
-                         err_mid_ptr: u32|
-              -> EmptyOutput {
-            syscall_trace!(
-                "reply_wgas",
-                payload_ptr,
-                len,
-                gas_limit,
-                value_ptr,
-                delay,
-                err_mid_ptr
-            );
-            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-
-            ctx.run_fallible::<_, _, LengthWithHash>(
-                err_mid_ptr,
-                RuntimeCosts::ReplyWGas(len),
-                |ctx| {
-                    let read_payload = ctx.register_read(payload_ptr, len);
-                    let value = ctx.register_and_read_value(value_ptr)?;
-                    let payload = ctx.read(read_payload)?.try_into()?;
-
-                    let state = ctx.host_state_mut();
-                    state
-                        .ext
-                        .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
-                        .map_err(Into::into)
-                },
-            )
-        };
-
-        Func::wrap(store, func)
-    }
-
-    #[host(fallible, cost = RuntimeCosts::ReplyCommit)]
+    #[host(fallible, wgas, cost = RuntimeCosts::ReplyCommit)]
     pub fn reply_commit(ctx: CallerWrap<E>, value_ptr: u32, delay: u32) -> Func {
         let value = ctx.register_and_read_value(value_ptr)?;
 
@@ -470,22 +297,6 @@ where
         state
             .ext
             .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-    }
-
-    #[host(fallible, cost = RuntimeCosts::ReplyCommitWGas)]
-    pub fn reply_commit_wgas(
-        ctx: CallerWrap<E>,
-        gas_limit: u64,
-        value_ptr: u32,
-        delay: u32,
-    ) -> Func {
-        let value = ctx.register_and_read_value(value_ptr)?;
-
-        let state = ctx.host_state_mut();
-        state.ext.reply_commit(
-            ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-            delay,
-        )
     }
 
     #[host(fallible, cost = RuntimeCosts::ReservationReply(len))]
@@ -551,7 +362,7 @@ where
         state.ext.reply_push(&payload)
     }
 
-    #[host(fallible, cost = RuntimeCosts::ReplyInput)]
+    #[host(fallible, wgas, cost = RuntimeCosts::ReplyInput)]
     pub fn reply_input(
         ctx: CallerWrap<E>,
         offset: u32,
@@ -560,16 +371,12 @@ where
         delay: u32,
     ) -> Func {
         let value = ctx.register_and_read_value(value_ptr)?;
-
         let state = ctx.host_state_mut();
-        let mut f = || {
-            state.ext.reply_push_input(offset, len)?;
-            state
-                .ext
-                .reply_commit(ReplyPacket::new(Default::default(), value), delay)
-        };
 
-        f()
+        state.ext.reply_push_input(offset, len)?;
+        state
+            .ext
+            .reply_commit(ReplyPacket::new(Default::default(), value), delay)
     }
 
     #[host(fallible, cost = RuntimeCosts::ReplyPushInput, err_len = LengthBytes)]
@@ -578,54 +385,7 @@ where
         state.ext.reply_push_input(offset, len)
     }
 
-    pub fn reply_input_wgas(
-        store: &mut Store<HostState<E>>,
-        forbidden: bool,
-        memory: WasmiMemory,
-    ) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>,
-                         offset: u32,
-                         len: u32,
-                         gas_limit: u64,
-                         value_ptr: u32,
-                         delay: u32,
-                         err_mid_ptr: u32|
-              -> EmptyOutput {
-            syscall_trace!(
-                "reply_input_wgas",
-                offset,
-                len,
-                gas_limit,
-                value_ptr,
-                delay,
-                err_mid_ptr
-            );
-            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-
-            ctx.run_fallible::<_, _, LengthWithHash>(
-                err_mid_ptr,
-                RuntimeCosts::ReplyInputWGas,
-                |ctx| {
-                    let value = ctx.register_and_read_value(value_ptr)?;
-
-                    let state = ctx.host_state_mut();
-                    let mut f = || {
-                        state.ext.reply_push_input(offset, len)?;
-                        state.ext.reply_commit(
-                            ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                            delay,
-                        )
-                    };
-
-                    f().map_err(Into::into)
-                },
-            )
-        };
-
-        Func::wrap(store, func)
-    }
-
-    #[host(fallible, cost = RuntimeCosts::SendInput)]
+    #[host(fallible, wgas, cost = RuntimeCosts::SendInput)]
     pub fn send_input(
         ctx: CallerWrap<E>,
         pid_value_ptr: u32,
@@ -658,65 +418,6 @@ where
     pub fn send_push_input(ctx: CallerWrap<E>, handle: u32, offset: u32, len: u32) -> Func {
         let state = ctx.host_state_mut();
         state.ext.send_push_input(handle, offset, len)
-    }
-
-    pub fn send_input_wgas(
-        store: &mut Store<HostState<E>>,
-        forbidden: bool,
-        memory: WasmiMemory,
-    ) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>,
-                         pid_value_ptr: u32,
-                         offset: u32,
-                         len: u32,
-                         gas_limit: u64,
-                         delay: u32,
-                         err_mid_ptr: u32|
-              -> EmptyOutput {
-            syscall_trace!(
-                "send_push_wgas",
-                pid_value_ptr,
-                offset,
-                len,
-                gas_limit,
-                delay,
-                err_mid_ptr
-            );
-            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-
-            ctx.run_fallible::<_, _, LengthWithHash>(
-                err_mid_ptr,
-                RuntimeCosts::SendInputWGas,
-                |ctx| {
-                    let read_pid_value = ctx.register_read_as(pid_value_ptr);
-
-                    let HashWithValue {
-                        hash: destination,
-                        value,
-                    } = ctx.read_as(read_pid_value)?;
-
-                    let state = ctx.host_state_mut();
-                    let mut f = || {
-                        let handle = state.ext.send_init()?;
-                        state.ext.send_push_input(handle, offset, len)?;
-                        state.ext.send_commit(
-                            handle,
-                            HandlePacket::new_with_gas(
-                                destination.into(),
-                                Default::default(),
-                                gas_limit,
-                                value,
-                            ),
-                            delay,
-                        )
-                    };
-
-                    f().map_err(Into::into)
-                },
-            )
-        };
-
-        Func::wrap(store, func)
     }
 
     #[host(cost = RuntimeCosts::Debug(len))]
@@ -889,7 +590,7 @@ where
         state.ext.wake(message_id, delay)
     }
 
-    #[host(fallible, cost = RuntimeCosts::CreateProgram(payload_len, salt_len), err_len = LengthWithTwoHashes)]
+    #[host(fallible, wgas, cost = RuntimeCosts::CreateProgram(payload_len, salt_len), err_len = LengthWithTwoHashes)]
     pub fn create_program(
         ctx: CallerWrap<E>,
         cid_value_ptr: u32,
@@ -914,70 +615,6 @@ where
         state
             .ext
             .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
-    }
-
-    pub fn create_program_wgas(
-        store: &mut Store<HostState<E>>,
-        forbidden: bool,
-        memory: WasmiMemory,
-    ) -> Func {
-        let func = move |caller: Caller<'_, HostState<E>>,
-                         cid_value_ptr: u32,
-                         salt_ptr: u32,
-                         salt_len: u32,
-                         payload_ptr: u32,
-                         payload_len: u32,
-                         gas_limit: u64,
-                         delay: u32,
-                         err_mid_pid_ptr: u32|
-              -> EmptyOutput {
-            syscall_trace!(
-                "create_program",
-                cid_value_ptr,
-                salt_ptr,
-                salt_len,
-                payload_ptr,
-                payload_len,
-                gas_limit,
-                delay,
-                err_mid_pid_ptr
-            );
-            let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-
-            ctx.run_fallible::<_, _, LengthWithTwoHashes>(
-                err_mid_pid_ptr,
-                RuntimeCosts::CreateProgramWGas(payload_len, salt_len),
-                |ctx| {
-                    let read_cid_value = ctx.register_read_as(cid_value_ptr);
-                    let read_salt = ctx.register_read(salt_ptr, salt_len);
-                    let read_payload = ctx.register_read(payload_ptr, payload_len);
-
-                    let HashWithValue {
-                        hash: code_id,
-                        value,
-                    } = ctx.read_as(read_cid_value)?;
-                    let salt = ctx.read(read_salt)?.try_into()?;
-                    let payload = ctx.read(read_payload)?.try_into()?;
-
-                    let state = ctx.host_state_mut();
-                    state
-                        .ext
-                        .create_program(
-                            InitPacket::new_with_gas(
-                                code_id.into(),
-                                salt,
-                                payload,
-                                gas_limit,
-                                value,
-                            ),
-                            delay,
-                        )
-                        .map_err(Into::into)
-                },
-            )
-        };
-
-        Func::wrap(store, func)
     }
 
     #[host(fallible, cost = RuntimeCosts::Error, err_len = LengthBytes)]
