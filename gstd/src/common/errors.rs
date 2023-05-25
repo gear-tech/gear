@@ -50,6 +50,8 @@ pub enum ContractError {
     /// function (see
     /// [Config::set_system_reserve](crate::Config::set_system_reserve)).
     ZeroSystemReservationAmount,
+    /// This error occurs when the `gstd::builder` module is used incorrectly.
+    BuilderUsage(&'static str),
 }
 
 impl ContractError {
@@ -72,6 +74,9 @@ impl fmt::Display for ContractError {
             ContractError::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
             ContractError::ZeroSystemReservationAmount => {
                 write!(f, "System reservation amount can not be zero in config.")
+            }
+            ContractError::BuilderUsage(e) => {
+                write!(f, "`gstd::builder` module is used incorrectly: {e:?}")
             }
         }
     }
