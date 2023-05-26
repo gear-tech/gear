@@ -12,7 +12,7 @@ use gear_call_gen::{
 };
 use gear_core::ids::ProgramId;
 use gear_utils::NonEmpty;
-use std::iter;
+use std::{collections::HashMap, iter};
 use tracing::instrument;
 
 #[derive(Clone, Copy)]
@@ -35,6 +35,7 @@ pub struct StressBatchGenerator<Rng> {
     pub batch_size: usize,
     pub gas: u64,
     pub estimated: u128,
+    pub pid_gas: HashMap<ProgramId, u64>,
     rt_settings: RuntimeSettings,
 }
 
@@ -265,6 +266,7 @@ impl<Rng: CallGenRng> StressBatchGenerator<Rng> {
             batch_size,
             gas: 1,
             estimated,
+            pid_gas: Default::default(),
             rt_settings,
         }
     }
@@ -287,7 +289,7 @@ impl<Rng: CallGenRng> StressBatchGenerator<Rng> {
         rt_settings: RuntimeSettings,
     ) -> Batch {
         let existing_programs = context.programs.iter().copied().collect::<Vec<_>>();
-        if self.gas == 1 {
+        if self.gas == 1 || context.programs.len() < self.batch_size {
             self.gen_upload_program_batch(existing_programs, seed, rt_settings)
         } else {
             match NonEmpty::from_vec(context.programs.iter().copied().collect()) {
@@ -321,15 +323,18 @@ impl<Rng: CallGenRng> StressBatchGenerator<Rng> {
         // })
         // .collect();
 
-        let inner = iter::zip(1_usize.., iter::repeat_with(|| (existing_programs.clone(), seed)))
-            .take(self.batch_size)
-            .map(|(i, (existing_programs, rng_seed))| {
-                let mut rng = Rng::seed_from_u64(rng_seed);
-                let mut salt = vec![0; rng.gen_range(1..=100)];
-                rng.fill_bytes(&mut salt);
-                UploadProgramArgs((WASM_BINARY.to_vec(), salt, vec![], rt_settings.gas_limit, 0))
-            })
-            .collect();
+        let inner = iter::zip(
+            1_usize..,
+            iter::repeat_with(|| (existing_programs.clone(), seed)),
+        )
+        .take(self.batch_size)
+        .map(|(i, (existing_programs, rng_seed))| {
+            let mut rng = Rng::seed_from_u64(rng_seed);
+            let mut salt = vec![0; rng.gen_range(1..=100)];
+            rng.fill_bytes(&mut salt);
+            UploadProgramArgs((WASM_BINARY.to_vec(), salt, vec![], rt_settings.gas_limit, 0))
+        })
+        .collect();
 
         Batch::UploadProgram(inner)
     }
@@ -348,8 +353,13 @@ impl<Rng: CallGenRng> StressBatchGenerator<Rng> {
                 tracing::debug_span!("`stress send_message` generator", call_id = i + 1,).in_scope(
                     || {
                         // let program_idx = rng.next_u64() as usize;
-                        tracing::debug!("{:?}, len = {}, {:?}", existing_programs, existing_programs.len(), i);
-                        let &destination = existing_programs.get(i -1 ).unwrap();
+                        tracing::debug!(
+                            "{:?}, len = {}, {:?}",
+                            existing_programs,
+                            existing_programs.len(),
+                            i
+                        );
+                        let &destination = existing_programs.get(i - 1).unwrap();
                         let src = [0; 32];
                         let payload = Package::new(self.estimated, src).encode();
                         SendMessageArgs((destination, payload, self.gas, 0))

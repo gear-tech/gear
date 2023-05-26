@@ -9,5 +9,5 @@ extern "C" fn handle() {
         pkg.calc();
     }
 
-    msg::reply(pkg.result(), 0).expect("Send reply failed.");
+    //    msg::reply(pkg.result(), 0).expect("Send reply failed.");
 }

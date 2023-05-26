@@ -153,10 +153,13 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 
             let mut api = self.api.clone();
             println!("PID LEN = {:?}", self.tasks_context.programs.len());
-            if self.tasks_context.programs.len() >= self.batch_size && batch_gen.estimated == 1 {
-                while (batch_gen.gas * self.batch_size as u64) < rt_settings.gas_limit {
+            if self.tasks_context.programs.len() >= 1 && batch_gen.estimated == 1 {
+                while (batch_gen.gas * self.batch_size as u64 * self.pool_size as u64)
+                    < rt_settings.gas_limit - 10_000_000
+                {
                     use demo_calc_hash_in_one_block::Package;
 
+                    batch_gen.estimated = batch_gen.estimated + 100;
                     let (src, times) = ([0; 32], batch_gen.estimated);
 
                     // estimate start cost
@@ -171,15 +174,13 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
                         .await
                         .expect("Failed to get gas spent");
 
-                    batch_gen.estimated = batch_gen.estimated * 2;
-                    batch_gen.gas = new_gas;
+                    batch_gen.gas = new_gas + new_gas / 4;
                 }
                 println!("ESTIMATED = {:?}", batch_gen.estimated);
-            } else {
-
-                let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
-                batches.push(run_batch(api, batch_with_seed));
             }
+
+            let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
+            batches.push(run_batch(api, batch_with_seed));
         }
 
         unreachable!()
