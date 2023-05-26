@@ -54,14 +54,17 @@ impl<BlockNumber: Copy + Saturating> From<(ActiveProgram<BlockNumber>, MemoryMap
 
 impl Item {
     fn hash(&self) -> H256 {
-        // hash program info with the first part of memory pages
         let hash = self.data.using_encoded(hashing::blake2_256);
-        // hash the remaining memory pages prepended with the first hash
-        let mut array = Vec::with_capacity(MAX_POSSIBLE_ALLOCATION as usize);
-        array.extend_from_slice(&hash);
-        self.remaining_pages.encode_to(&mut array);
+        if self.remaining_pages.is_empty() {
+            hash.into()
+        } else {
+            // hash the remaining memory pages prepended with the first hash
+            let mut array = Vec::with_capacity(MAX_POSSIBLE_ALLOCATION as usize);
+            array.extend_from_slice(&hash);
+            self.remaining_pages.encode_to(&mut array);
 
-        hashing::blake2_256(&array).into()
+            hashing::blake2_256(&array).into()
+        }
     }
 }
 
