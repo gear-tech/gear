@@ -680,7 +680,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.batch_all(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {

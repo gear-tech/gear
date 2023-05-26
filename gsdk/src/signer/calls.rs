@@ -182,6 +182,17 @@ impl Signer {
         )
         .await
     }
+
+    /// `pallet_utility::batch_all`
+    pub async fn batch_all(&self, calls: Vec<RuntimeCall>) -> InBlock {
+        let tx = subxt::dynamic::tx(
+            "Utility",
+            "batch_all",
+            vec![calls.into_iter().map(Value::from).collect::<Vec<Value>>()],
+        );
+
+        self.process(tx).await
+    }
 }
 
 // pallet-sudo
