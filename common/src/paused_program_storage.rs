@@ -18,25 +18,32 @@
 
 use super::{program_storage::MemoryMap, *};
 use crate::storage::{AppendMapStorage, MapStorage, ValueStorage};
-use core::fmt::Debug;
+use gear_core::{
+    code::MAX_WASM_PAGE_COUNT,
+    memory::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+};
+use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_arithmetic::traits::UniqueSaturatedInto;
 use sp_io::hashing;
 use sp_runtime::AccountId32;
 
-#[derive(Clone, Debug, Encode)]
-#[codec(crate = codec)]
+const SPLIT_COUNT: u16 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 * MAX_WASM_PAGE_COUNT / 2;
+
+// The entity helps to calculate hash of program's data and memory pages.
+// Its structure designed that way to avoid memory allocation of more than MAX_POSSIBLE_ALLOCATION bytes.
 struct Item {
-    allocations: BTreeSet<WasmPage>,
-    memory_pages: MemoryMap,
-    code_hash: H256,
+    data: (BTreeSet<WasmPage>, H256, MemoryMap),
+    remaining_pages: MemoryMap,
 }
 
 impl From<(BTreeSet<WasmPage>, H256, MemoryMap)> for Item {
-    fn from((allocations, code_hash, memory_pages): (BTreeSet<WasmPage>, H256, MemoryMap)) -> Self {
+    fn from(
+        (allocations, code_hash, mut memory_pages): (BTreeSet<WasmPage>, H256, MemoryMap),
+    ) -> Self {
+        let remaining_pages = memory_pages.split_off(&GearPage::from(SPLIT_COUNT));
         Self {
-            allocations,
-            memory_pages,
-            code_hash,
+            data: (allocations, code_hash, memory_pages),
+            remaining_pages,
         }
     }
 }
@@ -49,7 +56,17 @@ impl<BlockNumber: Copy + Saturating> From<(ActiveProgram<BlockNumber>, MemoryMap
 
 impl Item {
     fn hash(&self) -> H256 {
-        self.using_encoded(hashing::blake2_256).into()
+        let hash = self.data.using_encoded(hashing::blake2_256);
+        if self.remaining_pages.is_empty() {
+            hash.into()
+        } else {
+            // hash the remaining memory pages prepended with the first hash
+            let mut array = Vec::with_capacity(MAX_POSSIBLE_ALLOCATION as usize);
+            array.extend_from_slice(&hash);
+            self.remaining_pages.encode_to(&mut array);
+
+            hashing::blake2_256(&array).into()
+        }
     }
 }
 
@@ -236,9 +253,10 @@ pub trait PausedProgramStorage: super::ProgramStorage {
 
                     Self::InternalError::program_code_not_found()
                 })?;
+            let Item { data: (allocations, _, memory_pages), remaining_pages } = item;
             let program = ActiveProgram {
-                allocations: item.allocations,
-                pages_with_data: item.memory_pages.keys().copied().collect(),
+                allocations: allocations,
+                pages_with_data: memory_pages.keys().copied().chain(remaining_pages.keys().copied()).collect(),
                 gas_reservation_map: Default::default(),
                 code_hash,
                 code_exports: code.exports().clone(),
@@ -260,9 +278,13 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             Self::SessionMemoryPages::remove(session_id);
 
             // set program memory pages
-            for (page, page_buf) in item.memory_pages {
+            for (page, page_buf) in memory_pages {
                 Self::set_program_page_data(program_id, page, page_buf);
             }
+            for (page, page_buf) in remaining_pages {
+                Self::set_program_page_data(program_id, page, page_buf);
+            }
+
             // and finally start the program
             Self::ProgramMap::insert(program_id, Program::Active(program));
 
