@@ -93,7 +93,6 @@ pub struct ResumeResult<BlockNumber> {
 /// Trait to pause/resume programs.
 pub trait PausedProgramStorage: super::ProgramStorage {
     type PausedProgramMap: MapStorage<Key = ProgramId, Value = (Self::BlockNumber, H256)>;
-    type ResumePageMap: MapStorage<Key = ProgramId, Value = (Self::BlockNumber, BTreeSet<GearPage>)>;
     type CodeStorage: super::CodeStorage;
     type NonceStorage: ValueStorage<Value = u128>;
     type ResumeSessions: MapStorage<Key = u64, Value = ResumeSession<Self::BlockNumber>>;
@@ -116,7 +115,35 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         program_id: ProgramId,
         block_number: Self::BlockNumber,
     ) -> Result<GasReservationMap, Self::Error> {
-        let (mut program, memory_pages) = Self::remove_active_program(program_id)?;
+        let (mut program, memory_pages) = Self::ProgramMap::mutate(program_id, |maybe| {
+            let Some(program) = maybe.take() else {
+                return Err(Self::InternalError::item_not_found().into());
+            };
+
+            let Program::Active(program) = program else {
+                *maybe = Some(program);
+
+                return Err(Self::InternalError::not_active_program().into());
+            };
+
+            let memory_pages = match Self::get_program_data_for_pages(
+                program_id,
+                program.pages_with_data.iter(),
+            ) {
+                Ok(memory_pages) => memory_pages,
+                Err(e) => {
+                    *maybe = Some(Program::Active(program));
+
+                    return Err(e);
+                }
+            };
+
+            Self::waiting_init_remove(program_id);
+            Self::remove_program_pages(program_id);
+
+            Ok((program, memory_pages))
+        })?;
+
         let gas_reservations = core::mem::take(&mut program.gas_reservation_map);
 
         Self::PausedProgramMap::insert(
