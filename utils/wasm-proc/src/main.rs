@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::Parser;
-use gear_wasm_builder::optimize::{OptType, Optimizer};
+use gear_wasm_builder::optimize::{self, OptType, Optimizer};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
@@ -171,8 +171,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
-        let file = PathBuf::from(file);
-        let res = gear_wasm_builder::optimize::optimize_wasm(file.clone(), "s", true)?;
+        let original_wasm_path = PathBuf::from(file);
+        let cannon_wasm_path = original_wasm_path.clone().with_extension("cannon.wasm");
+        let meta_wasm_path = original_wasm_path.clone().with_extension("meta.wasm");
+        let optimized_wasm_path = original_wasm_path.clone().with_extension("opt.wasm");
+
+        // Make canonization for gear
+        let mut optimizer = Optimizer::new(original_wasm_path.clone())?;
+        if !skip_stack_end {
+            optimizer.insert_stack_and_export();
+        }
+        optimizer.move_mut_globals_to_static();
+        optimizer.flush_to_file(&cannon_wasm_path);
+
+        // Make size optimizations
+        let res = optimize::optimize_wasm(cannon_wasm_path, "s", true)?;
         log::info!(
             "wasm-opt: {} {} Kb -> {} Kb",
             res.dest_wasm.display(),
@@ -180,31 +193,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             res.optimized_size
         );
 
-        let mut optimizer = Optimizer::new(file.clone())?;
-
-        if !skip_stack_end {
-            optimizer.insert_stack_and_export();
-        }
-
+        let mut optimizer = Optimizer::new(res.dest_wasm)?;
         if strip_custom_sections {
             optimizer.strip_custom_sections();
         }
 
         if legacy_meta {
-            let path = file.with_extension("meta.wasm");
-            log::debug!("*** Processing metadata optimization: {}", path.display());
+            log::debug!("*** Processing metadata optimization: {}", meta_wasm_path.display());
             let code = optimizer.optimize(OptType::Meta)?;
-            log::debug!("Metadata wasm: {}", path.to_string_lossy());
-            fs::write(path, code)?;
+            log::debug!("Metadata wasm: {}", meta_wasm_path.to_string_lossy());
+            fs::write(meta_wasm_path, code)?;
         }
 
-        let path = file.with_extension("opt.wasm");
-
-        log::debug!("*** Processing chain optimization: {}", path.display());
+        log::debug!("*** Processing chain optimization: {}", optimized_wasm_path.display());
         let code = optimizer.optimize(OptType::Opt)?;
-        log::debug!("Optimized wasm: {}", path.to_string_lossy());
+        log::debug!("Optimized wasm: {}", optimized_wasm_path.to_string_lossy());
 
-        fs::write(path, code)?;
+        fs::write(optimized_wasm_path, code)?;
     }
 
     Ok(())

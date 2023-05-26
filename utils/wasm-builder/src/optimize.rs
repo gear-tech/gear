@@ -1,4 +1,4 @@
-use crate::builder_error::BuilderError;
+use crate::{builder_error::BuilderError, stack_end};
 use anyhow::{Context, Result};
 #[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
@@ -58,11 +58,22 @@ impl Optimizer {
         })
     }
 
+    pub fn move_mut_globals_to_static(&mut self) {
+        let module_bytes = self
+            .module_bytes
+            .take()
+            .expect("self exists so do the field 'module_bytes'");
+
+        stack_end::move_mut_globals_to_static(&module_bytes, &mut self.module)
+            .expect("Cannot move mutable wasm globals to static memory");
+    }
+
     pub fn insert_stack_and_export(&mut self) {
         let module_bytes = self
             .module_bytes
             .take()
             .expect("self exists so do the field 'module_bytes'");
+
         let _ = crate::insert_stack_end_export(&module_bytes, &mut self.module)
             .map_err(|s| log::debug!("{}", s));
     }
@@ -75,6 +86,10 @@ impl Optimizer {
         self.module
             .sections_mut()
             .retain(|section| !matches!(section, Section::Reloc(_) | Section::Custom(_)))
+    }
+
+    pub fn flush_to_file(self, path: &PathBuf) {
+        fs::write(path, self.module.to_bytes().unwrap()).unwrap();
     }
 
     /// Process optimization.
@@ -151,16 +166,7 @@ pub fn optimize_wasm(
     optimization_passes: &str,
     keep_debug_symbols: bool,
 ) -> Result<OptimizationResult> {
-    let mut dest_optimized = source.clone();
-
-    dest_optimized.set_file_name(format!(
-        "{}-opt.wasm",
-        source
-            .file_name()
-            .unwrap_or_else(|| OsStr::new("program"))
-            .to_str()
-            .unwrap()
-    ));
+    let dest_optimized = source.clone().with_extension("size-opt.wasm");
 
     do_optimization(
         source.as_os_str(),
@@ -179,10 +185,8 @@ pub fn optimize_wasm(
     let original_size = metadata(&source)?.len() as f64 / 1000.0;
     let optimized_size = metadata(&dest_optimized)?.len() as f64 / 1000.0;
 
-    // overwrite existing destination wasm file with the optimized version
-    fs::rename(&dest_optimized, &source)?;
     Ok(OptimizationResult {
-        dest_wasm: source,
+        dest_wasm: dest_optimized,
         original_size,
         optimized_size,
     })
