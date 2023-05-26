@@ -4053,17 +4053,14 @@ fn wake_messages_after_program_inited() {
 
         let actual_n = System::events()
             .into_iter()
-            .filter_map(|e| {
-                if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                    if message.destination().into_origin() == USER_3.into_origin() {
-                        assert_eq!(message.payload().to_vec(), b"Hello, world!".encode());
-                        Some(())
-                    } else {
-                        None
-                    }
-                } else {
-                    None
+            .filter_map(|e| match e.event {
+                MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. })
+                    if message.destination().into_origin() == USER_3.into_origin() =>
+                {
+                    assert_eq!(message.payload().to_vec(), b"Hello, world!".encode());
+                    Some(())
                 }
+                _ => None,
             })
             .count();
 
@@ -10165,23 +10162,15 @@ mod utils {
     #[track_caller]
     // returns (amount of messages sent, amount of messages sent **to mailbox**)
     pub(super) fn user_messages_sent() -> (usize, usize) {
-        let mut total = 0;
-        let mut to_mailbox = 0;
-
-        System::events().into_iter().for_each(|e| {
-            if let MockRuntimeEvent::Gear(Event::UserMessageSent {
-                message,
-                expiration,
-            }) = e.event
-            {
-                total += 1;
-                if expiration.is_some() {
-                    to_mailbox += 1;
+        System::events()
+            .into_iter()
+            .fold((0usize, 0usize), |(total, to_mailbox), e| {
+                if let MockRuntimeEvent::Gear(Event::UserMessageSent { expiration, .. }) = e.event {
+                    (total + 1, to_mailbox + expiration.is_some() as usize)
+                } else {
+                    (total, to_mailbox)
                 }
-            };
-        });
-
-        (total, to_mailbox)
+            })
     }
 
     #[track_caller]
@@ -10750,19 +10739,21 @@ fn relay_messages() {
 
             run_to_next_block(None);
 
-            let mut i = 0;
-            System::events().into_iter().for_each(|e| {
-                if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                    let Expected { user, payload } = &expected[i];
+            let received = System::events().into_iter().fold(0, |r, e| match e.event {
+                MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) => {
+                    let Expected { user, payload } = &expected[r];
 
                     if message.destination().into_origin() == user.into_origin() {
                         assert_eq!(message.payload(), payload, "{label}");
-                        i += 1;
+                        r + 1
+                    } else {
+                        r
                     }
                 }
+                _ => r,
             });
 
-            assert_eq!(i, expected.len(), "{label}");
+            assert_eq!(received, expected.len(), "{label}");
         };
 
         new_test_ext().execute_with(execute);
