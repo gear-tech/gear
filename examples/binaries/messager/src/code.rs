@@ -27,7 +27,7 @@ extern "C" fn init() {
 
 #[no_mangle]
 extern "C" fn handle() {
-    msg::reply(SEND_REPLY, 0).unwrap();
+    msg::send(msg::source(), SEND_REPLY, 0).unwrap();
 }
 
 #[no_mangle]
