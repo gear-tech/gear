@@ -1781,8 +1781,7 @@ pub mod pallet {
         /// - `code_hash`: id of the program binary code.
         /// - `block_count`: resume program for the specified period.
         #[pallet::call_index(9)]
-        // #[pallet::weight(<T as Config>::WeightInfo::pay_rent())]
-        #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
+        #[pallet::weight(<T as Config>::WeightInfo::start_program_resume())]
         pub fn start_program_resume(
             origin: OriginFor<T>,
             program_id: ProgramId,
@@ -1829,8 +1828,7 @@ pub mod pallet {
         }
 
         #[pallet::call_index(10)]
-        // #[pallet::weight(<T as Config>::WeightInfo::pay_rent())]
-        #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
+        #[pallet::weight(<T as Config>::WeightInfo::resume_session_append(memory_pages.len() as u32))]
         pub fn resume_session_append(
             origin: OriginFor<T>,
             session_id: u64,
@@ -1848,8 +1846,7 @@ pub mod pallet {
         }
 
         #[pallet::call_index(11)]
-        // #[pallet::weight(<T as Config>::WeightInfo::pay_rent())]
-        #[pallet::weight(DbWeightOf::<T>::get().writes(1))]
+        #[pallet::weight(DbWeightOf::<T>::get().reads(1) + <T as Config>::WeightInfo::resume_session_finish(ProgramStorageOf::<T>::resume_session_page_count(session_id).unwrap_or(0)))]
         pub fn resume_session_finish(
             origin: OriginFor<T>,
             session_id: u64,
