@@ -22,8 +22,8 @@ use gear_core::{
     code::MAX_WASM_PAGE_COUNT,
     memory::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
 };
-use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_arithmetic::traits::UniqueSaturatedInto;
+use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_io::hashing;
 use sp_runtime::AccountId32;
 
@@ -253,10 +253,17 @@ pub trait PausedProgramStorage: super::ProgramStorage {
 
                     Self::InternalError::program_code_not_found()
                 })?;
-            let Item { data: (allocations, _, memory_pages), remaining_pages } = item;
+            let Item {
+                data: (allocations, _, memory_pages),
+                remaining_pages,
+            } = item;
             let program = ActiveProgram {
-                allocations: allocations,
-                pages_with_data: memory_pages.keys().copied().chain(remaining_pages.keys().copied()).collect(),
+                allocations,
+                pages_with_data: memory_pages
+                    .keys()
+                    .copied()
+                    .chain(remaining_pages.keys().copied())
+                    .collect(),
                 gas_reservation_map: Default::default(),
                 code_hash,
                 code_exports: code.exports().clone(),
