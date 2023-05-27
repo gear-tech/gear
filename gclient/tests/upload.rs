@@ -136,31 +136,39 @@ async fn get_mailbox() -> anyhow::Result<()> {
     let wat_code = r#"
     (module
         (import "env" "memory" (memory 1))
-        (import "env" "gr_reply_push" (func $reply_push (param i32 i32 i32)))
-        (import "env" "gr_reply_commit" (func $reply_commit (param i32 i32 i32)))
-        (export "init" (func $init))
+        (import "env" "gr_source" (func $source (param i32)))
+        (import "env" "gr_send_init" (func $send_init (param i32)))
+        (import "env" "gr_send_push" (func $send_push (param i32 i32 i32 i32)))
+        (import "env" "gr_send_commit_wgas" (func $send_commit (param i32 i32 i64 i32 i32)))
         (export "handle" (func $handle))
-        (func $init)
         (func $handle
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
-            (call $reply_push (i32.const 0) (i32.const 0xfa00) (i32.const 100))
+            ;; getting source of the program
+            (call $source (i32.const 0xfa00))
+
+            ;; getting new sending handle
+            ;; handle will has addr 0xfa34
+            (call $send_init (i32.const 0xfa30))
+
+            ;; pushing payload
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
+            (call $send_push (i32.load (i32.const 0xfa34)) (i32.const 0) (i32.const 0xfa00) (i32.const 0xfa38))
 
             ;; sending commit
-            (call $reply_commit (i32.const 10) (i32.const 0) (i32.const 200))
+            (call $send_commit (i32.load (i32.const 0xfa34)) (i32.const 0xfa00) (i64.const 100000) (i32.const 0) (i32.const 0xfa38))
         )
         (data (i32.const 0) "PONG")
     )"#;

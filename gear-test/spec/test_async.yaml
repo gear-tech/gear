@@ -89,6 +89,28 @@ fixtures:
 
       - step: 10
         log:
+          # 6 auto replies on init of programs
+          # 1 reply from business logic of the test
+          - destination: 1000001
+            payload: &auto
+              kind: bytes
+              value: 0x
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
           - destination: 1000001
             payload: &success
               kind: utf-8

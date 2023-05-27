@@ -36,6 +36,25 @@ fixtures:
 
     expected:
       - log:
+        # 5 auto replies on init of 5 programs
+        - destination: 1000001
+          payload: &auto
+            kind: bytes
+            value: 0x
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+
         - destination: 100
           payload:
             kind: utf-8
@@ -62,6 +81,25 @@ fixtures:
 
     expected:
       - log:
+        # 5 auto replies on init of 5 programs
+        - destination: 1000001
+          payload: &auto
+            kind: bytes
+            value: 0x
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+
         - destination: 100
           payload:
             kind: utf-8
@@ -84,6 +122,25 @@ fixtures:
 
     expected:
       - log:
+        # 5 auto replies on init of 5 programs
+        - destination: 1000001
+          payload: &auto
+            kind: bytes
+            value: 0x
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+
         - destination: 100
           payload:
             kind: utf-8

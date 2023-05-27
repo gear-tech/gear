@@ -89,7 +89,7 @@ mod wasm {
             HandleAction::Wait => {
                 exec::system_reserve_gas(1_000_000_000).unwrap();
                 // used to found message id in test
-                msg::reply(0, 0).unwrap();
+                msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::WaitAndPanic => {
@@ -101,7 +101,7 @@ mod wasm {
 
                 exec::system_reserve_gas(200).unwrap();
                 // used to found message id in test
-                msg::reply(0, 0).unwrap();
+                msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::WaitAndReserveWithPanic => {
@@ -114,7 +114,7 @@ mod wasm {
 
                 exec::system_reserve_gas(2_000_000_000).unwrap();
                 // used to found message id in test
-                msg::reply(0, 0).unwrap();
+                msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::WaitAndExit => {
@@ -127,7 +127,7 @@ mod wasm {
 
                 exec::system_reserve_gas(900).unwrap();
                 // used to found message id in test
-                msg::reply(0, 0).unwrap();
+                msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::Panic => {
@@ -143,7 +143,7 @@ mod wasm {
 
                 exec::system_reserve_gas(gas_amount).unwrap();
                 // used to found message id in test
-                msg::reply(0, 0).unwrap();
+                msg::send(msg::source(), 0, 0).unwrap();
                 exec::wait();
             }
             HandleAction::Exit => {
@@ -159,7 +159,7 @@ mod wasm {
             HandleAction::OutOfGas => {
                 exec::system_reserve_gas(5_000_000_000).unwrap();
                 // used to found message id in test
-                msg::reply(0, 0).unwrap();
+                msg::send(msg::source(), 0, 0).unwrap();
                 loop {}
             }
             HandleAction::AcrossWaits => {

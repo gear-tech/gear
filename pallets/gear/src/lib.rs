@@ -53,7 +53,7 @@ use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
     CodeStorage, GasPrice, GasProvider, GasTree, Origin, PausedProgramStorage, Program,
-    ProgramRentConfig, ProgramState, ProgramStorage, QueueRunner,
+    ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -129,9 +129,8 @@ pub type GasNodeIdOf<T> = <GasHandlerOf<T> as GasTree>::NodeId;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
 pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
-pub type RentFreePeriodOf<T> = <<T as Config>::ProgramRentConfig as ProgramRentConfig>::FreePeriod;
-pub type RentCostPerBlockOf<T> =
-    <<T as Config>::ProgramRentConfig as ProgramRentConfig>::CostPerBlock;
+pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
+pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -264,10 +263,17 @@ pub mod pallet {
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
 
-        type ProgramRentConfig: ProgramRentConfig<
-            BlockNumber = Self::BlockNumber,
-            Balance = BalanceOf<Self>,
-        >;
+        /// The free of charge period of rent.
+        #[pallet::constant]
+        type ProgramRentFreePeriod: Get<BlockNumberFor<Self>>;
+
+        /// The minimal amount of blocks to resume.
+        #[pallet::constant]
+        type ProgramRentMinimalResumePeriod: Get<BlockNumberFor<Self>>;
+
+        /// The program rent cost per block.
+        #[pallet::constant]
+        type ProgramRentCostPerBlock: Get<BalanceOf<Self>>;
     }
 
     #[pallet::pallet]
@@ -432,6 +438,8 @@ pub mod pallet {
         MessagesStorageCorrupted,
         /// Message queue processing is disabled.
         MessageQueueProcessingDisabled,
+        /// Program with the specified id is not found.
+        ProgramNotFound,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -713,6 +721,7 @@ pub mod pallet {
                 payload,
                 value,
                 allow_other_panics,
+                false,
             )
         }
 
@@ -723,6 +732,7 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
             allow_other_panics: bool,
+            allow_skip_zero_replies: bool,
         ) -> Result<GasInfo, String> {
             log::debug!("\n===== CALCULATE GAS INFO =====\n");
             log::debug!("\n--- FIRST TRY ---\n");
@@ -738,6 +748,7 @@ pub mod pallet {
                     payload.clone(),
                     value,
                     allow_other_panics,
+                    allow_skip_zero_replies,
                 )
                 .map_err(|e| {
                     String::from_utf8(e)
@@ -755,6 +766,7 @@ pub mod pallet {
                     payload,
                     value,
                     allow_other_panics,
+                    allow_skip_zero_replies,
                 )
                 .map(
                     |GasInfo {
@@ -1011,6 +1023,7 @@ pub mod pallet {
                 max_reservations: T::ReservationsLimit::get(),
                 code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
+                rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
             }
         }
 
@@ -1221,6 +1234,12 @@ pub mod pallet {
 
         pub fn run_call() -> Call<T> {
             Call::run {}
+        }
+
+        pub fn rent_fee_for(block_count: BlockNumberFor<T>) -> BalanceOf<T> {
+            let block_count: u64 = block_count.unique_saturated_into();
+
+            RentCostPerBlockOf::<T>::get().saturating_mul(block_count.unique_saturated_into())
         }
     }
 
@@ -1546,7 +1565,7 @@ pub mod pallet {
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
-                MessageId::generate_reply(mailboxed.id(), 0),
+                MessageId::generate_reply(mailboxed.id()),
                 ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into()),
             );
 
@@ -1598,12 +1617,40 @@ pub mod pallet {
             origin: OriginFor<T>,
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
+            // Validating origin.
+            let origin = ensure_signed(origin)?;
+
             // Reason for reading from mailbox.
             let reason = UserMessageReadRuntimeReason::MessageClaimed.into_reason();
 
             // Reading message, if found, or failing extrinsic.
-            Self::read_message(ensure_signed(origin)?, message_id, reason)
+            let mailboxed = Self::read_message(origin.clone(), message_id, reason)
                 .ok_or(Error::<T>::MessageNotFound)?;
+
+            if Self::is_active(mailboxed.source()) {
+                // Creating reply message.
+                let message = ReplyMessage::auto(mailboxed.id());
+
+                // Creating `GasNode` for the reply.
+                //
+                // # Safety
+                //
+                //  The error is unreachable since the `message_id` is new generated
+                //  from the checked `original_message`."
+                GasHandlerOf::<T>::create(origin.clone(), message.id(), 0)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+                // Converting reply message into appropriate type for queueing.
+                let dispatch = message.into_stored_dispatch(
+                    ProgramId::from_origin(origin.into_origin()),
+                    mailboxed.source(),
+                    mailboxed.id(),
+                );
+
+                // Queueing dispatch.
+                QueueOf::<T>::queue(dispatch)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            };
 
             Ok(().into())
         }
@@ -1668,6 +1715,33 @@ pub mod pallet {
             ExecuteInherent::<T>::put(value);
 
             Ok(())
+        }
+
+        /// Pay additional rent for the program.
+        #[pallet::call_index(8)]
+        #[pallet::weight(<T as Config>::WeightInfo::pay_program_rent())]
+        pub fn pay_program_rent(
+            origin: OriginFor<T>,
+            program_id: ProgramId,
+            block_count: BlockNumberFor<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            ProgramStorageOf::<T>::update_active_program(
+                program_id,
+                |program| -> Result<(), Error<T>> {
+                    Self::pay_program_rent_impl(program_id, program, &who, block_count)
+                        .map_err(|_| Error::<T>::InsufficientBalanceForReserve)
+                },
+            )
+            .map_err(|e| {
+                log::debug!(
+                    "Failed to update an expiration block of an active program {program_id}: {e:?}"
+                );
+                Error::<T>::ProgramNotFound
+            })??;
+
+            Ok(().into())
         }
     }
 

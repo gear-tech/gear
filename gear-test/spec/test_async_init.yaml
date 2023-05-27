@@ -157,6 +157,15 @@ fixtures:
               kind: account
               value: alice
             payload: *empty
+          # auto reply
+          - destination: 1
+            source:
+              kind: account
+              value: eve
+            payload: &auto
+              kind: bytes
+              value: 0x
+            statusCode: 0
 
       - step: 10
         messages:
@@ -164,22 +173,89 @@ fixtures:
               kind: account
               value: alice
             payload: *empty
+          # auto reply
           - destination: 1
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
+          - destination: 1
+            source:
+              kind: account
+              value: bob
             payload: *two
 
       - step: 11
         messages:
+          # auto reply #1
+          - destination: 1
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
           - destination: 1
             payload: *two
+          # auto reply
+          - destination: 1
+            source:
+              kind: account
+              value: alice
+            payload: *auto
+            statusCode: 0
 
       - step: 12
+        allowError: true
+        messages:
+          - destination: 1
+            payload: *two
+          # auto reply
+          - destination: 1
+            source:
+              kind: account
+              value: alice
+            payload: *auto
+            statusCode: 0
+
+      - step: 13
+        messages:
+          # auto reply #2
+          - destination: 1
+            source:
+              kind: account
+              value: alice
+            payload: *auto
+            statusCode: 0
+          - destination: 1
+            payload: *ping
+
+      - step: 14
+        allowError: true
         messages:
           - destination: 1
             payload: *ping
 
-      - step: 13
+      - step: 15
+        messages: []
         log:
+          # 4 auto replies on init of 4 programs
+          - destination: 1000001
+            payload: &auto
+              kind: bytes
+              value: 0x
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+
           - destination: 1000001
             payload:
               kind: utf-8
-              value: "PONG"
+              value: PONG

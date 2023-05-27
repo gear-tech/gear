@@ -21,6 +21,8 @@
 use crate::{pallet, Config, Pallet, Weight};
 use frame_support::traits::{Get, GetStorageVersion, OnRuntimeUpgrade};
 use sp_std::marker::PhantomData;
+#[cfg(feature = "try-runtime")]
+use sp_std::vec::Vec;
 
 mod v1 {
     use crate::{Config, Pallet};

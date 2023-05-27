@@ -351,7 +351,6 @@ pub fn load_bytes() -> Result<Vec<u8>> {
 /// - [`reply_push`], [`reply_commit`] functions allow forming a reply message
 ///   in parts.
 /// - [`send_bytes`] function sends a new message to the program or user.
-#[wait_for_reply]
 pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> {
     gcore::msg::reply(payload.as_ref(), value).into_contract_result()
 }
@@ -390,7 +389,6 @@ pub fn reply_bytes_delayed(
 ///
 /// - [`send_bytes_from_reservation`] function sends a new message to the
 ///   program or user by using gas from a reservation.
-#[wait_for_reply]
 pub fn reply_bytes_from_reservation(
     id: ReservationId,
     payload: impl AsRef<[u8]>,
@@ -423,7 +421,6 @@ pub fn reply_bytes_delayed_from_reservation(
 ///     msg::reply_bytes_with_gas(b"PING", exec::gas_available() / 2, 0).expect("Unable to reply");
 /// }
 /// ```
-#[wait_for_reply]
 pub fn reply_bytes_with_gas(
     payload: impl AsRef<[u8]>,
     gas_limit: u64,
@@ -480,7 +477,6 @@ pub fn reply_bytes_with_gas_delayed(
 /// - [`reply_push`] function allows forming a reply message in parts.
 /// - [`MessageHandle::commit`] function finalizes and sends a message formed in
 ///   parts.
-#[wait_for_reply]
 pub fn reply_commit(value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit(value).into_contract_result()
 }
@@ -511,7 +507,6 @@ pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
 /// - [`ReservationId`] struct allows reserve gas for later use.
-#[wait_for_reply]
 pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_from_reservation(id.into(), value).into_contract_result()
 }
@@ -545,7 +540,6 @@ pub fn reply_commit_delayed_from_reservation(
 /// # See also
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
-#[wait_for_reply]
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_with_gas(gas_limit, value).into_contract_result()
 }

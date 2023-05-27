@@ -29,7 +29,12 @@ mod gtest_tests {
         let this_program = Program::current(&system);
 
         let res = this_program.send_bytes(123, "INIT");
-        assert!(res.log().is_empty());
+        assert!(res.contains(
+            &Log::builder()
+                .source(1)
+                .dest(123)
+                .payload_bytes([])
+        ));
 
         let res = this_program.send_bytes(123, "Hi");
         assert!(res.contains(

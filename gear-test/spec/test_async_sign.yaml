@@ -167,4 +167,10 @@ fixtures:
               value: "0x1450494e4734"
 
       - step: 2
-        messages: []
+        messages:
+          # auto reply on handle message
+          - destination: 1
+            payload: &auto
+              kind: bytes
+              value: 0x
+            statusCode: 0

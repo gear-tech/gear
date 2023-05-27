@@ -24,6 +24,19 @@ fixtures:
 
     expected:
       - log:
+        # 3 auto replies on init of 3 programs
+        - destination: 1000001
+          payload: &auto
+            kind: bytes
+            value: 0x
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+
         - destination: 0
           source:
             kind: id
@@ -45,6 +58,17 @@ fixtures:
 
     expected:
       - log:
+        # 3 auto replies on init of 3 programs
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+
         - destination: 0
           source:
             kind: id
