@@ -826,6 +826,10 @@ impl EnvExt for Ext {
     fn wait(&mut self) -> Result<(), Self::Error> {
         self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
 
+        if self.context.message_context.reply_sent() {
+            return Err(WaitError::WaitAfterReply.into());
+        }
+
         let reserve = u64::from(self.context.reserve_for.saturating_add(1))
             .saturating_mul(self.context.waitlist_cost);
 
@@ -838,6 +842,10 @@ impl EnvExt for Ext {
 
     fn wait_for(&mut self, duration: u32) -> Result<(), Self::Error> {
         self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
+
+        if self.context.message_context.reply_sent() {
+            return Err(WaitError::WaitAfterReply.into());
+        }
 
         if duration == 0 {
             return Err(WaitError::InvalidArgument.into());
@@ -855,6 +863,10 @@ impl EnvExt for Ext {
 
     fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::Error> {
         self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
+
+        if self.context.message_context.reply_sent() {
+            return Err(WaitError::WaitAfterReply.into());
+        }
 
         if duration == 0 {
             return Err(WaitError::InvalidArgument.into());

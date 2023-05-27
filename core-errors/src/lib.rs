@@ -170,6 +170,8 @@ pub enum WaitError {
     /// An error occurs in attempt to wait duration greater than could be paid.
     #[display(fmt = "Provided incorrect argument for wait (zero case)")]
     InvalidArgument = 1,
+    /// An error occurs in attempt to wait after reply sent.
+    WaitAfterReply = 2,
 }
 
 /// Memory error.
