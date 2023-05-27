@@ -248,6 +248,11 @@ impl MessageContext {
         Ok(())
     }
 
+    /// Return bool defining was reply sent within the execution.
+    pub fn reply_sent(&self) -> bool {
+        self.store.reply_sent
+    }
+
     /// Send a new program initialization message.
     ///
     /// Generates a new message from provided data packet.
@@ -399,7 +404,7 @@ impl MessageContext {
     ) -> Result<MessageId, Error> {
         self.check_reply_availability()?;
 
-        if !self.store.reply_sent {
+        if !self.reply_sent() {
             let data = self.store.reply.take().unwrap_or_default();
 
             let packet = {
@@ -426,7 +431,7 @@ impl MessageContext {
     pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
         self.check_reply_availability()?;
 
-        if !self.store.reply_sent {
+        if !self.reply_sent() {
             let data = self.store.reply.get_or_insert_with(Default::default);
             data.try_extend_from_slice(buffer)
                 .map_err(|_| Error::MaxMessageSizeExceed)?;
@@ -446,7 +451,7 @@ impl MessageContext {
     pub fn reply_push_input(&mut self, range: CheckedRange) -> Result<(), Error> {
         self.check_reply_availability()?;
 
-        if !self.store.reply_sent {
+        if !self.reply_sent() {
             let CheckedRange {
                 offset,
                 excluded_end,
