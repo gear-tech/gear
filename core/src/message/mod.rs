@@ -42,10 +42,9 @@ pub use reply::{ReplyMessage, ReplyPacket};
 pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
 
+use super::buffer::LimitedVec;
 use core::fmt::Display;
 use gear_wasm_instrument::syscalls::SysCallName;
-
-use super::buffer::LimitedVec;
 
 /// Max payload size which one message can have (8 MiB).
 pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
@@ -103,11 +102,14 @@ pub enum MessageWaitedType {
 }
 
 /// Entry point for dispatch processing.
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(
+    Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+)]
 pub enum DispatchKind {
     /// Initialization.
     Init,
     /// Common handle.
+    #[default]
     Handle,
     /// Handle reply.
     Reply,

@@ -3694,25 +3694,17 @@ fn distributor_distribute() {
 
         run_to_block(3, None);
 
-        // We sent two messages in mailbox
-        let mail_box_len = 2;
-        assert_eq!(MailboxOf::<Test>::len(&USER_1), mail_box_len);
+        // We sent two messages to user
+        assert_eq!(utils::user_messages_sent(), (2, 0));
 
         // Despite some messages are still in the mailbox all gas locked in value trees
         // has been refunded to the sender so the free balances should add up
         let final_balance = Balances::free_balance(USER_1) + Balances::free_balance(BLOCK_AUTHOR);
 
-        let mailbox_threshold_gas_limit =
-            mail_box_len as u64 * <Test as Config>::MailboxThreshold::get();
-        let mailbox_threshold_reserved =
-            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
-        assert_eq!(initial_balance - mailbox_threshold_reserved, final_balance);
+        assert_eq!(initial_balance, final_balance);
 
         // All gas cancelled out in the end
-        assert_eq!(
-            GasHandlerOf::<Test>::total_supply(),
-            mailbox_threshold_gas_limit
-        );
+        assert!(GasHandlerOf::<Test>::total_supply().is_zero());
     });
 }
 
@@ -3998,12 +3990,11 @@ fn defer_program_initialization() {
 
         run_to_block(4, None);
 
-        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
         assert_eq!(
-            MailboxOf::<Test>::iter_key(USER_1)
-                .next()
-                .map(|(msg, _bn)| msg.payload().to_vec())
-                .expect("Element should be"),
+            maybe_last_message(USER_1)
+                .expect("Event should be")
+                .payload(),
             b"Hello, world!".encode()
         );
     })
@@ -4060,10 +4051,18 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(20, None);
 
-        let actual_n = MailboxOf::<Test>::iter_key(USER_3).fold(0usize, |i, (m, _bn)| {
-            assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
-            i + 1
-        });
+        let actual_n = System::events()
+            .into_iter()
+            .filter_map(|e| match e.event {
+                MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. })
+                    if message.destination().into_origin() == USER_3.into_origin() =>
+                {
+                    assert_eq!(message.payload().to_vec(), b"Hello, world!".encode());
+                    Some(())
+                }
+                _ => None,
+            })
+            .count();
 
         assert_eq!(actual_n, n);
     })
@@ -5358,7 +5357,7 @@ fn test_create_program_simple() {
 
         // First extrinsic call with successful program creation dequeues and executes init and dispatch messages
         // Second extrinsic is failing one, for each message it generates replies, which are executed (4 dequeued, 2 dispatched)
-        assert_total_dequeued(6 + 3 + 4); // +3 for extrinsics +4 for auto generated replies
+        assert_total_dequeued(6 + 3 + 2); // +3 for extrinsics +2 for auto generated replies
         assert_init_success(1 + 1); // +1 for submitting factory
 
         System::reset_events();
@@ -5391,7 +5390,7 @@ fn test_create_program_simple() {
         ));
         run_to_block(6, None);
 
-        assert_total_dequeued(12 + 2 + 8); // +2 for extrinsics +8 for auto generated replies
+        assert_total_dequeued(12 + 2 + 4); // +2 for extrinsics +4 for auto generated replies
         assert_init_success(2);
     })
 }
@@ -5979,7 +5978,7 @@ fn test_create_program_duplicate() {
         // When duplicate try happens, init is not executed, a reply is generated and executed (+2 dequeued, +1 dispatched)
         // Concerning dispatch message, it is executed, because destination exists (+1 dispatched, +1 dequeued)
         assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
-        assert_total_dequeued(3 + 3 + 2); // +3 from extrinsics (2 upload_program, 1 send_message) +2 for auto generated replies
+        assert_total_dequeued(3 + 3 + 1); // +3 from extrinsics (2 upload_program, 1 send_message) +1 for auto generated reply
         assert_init_success(2); // +2 from extrinsics (2 upload_program)
 
         System::reset_events();
@@ -6011,7 +6010,7 @@ fn test_create_program_duplicate() {
         // Second call will not cause init message execution, but a reply will be generated (+2 dequeued, +1 dispatched)
         // Handle message from the second call will be executed (addressed for existing destination) (+1 dequeued, +1 dispatched)
         assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
-        assert_total_dequeued(5 + 2 + 6); // +2 from extrinsics (send_message) +6 for auto generated replies
+        assert_total_dequeued(5 + 2 + 3); // +2 from extrinsics (send_message) +3 for auto generated replies
         assert_init_success(1);
 
         assert_noop!(
@@ -6085,7 +6084,7 @@ fn test_create_program_duplicate_in_one_execution() {
 
         run_to_block(4, None);
 
-        assert_total_dequeued(2 + 1 + 4); // 1 for extrinsics +4 for auto generated replies
+        assert_total_dequeued(2 + 1 + 2); // 1 for extrinsics +2 for auto generated replies
         assert_init_success(1);
     });
 }
@@ -6185,7 +6184,7 @@ fn test_create_program_miscellaneous() {
 
         run_to_block(5, None);
 
-        assert_total_dequeued(18 + 4 + 12); // +4 for 3 send_message calls and 1 upload_program call +12 for auto generated replies
+        assert_total_dequeued(18 + 4 + 6); // +4 for 3 send_message calls and 1 upload_program call +6 for auto generated replies
         assert_init_success(3 + 1); // +1 for submitting factory
     });
 }
@@ -6850,11 +6849,9 @@ fn test_two_contracts_composition_works() {
 
         run_to_block(4, None);
 
-        // Gas total issuance should have gone back to 4 * MAILBOX_THRESHOLD
-        assert_eq!(
-            GasHandlerOf::<Test>::total_supply(),
-            <Test as Config>::MailboxThreshold::get() * 4
-        );
+        // Gas total issuance should have gone back to 0.
+        assert_eq!(utils::user_messages_sent(), (4, 0));
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
     });
 }
 
@@ -6927,7 +6924,7 @@ fn test_create_program_with_value_lt_ed() {
         run_to_block(2, None);
 
         // init messages sent by user and by program
-        assert_total_dequeued(2 + 2);
+        assert_total_dequeued(2 + 1);
         // programs deployed by user and by program
         assert_init_success(2);
 
@@ -7088,7 +7085,7 @@ fn test_create_program_without_gas_works() {
 
         run_to_block(2, None);
 
-        assert_total_dequeued(2 + 2);
+        assert_total_dequeued(2 + 1);
         assert_init_success(2);
     })
 }
@@ -7112,7 +7109,7 @@ fn test_reply_to_terminated_program() {
 
         let mail_id = {
             let original_message_id = get_last_message_id();
-            MessageId::generate_reply(original_message_id)
+            MessageId::generate_outgoing(original_message_id, 0)
         };
 
         run_to_block(2, None);
@@ -7194,7 +7191,13 @@ fn delayed_sending() {
             run_to_next_block(None);
         }
 
-        assert_eq!(get_last_mail(USER_1).payload(), b"Delayed hello!");
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+        assert_eq!(
+            maybe_last_message(USER_1)
+                .expect("Event should be")
+                .payload(),
+            b"Delayed hello!".encode()
+        );
     });
 }
 
@@ -7325,14 +7328,10 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         let user_initial_balance = Balances::free_balance(USER_1);
 
-        let mailbox_threshold_reserved =
-            <Test as Config>::GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
-
         assert_eq!(user_balance_before_calculating, user_initial_balance);
-        assert_eq!(
-            Balances::reserved_balance(USER_1),
-            mailbox_threshold_reserved * 2
-        );
+        // Zero because no message added into mailbox.
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -7346,27 +7345,15 @@ fn cascading_messages_with_value_do_not_overcharge() {
         let gas_reserved = GasPrice::gas_price(gas_reserved);
         let reserved_balance = gas_reserved + value;
 
-        assert_eq!(
-            Balances::free_balance(USER_1),
-            user_initial_balance - reserved_balance
+        assert_balance(
+            USER_1,
+            user_initial_balance - reserved_balance,
+            reserved_balance,
         );
-
-        assert_eq!(
-            Balances::reserved_balance(USER_1),
-            reserved_balance + mailbox_threshold_reserved * 2
-        );
-
         run_to_block(5, None);
 
-        assert_eq!(
-            Balances::reserved_balance(USER_1),
-            mailbox_threshold_reserved * 3
-        );
-
-        assert_eq!(
-            Balances::free_balance(USER_1),
-            user_initial_balance - gas_to_spend - value - mailbox_threshold_reserved
-        );
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+        assert_balance(USER_1, user_initial_balance - gas_to_spend - value, 0u128);
     });
 }
 
@@ -7688,12 +7675,6 @@ fn test_async_messages() {
 
         let pid = get_last_program_id();
         for kind in &[
-            Kind::Reply,
-            Kind::ReplyWithGas(DEFAULT_GAS_LIMIT),
-            Kind::ReplyBytes,
-            Kind::ReplyBytesWithGas(DEFAULT_GAS_LIMIT),
-            Kind::ReplyCommit,
-            Kind::ReplyCommitWithGas(DEFAULT_GAS_LIMIT),
             Kind::Send,
             Kind::SendWithGas(DEFAULT_GAS_LIMIT),
             Kind::SendBytes,
@@ -8187,7 +8168,7 @@ fn reply_from_reservation() {
 
             run_to_block(3, None);
 
-            let msg = get_last_mail(USER_1);
+            let msg = maybe_last_message(USER_1).expect("Should be");
             assert_eq!(msg.value(), 900);
             assert_eq!(msg.payload(), b"reply_to_user");
             let map = get_reservation_map(pid).unwrap();
@@ -8215,7 +8196,7 @@ fn reply_from_reservation() {
 
             assert_succeed(mid);
 
-            let msg = get_last_mail(USER_1);
+            let msg = maybe_last_message(USER_1).expect("Should be");
             assert_eq!(msg.value(), 900);
             assert_eq!(msg.payload(), b"reply");
             let map = get_reservation_map(pid).unwrap();
@@ -8239,7 +8220,7 @@ fn reply_from_reservation() {
 
             run_to_block(6, None);
 
-            let msg = get_last_mail(USER_1);
+            let msg = maybe_last_message(USER_1).expect("Should be");
             assert_eq!(msg.value(), 1000);
             assert_eq!(msg.payload(), b"reply_to_user_delayed");
             let map = get_reservation_map(pid).unwrap();
@@ -8270,7 +8251,7 @@ fn reply_from_reservation() {
 
             run_to_block(8, None);
 
-            let msg = get_last_mail(USER_1);
+            let msg = maybe_last_message(USER_1).expect("Should be");
             assert_eq!(msg.value(), 1000);
             assert_eq!(msg.payload(), b"reply_delayed");
             let map = get_reservation_map(pid).unwrap();
@@ -8547,13 +8528,13 @@ fn signal_async_wait_works() {
         System::set_block_number(expiration - 1);
         Gear::set_block_number(expiration - 1);
 
+        System::reset_events();
         run_to_next_block(None);
 
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
 
         // check signal dispatch executed
-        let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload(), b"handle_signal");
+        let _mail_msg = maybe_last_message(USER_1).expect("Should be");
     });
 }
 
@@ -8773,8 +8754,8 @@ fn system_reservation_exit_works() {
         assert!(GasHandlerOf::<Test>::get_system_reserve(mid).is_err());
 
         // check signal dispatch was not executed but `gr_exit` did
-        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
-        let msg = get_last_mail(USER_1);
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
+        let msg = maybe_last_message(USER_1).expect("Should be");
         assert_eq!(msg.payload(), b"exit");
     });
 }
@@ -10179,6 +10160,20 @@ mod utils {
     }
 
     #[track_caller]
+    // returns (amount of messages sent, amount of messages sent **to mailbox**)
+    pub(super) fn user_messages_sent() -> (usize, usize) {
+        System::events()
+            .into_iter()
+            .fold((0usize, 0usize), |(total, to_mailbox), e| {
+                if let MockRuntimeEvent::Gear(Event::UserMessageSent { expiration, .. }) = e.event {
+                    (total + 1, to_mailbox + expiration.is_some() as usize)
+                } else {
+                    (total, to_mailbox)
+                }
+            })
+    }
+
+    #[track_caller]
     pub(super) fn maybe_any_last_message() -> Option<StoredMessage> {
         System::events().into_iter().rev().find_map(|e| {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
@@ -10593,6 +10588,103 @@ fn check_random_works() {
 }
 
 #[test]
+fn reply_with_small_non_zero_gas() {
+    use demo_proxy_relay::{RelayCall, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let gas_limit = 1;
+        assert!(gas_limit < <Test as Config>::MailboxThreshold::get());
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            RelayCall::RereplyWithGas(gas_limit).encode(),
+            50_000_000_000,
+            0u128
+        ));
+
+        let proxy = utils::get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(proxy));
+
+        let payload = b"it works";
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy,
+            payload.to_vec(),
+            DEFAULT_GAS_LIMIT * 10,
+            0,
+        ));
+
+        let message_id = utils::get_last_message_id();
+
+        run_to_next_block(None);
+        assert_succeed(message_id);
+        assert_eq!(
+            maybe_last_message(USER_1).expect("Should be").payload(),
+            payload
+        );
+    });
+}
+
+#[test]
+fn replies_denied_in_handle_reply() {
+    use demo_proxy::{InputArgs, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InputArgs {
+                destination: USER_1.into_origin().into()
+            }
+            .encode(),
+            50_000_000_000,
+            0u128
+        ));
+
+        let proxy = utils::get_last_program_id();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            proxy,
+            vec![],
+            50_000_000_000,
+            0
+        ));
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(proxy));
+        assert_succeed(message_id);
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            get_last_mail(USER_1).id(),
+            vec![],
+            50_000_000_000,
+            0,
+        ));
+
+        let reply_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        // we don't assert fail reason since no error reply sent on reply,
+        // but message id has stamp in MessagesDispatched event.
+        let status = dispatch_status(reply_id).expect("Not found in `MessagesDispatched`");
+        assert_eq!(status, DispatchStatus::Failed);
+    });
+}
+
+#[test]
 fn relay_messages() {
     use demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY};
 
@@ -10642,17 +10734,26 @@ fn relay_messages() {
                 label
             );
 
+            // To clear auto reply on init message.
+            System::reset_events();
+
             run_to_next_block(None);
 
-            for Expected { user, payload } in expected {
-                assert_eq!(
-                    MailboxOf::<Test>::drain_key(user)
-                        .next()
-                        .map(|(msg, _bn)| msg.payload().to_vec()),
-                    Some(payload),
-                    "{label}",
-                );
-            }
+            let received = System::events().into_iter().fold(0, |r, e| match e.event {
+                MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) => {
+                    let Expected { user, payload } = &expected[r];
+
+                    if message.destination().into_origin() == user.into_origin() {
+                        assert_eq!(message.payload(), payload, "{label}");
+                        r + 1
+                    } else {
+                        r
+                    }
+                }
+                _ => r,
+            });
+
+            assert_eq!(received, expected.len(), "{label}");
         };
 
         new_test_ext().execute_with(execute);

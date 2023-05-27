@@ -330,7 +330,7 @@ mod wasm {
             }
             Kind::ReplyDetails(..) => {
                 // Actual test in handle reply, here just sends a reply
-                let _ = msg::reply_delayed(b"payload", 0, 0);
+                let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
                 // To prevent from sending to mailbox "ok" message
                 exec::leave();
             }
@@ -348,7 +348,7 @@ mod wasm {
                         DO_PANIC = true;
                     }
                     exec::system_reserve_gas(1_000_000_000).unwrap();
-                    let _ = msg::reply_delayed(b"payload", 0, 0);
+                    let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
                     exec::wait_for(2);
                 }
             }

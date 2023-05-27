@@ -33,6 +33,8 @@ use scale_info::{
     TypeInfo,
 };
 
+use super::{DispatchKind, IncomingDispatch};
+
 /// Context settings.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextSettings {
@@ -208,6 +210,7 @@ impl ContextStore {
 /// Context of currently processing incoming message.
 #[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct MessageContext {
+    kind: DispatchKind,
     current: IncomingMessage,
     outcome: ContextOutcome,
     store: ContextStore,
@@ -217,12 +220,14 @@ pub struct MessageContext {
 impl MessageContext {
     /// Create new MessageContext with given ContextSettings.
     pub fn new(
-        message: IncomingMessage,
+        dispatch: IncomingDispatch,
         program_id: ProgramId,
-        store: Option<ContextStore>,
         settings: ContextSettings,
     ) -> Self {
+        let (kind, message, store) = dispatch.into_parts();
+
         Self {
+            kind,
             outcome: ContextOutcome::new(program_id, message.source(), message.id()),
             current: message,
             store: store.unwrap_or_default(),
@@ -233,6 +238,14 @@ impl MessageContext {
     /// Getter for inner settings.
     pub fn settings(&self) -> &ContextSettings {
         &self.settings
+    }
+
+    fn check_reply_availability(&self) -> Result<(), Error> {
+        if !matches!(self.kind, DispatchKind::Init | DispatchKind::Handle) {
+            return Err(Error::IncorrectEntryForReply);
+        }
+
+        Ok(())
     }
 
     /// Send a new program initialization message.
@@ -384,6 +397,8 @@ impl MessageContext {
         delay: u32,
         reservation: Option<ReservationId>,
     ) -> Result<MessageId, Error> {
+        self.check_reply_availability()?;
+
         if !self.store.reply_sent {
             let data = self.store.reply.take().unwrap_or_default();
 
@@ -409,6 +424,8 @@ impl MessageContext {
 
     /// Pushes payload into stored reply payload.
     pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
+        self.check_reply_availability()?;
+
         if !self.store.reply_sent {
             let data = self.store.reply.get_or_insert_with(Default::default);
             data.try_extend_from_slice(buffer)
@@ -427,6 +444,8 @@ impl MessageContext {
 
     /// Pushes the incoming message buffer into stored reply payload.
     pub fn reply_push_input(&mut self, range: CheckedRange) -> Result<(), Error> {
+        self.check_reply_availability()?;
+
         if !self.store.reply_sent {
             let CheckedRange {
                 offset,
@@ -485,11 +504,9 @@ impl CheckedRange {
 
 #[cfg(test)]
 mod tests {
-    use core::convert::TryInto;
-
     use super::*;
-    use crate::ids;
     use alloc::vec;
+    use core::convert::TryInto;
 
     macro_rules! assert_ok {
         ( $x:expr $(,)? ) => {
@@ -515,7 +532,6 @@ mod tests {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            Default::default(),
             ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
@@ -538,12 +554,8 @@ mod tests {
             // for outgoing_limit n checking that LimitExceeded will be after n's message.
             let settings = ContextSettings::new(0, 0, 0, 0, 0, n);
 
-            let mut message_context = MessageContext::new(
-                Default::default(),
-                Default::default(),
-                Default::default(),
-                settings,
-            );
+            let mut message_context =
+                MessageContext::new(Default::default(), Default::default(), settings);
             // send n messages
             for _ in 0..n {
                 let handle = message_context.send_init().expect("unreachable");
@@ -575,7 +587,6 @@ mod tests {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            Default::default(),
             ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
@@ -600,7 +611,6 @@ mod tests {
     #[test]
     fn double_reply() {
         let mut message_context = MessageContext::new(
-            Default::default(),
             Default::default(),
             Default::default(),
             ContextSettings::new(0, 0, 0, 0, 0, 1024),
@@ -633,11 +643,12 @@ mod tests {
             None,
         );
 
+        let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
+
         // Creating a message context
         let mut context = MessageContext::new(
-            incoming_message,
-            ids::ProgramId::from(INCOMING_MESSAGE_ID),
-            None,
+            incoming_dispatch,
+            Default::default(),
             ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
@@ -761,10 +772,11 @@ mod tests {
             None,
         );
 
+        let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
+
         let mut context = MessageContext::new(
-            incoming_message,
-            ids::ProgramId::from(INCOMING_MESSAGE_ID),
-            None,
+            incoming_dispatch,
+            Default::default(),
             ContextSettings::new(0, 0, 0, 0, 0, 1024),
         );
 
