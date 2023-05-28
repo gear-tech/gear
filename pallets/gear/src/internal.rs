@@ -325,7 +325,7 @@ where
     /// Basic invariant is that we can't charge for storing an item more than had been deposited,
     /// regardless whether storage costs or the safety margin have changed in the meantime
     /// (via storage migration). The actual "prepaid" amount is determined through releasing
-    /// the lock corresponding to the `storage_type` inside the fucntion.
+    /// the lock corresponding to the `storage_type` inside the function.
     ///
     /// `id` - parameter convertible to the respective gas node id;
     /// `hold_interval` - determines the time interval to charge rent for;
@@ -619,7 +619,7 @@ where
             // Message is going to be inserted into mailbox.
             //
             // No hold bound checks required, because gas_limit isn't less than threshold.
-            to_mailbox = gas_limit >= threshold;
+            to_mailbox = !dispatch.is_reply() && gas_limit >= threshold;
             let gas_amount = if to_mailbox {
                 // Cutting gas for storing in mailbox.
                 gas_for_delay.saturating_add(gas_limit)
@@ -722,7 +722,7 @@ where
         // Saving id to allow moving dispatch further.
         let message_id = dispatch.id();
 
-        // Add block number of insertation.
+        // Add block number of insertion.
         let start_bn = Self::block_number();
         let delay_interval = Interval {
             start: start_bn,
@@ -805,7 +805,7 @@ where
 
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
-        let expiration = if !message.is_error_reply() && gas_limit >= threshold {
+        let expiration = if !message.is_reply() && gas_limit >= threshold {
             // Figuring out hold bound for given gas limit.
             let hold = HoldBoundBuilder::<T>::new(StorageType::Mailbox).maximum_for(gas_limit);
 
@@ -817,11 +817,6 @@ where
             // Cutting gas for storing in mailbox.
             GasHandlerOf::<T>::cut(msg_id, message.id(), gas_limit)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-            // TODO: adapt this line if gasful sending appears for reservations (#1828)
-            if let Some(reservation_id) = reservation {
-                Self::remove_gas_reservation_with_task(message.source(), reservation_id);
-            }
 
             // Reserving value from source for future transfer or unreserve.
             CurrencyOf::<T>::reserve(&from, value)
@@ -852,6 +847,11 @@ where
             // No expiration block due to absence of insertion in storage.
             None
         };
+
+        // TODO: adapt if gasful sending appears for reservations (#1828)
+        if let Some(reservation_id) = reservation {
+            Self::remove_gas_reservation_with_task(message.source(), reservation_id);
+        }
 
         // Depositing appropriate event.
         Self::deposit_event(Event::UserMessageSent {

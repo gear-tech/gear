@@ -344,10 +344,18 @@ impl Ext {
         Ok(())
     }
 
-    fn charge_expiring_resources<T: Packet>(&mut self, packet: &T) -> Result<(), ProcessorError> {
+    fn charge_expiring_resources<T: Packet>(
+        &mut self,
+        packet: &T,
+        check_gas_limit: bool,
+    ) -> Result<(), ProcessorError> {
         self.check_message_value(packet.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
-        let gas_limit = self.check_gas_limit(packet.gas_limit())?;
+        let gas_limit = if check_gas_limit {
+            self.check_gas_limit(packet.gas_limit())?
+        } else {
+            packet.gas_limit().unwrap_or(0)
+        };
         self.reduce_gas(gas_limit)?;
         self.charge_message_value(packet.value())?;
         Ok(())
@@ -545,7 +553,7 @@ impl EnvExt for Ext {
     ) -> Result<MessageId, Self::Error> {
         self.check_forbidden_destination(msg.destination())?;
         self.safe_gasfull_sends(&msg)?;
-        self.charge_expiring_resources(&msg)?;
+        self.charge_expiring_resources(&msg, true)?;
         self.charge_sending_fee(delay)?;
 
         self.charge_for_dispatch_stash_hold(delay)?;
@@ -589,18 +597,13 @@ impl EnvExt for Ext {
     }
 
     // TODO: Consider per byte charge (issue #2255).
-    fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
         self.safe_gasfull_sends(&msg)?;
-        self.charge_expiring_resources(&msg)?;
-        self.charge_sending_fee(delay)?;
+        self.charge_expiring_resources(&msg, false)?;
+        self.charge_sending_fee(0)?;
 
-        self.charge_for_dispatch_stash_hold(delay)?;
-
-        let msg_id = self
-            .context
-            .message_context
-            .reply_commit(msg, delay, None)?;
+        let msg_id = self.context.message_context.reply_commit(msg, None)?;
         Ok(msg_id)
     }
 
@@ -608,23 +611,16 @@ impl EnvExt for Ext {
         &mut self,
         id: ReservationId,
         msg: ReplyPacket,
-        delay: u32,
     ) -> Result<MessageId, Self::Error> {
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
         self.check_message_value(msg.value())?;
-        self.check_gas_limit(msg.gas_limit())?;
         // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
-        self.charge_sending_fee(delay)?;
-
-        self.charge_for_dispatch_stash_hold(delay)?;
+        self.charge_sending_fee(0)?;
 
         self.context.gas_reserver.mark_used(id)?;
 
-        let msg_id = self
-            .context
-            .message_context
-            .reply_commit(msg, delay, Some(id))?;
+        let msg_id = self.context.message_context.reply_commit(msg, Some(id))?;
         Ok(msg_id)
     }
 
@@ -819,6 +815,10 @@ impl EnvExt for Ext {
     fn wait(&mut self) -> Result<(), Self::Error> {
         self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
 
+        if self.context.message_context.reply_sent() {
+            return Err(WaitError::WaitAfterReply.into());
+        }
+
         let reserve = u64::from(self.context.reserve_for.saturating_add(1))
             .saturating_mul(self.context.waitlist_cost);
 
@@ -831,6 +831,10 @@ impl EnvExt for Ext {
 
     fn wait_for(&mut self, duration: u32) -> Result<(), Self::Error> {
         self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
+
+        if self.context.message_context.reply_sent() {
+            return Err(WaitError::WaitAfterReply.into());
+        }
 
         if duration == 0 {
             return Err(WaitError::InvalidArgument.into());
@@ -848,6 +852,10 @@ impl EnvExt for Ext {
 
     fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::Error> {
         self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
+
+        if self.context.message_context.reply_sent() {
+            return Err(WaitError::WaitAfterReply.into());
+        }
 
         if duration == 0 {
             return Err(WaitError::InvalidArgument.into());
@@ -881,7 +889,7 @@ impl EnvExt for Ext {
     ) -> Result<(MessageId, ProgramId), Self::Error> {
         self.check_forbidden_destination(packet.destination())?;
         self.safe_gasfull_sends(&packet)?;
-        self.charge_expiring_resources(&packet)?;
+        self.charge_expiring_resources(&packet, true)?;
         self.charge_sending_fee(delay)?;
 
         self.charge_for_dispatch_stash_hold(delay)?;
@@ -1022,7 +1030,6 @@ mod tests {
                 message_context: MessageContext::new(
                     Default::default(),
                     Default::default(),
-                    None,
                     ContextSettings::new(0, 0, 0, 0, 0, 0),
                 ),
                 block_info: Default::default(),

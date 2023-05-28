@@ -24,13 +24,13 @@ mod wasm {
             u8::from_le_bytes(flag) == 1
         };
         if shall_reply_before_exit {
-            msg::reply(b"If you read this, I'm dead", 0).unwrap();
+            msg::send(msg::source(), b"If you read this, I'm dead", 0).unwrap();
             exec::exit(gstd::msg::source());
         } else {
             #[allow(unreachable_code)]
             exec::exit(gstd::msg::source());
             // should not be executed
-            msg::reply(b"reply", 0).unwrap();
+            msg::send(msg::source(), b"reply", 0).unwrap();
         }
     }
 }

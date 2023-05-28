@@ -20,7 +20,8 @@ fixtures:
           value: default
 
     expected:
-      - programs:
+      - allowError: true
+        programs:
         ids:
           - kind: id
             value: 1

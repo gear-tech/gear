@@ -142,6 +142,11 @@ impl StoredMessage {
     pub fn is_error_reply(&self) -> bool {
         self.details.map(|d| d.is_error_reply()).unwrap_or(false)
     }
+
+    /// Returns bool defining if message is reply.
+    pub fn is_reply(&self) -> bool {
+        self.details.map(|d| d.is_reply_details()).unwrap_or(false)
+    }
 }
 
 /// Stored message with entry point and previous execution context, if exists.
