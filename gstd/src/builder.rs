@@ -427,36 +427,9 @@ where
                 MessagePayload::Input(range) => msg::reply_input_with_gas(gas_limit, value, range),
             },
             (None, Some(_), Some(_)) => unreachable!(),
-            (Some(delay), None, None) => match payload {
-                MessagePayload::Bytes(payload) => msg::reply_bytes_delayed(payload, value, delay),
-                MessagePayload::Encode(payload) => {
-                    msg::reply_bytes_delayed(payload.encode(), value, delay)
-                }
-                MessagePayload::Input(range) => msg::reply_input_delayed(value, range, delay),
-            },
-            (Some(delay), None, Some(reservation_id)) => match payload {
-                MessagePayload::Bytes(payload) => {
-                    msg::reply_bytes_delayed_from_reservation(reservation_id, payload, value, delay)
-                }
-                MessagePayload::Encode(payload) => msg::reply_bytes_delayed_from_reservation(
-                    reservation_id,
-                    payload.encode(),
-                    value,
-                    delay,
-                ),
-                MessagePayload::Input(_) => unreachable!(),
-            },
-            (Some(delay), Some(gas_limit), None) => match payload {
-                MessagePayload::Bytes(payload) => {
-                    msg::reply_bytes_with_gas_delayed(payload, gas_limit, value, delay)
-                }
-                MessagePayload::Encode(payload) => {
-                    msg::reply_bytes_with_gas_delayed(payload.encode(), gas_limit, value, delay)
-                }
-                MessagePayload::Input(range) => {
-                    msg::reply_input_with_gas_delayed(gas_limit, value, range, delay)
-                }
-            },
+            (Some(_), None, None) => unreachable!(),
+            (Some(_), None, Some(_)) => unreachable!(),
+            (Some(_), Some(_), None) => unreachable!(),
             (Some(_), Some(_), Some(_)) => unreachable!(),
         }
     }
@@ -570,61 +543,6 @@ where
                 }
                 MessagePayload::Input(range) => {
                     msg::send_input_with_gas_for_reply(program, gas_limit, value, range)
-                }
-            },
-            (None, Some(_), Some(_)) => unreachable!(),
-            (Some(_), None, None) => unreachable!(),
-            (Some(_), None, Some(_)) => unreachable!(),
-            (Some(_), Some(_), None) => unreachable!(),
-            (Some(_), Some(_), Some(_)) => unreachable!(),
-        }
-    }
-
-    /// Tries to call one of the `msg::reply*_for_reply` functions depending
-    /// on how the arguments were constructed.
-    #[inline(always)]
-    pub fn reply(self) -> Result<MessageFuture> {
-        let FinalizedMessage {
-            call_type,
-            payload,
-            value,
-            delay,
-            gas_limit,
-            reservation_id,
-        } = self.inner.finalize()?;
-
-        let CallType::ReplyMessage = call_type else {
-            return Err(ContractError::BuilderUsage("unexpected call_type"));
-        };
-
-        match (delay, gas_limit, reservation_id) {
-            (None, None, None) => match payload {
-                MessagePayload::Bytes(payload) => msg::reply_bytes_for_reply(payload, value),
-                MessagePayload::Encode(payload) => {
-                    msg::reply_bytes_for_reply(payload.encode(), value)
-                }
-                MessagePayload::Input(range) => msg::reply_input_for_reply(value, range),
-            },
-            (None, None, Some(reservation_id)) => match payload {
-                MessagePayload::Bytes(payload) => {
-                    msg::reply_bytes_from_reservation_for_reply(reservation_id, payload, value)
-                }
-                MessagePayload::Encode(payload) => msg::reply_bytes_from_reservation_for_reply(
-                    reservation_id,
-                    payload.encode(),
-                    value,
-                ),
-                MessagePayload::Input(_) => unreachable!(),
-            },
-            (None, Some(gas_limit), None) => match payload {
-                MessagePayload::Bytes(payload) => {
-                    msg::reply_bytes_with_gas_for_reply(payload, gas_limit, value)
-                }
-                MessagePayload::Encode(payload) => {
-                    msg::reply_bytes_with_gas_for_reply(payload.encode(), gas_limit, value)
-                }
-                MessagePayload::Input(range) => {
-                    msg::reply_input_with_gas_for_reply(gas_limit, value, range)
                 }
             },
             (None, Some(_), Some(_)) => unreachable!(),
@@ -755,69 +673,6 @@ where
                     msg::send_input_with_gas_for_reply_as::<_, Decodable>(
                         program, gas_limit, value, range,
                     )
-                }
-            },
-            (None, Some(_), Some(_)) => unreachable!(),
-            (Some(_), None, None) => unreachable!(),
-            (Some(_), None, Some(_)) => unreachable!(),
-            (Some(_), Some(_), None) => unreachable!(),
-            (Some(_), Some(_), Some(_)) => unreachable!(),
-        }
-    }
-
-    /// Tries to call one of the `msg::reply*_for_reply_as::<D: Decode>`
-    /// functions depending on how the arguments were constructed.
-    #[inline(always)]
-    pub fn reply(self) -> Result<CodecMessageFuture<Decodable>> {
-        let FinalizedMessage {
-            call_type,
-            payload,
-            value,
-            delay,
-            gas_limit,
-            reservation_id,
-        } = self.inner.finalize()?;
-
-        let CallType::ReplyMessage = call_type else {
-            return Err(ContractError::BuilderUsage("unexpected call_type"));
-        };
-
-        match (delay, gas_limit, reservation_id) {
-            (None, None, None) => match payload {
-                MessagePayload::Bytes(payload) => {
-                    msg::reply_bytes_for_reply_as::<Decodable>(payload, value)
-                }
-                MessagePayload::Encode(payload) => {
-                    msg::reply_bytes_for_reply_as::<Decodable>(payload.encode(), value)
-                }
-                MessagePayload::Input(range) => {
-                    msg::reply_input_for_reply_as::<_, Decodable>(value, range)
-                }
-            },
-            (None, None, Some(reservation_id)) => match payload {
-                MessagePayload::Bytes(payload) => msg::reply_bytes_from_reservation_for_reply_as::<
-                    Decodable,
-                >(reservation_id, payload, value),
-                MessagePayload::Encode(payload) => {
-                    msg::reply_bytes_from_reservation_for_reply_as::<Decodable>(
-                        reservation_id,
-                        payload.encode(),
-                        value,
-                    )
-                }
-                MessagePayload::Input(_) => unreachable!(),
-            },
-            (None, Some(gas_limit), None) => match payload {
-                MessagePayload::Bytes(payload) => {
-                    msg::reply_bytes_with_gas_for_reply_as::<Decodable>(payload, gas_limit, value)
-                }
-                MessagePayload::Encode(payload) => msg::reply_bytes_with_gas_for_reply_as::<
-                    Decodable,
-                >(
-                    payload.encode(), gas_limit, value
-                ),
-                MessagePayload::Input(range) => {
-                    msg::reply_input_with_gas_for_reply_as::<_, Decodable>(gas_limit, value, range)
                 }
             },
             (None, Some(_), Some(_)) => unreachable!(),
