@@ -7,7 +7,7 @@ static mut DONE: bool = false;
 extern "C" fn init() {
     let delay: u32 = msg::load().unwrap();
 
-    msg::reply_bytes_delayed("Delayed hello!", 0, delay).unwrap();
+    msg::send_bytes_delayed(msg::source(), "Delayed hello!", 0, delay).unwrap();
 }
 
 #[no_mangle]

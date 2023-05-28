@@ -7231,15 +7231,20 @@ fn delayed_sending() {
         let prog = utils::get_last_program_id();
 
         run_to_next_block(None);
-
         assert!(Gear::is_active(prog));
+
+        let auto_reply = maybe_last_message(USER_1).expect("Should be");
+        assert!(auto_reply.is_reply());
+        assert!(auto_reply.payload().is_empty());
+
+        System::reset_events();
 
         for _ in 0..delay {
             assert!(maybe_last_message(USER_1).is_none());
             run_to_next_block(None);
         }
 
-        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+        assert!(!MailboxOf::<Test>::is_empty(&USER_1));
         assert_eq!(
             maybe_last_message(USER_1)
                 .expect("Event should be")
@@ -8247,61 +8252,6 @@ fn reply_from_reservation() {
             let msg = maybe_last_message(USER_1).expect("Should be");
             assert_eq!(msg.value(), 900);
             assert_eq!(msg.payload(), b"reply");
-            let map = get_reservation_map(pid).unwrap();
-            assert!(map.is_empty());
-        }
-
-        {
-            MailboxOf::<Test>::clear();
-
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                pid,
-                HandleAction::ReplyToUserDelayed.encode(),
-                10_000_000_000,
-                1_000,
-            ));
-
-            run_to_block(5, None);
-
-            assert!(MailboxOf::<Test>::is_empty(&USER_1));
-
-            run_to_block(6, None);
-
-            let msg = maybe_last_message(USER_1).expect("Should be");
-            assert_eq!(msg.value(), 1000);
-            assert_eq!(msg.payload(), b"reply_to_user_delayed");
-            let map = get_reservation_map(pid).unwrap();
-            assert!(map.is_empty());
-        }
-
-        {
-            MailboxOf::<Test>::clear();
-
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                pid,
-                HandleAction::ReplyToProgramDelayed {
-                    pid: pid2.into(),
-                    user: USER_1.into_origin().into()
-                }
-                .encode(),
-                10_000_000_000,
-                1_000,
-            ));
-
-            let mid = get_last_message_id();
-
-            run_to_block(7, None);
-
-            assert!(MailboxOf::<Test>::is_empty(&USER_1));
-            assert_succeed(mid);
-
-            run_to_block(8, None);
-
-            let msg = maybe_last_message(USER_1).expect("Should be");
-            assert_eq!(msg.value(), 1000);
-            assert_eq!(msg.payload(), b"reply_delayed");
             let map = get_reservation_map(pid).unwrap();
             assert!(map.is_empty());
         }
