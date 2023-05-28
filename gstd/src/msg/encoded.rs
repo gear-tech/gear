@@ -113,12 +113,6 @@ pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
     super::reply_bytes(payload.encode(), value)
 }
 
-/// Same as [`reply`], but sends the reply after the `delay` expressed in block
-/// count.
-pub fn reply_delayed<E: Encode>(payload: E, value: u128, delay: u32) -> Result<MessageId> {
-    super::reply_bytes_delayed(payload.encode(), value, delay)
-}
-
 /// Same as [`reply`], but it spends gas from a reservation instead of
 /// borrowing gas from the gas limit provided with the incoming message.
 ///
@@ -163,17 +157,6 @@ pub fn reply_from_reservation<E: Encode>(
     super::reply_bytes_from_reservation(id, payload.encode(), value)
 }
 
-/// Same as [`reply_from_reservation`], but sends the reply after the `delay`
-/// expressed in block count.
-pub fn reply_delayed_from_reservation<E: Encode>(
-    id: ReservationId,
-    payload: E,
-    value: u128,
-    delay: u32,
-) -> Result<MessageId> {
-    super::reply_bytes_delayed_from_reservation(id, payload.encode(), value, delay)
-}
-
 /// Same as [`reply`], but with an explicit gas limit.
 ///
 /// # Examples
@@ -200,17 +183,6 @@ pub fn reply_delayed_from_reservation<E: Encode>(
 /// ```
 pub fn reply_with_gas<E: Encode>(payload: E, gas_limit: u64, value: u128) -> Result<MessageId> {
     super::reply_bytes_with_gas(payload.encode(), gas_limit, value)
-}
-
-/// Same as [`reply_with_gas`], but sends the reply after the `delay` expressed
-/// in block count.
-pub fn reply_with_gas_delayed<E: Encode>(
-    payload: E,
-    gas_limit: u64,
-    value: u128,
-    delay: u32,
-) -> Result<MessageId> {
-    super::reply_bytes_with_gas_delayed(payload.encode(), gas_limit, value, delay)
 }
 
 /// Same as [`reply`] but uses the input buffer as a payload source.
@@ -246,18 +218,6 @@ pub fn reply_input<Range: RangeBounds<usize>>(value: u128, range: Range) -> Resu
     gcore::msg::reply_input(value, offset, len).into_contract_result()
 }
 
-/// Same as [`reply_input`], but sends the reply after the `delay` expressed in
-/// block count.
-pub fn reply_input_delayed<Range: RangeBounds<usize>>(
-    value: u128,
-    range: Range,
-    delay: u32,
-) -> Result<MessageId> {
-    let (offset, len) = utils::decay_range(range);
-
-    gcore::msg::reply_input_delayed(value, offset, len, delay).into_contract_result()
-}
-
 /// Same as [`reply_input`], but with an explicit gas limit.
 pub fn reply_input_with_gas<Range: RangeBounds<usize>>(
     gas_limit: u64,
@@ -267,20 +227,6 @@ pub fn reply_input_with_gas<Range: RangeBounds<usize>>(
     let (offset, len) = utils::decay_range(range);
 
     gcore::msg::reply_input_with_gas(gas_limit, value, offset, len).into_contract_result()
-}
-
-/// Same as [`reply_input_with_gas`], but sends the reply after the `delay`
-/// expressed in block count.
-pub fn reply_input_with_gas_delayed<Range: RangeBounds<usize>>(
-    gas_limit: u64,
-    value: u128,
-    range: Range,
-    delay: u32,
-) -> Result<MessageId> {
-    let (offset, len) = utils::decay_range(range);
-
-    gcore::msg::reply_input_with_gas_delayed(gas_limit, value, offset, len, delay)
-        .into_contract_result()
 }
 
 /// Same as [`send`] but uses the input buffer as a payload source.

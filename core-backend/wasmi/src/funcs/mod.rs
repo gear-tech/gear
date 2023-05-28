@@ -596,10 +596,10 @@ where
                          payload_ptr: u32,
                          len: u32,
                          value_ptr: u32,
-                         delay: u32,
+                         _delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
-            syscall_trace!("reply", payload_ptr, len, value_ptr, delay, err_mid_ptr);
+            syscall_trace!("reply", payload_ptr, len, value_ptr, err_mid_ptr);
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply(len), |ctx| {
@@ -610,7 +610,7 @@ where
                 let state = ctx.host_state_mut();
                 state
                     .ext
-                    .reply(ReplyPacket::new(payload, value), delay)
+                    .reply(ReplyPacket::new(payload, value))
                     .map_err(Into::into)
             })
         };
@@ -628,7 +628,7 @@ where
                          len: u32,
                          gas_limit: u64,
                          value_ptr: u32,
-                         delay: u32,
+                         _delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
             syscall_trace!(
@@ -637,7 +637,6 @@ where
                 len,
                 gas_limit,
                 value_ptr,
-                delay,
                 err_mid_ptr
             );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
@@ -653,7 +652,7 @@ where
                     let state = ctx.host_state_mut();
                     state
                         .ext
-                        .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
+                        .reply(ReplyPacket::new_with_gas(payload, gas_limit, value))
                         .map_err(Into::into)
                 },
             )
@@ -669,10 +668,10 @@ where
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
                          value_ptr: u32,
-                         delay: u32,
+                         _delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
-            syscall_trace!("reply_commit", value_ptr, delay, err_mid_ptr);
+            syscall_trace!("reply_commit", value_ptr, err_mid_ptr);
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(
@@ -684,7 +683,7 @@ where
                     let state = ctx.host_state_mut();
                     state
                         .ext
-                        .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+                        .reply_commit(ReplyPacket::new(Default::default(), value))
                         .map_err(Into::into)
                 },
             )
@@ -701,16 +700,10 @@ where
         let func = move |caller: Caller<'_, HostState<E>>,
                          gas_limit: u64,
                          value_ptr: u32,
-                         delay: u32,
+                         _delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
-            syscall_trace!(
-                "reply_commit_wgas",
-                gas_limit,
-                value_ptr,
-                delay,
-                err_mid_ptr
-            );
+            syscall_trace!("reply_commit_wgas", gas_limit, value_ptr, err_mid_ptr);
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(
@@ -722,10 +715,11 @@ where
                     let state = ctx.host_state_mut();
                     state
                         .ext
-                        .reply_commit(
-                            ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                            delay,
-                        )
+                        .reply_commit(ReplyPacket::new_with_gas(
+                            Default::default(),
+                            gas_limit,
+                            value,
+                        ))
                         .map_err(Into::into)
                 },
             )
@@ -743,7 +737,7 @@ where
                          rid_value_ptr: u32,
                          payload_ptr: u32,
                          len: u32,
-                         delay: u32,
+                         _delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
             syscall_trace!(
@@ -751,7 +745,6 @@ where
                 rid_value_ptr,
                 payload_ptr,
                 len,
-                delay,
                 err_mid_ptr
             );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
@@ -772,11 +765,7 @@ where
                     let state = ctx.host_state_mut();
                     state
                         .ext
-                        .reservation_reply(
-                            reservation_id.into(),
-                            ReplyPacket::new(payload, value),
-                            delay,
-                        )
+                        .reservation_reply(reservation_id.into(), ReplyPacket::new(payload, value))
                         .map_err(Into::into)
                 },
             )
@@ -792,15 +781,10 @@ where
     ) -> Func {
         let func = move |caller: Caller<'_, HostState<E>>,
                          rid_value_ptr: u32,
-                         delay: u32,
+                         _delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
-            syscall_trace!(
-                "reservation_reply_commit",
-                rid_value_ptr,
-                delay,
-                err_mid_ptr
-            );
+            syscall_trace!("reservation_reply_commit", rid_value_ptr, err_mid_ptr);
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(
@@ -820,7 +804,6 @@ where
                         .reservation_reply_commit(
                             reservation_id.into(),
                             ReplyPacket::new(Default::default(), value),
-                            delay,
                         )
                         .map_err(Into::into)
                 },
@@ -896,10 +879,10 @@ where
                          offset: u32,
                          len: u32,
                          value_ptr: u32,
-                         delay: u32,
+                         _delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
-            syscall_trace!("reply_input", offset, len, value_ptr, delay, err_mid_ptr);
+            syscall_trace!("reply_input", offset, len, value_ptr, err_mid_ptr);
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
 
             ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyInput, |ctx| {
@@ -910,7 +893,7 @@ where
                     state.ext.reply_push_input(offset, len)?;
                     state
                         .ext
-                        .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+                        .reply_commit(ReplyPacket::new(Default::default(), value))
                 };
 
                 f().map_err(Into::into)
@@ -952,7 +935,7 @@ where
                          len: u32,
                          gas_limit: u64,
                          value_ptr: u32,
-                         delay: u32,
+                         _delay: u32,
                          err_mid_ptr: u32|
               -> EmptyOutput {
             syscall_trace!(
@@ -961,7 +944,6 @@ where
                 len,
                 gas_limit,
                 value_ptr,
-                delay,
                 err_mid_ptr
             );
             let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
@@ -975,10 +957,11 @@ where
                     let state = ctx.host_state_mut();
                     let mut f = || {
                         state.ext.reply_push_input(offset, len)?;
-                        state.ext.reply_commit(
-                            ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                            delay,
-                        )
+                        state.ext.reply_commit(ReplyPacket::new_with_gas(
+                            Default::default(),
+                            gas_limit,
+                            value,
+                        ))
                     };
 
                     f().map_err(Into::into)
