@@ -120,7 +120,7 @@ impl Ext for MockExt {
     fn send_push(&mut self, _handle: u32, _buffer: &[u8]) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn reply_commit(&mut self, _msg: ReplyPacket, _delay: u32) -> Result<MessageId, Self::Error> {
+    fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
     fn send_push_input(
@@ -235,7 +235,6 @@ impl Ext for MockExt {
         &mut self,
         _id: ReservationId,
         _msg: ReplyPacket,
-        _delay: u32,
     ) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }

@@ -170,7 +170,6 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         message_context: MessageContext::new(
             Default::default(),
             Default::default(),
-            None,
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
