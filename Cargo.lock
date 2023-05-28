@@ -4141,6 +4141,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-weight-diff"
+version = "1.0.0"
+dependencies = [
+ "clap 4.2.1",
+ "frame-support",
+ "gear-runtime",
+ "indexmap",
+ "pallet-gear",
+ "serde",
+ "serde_json",
+ "tabled",
+ "vara-runtime",
+]
+
+[[package]]
 name = "generate-bags"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary#34efda72d128b336f3afd72d70098deccd79c6c2"

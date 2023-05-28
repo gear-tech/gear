@@ -91,6 +91,7 @@ members = [
     "utils/wasm-info",
     "utils/wasm-instrument",
     "utils/wasm-proc",
+    "utils/weight-diff",
 ]
 
 [workspace.dependencies]
@@ -369,6 +370,7 @@ cfg-if = "1.0.0"                                                          # gear
 cargo_metadata = "0.15.3"                                                 # utils/wasm-builder
 errno = "0.3"                                                             # gear-lazy-pages
 impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
+indexmap = "1.9.3"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
