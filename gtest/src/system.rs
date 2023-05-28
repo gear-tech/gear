@@ -24,7 +24,11 @@ use crate::{
 };
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::{ids::CodeId, message::Dispatch};
+use gear_common::scheduler::TaskHandler;
+use gear_core::{
+    ids::{CodeId, MessageId},
+    message::Dispatch,
+};
 use path_clean::PathClean;
 use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
 
@@ -121,6 +125,23 @@ impl System {
         !self.0.borrow().is_user(&program_id)
     }
 
+    /// Pause program action.
+    /// # Panics
+    /// This method will panic if program id is incorrect or program is not initialized.
+    pub fn pause_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) {
+        self.0.borrow_mut().pause_program(id.into().0);
+    }
+
+    /// Sends wake message to program.
+    /// This method removes message from waitlist and adds it to dispatches.
+    /// # Panics
+    /// This method will panic if program id is incorrect or message id is incorrect.
+    pub fn wake_message<ID: Into<ProgramIdWrapper>>(&self, program_id: ID, message_id: MessageId) {
+        self.0
+            .borrow_mut()
+            .wake_message(program_id.into().0, message_id);
+    }
+
     /// Saves code to the storage and returns it's code hash
     ///
     /// This method is mainly used for providing a proper program from program
@@ -150,6 +171,29 @@ impl System {
             .entry(program_id)
             .or_insert_with(Vec::default);
         Mailbox::new(program_id, &self.0)
+    }
+
+    /// Removes message from the mailbox.
+    /// # Panics
+    /// Panics if there is no mailbox for the provided `id`.
+    pub fn remove_from_mailbox<ID: Into<ProgramIdWrapper>>(
+        &self,
+        user_id: ID,
+        message_id: MessageId,
+    ) {
+        let user_id = user_id.into().0;
+        self.0.borrow_mut().remove_from_mailbox(user_id, message_id);
+    }
+
+    pub fn remove_from_waitlist<ID: Into<ProgramIdWrapper>>(
+        &self,
+        user_id: ID,
+        message_id: MessageId,
+    ) {
+        let user_id = user_id.into().0;
+        self.0
+            .borrow_mut()
+            .remove_from_waitlist(user_id, message_id);
     }
 
     /// Add value to the actor.

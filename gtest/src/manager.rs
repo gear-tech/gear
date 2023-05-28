@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    log::{self, CoreLog, RunResult},
+    log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
@@ -1123,9 +1123,7 @@ impl JournalHandler for ExtManager {
     fn pay_program_rent(&mut self, _payer: ProgramId, _program_id: ProgramId, _block_count: u32) {}
 }
 
-type AccountId = u64;
-
-impl TaskHandler<AccountId> for ExtManager {
+impl TaskHandler<ProgramId> for ExtManager {
     // Rent charging section.
     // ---------------------
 
@@ -1184,16 +1182,13 @@ impl TaskHandler<AccountId> for ExtManager {
         todo!("#646")
     }
 
-    fn remove_from_mailbox(&mut self, user_id: AccountId, message_id: MessageId) {
-        logger::debug!(
-            "Removing message {:?} from mailbox of user {:?}",
-            message_id,
-            user_id
-        );
-
+    /// Removes message from the mailbox.
+    /// # Panics
+    /// Panics if there is no mailbox for the provided ids.
+    fn remove_from_mailbox(&mut self, program_id: ProgramId, message_id: MessageId) {
         let mailbox = self
             .mailbox
-            .get_mut(&user_id.into())
+            .get_mut(&program_id)
             .expect("Mailbox to remove message from must exist");
 
         let mut i = 0;
@@ -1206,37 +1201,79 @@ impl TaskHandler<AccountId> for ExtManager {
         }
     }
 
+    /// Removes message from the waitlist.
+    /// # Panics
+    /// Panics if there is no waitlist for the provided ids.
     fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) {
-        logger::debug!(
-            "Removing message {:?} from waitlist of program {:?}",
-            message_id,
-            program_id
-        );
-
         self.wait_list
             .remove(&(program_id, message_id))
             .expect("Waitlist to remove message from must exist");
     }
 
-    fn remove_paused_program(&mut self, program_id: ProgramId) {
+    fn remove_paused_program(&mut self, _program_id: ProgramId) {
         todo!("#646");
     }
 
     // Time chained section.
     // ---------------------
+
+    /// Sends wake message to program.
+    /// This method removes message from waitlist and adds it to dispatches.
+    /// # Panics
+    /// Panics if there is no waitlist for the provided ids.
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) {
-        todo!()
+        if let Some(dispatch) = self.wait_list.remove(&(program_id, message_id)) {
+            self.dispatches.push_back(dispatch);
+        } else {
+            panic!("wake_message called on non-existing message or program id");
+        }
     }
 
-    fn send_dispatch(&mut self, stashed_message_id: MessageId) {
-        todo!()
+    /// Sends dispatch to program.
+    /// # Panics
+    /// This method is not implemented yet and will panic if called.
+    fn send_dispatch(&mut self, _stashed_message_id: MessageId) {
+        todo!("#1331")
     }
 
-    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) {
-        todo!()
+    /// Sends stashed message to user.
+    /// # Panics
+    /// This method is not implemented yet and will panic if called.
+    fn send_user_message(&mut self, _stashed_message_id: MessageId, _to_mailbox: bool) {
+        todo!("#1331")
     }
 
+    /// Removes gas reservation from program.
+    /// # Panics
+    /// This method will panic if program id or reservation id is incorrect.
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {
-        todo!()
+        let (actor, _) = self
+            .actors
+            .get_mut(&program_id)
+            .expect("gas reservation update guaranteed to be called only on existing program");
+
+        if let TestActor::Initialized(Program::Genuine {
+            gas_reservation_map: prog_gas_reservation_map,
+            ..
+        })
+        | TestActor::Uninitialized(
+            _,
+            Some(Program::Genuine {
+                gas_reservation_map: prog_gas_reservation_map,
+                ..
+            }),
+        ) = actor
+        {
+            prog_gas_reservation_map
+                .remove(&reservation_id)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "no gas reservation found for program {:?} and reservation id {:?}",
+                        program_id, reservation_id
+                    )
+                });
+        } else {
+            panic!("no gas reservation map found in program");
+        }
     }
 }

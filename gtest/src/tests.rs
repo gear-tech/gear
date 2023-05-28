@@ -1,13 +1,14 @@
-use crate::{program::ProgramIdWrapper, Log, Program, System};
+use crate::{Log, Program, System};
 use codec::Encode;
+use core_processor::common::JournalHandler;
 use gear_common::scheduler::TaskHandler;
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, Payload},
+    message::{Dispatch, DispatchKind, Message, MessageWaitedType, Payload, StoredDispatch},
 };
 
 #[test]
-fn program_pause_works() {
+fn pause_program_works() {
     // initialize everything
     let sys = System::new();
 
@@ -20,19 +21,16 @@ fn program_pause_works() {
 
     // send a message to the program
     let res = program.send_bytes(0, b"PING");
+
     // check that the message was processed, bc the program is not paused
     assert_eq!(1, res.total_processed());
 
     // pause the program
-    // TODO: convenience method for this
-    program
-        .manager
-        .try_borrow_mut()
-        .expect("failed to borrow manager")
-        .pause_program(program.id());
+    sys.pause_program(program.id());
 
     // send a message to the program
     let res = program.send_bytes(0, b"PING");
+
     // check that the message was not processed, bc the program is paused
     assert_eq!(0, res.total_processed());
     assert_eq!(0, res.main_gas_burned().0);
@@ -40,14 +38,20 @@ fn program_pause_works() {
 }
 
 #[test]
+#[should_panic]
+fn pause_unknown_program_fails() {
+    let sys = System::new();
+
+    sys.pause_program(ProgramId::from(1337));
+}
+
+#[test]
 fn mailbox_message_removal_works() {
     // Arranging data for future messages
-    const SOURCE_USER_ID: u64 = 100;
-    const DESTINATION_USER_ID: u64 = 200;
-    let system = System::new();
+    let sys = System::new();
     let message_id: MessageId = Default::default();
-    let source_user_id = ProgramId::from(SOURCE_USER_ID);
-    let destination_user_id = ProgramId::from(DESTINATION_USER_ID);
+    let source_user_id = ProgramId::from(100);
+    let destination_user_id = ProgramId::from(200);
     let message_payload: Payload = vec![1, 2, 3].try_into().expect("failed to encode payload");
     let log = Log::builder().payload(message_payload.clone());
 
@@ -63,29 +67,71 @@ fn mailbox_message_removal_works() {
     );
 
     // Sending created message
-    let res = system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
+    sys.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
 
     // Getting mailbox of destination user
-    let destination_user_mailbox = system.get_mailbox(destination_user_id);
+    let destination_user_mailbox = sys.get_mailbox(destination_user_id);
 
     // remove the message from the mailbox
-    // TODO: convenience method for this
-    system
-        .0
-        .try_borrow_mut()
-        .expect("failed to borrow manager")
-        .remove_from_mailbox(DESTINATION_USER_ID, message_id);
+    sys.remove_from_mailbox(destination_user_id, message_id);
 
     // Making sure that taken message is deleted
     assert!(!destination_user_mailbox.contains(&log))
 }
 
 #[test]
-fn mailbox_message_removal_fails_if_wrong_user_id() {} // TODO: consider naming
+#[should_panic]
+fn mailbox_message_removal_fails_on_wrong_user_id() {
+    let sys = System::new();
+
+    sys.remove_from_mailbox(1337, MessageId::default())
+}
 
 #[test]
-fn mailbox_message_removal_fails_if_wrong_message_id() {} // TODO: consider naming
+fn waitlist_removal_works() {
+    // initialize everything
+    let sys = System::new();
+    sys.init_logger();
+
+    let mut manager = sys.0.borrow_mut();
+
+    // add a dispatch to the waitlist
+    let dispatch = StoredDispatch::new(DispatchKind::Handle, Message::default().into(), None);
+    let duration = Some(64);
+    let waited_type = MessageWaitedType::WaitUpTo;
+
+    manager.wait_dispatch(dispatch.clone(), duration, waited_type);
+
+    // check that waitlist contains the dispatch
+    assert_eq!(manager.wait_list.len(), 1);
+    assert_eq!(
+        manager
+            .wait_list
+            .first_entry()
+            .expect("failed to get first entry")
+            .get(),
+        &dispatch
+    );
+
+    // remove the message from the waitlist
+    manager.remove_from_waitlist(ProgramId::default(), MessageId::default());
+
+    // check that the waitlist is empty
+    assert!(manager.wait_list.is_empty());
+}
 
 #[test]
 #[should_panic]
-fn pause_of_unknown_program_fails() {}
+fn waitlist_fails_on_unknown_ids() {
+    let sys = System::new();
+
+    sys.remove_from_waitlist(ProgramId::default(), MessageId::default());
+}
+
+#[test]
+#[should_panic]
+fn wake_message_fails_on_unknown_id() {
+    let sys = System::new();
+
+    sys.wake_message(ProgramId::default(), MessageId::default());
+}
