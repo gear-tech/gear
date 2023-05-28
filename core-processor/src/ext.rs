@@ -597,18 +597,13 @@ impl EnvExt for Ext {
     }
 
     // TODO: Consider per byte charge (issue #2255).
-    fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
         self.safe_gasfull_sends(&msg)?;
         self.charge_expiring_resources(&msg, false)?;
-        self.charge_sending_fee(delay)?;
+        self.charge_sending_fee(0)?;
 
-        self.charge_for_dispatch_stash_hold(delay)?;
-
-        let msg_id = self
-            .context
-            .message_context
-            .reply_commit(msg, delay, None)?;
+        let msg_id = self.context.message_context.reply_commit(msg, None)?;
         Ok(msg_id)
     }
 
@@ -616,22 +611,16 @@ impl EnvExt for Ext {
         &mut self,
         id: ReservationId,
         msg: ReplyPacket,
-        delay: u32,
     ) -> Result<MessageId, Self::Error> {
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
         self.check_message_value(msg.value())?;
         // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
-        self.charge_sending_fee(delay)?;
-
-        self.charge_for_dispatch_stash_hold(delay)?;
+        self.charge_sending_fee(0)?;
 
         self.context.gas_reserver.mark_used(id)?;
 
-        let msg_id = self
-            .context
-            .message_context
-            .reply_commit(msg, delay, Some(id))?;
+        let msg_id = self.context.message_context.reply_commit(msg, Some(id))?;
         Ok(msg_id)
     }
 
