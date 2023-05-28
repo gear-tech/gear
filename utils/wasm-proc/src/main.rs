@@ -99,11 +99,14 @@ const RT_ALLOWED_IMPORTS: [&str; 62] = [
 
 #[derive(Debug, clap::Parser)]
 struct Args {
-    /// Don't create gear stack end export
-    #[arg(long)]
-    skip_stack_end: bool,
+    /// Insert gear stack end export, enabled by default.
+    #[arg(long, default_value = "true")]
+    insert_stack_end: bool,
 
-    /// Strip custom sections of wasm binaries
+    #[arg(long)]
+    as_script: bool,
+
+    /// Strip custom sections of wasm binaries, enabled by default.
     #[arg(long, default_value = "true")]
     strip_custom_sections: bool,
 
@@ -145,12 +148,18 @@ fn check_rt_imports(path_to_wasm: &str, allowed_imports: &HashSet<&str>) -> Resu
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let Args {
         path: wasm_files,
-        skip_stack_end,
+        mut insert_stack_end,
+        as_script,
         strip_custom_sections,
         check_runtime_imports,
         verbose,
         legacy_meta,
     } = Args::parse();
+
+    if as_script && insert_stack_end {
+        log::debug!("Skip inserting stack end export, when as-script is enabled");
+        insert_stack_end = false;
+    }
 
     let mut env = env_logger::Env::default();
     if verbose {
@@ -172,42 +181,58 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let original_wasm_path = PathBuf::from(file);
-        let cannon_wasm_path = original_wasm_path.clone().with_extension("cannon.wasm");
         let meta_wasm_path = original_wasm_path.clone().with_extension("meta.wasm");
         let optimized_wasm_path = original_wasm_path.clone().with_extension("opt.wasm");
 
-        // Make canonization for gear
-        let mut optimizer = Optimizer::new(original_wasm_path.clone())?;
-        if !skip_stack_end {
-            optimizer.insert_stack_and_export();
-        }
-        optimizer.move_mut_globals_to_static();
-        optimizer.flush_to_file(&cannon_wasm_path);
+        // Make pre-handle if input wasm has been builded from as-script
+        let wasm_path = if as_script {
+            let mut optimizer = Optimizer::new(original_wasm_path.clone())?;
+            optimizer
+                .insert_start_call_in_func_exports()
+                .expect("Failed to insert call _start in func exports");
+            optimizer
+                .move_mut_globals_to_static()
+                .expect("Failed to move mutable globals to static");
+            optimizer.flush_to_file(&optimized_wasm_path);
+            optimized_wasm_path.clone()
+        } else {
+            original_wasm_path.clone()
+        };
 
         // Make size optimizations
-        let res = optimize::optimize_wasm(cannon_wasm_path, "s", true)?;
-        log::info!(
-            "wasm-opt: {} {} Kb -> {} Kb",
-            res.dest_wasm.display(),
+        let res = optimize::optimize_wasm(wasm_path, optimized_wasm_path.clone(), "s", true)?;
+        log::debug!(
+            "wasm-opt has changed wasm size: {} Kb -> {} Kb",
             res.original_size,
             res.optimized_size
         );
 
-        let mut optimizer = Optimizer::new(res.dest_wasm)?;
+        let mut optimizer = Optimizer::new(optimized_wasm_path.clone())?;
+        if insert_stack_end {
+            optimizer.insert_stack_end_export().unwrap_or_else(|err| {
+                log::debug!("Failed to insert stack end: {}", err);
+            })
+        }
         if strip_custom_sections {
             optimizer.strip_custom_sections();
         }
 
         if legacy_meta {
-            log::debug!("*** Processing metadata optimization: {}", meta_wasm_path.display());
+            log::debug!(
+                "*** Processing metadata optimization: {}",
+                meta_wasm_path.display()
+            );
             let code = optimizer.optimize(OptType::Meta)?;
-            log::debug!("Metadata wasm: {}", meta_wasm_path.to_string_lossy());
+            log::info!("Metadata wasm: {}", meta_wasm_path.to_string_lossy());
             fs::write(meta_wasm_path, code)?;
         }
 
-        log::debug!("*** Processing chain optimization: {}", optimized_wasm_path.display());
+        log::debug!(
+            "*** Processing chain optimization: {}",
+            optimized_wasm_path.display()
+        );
         let code = optimizer.optimize(OptType::Opt)?;
-        log::debug!("Optimized wasm: {}", optimized_wasm_path.to_string_lossy());
+        log::info!("Optimized wasm: {}", optimized_wasm_path.to_string_lossy());
 
         fs::write(optimized_wasm_path, code)?;
     }
