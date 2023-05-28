@@ -24,7 +24,7 @@ use indexmap::IndexMap;
 use pallet_gear::Schedule;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
-use tabled::{builder::Builder, Style, Tabled};
+use tabled::{builder::Builder, Style};
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -123,13 +123,6 @@ impl DeserializableSchedule {
     }
 }
 
-#[derive(Tabled)]
-struct Difference {
-    name: String,
-    value1: u64,
-    value2: u64,
-}
-
 fn main() {
     let Cli { command } = Cli::parse();
 
@@ -198,8 +191,12 @@ fn main() {
             ]);
 
             for (key, (value1, value2)) in result_map {
-                let value1 = value1.map(|v| format!("{v}")).unwrap_or_else(|| "N/A".into());
-                let value2 = value2.map(|v| format!("{v}")).unwrap_or_else(|| "N/A".into());
+                let value1 = value1
+                    .map(|v| format!("{v}"))
+                    .unwrap_or_else(|| "N/A".into());
+                let value2 = value2
+                    .map(|v| format!("{v}"))
+                    .unwrap_or_else(|| "N/A".into());
 
                 builder.add_record([key, value1, value2]);
             }
