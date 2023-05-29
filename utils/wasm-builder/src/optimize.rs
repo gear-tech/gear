@@ -55,8 +55,8 @@ impl Optimizer {
         Ok(Self { module, file })
     }
 
-    pub fn insert_start_call_in_func_exports(&mut self) -> Result<(), &'static str> {
-        stack_end::insert_start_call_in_func_exports(&mut self.module)
+    pub fn insert_start_call_in_export_funcs(&mut self) -> Result<(), &'static str> {
+        stack_end::insert_start_call_in_export_funcs(&mut self.module)
     }
 
     pub fn move_mut_globals_to_static(&mut self) -> Result<(), &'static str> {

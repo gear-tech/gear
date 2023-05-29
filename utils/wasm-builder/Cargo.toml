@@ -30,6 +30,7 @@ wasmprinter = "0.2"
 
 [dev-dependencies]
 wabt.workspace = true
+wasmer = { version = "3", features = ["singlepass"]}
 
 [features]
 metawasm = ["gmeta/codegen"]

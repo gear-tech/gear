@@ -188,7 +188,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let wasm_path = if as_script {
             let mut optimizer = Optimizer::new(original_wasm_path.clone())?;
             optimizer
-                .insert_start_call_in_func_exports()
+                .insert_start_call_in_export_funcs()
                 .expect("Failed to insert call _start in func exports");
             optimizer
                 .move_mut_globals_to_static()
