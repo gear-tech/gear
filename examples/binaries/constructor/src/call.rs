@@ -1,5 +1,5 @@
 use crate::Arg;
-use alloc::{string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Clone, Debug, Decode, Encode)]
@@ -18,6 +18,9 @@ pub enum Call {
     Reply(Arg<Vec<u8>>, Option<u64>, Arg<u128>),
     Panic(Option<String>),
     Exit(Arg<[u8; 32]>),
+    BytesEq(Arg<Vec<u8>>, Arg<Vec<u8>>),
+    Noop,
+    IfElse(Arg<bool>, Box<Self>, Box<Self>),
 }
 
 #[cfg(not(feature = "std"))]
@@ -134,6 +137,27 @@ mod wasm {
             exec::exit(inheritor)
         }
 
+        fn bytes_eq(self) -> Option<Vec<u8>> {
+            let Self::BytesEq(left, right) = self else { unreachable!() };
+
+            let left = left.value();
+            let right = right.value();
+
+            Some((left == right).encode())
+        }
+
+        fn if_else(self, previous: Option<CallResult>) -> Option<Vec<u8>> {
+            let Self::IfElse(flag, true_call, false_call) = self else { unreachable!() };
+
+            let flag = flag.value();
+
+            let call = if flag { true_call } else { false_call };
+
+            let (_call, value) = call.process(previous);
+
+            value
+        }
+
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
             debug!("\t[CONSTRUCTOR] >> Processing {:?}", self);
             let call = self.clone();
@@ -147,6 +171,9 @@ mod wasm {
                 Call::Send(..) => self.send(),
                 Call::Reply(..) => self.reply(),
                 Call::Exit(..) => self.exit(),
+                Call::BytesEq(..) => self.bytes_eq(),
+                Call::Noop => None,
+                Call::IfElse(..) => self.if_else(previous),
             };
 
             (call, value)

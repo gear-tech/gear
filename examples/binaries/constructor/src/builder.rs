@@ -1,5 +1,5 @@
 use crate::{Arg, Call};
-use alloc::{string::ToString, vec::Vec};
+use alloc::{boxed::Box, string::ToString, vec::Vec};
 use core::{fmt::Debug, ops::Deref};
 use parity_scale_codec::{WrapperTypeDecode, WrapperTypeEncode};
 
@@ -133,5 +133,35 @@ impl Calls {
 
     pub fn exit(self, inheritor: impl Into<Arg<[u8; 32]>>) -> Self {
         self.push(Call::Exit(inheritor.into()))
+    }
+
+    pub fn bytes_eq(
+        self,
+        key: impl AsRef<str>,
+        left: impl Into<Arg<Vec<u8>>>,
+        right: impl Into<Arg<Vec<u8>>>,
+    ) -> Self {
+        self.push(Call::BytesEq(left.into(), right.into()))
+            .store(key)
+    }
+
+    pub fn noop(self) -> Self {
+        self.push(Call::Noop)
+    }
+
+    // TODO: support multiple calls for branches by passing mut ref instead of moving value in Call processing.
+    pub fn if_else(self, key: impl AsRef<str>, mut true_call: Self, mut false_call: Self) -> Self {
+        if true_call.len() != 1 || false_call.len() != 1 {
+            unimplemented!()
+        };
+
+        let true_call = true_call.0.remove(0);
+        let false_call = false_call.0.remove(0);
+
+        self.push(Call::IfElse(
+            Arg::get(key),
+            Box::new(true_call),
+            Box::new(false_call),
+        ))
     }
 }

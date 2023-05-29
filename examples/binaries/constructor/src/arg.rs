@@ -46,6 +46,12 @@ impl From<[u8; 0]> for Arg<Vec<u8>> {
     }
 }
 
+impl From<[u8; 32]> for Arg<Vec<u8>> {
+    fn from(hash: [u8; 32]) -> Self {
+        Arg::New(hash.encode())
+    }
+}
+
 impl From<&'static str> for Arg<Vec<u8>> {
     fn from(key: &'static str) -> Self {
         Self::get(key)
@@ -65,6 +71,12 @@ impl From<&'static str> for Arg<u128> {
 }
 
 impl From<&'static str> for Arg<u32> {
+    fn from(key: &'static str) -> Self {
+        Self::get(key)
+    }
+}
+
+impl From<&'static str> for Arg<bool> {
     fn from(key: &'static str) -> Self {
         Self::get(key)
     }
