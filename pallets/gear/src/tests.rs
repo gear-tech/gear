@@ -5934,7 +5934,7 @@ fn resume_program_works() {
         // check that program operates properly after it was resumed
         run_to_next_block(None);
 
-        MailboxOf::<Test>::clear();
+        System::reset_events();
 
         let request = Request::List.encode();
         assert_ok!(Gear::send_message(
@@ -5947,8 +5947,18 @@ fn resume_program_works() {
 
         run_to_next_block(None);
 
-        let last_mail = get_last_mail(USER_1);
-        let reply = Reply::decode(&mut last_mail.payload()).unwrap();
+        let message = System::events()
+            .into_iter()
+            .find_map(|record| {
+                let MockRuntimeEvent::Gear(event) = record.event else { return None };
+                match event {
+                    Event::UserMessageSent { message, .. } => Some(message),
+                    _ => None,
+                }
+            })
+            .expect("message to user should be sent");
+
+        let reply = Reply::decode(&mut message.payload()).unwrap();
         assert!(matches!(reply, Reply::List(vec) if vec == vec![(0, 1)]));
     })
 }
