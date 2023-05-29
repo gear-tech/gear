@@ -525,10 +525,6 @@ where
     /// message went to wait list, so wasn't consumed but the one generated
     /// during the execution of the original message went to message queue
     /// and was successfully executed.
-    #[cfg_attr(
-        all(not(test), feature = "fuzz"),
-        allow(clippy::blocks_in_if_conditions)
-    )]
     fn consume(key: impl Into<Self::NodeId>) -> ConsumeResultOf<Self> {
         let key = key.into();
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
@@ -540,7 +536,7 @@ where
             // It's supposed to return an error if `FAILPOINTS`
             // env variable is set.
             fail::fail_point!("fail_fuzzer", |_| {
-                Err(InternalError::node_was_consumed().into())
+                Err(InternalError::check_fuzz_error().into())
             });
             s.teardown();
         }

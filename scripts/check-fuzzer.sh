@@ -5,7 +5,7 @@ main() {
     FAILPOINTS=fail_fuzzer=return ./scripts/gear.sh test fuzz > fuzz_run 2>&1
 
 
-    if cat fuzz_run | grep -q -P '^(?=.*GasTree corrupted)(?=.*NodeWasConsumed)' ; then
+    if cat fuzz_run | grep -q -P '^(?=.*GasTree corrupted)(?=.*CheckFuzzError)' ; then
         echo "Success"
         exit 0
     else
