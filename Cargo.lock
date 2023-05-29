@@ -1813,6 +1813,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-constructor"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "hex",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-contract-template"
 version = "0.1.0"
 dependencies = [
@@ -6942,6 +6952,7 @@ dependencies = [
  "demo-calc-hash-in-one-block",
  "demo-calc-hash-over-blocks",
  "demo-compose",
+ "demo-constructor",
  "demo-delayed-sender",
  "demo-distributor",
  "demo-exit-handle",

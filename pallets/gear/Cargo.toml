@@ -87,6 +87,7 @@ demo-calc-hash.workspace = true
 demo-calc-hash-over-blocks.workspace = true
 demo-calc-hash-in-one-block.workspace = true
 demo-compose.workspace = true
+demo-constructor.workspace = true
 demo-mul-by-const.workspace = true
 demo-value-sender.workspace = true
 demo-waiter.workspace = true
