@@ -25,18 +25,25 @@
 use core::fmt;
 
 pub use gcore::errors::*;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// `Result` type with a predefined error type ([`ContractError`]).
 pub type Result<T, E = ContractError> = core::result::Result<T, E>;
 
 /// Common error type returned by API functions from other modules.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Encode, Decode, TypeInfo)]
+#[codec(crate = scale_info::scale)]
 pub enum ContractError {
     /// Timeout reached while expecting for reply.
     Timeout(u32, u32),
     /// Conversion error.
+    #[codec(skip)]
     Convert(&'static str),
     /// Decoding error.
+    #[codec(skip)]
     Decode(scale_info::scale::Error),
     /// Status code returned by another program.
     StatusCode(i32),
