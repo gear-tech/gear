@@ -2,7 +2,7 @@
 
 # This is a helper script for generating comparison tables between branches
 
-set -ex
+set -e
 
 help() {
   cat <<'EOF'
@@ -33,6 +33,8 @@ kind=$4
 
 dump_path="weight-dumps"
 mkdir -p "$dump_path"
+
+set -x
 
 git checkout "$branch1"
 dump_path1="$dump_path/$branch1.json"
