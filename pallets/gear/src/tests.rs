@@ -6373,7 +6373,7 @@ fn pay_program_rent_extrinsic_works() {
         // attempt to pay rent for not existing program
         assert_err!(
             Gear::pay_program_rent(RuntimeOrigin::signed(USER_1), [0u8; 32].into(), block_count),
-            pallet::Error::<Test>::ProgramNotFound
+            pallet_gear_program::Error::<Test>::ItemNotFound,
         );
 
         // attempt to pay rent that is greater than payer's balance

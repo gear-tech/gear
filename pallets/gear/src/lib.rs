@@ -459,8 +459,6 @@ pub mod pallet {
         MessagesStorageCorrupted,
         /// Message queue processing is disabled.
         MessageQueueProcessingDisabled,
-        /// Program with the specified id is not found.
-        ProgramNotFound,
         /// Block count doesn't cover MinimalResumePeriod.
         ResumePeriodLessThanMinimal,
         /// Session of program resume cannot be started.
@@ -1758,13 +1756,7 @@ pub mod pallet {
                     Self::pay_program_rent_impl(program_id, program, &who, block_count)
                         .map_err(|_| Error::<T>::InsufficientBalanceForReserve)
                 },
-            )
-            .map_err(|e| {
-                log::debug!(
-                    "Failed to update an expiration block of an active program {program_id}: {e:?}"
-                );
-                Error::<T>::ProgramNotFound
-            })??;
+            )??;
 
             Ok(().into())
         }
