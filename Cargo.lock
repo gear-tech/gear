@@ -3527,6 +3527,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-backend-codegen"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.13",
+]
+
+[[package]]
 name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
@@ -3562,6 +3571,7 @@ version = "0.1.0"
 dependencies = [
  "blake2-rfc",
  "derive_more",
+ "gear-backend-codegen",
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
