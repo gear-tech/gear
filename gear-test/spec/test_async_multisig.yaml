@@ -496,49 +496,17 @@ fixtures:
             payload: *rejected_by_alice
           - destination: 2
             payload: *ping
-          # error reply on auto reply #1
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 2
-            payload: &empty
-              kind: bytes
-              value: 0x
-            statusCode: 1
 
       - step: 7
         messages:
           - destination: 2
             payload: *ping
-          # error reply on auto reply #1
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 2
-            payload: *empty
-            statusCode: 1
 
       - step: 8
-        messages:
-          # error reply on auto reply #1
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 2
-            payload: *empty
-            statusCode: 1
-
-      - step: 9
         allowError: true
         messages: []
 
-      - step: 10
+      - step: 9
 
   - title: 2 of 3; bob & eve
 
@@ -720,55 +688,23 @@ fixtures:
             payload: *signed_by_eve
           - destination: 3
             payload: *signed_by_alice
-          # error reply on auto reply #1
-          - destination:
-              kind: account
-              value: bob
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
 
       - step: 6
         messages:
           - destination: 3
             payload: *signed_by_alice
-          # error reply on auto reply #1
-          - destination:
-              kind: account
-              value: bob
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
           - destination: 3
             payload: *ping
 
       - step: 7
-        messages:
-          # error reply on auto reply #1
-          - destination:
-              kind: account
-              value: bob
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
-          - destination: 3
-            payload: *ping
-
-      - step: 8
         allowError: true
         messages:
           - destination: 3
             payload: *ping
 
-      - step: 9
+      - step: 8
 
-      - step: 10
+      - step: 9
 
   - title: 2 of 3; bob & alice
 
@@ -864,41 +800,15 @@ fixtures:
             payload: *signed_by_alice
           - destination: 3
             payload: *ping
-          # error reply on auto reply
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
 
       - step: 7
         messages:
           - destination: 3
             payload: *ping
-          # error reply on auto reply
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
 
       - step: 8
+        allowError: true
         messages:
-          # error reply on auto reply
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
           - destination:
               kind: account
               value: bob
@@ -908,17 +818,6 @@ fixtures:
             payload: *ping
 
       - step: 9
-        allowError: true
-        messages:
-          - destination:
-              kind: account
-              value: bob
-            source:
-              kind: id
-              value: 3
-            payload: *ping
-
-      - step: 10
         messages:
           # auto reply
           - destination: 3
@@ -928,18 +827,9 @@ fixtures:
             payload: *auto
             statusCode: 0
 
-      - step: 11
+      - step: 10
         allowError: true
-        messages:
-          # error reply on auto reply
-          - destination:
-              kind: account
-              value: bob
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
+        messages: []
 
   - title: 2 of 3; eve doesn't answer, alice replies with incorrect payload
 
@@ -1035,49 +925,19 @@ fixtures:
             payload: *incorrect_alice
           - destination: 3
             payload: *ping
-          # error reply on auto reply
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
 
       - step: 7
         messages:
           - destination: 3
             payload: *ping
-          # error reply on auto reply
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
 
       - step: 8
-        messages:
-          # error reply on auto reply
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
-
-      - step: 9
         allowError: true
         messages: []
 
-      - step: 10
+      - step: 9
 
-      - step: 11
+      - step: 10
 
   - title: 2 of 3; no replies
 
@@ -1182,15 +1042,6 @@ fixtures:
               value: alice
             payload: *auto
             statusCode: 0
-          # error reply on auto reply
-          - destination:
-              kind: account
-              value: bob
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
 
       - step: 6
         allowError: true
@@ -1202,61 +1053,7 @@ fixtures:
               value: alice
             payload: *auto
             statusCode: 0
-          # error replies on auto replies
-          - destination:
-              kind: account
-              value: bob
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
 
       - step: 7
         allowError: true
-        messages:
-          # error replies on auto replies
-          - destination:
-              kind: account
-              value: bob
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
-          - destination:
-              kind: account
-              value: alice
-            source:
-              kind: id
-              value: 3
-            payload: *empty
-            statusCode: 1
-
-      - step: 8
-        allowError: true
-
-      - step: 9
-        allowError: true
-
-      - step: 10
-        allowError: true
         messages: []
-
-      - step: 11

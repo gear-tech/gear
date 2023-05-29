@@ -217,15 +217,6 @@ fixtures:
               value: alice
             payload: *auto
             statusCode: 0
-          # error reply on auto reply #1
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 1
-            payload: *empty
-            statusCode: 1
 
       - step: 13
         messages:
@@ -236,92 +227,16 @@ fixtures:
               value: alice
             payload: *auto
             statusCode: 0
-          # error reply on auto reply #1
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 1
-            payload: *empty
-            statusCode: 1
           - destination: 1
             payload: *ping
 
       - step: 14
         allowError: true
         messages:
-          # error reply on auto reply #1
-          - destination:
-              kind: account
-              value: eve
-            source:
-              kind: id
-              value: 1
-            payload: *empty
-            statusCode: 1
           - destination: 1
             payload: *ping
-          # error reply on auto reply #2
-          - destination:
-              kind: account
-              value: alice
-            source:
-              kind: id
-              value: 1
-            payload: *empty
-            statusCode: 1
 
       - step: 15
-        allowError: true
-        messages:
-          - destination: 1
-            payload: *ping
-          # error reply on auto reply #2
-          - destination:
-              kind: account
-              value: alice
-            source:
-              kind: id
-              value: 1
-            payload: *empty
-            statusCode: 1
-
-      - step: 16
-        messages:
-          # error reply on auto reply #2
-          - destination:
-              kind: account
-              value: alice
-            source:
-              kind: id
-              value: 1
-            payload: *empty
-            statusCode: 1
-
-        log:
-          # 4 auto replies on init of 4 programs
-          - destination: 1000001
-            payload: &auto
-              kind: bytes
-              value: 0x
-            statusCode: 0
-          - destination: 1000001
-            payload: *auto
-            statusCode: 0
-          - destination: 1000001
-            payload: *auto
-            statusCode: 0
-          - destination: 1000001
-            payload: *auto
-            statusCode: 0
-
-          - destination: 1000001
-            payload:
-              kind: utf-8
-              value: PONG
-
-      - step: 17
         messages: []
         log:
           # 4 auto replies on init of 4 programs

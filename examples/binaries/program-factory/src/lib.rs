@@ -168,7 +168,7 @@ mod tests {
         // Init message, which is not processed. Error reply for that init is generated.
         // Dispatch message is processed, no error replies, because message is sent to
         // the original program.
-        assert_eq!(res.total_processed(), 3 + 1 + 2); // +1 for the original message, initiated by user +2 for auto generated replies
+        assert_eq!(res.total_processed(), 3 + 1 + 1); // +1 for the original message, initiated by user +1 for auto generated replies
     }
 
     #[test]

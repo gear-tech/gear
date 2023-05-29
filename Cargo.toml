@@ -15,6 +15,7 @@ members = [
     "core-backend/common",
     "core-backend/sandbox",
     "core-backend/wasmi",
+    "core-backend/codegen",
     "core-processor",
     "core-errors",
     "examples/binaries/async-custom-entry",
@@ -169,6 +170,7 @@ gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gear-authorship = { path = "node/authorship" }
 gear-backend-common = { path = "core-backend/common" }
+gear-backend-codegen = { path = "core-backend/codegen" }
 gear-backend-sandbox = { path = "core-backend/sandbox", default-features = false }
 gear-backend-wasmi = { path = "core-backend/wasmi", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
@@ -399,8 +401,7 @@ wasm-opt = "0.111.0"                                         # utils/wasm-builde
 wasmprinter = "0.2"                                          # utils/wasm-gen
 whoami = "1.4.0"                                             # gcli
 which = "4.4.0"                                              # utils/wasm-builder
-# TODO #2551 commit is used until `mutagen` version 2 becomes is released to the crates.io
-mutagen = { git = "https://github.com/llogiq/mutagen", rev = "a6377c4c" } # gear-common
+fail = "0.5"                                                 # gear-common
 
 [profile.release]
 panic = "unwind"

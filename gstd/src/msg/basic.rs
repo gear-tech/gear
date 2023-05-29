@@ -347,23 +347,11 @@ pub fn load_bytes() -> Result<Vec<u8>> {
 /// # See also
 ///
 /// - [`reply`](super::reply) function sends a reply with an encoded payload.
-/// - [`reply_bytes_delayed`] function sends a reply after the delay.
 /// - [`reply_push`], [`reply_commit`] functions allow forming a reply message
 ///   in parts.
 /// - [`send_bytes`] function sends a new message to the program or user.
-#[wait_for_reply]
 pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> {
     gcore::msg::reply(payload.as_ref(), value).into_contract_result()
-}
-
-/// Same as [`reply_bytes`], but sends the reply after the `delay` expressed in
-/// block count.
-pub fn reply_bytes_delayed(
-    payload: impl AsRef<[u8]>,
-    value: u128,
-    delay: u32,
-) -> Result<MessageId> {
-    gcore::msg::reply_delayed(payload.as_ref(), value, delay).into_contract_result()
 }
 
 /// Same as [`reply_bytes`], but it spends gas from a reservation instead of
@@ -390,25 +378,12 @@ pub fn reply_bytes_delayed(
 ///
 /// - [`send_bytes_from_reservation`] function sends a new message to the
 ///   program or user by using gas from a reservation.
-#[wait_for_reply]
 pub fn reply_bytes_from_reservation(
     id: ReservationId,
     payload: impl AsRef<[u8]>,
     value: u128,
 ) -> Result<MessageId> {
     gcore::msg::reply_from_reservation(id.into(), payload.as_ref(), value).into_contract_result()
-}
-
-/// Same as [`reply_bytes_from_reservation`], but sends the reply after the
-/// `delay` expressed in block count.
-pub fn reply_bytes_delayed_from_reservation(
-    id: ReservationId,
-    payload: impl AsRef<[u8]>,
-    value: u128,
-    delay: u32,
-) -> Result<MessageId> {
-    gcore::msg::reply_delayed_from_reservation(id.into(), payload.as_ref(), value, delay)
-        .into_contract_result()
 }
 
 /// Same as [`reply_bytes`], but with an explicit gas limit.
@@ -423,25 +398,12 @@ pub fn reply_bytes_delayed_from_reservation(
 ///     msg::reply_bytes_with_gas(b"PING", exec::gas_available() / 2, 0).expect("Unable to reply");
 /// }
 /// ```
-#[wait_for_reply]
 pub fn reply_bytes_with_gas(
     payload: impl AsRef<[u8]>,
     gas_limit: u64,
     value: u128,
 ) -> Result<MessageId> {
     gcore::msg::reply_with_gas(payload.as_ref(), gas_limit, value).into_contract_result()
-}
-
-/// Same as [`reply_bytes_with_gas`], but sends the reply after the `delay`
-/// expressed in block count.
-pub fn reply_bytes_with_gas_delayed(
-    payload: impl AsRef<[u8]>,
-    gas_limit: u64,
-    value: u128,
-    delay: u32,
-) -> Result<MessageId> {
-    gcore::msg::reply_with_gas_delayed(payload.as_ref(), gas_limit, value, delay)
-        .into_contract_result()
 }
 
 /// Finalize and send the current reply message.
@@ -480,15 +442,8 @@ pub fn reply_bytes_with_gas_delayed(
 /// - [`reply_push`] function allows forming a reply message in parts.
 /// - [`MessageHandle::commit`] function finalizes and sends a message formed in
 ///   parts.
-#[wait_for_reply]
 pub fn reply_commit(value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit(value).into_contract_result()
-}
-
-/// Same as [`reply_commit`], but sends the reply after the `delay` expressed in
-/// block count.
-pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
-    gcore::msg::reply_commit_delayed(value, delay).into_contract_result()
 }
 
 /// Same as [`reply_commit`], but it spends gas from a reservation instead of
@@ -502,8 +457,8 @@ pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
 /// extern "C" fn handle() {
 ///     msg::reply_push(b"Hello,").expect("Unable to push");
 ///     msg::reply_push(b" world!").expect("Unable to push");
-///     let resevation_id = ReservationId::reserve(5_000_000, 100).expect("Unable to reserves");
-///     msg::reply_commit_from_reservation(resevation_id, 42).expect("Unable to commit");
+///     let reservation_id = ReservationId::reserve(5_000_000, 100).expect("Unable to reserves");
+///     msg::reply_commit_from_reservation(reservation_id, 42).expect("Unable to commit");
 /// }
 /// ```
 ///
@@ -511,20 +466,8 @@ pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
 /// - [`ReservationId`] struct allows reserve gas for later use.
-#[wait_for_reply]
 pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_from_reservation(id.into(), value).into_contract_result()
-}
-
-/// Same as [`reply_commit_from_reservation`], but sends the message after the
-/// `delay` expressed in block count.
-pub fn reply_commit_delayed_from_reservation(
-    id: ReservationId,
-    value: u128,
-    delay: u32,
-) -> Result<MessageId> {
-    gcore::msg::reply_commit_delayed_from_reservation(id.into(), value, delay)
-        .into_contract_result()
 }
 
 /// Same as [`reply_commit`], but with an explicit gas limit.
@@ -545,15 +488,8 @@ pub fn reply_commit_delayed_from_reservation(
 /// # See also
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
-#[wait_for_reply]
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_with_gas(gas_limit, value).into_contract_result()
-}
-
-/// Same as [`reply_commit_with_gas`], but sends the reply after the `delay`
-/// expressed in block count.
-pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) -> Result<MessageId> {
-    gcore::msg::reply_commit_with_gas_delayed(gas_limit, value, delay).into_contract_result()
 }
 
 /// Push a payload part to the current reply message.
