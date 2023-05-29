@@ -19,7 +19,10 @@
 //! Helper utility to track changes in weights between different branches.
 
 use clap::{Parser, Subcommand, ValueEnum};
-use frame_support::weights::Weight;
+use frame_support::{
+    sp_runtime::{FixedPointNumber, FixedU128 as Fixed},
+    weights::Weight,
+};
 use indexmap::IndexMap;
 use pallet_gear::Schedule;
 use serde::{Deserialize, Serialize};
@@ -57,6 +60,9 @@ enum Commands {
         /// for which weights to generate a table?
         #[arg(ignore_case = true, value_enum)]
         kind: WeightsKind,
+        /// if present, displays the value in units
+        #[arg(long)]
+        display_units: bool,
     },
 }
 
@@ -123,6 +129,39 @@ impl DeserializableSchedule {
     }
 }
 
+fn format_weight(weight: u64) -> String {
+    if weight > 1_000_000_000 {
+        format!(
+            "{:.1?} ms",
+            Fixed::saturating_from_rational(weight, 1_000_000_000).to_float(),
+        )
+    } else if weight > 1_000_000 {
+        format!(
+            "{:.1?} µs",
+            Fixed::saturating_from_rational(weight, 1_000_000).to_float(),
+        )
+    } else if weight > 1_000 {
+        format!(
+            "{:.1?} ns",
+            Fixed::saturating_from_rational(weight, 1_000).to_float(),
+        )
+    } else {
+        format!("{} ps", weight)
+    }
+}
+
+fn format_value(value: Option<u64>, display_units: bool) -> String {
+    value
+        .map(|v| {
+            if display_units {
+                format_weight(v)
+            } else {
+                format!("{v}")
+            }
+        })
+        .unwrap_or_else(|| "N/A".into())
+}
+
 fn main() {
     let Cli { command } = Cli::parse();
 
@@ -140,6 +179,7 @@ fn main() {
             .unwrap();
         }
         Commands::Diff {
+            display_units,
             output_path1,
             output_path2,
             runtime,
@@ -191,12 +231,8 @@ fn main() {
             ]);
 
             for (key, (value1, value2)) in result_map {
-                let value1 = value1
-                    .map(|v| format!("{v}"))
-                    .unwrap_or_else(|| "N/A".into());
-                let value2 = value2
-                    .map(|v| format!("{v}"))
-                    .unwrap_or_else(|| "N/A".into());
+                let value1 = format_value(value1, display_units);
+                let value2 = format_value(value2, display_units);
 
                 builder.add_record([key, value1, value2]);
             }
