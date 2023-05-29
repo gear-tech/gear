@@ -19,7 +19,7 @@ ARGUMENTS:
 EOF
 }
 
-if [ $# -ne 4 ]; then
+if [ $# -lt 4 ]; then
   help
   exit 1
 fi
@@ -30,6 +30,7 @@ branch1=$1
 branch2=$2
 runtime=$3
 kind=$4
+flag=$5
 
 dump_path="weight-dumps"
 mkdir -p "$dump_path"
@@ -46,4 +47,4 @@ cargo run --package gear-weight-diff --release -- dump "$dump_path2" --label "$b
 
 git checkout "$current_branch"
 
-cargo run --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "$kind"
+cargo run --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "$kind" $flag
