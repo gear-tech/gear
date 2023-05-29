@@ -40,6 +40,12 @@ impl Arg<Vec<u8>> {
     }
 }
 
+impl From<[u8; 0]> for Arg<Vec<u8>> {
+    fn from(_: [u8; 0]) -> Self {
+        Arg::New(Default::default())
+    }
+}
+
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::*;

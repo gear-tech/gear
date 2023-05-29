@@ -8,8 +8,14 @@ pub enum Call {
     Store(String),
     StoreVec(String),
     Source,
-    Send(Arg<[u8; 32]>, Arg<Vec<u8>>, Option<u64>, u128, u32),
-    Reply(Arg<Vec<u8>>, Option<u64>, u128),
+    Send(
+        Arg<[u8; 32]>,
+        Arg<Vec<u8>>,
+        Option<u64>,
+        Arg<u128>,
+        Arg<u32>,
+    ),
+    Reply(Arg<Vec<u8>>, Option<u64>, Arg<u128>),
     Panic(Option<String>),
     Exit(Arg<[u8; 32]>),
 }
@@ -89,6 +95,8 @@ mod wasm {
 
             let destination = destination.value().into();
             let payload = payload.value();
+            let value = value.value();
+            let delay = delay.value();
 
             let res = if let Some(gas_limit) = gas_limit {
                 msg::send_bytes_with_gas_delayed(destination, payload, gas_limit, value, delay)
@@ -105,6 +113,7 @@ mod wasm {
             let Self::Reply(payload, gas_limit, value) = self else { unreachable!() };
 
             let payload = payload.value();
+            let value = value.value();
 
             let res = if let Some(gas_limit) = gas_limit {
                 msg::reply_bytes_with_gas(payload, gas_limit, value)

@@ -51,15 +51,47 @@ impl Calls {
         self.push(Call::Source)
     }
 
-    pub fn send(self, destination: Arg<[u8; 32]>, payload: Arg<Vec<u8>>) -> Self {
-        self.push(Call::Send(destination, payload, None, 0, 0))
+    pub fn send(
+        self,
+        destination: impl Into<Arg<[u8; 32]>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+    ) -> Self {
+        self.send_value(destination, payload, 0)
+    }
+
+    pub fn send_value(
+        self,
+        destination: impl Into<Arg<[u8; 32]>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+        value: impl Into<Arg<u128>>,
+    ) -> Self {
+        self.push(Call::Send(
+            destination.into(),
+            payload.into(),
+            None,
+            value.into(),
+            0.into(),
+        ))
     }
 
     pub fn send_wgas<T: TryInto<u64>>(
         self,
-        destination: Arg<[u8; 32]>,
-        payload: Arg<Vec<u8>>,
+        destination: impl Into<Arg<[u8; 32]>>,
+        payload: impl Into<Arg<Vec<u8>>>,
         gas_limit: T,
+    ) -> Self
+    where
+        T::Error: Debug,
+    {
+        self.send_value_wgas(destination, payload, gas_limit, 0)
+    }
+
+    pub fn send_value_wgas<T: TryInto<u64>>(
+        self,
+        destination: impl Into<Arg<[u8; 32]>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+        gas_limit: T,
+        value: impl Into<Arg<u128>>,
     ) -> Self
     where
         T::Error: Debug,
@@ -67,28 +99,34 @@ impl Calls {
         let gas_limit = gas_limit
             .try_into()
             .expect("Cannot convert given gas limit into `u64`");
-        self.push(Call::Send(destination, payload, Some(gas_limit), 0, 0))
+        self.push(Call::Send(
+            destination.into(),
+            payload.into(),
+            Some(gas_limit),
+            value.into(),
+            0.into(),
+        ))
     }
 
-    pub fn reply(self, payload: Arg<Vec<u8>>) -> Self {
-        self.push(Call::Reply(payload, None, 0))
+    pub fn reply(self, payload: impl Into<Arg<Vec<u8>>>) -> Self {
+        self.push(Call::Reply(payload.into(), None, 0.into()))
     }
 
-    pub fn reply_wgas<T: TryInto<u64>>(self, payload: Arg<Vec<u8>>, gas_limit: T) -> Self
+    pub fn reply_wgas<T: TryInto<u64>>(self, payload: impl Into<Arg<Vec<u8>>>, gas_limit: T) -> Self
     where
         T::Error: Debug,
     {
         let gas_limit = gas_limit
             .try_into()
             .expect("Cannot convert given gas limit into `u64`");
-        self.push(Call::Reply(payload, Some(gas_limit), 0))
+        self.push(Call::Reply(payload.into(), Some(gas_limit), 0.into()))
     }
 
     pub fn panic(self, message: impl Into<Option<&'static str>>) -> Self {
         self.push(Call::Panic(message.into().map(ToString::to_string)))
     }
 
-    pub fn exit(self, inheritor: Arg<[u8; 32]>) -> Self {
-        self.push(Call::Exit(inheritor))
+    pub fn exit(self, inheritor: impl Into<Arg<[u8; 32]>>) -> Self {
+        self.push(Call::Exit(inheritor.into()))
     }
 }
