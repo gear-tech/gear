@@ -84,9 +84,14 @@ pub struct ResumeSession<BlockNumber> {
     rent_fee: u128,
 }
 
+/// The entity defines result of the [`PausedProgramStorage::resume_session_finish()`] method.
 pub struct ResumeResult<BlockNumber> {
+    /// The session start block number.
     pub start_block: BlockNumber,
+    /// The rent fee.
     pub rent_fee: u128,
+    /// If a program resumed successfully then this field contains
+    /// a tuple with id and expiration block of the program.
     pub info: Option<(ProgramId, BlockNumber)>,
 }
 

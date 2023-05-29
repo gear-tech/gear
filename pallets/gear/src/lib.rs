@@ -1761,17 +1761,15 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Resumes a previously paused program.
+        /// Starts a resume session of the previously paused program.
         ///
-        /// The origin must be Signed and the sender must have sufficient funds to
-        /// transfer value to the program.
+        /// The origin must be Signed and the sender must have sufficient funds.
         ///
         /// Parameters:
         /// - `program_id`: id of the program to resume.
         /// - `allocations`: memory allocations of program prior to stop.
-        /// - `memory_pages`: program memory before it was paused.
         /// - `code_hash`: id of the program binary code.
-        /// - `block_count`: resume program for the specified period.
+        /// - `block_count`: the specified period of rent.
         #[pallet::call_index(9)]
         #[pallet::weight(<T as Config>::WeightInfo::start_program_resume())]
         pub fn start_program_resume(
@@ -1819,6 +1817,13 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// Appends memory pages to the resume session.
+        ///
+        /// The origin must be Signed and should be the owner of the session.
+        ///
+        /// Parameters:
+        /// - `session_id`: id of the resume session.
+        /// - `memory_pages`: program memory (or its part) before it was paused.
         #[pallet::call_index(10)]
         #[pallet::weight(<T as Config>::WeightInfo::resume_session_append(memory_pages.len() as u32))]
         pub fn resume_session_append(
@@ -1837,6 +1842,12 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// Finishes the program resume session.
+        ///
+        /// The origin must be Signed and should be the owner of the session.
+        ///
+        /// Parameters:
+        /// - `session_id`: id of the resume session.
         #[pallet::call_index(11)]
         #[pallet::weight(DbWeightOf::<T>::get().reads(1) + <T as Config>::WeightInfo::resume_session_finish(ProgramStorageOf::<T>::resume_session_page_count(session_id).unwrap_or(0)))]
         pub fn resume_session_finish(
