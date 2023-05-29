@@ -40,8 +40,8 @@ impl Calls {
         self
     }
 
-    pub fn vec(self, value: impl AsRef<[u8]>) -> Self {
-        self.push(Call::Vec(value.as_ref().to_vec()))
+    pub fn vec(self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> Self {
+        self.push(Call::Vec(value.as_ref().to_vec())).store_vec(key)
     }
 
     pub fn store(self, key: impl AsRef<str>) -> Self {
