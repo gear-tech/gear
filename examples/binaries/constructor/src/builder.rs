@@ -30,6 +30,10 @@ impl Calls {
         Default::default()
     }
 
+    pub(crate) fn calls(self) -> Vec<Call> {
+        self.0
+    }
+
     pub fn push(mut self, call: Call) -> Self {
         self.0.push(call);
         self
@@ -174,6 +178,6 @@ impl Calls {
     }
 
     pub fn load(self, key: impl AsRef<str>) -> Self {
-        self.push(Call::Load).store_vec(key)
+        self.push(Call::Load).store(key)
     }
 }

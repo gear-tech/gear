@@ -37,7 +37,9 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 mod arg;
 mod builder;
 mod call;
+mod scheme;
 
 pub use arg::Arg;
 pub use builder::Calls;
 pub use call::Call;
+pub use scheme::Scheme;

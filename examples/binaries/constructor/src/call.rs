@@ -169,7 +169,7 @@ mod wasm {
         fn load(self) -> Option<Vec<u8>> {
             (!matches!(self, Self::Load)).then(|| unreachable!());
 
-            Some(msg::load_bytes().encode())
+            Some(msg::load_bytes().expect("Failed to load bytes").encode())
         }
 
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {

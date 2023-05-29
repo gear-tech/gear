@@ -1,9 +1,15 @@
-use crate::Call;
+use crate::{Call, Scheme};
 use gstd::{msg, BTreeMap, String, Vec};
 
 pub(crate) static mut DATA: BTreeMap<String, Vec<u8>> = BTreeMap::new();
+static mut SCHEME: Option<Scheme> = None;
 
-fn process(calls: Vec<Call>) {
+fn process_fn<'a>(f: impl Fn(&'a Scheme) -> Option<&'a Vec<Call>>) {
+    let scheme = unsafe { SCHEME.as_ref() }.expect("Should be set before access");
+    let calls = f(scheme)
+        .map(Clone::clone)
+        .unwrap_or_else(|| msg::load().expect("Failed to load payload"));
+
     let mut res = None;
 
     for call in calls {
@@ -13,14 +19,18 @@ fn process(calls: Vec<Call>) {
 
 #[no_mangle]
 extern "C" fn init() {
-    let calls = msg::load().expect("Failed to load payload");
+    let scheme = msg::load().expect("Failed to load payload");
+    unsafe { SCHEME = Some(scheme) };
 
-    process(calls)
+    process_fn(|scheme| Some(scheme.init()));
 }
 
 #[no_mangle]
 extern "C" fn handle() {
-    let calls = msg::load().expect("Failed to load payload");
+    process_fn(Scheme::handle);
+}
 
-    process(calls)
+#[no_mangle]
+extern "C" fn handle_reply() {
+    process_fn(Scheme::handle_reply);
 }
