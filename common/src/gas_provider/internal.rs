@@ -536,7 +536,10 @@ where
             // It's supposed to return an error if `FAILPOINTS`
             // env variable is set.
             fail::fail_point!("fail_fuzzer", |_| {
-                Err(InternalError::check_fuzz_error().into())
+                // We intentionally return this error, as it has
+                // unique usage here and we won't confuse it with
+                // other real errors.
+                Err(InternalError::node_already_exists().into())
             });
             s.teardown();
         }

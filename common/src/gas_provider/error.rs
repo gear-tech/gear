@@ -84,8 +84,4 @@ pub trait Error {
     /// Either `GasTree::consume` or `GasTree::spent` called on a node creating
     /// negative imbalance which leads to the total value drop below 0.
     fn total_value_is_underflowed() -> Self;
-
-    /// Error returned when fuzzer checker is running.
-    #[cfg(feature = "fuzz")]
-    fn check_fuzz_error() -> Self;
 }

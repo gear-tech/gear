@@ -211,10 +211,6 @@ pub mod pallet {
         /// Either `GasTree::consume` or `GasTree::spent` called on a node creating
         /// negative imbalance which leads to the total value drop below 0.
         TotalValueIsUnderflowed,
-
-        /// Error returned when fuzzer checker is running.
-        #[cfg(feature = "fuzz")]
-        CheckFuzzError,
     }
 
     impl<T: Config> GasError for Error<T> {
@@ -280,11 +276,6 @@ pub mod pallet {
 
         fn total_value_is_underflowed() -> Self {
             Self::TotalValueIsUnderflowed
-        }
-
-        #[cfg(feature = "fuzz")]
-        fn check_fuzz_error() -> Self {
-            Self::CheckFuzzError
         }
     }
 
