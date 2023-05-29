@@ -24,7 +24,7 @@ use syn::{
     FnArg, ItemFn, Meta, Pat, PatType, Path, Signature, Token,
 };
 
-/// Host function builder
+/// Host function builder.
 pub struct HostFn {
     item: ItemFn,
     meta: HostFnMeta,
@@ -73,7 +73,7 @@ impl HostFn {
         }
     }
 
-    /// Build inputs from the function signature
+    /// Build inputs from the function signature.
     fn build_inputs(&self) -> Vec<FnArg> {
         let inputs = self.item.sig.inputs.iter().cloned().collect::<Vec<_>>();
         if !self.meta.wgas {
