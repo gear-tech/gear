@@ -22,6 +22,7 @@ pub enum Call {
     BytesEq(Arg<Vec<u8>>, Arg<Vec<u8>>),
     Noop,
     IfElse(Arg<bool>, Box<Self>, Box<Self>),
+    Load,
 }
 
 #[cfg(not(feature = "std"))]
@@ -165,6 +166,12 @@ mod wasm {
             Some(msg::value().encode())
         }
 
+        fn load(self) -> Option<Vec<u8>> {
+            (!matches!(self, Self::Load)).then(|| unreachable!());
+
+            Some(msg::load_bytes().encode())
+        }
+
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
             debug!("\t[CONSTRUCTOR] >> Processing {:?}", self);
             let call = self.clone();
@@ -182,6 +189,7 @@ mod wasm {
                 Call::Noop => None,
                 Call::IfElse(..) => self.if_else(previous),
                 Call::Value => self.value(),
+                Call::Load => self.load(),
             };
 
             (call, value)

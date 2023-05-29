@@ -172,4 +172,8 @@ impl Calls {
             Box::new(false_call),
         ))
     }
+
+    pub fn load(self, key: impl AsRef<str>) -> Self {
+        self.push(Call::Load).store_vec(key)
+    }
 }
