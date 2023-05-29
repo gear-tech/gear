@@ -25,6 +25,8 @@ use gear_core::ids::{CodeId, MessageId, ProgramId, ReservationId};
 /// Scheduled task sense and required data for processing action.
 ///
 /// CAUTION: NEVER ALLOW `ScheduledTask<AccountId>` BE A BIG DATA.
+/// To avoid redundant migrations only append new variant(s) to the enum
+/// with an explicit corresponding scale codec index.
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Encode, Decode, TypeInfo, MaxEncodedLen)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
@@ -32,42 +34,52 @@ pub enum ScheduledTask<AccountId> {
     // Rent charging section.
     // -----
     /// Pause program as out of rent one.
+    #[codec(index = 0)]
     PauseProgram(ProgramId),
 
     /// Remove code from code storage as out of rent one.
+    #[codec(index = 1)]
     RemoveCode(CodeId),
 
     /// Remove message from mailbox as out of rent one.
+    #[codec(index = 2)]
     RemoveFromMailbox(AccountId, MessageId),
 
     /// Remove message from waitlist as out of rent one.
+    #[codec(index = 3)]
     RemoveFromWaitlist(ProgramId, MessageId),
 
     /// Remove paused program as dead one (issue #1014).
+    #[codec(index = 4)]
     RemovePausedProgram(ProgramId),
 
     // Time chained section.
     // -----
     /// Delayed wake of the message at concrete block.
+    #[codec(index = 5)]
     WakeMessage(ProgramId, MessageId),
 
     /// Delayed message to program sending.
     ///
     /// The message itself stored in DispatchStash.
+    #[codec(index = 6)]
     SendDispatch(MessageId),
 
     /// Delayed message to user sending.
     ///
     /// The message itself stored in DispatchStash.
+    #[codec(index = 7)]
     SendUserMessage {
         message_id: MessageId,
         to_mailbox: bool,
     },
 
     /// Remove gas reservation.
+    #[codec(index = 8)]
     RemoveGasReservation(ProgramId, ReservationId),
 
     /// Remove resume program session.
+    #[codec(index = 9)]
     RemoveResumeSession(u64),
 }
 
