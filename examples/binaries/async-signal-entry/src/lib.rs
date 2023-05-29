@@ -45,7 +45,10 @@ mod wasm {
         match action {
             InitAction::None => {}
             InitAction::Panic => {
-                let _bytes = msg::reply_for_reply(b"init", 0).unwrap().await.unwrap();
+                let _bytes = msg::send_for_reply(msg::source(), b"init", 0)
+                    .unwrap()
+                    .await
+                    .unwrap();
                 panic!();
             }
         }
@@ -53,7 +56,7 @@ mod wasm {
 
     #[gstd::async_main]
     async fn main() {
-        msg::reply(b"handle_signal", 0).unwrap();
+        msg::send(msg::source(), b"handle_signal", 0).unwrap();
         exec::wait();
     }
 
