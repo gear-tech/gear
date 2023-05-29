@@ -7142,13 +7142,13 @@ fn test_create_program_without_gas_works() {
 fn demo_constructor_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_constructor::{Arg, Call, Calls, WASM_BINARY};
+        use demo_constructor::{Arg, Calls, WASM_BINARY};
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            Vec::<Call>::new().encode(),
+            Calls::builder().encode(),
             BlockGasLimitOf::<Test>::get(),
             0
         ));
@@ -7221,6 +7221,63 @@ fn demo_constructor_works() {
             reply.status_code().expect("Should be"),
             SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code()
         )
+    });
+}
+
+#[test]
+fn demo_constructor_value_eq() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_constructor::{Arg, Calls, WASM_BINARY};
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Calls::builder().encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let constructor_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(constructor_id));
+
+        let calls = Calls::builder()
+            .value_as_vec("value")
+            .bytes_eq("bool", "value", 100_000u128.encode())
+            .if_else(
+                "bool",
+                Calls::builder().reply(Arg::bytes("Eq")),
+                Calls::builder().reply(Arg::bytes("Ne")),
+            );
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            100_000,
+        ));
+
+        run_to_next_block(None);
+
+        let last_mail = maybe_any_last_message().expect("Element should be");
+        assert_eq!(last_mail.payload(), b"Eq");
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let last_mail = maybe_any_last_message().expect("Element should be");
+        assert_eq!(last_mail.payload(), b"Ne");
     });
 }
 

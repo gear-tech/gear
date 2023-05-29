@@ -56,6 +56,14 @@ impl Calls {
         self.push(Call::Source).store(key)
     }
 
+    pub fn value(self, key: impl AsRef<str>) -> Self {
+        self.push(Call::Value).store(key)
+    }
+
+    pub fn value_as_vec(self, key: impl AsRef<str>) -> Self {
+        self.push(Call::Value).store_vec(key)
+    }
+
     pub fn send(
         self,
         destination: impl Into<Arg<[u8; 32]>>,

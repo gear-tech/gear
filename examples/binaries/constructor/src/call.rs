@@ -8,6 +8,7 @@ pub enum Call {
     Store(String),
     StoreVec(String),
     Source,
+    Value,
     Send(
         Arg<[u8; 32]>,
         Arg<Vec<u8>>,
@@ -158,6 +159,12 @@ mod wasm {
             value
         }
 
+        fn value(self) -> Option<Vec<u8>> {
+            (!matches!(self, Self::Value)).then(|| unreachable!());
+
+            Some(msg::value().encode())
+        }
+
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
             debug!("\t[CONSTRUCTOR] >> Processing {:?}", self);
             let call = self.clone();
@@ -174,6 +181,7 @@ mod wasm {
                 Call::BytesEq(..) => self.bytes_eq(),
                 Call::Noop => None,
                 Call::IfElse(..) => self.if_else(previous),
+                Call::Value => self.value(),
             };
 
             (call, value)
