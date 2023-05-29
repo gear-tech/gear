@@ -35,11 +35,8 @@ pub enum HandleAction {
     SendToProgram { pid: [u8; 32], user: [u8; 32] },
     SendToProgramDelayed { pid: [u8; 32], user: [u8; 32] },
     ReplyToUser,
-    ReplyToUserDelayed,
     ReplyToProgram { pid: [u8; 32], user: [u8; 32] },
     ReplyToProgramStep2([u8; 32]),
-    ReplyToProgramDelayed { pid: [u8; 32], user: [u8; 32] },
-    ReplyToProgramDelayedStep2([u8; 32]),
     ReceiveFromProgram([u8; 32]),
     ReceiveFromProgramDelayed([u8; 32]),
 }
@@ -50,10 +47,7 @@ mod wasm {
     use gstd::{msg, prelude::*, ReservationId};
 
     #[derive(Debug, Encode, Decode)]
-    pub enum ReplyAction {
-        Receive([u8; 32]),
-        ReceiveDelayed([u8; 32]),
-    }
+    pub struct Receive([u8; 32]);
 
     #[no_mangle]
     extern "C" fn handle() {
@@ -101,32 +95,13 @@ mod wasm {
                 msg::reply_bytes_from_reservation(id, b"reply_to_user", 900)
                     .expect("Failed to send message");
             }
-            HandleAction::ReplyToUserDelayed => {
-                let id = ReservationId::reserve(8_000_000_000, 100).expect("Failed to reserve gas");
-                msg::reply_bytes_delayed_from_reservation(id, b"reply_to_user_delayed", 1000, 1)
-                    .expect("Failed to send message");
-            }
             HandleAction::ReplyToProgram { pid, user } => {
                 msg::send(pid.into(), HandleAction::ReplyToProgramStep2(user), 900)
                     .expect("Failed to reserve gas");
             }
             HandleAction::ReplyToProgramStep2(user) => {
                 let id = ReservationId::reserve(7_000_000_000, 90).expect("Failed to reserve gas");
-                msg::reply_from_reservation(id, ReplyAction::Receive(user), 900)
-                    .expect("Failed to reply");
-            }
-            HandleAction::ReplyToProgramDelayed { pid, user } => {
-                msg::send(
-                    pid.into(),
-                    HandleAction::ReplyToProgramDelayedStep2(user),
-                    1000,
-                )
-                .expect("Failed to send message");
-            }
-            HandleAction::ReplyToProgramDelayedStep2(user) => {
-                let id = ReservationId::reserve(8_000_000_000, 100).expect("Failed to reserve gas");
-                msg::reply_delayed_from_reservation(id, ReplyAction::ReceiveDelayed(user), 1000, 1)
-                    .expect("Failed to reply");
+                msg::reply_from_reservation(id, Receive(user), 900).expect("Failed to reply");
             }
             HandleAction::ReceiveFromProgram(user) => {
                 assert_eq!(msg::value(), 700);
@@ -143,17 +118,8 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle_reply() {
-        let action: ReplyAction = msg::load().expect("Failed to load handle payload");
-        match action {
-            ReplyAction::Receive(user) => {
-                assert_eq!(msg::value(), 900);
-                msg::send_bytes(user.into(), b"reply", 900).expect("Failed to send message");
-            }
-            ReplyAction::ReceiveDelayed(user) => {
-                assert_eq!(msg::value(), 1000);
-                msg::send_bytes(user.into(), b"reply_delayed", 1000)
-                    .expect("Failed to send message");
-            }
-        }
+        let Receive(user) = msg::load().expect("Failed to load handle payload");
+        assert_eq!(msg::value(), 900);
+        msg::send_bytes(user.into(), b"reply", 900).expect("Failed to send message");
     }
 }

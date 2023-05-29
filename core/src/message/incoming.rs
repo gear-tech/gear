@@ -122,7 +122,7 @@ impl IncomingMessage {
 }
 
 /// Incoming message with entry point and previous execution context, if exists.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct IncomingDispatch {
     /// Entry point.
     kind: DispatchKind,

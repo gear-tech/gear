@@ -30,10 +30,6 @@ fixtures:
         payload:
           kind: utf-8
           value: reply store
-      - destination: 1
-        payload:
-          kind: utf-8
-          value: reply twice
 
     expected:
       - allowError: true
@@ -61,11 +57,6 @@ fixtures:
             payload:
               kind: utf-8
               value: OK REPLY
-          # from "reply twice"
-          - destination: 1000001
-            payload:
-              kind: utf-8
-              value: FIRST
           # from "handle store"
           - destination: 1000001
             payload: *auto
@@ -79,6 +70,3 @@ fixtures:
             payload:
               kind: utf-8
               value: STORED REPLY
-          # from "reply twice" awaken
-          - destination: 1000001
-            statusCode: 769 # SimpleReplyError::Execution(SimpleExecutionError::Panic)

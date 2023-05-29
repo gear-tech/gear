@@ -286,7 +286,7 @@ where
         let payload = ctx.read(read_payload)?.try_into()?;
 
         let state = ctx.host_state_mut();
-        state.ext.reply(ReplyPacket::new(payload, value), delay)
+        state.ext.reply(ReplyPacket::new(payload, value))
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::ReplyCommit)]
@@ -296,7 +296,7 @@ where
         let state = ctx.host_state_mut();
         state
             .ext
-            .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+            .reply_commit(ReplyPacket::new(Default::default(), value))
     }
 
     #[host(fallible, cost = RuntimeCosts::ReservationReply(len))]
@@ -314,14 +314,12 @@ where
             hash: reservation_id,
             value,
         } = ctx.read_as(read_rid_value)?;
-        let payload = ctx.read(read_payload)?.try_into()?;
 
+        let payload = ctx.read(read_payload)?.try_into()?;
         let state = ctx.host_state_mut();
-        state.ext.reservation_reply(
-            reservation_id.into(),
-            ReplyPacket::new(payload, value),
-            delay,
-        )
+        state
+            .ext
+            .reservation_reply(reservation_id.into(), ReplyPacket::new(payload, value))
     }
 
     #[host(fallible, cost = RuntimeCosts::ReservationReplyCommit)]
@@ -341,7 +339,6 @@ where
         state.ext.reservation_reply_commit(
             reservation_id.into(),
             ReplyPacket::new(Default::default(), value),
-            delay,
         )
     }
 
@@ -381,7 +378,7 @@ where
             state.ext.reply_push_input(offset, len)?;
             state
                 .ext
-                .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+                .reply_commit(ReplyPacket::new(Default::default(), value))
         };
         f()
     }
