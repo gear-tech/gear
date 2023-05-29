@@ -7159,23 +7159,11 @@ fn demo_constructor_works() {
         assert!(Gear::is_active(constructor_id));
 
         let calls = vec![
-            Call::Source,
-            Call::Store("source".into()),
-            Call::Send(
-                Arg::Get("source".into()),
-                Arg::New(b"Hello, user!".to_vec()),
-                None,
-                0,
-                0,
-            ),
-            Call::StoreVec("message_id".into()),
-            Call::Send(
-                Arg::Get("source".into()),
-                Arg::Get("message_id".into()),
-                None,
-                0,
-                0,
-            ),
+            Call::source(),
+            Call::store("source"),
+            Call::send(Arg::get("source"), Arg::bytes("Hello, user!")),
+            Call::store_vec("message_id"),
+            Call::send(Arg::get("source"), Arg::get("message_id")),
         ];
 
         assert_ok!(Gear::send_message(
@@ -7203,7 +7191,7 @@ fn demo_constructor_works() {
 
         assert_eq!(first_mail.payload(), b"Hello, user!");
 
-        let calls = vec![Call::Panic(Some("I just panic every time".into()))];
+        let calls = vec![Call::panic("I just panic every time")];
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
