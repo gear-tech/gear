@@ -35,6 +35,11 @@ impl Calls {
         self
     }
 
+    pub fn push_many<const N: usize>(mut self, calls: [Call; N]) -> Self {
+        self.0.extend(calls.into_iter());
+        self
+    }
+
     pub fn vec(self, value: impl AsRef<[u8]>) -> Self {
         self.push(Call::Vec(value.as_ref().to_vec()))
     }
@@ -47,8 +52,8 @@ impl Calls {
         self.push(Call::StoreVec(key.as_ref().to_string()))
     }
 
-    pub fn source(self) -> Self {
-        self.push(Call::Source)
+    pub fn source(self, key: impl AsRef<str>) -> Self {
+        self.push(Call::Source).store(key)
     }
 
     pub fn send(

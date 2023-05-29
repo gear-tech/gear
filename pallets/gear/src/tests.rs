@@ -7159,18 +7159,17 @@ fn demo_constructor_works() {
         assert!(Gear::is_active(constructor_id));
 
         let calls = Calls::builder()
-            .source()
-            .store("source")
-            .send(Arg::get("source"), Arg::bytes("Hello, user!"))
+            .source("source")
+            .send_value("source", Arg::bytes("Hello, user!"), 100_000)
             .store_vec("message_id")
-            .send(Arg::get("source"), Arg::get("message_id"));
+            .send("source", "message_id");
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             constructor_id,
             calls.encode(),
             BlockGasLimitOf::<Test>::get(),
-            0,
+            100_000,
         ));
 
         let message_id = get_last_message_id();
@@ -7188,6 +7187,7 @@ fn demo_constructor_works() {
             res.expect("was asserted previously")
         };
 
+        assert_eq!(first_mail.value(), 100_000);
         assert_eq!(first_mail.payload(), b"Hello, user!");
 
         let calls = Calls::builder().panic("I just panic every time");
