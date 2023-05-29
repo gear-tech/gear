@@ -7139,6 +7139,105 @@ fn test_create_program_without_gas_works() {
 }
 
 #[test]
+fn demo_constructor_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_constructor::{Arg, Call, WASM_BINARY};
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Vec::<Call>::new().encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let constructor_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(constructor_id));
+
+        let calls = vec![
+            Call::Source,
+            Call::Store("source".into()),
+            Call::Send(
+                Arg::Get("source".into()),
+                Arg::New(b"Hello, user!".to_vec()),
+                None,
+                0,
+                0,
+            ),
+            Call::StoreVec("message_id".into()),
+            Call::Send(
+                Arg::Get("source".into()),
+                Arg::Get("message_id".into()),
+                None,
+                0,
+                0,
+            ),
+        ];
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        let message_id = MessageId::generate_outgoing(message_id, 0);
+
+        let last_mail = maybe_any_last_message().expect("Element should be");
+        assert_eq!(last_mail.payload(), message_id.as_ref());
+
+        let (first_mail, _bn) = {
+            let res = MailboxOf::<Test>::remove(USER_1, message_id);
+            assert!(res.is_ok());
+            res.expect("was asserted previously")
+        };
+
+        assert_eq!(first_mail.payload(), b"Hello, user!");
+
+        let calls = vec![Call::Panic(Some("I just panic every time".into()))];
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            "I just panic every time"
+        } else {
+            "no info"
+        };
+
+        assert_failed(
+            message_id,
+            ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.to_string().into())),
+        );
+
+        let reply = maybe_any_last_message().expect("Should be");
+        assert_eq!(reply.id(), MessageId::generate_reply(message_id));
+        assert_eq!(
+            reply.status_code().expect("Should be"),
+            SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code()
+        )
+    });
+}
+
+#[test]
 fn test_reply_to_terminated_program() {
     init_logger();
     new_test_ext().execute_with(|| {
