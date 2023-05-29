@@ -1,9 +1,5 @@
 use crate::Arg;
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
-use core::fmt::Debug;
+use alloc::{string::String, vec::Vec};
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Clone, Debug, Decode, Encode)]
@@ -15,78 +11,25 @@ pub enum Call {
     Send(Arg<[u8; 32]>, Arg<Vec<u8>>, Option<u64>, u128, u32),
     Reply(Arg<Vec<u8>>, Option<u64>, u128),
     Panic(Option<String>),
-}
-
-impl Call {
-    pub fn vec(value: impl AsRef<[u8]>) -> Self {
-        Self::Vec(value.as_ref().to_vec())
-    }
-
-    pub fn store(key: impl AsRef<str>) -> Self {
-        Call::Store(key.as_ref().to_string())
-    }
-
-    pub fn store_vec(key: impl AsRef<str>) -> Self {
-        Call::StoreVec(key.as_ref().to_string())
-    }
-
-    pub const fn source() -> Self {
-        Call::Source
-    }
-
-    pub fn send(destination: Arg<[u8; 32]>, payload: Arg<Vec<u8>>) -> Self {
-        Call::Send(destination, payload, None, 0, 0)
-    }
-
-    pub fn send_wgas<T: TryInto<u64>>(
-        destination: Arg<[u8; 32]>,
-        payload: Arg<Vec<u8>>,
-        gas_limit: T,
-    ) -> Self
-    where
-        T::Error: Debug,
-    {
-        let gas_limit = gas_limit
-            .try_into()
-            .expect("Cannot convert given gas limit into `u64`");
-        Call::Send(destination, payload, Some(gas_limit), 0, 0)
-    }
-
-    pub fn reply(payload: Arg<Vec<u8>>) -> Self {
-        Call::Reply(payload, None, 0)
-    }
-
-    pub fn reply_wgas<T: TryInto<u64>>(payload: Arg<Vec<u8>>, gas_limit: T) -> Self
-    where
-        T::Error: Debug,
-    {
-        let gas_limit = gas_limit
-            .try_into()
-            .expect("Cannot convert given gas limit into `u64`");
-        Call::Reply(payload, Some(gas_limit), 0)
-    }
-
-    pub fn panic(message: impl Into<Option<&'static str>>) -> Self {
-        Self::Panic(message.into().map(ToString::to_string))
-    }
+    Exit(Arg<[u8; 32]>),
 }
 
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::*;
     use crate::DATA;
-    use gstd::{debug, msg, String, Vec};
+    use gstd::{debug, exec, msg, String, Vec};
 
     type CallResult = (Call, Option<Vec<u8>>);
 
     impl Call {
-        fn vec_impl(self) -> Option<Vec<u8>> {
+        fn vec(self) -> Option<Vec<u8>> {
             let Self::Vec(v) = self else { unreachable!() };
 
             Some(v)
         }
 
-        fn store_inner_impl(
+        fn store_impl(
             self,
             key: String,
             previous: Option<CallResult>,
@@ -113,25 +56,25 @@ mod wasm {
             None
         }
 
-        fn store_impl(self, previous: Option<CallResult>) -> Option<Vec<u8>> {
+        fn store(self, previous: Option<CallResult>) -> Option<Vec<u8>> {
             let Self::Store(key) = self.clone() else { unreachable!() };
 
-            self.store_inner_impl(key, previous, false)
+            self.store_impl(key, previous, false)
         }
 
-        fn store_vec_impl(self, previous: Option<CallResult>) -> Option<Vec<u8>> {
+        fn store_vec(self, previous: Option<CallResult>) -> Option<Vec<u8>> {
             let Self::StoreVec(key) = self.clone() else { unreachable!() };
 
-            self.store_inner_impl(key, previous, true)
+            self.store_impl(key, previous, true)
         }
 
-        fn source_impl(self) -> Option<Vec<u8>> {
+        fn source(self) -> Option<Vec<u8>> {
             (!matches!(self, Self::Source)).then(|| unreachable!());
 
             Some(msg::source().encode())
         }
 
-        fn panic_impl(self) -> ! {
+        fn panic(self) -> ! {
             let Self::Panic(msg) = self else { unreachable!() };
 
             if let Some(msg) = msg {
@@ -141,7 +84,7 @@ mod wasm {
             }
         }
 
-        fn send_impl(self) -> Option<Vec<u8>> {
+        fn send(self) -> Option<Vec<u8>> {
             let Self::Send(destination, payload, gas_limit, value, delay) = self else { unreachable!() };
 
             let destination = destination.value().into();
@@ -158,7 +101,7 @@ mod wasm {
             Some(message_id.encode())
         }
 
-        fn reply_impl(self) -> Option<Vec<u8>> {
+        fn reply(self) -> Option<Vec<u8>> {
             let Self::Reply(payload, gas_limit, value) = self else { unreachable!() };
 
             let payload = payload.value();
@@ -174,18 +117,27 @@ mod wasm {
             Some(message_id.encode())
         }
 
+        fn exit(self) -> ! {
+            let Self::Exit(inheritor) = self else { unreachable!() };
+
+            let inheritor = inheritor.value().into();
+
+            exec::exit(inheritor)
+        }
+
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
             debug!("\t[CONSTRUCTOR] >> Processing {:?}", self);
             let call = self.clone();
 
             let value = match self {
-                Call::Vec(..) => self.vec_impl(),
-                Call::Store(..) => self.store_impl(previous),
-                Call::StoreVec(..) => self.store_vec_impl(previous),
-                Call::Source => self.source_impl(),
-                Call::Panic(..) => self.panic_impl(),
-                Call::Send(..) => self.send_impl(),
-                Call::Reply(..) => self.reply_impl(),
+                Call::Vec(..) => self.vec(),
+                Call::Store(..) => self.store(previous),
+                Call::StoreVec(..) => self.store_vec(previous),
+                Call::Source => self.source(),
+                Call::Panic(..) => self.panic(),
+                Call::Send(..) => self.send(),
+                Call::Reply(..) => self.reply(),
+                Call::Exit(..) => self.exit(),
             };
 
             (call, value)

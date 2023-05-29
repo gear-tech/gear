@@ -7142,7 +7142,7 @@ fn test_create_program_without_gas_works() {
 fn demo_constructor_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_constructor::{Arg, Call, WASM_BINARY};
+        use demo_constructor::{Arg, Call, Calls, WASM_BINARY};
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
@@ -7158,13 +7158,12 @@ fn demo_constructor_works() {
         run_to_next_block(None);
         assert!(Gear::is_active(constructor_id));
 
-        let calls = vec![
-            Call::source(),
-            Call::store("source"),
-            Call::send(Arg::get("source"), Arg::bytes("Hello, user!")),
-            Call::store_vec("message_id"),
-            Call::send(Arg::get("source"), Arg::get("message_id")),
-        ];
+        let calls = Calls::builder()
+            .source()
+            .store("source")
+            .send(Arg::get("source"), Arg::bytes("Hello, user!"))
+            .store_vec("message_id")
+            .send(Arg::get("source"), Arg::get("message_id"));
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -7191,7 +7190,7 @@ fn demo_constructor_works() {
 
         assert_eq!(first_mail.payload(), b"Hello, user!");
 
-        let calls = vec![Call::panic("I just panic every time")];
+        let calls = Calls::builder().panic("I just panic every time");
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
