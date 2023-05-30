@@ -162,6 +162,18 @@ fn format_value(value: Option<u64>, display_units: bool) -> String {
         .unwrap_or_else(|| "N/A".into())
 }
 
+fn format_diff(value1: Option<u64>, value2: Option<u64>) -> String {
+    value1
+        .filter(|&a| a != 0)
+        .zip(value2)
+        .map(|(a, b)| {
+            let (a, b) = (a as f64, b as f64);
+            let percentage_diff = ((b - a) / a) * 100.0;
+            format!("{percentage_diff:+.2}%")
+        })
+        .unwrap_or_else(|| "N/A".into())
+}
+
 fn main() {
     let Cli { command } = Cli::parse();
 
@@ -228,13 +240,15 @@ fn main() {
                 "name".into(),
                 dump1.label.unwrap_or_else(|| "value1".into()),
                 dump2.label.unwrap_or_else(|| "value2".into()),
+                "diff".into(),
             ]);
 
             for (key, (value1, value2)) in result_map {
-                let value1 = format_value(value1, display_units);
-                let value2 = format_value(value2, display_units);
+                let val1 = format_value(value1, display_units);
+                let val2 = format_value(value2, display_units);
+                let diff = format_diff(value1, value2);
 
-                builder.add_record([key, value1, value2]);
+                builder.add_record([key, val1, val2, diff]);
             }
 
             let mut table = builder.build();
