@@ -181,25 +181,26 @@ where
 
             // Reinstrument the code if necessary.
             let schedule = T::Schedule::get();
-            let (code, context) =
-                match code.instruction_weights_version() == schedule.instruction_weights.version {
-                    true => (code, ContextChargedForInstrumentation::from(context)),
-                    false => {
-                        let context = match core_processor::precharge_for_instrumentation(
-                            &block_config,
-                            context,
-                            code.original_code_len(),
-                        ) {
-                            Ok(c) => c,
-                            Err(journal) => {
-                                core_processor::handle_journal(journal, &mut ext_manager);
-                                continue;
-                            }
-                        };
+            let (code, context) = match code.skip_reinstrumentation()
+                || code.instruction_weights_version() == schedule.instruction_weights.version
+            {
+                true => (code, ContextChargedForInstrumentation::from(context)),
+                false => {
+                    let context = match core_processor::precharge_for_instrumentation(
+                        &block_config,
+                        context,
+                        code.original_code_len(),
+                    ) {
+                        Ok(c) => c,
+                        Err(journal) => {
+                            core_processor::handle_journal(journal, &mut ext_manager);
+                            continue;
+                        }
+                    };
 
-                        (Self::reinstrument_code(code_id, &schedule), context)
-                    }
-                };
+                    (Self::reinstrument_code(code_id, &schedule), context)
+                }
+            };
 
             // The last one thing is to load program memory. Adjust gas counters for memory pages.
             let context = match core_processor::precharge_for_memory(&block_config, context) {

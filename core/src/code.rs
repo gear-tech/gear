@@ -185,6 +185,7 @@ pub struct Code {
     static_pages: WasmPage,
     #[codec(compact)]
     instruction_weights_version: u32,
+    skip_reinstrumentation: bool,
 }
 
 impl Code {
@@ -253,6 +254,7 @@ impl Code {
                 exports,
                 static_pages,
                 instruction_weights_version: version,
+                skip_reinstrumentation: false,
             })
         } else {
             Err(CodeError::RequiredExportFnNotFound)
@@ -320,6 +322,7 @@ impl Code {
             exports,
             static_pages,
             instruction_weights_version: version,
+            skip_reinstrumentation: false,
         })
     }
 
@@ -381,6 +384,7 @@ impl Code {
             exports,
             static_pages,
             instruction_weights_version: version,
+            skip_reinstrumentation: false,
         })
     }
 
@@ -419,6 +423,7 @@ impl Code {
                 exports: self.exports,
                 static_pages: self.static_pages,
                 version: self.instruction_weights_version,
+                skip_reinstrumentation: self.skip_reinstrumentation,
             },
             self.raw_code,
         )
@@ -469,6 +474,7 @@ pub struct InstrumentedCode {
     exports: BTreeSet<DispatchKind>,
     static_pages: WasmPage,
     version: u32,
+    skip_reinstrumentation: bool,
 }
 
 impl InstrumentedCode {
@@ -485,6 +491,11 @@ impl InstrumentedCode {
     /// Returns instruction weights version.
     pub fn instruction_weights_version(&self) -> u32 {
         self.version
+    }
+
+    /// Returns whether to skip code re-instrumentation.
+    pub fn skip_reinstrumentation(&self) -> bool {
+        self.skip_reinstrumentation
     }
 
     /// Returns wasm module exports.
@@ -511,6 +522,12 @@ pub struct InstrumentedCodeAndId {
 }
 
 impl InstrumentedCodeAndId {
+    /// Create code and code id with denied re-instrumentation.
+    pub fn deny_reinstrumentation_unchecked(mut code: InstrumentedCode, code_id: CodeId) -> Self {
+        code.skip_reinstrumentation = true;
+        Self { code, code_id }
+    }
+
     /// Returns reference to the instrumented code.
     pub fn code(&self) -> &InstrumentedCode {
         &self.code

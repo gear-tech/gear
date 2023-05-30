@@ -63,7 +63,7 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_backend_common::TrapExplanation;
 use gear_core::{
-    code::{self, Code},
+    code::{self, Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageU32Size, WasmPage},
 };
@@ -8021,6 +8021,63 @@ fn test_mad_big_prog_instrumentation() {
         // huge wasm mustn't fail
         assert!(code_inst_res.is_ok());
     })
+}
+
+#[test]
+fn test_instrumentation_denied() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const WAT: &str = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                ;; trigger `GasInjection` error
+                (import "env" "gr_out_of_gas" (func (result i32)))
+                (export "handle" (func $handle))
+                (export "init" (func $init))
+                (func $handle)
+                (func $init)
+            )"#;
+
+        // initialize code
+        let code = ProgramCodeKind::Default.to_bytes();
+        let code_id = CodeId::generate(&code);
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            code.clone()
+        ));
+
+        // set weights version to 0
+        let code = Code::new_raw(code, 0, None, true, false).unwrap();
+        let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
+        let code_and_id = InstrumentedCodeAndId::from(code_and_id);
+        <Test as Config>::CodeStorage::update_code(code_and_id);
+
+        // set erroneous code
+        <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeStorage::insert(
+            code_id,
+            ProgramCodeKind::Custom(WAT).to_bytes(),
+        );
+
+        // trigger on-demand re-instrumentation
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Default.to_bytes(),
+            b"salt".to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            20_000_000_000,
+            0,
+        ));
+        let mid = get_last_message_id();
+
+        run_to_block(2, None);
+
+        // instrumentation should fail so flag is set to true
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        assert!(code.skip_reinstrumentation());
+
+        // check program successfully executed with old instrumented code
+        assert_succeed(mid);
+    });
 }
 
 #[test]

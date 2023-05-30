@@ -73,7 +73,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, PageBuf},
     message::*,
@@ -1073,16 +1073,24 @@ pub mod pallet {
                 code_id
             ));
 
-            let code = Code::try_new(
+            let code_and_id = match Code::try_new(
                 original_code,
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
-            )
-            .unwrap_or_else(|e| unreachable!("Unexpected re-instrumentation failure: {:?}", e));
+            ) {
+                Ok(code) => {
+                    let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
+                    InstrumentedCodeAndId::from(code_and_id)
+                }
+                Err(CodeError::GasInjection) => {
+                    let code = T::CodeStorage::get_code(code_id)
+                        .unwrap_or_else(|| unreachable!("Failed to get code for {}", code_id));
+                    InstrumentedCodeAndId::deny_reinstrumentation_unchecked(code, code_id)
+                }
+                Err(e) => unreachable!("Unexpected re-instrumentation failure: {:?}", e),
+            };
 
-            let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
-            let code_and_id = InstrumentedCodeAndId::from(code_and_id);
             T::CodeStorage::update_code(code_and_id.clone());
             let (code, _) = code_and_id.into_parts();
 
