@@ -39,7 +39,6 @@ demo-calc-hash-in-one-block.workspace = true
 demo-distributor.workspace = true
 demo-exit-handle-sender.workspace = true
 demo-gasless-wasting.workspace = true
-demo-meta.workspace = true
 demo-meta-io.workspace = true
 demo-mul-by-const.workspace = true
 demo-node.workspace = true

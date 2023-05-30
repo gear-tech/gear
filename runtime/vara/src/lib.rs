@@ -750,17 +750,6 @@ parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
 }
 
-pub struct ProgramRentConfig;
-
-impl common::ProgramRentConfig for ProgramRentConfig {
-    type BlockNumber = BlockNumber;
-    type Balance = Balance;
-
-    type FreePeriod = ConstU32<RENT_FREE_PERIOD>;
-    type CostPerBlock = ConstU128<EXISTENTIAL_DEPOSIT>;
-    type MinimalResumePeriod = ConstU32<RENT_RESUME_PERIOD>;
-}
-
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -779,7 +768,9 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
-    type ProgramRentConfig = ProgramRentConfig;
+    type ProgramRentFreePeriod = ConstU32<RENT_FREE_PERIOD>;
+    type ProgramRentMinimalResumePeriod = ConstU32<RENT_RESUME_PERIOD>;
+    type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
 }
 
 #[cfg(feature = "debug-mode")]

@@ -61,7 +61,7 @@ use scale_info::{
     TypeInfo,
 };
 
-pub use crate::utils::TrimmedString;
+pub use crate::utils::{LimitedStr, TrimmedString};
 pub use log;
 
 pub const PTR_SPECIAL: u32 = u32::MAX;
@@ -227,6 +227,7 @@ pub struct ExtInfo {
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
+    pub program_rents: BTreeMap<ProgramId, u32>,
     pub context_store: ContextStore,
 }
 

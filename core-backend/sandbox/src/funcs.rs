@@ -35,8 +35,9 @@ use gear_core::{
 };
 use gear_core_errors::ExtError;
 use gsys::{
-    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithCode, LengthWithGas,
-    LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
+    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberAndValue,
+    LengthWithCode, LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithTwoHashes,
+    TwoHashesWithValue,
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
@@ -450,9 +451,10 @@ where
 
     /// Fallible `gr_reply` syscall.
     pub fn reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (payload_ptr, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5();
+        let (payload_ptr, len, value_ptr, _delay, err_mid_ptr): (_, _, _, u32, _) =
+            args.iter().read_5();
 
-        syscall_trace!("reply", payload_ptr, len, value_ptr, delay, err_mid_ptr);
+        syscall_trace!("reply", payload_ptr, len, value_ptr, err_mid_ptr);
 
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::Reply(len), |ctx| {
             let read_payload = ctx.register_read(payload_ptr, len);
@@ -460,14 +462,15 @@ where
             let payload = ctx.read(read_payload)?.try_into()?;
 
             ctx.ext
-                .reply(ReplyPacket::new(payload, value), delay)
+                .reply(ReplyPacket::new(payload, value))
                 .map_err(Into::into)
         })
     }
 
     /// Fallible `gr_reply_wgas` syscall.
     pub fn reply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (payload_ptr, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6();
+        let (payload_ptr, len, gas_limit, value_ptr, _delay, err_mid_ptr): (_, _, _, _, u32, _) =
+            args.iter().read_6();
 
         syscall_trace!(
             "reply_wgas",
@@ -475,7 +478,6 @@ where
             len,
             gas_limit,
             value_ptr,
-            delay,
             err_mid_ptr
         );
 
@@ -485,37 +487,31 @@ where
             let payload = ctx.read(read_payload)?.try_into()?;
 
             ctx.ext
-                .reply(ReplyPacket::new_with_gas(payload, gas_limit, value), delay)
+                .reply(ReplyPacket::new_with_gas(payload, gas_limit, value))
                 .map_err(Into::into)
         })
     }
 
     /// Fallible `gr_reply_commit` syscall.
     pub fn reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (value_ptr, delay, err_mid_ptr) = args.iter().read_3();
+        let (value_ptr, _delay, err_mid_ptr): (_, u32, _) = args.iter().read_3();
 
-        syscall_trace!("reply_commit", value_ptr, delay, err_mid_ptr);
+        syscall_trace!("reply_commit", value_ptr, err_mid_ptr);
 
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyCommit, |ctx| {
             let value = Self::register_and_read_value(ctx, value_ptr)?;
 
             ctx.ext
-                .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+                .reply_commit(ReplyPacket::new(Default::default(), value))
                 .map_err(Into::into)
         })
     }
 
     /// Fallible `gr_reply_commit_wgas` syscall.
     pub fn reply_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_4();
+        let (gas_limit, value_ptr, _delay, err_mid_ptr): (_, _, u32, _) = args.iter().read_4();
 
-        syscall_trace!(
-            "reply_commit_wgas",
-            gas_limit,
-            value_ptr,
-            delay,
-            err_mid_ptr
-        );
+        syscall_trace!("reply_commit_wgas", gas_limit, value_ptr, err_mid_ptr);
 
         ctx.run_fallible::<_, _, LengthWithHash>(
             err_mid_ptr,
@@ -524,10 +520,11 @@ where
                 let value = Self::register_and_read_value(ctx, value_ptr)?;
 
                 ctx.ext
-                    .reply_commit(
-                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                        delay,
-                    )
+                    .reply_commit(ReplyPacket::new_with_gas(
+                        Default::default(),
+                        gas_limit,
+                        value,
+                    ))
                     .map_err(Into::into)
             },
         )
@@ -535,14 +532,14 @@ where
 
     /// Fallible `gr_reservation_reply` syscall.
     pub fn reservation_reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (rid_value_ptr, payload_ptr, len, delay, err_mid_ptr) = args.iter().read_5();
+        let (rid_value_ptr, payload_ptr, len, _delay, err_mid_ptr): (_, _, _, u32, _) =
+            args.iter().read_5();
 
         syscall_trace!(
             "reservation_reply",
             rid_value_ptr,
             payload_ptr,
             len,
-            delay,
             err_mid_ptr
         );
 
@@ -559,11 +556,7 @@ where
                 let payload = ctx.read(read_payload)?.try_into()?;
 
                 ctx.ext
-                    .reservation_reply(
-                        reservation_id.into(),
-                        ReplyPacket::new(payload, value),
-                        delay,
-                    )
+                    .reservation_reply(reservation_id.into(), ReplyPacket::new(payload, value))
                     .map_err(Into::into)
             },
         )
@@ -571,14 +564,9 @@ where
 
     /// Fallible `gr_reservation_reply_commit` syscall.
     pub fn reservation_reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (rid_value_ptr, delay, err_mid_ptr) = args.iter().read_3();
+        let (rid_value_ptr, _delay, err_mid_ptr): (_, u32, _) = args.iter().read_3();
 
-        syscall_trace!(
-            "reservation_reply_commit",
-            rid_value_ptr,
-            delay,
-            err_mid_ptr
-        );
+        syscall_trace!("reservation_reply_commit", rid_value_ptr, err_mid_ptr);
 
         ctx.run_fallible::<_, _, LengthWithHash>(
             err_mid_ptr,
@@ -594,7 +582,6 @@ where
                     .reservation_reply_commit(
                         reservation_id.into(),
                         ReplyPacket::new(Default::default(), value),
-                        delay,
                     )
                     .map_err(Into::into)
             },
@@ -639,9 +626,9 @@ where
 
     /// Fallible `gr_reply_input` syscall.
     pub fn reply_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (offset, len, value_ptr, delay, err_mid_ptr) = args.iter().read_5();
+        let (offset, len, value_ptr, _delay, err_mid_ptr): (_, _, _, u32, _) = args.iter().read_5();
 
-        syscall_trace!("reply_input", offset, len, value_ptr, delay, err_mid_ptr);
+        syscall_trace!("reply_input", offset, len, value_ptr, err_mid_ptr);
 
         // Charge for `len` inside `reply_push_input`
         ctx.run_fallible::<_, _, LengthWithHash>(err_mid_ptr, RuntimeCosts::ReplyInput, |ctx| {
@@ -650,7 +637,7 @@ where
             let mut f = || {
                 ctx.ext.reply_push_input(offset, len)?;
                 ctx.ext
-                    .reply_commit(ReplyPacket::new(Default::default(), value), delay)
+                    .reply_commit(ReplyPacket::new(Default::default(), value))
             };
 
             f().map_err(Into::into)
@@ -670,7 +657,8 @@ where
 
     /// Fallible `gr_reply_input_wgas` syscall.
     pub fn reply_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (offset, len, gas_limit, value_ptr, delay, err_mid_ptr) = args.iter().read_6();
+        let (offset, len, gas_limit, value_ptr, _delay, err_mid_ptr): (_, _, _, _, u32, _) =
+            args.iter().read_6();
 
         syscall_trace!(
             "reply_input_wgas",
@@ -678,7 +666,6 @@ where
             len,
             gas_limit,
             value_ptr,
-            delay,
             err_mid_ptr
         );
 
@@ -688,10 +675,11 @@ where
 
             let mut f = || {
                 ctx.ext.reply_push_input(offset, len)?;
-                ctx.ext.reply_commit(
-                    ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
-                    delay,
-                )
+                ctx.ext.reply_commit(ReplyPacket::new_with_gas(
+                    Default::default(),
+                    gas_limit,
+                    value,
+                ))
             };
 
             f().map_err(Into::into)
@@ -905,6 +893,30 @@ where
             ctx.write_as(write_program_id, program_id.into_bytes())
                 .map_err(Into::into)
         })
+    }
+
+    /// Fallible `gr_pay_program_rent` syscall.
+    pub fn pay_program_rent(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let (rent_pid_ptr, err_bn_value_ptr) = args.iter().read_2();
+
+        syscall_trace!("pay_program_rent", rent_pid_ptr, err_bn_value_ptr);
+
+        ctx.run_fallible::<_, _, LengthWithBlockNumberAndValue>(
+            err_bn_value_ptr,
+            RuntimeCosts::PayProgramRent,
+            |ctx| {
+                let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
+
+                let HashWithValue {
+                    hash: program_id,
+                    value: rent,
+                } = ctx.read_as(read_rent_pid)?;
+
+                ctx.ext
+                    .pay_program_rent(program_id.into(), rent)
+                    .map_err(Into::into)
+            },
+        )
     }
 
     /// Infallible `gr_source` syscall.

@@ -45,7 +45,7 @@ mod tests;
 pub use crate::{
     manager::{ExtManager, HandleKind},
     pallet::*,
-    schedule::{HostFnWeights, InstructionWeights, Limits, Schedule},
+    schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
 };
 pub use weights::WeightInfo;
 
@@ -53,7 +53,7 @@ use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
     CodeStorage, GasPrice, GasProvider, GasTree, Origin, PausedProgramStorage, Program,
-    ProgramRentConfig, ProgramState, ProgramStorage, QueueRunner,
+    ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -80,7 +80,10 @@ use gear_core::{
 };
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;
-use sp_runtime::traits::{One, Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::{
+    traits::{One, Saturating, UniqueSaturatedInto, Zero},
+    SaturatedConversion,
+};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
@@ -114,7 +117,8 @@ pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
-pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
+pub(crate) type FirstIncompleteTasksBlockOf<T> =
+    <<T as Config>::Scheduler as Scheduler>::FirstIncompleteTasksBlock;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
 pub(crate) type SchedulingCostOf<T> = <<T as Config>::Scheduler as Scheduler>::Cost;
 pub(crate) type DispatchStashOf<T> = <<T as Config>::Messenger as Messenger>::DispatchStash;
@@ -125,9 +129,8 @@ pub type GasNodeIdOf<T> = <GasHandlerOf<T> as GasTree>::NodeId;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
 pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
-pub type RentFreePeriodOf<T> = <<T as Config>::ProgramRentConfig as ProgramRentConfig>::FreePeriod;
-pub type RentCostPerBlockOf<T> =
-    <<T as Config>::ProgramRentConfig as ProgramRentConfig>::CostPerBlock;
+pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
+pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -255,16 +258,22 @@ pub mod pallet {
             BlockNumber = Self::BlockNumber,
             Cost = u64,
             Task = ScheduledTask<Self::AccountId>,
-            MissedBlocksCollection = BTreeSet<Self::BlockNumber>,
         >;
 
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
 
-        type ProgramRentConfig: ProgramRentConfig<
-            BlockNumber = Self::BlockNumber,
-            Balance = BalanceOf<Self>,
-        >;
+        /// The free of charge period of rent.
+        #[pallet::constant]
+        type ProgramRentFreePeriod: Get<BlockNumberFor<Self>>;
+
+        /// The minimal amount of blocks to resume.
+        #[pallet::constant]
+        type ProgramRentMinimalResumePeriod: Get<BlockNumberFor<Self>>;
+
+        /// The program rent cost per block.
+        #[pallet::constant]
+        type ProgramRentCostPerBlock: Get<BalanceOf<Self>>;
     }
 
     #[pallet::pallet]
@@ -429,6 +438,8 @@ pub mod pallet {
         MessagesStorageCorrupted,
         /// Message queue processing is disabled.
         MessageQueueProcessingDisabled,
+        /// Program with the specified id is not found.
+        ProgramNotFound,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -710,6 +721,7 @@ pub mod pallet {
                 payload,
                 value,
                 allow_other_panics,
+                false,
             )
         }
 
@@ -720,6 +732,7 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
             allow_other_panics: bool,
+            allow_skip_zero_replies: bool,
         ) -> Result<GasInfo, String> {
             log::debug!("\n===== CALCULATE GAS INFO =====\n");
             log::debug!("\n--- FIRST TRY ---\n");
@@ -735,6 +748,7 @@ pub mod pallet {
                     payload.clone(),
                     value,
                     allow_other_panics,
+                    allow_skip_zero_replies,
                 )
                 .map_err(|e| {
                     String::from_utf8(e)
@@ -752,6 +766,7 @@ pub mod pallet {
                     payload,
                     value,
                     allow_other_panics,
+                    allow_skip_zero_replies,
                 )
                 .map(
                     |GasInfo {
@@ -868,40 +883,41 @@ pub mod pallet {
         /// Delayed tasks processing.
         pub fn process_tasks(ext_manager: &mut ExtManager<T>) {
             // Current block number.
-            let bn = Self::block_number();
+            let current_bn = Self::block_number();
 
-            // Taking block numbers, where some incomplete tasks held.
-            // If there are no such values, we charge for single read, because
+            // Taking the first block number, where some incomplete tasks held.
+            // If there is no such value, we charge for single read, because
             // nothing changing in database, otherwise we delete previous
             // value and charge for single write.
             //
-            // We also append current bn to process it together, by iterating
-            // over sorted bns set (that's the reason why `BTreeSet` used).
-            let (missed_blocks, were_empty) = MissedBlocksOf::<T>::take()
-                .map(|mut set| {
+            // We also iterate up to current bn (including) to process it together
+            let (first_incomplete_block, were_empty) = FirstIncompleteTasksBlockOf::<T>::take()
+                .map(|block| {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
-                    set.insert(bn);
-                    (set, false)
+                    (block, false)
                 })
                 .unwrap_or_else(|| {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().reads(1).ref_time());
-                    ([bn].into(), true)
+                    (current_bn, true)
                 });
 
             // When we had to stop processing due to insufficient gas allowance.
             let mut stopped_at = None;
 
             // Iterating over blocks.
-            for bn in &missed_blocks {
+            let missing_blocks = (first_incomplete_block.saturated_into::<u64>()
+                ..=current_bn.saturated_into())
+                .map(|block| block.saturated_into::<BlockNumberFor<T>>());
+            for bn in missing_blocks {
                 // Tasks drain iterator.
-                let tasks = TaskPoolOf::<T>::drain_prefix_keys(*bn);
+                let tasks = TaskPoolOf::<T>::drain_prefix_keys(bn);
 
                 // Checking gas allowance.
                 //
                 // Making sure we have gas to remove next task
-                // or update missed blocks.
+                // or update the first block of incomplete tasks.
                 if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
-                    stopped_at = Some(*bn);
+                    stopped_at = Some(bn);
                     log::debug!("Stopping processing tasks at: {stopped_at:?}");
                     break;
                 }
@@ -923,9 +939,9 @@ pub mod pallet {
                     // Checking gas allowance.
                     //
                     // Making sure we have gas to remove next task
-                    // or update missed blocks.
+                    // or update the first block of incomplete tasks.
                     if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
-                        stopped_at = Some(*bn);
+                        stopped_at = Some(bn);
                         log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
                     }
@@ -938,27 +954,15 @@ pub mod pallet {
             }
 
             // If we didn't process all tasks and stopped at some block number,
-            // then there is new missed blocks set we should store.
+            // then there are missed blocks set we should handle in next time.
             if let Some(stopped_at) = stopped_at {
-                // Avoiding `PartialEq` trait bound for `T::BlockNumber`.
-                let stopped_at: u32 = stopped_at.unique_saturated_into();
-
-                let actual_missed_blocks = missed_blocks
-                    .into_iter()
-                    .skip_while(|&x| {
-                        // Avoiding `PartialEq` trait bound for `T::BlockNumber`.
-                        let x: u32 = x.unique_saturated_into();
-                        x != stopped_at
-                    })
-                    .collect();
-
-                // Charging for inserting into missing blocks,
+                // Charging for inserting into storage of the first block of incomplete tasks,
                 // if we were reading it only (they were empty).
                 if were_empty {
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
                 }
 
-                MissedBlocksOf::<T>::put(actual_missed_blocks);
+                FirstIncompleteTasksBlockOf::<T>::put(stopped_at);
             }
         }
 
@@ -1019,6 +1023,7 @@ pub mod pallet {
                 max_reservations: T::ReservationsLimit::get(),
                 code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
+                rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
             }
         }
 
@@ -1229,6 +1234,12 @@ pub mod pallet {
 
         pub fn run_call() -> Call<T> {
             Call::run {}
+        }
+
+        pub fn rent_fee_for(block_count: BlockNumberFor<T>) -> BalanceOf<T> {
+            let block_count: u64 = block_count.unique_saturated_into();
+
+            RentCostPerBlockOf::<T>::get().saturating_mul(block_count.unique_saturated_into())
         }
     }
 
@@ -1554,7 +1565,7 @@ pub mod pallet {
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
-                MessageId::generate_reply(mailboxed.id(), 0),
+                MessageId::generate_reply(mailboxed.id()),
                 ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into()),
             );
 
@@ -1606,12 +1617,40 @@ pub mod pallet {
             origin: OriginFor<T>,
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
+            // Validating origin.
+            let origin = ensure_signed(origin)?;
+
             // Reason for reading from mailbox.
             let reason = UserMessageReadRuntimeReason::MessageClaimed.into_reason();
 
             // Reading message, if found, or failing extrinsic.
-            Self::read_message(ensure_signed(origin)?, message_id, reason)
+            let mailboxed = Self::read_message(origin.clone(), message_id, reason)
                 .ok_or(Error::<T>::MessageNotFound)?;
+
+            if Self::is_active(mailboxed.source()) {
+                // Creating reply message.
+                let message = ReplyMessage::auto(mailboxed.id());
+
+                // Creating `GasNode` for the reply.
+                //
+                // # Safety
+                //
+                //  The error is unreachable since the `message_id` is new generated
+                //  from the checked `original_message`."
+                GasHandlerOf::<T>::create(origin.clone(), message.id(), 0)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+                // Converting reply message into appropriate type for queueing.
+                let dispatch = message.into_stored_dispatch(
+                    ProgramId::from_origin(origin.into_origin()),
+                    mailboxed.source(),
+                    mailboxed.id(),
+                );
+
+                // Queueing dispatch.
+                QueueOf::<T>::queue(dispatch)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            };
 
             Ok(().into())
         }
@@ -1676,6 +1715,33 @@ pub mod pallet {
             ExecuteInherent::<T>::put(value);
 
             Ok(())
+        }
+
+        /// Pay additional rent for the program.
+        #[pallet::call_index(8)]
+        #[pallet::weight(<T as Config>::WeightInfo::pay_program_rent())]
+        pub fn pay_program_rent(
+            origin: OriginFor<T>,
+            program_id: ProgramId,
+            block_count: BlockNumberFor<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            ProgramStorageOf::<T>::update_active_program(
+                program_id,
+                |program| -> Result<(), Error<T>> {
+                    Self::pay_program_rent_impl(program_id, program, &who, block_count)
+                        .map_err(|_| Error::<T>::InsufficientBalanceForReserve)
+                },
+            )
+            .map_err(|e| {
+                log::debug!(
+                    "Failed to update an expiration block of an active program {program_id}: {e:?}"
+                );
+                Error::<T>::ProgramNotFound
+            })??;
+
+            Ok(().into())
         }
     }
 

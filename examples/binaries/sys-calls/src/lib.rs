@@ -55,6 +55,8 @@ pub enum Kind {
     Size(u32),
     // Expected(message id)
     MessageId(MessageId),
+    // Params(program id, rent)
+    PayProgramRent(ActorId, u128, Option<(u128, u32)>),
     // Expected(program id)
     ProgramId(ActorId),
     // Expected(message sender)
@@ -101,6 +103,8 @@ pub enum Kind {
     SystemReserveGas(u64),
 }
 
+pub const PAY_PROGRAM_RENT_EXPECT: &str = "Unable to pay rent";
+
 #[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     use super::Kind;
@@ -109,7 +113,7 @@ mod wasm {
         errors::{SimpleCodec, SimpleExecutionError, SimpleSignalError},
         exec, format,
         msg::{self, MessageHandle},
-        prog, ActorId, CodeId, MessageId, ReservationId,
+        prog, ActorId, CodeId, MessageId, ReservationId, Vec,
     };
 
     static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);
@@ -130,7 +134,17 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle() {
-        match msg::load().expect("internal error: invalid payload") {
+        let syscall_kinds: Vec<Kind> = msg::load().expect("internal error: invalid payload");
+        for syscall_kind in syscall_kinds {
+            process(syscall_kind);
+        }
+
+        // Report test executed successfully
+        msg::send_delayed(msg::source(), b"ok", 0, 0).expect("internal error: report send failed");
+    }
+
+    fn process(syscall_kind: Kind) {
+        match syscall_kind {
             Kind::CreateProgram(salt, gas_opt, (expected_mid, expected_pid)) => {
                 let salt = salt.to_le_bytes();
                 let res = match gas_opt {
@@ -236,6 +250,15 @@ mod wasm {
                 let actual_mid: [u8; 32] = msg::id().into();
                 assert_eq!(expected_mid, actual_mid, "Kind::MessageId: mid test failed");
             }
+            Kind::PayProgramRent(program_id, rent, expected) => {
+                let (unused_value, paid_block_count) =
+                    exec::pay_program_rent(program_id.into(), rent)
+                        .expect(super::PAY_PROGRAM_RENT_EXPECT);
+                if let Some((expected_unused_value, expected_paid_block_count)) = expected {
+                    assert_eq!(unused_value, expected_unused_value);
+                    assert_eq!(paid_block_count, expected_paid_block_count);
+                }
+            }
             Kind::ProgramId(expected_pid) => {
                 let actual_pid: [u8; 32] = exec::program_id().into();
                 assert_eq!(expected_pid, actual_pid, "Kind::ProgramId: pid test failed");
@@ -264,8 +287,8 @@ mod wasm {
             }
             Kind::Reply(gas_opt, expected_mid) => {
                 let actual_mid_res = match gas_opt {
-                    Some(gas) => msg::reply_with_gas_delayed(b"payload", gas, 0, 0),
-                    None => msg::reply_delayed(b"payload", 0, 0),
+                    Some(gas) => msg::reply_with_gas(b"payload", gas, 0),
+                    None => msg::reply(b"payload", 0),
                 };
                 assert_eq!(
                     Ok(expected_mid.into()),
@@ -276,8 +299,8 @@ mod wasm {
             Kind::ReplyRaw(payload, gas_opt, expected_mid) => {
                 msg::reply_push(payload).expect("internal error: failed reply push");
                 let actual_mid_res = match gas_opt {
-                    Some(gas) => msg::reply_commit_with_gas_delayed(gas, 0, 0),
-                    None => msg::reply_commit_delayed(0, 0),
+                    Some(gas) => msg::reply_commit_with_gas(gas, 0),
+                    None => msg::reply_commit(0),
                 };
                 assert_eq!(
                     Ok(expected_mid.into()),
@@ -287,8 +310,8 @@ mod wasm {
             }
             Kind::ReplyInput(gas_opt, expected_mid) => {
                 let actual_mid_res = match gas_opt {
-                    Some(gas) => msg::reply_input_with_gas_delayed(gas, 0, .., 0),
-                    None => msg::reply_input_delayed(0, .., 0),
+                    Some(gas) => msg::reply_input_with_gas(gas, 0, ..),
+                    None => msg::reply_input(0, ..),
                 };
                 assert_eq!(
                     Ok(expected_mid.into()),
@@ -298,7 +321,7 @@ mod wasm {
             }
             Kind::ReplyPushInput(expected_mid) => {
                 msg::reply_push_input(..).expect("internal error: reply_push_input failed");
-                let actual_mid_res = msg::reply_commit_delayed(0, 0);
+                let actual_mid_res = msg::reply_commit(0);
                 assert_eq!(
                     Ok(expected_mid.into()),
                     actual_mid_res,
@@ -307,7 +330,7 @@ mod wasm {
             }
             Kind::ReplyDetails(..) => {
                 // Actual test in handle reply, here just sends a reply
-                let _ = msg::reply_delayed(b"payload", 0, 0);
+                let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
                 // To prevent from sending to mailbox "ok" message
                 exec::leave();
             }
@@ -325,7 +348,7 @@ mod wasm {
                         DO_PANIC = true;
                     }
                     exec::system_reserve_gas(1_000_000_000).unwrap();
-                    let _ = msg::reply_delayed(b"payload", 0, 0);
+                    let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
                     exec::wait_for(2);
                 }
             }
@@ -437,8 +460,7 @@ mod wasm {
             Kind::ReservationReply(expected_mid) => {
                 let reservation_id =
                     ReservationId::reserve(25_000_000_000, 1).expect("reservation failed");
-                let actual_mid =
-                    msg::reply_bytes_delayed_from_reservation(reservation_id, b"", 0, 0);
+                let actual_mid = msg::reply_bytes_from_reservation(reservation_id, b"", 0);
                 assert_eq!(
                     Ok(expected_mid.into()),
                     actual_mid,
@@ -449,7 +471,7 @@ mod wasm {
                 let reservation_id =
                     ReservationId::reserve(25_000_000_000, 1).expect("reservation failed");
                 msg::reply_push(payload).expect("internal error: failed reply push");
-                let actual_mid = msg::reply_commit_delayed_from_reservation(reservation_id, 0, 0);
+                let actual_mid = msg::reply_commit_from_reservation(reservation_id, 0);
                 assert_eq!(
                     Ok(expected_mid.into()),
                     actual_mid,
@@ -466,8 +488,6 @@ mod wasm {
                 exec::wait_for(2);
             }
         }
-        // Report test executed successfully
-        msg::send_delayed(msg::source(), b"ok", 0, 0).expect("internal error: report send failed");
     }
 
     #[no_mangle]

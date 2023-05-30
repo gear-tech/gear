@@ -525,14 +525,24 @@ where
     /// message went to wait list, so wasn't consumed but the one generated
     /// during the execution of the original message went to message queue
     /// and was successfully executed.
-    #[cfg_attr(all(not(test), feature = "fuzz"), mutagen::mutate)]
-    #[cfg_attr(
-        all(not(test), feature = "fuzz"),
-        allow(clippy::blocks_in_if_conditions)
-    )]
     fn consume(key: impl Into<Self::NodeId>) -> ConsumeResultOf<Self> {
         let key = key.into();
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        #[cfg(feature = "fuzz")]
+        {
+            let s = fail::FailScenario::setup();
+            // This is a fail point with name `fail_fuzzer`.
+            // It's supposed to return an error if `FAILPOINTS`
+            // env variable is set.
+            fail::fail_point!("fail_fuzzer", |_| {
+                // We intentionally return this error, as it has
+                // unique usage here and we won't confuse it with
+                // other real errors.
+                Err(InternalError::node_already_exists().into())
+            });
+            s.teardown();
+        }
 
         if node.is_consumed() {
             return Err(InternalError::node_was_consumed().into());

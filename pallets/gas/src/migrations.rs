@@ -32,6 +32,8 @@ pub mod v1 {
     use gear_core::ids::{MessageId, ProgramId, ReservationId};
     use sp_runtime::traits::{Saturating, Zero};
     use sp_std::collections::btree_set::BTreeSet;
+    #[cfg(feature = "try-runtime")]
+    use sp_std::vec::Vec;
 
     pub const PALLET_GEAR_MESSENGER_NAME: &str = "GearMessenger";
     pub const WAITLIST_STORAGE_NAME: &str = "Waitlist";
@@ -133,7 +135,7 @@ pub mod v1 {
                 let mailbox_keys = KeyPrefixIterator::new(
                     mailbox_storage_prefix.to_vec(),
                     mailbox_storage_prefix.to_vec(),
-                    |mut key| Ok(WaitlistKey::decode(&mut key)?.into()),
+                    |mut key| Ok(MailboxKey::<T>::decode(&mut key)?.into()),
                 )
                 .collect::<BTreeSet<MessageId>>();
 
@@ -333,6 +335,7 @@ pub mod test {
 
     #[test]
     fn migration_to_v1_works() {
+        let _ = env_logger::try_init();
         new_test_ext().execute_with(|| {
             let mut mailbox_ids = vec![];
             for _i in 0_u32..25 {
@@ -478,7 +481,9 @@ pub mod test {
                 });
 
             // run migration from v0 to v1.
-            MigrateToV1::<Test>::on_runtime_upgrade();
+            let weight = MigrateToV1::<Test>::on_runtime_upgrade();
+            assert_ne!(weight.ref_time(), 0);
+
             let new_total_locked =
                 GasNodes::<Test>::iter().fold(Balance::zero(), |acc, (_k, v)| {
                     let locked = match v {

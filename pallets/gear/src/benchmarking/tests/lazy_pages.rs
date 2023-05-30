@@ -289,8 +289,8 @@ where
 
             let mut rand_cost = || rng.gen_range(0..MAX_COST).into();
             let costs = &mut exec.block_config.page_costs;
-            costs.signal_read = rand_cost();
-            costs.signal_write = rand_cost();
+            costs.lazy_pages_signal_read = rand_cost();
+            costs.lazy_pages_signal_write = rand_cost();
             costs.lazy_pages_signal_write_after_read = rand_cost();
             costs.lazy_pages_host_func_read = rand_cost();
             costs.lazy_pages_host_func_write = rand_cost();
@@ -371,8 +371,8 @@ where
             )
             .unwrap();
 
-            exec.block_config.page_costs.signal_read = (read_cost * i).into();
-            exec.block_config.page_costs.signal_write = (write_cost * i).into();
+            exec.block_config.page_costs.lazy_pages_signal_read = (read_cost * i).into();
+            exec.block_config.page_costs.lazy_pages_signal_write = (write_cost * i).into();
             exec.block_config
                 .page_costs
                 .lazy_pages_signal_write_after_read = (write_after_read_cost * i).into();
@@ -577,7 +577,7 @@ where
         .unwrap();
 
         exec.block_config.page_costs = PageCosts {
-            signal_write: 1.into(),
+            lazy_pages_signal_write: 1.into(),
             ..Default::default()
         };
 
@@ -619,7 +619,7 @@ where
         .unwrap();
 
         exec.block_config.page_costs = PageCosts {
-            signal_write: 1.into(),
+            lazy_pages_signal_write: 1.into(),
             ..Default::default()
         };
 

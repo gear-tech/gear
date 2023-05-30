@@ -39,6 +39,7 @@ where
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
+        allow_skip_zero_replies: bool,
     ) -> Result<GasInfo, Vec<u8>> {
         let account = <T::AccountId as Origin>::from_origin(source);
 
@@ -138,8 +139,14 @@ where
                 .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
             let dispatch_id = queued_dispatch.id();
+            let success_reply = queued_dispatch
+                .reply()
+                .map(|rd| rd.status_code() == 0)
+                .unwrap_or_default();
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
+
+            let skip_if_allowed = success_reply && gas_limit == 0;
 
             // todo #1987 : consider to make more common for use in process_queue too
             let build_journal = || {
@@ -300,7 +307,9 @@ where
                         outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
                         message_id,
                         ..
-                    } if message_id == main_message_id || !allow_other_panics => {
+                    } if (message_id == main_message_id || !allow_other_panics)
+                        && !(skip_if_allowed && allow_skip_zero_replies) =>
+                    {
                         return Err(format!("Program terminated with a trap: {trap}").into_bytes());
                     }
 

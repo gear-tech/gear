@@ -56,13 +56,14 @@ use self::{
 use crate::{
     manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BTreeMap, BalanceOf,
     BenchmarkStorage, Call, Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf,
-    MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
+    MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf, Schedule,
 };
 use ::alloc::vec;
 use common::{
     self, benchmarking,
     storage::{Counter, *},
-    CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, ReservableTree,
+    ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, ProgramStorage,
+    ReservableTree,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -79,7 +80,7 @@ use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    ids::{MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, GearPage, PageBuf, PageU32Size, WasmPage},
     message::{ContextSettings, DispatchKind, MessageContext},
     reservation::GasReserver,
@@ -169,7 +170,6 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         message_context: MessageContext::new(
             Default::default(),
             Default::default(),
-            None,
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info: Default::default(),
@@ -179,6 +179,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         origin: Default::default(),
         program_id: Default::default(),
         program_candidates_data: Default::default(),
+        program_rents: Default::default(),
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold: 0,
@@ -187,6 +188,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         reserve_for: 0,
         reservation: 0,
         random_data: ([0u8; 32].to_vec(), 0),
+        rent_cost: 0,
     }
 }
 
@@ -415,8 +417,31 @@ benchmarks! {
         init_block::<T>(None);
     }: _(RawOrigin::Signed(caller.clone()), original_message_id)
     verify {
-        assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
+        let auto_reply = QueueOf::<T>::dequeue().expect("Error in algorithm").expect("Element should be");
+        assert!(auto_reply.payload().is_empty());
+        assert_eq!(auto_reply.status_code().expect("Should be"), 0);
         assert!(MailboxOf::<T>::is_empty(&caller));
+    }
+
+    pay_program_rent {
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let salt = vec![];
+        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+
+        let block_count = 1_000u32.into();
+
+        init_block::<T>(None);
+    }: _(RawOrigin::Signed(caller.clone()), program_id, block_count)
+    verify {
+        let program: ActiveProgram<_> = <T as pallet::Config>::ProgramStorage::get_program(program_id)
+            .expect("program should exist")
+            .try_into()
+            .expect("program should be active");
+        assert_eq!(program.expiration_block, RentFreePeriodOf::<T>::get() + block_count);
     }
 
     // This constructs a program that is maximal expensive to instrument.
@@ -1341,6 +1366,17 @@ benchmarks! {
         let s in 1 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
         let exec = Benches::<T>::gr_create_program(1, Some(p), Some(s), true)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_pay_program_rent {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_pay_program_rent(r)?;
     }: {
         res.replace(run_process(exec));
     }

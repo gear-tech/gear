@@ -1418,6 +1418,27 @@ where
         Self::prepare_handle(module, 0)
     }
 
+    pub fn gr_pay_program_rent(r: u32) -> Result<Exec<T>, &'static str> {
+        let pid_value_offset = COMMON_OFFSET;
+        let res_offset = pid_value_offset + PID_SIZE + VALUE_SIZE;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SysCallName::PayProgramRent],
+            handle_body: Some(body::fallible_syscall(
+                r,
+                res_offset,
+                &[
+                    // block_number & program_id offset
+                    InstrI32Const(pid_value_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 10_000_000)
+    }
+
     pub fn lazy_pages_signal_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let instrs = body::read_access_all_pages_instrs(wasm_pages, vec![]);
         let module = ModuleDefinition {

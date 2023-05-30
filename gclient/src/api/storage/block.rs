@@ -100,7 +100,7 @@ impl GearApi {
     pub async fn events_at(&self, block_hash: H256) -> Result<Vec<RuntimeEvent>> {
         self.0
             .api()
-            .get_events_at(Some(block_hash))
+            .get_events_at(block_hash)
             .await
             .map_err(Into::into)
     }

@@ -1919,13 +1919,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-meta"
+name = "demo-messager"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
@@ -2766,6 +2764,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "fail"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe5e43d0f78a42ad591453aedb1d7ae631ce7ee445c7643691055a9ed8d3b01c"
+dependencies = [
+ "log",
+ "once_cell",
+ "rand 0.8.5",
+]
+
+[[package]]
 name = "fake-simd"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3405,6 +3414,7 @@ dependencies = [
  "base64 0.21.0",
  "clap 4.2.1",
  "color-eyre",
+ "demo-messager",
  "demo-new-meta",
  "demo-waiter",
  "dirs",
@@ -3420,7 +3430,6 @@ dependencies = [
  "lazy_static",
  "libp2p",
  "log",
- "messager",
  "nacl",
  "rand 0.8.5",
  "scale-info",
@@ -3446,7 +3455,6 @@ dependencies = [
  "demo-distributor",
  "demo-exit-handle-sender",
  "demo-gasless-wasting",
- "demo-meta",
  "demo-meta-io",
  "demo-mul-by-const",
  "demo-node",
@@ -3530,6 +3538,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-backend-codegen"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.13",
+]
+
+[[package]]
 name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
@@ -3565,6 +3582,7 @@ version = "0.1.0"
 dependencies = [
  "blake2-rfc",
  "derive_more",
+ "gear-backend-codegen",
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
@@ -3639,6 +3657,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.0",
+ "fail",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -3649,7 +3668,6 @@ dependencies = [
  "hex",
  "hex-literal 0.3.4",
  "log",
- "mutagen",
  "path-clean",
  "primitive-types",
  "proptest",
@@ -3831,7 +3849,9 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gear-backend-common",
  "gear-common",
+ "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "hex-literal 0.3.4",
@@ -3882,10 +3902,13 @@ dependencies = [
  "frame-support",
  "frame-system",
  "frame-system-benchmarking",
+ "gear-backend-common",
  "gear-common",
+ "gear-core-processor",
  "gear-runtime-primitives",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gear",
  "sp-runtime",
  "sp-std 5.0.0",
 ]
@@ -4045,7 +4068,6 @@ dependencies = [
  "env_logger",
  "gear-backend-common",
  "gear-backend-wasmi",
- "gear-common",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
@@ -4323,9 +4345,14 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "base64 0.21.0",
+ "demo-messager",
+ "demo-new-meta",
+ "demo-waiter",
  "futures",
  "futures-util",
  "gear-core",
+ "gsdk",
+ "gsdk-codegen",
  "hex",
  "jsonrpsee",
  "log",
@@ -4338,6 +4365,16 @@ dependencies = [
  "sp-runtime",
  "subxt",
  "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "gsdk-codegen"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -4949,12 +4986,6 @@ checksum = "445dde2150c55e483f3d8416706b97ec8e8237c307e5b7b4b8dd15e6af2a0730"
 dependencies = [
  "wasm-bindgen",
 ]
-
-[[package]]
-name = "json"
-version = "0.12.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "078e285eafdfb6c4b434e0d31e8cfcb5115b651496faca5749b88fafd4f23bfd"
 
 [[package]]
 name = "jsonrpsee"
@@ -6054,14 +6085,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "messager"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
 name = "mimalloc"
 version = "0.1.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6246,39 +6269,6 @@ dependencies = [
  "pin-project",
  "smallvec",
  "unsigned-varint",
-]
-
-[[package]]
-name = "mutagen"
-version = "0.2.0"
-source = "git+https://github.com/llogiq/mutagen?rev=a6377c4c#a6377c4c3f360afeb7a287c1c17e4b69456d5f53"
-dependencies = [
- "mutagen-core",
- "mutagen-transform",
-]
-
-[[package]]
-name = "mutagen-core"
-version = "0.2.0"
-source = "git+https://github.com/llogiq/mutagen?rev=a6377c4c#a6377c4c3f360afeb7a287c1c17e4b69456d5f53"
-dependencies = [
- "anyhow",
- "json",
- "lazy_static",
- "proc-macro2",
- "quote",
- "serde",
- "serde_json",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "mutagen-transform"
-version = "0.2.0"
-source = "git+https://github.com/llogiq/mutagen?rev=a6377c4c#a6377c4c3f360afeb7a287c1c17e4b69456d5f53"
-dependencies = [
- "mutagen-core",
- "proc-macro2",
 ]
 
 [[package]]
@@ -7005,6 +6995,7 @@ dependencies = [
  "sp-runtime",
  "sp-sandbox",
  "sp-std 5.0.0",
+ "static_assertions",
  "test-syscalls",
  "wabt",
 ]
@@ -12540,7 +12531,9 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gear-backend-common",
  "gear-common",
+ "gear-core-processor",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "hex-literal 0.3.4",

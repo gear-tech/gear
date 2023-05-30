@@ -40,39 +40,44 @@ pub struct BlockInfo {
     pub timestamp: u64,
 }
 
-/// Memory/allocation config.
+/// Memory operations costs.
+///
+/// Each weight with `lazy_pages_` prefix contains weight for storage read,
+/// because for each first page access we need at least check if page exists in storage.
+/// But they do not include cost for loading page data from storage into program memory.
+/// This weight is taken in account separately, when loading occurs.
+///
+/// Lazy-pages write accesses does not include cost for uploading page data to storage,
+/// because uploading happens after execution, so benchmarks do not include this cost.
+/// But they include cost for processing changed page data in runtime.
 #[derive(Clone, Debug, Decode, Encode, Default)]
 #[codec(crate = scale)]
 pub struct PageCosts {
-    /// Cost per one [GearPage] signal `read` processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
-    pub signal_read: CostPerPage<GearPage>,
+    /// Cost per one [GearPage] signal `read` processing in lazy-pages.
+    pub lazy_pages_signal_read: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] signal `write` processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
-    pub signal_write: CostPerPage<GearPage>,
+    pub lazy_pages_signal_write: CostPerPage<GearPage>,
 
-    /// Cost per one [GearPage] signal `write after read` processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
+    /// Cost per one [GearPage] signal `write after read` processing in lazy-pages.
     pub lazy_pages_signal_write_after_read: CostPerPage<GearPage>,
 
-    /// Cost per one [GearPage] host func `read` access processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
+    /// Cost per one [GearPage] host func `read` access processing in lazy-pages.
     pub lazy_pages_host_func_read: CostPerPage<GearPage>,
 
-    /// Cost per one [GearPage] host func `write` access processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
+    /// Cost per one [GearPage] host func `write` access processing in lazy-pages.
     pub lazy_pages_host_func_write: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] host func `write after read` access processing in lazy-pages,
-    /// it does not include cost for loading page data from storage.
     pub lazy_pages_host_func_write_after_read: CostPerPage<GearPage>,
 
-    /// Cost per one [GearPage] data loading from storage
-    /// and moving it in program memory.
+    /// Cost per one [GearPage] data loading from storage and moving it in program memory.
+    /// Does not include cost for storage read, because it is taken in account separately.
     pub load_page_data: CostPerPage<GearPage>,
 
     /// Cost per one [GearPage] uploading data to storage.
+    /// Does not include cost for processing changed page data in runtime,
+    /// cause it is taken in account separately.
     pub upload_page_data: CostPerPage<GearPage>,
 
     /// Cost per one [WasmPage] static page. Static pages can have static data,
@@ -89,9 +94,17 @@ pub struct PageCosts {
 impl PageCosts {
     /// Calculates and returns weights for lazy-pages.
     pub fn lazy_pages_weights(&self) -> LazyPagesWeights {
+        // Because page may have not data in storage, we do not include
+        // cost for loading page data from storage in weights. We provide
+        // this cost in `load_page_data` field, so lazy-pages can use it
+        // when page data is in storage and must be loaded.
+        // On other hand we include cost for uploading page data to storage
+        // in each `write` weight, because each write cause page uploading.
         LazyPagesWeights {
-            signal_read: self.signal_read,
-            signal_write: self.signal_write.saturating_add(self.upload_page_data),
+            signal_read: self.lazy_pages_signal_read,
+            signal_write: self
+                .lazy_pages_signal_write
+                .saturating_add(self.upload_page_data),
             signal_write_after_read: self
                 .lazy_pages_signal_write_after_read
                 .saturating_add(self.upload_page_data),
@@ -112,8 +125,8 @@ impl PageCosts {
         let a = 1000.into();
         let b = 4000.into();
         Self {
-            signal_read: a,
-            signal_write: a,
+            lazy_pages_signal_read: a,
+            lazy_pages_signal_write: a,
             lazy_pages_signal_write_after_read: a,
             lazy_pages_host_func_read: a,
             lazy_pages_host_func_write: a,
@@ -154,6 +167,8 @@ pub struct ExecutionSettings {
     /// Most recently determined random seed, along with the time in the past since when it was determinable by chain observers.
     // TODO: find a way to put a random seed inside block config.
     pub random_data: (Vec<u8>, u32),
+    /// Rent cost per block.
+    pub rent_cost: u128,
 }
 
 /// Stable parameters for the whole block across processing runs.
@@ -199,4 +214,6 @@ pub struct BlockConfig {
     pub code_instrumentation_cost: u64,
     /// WASM code instrumentation per-byte cost.
     pub code_instrumentation_byte_cost: u64,
+    /// Rent cost per block.
+    pub rent_cost: u128,
 }
