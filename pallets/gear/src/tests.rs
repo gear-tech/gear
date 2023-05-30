@@ -7407,6 +7407,108 @@ fn call_forbidden_function() {
 }
 
 #[test]
+fn async_delay_for() {
+    use demo_waiter::{Command as WaiterCommand, WASM_BINARY as WAITER_WASM};
+
+    const DELAY_FOR_BLOCKS: u32 = 2;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        // Block 2
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WAITER_WASM.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to upload Waiter program");
+        let waiter_prog_id = get_last_program_id();
+        run_to_next_block(None);
+
+        // Block 3
+        MailboxOf::<Test>::clear();
+        Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            waiter_prog_id,
+            WaiterCommand::DelayFor(DELAY_FOR_BLOCKS).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to send the DelayFor message");
+        let delay_for_msg_id = get_last_message_id();
+        let delay_for_block_number = System::block_number() + 1;
+        run_to_next_block(None);
+
+        // Assert the program replied with a message before the delay.
+        // The message payload is a number of the block the program received
+        // the DelayFor message in.
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+        let waiter_reply = <String>::decode(&mut get_last_mail(USER_1).payload())
+            .expect("Failed to decode Waiter reply");
+        assert_eq!(
+            waiter_reply,
+            format!("Before the delay at block: {}", delay_for_block_number)
+        );
+
+        // Assert the DelayFor message is in the waitlist.
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &delay_for_msg_id
+        ));
+
+        // Block 4
+        MailboxOf::<Test>::clear();
+        Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            waiter_prog_id,
+            WaiterCommand::WakeUp(delay_for_msg_id.into()).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .expect("Failed to send the WakeUp message");
+        run_to_next_block(None);
+
+        // Assert there are no any replies yet.
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
+
+        // Assert the DelayFor message is still in the waitlist.
+        assert!(WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &delay_for_msg_id
+        ));
+
+        // Block 5
+        MailboxOf::<Test>::clear();
+        run_to_next_block(None);
+
+        // Assert the program replied with a message after the delay.
+        // The message payload is a number of the block the program
+        // exited the dealy, i.e. delay_for_block_number + DELAY_FOR_BLOCKS.
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+        let waiter_reply = <String>::decode(&mut get_last_mail(USER_1).payload())
+            .expect("Failed to decode Waiter reply");
+        assert_eq!(
+            waiter_reply,
+            format!(
+                "After the delay at block: {}",
+                delay_for_block_number + DELAY_FOR_BLOCKS
+            )
+        );
+
+        // Assert the DelayFor message is no longer in the waitlist.
+        assert!(!WaitlistOf::<Test>::contains(
+            &waiter_prog_id,
+            &delay_for_msg_id
+        ));
+    });
+}
+
+#[test]
 fn test_async_messages() {
     use demo_async_tester::{Kind, WASM_BINARY};
 

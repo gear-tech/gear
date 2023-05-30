@@ -1,6 +1,6 @@
 use crate::Command;
 
-use gstd::{errors::ContractError, exec, msg, MessageId};
+use gstd::{errors::ContractError, exec, format, msg, MessageId};
 
 #[gstd::async_main]
 async fn main() {
@@ -39,6 +39,24 @@ async fn main() {
         Command::SendAndWaitFor(duration, to) => {
             msg::send(to, b"ping", 0);
             exec::wait_for(duration);
+        }
+        Command::DelayFor(duration) => {
+            msg::send(
+                msg::source(),
+                format!("Before the delay at block: {}", exec::block_height()),
+                0,
+            )
+            .expect("Failed to send before the delay");
+            exec::delay_for(duration).await;
+            msg::send(
+                msg::source(),
+                format!("After the delay at block: {}", exec::block_height()),
+                0,
+            )
+            .expect("Failed to reply after the delay");
+        }
+        Command::WakeUp(msg_id) => {
+            exec::wake(msg_id.into()).expect("Failed to wake up the message");
         }
     }
 }

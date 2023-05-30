@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,17 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utility functions related to the current execution context or program
-//! execution flow.
-//!
-//! Wraps methods from [`gcore::exec`](https://docs.gear.rs/gcore/exec/)
-//! for receiving details about the current execution and controlling it.
-
 use crate::{common::errors::Result, ActorId, MessageId};
-pub use gcore::exec::{
-    block_height, block_timestamp, gas_available, leave, random, system_reserve_gas,
-    value_available, wait, wait_for, wait_up_to,
-};
 
 /// Terminate the execution of a program.
 ///
