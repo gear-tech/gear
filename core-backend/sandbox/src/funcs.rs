@@ -768,6 +768,25 @@ where
         })
     }
 
+    /// Infallible `gr_cost` syscall.
+    pub fn cost(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let (cost_name_ptr, cost_name_len, cost_ptr) = args.iter().read_3();
+
+        syscall_trace!("cost", cost_name_ptr, cost_name_len, cost_ptr);
+
+        ctx.run(RuntimeCosts::Cost, |ctx| {
+            let read_cost_name = ctx.register_read(cost_name_ptr, cost_name_len);
+            let name: RuntimeBuffer = ctx.read(read_cost_name)?.try_into()?;
+            let name = String::from_utf8(name.into_vec())?;
+
+            let cost = ctx.ext.cost(name)?;
+
+            let write_cost = ctx.register_write_as(cost_ptr);
+            ctx.write_as(write_cost, cost.to_le_bytes())
+                .map_err(Into::into)
+        })
+    }
+
     /// Infallible `gr_debug` syscall.
     pub fn debug(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let (data_ptr, data_len): (_, u32) = args.iter().read_2();

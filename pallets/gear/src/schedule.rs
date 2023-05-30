@@ -527,6 +527,9 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per salt byte by `create_program_wgas`.
     pub gr_create_program_wgas_salt_per_byte: Weight,
 
+    /// Weight of calling `gr_cost`.
+    pub gr_cost: Weight,
+
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
     pub _phantom: PhantomData<T>,
@@ -903,6 +906,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_create_program_wgas_salt_per_byte: self
                 .gr_create_program_wgas_salt_per_byte
                 .ref_time(),
+            gr_cost: self.gr_cost.ref_time(),
         }
     }
 }
@@ -964,6 +968,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_block_height: to_weight!(cost_batched!(gr_block_height)),
             gr_block_timestamp: to_weight!(cost_batched!(gr_block_timestamp)),
             gr_random: to_weight!(cost_batched!(gr_random)),
+            gr_cost: to_weight!(cost_batched!(gr_cost)),
             gr_debug: to_weight!(cost_batched!(gr_debug)),
             gr_debug_per_byte: to_weight!(cost_byte_batched!(gr_debug_per_kb)),
             gr_error: to_weight!(cost_batched!(gr_error)),

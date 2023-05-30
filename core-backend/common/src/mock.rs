@@ -20,7 +20,7 @@ use crate::{
     memory::ProcessAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason,
 };
-use alloc::{collections::BTreeSet, vec, vec::Vec};
+use alloc::{collections::BTreeSet, string::String, vec, vec::Vec};
 use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
@@ -109,6 +109,9 @@ impl Ext for MockExt {
         Ok(0)
     }
     fn block_timestamp(&self) -> Result<u64, Self::Error> {
+        Ok(0)
+    }
+    fn cost(&self, _name: String) -> Result<u128, Self::Error> {
         Ok(0)
     }
     fn origin(&self) -> Result<ProgramId, Self::Error> {

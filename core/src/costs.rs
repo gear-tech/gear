@@ -291,6 +291,9 @@ pub struct HostFnWeights {
 
     /// Weight per salt byte by `gr_create_program_wgas`.
     pub gr_create_program_wgas_salt_per_byte: u64,
+
+    /// Weight of calling `gr_cost`.
+    pub gr_cost: u64,
 }
 
 /// Token to consume gas amount.
@@ -426,6 +429,8 @@ pub enum RuntimeCosts {
     CreateProgram(u32, u32),
     /// Weight of calling `gr_create_program_wgas`.
     CreateProgramWGas(u32, u32),
+    /// Weight of calling `gr_cost`.
+    Cost,
 }
 
 impl RuntimeCosts {
@@ -520,6 +525,7 @@ impl RuntimeCosts {
                 payload_len,
                 salt_len,
             ),
+            Cost => s.gr_cost,
         };
         RuntimeToken { weight }
     }

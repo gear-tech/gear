@@ -239,6 +239,9 @@ pub enum ExecutionError {
     /// The error occurs when program's paid block count is maximum.
     #[display(fmt = "Rent block count limit has been reached")]
     MaximumBlockCountPaid = 2,
+    /// The error occurs when invalid cost name given.
+    #[display(fmt = "Invalid cost name")]
+    InvalidCostName = 3,
 }
 
 /// An error occurred in API.

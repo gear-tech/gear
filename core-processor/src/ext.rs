@@ -19,6 +19,7 @@
 use crate::configs::{BlockInfo, PageCosts};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
+    string::String,
     vec::Vec,
 };
 use gear_backend_common::{
@@ -518,6 +519,23 @@ impl EnvExt for Ext {
 
     fn block_timestamp(&self) -> Result<u64, Self::Error> {
         Ok(self.context.block_info.timestamp)
+    }
+
+    fn cost(&self, name: String) -> Result<u128, Self::Error> {
+        let cost: u128 = match name.as_str() {
+            "dispatch_hold" => self.context.dispatch_hold_cost.into(),
+            "mailbox_treshold" => self.context.mailbox_threshold.into(),
+            "rent" => self.context.rent_cost,
+            "reservation" => self.context.reservation.into(),
+            "waitlist" => self.context.waitlist_cost.into(),
+            _ => {
+                return Err(ProcessorError::Core(ExtError::Execution(
+                    ExecutionError::InvalidCostName,
+                )))
+            }
+        };
+
+        Ok(cost)
     }
 
     fn origin(&self) -> Result<gear_core::ids::ProgramId, Self::Error> {

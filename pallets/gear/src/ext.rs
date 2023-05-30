@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::{collections::BTreeSet, string::String, vec::Vec};
 use core_processor::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
@@ -182,6 +182,10 @@ impl EnvExt for LazyPagesExt {
 
     fn origin(&self) -> Result<ProgramId, Self::Error> {
         self.inner.origin()
+    }
+
+    fn cost(&self, name: String) -> Result<u128, Self::Error> {
+        self.inner.cost(name)
     }
 
     fn send_init(&mut self) -> Result<u32, Self::Error> {

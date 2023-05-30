@@ -145,6 +145,7 @@ where
 
         builder.add_func(BlockHeight, Funcs::block_height);
         builder.add_func(BlockTimestamp, Funcs::block_timestamp);
+        builder.add_func(Cost, Funcs::cost);
         builder.add_func(CreateProgram, Funcs::create_program);
         builder.add_func(CreateProgramWGas, Funcs::create_program_wgas);
         builder.add_func(Debug, Funcs::debug);

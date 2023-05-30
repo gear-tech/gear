@@ -96,6 +96,7 @@ pub enum SysCallName {
     OutOfAllowance,
 
     // Miscellaneous
+    Cost,
     Debug,
     Error,
     Random,
@@ -111,6 +112,7 @@ impl SysCallName {
             SysCallName::Alloc => "alloc",
             SysCallName::BlockHeight => "gr_block_height",
             SysCallName::BlockTimestamp => "gr_block_timestamp",
+            SysCallName::Cost => "gr_cost",
             SysCallName::CreateProgram => "gr_create_program",
             SysCallName::CreateProgramWGas => "gr_create_program_wgas",
             SysCallName::Debug => "gr_debug",
