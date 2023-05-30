@@ -25,7 +25,7 @@ mod wasm {
         let value_receiver: ActorId = msg::load().unwrap();
 
         msg::send_bytes_with_gas(value_receiver, [], 50_000, 1_000).unwrap();
-        msg::reply_bytes_with_gas_for_reply([], 30_000, 0)
+        msg::send_bytes_with_gas_for_reply(msg::source(), [], 30_000, 0)
             .unwrap()
             .exactly(Some(super::reply_duration()))
             .unwrap()

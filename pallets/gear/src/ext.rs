@@ -172,15 +172,15 @@ impl EnvExt for LazyPagesExt {
         self.inner.free(page)
     }
 
-    fn block_height(&mut self) -> Result<u32, Self::Error> {
+    fn block_height(&self) -> Result<u32, Self::Error> {
         self.inner.block_height()
     }
 
-    fn block_timestamp(&mut self) -> Result<u64, Self::Error> {
+    fn block_timestamp(&self) -> Result<u64, Self::Error> {
         self.inner.block_timestamp()
     }
 
-    fn origin(&mut self) -> Result<ProgramId, Self::Error> {
+    fn origin(&self) -> Result<ProgramId, Self::Error> {
         self.inner.origin()
     }
 
@@ -219,24 +219,23 @@ impl EnvExt for LazyPagesExt {
         self.inner.reservation_send_commit(id, handle, msg, delay)
     }
 
-    fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
-        self.inner.reply_commit(msg, delay)
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
+        self.inner.reply_commit(msg)
     }
 
     fn reservation_reply_commit(
         &mut self,
         id: ReservationId,
         msg: ReplyPacket,
-        delay: u32,
     ) -> Result<MessageId, Self::Error> {
-        self.inner.reservation_reply_commit(id, msg, delay)
+        self.inner.reservation_reply_commit(id, msg)
     }
 
-    fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
+    fn reply_to(&self) -> Result<MessageId, Self::Error> {
         self.inner.reply_to()
     }
 
-    fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
+    fn signal_from(&self) -> Result<MessageId, Self::Error> {
         self.inner.signal_from()
     }
 
@@ -244,15 +243,15 @@ impl EnvExt for LazyPagesExt {
         self.inner.reply_push_input(offset, len)
     }
 
-    fn source(&mut self) -> Result<ProgramId, Self::Error> {
+    fn source(&self) -> Result<ProgramId, Self::Error> {
         self.inner.source()
     }
 
-    fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
+    fn status_code(&self) -> Result<StatusCode, Self::Error> {
         self.inner.status_code()
     }
 
-    fn message_id(&mut self) -> Result<MessageId, Self::Error> {
+    fn message_id(&self) -> Result<MessageId, Self::Error> {
         self.inner.message_id()
     }
 
@@ -264,11 +263,11 @@ impl EnvExt for LazyPagesExt {
         self.inner.pay_program_rent(program_id, rent)
     }
 
-    fn program_id(&mut self) -> Result<ProgramId, Self::Error> {
+    fn program_id(&self) -> Result<ProgramId, Self::Error> {
         self.inner.program_id()
     }
 
-    fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
+    fn debug(&self, data: &str) -> Result<(), Self::Error> {
         self.inner.debug(data)
     }
 
@@ -276,11 +275,11 @@ impl EnvExt for LazyPagesExt {
         self.inner.read(at, len)
     }
 
-    fn size(&mut self) -> Result<usize, Self::Error> {
+    fn size(&self) -> Result<usize, Self::Error> {
         self.inner.size()
     }
 
-    fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
+    fn random(&self) -> Result<(&[u8], u32), Self::Error> {
         self.inner.random()
     }
 
@@ -296,11 +295,11 @@ impl EnvExt for LazyPagesExt {
         self.inner.system_reserve_gas(amount)
     }
 
-    fn gas_available(&mut self) -> Result<u64, Self::Error> {
+    fn gas_available(&self) -> Result<u64, Self::Error> {
         self.inner.gas_available()
     }
 
-    fn value(&mut self) -> Result<u128, Self::Error> {
+    fn value(&self) -> Result<u128, Self::Error> {
         self.inner.value()
     }
 
@@ -320,7 +319,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.wake(waker_id, delay)
     }
 
-    fn value_available(&mut self) -> Result<u128, Self::Error> {
+    fn value_available(&self) -> Result<u128, Self::Error> {
         self.inner.value_available()
     }
 

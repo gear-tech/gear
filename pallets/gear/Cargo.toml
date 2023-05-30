@@ -162,4 +162,4 @@ runtime-benchmarks = [
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
 lazy-pages = ["gear-lazy-pages-common"]
-fuzz = ["common/fuzz"]
+fuzz = ["pallet-gear-gas/fuzz", "common/fuzz"]

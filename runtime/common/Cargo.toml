@@ -26,6 +26,9 @@ frame-system-benchmarking = { workspace = true, optional = true }
 # Internal deps
 runtime-primitives.workspace = true
 gear-common.workspace = true
+gear-backend-common.workspace = true
+gear-core-processor.workspace = true
+pallet-gear.workspace = true
 
 [features]
 default = ["std"]
@@ -47,7 +50,4 @@ runtime-benchmarks = [
 	"pallet-balances/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
-try-runtime = [
-	"frame-system/try-runtime",
-	"pallet-balances/try-runtime",
-]
+try-runtime = ["frame-system/try-runtime", "pallet-balances/try-runtime"]

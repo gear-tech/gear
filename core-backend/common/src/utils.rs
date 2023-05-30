@@ -87,6 +87,28 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
     }
 }
 
+#[derive(Debug, Copy, Clone, derive_more::Display)]
+pub struct LimitedStr<'a>(&'a str);
+impl<'a> LimitedStr<'a> {
+    const INIT_ERROR_MSG: &'static str = concat!(
+        "String must be less than ",
+        stringify!(TRIMMED_MAX_LEN),
+        " bytes."
+    );
+
+    pub fn new(s: &'a str) -> Result<Self, &'static str> {
+        if s.len() > TRIMMED_MAX_LEN {
+            return Err(Self::INIT_ERROR_MSG);
+        }
+
+        Ok(Self(s))
+    }
+
+    pub fn as_str(&self) -> &'a str {
+        self.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
