@@ -14,7 +14,7 @@ fixtures:
   - title: rwlock wide
 
     messages:
-      - destination: 1 # Waits nothing. Replies with 0
+      - destination: 1      # Waits nothing. Replies with 0
         payload: &get
           kind: utf-8
           value: get
@@ -23,7 +23,7 @@ fixtures:
         payload: &inc
           kind: utf-8
           value: inc
-      
+
       - destination: 1      # Waits nothing. Replies with 1
         payload: *get
 
@@ -36,20 +36,40 @@ fixtures:
         payload: &incNping  # Waits reply from ping-pong
           kind: utf-8
           value: inc&ping
-      
+
       # After &incNping, &pingNget returns 2 instead of 1
 
     expected:
       - log:
+          # 2 auto replies on init of 2 programs
+          - destination: 1000001
+            payload: &auto
+              kind: bytes
+              value: 0x
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+
           - destination: 1000001
             payload:
               kind: i32
               value: 0
 
+          # auto reply from `inc`
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+
           - destination: 1000001
             payload:
               kind: i32
               value: 1
+
+          # auto reply from `inc&ping`
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
 
           - destination: 1000001
             payload:
@@ -61,10 +81,10 @@ fixtures:
     messages:
       - destination: 1
         payload: *incNping
-      
+
       - destination: 1
         payload: *get
-    
+
     expected:
       - step: 0
         messages:
@@ -82,7 +102,7 @@ fixtures:
               kind: utf-8
               value: "PING"
       # *get goes into waitlist
-      - step: 2 
+      - step: 2
         messages:
           - destination: 2
             payload: *ping
@@ -102,10 +122,24 @@ fixtures:
             payload: *get # from waitlist
       - step: 6
         log:
+          # 2 auto replies on init of 2 programs
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+
+          # auto reply from `inc&ping`
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+
           - destination: 1000001
             payload:
               kind: i32
               value: 1
+
 
   - title: write while reading
 
@@ -114,25 +148,25 @@ fixtures:
         payload: &getNping
           kind: utf-8
           value: get&ping
-      
+
       - destination: 1
         payload: *get
-      
+
       - destination: 1
         payload: *inc
-      
+
       # This shows that *inc will await read-guard drop,
       # while another one (with *get) will be created
-    
+
     expected:
       - step: 0
         messages:
         - destination: 1
           payload: *getNping
-        
+
         - destination: 1
           payload: *get
-        
+
         - destination: 1
           payload: *inc
         # *getNping goes in waitlist, locks rwlock on read
@@ -155,19 +189,26 @@ fixtures:
         messages:
           - destination: 2
             payload: *ping
-      
+
       - step: 4
         messages:
           - destination: 1
             payload: *pong
-      
+
       - step: 5
         messages:
           - destination: 1
             payload: *getNping # from waitlist
-      
-      - step: 6
-        log:
+
+      - log:
+          # 2 auto replies on init of 2 programs
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+
           - destination: 1000001
             payload:
               kind: i32
@@ -176,33 +217,53 @@ fixtures:
             payload:
               kind: i32
               value: 0 # should be 0
-        
+
+          # auto reply from `inc`
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+
   - title: forever lock
 
     messages:
       - destination: 1
-        payload: 
+        payload:
           kind: utf-8
           value: panic
-      
+
       # This forever blocks program now.
-      
+
       - destination: 1
         payload: *get
-    
+
     expected:
-      - log: []
+      - log:
+          # 2 auto replies on init of 2 programs
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
 
   - title: check readers
 
     messages:
       - destination: 1
-        payload: 
+        payload:
           kind: utf-8
           value: check readers
-    
+
     expected:
       - log:
+        # 2 auto replies on init of 2 programs
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+        - destination: 1000001
+          payload: *auto
+          statusCode: 0
+
         - destination: 1000001
           payload:
             kind: i32

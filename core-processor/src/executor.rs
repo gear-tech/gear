@@ -292,12 +292,7 @@ where
         AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages);
 
     // Creating message context.
-    let message_context = MessageContext::new(
-        dispatch.message().clone(),
-        program_id,
-        dispatch.context().clone(),
-        msg_ctx_settings,
-    );
+    let message_context = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings);
 
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.value());
@@ -511,18 +506,21 @@ where
         value_counter: ValueCounter::new(Default::default()),
         allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
         message_context: MessageContext::new(
-            IncomingMessage::new(
-                Default::default(),
-                Default::default(),
-                payload
-                    .try_into()
-                    .map_err(|e| format!("Failed to create payload: {e:?}"))?,
-                gas_limit,
-                Default::default(),
-                Default::default(),
+            IncomingDispatch::new(
+                DispatchKind::Handle,
+                IncomingMessage::new(
+                    Default::default(),
+                    Default::default(),
+                    payload
+                        .try_into()
+                        .map_err(|e| format!("Failed to create payload: {e:?}"))?,
+                    gas_limit,
+                    Default::default(),
+                    Default::default(),
+                ),
+                None,
             ),
             program.id(),
-            None,
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info,

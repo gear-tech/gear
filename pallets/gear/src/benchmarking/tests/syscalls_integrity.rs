@@ -29,12 +29,13 @@
 
 use super::*;
 
-use crate::{RentCostPerBlockOf, WaitlistOf};
+use crate::{Event, RentCostPerBlockOf, WaitlistOf};
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
 use gear_core_errors::{ExtError, MessageError};
 use gear_wasm_instrument::syscalls::SysCallName;
 use pallet_timestamp::Pallet as TimestampPallet;
+use parity_scale_codec::Decode;
 use sp_runtime::SaturatedConversion;
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
 
@@ -218,7 +219,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
         let mp = vec![Kind::ReservationReply(expected_mid.into())]
             .encode()
@@ -237,14 +238,15 @@ where
         let payload = b"HI_RRC!!";
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
         let post_test = move || {
-            assert!(
-                MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_mid && m.payload() == payload.to_vec()),
-                "No message with expected id found in queue"
-            );
+            let source = ProgramId::from_origin(default_sender.into_origin());
+            assert!(SystemPallet::<T>::events().into_iter().any(|e| {
+                let bytes = e.event.encode();
+                let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
+                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_mid && message.payload() == payload && message.destination() == source)
+            }), "No message with expected id found in events");
         };
 
         let mp = vec![Kind::ReservationReplyCommit(
@@ -561,7 +563,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
         let mp = vec![Kind::Reply(gas, expected_mid.into())].encode().into();
 
@@ -579,14 +581,15 @@ where
         let payload = b"HI_RR!!";
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_reply(next_user_mid);
 
         let post_test = move || {
-            assert!(
-                MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_mid && m.payload() == payload.to_vec()),
-                "No message with expected id found in queue"
-            );
+            let source = ProgramId::from_origin(default_sender.into_origin());
+            assert!(SystemPallet::<T>::events().into_iter().any(|e| {
+                let bytes = e.event.encode();
+                let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
+                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_mid && message.payload() == payload && message.destination() == source)
+            }), "No message with expected id found in events");
         };
 
         let mp = vec![Kind::ReplyRaw(payload.to_vec(), gas, expected_mid.into())]
@@ -606,17 +609,18 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_message_id = MessageId::generate_reply(next_message_id, 0);
+        let expected_message_id = MessageId::generate_reply(next_message_id);
 
         let payload = vec![Kind::ReplyInput(gas, expected_message_id.into())].encode();
         let message = payload.clone().into();
 
         let post_test = move || {
-            assert!(
-                MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_message_id && m.payload() == payload),
-                "No message with expected id found in queue"
-            );
+            let source = ProgramId::from_origin(default_sender.into_origin());
+            assert!(SystemPallet::<T>::events().into_iter().any(|e| {
+                let bytes = e.event.encode();
+                let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
+                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_message_id && message.payload() == payload && message.destination() == source)
+            }), "No message with expected id found in events");
         };
 
         (TestCall::send_message(message), Some(post_test))
@@ -632,17 +636,18 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_message_id = MessageId::generate_reply(next_message_id, 0);
+        let expected_message_id = MessageId::generate_reply(next_message_id);
 
         let payload = vec![Kind::ReplyPushInput(expected_message_id.into())].encode();
         let message = payload.clone().into();
 
         let post_test = move || {
-            assert!(
-                MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_message_id && m.payload() == payload),
-                "No message with expected id found in queue"
-            );
+            let source = ProgramId::from_origin(default_sender.into_origin());
+            assert!(SystemPallet::<T>::events().into_iter().any(|e| {
+                let bytes = e.event.encode();
+                let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
+                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_message_id && message.payload() == payload && message.destination() == source)
+            }), "No message with expected id found in events");
         };
 
         (TestCall::send_message(message), Some(post_test))
@@ -658,7 +663,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
 
         // trigger sending message to default_sender's mailbox
         Gear::<T>::send_message(
@@ -696,7 +701,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid, 0);
+        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
 
         // setup signal details
         Gear::<T>::send_message(
