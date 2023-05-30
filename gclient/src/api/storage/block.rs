@@ -18,9 +18,7 @@
 
 use super::{GearApi, Result};
 use crate::Error;
-use gsdk::{
-    config::GearConfig, ext::sp_core::H256, metadata::runtime_types::gear_runtime::RuntimeEvent,
-};
+use gsdk::{config::GearConfig, ext::sp_core::H256, metadata::gear_runtime::RuntimeEvent};
 use subxt::{config::Header, rpc::types::ChainBlock};
 
 type GearBlock = ChainBlock<GearConfig>;
