@@ -412,12 +412,10 @@ mod test {
             .validate(true)
             .write_debug_names(true)
             .convert(wat)
-            .expect("failed to parse module")
-            .as_ref()
-            .to_vec();
+            .expect("failed to parse module");
 
         let mut module =
-            elements::deserialize_buffer(&binary).expect("failed to deserialize binary");
+            elements::deserialize_buffer(binary.as_ref()).expect("failed to deserialize binary");
         insert_stack_end_export(&mut module).expect("insert_stack_end_export failed");
 
         let gear_stack_end = module
