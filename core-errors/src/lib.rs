@@ -151,6 +151,10 @@ pub enum MessageError {
     /// An error occurs in attempt to charge gas for dispatch stash hold.
     #[display(fmt = "Not enough gas to hold dispatch message")]
     InsufficientGasForDelayedSending = 16,
+
+    /// An error occurs in attempt to send or push reply while reply function is banned.
+    #[display(fmt = "Reply sending is only allowed in `init` and `handle` functions")]
+    IncorrectEntryForReply = 17,
 }
 
 /// Error using waiting syscalls.
@@ -166,6 +170,8 @@ pub enum WaitError {
     /// An error occurs in attempt to wait duration greater than could be paid.
     #[display(fmt = "Provided incorrect argument for wait (zero case)")]
     InvalidArgument = 1,
+    /// An error occurs in attempt to wait after reply sent.
+    WaitAfterReply = 2,
 }
 
 /// Memory error.

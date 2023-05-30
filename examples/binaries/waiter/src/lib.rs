@@ -43,12 +43,18 @@ pub fn default_wait_up_to_duration() -> u32 {
 }
 
 #[derive(Debug, Encode, Decode)]
-pub enum Command {
+pub enum WaitSubcommand {
     Wait,
     WaitFor(u32),
     WaitUpTo(u32),
+}
+
+#[derive(Debug, Encode, Decode)]
+pub enum Command {
+    Wait(WaitSubcommand),
     SendFor(ActorId, u32),
     SendUpTo(ActorId, u32),
     SendUpToWait(ActorId, u32),
     SendAndWaitFor(u32, ActorId),
+    ReplyAndWait(WaitSubcommand),
 }

@@ -63,14 +63,14 @@ pub trait Ext {
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError>;
 
     /// Get the current block height.
-    fn block_height(&mut self) -> Result<u32, Self::Error>;
+    fn block_height(&self) -> Result<u32, Self::Error>;
 
     /// Get the current block timestamp.
-    fn block_timestamp(&mut self) -> Result<u64, Self::Error>;
+    fn block_timestamp(&self) -> Result<u64, Self::Error>;
 
     /// Get the id of the user who initiated communication with blockchain,
     /// during which, currently processing message was created.
-    fn origin(&mut self) -> Result<ProgramId, Self::Error>;
+    fn origin(&self) -> Result<ProgramId, Self::Error>;
 
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<u32, Self::Error>;
@@ -119,19 +119,18 @@ pub trait Ext {
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error>;
 
     /// Complete reply message and send it to source program.
-    fn reply_commit(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error>;
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error>;
 
     /// Complete reply message and send it to source program from reservation.
     fn reservation_reply_commit(
         &mut self,
         id: ReservationId,
         msg: ReplyPacket,
-        delay: u32,
     ) -> Result<MessageId, Self::Error>;
 
     /// Produce reply to the current message.
-    fn reply(&mut self, msg: ReplyPacket, delay: u32) -> Result<MessageId, Self::Error> {
-        self.reply_commit(msg, delay)
+    fn reply(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
+        self.reply_commit(msg)
     }
 
     /// Produce reply to the current message from reservation.
@@ -139,28 +138,27 @@ pub trait Ext {
         &mut self,
         id: ReservationId,
         msg: ReplyPacket,
-        delay: u32,
     ) -> Result<MessageId, Self::Error> {
-        self.reservation_reply_commit(id, msg, delay)
+        self.reservation_reply_commit(id, msg)
     }
 
     /// Get the message id of the initial message.
-    fn reply_to(&mut self) -> Result<MessageId, Self::Error>;
+    fn reply_to(&self) -> Result<MessageId, Self::Error>;
 
     /// Get the message id which signal issues from.
-    fn signal_from(&mut self) -> Result<MessageId, Self::Error>;
+    fn signal_from(&self) -> Result<MessageId, Self::Error>;
 
     /// Push the incoming message buffer into reply message.
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error>;
 
     /// Get the source of the message currently being handled.
-    fn source(&mut self) -> Result<ProgramId, Self::Error>;
+    fn source(&self) -> Result<ProgramId, Self::Error>;
 
     /// Get the status code of the message being processed.
-    fn status_code(&mut self) -> Result<StatusCode, Self::Error>;
+    fn status_code(&self) -> Result<StatusCode, Self::Error>;
 
     /// Get the id of the message currently being handled.
-    fn message_id(&mut self) -> Result<MessageId, Self::Error>;
+    fn message_id(&self) -> Result<MessageId, Self::Error>;
 
     /// Pay rent for the specified program.
     fn pay_program_rent(
@@ -170,22 +168,22 @@ pub trait Ext {
     ) -> Result<(u128, u32), Self::Error>;
 
     /// Get the id of program itself
-    fn program_id(&mut self) -> Result<ProgramId, Self::Error>;
+    fn program_id(&self) -> Result<ProgramId, Self::Error>;
 
     /// Send debug message.
     ///
     /// This should be no-op in release builds.
-    fn debug(&mut self, data: &str) -> Result<(), Self::Error>;
+    fn debug(&self, data: &str) -> Result<(), Self::Error>;
 
     // TODO: remove GasLeft from result #2380
     /// Access currently handled message payload.
     fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error>;
 
     /// Size of currently handled message payload.
-    fn size(&mut self) -> Result<usize, Self::Error>;
+    fn size(&self) -> Result<usize, Self::Error>;
 
     /// Returns a random seed for the current block with message id as a subject, along with the time in the past since when it was determinable by chain observers.
-    fn random(&mut self) -> Result<(&[u8], u32), Self::Error>;
+    fn random(&self) -> Result<(&[u8], u32), Self::Error>;
 
     /// Reserve some gas for a few blocks.
     fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error>;
@@ -197,13 +195,13 @@ pub trait Ext {
     fn system_reserve_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
     /// Tell how much gas is left in running context.
-    fn gas_available(&mut self) -> Result<u64, Self::Error>;
+    fn gas_available(&self) -> Result<u64, Self::Error>;
 
     /// Value associated with message.
-    fn value(&mut self) -> Result<u128, Self::Error>;
+    fn value(&self) -> Result<u128, Self::Error>;
 
     /// Tell how much value is left in running context.
-    fn value_available(&mut self) -> Result<u128, Self::Error>;
+    fn value_available(&self) -> Result<u128, Self::Error>;
 
     /// Interrupt the program and reschedule execution for maximum.
     fn wait(&mut self) -> Result<(), Self::Error>;

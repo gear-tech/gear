@@ -325,7 +325,7 @@ jobs:
 
       - name: "Coverage: Publish"
         if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3
         with:
           file: ./lcov.info
 
@@ -424,8 +424,8 @@ jobs:
       - name: "Install: Pin to specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         run: |
-          rm -r $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
-          mv $env:USERPROFILE\.rustup\toolchains\nightly-$env:NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc
+          $(Get-Item $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc).Delete()
+          New-Item -Path $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc -ItemType SymbolicLink -Value $env:USERPROFILE\.rustup\toolchains\nightly-$env:NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc
         shell: powershell
 
       - name: "Install: cargo-nextest"

@@ -62,6 +62,7 @@ impl CliConfiguration for RuntimeTestCmd {
 }
 
 #[cfg(any(feature = "gear-native", feature = "vara-native"))]
+#[track_caller]
 macro_rules! command {
     () => {
         pub(crate) fn run(param: &RuntimeTestCmd) -> sc_cli::Result<()> {

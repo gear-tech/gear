@@ -64,7 +64,8 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             log::debug!(
-                "QueueProcessing message: {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
+                "QueueProcessing message ({:?}): {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
+                dispatch.kind(),
                 dispatch.id(),
                 dispatch.destination(),
                 gas_limit,

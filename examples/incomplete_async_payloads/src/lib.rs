@@ -60,22 +60,6 @@ async fn main() {
             msg::reply_push(b"OK REPLY").unwrap();
             msg::reply_commit(0).unwrap();
         }
-        "reply twice" => {
-            debug!("reply twice processing");
-
-            msg::reply_bytes("FIRST", 0).unwrap();
-
-            let _ = msg::send_bytes_for_reply(unsafe { DEMO_PING }, b"PING", 0)
-                .unwrap()
-                .await
-                .expect("Error in async message processing");
-
-            debug!("reply twice processing awaken");
-
-            // Won't be sent, because one
-            // execution allows only one reply
-            msg::reply_bytes("SECOND", 0).unwrap();
-        }
         _ => {}
     }
 }
