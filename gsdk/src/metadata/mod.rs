@@ -20,11 +20,15 @@
 #![allow(clippy::all)]
 #![allow(unused)]
 
+pub mod errors;
 mod generated;
 mod impls;
 
-pub use generated::runtime_types::runtime_types::{
-    self, vara_runtime as gear_runtime, vara_runtime::RuntimeEvent as Event,
+pub use self::{
+    errors::ModuleError,
+    generated::runtime_types::runtime_types::{
+        self, vara_runtime as gear_runtime, vara_runtime::RuntimeEvent as Event,
+    },
 };
 
 pub mod system {

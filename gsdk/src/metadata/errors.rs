@@ -33,7 +33,7 @@ macro_rules! export_module_error {
         )*
 
         /// Common error type for runtime modules.
-        #[derive(Debug, PartialEq, Eq)]
+        #[derive(Debug)]
         pub enum ModuleError {
             $($error($error)),*,
             Unknown {
