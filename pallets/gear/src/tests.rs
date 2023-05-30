@@ -3045,10 +3045,14 @@ fn block_gas_limit_works() {
         // program1 sends message to a user and it goes to the TaskPool
         let weight = minimal_weight + tasks_add_weight;
         // both processed if gas allowance equals only burned count
-        run_to_next_block(Some(weight.ref_time() + gas1.burned + gas2.burned));
+        run_to_next_block(Some(weight.ref_time() + gas1.burned + gas2.burned + 1));
         assert_last_dequeued(2);
+        assert_eq!(GasAllowanceOf::<Test>::get(), 1);
 
         // =========== BLOCK 5 ============
+        let (gas1, gas2) = calc_gas();
+        // Check that gas allowance has not changed after calc_gas execution
+        assert_eq!(GasAllowanceOf::<Test>::get(), 1);
 
         send_with_min_limit_to(pid1, &gas1);
         send_with_min_limit_to(pid2, &gas2);
@@ -11090,6 +11094,58 @@ fn reject_incorrect_stack_pointer() {
         assert_noop!(
             upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(&wat)),
             Error::<Test>::ProgramConstructionFailed
+        );
+    });
+}
+
+#[test]
+fn calculate_gas_fails_when_calculation_limit_exceeded() {
+    use demo_reserve_gas::{HandleAction as Command, InitAction as Init, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Init::Normal(vec![]).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("Program uploading failed");
+
+        run_to_next_block(None);
+
+        // Make reservations exceeding calculation gas limit of 5 blocks.
+        for _i in 0..6 {
+            Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                // 96% of block gas limit
+                Command::AddReservationToList(BlockGasLimitOf::<Test>::get() / 100 * 96, 10)
+                    .encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            )
+            .expect("Making reservation failed");
+        }
+
+        run_to_next_block(None);
+
+        let gas_info_result = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            Command::ConsumeReservationsFromList.encode(),
+            0,
+            true,
+            true,
+        );
+
+        assert!(gas_info_result.is_err());
+        assert_eq!(
+            gas_info_result.unwrap_err(),
+            "Calculation gas limit exceeded. Consider using custom built node."
         );
     });
 }
