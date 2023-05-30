@@ -368,7 +368,7 @@ demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
 cfg-if = "1.0.0"                                                          # gear-lazy-pages
-cargo_metadata = "0.15.3"                                                 # utils/wasm-builder
+cargo_metadata = "=0.15.3"                                                 # utils/wasm-builder
 errno = "0.3"                                                             # gear-lazy-pages
 impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
 indicatif = "*"                                                           # utils/wasm-gen
