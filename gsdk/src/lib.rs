@@ -41,7 +41,7 @@ pub mod types;
 mod utils;
 pub mod ext {
     pub use sp_core;
-    pub use sp_runtime;
+    pub use sp_runtime::{self, codec, scale_info};
 }
 
 pub type BlockNumber = u32;

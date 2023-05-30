@@ -20,11 +20,11 @@
 use crate::{
     config::GearConfig,
     metadata::{
+        gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call,
             gear_common::{ActiveProgram, Program},
             gear_core::code::InstrumentedCode,
-            gear_runtime::RuntimeCall,
             sp_weights::weight_v2::Weight,
         },
         sudo::Event as SudoEvent,
