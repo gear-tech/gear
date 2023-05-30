@@ -385,13 +385,13 @@ fn append_set_global_function(module: Module, offset: u32, data_len: usize) -> M
 
 #[cfg(test)]
 mod test {
-    use core::panic;
-
     use super::{
         insert_stack_end_export, insert_start_call_in_export_funcs, move_mut_globals_to_static,
         STACK_END_EXPORT_NAME,
     };
     use pwasm_utils::parity_wasm;
+    use wabt::Wat2Wasm;
+    use wasmi::{core::Value, Engine, Linker, Memory, MemoryType, Store};
 
     #[test]
     fn assembly_script_stack_pointer() {
@@ -408,7 +408,7 @@ mod test {
             (func $init)
         )"#;
 
-        let binary = wabt::Wat2Wasm::new()
+        let binary = Wat2Wasm::new()
             .validate(true)
             .write_debug_names(true)
             .convert(wat)
@@ -452,27 +452,36 @@ mod test {
             )
         )"#;
 
-        let wasm_bytes = wasmer::wat2wasm(wat.as_bytes()).unwrap().to_vec();
-        let mut store = wasmer::Store::default();
+        let binary = Wat2Wasm::new()
+            .validate(true)
+            .write_debug_names(true)
+            .convert(wat)
+            .expect("failed to parse module");
 
-        let mut check = |wasm_bytes, expected_return| {
-            let module = wasmer::Module::new(&store, wasm_bytes).unwrap();
-            let imports = wasmer::imports! {};
-            let instance = wasmer::Instance::new(&mut store, &module, &imports).unwrap();
-            let res = instance
-                .exports
-                .get_function("handle")
+        let check = |binary, expected| {
+            let mut store: Store<()> = Store::new(&Engine::default(), ());
+            let mut linker: Linker<()> = Linker::new();
+            let module = wasmi::Module::new(store.engine(), binary).unwrap();
+            let mut outputs = [Value::I32(-1)];
+            linker
+                .instantiate(&mut store, &module)
                 .unwrap()
-                .call(&mut store, &[wasmer::Value::I32(1)])
+                .ensure_no_start(&mut store)
+                .unwrap()
+                .get_export(&store, "handle")
+                .unwrap()
+                .into_func()
+                .unwrap()
+                .call(&mut store, &[Value::I32(1)], &mut outputs)
                 .unwrap();
-            assert_eq!(res[0], wasmer::Value::I32(expected_return));
+            assert_eq!(outputs[0], Value::I32(expected));
         };
 
-        // First check that it works correct without changes.
-        check(&wasm_bytes, 11);
+        // Check that works without changes
+        check(binary.as_ref(), 11);
 
         // Insert `_start` call in `handle` code and check that it works as expected.
-        let mut module = parity_wasm::deserialize_buffer(&wasm_bytes).unwrap();
+        let mut module = parity_wasm::deserialize_buffer(binary.as_ref()).unwrap();
         insert_start_call_in_export_funcs(&mut module).unwrap();
         check(&module.to_bytes().unwrap(), 12);
     }
@@ -498,57 +507,60 @@ mod test {
                 global.set $g2
                 global.get $g1
             )
-            (func $init)
         )"#;
 
-        let wasm_bytes = wasmer::wat2wasm(wat.as_bytes()).unwrap().to_vec();
-        let mut store = wasmer::Store::default();
+        let binary = Wat2Wasm::new()
+            .validate(true)
+            .write_debug_names(true)
+            .convert(wat)
+            .expect("failed to parse module");
 
-        let mut check = |wasm_bytes, expected_return1, expected_return2| {
-            let module = wasmer::Module::new(&store, wasm_bytes).unwrap();
-            let imports = wasmer::imports! {
-                "env" => {
-                    "memory" => wasmer::Memory::new(&mut store, wasmer::MemoryType::new(1, None, false)).unwrap(),
-                },
-            };
-            let instance = wasmer::Instance::new(&mut store, &module, &imports).unwrap();
-            let res = instance
-                .exports
-                .get_function("handle")
+        let check = |binary, expected1, expected2| {
+            let mut store: Store<()> = Store::new(&Engine::default(), ());
+            let module = wasmi::Module::new(store.engine(), binary).unwrap();
+            let memory = Memory::new(&mut store, MemoryType::new(1, None)).unwrap();
+
+            let mut linker: Linker<()> = Linker::new();
+            linker.define("env", "memory", memory).unwrap();
+
+            let mut outputs = [Value::I32(-1)];
+            linker
+                .instantiate(&mut store, &module)
                 .unwrap()
-                .call(&mut store, &[wasmer::Value::I32(1)])
+                .ensure_no_start(&mut store)
+                .unwrap()
+                .get_export(&store, "handle")
+                .unwrap()
+                .into_func()
+                .unwrap()
+                .call(&mut store, &[Value::I32(1)], &mut outputs)
                 .unwrap();
-            assert_eq!(res[0], wasmer::Value::I32(expected_return1));
+            assert_eq!(outputs[0], Value::I32(expected1));
 
             let mut data = vec![0u8; 0x10000];
-            if let wasmer::Extern::Memory(memory) = imports.get_export("env", "memory").unwrap() {
-                memory.view(&store).read(0, data.as_mut_slice()).unwrap();
-            } else {
-                panic!("`memory` must be memory");
-            };
-
-            let instance = wasmer::Instance::new(&mut store, &module, &imports).unwrap();
-            if let wasmer::Extern::Memory(memory) = imports.get_export("env", "memory").unwrap() {
-                memory.view(&store).write(0, &data).unwrap();
-            } else {
-                panic!("`memory` must be memory");
-            };
-
-            let res = instance
-                .exports
-                .get_function("handle")
+            memory.read(&store, 0, data.as_mut_slice()).unwrap();
+            let instance = linker
+                .instantiate(&mut store, &module)
                 .unwrap()
-                .call(&mut store, &[wasmer::Value::I32(1)])
+                .ensure_no_start(&mut store)
                 .unwrap();
-            assert_eq!(res[0], wasmer::Value::I32(expected_return2))
+            memory.write(&mut store, 0, &data).unwrap();
+            instance
+                .get_export(&store, "handle")
+                .unwrap()
+                .into_func()
+                .unwrap()
+                .call(&mut store, &[Value::I32(1)], &mut outputs)
+                .unwrap();
+            assert_eq!(outputs[0], Value::I32(expected2));
         };
 
         // First check that it works correct without changes.
-        check(&wasm_bytes, 111, 111);
+        check(binary.as_ref(), 111, 111);
 
         // Then check that after moving globals to static memory, globals will changed
         // their values after first execution, and second execution will return another result.
-        let mut module = parity_wasm::deserialize_buffer(&wasm_bytes).unwrap();
+        let mut module = parity_wasm::deserialize_buffer(binary.as_ref()).unwrap();
         move_mut_globals_to_static(&mut module).unwrap();
         check(&module.to_bytes().unwrap(), 111, 113);
     }

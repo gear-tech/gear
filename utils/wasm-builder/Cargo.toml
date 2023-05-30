@@ -26,11 +26,10 @@ wasm-opt = { workspace = true, optional = true }
 wasmparser.workspace = true
 regex.workspace = true
 filetime = "0.2"
-wasmprinter = "0.2"
 
 [dev-dependencies]
 wabt.workspace = true
-wasmer = { version = "3", features = ["singlepass"]}
+wasmi = {workspace = true, features = ["std"]}
 
 [features]
 metawasm = ["gmeta/codegen"]
