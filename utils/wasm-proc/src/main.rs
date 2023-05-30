@@ -104,7 +104,7 @@ struct Args {
     insert_stack_end: bool,
 
     #[arg(long)]
-    as_script: bool,
+    assembly_script: bool,
 
     /// Strip custom sections of wasm binaries, enabled by default.
     #[arg(long, default_value = "true")]
@@ -149,14 +149,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let Args {
         path: wasm_files,
         mut insert_stack_end,
-        as_script,
+        assembly_script,
         strip_custom_sections,
         check_runtime_imports,
         verbose,
         legacy_meta,
     } = Args::parse();
 
-    if as_script && insert_stack_end {
+    if assembly_script && insert_stack_end {
         log::debug!("Skip inserting stack end export, when as-script is enabled");
         insert_stack_end = false;
     }
@@ -185,7 +185,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let optimized_wasm_path = original_wasm_path.clone().with_extension("opt.wasm");
 
         // Make pre-handle if input wasm has been builded from as-script
-        let wasm_path = if as_script {
+        let wasm_path = if assembly_script {
             let mut optimizer = Optimizer::new(original_wasm_path.clone())?;
             optimizer
                 .insert_start_call_in_export_funcs()
