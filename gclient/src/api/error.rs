@@ -19,7 +19,7 @@
 use anyhow::Error as AError;
 use gsdk::testing::Error as NodeError;
 use std::{io::Error as IOError, result::Result as StdResult};
-use subxt::error::Error as SubxtError;
+use subxt::error::{DispatchError, Error as SubxtError};
 
 /// `Result` type with a predefined error type ([`Error`]).
 pub type Result<T = (), E = Error> = StdResult<T, E>;
@@ -41,7 +41,7 @@ pub enum Error {
     EventsStopped,
     /// A wrapper around [`subxt::error::Error`].
     #[error(transparent)]
-    Subxt(#[from] SubxtError),
+    Subxt(SubxtError),
     /// Occurs when an event of the expected type cannot be found.
     #[error("Expected event wasn't found")]
     EventNotFound,
@@ -95,4 +95,81 @@ pub enum Error {
     /// Occurs when parsing domain url failed.
     #[error(transparent)]
     Url(#[from] url::ParseError),
+    /// A wrapper of module error [`gsdk::metadata::ModuleError`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use gclient::{
+    ///     errors::{self, ModuleError},
+    ///     Error,
+    /// };
+    /// use subxt::{
+    ///     error::{DispatchError, ModuleError as SubxtModuleError, ModuleErrorData},
+    ///     Error as SubxtError,
+    /// };
+    ///
+    /// let error: Error = SubxtError::Runtime(DispatchError::Module(SubxtModuleError {
+    ///     error_data: ModuleErrorData {
+    ///         pallet_index: 14,
+    ///         error: [3, 0, 0, 0],
+    ///     },
+    ///     description: vec![],
+    ///     pallet: "".into(),
+    ///     error: "".into(),
+    /// }))
+    /// .into();
+    ///
+    /// assert!(matches!(
+    ///     error,
+    ///     Error::Module(ModuleError::Treasury(
+    ///         errors::Treasury::InsufficientPermission
+    ///     ))
+    /// ));
+    /// ```
+    #[error(transparent)]
+    Module(gsdk::metadata::ModuleError),
+}
+
+impl From<SubxtError> for Error {
+    fn from(e: SubxtError) -> Self {
+        if let SubxtError::Runtime(DispatchError::Module(m)) = e {
+            return Error::Module(m.into());
+        }
+
+        Error::Subxt(e)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        errors::{self, ModuleError},
+        Error,
+    };
+    use subxt::{
+        error::{DispatchError, ModuleError as SubxtModuleError, ModuleErrorData},
+        Error as SubxtError,
+    };
+
+    #[test]
+    fn test_parsing_module_error() {
+        let error: Error = SubxtError::Runtime(DispatchError::Module(SubxtModuleError {
+            error_data: ModuleErrorData {
+                pallet_index: 14,
+                error: [3, 0, 0, 0],
+            },
+            description: vec![],
+            pallet: "".into(),
+            error: "".into(),
+        }))
+        .into();
+
+        assert!(matches!(
+            error,
+            Error::Module(ModuleError::Treasury(
+                errors::Treasury::InsufficientPermission
+            ))
+        ));
+    }
 }
