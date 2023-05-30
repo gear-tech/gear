@@ -1,8 +1,56 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #![allow(dead_code, unused_imports, non_camel_case_types)]
 #![allow(clippy::all)]
 #![allow(unused)]
 
+pub mod errors;
 mod impls;
+
+pub use errors::ModuleError;
+
+pub static PALLETS: [&str; 24usize] = [
+    "System",
+    "Grandpa",
+    "Balances",
+    "Vesting",
+    "TransactionPayment",
+    "BagsList",
+    "ImOnline",
+    "Staking",
+    "Session",
+    "Treasury",
+    "ConvictionVoting",
+    "Referenda",
+    "FellowshipCollective",
+    "FellowshipReferenda",
+    "Whitelist",
+    "Sudo",
+    "Scheduler",
+    "Preimage",
+    "Identity",
+    "Utility",
+    "Gear",
+    "StakingRewards",
+    "Airdrop",
+    "GearDebug",
+];
 
 #[derive(:: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug)]
 pub enum Event {
@@ -427,9 +475,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 InvalidSpecName,
@@ -1064,9 +1115,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 InvalidEquivocationProof,
@@ -1091,7 +1145,11 @@ pub mod runtime_types {
                 pub tail: ::core::option::Option<::sp_runtime::AccountId32>,
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
             pub enum ListError {
                 #[codec(index = 0)]
@@ -1131,9 +1189,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 List(runtime_types::pallet_bags_list::list::ListError),
@@ -1205,9 +1266,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 VestingBalance,
@@ -1382,9 +1446,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 NotOngoing,
@@ -1555,9 +1622,12 @@ pub mod runtime_types {
                 set_execute_inherent { value: ::core::primitive::bool },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 MessageNotFound,
@@ -1819,9 +1889,12 @@ pub mod runtime_types {
         pub mod pallet {
             use super::runtime_types;
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 Forbidden,
@@ -1859,9 +1932,12 @@ pub mod runtime_types {
         pub mod pallet {
             use super::runtime_types;
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 QueueDuplicateKey,
@@ -1903,9 +1979,12 @@ pub mod runtime_types {
         pub mod pallet {
             use super::runtime_types;
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 DuplicateItem,
@@ -1923,9 +2002,12 @@ pub mod runtime_types {
         pub mod pallet {
             use super::runtime_types;
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 DuplicateTask,
@@ -1964,9 +2046,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 FailureToRefillPool,
@@ -2023,9 +2108,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 PauseFailed,
@@ -2170,9 +2258,12 @@ pub mod runtime_types {
                 quit_sub,
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 TooManySubAccounts,
@@ -2456,9 +2547,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 InvalidKey,
@@ -2544,9 +2638,12 @@ pub mod runtime_types {
                 unrequest_preimage { hash: ::subxt::utils::H256 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 TooBig,
@@ -2627,9 +2724,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 AlreadyMember,
@@ -2734,9 +2834,12 @@ pub mod runtime_types {
                 refund_submission_deposit { index: ::core::primitive::u32 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 NotOngoing,
@@ -3014,9 +3117,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 FailedToSchedule,
@@ -3096,9 +3202,12 @@ pub mod runtime_types {
                 purge_keys,
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 InvalidProof,
@@ -3282,9 +3391,12 @@ pub mod runtime_types {
                     Remove,
                 }
                 #[derive(
-                    :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                    :: subxt :: ext :: codec :: Decode,
+                    :: subxt :: ext :: codec :: Encode,
+                    Debug,
+                    PartialEq,
+                    Eq,
                 )]
-
                 pub enum Error {
                     #[codec(index = 0)]
                     NotController,
@@ -3549,9 +3661,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 RequireSudo,
@@ -3660,9 +3775,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 InsufficientProposersBalance,
@@ -3768,9 +3886,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 TooManyCalls,
@@ -3841,9 +3962,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 NotVesting,
@@ -3914,9 +4038,12 @@ pub mod runtime_types {
                 },
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
-
             pub enum Error {
                 #[codec(index = 0)]
                 UnavailablePreImage,
@@ -3984,7 +4111,11 @@ pub mod runtime_types {
                     ::std::vec::Vec<runtime_types::pallet_gear_debug::pallet::ProgramDetails>,
             }
             #[derive(
-                :: subxt :: ext :: codec :: Decode, :: subxt :: ext :: codec :: Encode, Debug,
+                :: subxt :: ext :: codec :: Decode,
+                :: subxt :: ext :: codec :: Encode,
+                Debug,
+                PartialEq,
+                Eq,
             )]
             #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
             pub enum Error {}
