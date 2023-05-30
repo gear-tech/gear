@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gas;
-use frame_support::{construct_runtime, parameter_types};
+use frame_support::{construct_runtime, parameter_types, weights::constants::RocksDbWeight};
 use frame_system as system;
 use primitive_types::H256;
 use sp_runtime::{
@@ -44,6 +44,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system,
+        GearMessenger: pallet_gear_messenger,
         Gas: pallet_gas,
         Balances: pallet_balances,
     }
@@ -71,7 +72,7 @@ impl system::Config for Test {
     type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = ();
     type BlockLength = ();
-    type DbWeight = ();
+    type DbWeight = RocksDbWeight;
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
     type Index = u64;
@@ -92,6 +93,15 @@ impl system::Config for Test {
     type SS58Prefix = SS58Prefix;
     type OnSetCode = ();
     type MaxConsumers = frame_support::traits::ConstU32<16>;
+}
+
+parameter_types! {
+    pub const GearBlockNumber: BlockNumber = 100;
+}
+
+impl pallet_gear_messenger::Config for Test {
+    type BlockLimiter = Gas;
+    type CurrentBlockNumber = GearBlockNumber;
 }
 
 impl pallet_gas::Config for Test {

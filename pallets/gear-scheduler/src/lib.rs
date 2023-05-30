@@ -51,14 +51,14 @@ pub mod pallet {
         traits::{Get, StorageVersion},
     };
     use frame_system::pallet_prelude::*;
-    use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, marker::PhantomData};
+    use sp_std::{convert::TryInto, marker::PhantomData};
 
     pub type Cost = u64;
 
     pub(crate) type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
     /// The current storage version.
-    const SCHEDULER_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+    const SCHEDULER_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
     // Gear Scheduler Pallet's `Config`.
     #[pallet::config]
@@ -127,14 +127,6 @@ pub mod pallet {
     /// Task type of the scheduler.
     type Task<T> = ScheduledTask<AccountId<T>>;
 
-    // BTreeSet used to exclude duplicates and always keep collection sorted.
-    /// Missed blocks collection type.
-    ///
-    /// Defines block number, which should already contain no tasks,
-    /// because they were processed before.
-    /// Missed blocks processing prioritized.
-    type MissedBlocksCollection<T> = BTreeSet<BlockNumberFor<T>>;
-
     // Below goes storages and their gear's wrapper implementations.
     //
     // Note, that we declare storages private to avoid outside
@@ -144,15 +136,15 @@ pub mod pallet {
 
     // ----
 
-    // Private storage for missed blocks collection.
+    // Private storage for the first block of incomplete tasks.
     #[pallet::storage]
-    type MissedBlocks<T> = StorageValue<_, MissedBlocksCollection<T>>;
+    pub(crate) type FirstIncompleteTasksBlock<T> = StorageValue<_, BlockNumberFor<T>>;
 
-    // Public wrap of the missed blocks collection.
+    // Public wrap for storage of the first block of incomplete tasks.
     common::wrap_storage_value!(
-        storage: MissedBlocks,
-        name: MissedBlocksWrap,
-        value: MissedBlocksCollection<T>
+        storage: FirstIncompleteTasksBlock,
+        name: FirstIncompleteTasksBlockWrap,
+        value: BlockNumberFor<T>
     );
 
     // ----
@@ -251,6 +243,17 @@ pub mod pallet {
         fn dispatch_stash() -> Self::Cost {
             T::DispatchHoldCost::get()
         }
+
+        fn by_storage_type(storage: StorageType) -> Self::Cost {
+            match storage {
+                StorageType::Code => Self::code(),
+                StorageType::Mailbox => Self::mailbox(),
+                StorageType::Program => Self::program(),
+                StorageType::Waitlist => Self::waitlist(),
+                StorageType::Reservation => Self::reservation(),
+                StorageType::DispatchStash => Self::dispatch_stash(),
+            }
+        }
     }
 
     // Below goes final `Scheduler` implementation for
@@ -269,13 +272,12 @@ pub mod pallet {
         type BlockNumber = BlockNumberFor<T>;
         type Task = Task<T>;
         type Cost = u64;
-        type MissedBlocksCollection = MissedBlocksCollection<T>;
         type Error = Error<T>;
         type OutputError = DispatchError;
 
         type CostsPerBlock = Self;
 
-        type MissedBlocks = MissedBlocksWrap<T>;
+        type FirstIncompleteTasksBlock = FirstIncompleteTasksBlockWrap<T>;
 
         type TaskPool = TaskPoolImpl<
             TaskPoolWrap<T>,

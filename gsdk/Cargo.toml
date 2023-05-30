@@ -1,10 +1,10 @@
 [package]
 name = "gsdk"
 version = "0.1.0"
-edition = "2021"
-authors = ["Gear Technologies"]
+edition.workspace = true
+authors.workspace = true
 description = "Gear network rust sdk."
-license = "GPL-3.0"
+license.workspace = true
 homepage = "https://github.com/gear-tech/gear/tree/master/gsdk"
 readme = "./README.md"
 
@@ -26,3 +26,18 @@ subxt.workspace = true
 thiserror.workspace = true
 sp-runtime = { workspace = true, features = [ "std" ] }
 sp-core.workspace = true
+gsdk-codegen = { path = "codegen" }
+
+# deps for features `testing`
+rand = { workspace = true, optional = true }
+
+[dev-dependencies]
+gsdk = { path = ".", features = ["testing"] }
+tokio = { workspace = true, features = [ "full" ] }
+demo-messager.workspace = true
+demo-new-meta.workspace = true
+demo-waiter.workspace = true
+
+[features]
+testing = [ "rand" ]
+vara-testing = []

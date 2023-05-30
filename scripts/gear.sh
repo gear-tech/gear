@@ -113,6 +113,10 @@ case "$COMMAND" in
         header "Building gear workspace"
         gear_build "$@"; ;;
 
+      fuzz)
+        header "Builder fuzzer crates"
+        fuzzer_build "$@"; ;;
+
       gear-test)
         header "Building gear test"
         gear_test_build "$@"; ;;
@@ -302,6 +306,10 @@ case "$COMMAND" in
         check_extensions
         header "Running gear tests"
         workspace_test "$@"; ;;
+
+      gsdk)
+        header "Running gsdk tests"
+        gsdk_test "$@"; ;;
 
       gcli)
         header "Running gcli tests"

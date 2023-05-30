@@ -16,12 +16,6 @@ mod wasm {
 
 #[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq)]
 pub enum Kind {
-    Reply,
-    ReplyWithGas(u64),
-    ReplyBytes,
-    ReplyBytesWithGas(u64),
-    ReplyCommit,
-    ReplyCommitWithGas(u64),
     Send,
     SendWithGas(u64),
     SendBytes,

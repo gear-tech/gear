@@ -22,7 +22,7 @@ use crate::{
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
-    RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
+    RENT_COST, RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
 };
 use core_processor::{
     common::*,
@@ -41,7 +41,7 @@ use gear_core::{
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::SimpleSignalError;
+use gear_core_errors::{SimpleExecutionError, SimpleReplyError, SimpleSignalError};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
@@ -529,6 +529,61 @@ impl ExtManager {
         }
     }
 
+    pub(crate) fn override_balance(&mut self, id: &ProgramId, balance: Balance) {
+        if self.is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
+            panic!(
+                "An attempt to override balance with value ({}) less than existential deposit ({})",
+                balance,
+                crate::EXISTENTIAL_DEPOSIT
+            );
+        }
+
+        let (_, actor_balance) = self.actors.entry(*id).or_insert((TestActor::User, 0));
+        *actor_balance = balance;
+    }
+
+    pub(crate) fn read_memory_pages(&self, program_id: &ProgramId) -> &BTreeMap<GearPage, PageBuf> {
+        let program = &self
+            .actors
+            .get(program_id)
+            .unwrap_or_else(|| panic!("Actor {program_id} not found"))
+            .0;
+
+        let program = match program {
+            TestActor::Initialized(program) => program,
+            TestActor::Uninitialized(_, program) => program.as_ref().unwrap(),
+            TestActor::Dormant | TestActor::User => panic!("Actor {program_id} isn't a program"),
+        };
+
+        match program {
+            Program::Genuine { pages_data, .. } => pages_data,
+            Program::Mock(_) => panic!("Can't read memory of mock program"),
+        }
+    }
+
+    pub(crate) fn override_memory_pages(
+        &mut self,
+        program_id: &ProgramId,
+        memory_pages: BTreeMap<GearPage, PageBuf>,
+    ) {
+        let program = &mut self
+            .actors
+            .get_mut(program_id)
+            .unwrap_or_else(|| panic!("Actor {program_id} not found"))
+            .0;
+
+        let program = match program {
+            TestActor::Initialized(program) => program,
+            TestActor::Uninitialized(_, program) => program.as_mut().unwrap(),
+            TestActor::Dormant | TestActor::User => panic!("Actor {program_id} isn't a program"),
+        };
+
+        match program {
+            Program::Genuine { pages_data, .. } => *pages_data = memory_pages,
+            Program::Mock(_) => panic!("Can't read memory of mock program"),
+        }
+    }
+
     fn prepare_for(&mut self, dispatch: &Dispatch) {
         self.msg_id = dispatch.id();
         self.origin = dispatch.source();
@@ -611,30 +666,35 @@ impl ExtManager {
         let response = match dispatch.kind() {
             DispatchKind::Init => mock.init(payload).map(Mocked::Reply),
             DispatchKind::Handle => mock.handle(payload).map(Mocked::Reply),
-            DispatchKind::Reply => mock.handle_reply(payload).map(Mocked::Reply),
-            DispatchKind::Signal => mock.handle_signal(payload).map(|()| Mocked::Signal),
+            DispatchKind::Reply => mock.handle_reply(payload).map(|_| Mocked::Reply(None)),
+            DispatchKind::Signal => mock.handle_signal(payload).map(|_| Mocked::Signal),
         };
 
         match response {
             Ok(Mocked::Reply(reply)) => {
-                if let DispatchKind::Init = dispatch.kind() {
-                    self.message_dispatched(
-                        message_id,
-                        source,
-                        DispatchOutcome::InitSuccess { program_id },
-                    );
-                }
-
-                if let Some(payload) = reply {
-                    let id = MessageId::generate_reply(message_id, 0);
+                let maybe_reply_message = if let Some(payload) = reply {
+                    let id = MessageId::generate_reply(message_id);
                     let packet = ReplyPacket::new(payload.try_into().unwrap(), 0);
-                    let reply_message = ReplyMessage::from_packet(id, packet);
+                    Some(ReplyMessage::from_packet(id, packet))
+                } else {
+                    (!dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal)
+                        .then_some(ReplyMessage::auto(message_id))
+                };
 
+                if let Some(reply_message) = maybe_reply_message {
                     self.send_dispatch(
                         message_id,
                         reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                         0,
                         None,
+                    );
+                }
+
+                if let DispatchKind::Init = dispatch.kind() {
+                    self.message_dispatched(
+                        message_id,
+                        source,
+                        DispatchOutcome::InitSuccess { program_id },
                     );
                 }
             }
@@ -664,10 +724,15 @@ impl ExtManager {
                     )
                 }
 
-                if !dispatch.kind().is_signal() {
-                    let id = MessageId::generate_reply(message_id, 1);
-                    let packet = ReplyPacket::new(Default::default(), 1);
-                    let reply_message = ReplyMessage::from_packet(id, packet);
+                if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
+                    let err = SimpleReplyError::Execution(SimpleExecutionError::Panic);
+                    let err_payload = expl
+                        .as_bytes()
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_else(|_| unreachable!("Error message is too large"));
+
+                    let reply_message = ReplyMessage::system(message_id, err_payload, err);
 
                     self.send_dispatch(
                         message_id,
@@ -737,6 +802,7 @@ impl ExtManager {
             max_reservations: MAX_RESERVATIONS,
             code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
             code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
+            rent_cost: RENT_COST,
         };
 
         let (actor_data, code) = match data {
@@ -1060,4 +1126,6 @@ impl JournalHandler for ExtManager {
         _err: SimpleSignalError,
     ) {
     }
+
+    fn pay_program_rent(&mut self, _payer: ProgramId, _program_id: ProgramId, _block_count: u32) {}
 }

@@ -66,6 +66,7 @@ where
         reserve_for,
         reservation,
         write_cost,
+        rent_cost,
         ..
     } = block_config.clone();
 
@@ -82,6 +83,7 @@ where
         reserve_for,
         reservation,
         random_data,
+        rent_cost,
     };
 
     let dispatch = execution_context.dispatch;
@@ -216,7 +218,7 @@ pub fn process_error(
         journal.push(JournalNote::SystemUnreserveGas { message_id });
     }
 
-    if !dispatch.is_error_reply() && dispatch.kind() != DispatchKind::Signal {
+    if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
         // This expect panic is unreachable, unless error message is too large or max payload size is too small.
         let err_payload = err
             .to_string()
@@ -280,6 +282,7 @@ pub fn process_success(
         generated_dispatches,
         awakening,
         program_candidates,
+        program_rents,
         gas_amount,
         gas_reserver,
         system_reservation_context,
@@ -353,6 +356,36 @@ pub fn process_success(
         journal.push(JournalNote::StoreNewPrograms {
             code_id,
             candidates,
+        });
+    }
+
+    // Sending auto-generated reply about success execution.
+    if matches!(kind, SuccessfulDispatchResultKind::Success)
+        && !context_store.reply_sent()
+        && !dispatch.is_reply()
+        && dispatch.kind() != DispatchKind::Signal
+    {
+        let auto_reply = ReplyMessage::auto(dispatch.id()).into_dispatch(
+            program_id,
+            dispatch.source(),
+            dispatch.id(),
+        );
+
+        journal.push(JournalNote::SendDispatch {
+            message_id,
+            dispatch: auto_reply,
+            delay: 0,
+            reservation: None,
+        });
+    }
+
+    // Must be handled after processing programs creation.
+    let payer = program_id;
+    for (program_id, block_count) in program_rents {
+        journal.push(JournalNote::PayProgramRent {
+            payer,
+            program_id,
+            block_count,
         });
     }
 
@@ -468,7 +501,7 @@ pub fn process_non_executable(
     }
 
     // Reply back to the message `source`
-    if !dispatch.is_error_reply() {
+    if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
         // This expect panic is unreachable, unless error message is too large or max payload size is too small.
         let err = SimpleReplyError::NonExecutable;
         let err_payload = err

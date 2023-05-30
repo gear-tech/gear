@@ -34,17 +34,19 @@ pub struct InputArgs {
     pub destination: [u8; 32],
 }
 
+pub const HANDLE_REPLY_EXPECT: &str = "I will fail";
+
 #[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
-    use crate::InputArgs;
+    use crate::{InputArgs, HANDLE_REPLY_EXPECT};
     use gstd::{msg, ActorId, ToString};
 
     static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
 
-    gstd::metadata! {
-        title: "tests-proxy",
-        handle:
-            input: InputArgs,
+    #[no_mangle]
+    extern "C" fn init() {
+        let args: InputArgs = msg::load().expect("Failed to decode `InputArgs'");
+        unsafe { DESTINATION = args.destination.into() };
     }
 
     #[no_mangle]
@@ -55,8 +57,8 @@ mod wasm {
     }
 
     #[no_mangle]
-    extern "C" fn init() {
-        let args: InputArgs = msg::load().expect("Failed to decode `InputArgs'");
-        unsafe { DESTINATION = args.destination.into() };
+    extern "C" fn handle_reply() {
+        // Will panic here as replies denied in `handle_reply`.
+        msg::reply_bytes([], 0).expect(HANDLE_REPLY_EXPECT);
     }
 }

@@ -151,6 +151,10 @@ pub enum MessageError {
     /// An error occurs in attempt to charge gas for dispatch stash hold.
     #[display(fmt = "Not enough gas to hold dispatch message")]
     InsufficientGasForDelayedSending = 16,
+
+    /// An error occurs in attempt to send or push reply while reply function is banned.
+    #[display(fmt = "Reply sending is only allowed in `init` and `handle` functions")]
+    IncorrectEntryForReply = 17,
 }
 
 /// Error using waiting syscalls.
@@ -160,12 +164,14 @@ pub enum MessageError {
 #[non_exhaustive]
 #[repr(u8)]
 pub enum WaitError {
-    /// An error occurs in attempt to wait duration greater than could be payed.
+    /// An error occurs in attempt to wait duration greater than could be paid.
     #[display(fmt = "Not enough gas to cover holding in waitlist")]
     NotEnoughGas = 0,
-    /// An error occurs in attempt to wait duration greater than could be payed.
+    /// An error occurs in attempt to wait duration greater than could be paid.
     #[display(fmt = "Provided incorrect argument for wait (zero case)")]
     InvalidArgument = 1,
+    /// An error occurs in attempt to wait after reply sent.
+    WaitAfterReply = 2,
 }
 
 /// Memory error.
@@ -220,6 +226,19 @@ pub enum ExecutionError {
     /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
     #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
     InvalidDebugString = 0,
+
+    /// The error occurs when program's balance is less than rent it tries to pay.
+    #[display(fmt = "Existing value {value_left} is not enough to pay rent {rent}")]
+    NotEnoughValueForRent {
+        /// Rent value.
+        rent: u128,
+        /// Amount of available value.
+        value_left: u128,
+    } = 1,
+
+    /// The error occurs when program's paid block count is maximum.
+    #[display(fmt = "Rent block count limit has been reached")]
+    MaximumBlockCountPaid = 2,
 }
 
 /// An error occurred in API.

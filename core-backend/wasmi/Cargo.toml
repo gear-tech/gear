@@ -1,14 +1,15 @@
 [package]
 name = "gear-backend-wasmi"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2021"
-license = "GPL-3.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
 gear-backend-common.workspace = true
+gear-backend-codegen.workspace = true
 gsys ={ workspace = true }
 
 gear-wasm-instrument.workspace = true

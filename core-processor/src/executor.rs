@@ -292,12 +292,7 @@ where
         AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages);
 
     // Creating message context.
-    let message_context = MessageContext::new(
-        dispatch.message().clone(),
-        program_id,
-        dispatch.context().clone(),
-        msg_ctx_settings,
-    );
+    let message_context = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings);
 
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.value());
@@ -317,6 +312,7 @@ where
         origin,
         program_id,
         program_candidates_data: Default::default(),
+        program_rents: Default::default(),
         host_fn_weights: settings.host_fn_weights,
         forbidden_funcs: settings.forbidden_funcs,
         mailbox_threshold: settings.mailbox_threshold,
@@ -325,6 +321,7 @@ where
         reserve_for: settings.reserve_for,
         reservation: settings.reservation,
         random_data: settings.random_data,
+        rent_cost: settings.rent_cost,
     };
 
     let lazy_pages_weights = context.page_costs.lazy_pages_weights();
@@ -454,6 +451,7 @@ where
         generated_dispatches: info.generated_dispatches,
         awakening: info.awakening,
         program_candidates,
+        program_rents: info.program_rents,
         gas_amount: info.gas_amount,
         gas_reserver: Some(info.gas_reserver),
         system_reservation_context: info.system_reservation_context,
@@ -508,18 +506,21 @@ where
         value_counter: ValueCounter::new(Default::default()),
         allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
         message_context: MessageContext::new(
-            IncomingMessage::new(
-                Default::default(),
-                Default::default(),
-                payload
-                    .try_into()
-                    .map_err(|e| format!("Failed to create payload: {e:?}"))?,
-                gas_limit,
-                Default::default(),
-                Default::default(),
+            IncomingDispatch::new(
+                DispatchKind::Handle,
+                IncomingMessage::new(
+                    Default::default(),
+                    Default::default(),
+                    payload
+                        .try_into()
+                        .map_err(|e| format!("Failed to create payload: {e:?}"))?,
+                    gas_limit,
+                    Default::default(),
+                    Default::default(),
+                ),
+                None,
             ),
             program.id(),
-            None,
             ContextSettings::new(0, 0, 0, 0, 0, 0),
         ),
         block_info,
@@ -529,6 +530,7 @@ where
         origin: Default::default(),
         program_id: program.id(),
         program_candidates_data: Default::default(),
+        program_rents: Default::default(),
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold: Default::default(),
@@ -538,6 +540,7 @@ where
         reservation: Default::default(),
         random_data: Default::default(),
         system_reservation: Default::default(),
+        rent_cost: Default::default(),
     };
 
     let lazy_pages_weights = context.page_costs.lazy_pages_weights();

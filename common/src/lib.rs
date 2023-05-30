@@ -25,6 +25,9 @@ pub mod event;
 pub mod scheduler;
 pub mod storage;
 
+#[cfg(feature = "std")]
+pub mod memory_dump;
+
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
@@ -69,7 +72,9 @@ use sp_std::{
 use storage::ValueStorage;
 extern crate alloc;
 
-pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
+pub use gas_provider::{
+    LockId, LockableTree, Provider as GasProvider, ReservableTree, Tree as GasTree,
+};
 
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
@@ -153,21 +158,6 @@ pub trait GasPrice {
             &Weight::from_parts(gas, 0),
         )
     }
-}
-
-/// Trait defines basic parameters of programs rent charging.
-pub trait ProgramRentConfig {
-    /// Type representing an index of a block.
-    type BlockNumber;
-    /// Type representing a quantity of value.
-    type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
-
-    /// The free of charge period of rent.
-    type FreePeriod: Get<Self::BlockNumber>;
-    /// The program rent cost per block.
-    type CostPerBlock: Get<Self::Balance>;
-    /// The minimal amount of blocks to resume.
-    type MinimalResumePeriod: Get<Self::BlockNumber>;
 }
 
 pub trait QueueRunner {

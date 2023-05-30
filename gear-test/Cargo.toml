@@ -1,9 +1,13 @@
 [package]
 name = "gear-test"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2021"
-license = "GPL-3.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "gear-test"
+path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
@@ -14,30 +18,21 @@ colored.workspace = true
 regex.workspace = true
 serde_yaml.workspace = true
 hex.workspace = true
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["std", "derive"] }
 serde_json.workspace = true
 log.workspace = true
 rayon.workspace = true
-rand.workspace = true
-gear-wasm-instrument.workspace = true
-primitive-types = { workspace = true, features = ["scale-info"] }
+rand = { workspace = true, features = ["std", "std_rng"] }
+gear-wasm-instrument = { workspace = true, features = ["std"] }
+primitive-types = { workspace = true, features = ["std", "serde", "scale-info"] }
 once_cell.workspace = true
 
 # Internal deps
 gear-core.workspace = true
 gear-core-errors.workspace = true
-common.workspace = true
 core-processor.workspace = true
 gear-backend-common.workspace = true
-gear-backend-wasmi.workspace = true
+gear-backend-wasmi = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }
-
-[[bin]]
-name = "gear-test"
-path = "src/main.rs"
-
-[lib]
-
-[features]

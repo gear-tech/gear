@@ -17,16 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    internal::HoldBound,
+    internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
-    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, Pallet,
-    ProgramStorageOf, QueueOf, RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
+    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf,
+    RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
-    scheduler::{ScheduledTask, SchedulingCostsPerBlock, TaskHandler, TaskPool},
+    scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
     storage::*,
-    CodeStorage, GasTree, Origin, Program, ProgramState, ProgramStorage,
+    CodeStorage, GasTree, LockableTree, Origin, Program, ProgramState, ProgramStorage,
+    ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{
@@ -529,7 +530,7 @@ where
             duration
         );
 
-        let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
+        let hold = HoldBoundBuilder::<T>::new(StorageType::Reservation)
             .duration(BlockNumberFor::<T>::from(duration));
 
         // Validating holding duration.
@@ -537,12 +538,15 @@ where
             unreachable!("Threshold for reservation invalidated")
         }
 
-        let total_amount = amount.saturating_add(hold.lock());
+        let total_amount = amount.saturating_add(hold.lock_amount());
 
         GasHandlerOf::<T>::reserve(message_id, reservation_id, total_amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
 
-        GasHandlerOf::<T>::lock(reservation_id, hold.lock())
+        let lock_id = hold.lock_id().unwrap_or_else(|| {
+            unreachable!("Reservation storage is guaranteed to have an associated lock id")
+        });
+        GasHandlerOf::<T>::lock(reservation_id, lock_id, hold.lock_amount())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         TaskPoolOf::<T>::add(
@@ -575,7 +579,7 @@ where
             p.gas_reservation_map = reserver.into_map(
                 Pallet::<T>::block_number().unique_saturated_into(),
                 |duration| {
-                    HoldBound::<T>::by(CostsPerBlockOf::<T>::reservation())
+                    HoldBoundBuilder::<T>::new(StorageType::Reservation)
                         .duration(BlockNumberFor::<T>::from(duration))
                         .expected()
                         .unique_saturated_into()
@@ -618,5 +622,20 @@ where
         err: SimpleSignalError,
     ) {
         ExtManager::send_signal(self, message_id, destination, err)
+    }
+
+    fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32) {
+        let from = <T::AccountId as Origin>::from_origin(payer.into_origin());
+        let block_count = block_count.unique_saturated_into();
+
+        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
+            Pallet::<T>::pay_program_rent_impl(program_id, program, &from, block_count)
+                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+        })
+        .unwrap_or_else(|e| {
+            log::debug!(
+                "Could not update active program {program_id}: {e:?}. Program is not active?"
+            );
+        });
     }
 }

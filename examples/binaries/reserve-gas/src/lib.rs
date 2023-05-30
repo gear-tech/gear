@@ -18,13 +18,10 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::{Decode, Encode};
-use gstd::{
-    errors::{ContractError, ExtError},
-    exec, msg,
-    prelude::*,
-    MessageId, ReservationId,
-};
+extern crate alloc;
+
+use alloc::vec::Vec;
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
 mod code {
@@ -33,21 +30,9 @@ mod code {
 
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
-use gstd::errors::ReservationError;
-
-static mut RESERVATION_ID: Option<ReservationId> = None;
-static mut INIT_MSG: MessageId = MessageId::new([0; 32]);
-static mut WAKE_STATE: WakeState = WakeState::Initial;
 
 pub const RESERVATION_AMOUNT: u64 = 50_000_000;
 pub const REPLY_FROM_RESERVATION_PAYLOAD: &[u8; 5] = b"Hello";
-
-#[derive(Debug, Eq, PartialEq)]
-enum WakeState {
-    Initial,
-    Panic,
-    Exit,
-}
 
 #[derive(Debug, Encode, Decode)]
 pub enum InitAction {
@@ -69,112 +54,135 @@ pub enum ReplyAction {
     Exit,
 }
 
-#[no_mangle]
-extern "C" fn init() {
-    unsafe { INIT_MSG = msg::id() };
+#[cfg(not(feature = "std"))]
+mod wasm {
+    use super::*;
+    use gstd::{
+        errors::{ContractError, ExtError, ReservationError},
+        exec, msg,
+        prelude::*,
+        MessageId, ReservationId,
+    };
 
-    let action: InitAction = msg::load().unwrap();
+    static mut RESERVATION_ID: Option<ReservationId> = None;
+    static mut INIT_MSG: MessageId = MessageId::new([0; 32]);
+    static mut WAKE_STATE: WakeState = WakeState::Initial;
 
-    match action {
-        InitAction::Normal(ref reservations) => {
-            for (amount, duration) in reservations {
-                let _ = ReservationId::reserve(*amount, *duration).expect("reservation");
+    #[derive(Debug, Eq, PartialEq)]
+    enum WakeState {
+        Initial,
+        Panic,
+        Exit,
+    }
+
+    #[no_mangle]
+    extern "C" fn init() {
+        unsafe { INIT_MSG = msg::id() };
+
+        let action: InitAction = msg::load().unwrap();
+
+        match action {
+            InitAction::Normal(ref reservations) => {
+                for (amount, duration) in reservations {
+                    let _ = ReservationId::reserve(*amount, *duration).expect("reservation");
+                }
+
+                // no actual reservation and unreservation is occurred
+                let noop_reservation =
+                    ReservationId::reserve(50_000, 10).expect("noop reservation");
+                let unreserved_amount = noop_reservation.unreserve().expect("noop unreservation");
+                assert_eq!(unreserved_amount, 50_000);
+
+                unsafe {
+                    RESERVATION_ID = Some(
+                        ReservationId::reserve(RESERVATION_AMOUNT, 15)
+                            .expect("reservation across executions"),
+                    )
+                };
             }
+            InitAction::Wait => match unsafe { &WAKE_STATE } {
+                WakeState::Initial => {
+                    let _reservation = ReservationId::reserve(50_000, 10);
+                    // to find message to reply to in test
+                    msg::send(msg::source(), (), 0).unwrap();
+                    exec::wait();
+                }
+                WakeState::Panic => {
+                    panic!()
+                }
+                WakeState::Exit => {
+                    exec::exit(msg::source());
+                }
+            },
+            InitAction::CheckArgs { mailbox_threshold } => {
+                assert_eq!(
+                    ReservationId::reserve(0, 10),
+                    Err(ContractError::Ext(ExtError::Reservation(
+                        ReservationError::ReservationBelowMailboxThreshold
+                    )))
+                );
 
-            // no actual reservation and unreservation is occurred
-            let noop_reservation = ReservationId::reserve(50_000, 10).expect("noop reservation");
-            let unreserved_amount = noop_reservation.unreserve().expect("noop unreservation");
-            assert_eq!(unreserved_amount, 50_000);
+                assert_eq!(
+                    ReservationId::reserve(50_000, 0),
+                    Err(ContractError::Ext(ExtError::Reservation(
+                        ReservationError::ZeroReservationDuration
+                    )))
+                );
 
-            unsafe {
-                RESERVATION_ID = Some(
-                    ReservationId::reserve(RESERVATION_AMOUNT, 5)
-                        .expect("reservation across executions"),
-                )
-            };
+                assert_eq!(
+                    ReservationId::reserve(mailbox_threshold - 1, 1),
+                    Err(ContractError::Ext(ExtError::Reservation(
+                        ReservationError::ReservationBelowMailboxThreshold
+                    )))
+                );
+
+                assert_eq!(
+                    ReservationId::reserve(mailbox_threshold, u32::MAX),
+                    Err(ContractError::Ext(ExtError::Reservation(
+                        ReservationError::InsufficientGasForReservation
+                    )))
+                );
+
+                assert_eq!(
+                    ReservationId::reserve(u64::MAX, 1),
+                    Err(ContractError::Ext(ExtError::Reservation(
+                        ReservationError::InsufficientGasForReservation
+                    )))
+                );
+            }
         }
-        InitAction::Wait => match unsafe { &WAKE_STATE } {
-            WakeState::Initial => {
-                let _reservation = ReservationId::reserve(50_000, 10);
-                // to find message to reply to in test
-                msg::send(msg::source(), (), 0).unwrap();
-                exec::wait();
+    }
+
+    #[no_mangle]
+    extern "C" fn handle() {
+        let action: HandleAction = msg::load().unwrap();
+        match action {
+            HandleAction::Unreserve => {
+                let id = unsafe { RESERVATION_ID.take().unwrap() };
+                id.unreserve().expect("unreservation across executions");
             }
-            WakeState::Panic => {
-                panic!()
-            }
-            WakeState::Exit => {
+            HandleAction::Exit => {
                 exec::exit(msg::source());
             }
-        },
-        InitAction::CheckArgs { mailbox_threshold } => {
-            assert_eq!(
-                ReservationId::reserve(0, 10),
-                Err(ContractError::Ext(ExtError::Reservation(
-                    ReservationError::ReservationBelowMailboxThreshold
-                )))
-            );
-
-            assert_eq!(
-                ReservationId::reserve(50_000, 0),
-                Err(ContractError::Ext(ExtError::Reservation(
-                    ReservationError::ZeroReservationDuration
-                )))
-            );
-
-            assert_eq!(
-                ReservationId::reserve(mailbox_threshold - 1, 1),
-                Err(ContractError::Ext(ExtError::Reservation(
-                    ReservationError::ReservationBelowMailboxThreshold
-                )))
-            );
-
-            assert_eq!(
-                ReservationId::reserve(mailbox_threshold, u32::MAX),
-                Err(ContractError::Ext(ExtError::Reservation(
-                    ReservationError::InsufficientGasForReservation
-                )))
-            );
-
-            assert_eq!(
-                ReservationId::reserve(u64::MAX, 1),
-                Err(ContractError::Ext(ExtError::Reservation(
-                    ReservationError::InsufficientGasForReservation
-                )))
-            );
+            HandleAction::ReplyFromReservation => {
+                let id = unsafe { RESERVATION_ID.take().unwrap() };
+                msg::reply_from_reservation(id, REPLY_FROM_RESERVATION_PAYLOAD, 0)
+                    .expect("unable to reply from reservation");
+            }
         }
     }
-}
 
-#[no_mangle]
-extern "C" fn handle() {
-    let action: HandleAction = msg::load().unwrap();
-    match action {
-        HandleAction::Unreserve => {
-            let id = unsafe { RESERVATION_ID.take().unwrap() };
-            id.unreserve().expect("unreservation across executions");
+    // must be called after `InitAction::Wait`
+    #[no_mangle]
+    extern "C" fn handle_reply() {
+        let action: ReplyAction = msg::load().unwrap();
+        unsafe {
+            WAKE_STATE = match action {
+                ReplyAction::Panic => WakeState::Panic,
+                ReplyAction::Exit => WakeState::Exit,
+            };
+            exec::wake(INIT_MSG).unwrap();
         }
-        HandleAction::Exit => {
-            exec::exit(msg::source());
-        }
-        HandleAction::ReplyFromReservation => {
-            let id = unsafe { RESERVATION_ID.take().unwrap() };
-            msg::reply_from_reservation(id, REPLY_FROM_RESERVATION_PAYLOAD, 0)
-                .expect("unable to reply from reservation");
-        }
-    }
-}
-
-// must be called after `InitAction::Wait`
-#[no_mangle]
-extern "C" fn handle_reply() {
-    let action: ReplyAction = msg::load().unwrap();
-    unsafe {
-        WAKE_STATE = match action {
-            ReplyAction::Panic => WakeState::Panic,
-            ReplyAction::Exit => WakeState::Exit,
-        };
-        exec::wake(INIT_MSG).unwrap();
     }
 }
 

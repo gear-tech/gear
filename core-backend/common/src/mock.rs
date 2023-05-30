@@ -20,14 +20,14 @@ use crate::{
     memory::ProcessAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason,
 };
-use alloc::collections::BTreeSet;
-use core::fmt;
+use alloc::{collections::BTreeSet, vec, vec::Vec};
+use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
     env::Ext,
     gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryInterval, WasmPage},
+    memory::{Memory, MemoryInterval, PageU32Size, WasmPage, WASM_PAGE_SIZE},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
 };
@@ -97,7 +97,7 @@ impl Ext for MockExt {
 
     fn alloc(
         &mut self,
-        _pages: WasmPage,
+        _pages_num: u32,
         _mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
         Err(Error)
@@ -105,13 +105,13 @@ impl Ext for MockExt {
     fn free(&mut self, _page: WasmPage) -> Result<(), Self::AllocError> {
         Err(Error)
     }
-    fn block_height(&mut self) -> Result<u32, Self::Error> {
+    fn block_height(&self) -> Result<u32, Self::Error> {
         Ok(0)
     }
-    fn block_timestamp(&mut self) -> Result<u64, Self::Error> {
+    fn block_timestamp(&self) -> Result<u64, Self::Error> {
         Ok(0)
     }
-    fn origin(&mut self) -> Result<ProgramId, Self::Error> {
+    fn origin(&self) -> Result<ProgramId, Self::Error> {
         Ok(ProgramId::from(0))
     }
     fn send_init(&mut self) -> Result<u32, Self::Error> {
@@ -120,7 +120,7 @@ impl Ext for MockExt {
     fn send_push(&mut self, _handle: u32, _buffer: &[u8]) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn reply_commit(&mut self, _msg: ReplyPacket, _delay: u32) -> Result<MessageId, Self::Error> {
+    fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
     fn send_push_input(
@@ -142,43 +142,50 @@ impl Ext for MockExt {
     ) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
-    fn reply_to(&mut self) -> Result<MessageId, Self::Error> {
+    fn reply_to(&self) -> Result<MessageId, Self::Error> {
         Ok(Default::default())
     }
     fn reply_push_input(&mut self, _offset: u32, _len: u32) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn source(&mut self) -> Result<ProgramId, Self::Error> {
+    fn source(&self) -> Result<ProgramId, Self::Error> {
         Ok(ProgramId::from(0))
     }
-    fn status_code(&mut self) -> Result<StatusCode, Self::Error> {
+    fn status_code(&self) -> Result<StatusCode, Self::Error> {
         Ok(Default::default())
     }
-    fn message_id(&mut self) -> Result<MessageId, Self::Error> {
+    fn message_id(&self) -> Result<MessageId, Self::Error> {
         Ok(0.into())
     }
-    fn program_id(&mut self) -> Result<ProgramId, Self::Error> {
+    fn pay_program_rent(
+        &mut self,
+        _program_id: ProgramId,
+        _rent: u128,
+    ) -> Result<(u128, u32), Self::Error> {
+        Ok((0, 0))
+    }
+    fn program_id(&self) -> Result<ProgramId, Self::Error> {
         Ok(0.into())
     }
-    fn debug(&mut self, _data: &str) -> Result<(), Self::Error> {
+    fn debug(&self, _data: &str) -> Result<(), Self::Error> {
         Ok(())
     }
     fn read(&mut self, _at: u32, _len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
         Ok((&[], Default::default()))
     }
-    fn size(&mut self) -> Result<usize, Self::Error> {
+    fn size(&self) -> Result<usize, Self::Error> {
         Ok(0)
     }
-    fn gas_available(&mut self) -> Result<u64, Self::Error> {
+    fn gas_available(&self) -> Result<u64, Self::Error> {
         Ok(1_000_000)
     }
-    fn value(&mut self) -> Result<u128, Self::Error> {
+    fn value(&self) -> Result<u128, Self::Error> {
         Ok(0)
     }
-    fn value_available(&mut self) -> Result<u128, Self::Error> {
+    fn value_available(&self) -> Result<u128, Self::Error> {
         Ok(1_000_000)
     }
-    fn random(&mut self) -> Result<(&[u8], u32), Self::Error> {
+    fn random(&self) -> Result<(&[u8], u32), Self::Error> {
         Ok(([0u8; 32].as_ref(), 0))
     }
     fn wait(&mut self) -> Result<(), Self::Error> {
@@ -228,12 +235,11 @@ impl Ext for MockExt {
         &mut self,
         _id: ReservationId,
         _msg: ReplyPacket,
-        _delay: u32,
     ) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
 
-    fn signal_from(&mut self) -> Result<MessageId, Self::Error> {
+    fn signal_from(&self) -> Result<MessageId, Self::Error> {
         Ok(MessageId::default())
     }
 }
@@ -249,6 +255,7 @@ impl BackendExt for MockExt {
             generated_dispatches: Default::default(),
             awakening: Default::default(),
             program_candidates_data: Default::default(),
+            program_rents: Default::default(),
             context_store: Default::default(),
         })
     }
@@ -263,5 +270,107 @@ impl BackendExt for MockExt {
         _gas_left: &mut GasLeft,
     ) -> Result<(), ProcessAccessError> {
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct MockMemory {
+    pages: Vec<u8>,
+    read_attempt_count: Cell<u32>,
+    write_attempt_count: Cell<u32>,
+}
+
+impl MockMemory {
+    pub fn new(initial_pages: u32) -> Self {
+        let size = initial_pages as usize * WASM_PAGE_SIZE;
+        let pages = vec![0; size];
+
+        Self {
+            pages,
+            read_attempt_count: Cell::new(0),
+            write_attempt_count: Cell::new(0),
+        }
+    }
+
+    pub fn read_attempt_count(&self) -> u32 {
+        self.read_attempt_count.get()
+    }
+
+    pub fn write_attempt_count(&self) -> u32 {
+        self.write_attempt_count.get()
+    }
+
+    fn page_index(&self, offset: u32) -> Option<usize> {
+        let offset = offset as usize;
+
+        (offset < self.pages.len()).then_some(offset / WASM_PAGE_SIZE)
+    }
+}
+
+impl Memory for MockMemory {
+    type GrowError = ();
+
+    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
+        let new_size = self.pages.len() + (pages.raw() as usize) * WASM_PAGE_SIZE;
+
+        self.pages.resize(new_size, 0);
+
+        Ok(())
+    }
+
+    fn size(&self) -> WasmPage {
+        WasmPage::new((self.pages.len() / WASM_PAGE_SIZE) as u32).unwrap_or_default()
+    }
+
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+        self.write_attempt_count.set(self.write_attempt_count() + 1);
+        let page_index = self
+            .page_index(offset)
+            .ok_or(MemoryError::RuntimeAllocOutOfBounds)?;
+        let page_offset = offset as usize % WASM_PAGE_SIZE;
+
+        if page_offset + buffer.len() > WASM_PAGE_SIZE {
+            return Err(MemoryError::RuntimeAllocOutOfBounds);
+        }
+
+        let page_start = page_index * WASM_PAGE_SIZE;
+        let start = page_start + page_offset;
+
+        if start + buffer.len() > self.pages.len() {
+            return Err(MemoryError::RuntimeAllocOutOfBounds);
+        }
+
+        let dest = &mut self.pages[start..(start + buffer.len())];
+        dest.copy_from_slice(buffer);
+
+        Ok(())
+    }
+
+    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
+        self.read_attempt_count.set(self.read_attempt_count() + 1);
+        let page_index = self
+            .page_index(offset)
+            .ok_or(MemoryError::AccessOutOfBounds)?;
+        let page_offset = offset as usize % WASM_PAGE_SIZE;
+
+        if page_offset + buffer.len() > WASM_PAGE_SIZE {
+            return Err(MemoryError::AccessOutOfBounds);
+        }
+
+        let page_start = page_index * WASM_PAGE_SIZE;
+        let start = page_start + page_offset;
+
+        if start + buffer.len() > self.pages.len() {
+            return Err(MemoryError::AccessOutOfBounds);
+        }
+
+        let src = &self.pages[start..(start + buffer.len())];
+        buffer.copy_from_slice(src);
+
+        Ok(())
+    }
+
+    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> u64 {
+        unimplemented!();
     }
 }

@@ -172,25 +172,6 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
 /// - [`reply_push`] function allows forming a reply message in parts.
 /// - [`send`] function sends a new message to the program or user.
 pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
-    reply_delayed(payload, value, 0)
-}
-
-/// Same as [`reply`], but sends the reply after the `delay` expressed in
-/// block count.
-///
-/// # Examples
-///
-/// Reply after 100 blocks:
-///
-/// ```
-/// use gcore::{exec, msg};
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     msg::reply_delayed(b"PING", 0, 100).expect("Unable to reply");
-/// }
-/// ```
-pub fn reply_delayed(payload: &[u8], value: u128, delay: u32) -> Result<MessageId> {
     let mut res: LengthWithHash = Default::default();
 
     let payload_len = payload
@@ -205,7 +186,7 @@ pub fn reply_delayed(payload: &[u8], value: u128, delay: u32) -> Result<MessageI
             payload.as_ptr(),
             payload_len,
             value_ptr,
-            delay,
+            0,
             res.as_mut_ptr(),
         )
     };
@@ -239,17 +220,6 @@ pub fn reply_delayed(payload: &[u8], value: u128, delay: u32) -> Result<MessageI
 /// - [`send_from_reservation`] function sends a new message to the program or
 ///   user by using gas from a reservation.
 pub fn reply_from_reservation(id: ReservationId, payload: &[u8], value: u128) -> Result<MessageId> {
-    reply_delayed_from_reservation(id, payload, value, 0)
-}
-
-/// Same as [`reply_from_reservation`], but sends the reply after the `delay`
-/// expressed in block count.
-pub fn reply_delayed_from_reservation(
-    id: ReservationId,
-    payload: &[u8],
-    value: u128,
-    delay: u32,
-) -> Result<MessageId> {
     let rid_value = HashWithValue { hash: id.0, value };
 
     let mut res: LengthWithHash = Default::default();
@@ -264,7 +234,7 @@ pub fn reply_delayed_from_reservation(
             rid_value.as_ptr(),
             payload.as_ptr(),
             payload_len,
-            delay,
+            0,
             res.as_mut_ptr(),
         )
     };
@@ -290,16 +260,6 @@ pub fn reply_delayed_from_reservation(
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
 pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId> {
-    reply_with_gas_delayed(payload, gas_limit, value, 0)
-}
-
-/// Same as [`reply_with_gas`], but sends delayed.
-pub fn reply_with_gas_delayed(
-    payload: &[u8],
-    gas_limit: u64,
-    value: u128,
-    delay: u32,
-) -> Result<MessageId> {
     let mut res: LengthWithHash = Default::default();
 
     let payload_len = payload
@@ -315,7 +275,7 @@ pub fn reply_with_gas_delayed(
             payload_len,
             gas_limit,
             value_ptr,
-            delay,
+            0,
             res.as_mut_ptr(),
         )
     };
@@ -360,17 +320,11 @@ pub fn reply_with_gas_delayed(
 /// - [`reply_push`] function allows forming a reply message in parts.
 /// - [`send_commit`] function finalizes and sends a message formed in parts.
 pub fn reply_commit(value: u128) -> Result<MessageId> {
-    reply_commit_delayed(value, 0)
-}
-
-/// Same as [`reply_commit`], but sends the reply after the `delay` expressed
-/// in block count.
-pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
     let mut res: LengthWithHash = Default::default();
 
     let value_ptr = value_ptr(&value);
 
-    unsafe { gsys::gr_reply_commit(value_ptr, delay, res.as_mut_ptr()) }
+    unsafe { gsys::gr_reply_commit(value_ptr, 0, res.as_mut_ptr()) }
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))
@@ -395,17 +349,11 @@ pub fn reply_commit_delayed(value: u128, delay: u32) -> Result<MessageId> {
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
-    reply_commit_with_gas_delayed(gas_limit, value, 0)
-}
-
-/// Same as [`reply_commit_with_gas`], but sends the reply after the `delay`
-/// expressed in block count.
-pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) -> Result<MessageId> {
     let mut res: LengthWithHash = Default::default();
 
     let value_ptr = value_ptr(&value);
 
-    unsafe { gsys::gr_reply_commit_wgas(gas_limit, value_ptr, delay, res.as_mut_ptr()) }
+    unsafe { gsys::gr_reply_commit_wgas(gas_limit, value_ptr, 0, res.as_mut_ptr()) }
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))
@@ -431,21 +379,11 @@ pub fn reply_commit_with_gas_delayed(gas_limit: u64, value: u128, delay: u32) ->
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
 pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<MessageId> {
-    reply_commit_delayed_from_reservation(id, value, 0)
-}
-
-/// Same as [`reply_commit_from_reservation`], but sends the message after the
-/// `delay` expressed in block count.
-pub fn reply_commit_delayed_from_reservation(
-    id: ReservationId,
-    value: u128,
-    delay: u32,
-) -> Result<MessageId> {
     let rid_value = HashWithValue { hash: id.0, value };
 
     let mut res: LengthWithHash = Default::default();
 
-    unsafe { gsys::gr_reservation_reply_commit(rid_value.as_ptr(), delay, res.as_mut_ptr()) };
+    unsafe { gsys::gr_reservation_reply_commit(rid_value.as_ptr(), 0, res.as_mut_ptr()) };
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))
@@ -535,17 +473,12 @@ pub fn signal_from() -> Result<MessageId> {
 
 /// Same as [`reply`], but relays the incoming message payload.
 pub fn reply_input(value: u128, offset: u32, len: u32) -> Result<MessageId> {
-    reply_input_delayed(value, offset, len, 0)
-}
-
-/// Same as [`reply_input`], but sends delayed.
-pub fn reply_input_delayed(value: u128, offset: u32, len: u32, delay: u32) -> Result<MessageId> {
     let mut res: LengthWithHash = Default::default();
 
     let value_ptr = value_ptr(&value);
 
     unsafe {
-        gsys::gr_reply_input(offset, len, value_ptr, delay, res.as_mut_ptr());
+        gsys::gr_reply_input(offset, len, value_ptr, 0, res.as_mut_ptr());
     }
 
     SyscallError(res.length).into_result()?;
@@ -589,23 +522,12 @@ pub fn reply_input_with_gas(
     offset: u32,
     len: u32,
 ) -> Result<MessageId> {
-    reply_input_with_gas_delayed(gas_limit, value, offset, len, 0)
-}
-
-/// Same as [`reply_input_with_gas`], but sends delayed.
-pub fn reply_input_with_gas_delayed(
-    gas_limit: u64,
-    value: u128,
-    offset: u32,
-    len: u32,
-    delay: u32,
-) -> Result<MessageId> {
     let mut res: LengthWithHash = Default::default();
 
     let value_ptr = value_ptr(&value);
 
     unsafe {
-        gsys::gr_reply_input_wgas(offset, len, gas_limit, value_ptr, delay, res.as_mut_ptr());
+        gsys::gr_reply_input_wgas(offset, len, gas_limit, value_ptr, 0, res.as_mut_ptr());
     }
     SyscallError(res.length).into_result()?;
 

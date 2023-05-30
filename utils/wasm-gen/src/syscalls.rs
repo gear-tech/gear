@@ -41,7 +41,7 @@ pub fn param_to_rule(param: ParamType, config: &GearConfig) -> ParamRule {
 
 /// Syscall function info and config.
 #[derive(Debug)]
-pub struct SysCallInfo {
+pub struct CallInfo {
     /// Syscall signature params.
     pub params: Vec<ValueType>,
     /// Syscall signature results.
@@ -52,7 +52,7 @@ pub struct SysCallInfo {
     pub parameter_rules: Vec<Parameter>,
 }
 
-impl SysCallInfo {
+impl CallInfo {
     pub fn new(
         config: &GearConfig,
         signature: SysCallSignature,
@@ -190,13 +190,13 @@ impl Default for SyscallsConfig {
 }
 
 /// Make syscalls table for given config.
-pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<SysCallName, SysCallInfo> {
+pub(crate) fn sys_calls_table(config: &GearConfig) -> BTreeMap<SysCallName, CallInfo> {
     SysCallName::instrumentable()
         .into_iter()
         .map(|name| {
             (
                 name,
-                SysCallInfo::new(config, name.signature(), config.sys_call_freq, {
+                CallInfo::new(config, name.signature(), config.sys_call_freq, {
                     name == SysCallName::SendInput || name == SysCallName::SendInputWGas
                 }),
             )

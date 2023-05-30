@@ -20,8 +20,10 @@
 
 use crate::common::{Error, GlobalNames};
 use core::any::Any;
-
-use gear_backend_common::lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor};
+use gear_backend_common::{
+    lazy_pages::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
+    LimitedStr,
+};
 use gear_core::memory::HostPointer;
 use gear_sandbox_native::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
@@ -48,9 +50,9 @@ struct GlobalsAccessWasmRuntime<'a> {
 }
 
 impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
-    fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
+    fn get_i64(&self, name: LimitedStr) -> Result<i64, GlobalsAccessError> {
         self.instance
-            .get_global_val(name)
+            .get_global_val(name.as_str())
             .and_then(|value| match value {
                 Value::I64(value) => Some(value),
                 _ => None,
@@ -58,9 +60,9 @@ impl<'a> GlobalsAccessor for GlobalsAccessWasmRuntime<'a> {
             .ok_or(GlobalsAccessError)
     }
 
-    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
+    fn set_i64(&mut self, name: LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
         self.instance
-            .set_global_val(name, Value::I64(value))
+            .set_global_val(name.as_str(), Value::I64(value))
             .ok()
             .flatten()
             .ok_or(GlobalsAccessError)?;
@@ -77,11 +79,11 @@ struct GlobalsAccessNativeRuntime<'a, 'b> {
 }
 
 impl<'a, 'b> GlobalsAccessor for GlobalsAccessNativeRuntime<'a, 'b> {
-    fn get_i64(&self, name: &str) -> Result<i64, GlobalsAccessError> {
+    fn get_i64(&self, name: LimitedStr) -> Result<i64, GlobalsAccessError> {
         self.inner_access_provider.get_i64(name)
     }
 
-    fn set_i64(&mut self, name: &str, value: i64) -> Result<(), GlobalsAccessError> {
+    fn set_i64(&mut self, name: LimitedStr, value: i64) -> Result<(), GlobalsAccessError> {
         self.inner_access_provider.set_i64(name, value)
     }
 
@@ -95,6 +97,8 @@ fn apply_for_global_internal(
     name: &str,
     mut f: impl FnMut(u64) -> Result<Option<u64>, Error>,
 ) -> Result<u64, Error> {
+    let name = LimitedStr::new(name).map_err(|_| Error::AccessGlobal(GlobalsAccessError))?;
+
     let current_value = globals_access_provider.get_i64(name)? as u64;
     if let Some(new_value) = f(current_value)? {
         globals_access_provider.set_i64(name, new_value as i64)?;

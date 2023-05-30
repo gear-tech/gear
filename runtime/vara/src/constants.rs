@@ -23,14 +23,18 @@ pub mod currency {
     /// The existential deposit.
     pub const EXISTENTIAL_DEPOSIT: Balance = 10_000_000_000_000; // 10 Vara
 
+    /// The program rent cost per block.
+    pub const RENT_COST_PER_BLOCK: Balance = 125_000_000;
+
     // TODO: review quantities based on economic model (issue #1277)
     pub const UNITS: Balance = 1_000_000_000_000; // 10^(-12) precision
     pub const DOLLARS: Balance = UNITS * 20; // 1 token is worth ~$0.05
     pub const CENTS: Balance = DOLLARS / 100; // 200_000_000_000
     pub const MILLICENTS: Balance = CENTS / 1_000; // 200_000_000
 
-    /// Function that defines runtime constants used in voting
+    /// Helper function to calculate various deposits for using pallets' storage
     pub const fn deposit(items: u32, bytes: u32) -> Balance {
+        // TODO: review numbers (#2650)
         items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
     }
 }

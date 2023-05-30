@@ -3,7 +3,7 @@ name = "pallet-gear"
 version = "2.0.0"
 authors = ['Gear Technologies']
 edition = '2021'
-license = "GPL-3.0"
+license.workspace = true
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 description = "Gear main pallet"
@@ -21,6 +21,7 @@ gear-wasm-instrument.workspace = true
 derive_more.workspace = true
 env_logger = { workspace = true, optional = true }
 scopeguard.workspace = true
+static_assertions.workspace = true
 
 # Internal deps
 common.workspace = true
@@ -78,7 +79,7 @@ demo-proxy.workspace = true
 demo-proxy-relay.workspace = true
 demo-proxy-with-gas.workspace = true
 demo-proxy-reservation-with-gas.workspace = true
-demo-init-with-value.workspace = true
+demo-init-with-value = { workspace = true, features = ["debug"] } # The `debug` feature is required for assering debug output
 demo-gasless-wasting.workspace = true
 demo-gas-burned.workspace = true
 demo-waiting-proxy.workspace = true
@@ -97,6 +98,7 @@ demo-signal-entry.workspace = true
 demo-async-signal-entry.workspace = true
 demo-async-custom-entry.workspace = true
 demo-out-of-memory.workspace = true
+test-syscalls.workspace = true
 page_size.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
@@ -160,4 +162,4 @@ runtime-benchmarks = [
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
 lazy-pages = ["gear-lazy-pages-common"]
-fuzz = ["common/fuzz"]
+fuzz = ["pallet-gear-gas/fuzz", "common/fuzz"]

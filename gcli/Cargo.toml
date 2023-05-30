@@ -1,11 +1,11 @@
 [package]
 name = "gcli"
-version = "0.1.5"
-authors = ["Gear Technologies"]
-edition = "2021"
+version = "0.1.6"
+authors.workspace = true
+edition.workspace = true
 description = "gear program cli"
 repository = "https://github.com/gear-tech/gear/tree/master/program"
-license = "GPL-3.0"
+license.workspace = true
 documentation = "https://docs.rs/gear-program"
 homepage = "https://github.com/gear-tech/gear/tree/master/program"
 keywords = ["gear", "cli", "wasm"]
@@ -44,9 +44,10 @@ gear-backend-wasmi = { workspace = true, features = [ "std" ] }
 
 [dev-dependencies]
 rand.workspace = true
-messager = { path = "./res/messager" }
+demo-messager.workspace = true
 demo-new-meta.workspace = true
 demo-waiter.workspace = true
+gsdk = { workspace = true, features = ["testing"] }
 
 [features]
 node-key = [ "libp2p" ]

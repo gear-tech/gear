@@ -17,15 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `upload`
-use crate::common::{self, env, logs, traits::Convert, Args, Result};
+use crate::common::{
+    self, env, logs,
+    traits::{Convert, NodeExec},
+    Args, Result,
+};
 use gear_core::ids::CodeId;
 use gsdk::Api;
 
 #[tokio::test]
 async fn test_command_upload_works() {
     common::login_as_alice().expect("login failed");
-    let mut node = common::Node::dev().expect("failed to start node");
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)
+    let mut node = common::dev().expect("failed to start node");
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)
         .expect("node timeout");
 
     let signer = Api::new(Some(&node.ws()))
@@ -35,34 +39,46 @@ async fn test_command_upload_works() {
         .expect("get signer failed");
 
     let code_id = CodeId::generate(demo_new_meta::WASM_BINARY);
-    assert!(signer.api().code_storage(code_id).await.is_err());
+    assert!(
+        signer.api().code_storage(code_id).await.is_err(),
+        "code should not exist"
+    );
 
     let output = node
         .run(Args::new("upload").program(env::wasm_bin("demo_new_meta.opt.wasm")))
         .expect("run command upload failed");
 
-    assert!(output
-        .stderr
-        .convert()
-        .contains(logs::gear_program::EX_UPLOAD_PROGRAM));
-    assert!(signer.api().code_storage(code_id).await.is_ok());
+    assert!(
+        output
+            .stderr
+            .convert()
+            .contains(logs::gear_program::EX_UPLOAD_PROGRAM),
+        "code should be uploaded, but got: {:?}",
+        output.stderr
+    );
+    assert!(
+        signer.api().code_storage(code_id).await.is_ok(),
+        "code should exist"
+    );
 }
 
 #[tokio::test]
 async fn test_command_upload_program_works() -> Result<()> {
     common::login_as_alice().expect("login failed");
-    let mut node = common::Node::dev()?;
-    node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
+    let mut node = common::dev()?;
+    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let output = node.run(
         Args::new("upload")
             .flag("--code-only")
-            .program(env::wasm_bin("demo_meta.opt.wasm")),
+            .program(env::wasm_bin("demo_new_meta.opt.wasm")),
     )?;
 
-    assert!(output
-        .stderr
-        .convert()
-        .contains(logs::gear_program::EX_UPLOAD_CODE));
+    let stderr = output.stderr.convert();
+
+    assert!(
+        stderr.contains(logs::gear_program::EX_UPLOAD_CODE),
+        "code should be uploaded, but got: {stderr:?}",
+    );
     Ok(())
 }

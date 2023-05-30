@@ -28,7 +28,7 @@ use frame_system::EnsureRootWithSuccess;
 mod origins;
 pub use origins::{
     pallet_custom_origins, Fellows, FellowshipAdmin, FellowshipExperts, FellowshipInitiates,
-    FellowshipMasters, GeneralAdmin, ReferendumCanceller, ReferendumKiller, StakingAdmin,
+    FellowshipMasters, GeneralAdmin, ReferendumCanceller, ReferendumKiller, Spender, StakingAdmin,
     Treasurer, WhitelistedCaller,
 };
 mod tracks;
@@ -56,6 +56,11 @@ parameter_types! {
     pub const SubmissionDeposit: Balance = 10 * DOLLARS;
     pub const UndecidingTimeout: BlockNumber = 14 * DAYS;
 }
+
+parameter_types! {
+    pub const MaxBalance: Balance = Balance::max_value();
+}
+pub type TreasurySpender = EitherOf<EnsureRootWithSuccess<AccountId, MaxBalance>, Spender>;
 
 impl pallet_custom_origins::Config for Runtime {}
 

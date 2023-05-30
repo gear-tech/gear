@@ -192,6 +192,33 @@ fixtures:
               kind: utf-8
               value: "PONG"
 
+      - log:
+          # 6 auto replies on init of 6 programs
+          - destination: 1000001
+            payload: &auto
+              kind: bytes
+              value: 0x
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+          # 1 auto reply on finished message
+          - destination: 1000001
+            payload: *auto
+            statusCode: 0
+
   - title: Three signatories & redundant threshold
 
     messages:
@@ -424,11 +451,25 @@ fixtures:
             payload: *sign_request
           - destination: 2
             payload: *signed_by_bob
+          # auto reply
+          - destination: 2
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
 
       - step: 4
         messages:
           - destination: 2
             payload: *signed_by_bob
+          # auto reply
+          - destination: 2
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
           - destination: 2
             payload: &rejected_by_alice
               kind: bytes
@@ -436,19 +477,36 @@ fixtures:
 
       - step: 5
         messages:
+          # auto reply #1
+          - destination: 2
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
           - destination: 2
             payload: *rejected_by_alice
           - destination: 2
             payload: *ping
 
       - step: 6
+        allowError: true
         messages:
+          - destination: 2
+            payload: *rejected_by_alice
           - destination: 2
             payload: *ping
 
       - step: 7
+        messages:
+          - destination: 2
+            payload: *ping
 
       - step: 8
+        allowError: true
+        messages: []
+
+      - step: 9
 
   - title: 2 of 3; bob & eve
 
@@ -581,6 +639,13 @@ fixtures:
               kind: account
               value: alice
             payload: *sign_request
+          # auto reply
+          - destination: 3
+            source:
+              kind: account
+              value: bob
+            payload: *auto
+            statusCode: 0
 
       - step: 3
         messages:
@@ -588,6 +653,13 @@ fixtures:
               kind: account
               value: alice
             payload: *sign_request
+          # auto reply
+          - destination: 3
+            source:
+              kind: account
+              value: bob
+            payload: *auto
+            statusCode: 0
           - destination: 3
             payload: &signed_by_eve
               kind: bytes
@@ -595,6 +667,13 @@ fixtures:
 
       - step: 4
         messages:
+          # auto reply #1
+          - destination: 3
+            source:
+              kind: account
+              value: bob
+            payload: *auto
+            statusCode: 0
           - destination: 3
             payload: *signed_by_eve
           - destination: 3
@@ -603,22 +682,24 @@ fixtures:
               value: "0x1450494e47340101b413cc7945b3218fdd542070426d3022e0ed871dbc5e82ca80f460fb1f93367a8c002d63a7cb9c7c8e5cb2e2fa041afc75f59a18887e91dfd7116c77177cf687"
 
       - step: 5
+        allowError: true
+        messages:
+          - destination: 3
+            payload: *signed_by_eve
+          - destination: 3
+            payload: *signed_by_alice
+
+      - step: 6
         messages:
           - destination: 3
             payload: *signed_by_alice
           - destination: 3
             payload: *ping
 
-      - step: 6
+      - step: 7
+        allowError: true
         messages:
           - destination: 3
-            payload: *ping
-
-      - step: 7
-        messages:
-          - destination:
-              kind: account
-              value: bob
             payload: *ping
 
       - step: 8
@@ -674,11 +755,25 @@ fixtures:
             payload: *sign_request
           - destination: 3
             payload: *signed_by_bob
+          # auto reply
+          - destination: 3
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
 
       - step: 4
         messages:
           - destination: 3
             payload: *signed_by_bob
+          # auto reply
+          - destination: 3
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
           - destination: 3
             payload: &signed_by_alice
               kind: bytes
@@ -686,26 +781,55 @@ fixtures:
 
       - step: 5
         messages:
+          # auto reply
+          - destination: 3
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
           - destination: 3
             payload: *signed_by_alice
           - destination: 3
             payload: *ping
 
       - step: 6
+        allowError: true
         messages:
+          - destination: 3
+            payload: *signed_by_alice
           - destination: 3
             payload: *ping
 
       - step: 7
         messages:
-          - destination:
-              kind: account
-              value: bob
+          - destination: 3
             payload: *ping
 
       - step: 8
+        allowError: true
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            source:
+              kind: id
+              value: 3
+            payload: *ping
 
       - step: 9
+        messages:
+          # auto reply
+          - destination: 3
+            source:
+              kind: account
+              value: bob
+            payload: *auto
+            statusCode: 0
+
+      - step: 10
+        allowError: true
+        messages: []
 
   - title: 2 of 3; eve doesn't answer, alice replies with incorrect payload
 
@@ -756,11 +880,25 @@ fixtures:
             payload: *sign_request
           - destination: 3
             payload: *signed_by_bob
+          # auto reply
+          - destination: 3
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
 
       - step: 4
         messages:
           - destination: 3
             payload: *signed_by_bob
+          # auto reply
+          - destination: 3
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
           - destination: 3
             payload: &incorrect_alice
               kind: bytes
@@ -768,21 +906,38 @@ fixtures:
 
       - step: 5
         messages:
+          # auto reply
+          - destination: 3
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
           - destination: 3
             payload: *incorrect_alice
           - destination: 3
             payload: *ping
 
       - step: 6
+        allowError: true
         messages:
+          - destination: 3
+            payload: *incorrect_alice
           - destination: 3
             payload: *ping
 
       - step: 7
+        messages:
+          - destination: 3
+            payload: *ping
 
       - step: 8
+        allowError: true
+        messages: []
 
       - step: 9
+
+      - step: 10
 
   - title: 2 of 3; no replies
 
@@ -821,6 +976,13 @@ fixtures:
               kind: account
               value: alice
             payload: *sign_request
+          # auto reply
+          - destination: 3
+            source:
+              kind: account
+              value: bob
+            payload: *auto
+            statusCode: 0
 
       - step: 3
         messages:
@@ -828,15 +990,70 @@ fixtures:
               kind: account
               value: alice
             payload: *sign_request
+          # auto replies
+          - destination: 3
+            source:
+              kind: account
+              value: bob
+            payload: *auto
+            statusCode: 0
+          - destination: 3
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
 
       - step: 4
+        messages:
+          # auto replies
+          - destination: 3
+            source:
+              kind: account
+              value: bob
+            payload: *auto
+            statusCode: 0
+          - destination: 3
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
+          - destination: 3
+            source:
+              kind: account
+              value: alice
+            payload: *auto
+            statusCode: 0
 
       - step: 5
+        allowError: true
+        messages:
+          # auto replies
+          - destination: 3
+            source:
+              kind: account
+              value: eve
+            payload: *auto
+            statusCode: 0
+          - destination: 3
+            source:
+              kind: account
+              value: alice
+            payload: *auto
+            statusCode: 0
 
       - step: 6
+        allowError: true
+        messages:
+          # auto replies
+          - destination: 3
+            source:
+              kind: account
+              value: alice
+            payload: *auto
+            statusCode: 0
 
       - step: 7
-
-      - step: 8
-
-      - step: 9
+        allowError: true
+        messages: []

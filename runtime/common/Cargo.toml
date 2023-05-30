@@ -1,9 +1,9 @@
 [package]
 name = "gear-runtime-common"
 version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2021"
-license = "GPL-3.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
@@ -26,6 +26,9 @@ frame-system-benchmarking = { workspace = true, optional = true }
 # Internal deps
 runtime-primitives.workspace = true
 gear-common.workspace = true
+gear-backend-common.workspace = true
+gear-core-processor.workspace = true
+pallet-gear.workspace = true
 
 [features]
 default = ["std"]
@@ -47,7 +50,4 @@ runtime-benchmarks = [
 	"pallet-balances/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
-try-runtime = [
-	"frame-system/try-runtime",
-	"pallet-balances/try-runtime",
-]
+try-runtime = ["frame-system/try-runtime", "pallet-balances/try-runtime"]
