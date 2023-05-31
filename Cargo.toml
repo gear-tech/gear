@@ -15,6 +15,7 @@ members = [
     "core-backend/common",
     "core-backend/sandbox",
     "core-backend/wasmi",
+    "core-backend/codegen",
     "core-processor",
     "core-errors",
     "examples/binaries/async-custom-entry",
@@ -24,6 +25,7 @@ members = [
     "examples/binaries/btree",
     "examples/binaries/calc-hash",
     "examples/binaries/compose",
+    "examples/binaries/constructor",
     "examples/binaries/contract-template",
     "examples/binaries/delayed-sender",
     "examples/binaries/distributor",
@@ -66,6 +68,7 @@ members = [
     "gmeta",
     "gsdk",
     "gsdk/codegen",
+    "gsdk/api-gen",
     "gstd",
     "gsys",
     "gtest",
@@ -142,7 +145,7 @@ serde_json = "^1"
 serde_yaml = "0.8.26"
 static_assertions = "1"
 subxt = { version = "^0.27.1", default-features = false }
-syn = { version = "2.0.13" }
+syn = "2.0.15"
 thiserror = "1.0.40"
 tokio = { version = "1.27.0" }
 url = "2.3.1"
@@ -168,6 +171,7 @@ gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gear-authorship = { path = "node/authorship" }
 gear-backend-common = { path = "core-backend/common" }
+gear-backend-codegen = { path = "core-backend/codegen" }
 gear-backend-sandbox = { path = "core-backend/sandbox", default-features = false }
 gear-backend-wasmi = { path = "core-backend/wasmi", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
@@ -331,6 +335,7 @@ demo-calc-hash = { path = "examples/binaries/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/binaries/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/binaries/calc-hash/over-blocks" }
 demo-compose = { path = "examples/binaries/compose" }
+demo-constructor = { path = "examples/binaries/constructor" }
 demo-delayed-sender = { path = "examples/binaries/delayed-sender" }
 demo-distributor = { path = "examples/binaries/distributor" }
 demo-exit-handle = { path = "examples/binaries/exit-handle" }
@@ -366,7 +371,8 @@ demo-waiting-proxy = { path = "examples/binaries/waiting-proxy" }
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
 cfg-if = "1.0.0"                                                          # gear-lazy-pages
-cargo_metadata = "0.15.3"                                                 # utils/wasm-builder
+# TODO: upgrade this package ( issue #2694 )
+cargo_metadata = "=0.15.3"                                                # utils/wasm-builder
 errno = "0.3"                                                             # gear-lazy-pages
 impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
 indicatif = "*"                                                           # utils/wasm-gen
@@ -395,8 +401,7 @@ wasm-opt = "0.111.0"                                                      # util
 wasmprinter = "0.2"                                                       # utils/wasm-gen
 whoami = "1.4.0"                                                          # gcli
 which = "4.4.0"                                                           # utils/wasm-builder
-# TODO #2551 commit is used until `mutagen` version 2 becomes is released to the crates.io
-mutagen = { git = "https://github.com/llogiq/mutagen", rev = "a6377c4c" } # gear-common
+fail = "0.5"                                                              # gear-common
 
 [profile.release]
 panic = "unwind"

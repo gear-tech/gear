@@ -3045,10 +3045,14 @@ fn block_gas_limit_works() {
         // program1 sends message to a user and it goes to the TaskPool
         let weight = minimal_weight + tasks_add_weight;
         // both processed if gas allowance equals only burned count
-        run_to_next_block(Some(weight.ref_time() + gas1.burned + gas2.burned));
+        run_to_next_block(Some(weight.ref_time() + gas1.burned + gas2.burned + 1));
         assert_last_dequeued(2);
+        assert_eq!(GasAllowanceOf::<Test>::get(), 1);
 
         // =========== BLOCK 5 ============
+        let (gas1, gas2) = calc_gas();
+        // Check that gas allowance has not changed after calc_gas execution
+        assert_eq!(GasAllowanceOf::<Test>::get(), 1);
 
         send_with_min_limit_to(pid1, &gas1);
         send_with_min_limit_to(pid2, &gas2);
@@ -7139,6 +7143,231 @@ fn test_create_program_without_gas_works() {
 }
 
 #[test]
+fn demo_constructor_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Scheme::empty().encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let constructor_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(constructor_id));
+
+        let calls = Calls::builder()
+            .source("source")
+            .send_value("source", Arg::bytes("Hello, user!"), 100_000)
+            .store_vec("message_id")
+            .send("source", "message_id");
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            100_000,
+        ));
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        let message_id = MessageId::generate_outgoing(message_id, 0);
+
+        let last_mail = maybe_any_last_message().expect("Element should be");
+        assert_eq!(last_mail.payload(), message_id.as_ref());
+
+        let (first_mail, _bn) = {
+            let res = MailboxOf::<Test>::remove(USER_1, message_id);
+            assert!(res.is_ok());
+            res.expect("was asserted previously")
+        };
+
+        assert_eq!(first_mail.value(), 100_000);
+        assert_eq!(first_mail.payload(), b"Hello, user!");
+
+        let calls = Calls::builder().panic("I just panic every time");
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            "I just panic every time"
+        } else {
+            "no info"
+        };
+
+        assert_failed(
+            message_id,
+            ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.to_string().into())),
+        );
+
+        let reply = maybe_any_last_message().expect("Should be");
+        assert_eq!(reply.id(), MessageId::generate_reply(message_id));
+        assert_eq!(
+            reply.status_code().expect("Should be"),
+            SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code()
+        )
+    });
+}
+
+#[test]
+fn demo_constructor_value_eq() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Scheme::empty().encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let constructor_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(constructor_id));
+
+        let calls = Calls::builder()
+            .value_as_vec("value")
+            .bytes_eq("bool", "value", 100_000u128.encode())
+            .if_else(
+                "bool",
+                Calls::builder().reply(Arg::bytes("Eq")),
+                Calls::builder().reply(Arg::bytes("Ne")),
+            );
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            100_000,
+        ));
+
+        run_to_next_block(None);
+
+        let last_mail = maybe_any_last_message().expect("Element should be");
+        assert_eq!(last_mail.payload(), b"Eq");
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let last_mail = maybe_any_last_message().expect("Element should be");
+        assert_eq!(last_mail.payload(), b"Ne");
+    });
+}
+
+#[test]
+fn demo_constructor_is_demo_ping() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
+
+        let ping = Arg::bytes("PING");
+        let pong = Arg::bytes("PONG");
+
+        let ping_branch = Calls::builder().send("source", pong);
+        let noop_branch = Calls::builder().noop();
+
+        let init = Calls::builder().reply(ping.clone());
+
+        let handle = Calls::builder()
+            .source("source")
+            .load("payload")
+            .bytes_eq("is_ping", "payload", ping)
+            .if_else("is_ping", ping_branch, noop_branch);
+
+        let handle_reply = Calls::builder().panic("I don't like replies");
+
+        let scheme = Scheme::predefined(init, handle, handle_reply);
+
+        // checking init
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            scheme.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let constructor_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(constructor_id));
+
+        let init_reply = maybe_any_last_message().expect("Element should be");
+        assert_eq!(init_reply.payload(), b"PING");
+
+        let mut message_id_to_reply = None;
+
+        // checking handle twice
+        for _ in 0..2 {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                constructor_id,
+                b"PING".to_vec(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+
+            run_to_next_block(None);
+
+            let last_mail = maybe_any_last_message().expect("Element should be");
+            assert_eq!(last_mail.payload(), b"PONG");
+            message_id_to_reply = Some(last_mail.id());
+        }
+
+        let message_id_to_reply = message_id_to_reply.expect("Should be");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            message_id_to_reply,
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let reply_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        // we don't assert fail reason since no error reply sent on reply,
+        // but message id has stamp in MessagesDispatched event.
+        let status = dispatch_status(reply_id).expect("Not found in `MessagesDispatched`");
+        assert_eq!(status, DispatchStatus::Failed);
+    });
+}
+
+#[test]
 fn test_reply_to_terminated_program() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7231,15 +7460,20 @@ fn delayed_sending() {
         let prog = utils::get_last_program_id();
 
         run_to_next_block(None);
-
         assert!(Gear::is_active(prog));
+
+        let auto_reply = maybe_last_message(USER_1).expect("Should be");
+        assert!(auto_reply.is_reply());
+        assert!(auto_reply.payload().is_empty());
+
+        System::reset_events();
 
         for _ in 0..delay {
             assert!(maybe_last_message(USER_1).is_none());
             run_to_next_block(None);
         }
 
-        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+        assert!(!MailboxOf::<Test>::is_empty(&USER_1));
         assert_eq!(
             maybe_last_message(USER_1)
                 .expect("Event should be")
@@ -8247,61 +8481,6 @@ fn reply_from_reservation() {
             let msg = maybe_last_message(USER_1).expect("Should be");
             assert_eq!(msg.value(), 900);
             assert_eq!(msg.payload(), b"reply");
-            let map = get_reservation_map(pid).unwrap();
-            assert!(map.is_empty());
-        }
-
-        {
-            MailboxOf::<Test>::clear();
-
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                pid,
-                HandleAction::ReplyToUserDelayed.encode(),
-                10_000_000_000,
-                1_000,
-            ));
-
-            run_to_block(5, None);
-
-            assert!(MailboxOf::<Test>::is_empty(&USER_1));
-
-            run_to_block(6, None);
-
-            let msg = maybe_last_message(USER_1).expect("Should be");
-            assert_eq!(msg.value(), 1000);
-            assert_eq!(msg.payload(), b"reply_to_user_delayed");
-            let map = get_reservation_map(pid).unwrap();
-            assert!(map.is_empty());
-        }
-
-        {
-            MailboxOf::<Test>::clear();
-
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                pid,
-                HandleAction::ReplyToProgramDelayed {
-                    pid: pid2.into(),
-                    user: USER_1.into_origin().into()
-                }
-                .encode(),
-                10_000_000_000,
-                1_000,
-            ));
-
-            let mid = get_last_message_id();
-
-            run_to_block(7, None);
-
-            assert!(MailboxOf::<Test>::is_empty(&USER_1));
-            assert_succeed(mid);
-
-            run_to_block(8, None);
-
-            let msg = maybe_last_message(USER_1).expect("Should be");
-            assert_eq!(msg.value(), 1000);
-            assert_eq!(msg.payload(), b"reply_delayed");
             let map = get_reservation_map(pid).unwrap();
             assert!(map.is_empty());
         }
@@ -11140,6 +11319,58 @@ fn reject_incorrect_stack_pointer() {
         assert_noop!(
             upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(&wat)),
             Error::<Test>::ProgramConstructionFailed
+        );
+    });
+}
+
+#[test]
+fn calculate_gas_fails_when_calculation_limit_exceeded() {
+    use demo_reserve_gas::{HandleAction as Command, InitAction as Init, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Init::Normal(vec![]).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("Program uploading failed");
+
+        run_to_next_block(None);
+
+        // Make reservations exceeding calculation gas limit of 5 blocks.
+        for _i in 0..6 {
+            Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                // 96% of block gas limit
+                Command::AddReservationToList(BlockGasLimitOf::<Test>::get() / 100 * 96, 10)
+                    .encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            )
+            .expect("Making reservation failed");
+        }
+
+        run_to_next_block(None);
+
+        let gas_info_result = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            Command::ConsumeReservationsFromList.encode(),
+            0,
+            true,
+            true,
+        );
+
+        assert!(gas_info_result.is_err());
+        assert_eq!(
+            gas_info_result.unwrap_err(),
+            "Calculation gas limit exceeded. Consider using custom built node."
         );
     });
 }

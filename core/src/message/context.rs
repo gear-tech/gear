@@ -105,6 +105,7 @@ impl ContextSettings {
 
 /// Dispatch or message with additional information.
 pub type OutgoingMessageInfo<T> = (T, u32, Option<ReservationId>);
+pub type OutgoingMessageInfoNoDelay<T> = (T, Option<ReservationId>);
 
 /// Context outcome dispatches and awakening ids.
 pub type ContextOutcomeDrain = (
@@ -119,7 +120,7 @@ pub type ContextOutcomeDrain = (
 pub struct ContextOutcome {
     init: Vec<OutgoingMessageInfo<InitMessage>>,
     handle: Vec<OutgoingMessageInfo<HandleMessage>>,
-    reply: Option<OutgoingMessageInfo<ReplyMessage>>,
+    reply: Option<OutgoingMessageInfoNoDelay<ReplyMessage>>,
     // u32 is delay
     awakening: Vec<(MessageId, u32)>,
     // Additional information section.
@@ -151,10 +152,10 @@ impl ContextOutcome {
             dispatches.push((msg.into_dispatch(self.program_id), delay, reservation));
         }
 
-        if let Some((msg, delay, reservation)) = self.reply {
+        if let Some((msg, reservation)) = self.reply {
             dispatches.push((
                 msg.into_dispatch(self.program_id, self.source, self.origin_msg_id),
-                delay,
+                0,
                 reservation,
             ));
         };
@@ -399,7 +400,6 @@ impl MessageContext {
     pub fn reply_commit(
         &mut self,
         packet: ReplyPacket,
-        delay: u32,
         reservation: Option<ReservationId>,
     ) -> Result<MessageId, Error> {
         self.check_reply_availability()?;
@@ -418,7 +418,7 @@ impl MessageContext {
             let message_id = MessageId::generate_reply(self.current.id());
             let message = ReplyMessage::from_packet(message_id, packet);
 
-            self.outcome.reply = Some((message, delay, reservation));
+            self.outcome.reply = Some((message, reservation));
             self.store.reply_sent = true;
 
             Ok(message_id)
@@ -622,11 +622,11 @@ mod tests {
         );
 
         // First reply.
-        assert_ok!(message_context.reply_commit(Default::default(), 0, None));
+        assert_ok!(message_context.reply_commit(Default::default(), None));
 
         // Reply twice in one message is forbidden.
         assert_err!(
-            message_context.reply_commit(Default::default(), 0, None),
+            message_context.reply_commit(Default::default(), None),
             Error::DuplicateReply,
         );
     }
@@ -669,7 +669,7 @@ mod tests {
         assert_ok!(context.reply_push(&[1, 2, 3]));
 
         // Setting reply message and making sure the operation was successful
-        assert_ok!(context.reply_commit(reply_packet.clone(), 0, None));
+        assert_ok!(context.reply_commit(reply_packet.clone(), None));
 
         // Checking that the `ReplyMessage` matches the passed one
         assert_eq!(
@@ -686,7 +686,7 @@ mod tests {
 
         // Checking that repeated call `reply_commit(...)` returns error and does not
         assert_err!(
-            context.reply_commit(reply_packet, 0, None),
+            context.reply_commit(reply_packet, None),
             Error::DuplicateReply
         );
 
