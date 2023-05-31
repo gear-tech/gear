@@ -7143,6 +7143,231 @@ fn test_create_program_without_gas_works() {
 }
 
 #[test]
+fn demo_constructor_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Scheme::empty().encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let constructor_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(constructor_id));
+
+        let calls = Calls::builder()
+            .source("source")
+            .send_value("source", Arg::bytes("Hello, user!"), 100_000)
+            .store_vec("message_id")
+            .send("source", "message_id");
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            100_000,
+        ));
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        let message_id = MessageId::generate_outgoing(message_id, 0);
+
+        let last_mail = maybe_any_last_message().expect("Element should be");
+        assert_eq!(last_mail.payload(), message_id.as_ref());
+
+        let (first_mail, _bn) = {
+            let res = MailboxOf::<Test>::remove(USER_1, message_id);
+            assert!(res.is_ok());
+            res.expect("was asserted previously")
+        };
+
+        assert_eq!(first_mail.value(), 100_000);
+        assert_eq!(first_mail.payload(), b"Hello, user!");
+
+        let calls = Calls::builder().panic("I just panic every time");
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            "I just panic every time"
+        } else {
+            "no info"
+        };
+
+        assert_failed(
+            message_id,
+            ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.to_string().into())),
+        );
+
+        let reply = maybe_any_last_message().expect("Should be");
+        assert_eq!(reply.id(), MessageId::generate_reply(message_id));
+        assert_eq!(
+            reply.status_code().expect("Should be"),
+            SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code()
+        )
+    });
+}
+
+#[test]
+fn demo_constructor_value_eq() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Scheme::empty().encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let constructor_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(constructor_id));
+
+        let calls = Calls::builder()
+            .value_as_vec("value")
+            .bytes_eq("bool", "value", 100_000u128.encode())
+            .if_else(
+                "bool",
+                Calls::builder().reply(Arg::bytes("Eq")),
+                Calls::builder().reply(Arg::bytes("Ne")),
+            );
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            100_000,
+        ));
+
+        run_to_next_block(None);
+
+        let last_mail = maybe_any_last_message().expect("Element should be");
+        assert_eq!(last_mail.payload(), b"Eq");
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let last_mail = maybe_any_last_message().expect("Element should be");
+        assert_eq!(last_mail.payload(), b"Ne");
+    });
+}
+
+#[test]
+fn demo_constructor_is_demo_ping() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
+
+        let ping = Arg::bytes("PING");
+        let pong = Arg::bytes("PONG");
+
+        let ping_branch = Calls::builder().send("source", pong);
+        let noop_branch = Calls::builder().noop();
+
+        let init = Calls::builder().reply(ping.clone());
+
+        let handle = Calls::builder()
+            .source("source")
+            .load("payload")
+            .bytes_eq("is_ping", "payload", ping)
+            .if_else("is_ping", ping_branch, noop_branch);
+
+        let handle_reply = Calls::builder().panic("I don't like replies");
+
+        let scheme = Scheme::predefined(init, handle, handle_reply);
+
+        // checking init
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            scheme.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0
+        ));
+
+        let constructor_id = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(constructor_id));
+
+        let init_reply = maybe_any_last_message().expect("Element should be");
+        assert_eq!(init_reply.payload(), b"PING");
+
+        let mut message_id_to_reply = None;
+
+        // checking handle twice
+        for _ in 0..2 {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                constructor_id,
+                b"PING".to_vec(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+
+            run_to_next_block(None);
+
+            let last_mail = maybe_any_last_message().expect("Element should be");
+            assert_eq!(last_mail.payload(), b"PONG");
+            message_id_to_reply = Some(last_mail.id());
+        }
+
+        let message_id_to_reply = message_id_to_reply.expect("Should be");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            message_id_to_reply,
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let reply_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        // we don't assert fail reason since no error reply sent on reply,
+        // but message id has stamp in MessagesDispatched event.
+        let status = dispatch_status(reply_id).expect("Not found in `MessagesDispatched`");
+        assert_eq!(status, DispatchStatus::Failed);
+    });
+}
+
+#[test]
 fn test_reply_to_terminated_program() {
     init_logger();
     new_test_ext().execute_with(|| {

@@ -25,6 +25,7 @@ members = [
     "examples/binaries/btree",
     "examples/binaries/calc-hash",
     "examples/binaries/compose",
+    "examples/binaries/constructor",
     "examples/binaries/contract-template",
     "examples/binaries/delayed-sender",
     "examples/binaries/distributor",
@@ -334,6 +335,7 @@ demo-calc-hash = { path = "examples/binaries/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/binaries/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/binaries/calc-hash/over-blocks" }
 demo-compose = { path = "examples/binaries/compose" }
+demo-constructor = { path = "examples/binaries/constructor" }
 demo-delayed-sender = { path = "examples/binaries/delayed-sender" }
 demo-distributor = { path = "examples/binaries/distributor" }
 demo-exit-handle = { path = "examples/binaries/exit-handle" }
