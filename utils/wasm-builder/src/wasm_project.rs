@@ -272,7 +272,7 @@ extern "C" fn metahash() {{
             PTR_SPECIAL,
             0,
             res.as_mut_ptr(),
-        )
+        );
     }}
 }}
 "#,
