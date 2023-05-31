@@ -39,6 +39,8 @@ use alloc::{string::String, vec::Vec};
 // compilable as a dependency for the build of the `gear` with `runtime-benchmarking` feature.
 #[derive(Debug, Encode, Decode)]
 pub enum Kind {
+    // Params(name), Expected(cost)
+    Cost(String, u128),
     // Params(salt, gas), Expected(message id, actor id)
     CreateProgram(u64, Option<u64>, (MessageId, ActorId)),
     // Params(value), Expected(error message)
@@ -145,6 +147,13 @@ mod wasm {
 
     fn process(syscall_kind: Kind) {
         match syscall_kind {
+            Kind::Cost(name, expected_cost) => {
+                let cost = gstd::ext::cost(name).expect("internal error: cost failed");
+                assert_eq!(expected_cost, cost, "Kind::Cost: cost test failed");
+                let cost = format!("{cost}");
+                msg::send(msg::source(), cost.as_bytes(), 0)
+                    .expect("internal error: cost send failed");
+            }
             Kind::CreateProgram(salt, gas_opt, (expected_mid, expected_pid)) => {
                 let salt = salt.to_le_bytes();
                 let res = match gas_opt {
