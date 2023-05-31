@@ -3469,6 +3469,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-utils",
+ "gmeta",
  "gsdk",
  "gstd",
  "hex",

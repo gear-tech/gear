@@ -18,11 +18,12 @@
 
 use demo_meta_io::Wallet;
 use gclient::{EventProcessor, GearApi};
+use gmeta::MetadataRepr;
 use parity_scale_codec::Decode;
 use tokio::fs;
 
 const WASM_PATH: &str = "../target/wasm32-unknown-unknown/release/demo_new_meta.opt.wasm";
-const METAHASH_PATH: &str = "../examples/binaries/new-meta/.metahash";
+const META_PATH: &str = "../examples/binaries/new-meta/demo_new_meta.meta.txt";
 const META_WASM_PATH: &str =
     "../target/wasm32-unknown-unknown/release/demo_meta_state_v1.meta.wasm";
 
@@ -55,9 +56,14 @@ async fn get_state() -> anyhow::Result<()> {
     assert!(listener.message_processed(message_id).await?.succeed());
 
     // Read and check `metahash`
-    let metahash = api.read_metahash(program_id).await?;
-    let file_metahash = fs::read_to_string(METAHASH_PATH).await?;
-    assert_eq!(format!("{:?}", metahash.as_bytes()), file_metahash);
+    let actual_metahash = api.read_metahash(program_id).await?.0;
+
+    let meta = fs::read_to_string(META_PATH).await?;
+    let expected_metahash = MetadataRepr::from_hex(meta)
+        .expect("Failed to read meta from hex")
+        .hash();
+
+    assert_eq!(actual_metahash, expected_metahash);
 
     // Read state bytes
     let state = api.read_state_bytes(program_id).await?;

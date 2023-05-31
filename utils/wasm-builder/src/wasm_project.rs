@@ -215,13 +215,9 @@ impl WasmProject {
             let wasm_meta_path = self
                 .original_dir
                 .join([file_base_name, ".meta.txt"].concat());
-            let wasm_meta_hash_path = self.original_dir.join(".metahash");
 
             smart_fs::write_metadata(wasm_meta_path, metadata)
                 .context("unable to write `*.meta.txt`")?;
-
-            smart_fs::write(&wasm_meta_hash_path, format!("{:?}", metadata.hash()))
-                .context("unable to write `.metahash`")?;
 
             source_code = format!(
                 r#"{source_code}
@@ -263,7 +259,7 @@ use fake_gsys::*;
 
 #[no_mangle]
 extern "C" fn metahash() {{
-    const METAHASH: [u8; 32] = include!("{}");
+    const METAHASH: [u8; 32] = {:?};
     let mut res: LengthWithHash = Default::default();
     unsafe {{
         gr_reply(
@@ -276,7 +272,7 @@ extern "C" fn metahash() {{
     }}
 }}
 "#,
-                display_path(wasm_meta_hash_path),
+                metadata.hash(),
             );
         }
 
