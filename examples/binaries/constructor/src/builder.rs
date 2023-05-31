@@ -4,6 +4,7 @@ use core::{fmt::Debug, ops::Deref};
 use parity_scale_codec::{WrapperTypeDecode, WrapperTypeEncode};
 
 #[derive(Default, Debug, Clone)]
+/// Represent builder across vector of calls to be executed with some entry point.
 pub struct Calls(Vec<Call>);
 
 impl From<Vec<Call>> for Calls {
@@ -34,38 +35,43 @@ impl Calls {
         self.0
     }
 
-    pub fn push(mut self, call: Call) -> Self {
+    pub fn add_call(mut self, call: Call) -> Self {
         self.0.push(call);
         self
     }
 
-    pub fn push_many<const N: usize>(mut self, calls: [Call; N]) -> Self {
+    pub fn add_from_iter(mut self, calls: impl Iterator<Item = Call>) -> Self {
         self.0.extend(calls.into_iter());
         self
     }
 
+    pub fn add_many<const N: usize>(self, calls: [Call; N]) -> Self {
+        self.add_from_iter(calls.into_iter())
+    }
+
     pub fn vec(self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> Self {
-        self.push(Call::Vec(value.as_ref().to_vec())).store_vec(key)
+        self.add_call(Call::Vec(value.as_ref().to_vec()))
+            .store_vec(key)
     }
 
     pub fn store(self, key: impl AsRef<str>) -> Self {
-        self.push(Call::Store(key.as_ref().to_string()))
+        self.add_call(Call::Store(key.as_ref().to_string()))
     }
 
     pub fn store_vec(self, key: impl AsRef<str>) -> Self {
-        self.push(Call::StoreVec(key.as_ref().to_string()))
+        self.add_call(Call::StoreVec(key.as_ref().to_string()))
     }
 
     pub fn source(self, key: impl AsRef<str>) -> Self {
-        self.push(Call::Source).store(key)
+        self.add_call(Call::Source).store(key)
     }
 
     pub fn value(self, key: impl AsRef<str>) -> Self {
-        self.push(Call::Value).store(key)
+        self.add_call(Call::Value).store(key)
     }
 
     pub fn value_as_vec(self, key: impl AsRef<str>) -> Self {
-        self.push(Call::Value).store_vec(key)
+        self.add_call(Call::Value).store_vec(key)
     }
 
     pub fn send(
@@ -82,7 +88,7 @@ impl Calls {
         payload: impl Into<Arg<Vec<u8>>>,
         value: impl Into<Arg<u128>>,
     ) -> Self {
-        self.push(Call::Send(
+        self.add_call(Call::Send(
             destination.into(),
             payload.into(),
             None,
@@ -116,7 +122,7 @@ impl Calls {
         let gas_limit = gas_limit
             .try_into()
             .expect("Cannot convert given gas limit into `u64`");
-        self.push(Call::Send(
+        self.add_call(Call::Send(
             destination.into(),
             payload.into(),
             Some(gas_limit),
@@ -126,7 +132,7 @@ impl Calls {
     }
 
     pub fn reply(self, payload: impl Into<Arg<Vec<u8>>>) -> Self {
-        self.push(Call::Reply(payload.into(), None, 0.into()))
+        self.add_call(Call::Reply(payload.into(), None, 0.into()))
     }
 
     pub fn reply_wgas<T: TryInto<u64>>(self, payload: impl Into<Arg<Vec<u8>>>, gas_limit: T) -> Self
@@ -136,15 +142,15 @@ impl Calls {
         let gas_limit = gas_limit
             .try_into()
             .expect("Cannot convert given gas limit into `u64`");
-        self.push(Call::Reply(payload.into(), Some(gas_limit), 0.into()))
+        self.add_call(Call::Reply(payload.into(), Some(gas_limit), 0.into()))
     }
 
     pub fn panic(self, message: impl Into<Option<&'static str>>) -> Self {
-        self.push(Call::Panic(message.into().map(ToString::to_string)))
+        self.add_call(Call::Panic(message.into().map(ToString::to_string)))
     }
 
     pub fn exit(self, inheritor: impl Into<Arg<[u8; 32]>>) -> Self {
-        self.push(Call::Exit(inheritor.into()))
+        self.add_call(Call::Exit(inheritor.into()))
     }
 
     pub fn bytes_eq(
@@ -153,12 +159,12 @@ impl Calls {
         left: impl Into<Arg<Vec<u8>>>,
         right: impl Into<Arg<Vec<u8>>>,
     ) -> Self {
-        self.push(Call::BytesEq(left.into(), right.into()))
+        self.add_call(Call::BytesEq(left.into(), right.into()))
             .store(key)
     }
 
     pub fn noop(self) -> Self {
-        self.push(Call::Noop)
+        self.add_call(Call::Noop)
     }
 
     // TODO: support multiple calls for branches by passing mut ref instead of moving value in Call processing.
@@ -170,7 +176,7 @@ impl Calls {
         let true_call = true_call.0.remove(0);
         let false_call = false_call.0.remove(0);
 
-        self.push(Call::IfElse(
+        self.add_call(Call::IfElse(
             Arg::get(key),
             Box::new(true_call),
             Box::new(false_call),
@@ -178,6 +184,6 @@ impl Calls {
     }
 
     pub fn load(self, key: impl AsRef<str>) -> Self {
-        self.push(Call::Load).store(key)
+        self.add_call(Call::Load).store(key)
     }
 }

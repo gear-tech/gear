@@ -3,6 +3,7 @@ use alloc::{boxed::Box, string::String, vec::Vec};
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Clone, Debug, Decode, Encode)]
+/// Represents wasm instruction the should be executed with given parameters.
 pub enum Call {
     Vec(Vec<u8>),
     Store(String),

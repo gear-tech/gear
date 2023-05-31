@@ -5,6 +5,8 @@ use alloc::{
 use parity_scale_codec::{Codec, Decode, Encode};
 
 #[derive(Clone, Debug, Decode, Encode)]
+/// Represents argument type for `Call` to be executed in wasm: may be the
+/// value itself or the key of variables storage inside program.
 pub enum Arg<T: 'static + Clone + Codec> {
     New(T),
     Get(String),
