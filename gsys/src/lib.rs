@@ -307,6 +307,18 @@ extern "C" {
     /// - `timestamp`: `mut ptr` for `u64`.
     pub fn gr_block_timestamp(timestamp: *mut BlockTimestamp);
 
+    /// Fallible `gr_cost` get syscall.
+    ///
+    /// Arguments type:
+    /// - `cost_name_ptr`: `const ptr` for the beggining of the cost name buffer.
+    /// - `cost_name_len`: `u32` length of the cost name buffer.
+    /// - `cost_ptr`: `mut ptr` for `u128`.
+    pub fn gr_cost(
+        cost_name_ptr: *const BufferStart,
+        cost_name_len: Length,
+        cost_ptr: *const Value,
+    );
+
     /// Fallible `gr_create_program_wgas` send syscall.
     ///
     /// Arguments type:

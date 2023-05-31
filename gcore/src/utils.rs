@@ -18,8 +18,31 @@
 
 /// Extensions for additional features.
 pub mod ext {
-    #[cfg(any(feature = "debug", debug_assertions))]
+    use alloc::string::String;
+
     use crate::errors::{ExtError, Result};
+
+    /// Gets the cost of something.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gcore::ext;
+    ///
+    /// #[no_mangle]
+    /// extern "C" fn handle() {
+    ///    let cost = ext::cost(String::from("waitlist")).expect("Unable to get cost");
+    /// }
+    /// ```
+    pub fn cost(name: String) -> Result<u128> {
+        let mut cost = 0u128;
+        let cost_ptr = &mut cost as *mut u128;
+        let name_len = name.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
+
+        unsafe { gsys::gr_cost(name.as_ptr(), name_len, cost_ptr) }
+
+        Ok(cost)
+    }
 
     /// Add a `data` string to the debug log.
     ///
