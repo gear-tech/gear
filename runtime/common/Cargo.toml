@@ -32,6 +32,9 @@ gear-backend-common.workspace = true
 gear-core-processor.workspace = true
 pallet-gear.workspace = true
 
+# Utils
+log.workspace = true
+
 [features]
 default = ["std"]
 std = [
