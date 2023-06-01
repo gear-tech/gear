@@ -48,6 +48,7 @@ const LICENSE: &str = r#"
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+#![allow(rustdoc::broken_intra_doc_links)] //subxt-codegen produces incorrect docs
 "#;
 
 fn main() -> Result<()> {

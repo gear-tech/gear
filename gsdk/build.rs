@@ -54,10 +54,14 @@ fn generate_api() -> Vec<u8> {
     // NOTE: use vara here since vara includes all pallets gear have,
     // and the API we are building here is for both vara and gear.
     let [vara_runtime, api_gen] = [
-        (VARA_RUNTIME_RELATIVE_PATH, VARA_RUNTIME_PKG),
-        (GSDK_API_GEN_RELATIVE_PATH, GSDK_API_GEN_PKG),
+        (
+            VARA_RUNTIME_RELATIVE_PATH,
+            VARA_RUNTIME_PKG,
+            vec!["debug-mode"],
+        ),
+        (GSDK_API_GEN_RELATIVE_PATH, GSDK_API_GEN_PKG, vec![]),
     ]
-    .map(|(relative_path, pkg)| get_path(root, &profile, relative_path, pkg));
+    .map(|(relative_path, pkg, features)| get_path(root, &profile, relative_path, pkg, features));
 
     // Generate api
     let code = Command::new(api_gen)
@@ -102,21 +106,36 @@ fn format(stream: &[u8]) -> String {
 }
 
 // Get the path of the compiled package.
-fn get_path(root: &str, profile: &str, relative_path: &str, pkg: &str) -> PathBuf {
+fn get_path(
+    root: &str,
+    profile: &str,
+    relative_path: &str,
+    pkg: &str,
+    features: Vec<&'static str>,
+) -> PathBuf {
     let path = PathBuf::from(format!("{}/../target/{}/{}", root, profile, relative_path));
 
     // If package has not been compiled, compile it.
     if !path.exists() {
-        let mut args = vec!["b", "-p", pkg];
+        let mut args = ["build", "--package", pkg]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+
+        if !features.is_empty() {
+            args.push("--features".into());
+            args.push(features.join(","));
+        }
+
         if profile == "release" {
-            args.push("--release");
+            args.push("--release".into());
         }
 
         // NOTE: not gonna compile the package here since it may block the
         // build process.
         panic!(
             "package {} has not been compiled yet, please run \
-             `cargo run {}` first, or set GEN_CLIENT_API=false \
+             `cargo {}` first, or set GEN_CLIENT_API=false \
              for the environment",
             pkg,
             args.join(" ")
