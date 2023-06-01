@@ -10,6 +10,7 @@ env:
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
   NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
+  RUSTDOCFLAGS: -Dwarnings
 
 jobs:
   docs:
