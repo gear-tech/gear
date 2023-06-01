@@ -1,25 +1,17 @@
 use crate::{Arg, Calls, Scheme};
-use parity_scale_codec::Encode;
 
 pub const DEAD_MESSAGE: &[u8] = b"If you read this, I'm dead";
 pub const UNREACHABLE_MESSAGE: &[u8] = b"UNREACHABLE";
 
-pub fn init() -> Calls {
+pub fn init(send_before_exit: bool) -> Calls {
     let source_var = "source_var";
-    let payload_var = "payload_var";
-    let equity_var = "equity_var";
 
     Calls::builder()
         // Storing source id under `source_var`.
         .source(source_var)
-        // Storing payload under `payload_var`.
-        .load(payload_var)
-        // Storing bool defining payload equals encoded "true" under `equity_var`.
-        .bytes_eq(equity_var, payload_var, Arg::bytes(true.encode()))
-        // Branching logic dependent on equity result.
-        // Sends dead message in true case, otherwise noop.
+        // Sends dead message if `send_before_exit`.
         .if_else(
-            equity_var,
+            send_before_exit,
             Calls::builder().send(source_var, Arg::bytes(DEAD_MESSAGE)),
             Calls::builder().noop(),
         )
@@ -37,6 +29,6 @@ pub fn handle_reply() -> Calls {
     Calls::builder().noop()
 }
 
-pub fn scheme() -> Scheme {
-    Scheme::predefined(init(), handle(), handle_reply())
+pub fn scheme(send_before_exit: bool) -> Scheme {
+    Scheme::predefined(init(send_before_exit), handle(), handle_reply())
 }
