@@ -1884,16 +1884,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-init-with-value"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "hex-literal 0.4.0",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "demo-messager"
 version = "0.1.0"
 dependencies = [
@@ -6920,7 +6910,6 @@ dependencies = [
  "demo-init-fail-sender",
  "demo-init-wait",
  "demo-init-wait-reply-exit",
- "demo-init-with-value",
  "demo-mul-by-const",
  "demo-new-meta",
  "demo-out-of-memory",
@@ -6954,6 +6943,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-wasm-instrument",
  "gmeta",
+ "gstd",
  "gsys",
  "hex",
  "log",

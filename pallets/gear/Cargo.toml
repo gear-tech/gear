@@ -62,6 +62,7 @@ demo-proxy = { workspace = true, optional = true }
 wabt.workspace = true
 hex.workspace = true
 blake2-rfc.workspace = true
+gstd = { workspace = true, features = ["debug"] }
 demo-async-tester.workspace = true
 demo-backend-error.workspace = true
 demo-btree.workspace = true
@@ -76,7 +77,6 @@ demo-proxy.workspace = true
 demo-proxy-relay.workspace = true
 demo-proxy-with-gas.workspace = true
 demo-proxy-reservation-with-gas.workspace = true
-demo-init-with-value = { workspace = true, features = ["debug"] } # The `debug` feature is required for assering debug output
 demo-gas-burned.workspace = true
 demo-waiting-proxy.workspace = true
 demo-calc-hash.workspace = true

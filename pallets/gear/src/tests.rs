@@ -5133,7 +5133,8 @@ fn exit_init() {
     new_test_ext().execute_with(|| {
         let code_id = CodeId::generate(WASM_BINARY);
 
-        let (_init_mid, program_id) = submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(false), 0);
+        let (_init_mid, program_id) =
+            submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(false), 0);
 
         let program = ProgramStorageOf::<Test>::get_program(program_id)
             .and_then(|p| ActiveProgram::try_from(p).ok())
@@ -6388,8 +6389,8 @@ fn init_wait_reply_exit_cleaned_storage() {
 
 #[test]
 fn locking_gas_for_waitlist() {
-    use demo_gas_burned::WASM_BINARY as GAS_BURNED_BINARY;
     use demo_constructor::{Calls, Scheme};
+    use demo_gas_burned::WASM_BINARY as GAS_BURNED_BINARY;
 
     let wat = r#"
     (module
@@ -6418,7 +6419,8 @@ fn locking_gas_for_waitlist() {
 
         // This program sends two empty gasless messages on each handle:
         // for this test first message is waiter, seconds is calculator.
-        let (_init_mid, sender) = submit_constructor_with_args(USER_1, DEFAULT_SALT, Scheme::empty(), 0);
+        let (_init_mid, sender) =
+            submit_constructor_with_args(USER_1, DEFAULT_SALT, Scheme::empty(), 0);
 
         run_to_block(2, None);
 
@@ -6843,20 +6845,25 @@ fn test_two_contracts_composition_works() {
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_value_lt_ed() {
-    use demo_init_with_value::{SendMessage, WASM_BINARY};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        // Ids of custom destinations
+        // Ids of custom_destination
         let ed = get_ed();
         let msg_receiver_1 = 5u64;
+        let msg_receiver_1_hash = <[u8; 32]>::from(msg_receiver_1.into_origin());
         let msg_receiver_2 = 6u64;
+        let msg_receiver_2_hash = <[u8; 32]>::from(msg_receiver_2.into_origin());
+
+        let default_calls = Calls::builder()
+            .send_value(msg_receiver_1_hash, [], 500)
+            .send_value(msg_receiver_2_hash, [], 500);
 
         // Submit the code
-        assert_ok!(Gear::upload_code(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Default.to_bytes(),
-        ));
+        let code = ProgramCodeKind::Default.to_bytes();
+        let code_id = CodeId::generate(&code).into_bytes();
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
 
         // Can't initialize program with value less than ED
         assert_noop!(
@@ -6871,29 +6878,18 @@ fn test_create_program_with_value_lt_ed() {
             Error::<Test>::ValueLessThanMinimal,
         );
 
+        let gas_limit = 200_000_001;
+
         // Simple passing test with values
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            b"test1".to_vec(),
-            // Sending 500 value with "handle" messages. This should not fail.
-            // Must be stated, that "handle" messages send value to some non-existing address
-            // so messages will go to mailbox
-            vec![
-                SendMessage::Handle {
-                    destination: msg_receiver_1.into(),
-                    value: 500
-                },
-                SendMessage::Handle {
-                    destination: msg_receiver_2.into(),
-                    value: 500
-                },
-                SendMessage::Init { value: 0 },
-            ]
-            .encode(),
-            10_000_000_000,
-            1000,
-        ));
+        // Sending 500 value with "handle" messages. This should not fail.
+        // Must be stated, that "handle" messages send value to some non-existing address
+        // so messages will go to mailbox
+        let calls = default_calls
+            .clone()
+            .create_program_wgas(code_id, [], [], gas_limit);
+
+        let (_init_mid, _pid) =
+            submit_constructor_with_args(USER_1, b"test1".to_vec(), Scheme::direct(calls), 1_000);
 
         run_to_block(2, None);
 
@@ -6912,26 +6908,17 @@ fn test_create_program_with_value_lt_ed() {
         System::reset_events();
 
         // Trying to send init message from program with value less than ED.
+        // First two messages won't fail, because provided values are in a valid range
+        // The last message value (which is the value of init message) will end execution with trap
+        let calls = default_calls.create_program_value_wgas(code_id, [], [], gas_limit, ed - 1);
+
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test2".to_vec(),
-            // First two messages won't fail, because provided values are in a valid range
-            // The last message value (which is the value of init message) will end execution with trap
-            vec![
-                SendMessage::Handle {
-                    destination: msg_receiver_1.into(),
-                    value: 500
-                },
-                SendMessage::Handle {
-                    destination: msg_receiver_2.into(),
-                    value: 500
-                },
-                SendMessage::Init { value: ed - 1 },
-            ]
-            .encode(),
+            Scheme::direct(calls).encode(),
             10_000_000_000,
-            1000,
+            10_000,
         ));
 
         let msg_id = get_last_message_id();
@@ -6942,14 +6929,21 @@ fn test_create_program_with_value_lt_ed() {
         // to send init message with value in invalid range.
         assert_total_dequeued(1);
 
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            format!(
+                "Failed to create program: {:?}",
+                TrapExplanation::Ext(ExtError::Message(MessageError::InsufficientValue {
+                    message_value: 499,
+                    existential_deposit: 500
+                }))
+            )
+        } else {
+            String::from("no info")
+        };
+
         assert_failed(
             msg_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Message(
-                MessageError::InsufficientValue {
-                    message_value: 499,
-                    existential_deposit: 500,
-                },
-            ))),
+            ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.into())),
         );
     })
 }
@@ -6967,97 +6961,63 @@ fn test_create_program_with_value_lt_ed() {
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_exceeding_value() {
-    use demo_init_with_value::{SendMessage, WASM_BINARY};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        // Submit the code
-        assert_ok!(Gear::upload_code(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Default.to_bytes(),
-        ));
+        let msg_value = 100001;
+        let calls = Calls::builder().create_program_value([0; 32], [], [], msg_value);
 
-        let sending_to_program = 2 * get_ed();
-        let random_receiver = 1;
-        // Trying to send init message from program with value greater than program can send.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
-            b"test1".to_vec(),
-            vec![
-                SendMessage::Handle {
-                    destination: random_receiver.into(),
-                    value: sending_to_program / 3
-                },
-                SendMessage::Handle {
-                    destination: random_receiver.into(),
-                    value: sending_to_program / 3
-                },
-                SendMessage::Init {
-                    value: sending_to_program + 1,
-                },
-            ]
-            .encode(),
+            DEFAULT_SALT.to_vec(),
+            Scheme::direct(calls).encode(),
             10_000_000_000,
-            sending_to_program,
+            msg_value - 1,
         ));
 
-        run_to_block(2, None);
+        let msg_id = get_last_message_id();
 
-        // Check there are no messages for `random_receiver`. There would be messages in mailbox
-        // if execution didn't end up with an "Not enough value to send message" error.
-        let origin_msg_id =
-            MessageId::generate_from_user(1, ProgramId::from_origin(USER_1.into_origin()), 0);
-        let receiver_mail_msg1 = MessageId::generate_outgoing(origin_msg_id, 0);
-        let receiver_mail_msg2 = MessageId::generate_outgoing(origin_msg_id, 1);
-        assert!(!MailboxOf::<Test>::contains(
-            &random_receiver,
-            &receiver_mail_msg1
-        ));
-        assert!(!MailboxOf::<Test>::contains(
-            &random_receiver,
-            &receiver_mail_msg2
-        ));
+        run_to_next_block(None);
 
         // User's message execution will result in trap, because program tries
-        // to send init message with value more than program has.
+        // to send init message with value in invalid range.
         assert_total_dequeued(1);
 
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            format!(
+                "Failed to create program: {:?}",
+                TrapExplanation::Ext(ExtError::Message(MessageError::NotEnoughValue {
+                    message_value: msg_value,
+                    value_left: msg_value - 1
+                }))
+            )
+        } else {
+            String::from("no info")
+        };
+
         assert_failed(
-            origin_msg_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Message(
-                MessageError::NotEnoughValue {
-                    message_value: 1001,
-                    value_left: 1000,
-                },
-            ))),
+            msg_id,
+            ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.into())),
         );
     })
 }
 
 #[test]
 fn test_create_program_without_gas_works() {
-    use demo_init_with_value::{SendMessage, WASM_BINARY};
+    use demo_constructor::{Calls, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        System::reset_events();
+        let code = ProgramCodeKind::Default.to_bytes();
+        let code_id = CodeId::generate(&code);
 
-        assert_ok!(Gear::upload_code(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Default.to_bytes(),
-        ));
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
 
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            b"test1".to_vec(),
-            vec![SendMessage::InitWithoutGas { value: 0 }].encode(),
-            10_000_000_000,
-            0,
-        ));
+        let calls = Calls::builder().create_program(code_id.into_bytes(), [], []);
 
-        run_to_block(2, None);
+        let _ = init_constructor(Scheme::direct(calls));
 
         assert_total_dequeued(2 + 1);
         assert_init_success(2);
@@ -7259,7 +7219,8 @@ fn test_reply_to_terminated_program() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let (original_message_id, _program_id) = submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(true), 0);
+        let (original_message_id, _program_id) =
+            submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(true), 0);
 
         let mail_id = MessageId::generate_outgoing(original_message_id, 0);
 
@@ -9718,7 +9679,7 @@ mod utils {
         assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test,
     };
     use crate::{
-        mock::{Balances, Gear, System, run_to_next_block, USER_1},
+        mock::{run_to_next_block, Balances, Gear, System, USER_1},
         BalanceOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
     };
     use common::{
@@ -9726,9 +9687,9 @@ mod utils {
         storage::{CountedByKey, Counter, IterableByKeyMap},
         Origin, ProgramStorage,
     };
-    use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReason;
+    use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use frame_support::{
         codec::Decode,
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
@@ -9742,10 +9703,10 @@ mod utils {
         reservation::GasReservationMap,
     };
     use gear_core_errors::{ExtError, SimpleCodec, SimpleReplyError};
+    use parity_scale_codec::Encode;
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
-    use parity_scale_codec::Encode;
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
@@ -9770,7 +9731,12 @@ mod utils {
     }
 
     #[track_caller]
-    pub(crate) fn submit_constructor_with_args(origin: AccountId, salt: impl AsRef<[u8]>, scheme: Scheme, value: BalanceOf<Test>) -> (MessageId, ProgramId) {
+    pub(crate) fn submit_constructor_with_args(
+        origin: AccountId,
+        salt: impl AsRef<[u8]>,
+        scheme: Scheme,
+        value: BalanceOf<Test>,
+    ) -> (MessageId, ProgramId) {
         let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
             origin.into_origin(),
             HandleKind::Init(DEMO_CONSTRUCTOR_WASM_BINARY.to_vec()),
