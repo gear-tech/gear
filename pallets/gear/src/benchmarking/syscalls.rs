@@ -881,36 +881,6 @@ where
         Self::prepare_handle_with_reservation_slots(module, repetitions)
     }
 
-    pub fn gr_reservation_reply_commit_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = 1;
-        let rid_value_offset = COMMON_OFFSET;
-        let payload_offset = rid_value_offset + RID_VALUE_SIZE;
-        let payload_len = n * 1024;
-        let res_offset = payload_offset + payload_len;
-
-        let module = ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::ReservationReply],
-            handle_body: Some(body::fallible_syscall(
-                repetitions,
-                res_offset,
-                &[
-                    // rid_value ptr
-                    InstrI32Const(rid_value_offset),
-                    // payload ptr
-                    InstrI32Const(payload_offset),
-                    // payload len
-                    InstrI32Const(payload_len),
-                    // delay
-                    InstrI32Const(10),
-                ],
-            )),
-            ..Default::default()
-        };
-
-        Self::prepare_handle_with_reservation_slots(module, repetitions)
-    }
-
     pub fn gr_reply_to(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         let res_offset = COMMON_OFFSET;

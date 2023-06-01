@@ -175,11 +175,20 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reservation_send`.
     pub gr_reservation_send: u64,
 
+    /// Weight of calling `gr_reservation_send_wgas`.
+    pub gr_reservation_send_wgas: u64,
+
     /// Weight of calling `gr_reservation_send` per one payload byte.
     pub gr_reservation_send_per_byte: u64,
 
+    /// Weight of calling `gr_reservation_send_wgas` per one payload byte.
+    pub gr_reservation_send_wgas_per_byte: u64,
+
     /// Weight of calling `gr_reservation_send_commit`.
     pub gr_reservation_send_commit: u64,
+
+    /// Weight of calling `gr_reservation_send_commit_wgas`.
+    pub gr_reservation_send_commit_wgas: u64,
 
     /// Weight of calling `gr_send_init`.
     pub gr_send_input: u64,
@@ -214,11 +223,20 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reservation_reply`.
     pub gr_reservation_reply: u64,
 
+    /// Weight of calling `gr_reservation_reply_wgas`.
+    pub gr_reservation_reply_wgas: u64,
+
     /// Weight of calling `gr_reservation_reply` per one payload byte.
     pub gr_reservation_reply_per_byte: u64,
 
+    /// Weight of calling `gr_reservation_reply_wgas` per one payload byte.
+    pub gr_reservation_reply_wgas_per_byte: u64,
+
     /// Weight of calling `gr_reservation_reply_commit`.
     pub gr_reservation_reply_commit: u64,
+
+    /// Weight of calling `gr_reservation_reply_commit_wgas`.
+    pub gr_reservation_reply_commit_wgas: u64,
 
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: u64,
@@ -368,8 +386,12 @@ pub enum RuntimeCosts {
     SendCommitWGas,
     /// Weight of calling `gr_reservation_send`.
     ReservationSend(u32),
+    /// Weight of calling `gr_reservation_send_wgas`.
+    ReservationSendWGas(u32),
     /// Weight of calling `gr_reservation_send_commit`.
     ReservationSendCommit,
+    /// Weight of calling `gr_reservation_send_commit_wgas`.
+    ReservationSendCommitWGas,
     /// Weight of calling `gr_send_input`.
     SendInput,
     /// Weight of calling `gr_send_input_wgas`.
@@ -390,8 +412,12 @@ pub enum RuntimeCosts {
     ReplyCommitWGas,
     /// Weight of calling `gr_reservation_reply`.
     ReservationReply(u32),
+    /// Weight of calling `gr_reservation_reply_wgas`.
+    ReservationReplyWGas(u32),
     /// Weight of calling `gr_reservation_reply_commit`.
     ReservationReplyCommit,
+    /// Weight of calling `gr_reservation_reply_commit_wgas`.
+    ReservationReplyCommitWGas,
     /// Weight of calling `gr_reply_input`.
     ReplyInput,
     /// Weight of calling `gr_reply_input_wgas`.
@@ -479,7 +505,9 @@ impl RuntimeCosts {
             SendCommit => s.gr_send_commit,
             SendCommitWGas => s.gr_send_commit_wgas,
             ReservationSend(len) => cost_with_weight_per_byte!(gr_reservation_send, len),
+            ReservationSendWGas(len) => cost_with_weight_per_byte!(gr_reservation_send_wgas, len),
             ReservationSendCommit => s.gr_reservation_send_commit,
+            ReservationSendCommitWGas => s.gr_reservation_send_commit_wgas,
             SendInput => s.gr_send_input,
             SendInputWGas => s.gr_send_input_wgas,
             SendPushInput => s.gr_send_push_input,
@@ -490,7 +518,9 @@ impl RuntimeCosts {
             ReplyCommit => s.gr_reply_commit,
             ReplyCommitWGas => s.gr_reply_commit_wgas,
             ReservationReply(len) => cost_with_weight_per_byte!(gr_reservation_reply, len),
+            ReservationReplyWGas(len) => cost_with_weight_per_byte!(gr_reservation_reply_wgas, len),
             ReservationReplyCommit => s.gr_reservation_reply_commit,
+            ReservationReplyCommitWGas => s.gr_reservation_reply_commit_wgas,
             ReplyInput => s.gr_reply_input,
             ReplyInputWGas => s.gr_reply_input_wgas,
             ReplyPushInput => s.gr_reply_push_input,

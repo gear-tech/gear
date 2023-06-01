@@ -956,7 +956,40 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_reservation_send_wgas {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_send(r, None)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_send_wgas_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_send(1, Some(n))?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_reservation_send_commit {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_send_commit(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_send_commit_wgas {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = Benches::<T>::gr_reservation_send_commit(r)?;
@@ -1113,6 +1146,28 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_reservation_reply_wgas {
+        let r in 0 .. 1;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_reply(r, None)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reservation_reply_wgas_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reservation_reply(1, Some(n))?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     // We cannot call `gr_reservation_reply_commit` multiple times. Therefore our weight determination is not
     // as precise as with other APIs.
     gr_reservation_reply_commit {
@@ -1126,10 +1181,10 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_reservation_reply_commit_per_kb {
-        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+    gr_reservation_reply_commit_wgas {
+        let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::gr_reservation_reply_commit_per_kb(n)?;
+        let exec = Benches::<T>::gr_reservation_reply_commit(r)?;
     }: {
         res.replace(run_process(exec));
     }

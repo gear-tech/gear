@@ -410,11 +410,20 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_reservation_send`.
     pub gr_reservation_send: Weight,
 
+    /// Weight of calling `gr_reservation_send_wgas`.
+    pub gr_reservation_send_wgas: Weight,
+
     /// Weight per payload byte in `gr_reservation_send`.
     pub gr_reservation_send_per_byte: Weight,
 
+    /// Weight per payload byte in `gr_reservation_send_wgas`.
+    pub gr_reservation_send_wgas_per_byte: Weight,
+
     /// Weight of calling `gr_reservation_send_commit`.
     pub gr_reservation_send_commit: Weight,
+
+    /// Weight of calling `gr_reservation_send_commit_wgas`.
+    pub gr_reservation_send_commit_wgas: Weight,
 
     /// Weight of calling `gr_reply_commit`.
     pub gr_reply_commit: Weight,
@@ -425,11 +434,20 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_reservation_reply`.
     pub gr_reservation_reply: Weight,
 
+    /// Weight of calling `gr_reservation_reply_wgas`.
+    pub gr_reservation_reply_wgas: Weight,
+
     /// Weight of calling `gr_reservation_reply` per one payload byte.
     pub gr_reservation_reply_per_byte: Weight,
 
+    /// Weight of calling `gr_reservation_reply_wgas` per one payload byte.
+    pub gr_reservation_reply_wgas_per_byte: Weight,
+
     /// Weight of calling `gr_reservation_reply_commit`.
     pub gr_reservation_reply_commit: Weight,
+
+    /// Weight of calling `gr_reservation_reply_commit_wgas`.
+    pub gr_reservation_reply_commit_wgas: Weight,
 
     /// Weight of calling `gr_reply_push`.
     pub gr_reply_push: Weight,
@@ -860,8 +878,11 @@ impl<T: Config> HostFnWeights<T> {
             gr_send_commit: self.gr_send_commit.ref_time(),
             gr_send_commit_wgas: self.gr_send_commit_wgas.ref_time(),
             gr_reservation_send: self.gr_reservation_send.ref_time(),
+            gr_reservation_send_wgas: self.gr_reservation_send_wgas.ref_time(),
             gr_reservation_send_per_byte: self.gr_reservation_send_per_byte.ref_time(),
+            gr_reservation_send_wgas_per_byte: self.gr_reservation_send_wgas_per_byte.ref_time(),
             gr_reservation_send_commit: self.gr_reservation_send_commit.ref_time(),
+            gr_reservation_send_commit_wgas: self.gr_reservation_send_commit_wgas.ref_time(),
             gr_send_input: self.gr_send_input.ref_time(),
             gr_send_input_wgas: self.gr_send_input_wgas.ref_time(),
             gr_send_push_input: self.gr_send_push_input.ref_time(),
@@ -875,8 +896,11 @@ impl<T: Config> HostFnWeights<T> {
             gr_reply_commit: self.gr_reply_commit.ref_time(),
             gr_reply_commit_wgas: self.gr_reply_commit_wgas.ref_time(),
             gr_reservation_reply: self.gr_reservation_reply.ref_time(),
+            gr_reservation_reply_wgas: self.gr_reservation_reply_wgas.ref_time(),
             gr_reservation_reply_per_byte: self.gr_reservation_reply_per_byte.ref_time(),
+            gr_reservation_reply_wgas_per_byte: self.gr_reservation_reply_wgas_per_byte.ref_time(),
             gr_reservation_reply_commit: self.gr_reservation_reply_commit.ref_time(),
+            gr_reservation_reply_commit_wgas: self.gr_reservation_reply_commit_wgas.ref_time(),
             gr_reply_input: self.gr_reply_input.ref_time(),
             gr_reply_input_wgas: self.gr_reply_input_wgas.ref_time(),
             gr_reply_push_input: self.gr_reply_push_input.ref_time(),
@@ -920,10 +944,17 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_send_commit: to_weight!(cost_batched!(gr_send_commit)),
             gr_send_commit_wgas: to_weight!(cost_batched!(gr_send_commit_wgas)),
             gr_reservation_send: to_weight!(cost_batched!(gr_reservation_send)),
+            gr_reservation_send_wgas: to_weight!(cost_batched!(gr_reservation_send_wgas)),
             gr_reservation_send_per_byte: to_weight!(cost_byte_batched!(
                 gr_reservation_send_per_kb
             )),
+            gr_reservation_send_wgas_per_byte: to_weight!(cost_byte_batched!(
+                gr_reservation_send_wgas_per_kb
+            )),
             gr_reservation_send_commit: to_weight!(cost_batched!(gr_reservation_send_commit)),
+            gr_reservation_send_commit_wgas: to_weight!(cost_batched!(
+                gr_reservation_send_commit_wgas
+            )),
             gr_send_input: to_weight!(cost_batched!(gr_send_input)),
             gr_send_input_wgas: to_weight!(cost_batched!(gr_send_input_wgas)),
             gr_send_push_input: to_weight!(cost_batched!(gr_send_push_input)),
@@ -938,8 +969,11 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_reply_commit: to_weight!(cost!(gr_reply_commit)),
             gr_reply_commit_wgas: to_weight!(cost!(gr_reply_commit_wgas)),
             gr_reservation_reply: to_weight!(cost!(gr_reservation_reply)),
+            gr_reservation_reply_wgas: to_weight!(cost!(gr_reservation_reply_wgas)),
             gr_reservation_reply_per_byte: to_weight!(cost!(gr_reservation_reply_per_kb)),
+            gr_reservation_reply_wgas_per_byte: to_weight!(cost!(gr_reservation_reply_wgas_per_kb)),
             gr_reservation_reply_commit: to_weight!(cost!(gr_reservation_reply_commit)),
+            gr_reservation_reply_commit_wgas: to_weight!(cost!(gr_reservation_reply_commit_wgas)),
             gr_reply_input: to_weight!(cost!(gr_reply_input)),
             gr_reply_input_wgas: to_weight!(cost!(gr_reply_input_wgas)),
             gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
