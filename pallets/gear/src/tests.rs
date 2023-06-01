@@ -6797,7 +6797,7 @@ fn test_create_program_with_value_lt_ed() {
             .create_program_wgas(code_id, [], [], gas_limit);
 
         let (_init_mid, _pid) =
-            submit_constructor_with_args(USER_1, b"test1".to_vec(), Scheme::direct(calls), 1_000);
+            submit_constructor_with_args(USER_1, b"test1", Scheme::direct(calls), 1_000);
 
         run_to_block(2, None);
 
