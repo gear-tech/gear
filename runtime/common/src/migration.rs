@@ -19,41 +19,40 @@
 //! Common runtime migrations.
 
 use frame_support::{
-    codec::FullCodec,
     traits::{Get, OnRuntimeUpgrade},
     weights::Weight,
 };
 use sp_std::marker::PhantomData;
 
-pub struct SessionValidatorSetMigration<Config, Id>(PhantomData<(Config, Id)>);
+pub struct SessionValidatorSetMigration<T>(PhantomData<T>);
 
-impl<Config, Id> OnRuntimeUpgrade for SessionValidatorSetMigration<Config, Id>
+impl<T> OnRuntimeUpgrade for SessionValidatorSetMigration<T>
 where
-    Config: pallet_session::Config<AccountId = Id> + validator_set::Config<ValidatorId = Id>,
-    Id: FullCodec + Clone + PartialEq + 'static,
+    T: pallet_session::Config
+        + validator_set::Config<ValidatorId = <T as frame_system::Config>::AccountId>,
 {
     fn on_runtime_upgrade() -> Weight {
         log::info!("🚚 Running migration");
 
-        let mut weight = Config::DbWeight::get().reads(
+        let mut weight = T::DbWeight::get().reads(
             1 // read pallet session validators
                 + 1 // read validator set
                 + 1, // read approved validator set
         );
 
-        let session_validators = pallet_session::Pallet::<Config>::validators();
-        let validator_set = validator_set::Validators::<Config>::get();
-        let approved_validator_set = validator_set::ApprovedValidators::<Config>::get();
+        let session_validators = pallet_session::Pallet::<T>::validators();
+        let validator_set = validator_set::Validators::<T>::get();
+        let approved_validator_set = validator_set::ApprovedValidators::<T>::get();
 
         if session_validators == validator_set && session_validators == approved_validator_set {
             log::info!("❌ Migration did not execute. This probably should be removed");
         } else {
             log::info!("Set {} validators", session_validators.len());
 
-            validator_set::Validators::<Config>::put(session_validators.clone());
-            validator_set::ApprovedValidators::<Config>::put(session_validators);
+            validator_set::Validators::<T>::put(session_validators.clone());
+            validator_set::ApprovedValidators::<T>::put(session_validators);
 
-            weight += Config::DbWeight::get().writes(
+            weight += T::DbWeight::get().writes(
                 1 // write validator set
                     + 1, // write approved validator set
             );
