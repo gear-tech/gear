@@ -208,6 +208,26 @@ impl MessageHandle {
     }
 
     /// Same as [`commit_from_reservation`](Self::commit_from_reservation), but
+    /// with an explicit gas limit.
+    #[wait_for_reply(self)]
+    pub fn commit_with_gas_from_reservation(
+        self,
+        id: ReservationId,
+        program: ActorId,
+        value: u128,
+        gas_limit: u64,
+    ) -> Result<MessageId> {
+        gcore::msg::send_commit_with_gas_from_reservation(
+            id.into(),
+            self.into(),
+            program.into(),
+            value,
+            gas_limit,
+        )
+        .into_contract_result()
+    }
+
+    /// Same as [`commit_from_reservation`](Self::commit_from_reservation), but
     /// sends the message after the `delay` expressed in block count.
     pub fn commit_delayed_from_reservation(
         self,
@@ -222,6 +242,27 @@ impl MessageHandle {
             program.into(),
             value,
             delay,
+        )
+        .into_contract_result()
+    }
+
+    /// Same as [`commit_with_gas_from_reservation`](Self::commit_with_gas_from_reservation),
+    /// but with an explicit gas limit.
+    pub fn commit_with_gas_delayed_from_reservation(
+        self,
+        id: ReservationId,
+        program: ActorId,
+        value: u128,
+        delay: u32,
+        gas_limit: u64,
+    ) -> Result<MessageId> {
+        gcore::msg::send_commit_with_gas_delayed_from_reservation(
+            id.into(),
+            self.into(),
+            program.into(),
+            value,
+            delay,
+            gas_limit,
         )
         .into_contract_result()
     }
@@ -386,6 +427,17 @@ pub fn reply_bytes_from_reservation(
     gcore::msg::reply_from_reservation(id.into(), payload.as_ref(), value).into_contract_result()
 }
 
+/// Same as [`reply_bytes_from_reservation`], but with an explicit gas limit.
+pub fn reply_bytes_with_gas_from_reservation(
+    id: ReservationId,
+    payload: impl AsRef<[u8]>,
+    value: u128,
+    gas_limit: u64,
+) -> Result<MessageId> {
+    gcore::msg::reply_with_gas_from_reservation(id.into(), payload.as_ref(), value, gas_limit)
+        .into_contract_result()
+}
+
 /// Same as [`reply_bytes`], but with an explicit gas limit.
 ///
 /// # Examples
@@ -468,6 +520,16 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// - [`ReservationId`] struct allows reserve gas for later use.
 pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_from_reservation(id.into(), value).into_contract_result()
+}
+
+/// Same as [`reply_commit_from_reservation`], but with an explicit gas limit.
+pub fn reply_commit_with_gas_from_reservation(
+    id: ReservationId,
+    value: u128,
+    gas_limit: u64,
+) -> Result<MessageId> {
+    gcore::msg::reply_commit_with_gas_from_reservation(id.into(), value, gas_limit)
+        .into_contract_result()
 }
 
 /// Same as [`reply_commit`], but with an explicit gas limit.
@@ -730,6 +792,25 @@ pub fn send_bytes_from_reservation<T: AsRef<[u8]>>(
         .into_contract_result()
 }
 
+/// Same as [`send_bytes_from_reservation`], but with an explict gas limit.
+#[wait_for_reply]
+pub fn send_bytes_with_gas_from_reservation<T: AsRef<[u8]>>(
+    id: ReservationId,
+    program: ActorId,
+    payload: T,
+    value: u128,
+    gas_limit: u64,
+) -> Result<MessageId> {
+    gcore::msg::send_with_gas_from_reservation(
+        id.into(),
+        program.into(),
+        payload.as_ref(),
+        value,
+        gas_limit,
+    )
+    .into_contract_result()
+}
+
 /// Same as [`send_bytes_from_reservation`], but sends the message after the
 /// `delay` expressed in block count.
 pub fn send_bytes_delayed_from_reservation<T: AsRef<[u8]>>(
@@ -745,6 +826,27 @@ pub fn send_bytes_delayed_from_reservation<T: AsRef<[u8]>>(
         payload.as_ref(),
         value,
         delay,
+    )
+    .into_contract_result()
+}
+
+/// Same as [`send_bytes_delayed_from_reservation`], but with an explicit gas
+/// limit.
+pub fn send_bytes_with_gas_delayed_from_reservation<T: AsRef<[u8]>>(
+    id: ReservationId,
+    program: ActorId,
+    payload: T,
+    value: u128,
+    delay: u32,
+    gas_limit: u64,
+) -> Result<MessageId> {
+    gcore::msg::send_with_gas_delayed_from_reservation(
+        id.into(),
+        program.into(),
+        payload.as_ref(),
+        value,
+        delay,
+        gas_limit,
     )
     .into_contract_result()
 }

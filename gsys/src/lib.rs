@@ -590,6 +590,23 @@ extern "C" {
         err_mid: *mut LengthWithHash,
     );
 
+    /// Fallible `gr_reservation_reply_commit` send syscall.
+    ///
+    /// Arguments type:
+    /// - `rid_value`: `const ptr` for concatenated reservation id and value.
+    /// - `payload`: `const ptr` for the begging of the payload buffer.
+    /// - `len`: `u32` length of the payload buffer.
+    /// - `gas_limit`: `u64` defining gas limit for sending.
+    /// ### DEPRECATED: `delay` argument will be replaced with 0.
+    /// - `delay`: `u32` amount of blocks to delay.
+    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    pub fn gr_reservation_reply_commit_wgas(
+        rid_value: *const HashWithValue,
+        gas_limit: Gas,
+        _delay: BlockNumber,
+        err_mid: *mut LengthWithHash,
+    );
+
     /// Fallible `gr_reservation_reply` send syscall.
     ///
     /// Arguments type:
@@ -603,6 +620,25 @@ extern "C" {
         rid_value: *const HashWithValue,
         payload: *const BufferStart,
         len: Length,
+        _delay: BlockNumber,
+        err_mid: *mut LengthWithHash,
+    );
+
+    /// Fallible `gr_reservation_reply` send syscall.
+    ///
+    /// Arguments type:
+    /// - `rid_value`: `const ptr` for concatenated reservation id and value.
+    /// - `payload`: `const ptr` for the begging of the payload buffer.
+    /// - `len`: `u32` length of the payload buffer.
+    /// - `gas_limit`: `u64` defining gas limit for sending.
+    /// ### DEPRECATED: `delay` argument will be replaced with 0.
+    /// - `delay`: `u32` amount of blocks to delay.
+    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    pub fn gr_reservation_reply_wgas(
+        rid_value: *const HashWithValue,
+        payload: *const BufferStart,
+        len: Length,
+        gas_limit: Gas,
         _delay: BlockNumber,
         err_mid: *mut LengthWithHash,
     );
@@ -622,6 +658,23 @@ extern "C" {
         err_mid: *mut LengthWithHash,
     );
 
+    /// Fallible `gr_reservation_send_commit` send syscall.
+    ///
+    /// Arguments type:
+    /// - `handle`: `u32` defining handle of the message to commit.
+    /// - `rid_pid_value`: `const ptr` for concatenated reservation id,
+    ///   program id and value.
+    /// - `gas_limit`: `u64` defining gas limit for sending.
+    /// - `delay`: `u32` amount of blocks to delay.
+    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    pub fn gr_reservation_send_commit_wgas(
+        handle: Handle,
+        rid_pid_value: *const TwoHashesWithValue,
+        gas_limit: Gas,
+        delay: BlockNumber,
+        err_mid: *mut LengthWithHash,
+    );
+
     /// Fallible `gr_reservation_send` send syscall.
     ///
     /// Arguments type:
@@ -635,6 +688,25 @@ extern "C" {
         rid_pid_value: *const TwoHashesWithValue,
         payload: *const BufferStart,
         len: Length,
+        delay: BlockNumber,
+        err_mid: *mut LengthWithHash,
+    );
+
+    /// Fallible `gr_reservation_send` send syscall.
+    ///
+    /// Arguments type:
+    /// - `rid_pid_value`: `const ptr` for concatenated reservation id,
+    ///   program id and value.
+    /// - `payload`: `const ptr` for the begging of the payload buffer.
+    /// - `len`: `u32` length of the payload buffer.
+    /// - `gas_limit`: `u64` defining gas limit for sending.
+    /// - `delay`: `u32` amount of blocks to delay.
+    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    pub fn gr_reservation_send_wgas(
+        rid_pid_value: *const TwoHashesWithValue,
+        payload: *const BufferStart,
+        len: Length,
+        gas_limit: Gas,
         delay: BlockNumber,
         err_mid: *mut LengthWithHash,
     );

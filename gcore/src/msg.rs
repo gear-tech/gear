@@ -243,6 +243,37 @@ pub fn reply_from_reservation(id: ReservationId, payload: &[u8], value: u128) ->
     Ok(MessageId(res.hash))
 }
 
+/// Same as [`reply_from_reservation`], but with an explicit gas limit.
+pub fn reply_with_gas_from_reservation(
+    id: ReservationId,
+    payload: &[u8],
+    value: u128,
+    gas_limit: u64,
+) -> Result<MessageId> {
+    let rid_value = HashWithValue { hash: id.0, value };
+
+    let mut res: LengthWithHash = Default::default();
+
+    let payload_len = payload
+        .len()
+        .try_into()
+        .map_err(|_| ExtError::SyscallUsage)?;
+
+    unsafe {
+        gsys::gr_reservation_reply_wgas(
+            rid_value.as_ptr(),
+            payload.as_ptr(),
+            payload_len,
+            gas_limit,
+            0,
+            res.as_mut_ptr(),
+        )
+    };
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
+}
+
 /// Same as [`reply`], but with an explicit gas limit.
 ///
 /// # Examples
@@ -384,6 +415,24 @@ pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<M
     let mut res: LengthWithHash = Default::default();
 
     unsafe { gsys::gr_reservation_reply_commit(rid_value.as_ptr(), 0, res.as_mut_ptr()) };
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
+}
+
+/// Same as [`reply_commit_from_reservation`], but with an explicit gas limit.
+pub fn reply_commit_with_gas_from_reservation(
+    id: ReservationId,
+    value: u128,
+    gas_limit: u64,
+) -> Result<MessageId> {
+    let rid_value = HashWithValue { hash: id.0, value };
+
+    let mut res: LengthWithHash = Default::default();
+
+    unsafe {
+        gsys::gr_reservation_reply_commit_wgas(rid_value.as_ptr(), gas_limit, 0, res.as_mut_ptr())
+    };
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))
@@ -666,6 +715,24 @@ pub fn send_from_reservation(
     send_delayed_from_reservation(reservation_id, destination, payload, value, 0)
 }
 
+/// Same as [`send_from_reservation`], but with an explicit gas limit.
+pub fn send_with_gas_from_reservation(
+    reservation_id: ReservationId,
+    destination: ActorId,
+    payload: &[u8],
+    value: u128,
+    gas_limit: u64,
+) -> Result<MessageId> {
+    send_with_gas_delayed_from_reservation(
+        reservation_id,
+        destination,
+        payload,
+        value,
+        0,
+        gas_limit,
+    )
+}
+
 /// Same as [`send_from_reservation`], but sends the message after the`delay`
 /// expressed in block count.
 pub fn send_delayed_from_reservation(
@@ -693,6 +760,43 @@ pub fn send_delayed_from_reservation(
             rid_pid_value.as_ptr(),
             payload.as_ptr(),
             payload_len,
+            delay,
+            res.as_mut_ptr(),
+        )
+    };
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
+}
+
+/// Same as [`send_with_delayed_from_reservation`] but with gas.
+pub fn send_with_gas_delayed_from_reservation(
+    reservation_id: ReservationId,
+    destination: ActorId,
+    payload: &[u8],
+    value: u128,
+    delay: u32,
+    gas_limit: u64,
+) -> Result<MessageId> {
+    let rid_pid_value = TwoHashesWithValue {
+        hash1: reservation_id.0,
+        hash2: destination.0,
+        value,
+    };
+
+    let mut res: LengthWithHash = Default::default();
+
+    let payload_len = payload
+        .len()
+        .try_into()
+        .map_err(|_| ExtError::SyscallUsage)?;
+
+    unsafe {
+        gsys::gr_reservation_send_wgas(
+            rid_pid_value.as_ptr(),
+            payload.as_ptr(),
+            payload_len,
+            gas_limit,
             delay,
             res.as_mut_ptr(),
         )
@@ -812,6 +916,24 @@ pub fn send_commit_from_reservation(
     send_commit_delayed_from_reservation(reservation_id, handle, destination, value, 0)
 }
 
+/// Same as [`send_commit_from_reservation`], but with an explicit gas limit.
+pub fn send_commit_with_gas_from_reservation(
+    reservation_id: ReservationId,
+    handle: MessageHandle,
+    destination: ActorId,
+    value: u128,
+    gas_limit: u64,
+) -> Result<MessageId> {
+    send_commit_with_gas_delayed_from_reservation(
+        reservation_id,
+        handle,
+        destination,
+        value,
+        0,
+        gas_limit,
+    )
+}
+
 /// Same as [`send_commit_from_reservation`], but sends the message after the
 /// `delay` expressed in block count.
 pub fn send_commit_delayed_from_reservation(
@@ -831,6 +953,38 @@ pub fn send_commit_delayed_from_reservation(
 
     unsafe {
         gsys::gr_reservation_send_commit(handle.0, rid_pid_value.as_ptr(), delay, res.as_mut_ptr())
+    };
+    SyscallError(res.length).into_result()?;
+
+    Ok(MessageId(res.hash))
+}
+
+/// Same as [`send_commit_delayed_from_reservation`], but with an explicit
+/// gas limit.
+pub fn send_commit_with_gas_delayed_from_reservation(
+    reservation_id: ReservationId,
+    handle: MessageHandle,
+    destination: ActorId,
+    value: u128,
+    delay: u32,
+    gas_limit: u64,
+) -> Result<MessageId> {
+    let rid_pid_value = TwoHashesWithValue {
+        hash1: reservation_id.0,
+        hash2: destination.0,
+        value,
+    };
+
+    let mut res: LengthWithHash = Default::default();
+
+    unsafe {
+        gsys::gr_reservation_send_commit_wgas(
+            handle.0,
+            rid_pid_value.as_ptr(),
+            gas_limit,
+            delay,
+            res.as_mut_ptr(),
+        )
     };
     SyscallError(res.length).into_result()?;
 
