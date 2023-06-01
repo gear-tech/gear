@@ -4906,22 +4906,11 @@ fn test_message_processing_for_non_existing_destination() {
 
 #[test]
 fn exit_locking_funds() {
-    use demo_exit_handle_sender::{Input, WASM_BINARY as EXIT_HANDLE_SENDER_BINARY};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            EXIT_HANDLE_SENDER_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            vec![],
-            50_000_000_000u64,
-            0u128
-        ));
-
-        let program_id = utils::get_last_program_id();
-
-        run_to_next_block(None);
+        let (_init_mid, program_id) = init_constructor(Scheme::empty());
 
         let user_2_balance = Balances::free_balance(USER_2);
 
@@ -4931,25 +4920,21 @@ fn exit_locking_funds() {
 
         let value = 1_000;
 
-        let payload = Input::SendMessage {
-            destination: program_id.into_origin().into(),
-            payload: vec![],
-            value,
-        };
+        let calls = Calls::builder().send_value(program_id.into_bytes(), [], value);
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            payload.encode(),
+            calls.encode(),
             1_000_000_000,
             value
         ));
         let message_1 = utils::get_last_message_id();
 
-        let payload = Input::Exit(USER_2.into_origin().into());
+        let calls = Calls::builder().exit(<[u8; 32]>::from(USER_2.into_origin()));
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            payload.encode(),
+            calls.encode(),
             1_000_000_000,
             0
         ));

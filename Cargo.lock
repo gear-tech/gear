@@ -1851,15 +1851,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-exit-handle-sender"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "demo-gas-burned"
 version = "0.1.0"
 dependencies = [
@@ -3446,7 +3437,6 @@ dependencies = [
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
  "demo-distributor",
- "demo-exit-handle-sender",
  "demo-gasless-wasting",
  "demo-meta-io",
  "demo-mul-by-const",
@@ -6936,7 +6926,6 @@ dependencies = [
  "demo-constructor",
  "demo-delayed-sender",
  "demo-distributor",
- "demo-exit-handle-sender",
  "demo-gas-burned",
  "demo-gasless-wasting",
  "demo-init-fail-sender",
