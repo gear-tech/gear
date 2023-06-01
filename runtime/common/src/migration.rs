@@ -36,15 +36,13 @@ where
         // TODO: add check migration must be removed
 
         let current_validators = pallet_session::Pallet::<Config>::validators();
-        validator_set::Validators::<Config>::mutate(|v| *v = current_validators.clone());
-        validator_set::ApprovedValidators::<Config>::mutate(|v| *v = current_validators);
+        validator_set::Validators::<Config>::put(current_validators.clone());
+        validator_set::ApprovedValidators::<Config>::put(current_validators);
 
         Config::DbWeight::get().reads_writes(
-            1 // read pallet session validators
-                + 1 // read validator set
-                + 1, // read approved validator set
-            1 // write validator set
-                + 1, // write approved validator set
+            1, // read pallet session validators
+            1 // write validator set 
+            + 1, // write approved validator set
         )
     }
 }
