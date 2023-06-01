@@ -255,17 +255,15 @@ mod fake_gsys {{
     }}
 }}
 
-use fake_gsys::*;
-
 #[no_mangle]
 extern "C" fn metahash() {{
     const METAHASH: [u8; 32] = {:?};
-    let mut res: LengthWithHash = Default::default();
+    let mut res: fake_gsys::LengthWithHash = Default::default();
     unsafe {{
-        gr_reply(
+        fake_gsys::gr_reply(
             METAHASH.as_ptr(),
             METAHASH.len() as _,
-            PTR_SPECIAL,
+            fake_gsys::PTR_SPECIAL,
             0,
             res.as_mut_ptr(),
         );
