@@ -1851,14 +1851,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-exit-handle"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
 name = "demo-exit-handle-sender"
 version = "0.1.0"
 dependencies = [
@@ -6944,7 +6936,6 @@ dependencies = [
  "demo-constructor",
  "demo-delayed-sender",
  "demo-distributor",
- "demo-exit-handle",
  "demo-exit-handle-sender",
  "demo-gas-burned",
  "demo-gasless-wasting",

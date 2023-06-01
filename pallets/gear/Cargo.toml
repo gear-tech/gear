@@ -71,7 +71,6 @@ demo-init-fail-sender.workspace = true
 demo-init-wait.workspace = true
 demo-init-wait-reply-exit.workspace = true
 demo-new-meta.workspace = true
-demo-exit-handle.workspace = true
 demo-exit-handle-sender.workspace = true
 demo-program-factory.workspace = true
 demo-proxy.workspace = true

@@ -2,6 +2,7 @@ use crate::{Call, Calls};
 use alloc::vec::Vec;
 use parity_scale_codec::{Decode, Encode};
 
+pub mod demo_exit_handle;
 pub mod demo_exit_init;
 pub mod demo_ping;
 

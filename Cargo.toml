@@ -29,7 +29,6 @@ members = [
     "examples/binaries/contract-template",
     "examples/binaries/delayed-sender",
     "examples/binaries/distributor",
-    "examples/binaries/exit-handle",
     "examples/binaries/exit-handle-sender",
     "examples/binaries/gas-burned",
     "examples/binaries/gasless-wasting",
@@ -337,7 +336,6 @@ demo-compose = { path = "examples/binaries/compose" }
 demo-constructor = { path = "examples/binaries/constructor" }
 demo-delayed-sender = { path = "examples/binaries/delayed-sender" }
 demo-distributor = { path = "examples/binaries/distributor" }
-demo-exit-handle = { path = "examples/binaries/exit-handle" }
 demo-exit-handle-sender = { path = "examples/binaries/exit-handle-sender" }
 demo-gas-burned = { path = "examples/binaries/gas-burned" }
 demo-gasless-wasting = { path = "examples/binaries/gasless-wasting" }

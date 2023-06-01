@@ -6232,29 +6232,13 @@ fn test_create_program_miscellaneous() {
 
 #[test]
 fn exit_handle() {
-    use demo_exit_handle::WASM_BINARY;
+    use demo_constructor::{demo_exit_handle, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        System::reset_events();
-
-        let code = WASM_BINARY.to_vec();
         let code_id = CodeId::generate(WASM_BINARY);
-        let code_hash = generate_code_hash(&code).into();
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            code,
-            vec![],
-            Vec::new(),
-            10_000_000_000u64,
-            0u128
-        ));
 
-        let program_id = utils::get_last_program_id();
-
-        run_to_block(2, None);
-
-        assert!(Gear::is_initialized(program_id));
+        let (_init_mid, program_id) = init_constructor(demo_exit_handle::scheme());
 
         // An expensive operation since "gr_exit" removes all program pages from storage.
         assert_ok!(Gear::send_message(
@@ -6272,16 +6256,14 @@ fn exit_handle() {
         assert!(!Gear::is_initialized(program_id));
         assert!(!Gear::is_active(program_id));
 
-        assert!(<Test as Config>::CodeStorage::exists(CodeId::from_origin(
-            code_hash
-        )));
+        assert!(<Test as Config>::CodeStorage::exists(code_id));
 
         // Program is not removed and can't be submitted again
         assert_noop!(
             Gear::create_program(
                 RuntimeOrigin::signed(USER_1),
                 code_id,
-                vec![],
+                DEFAULT_SALT.to_vec(),
                 Vec::new(),
                 2_000_000_000,
                 0u128
@@ -6295,19 +6277,9 @@ fn exit_handle() {
 fn no_redundant_gas_value_after_exiting() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_exit_handle::WASM_BINARY;
+        use demo_constructor::demo_exit_handle;
 
-        let prog_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            10_000_000_000,
-            0,
-        ));
-
-        run_to_block(2, None);
+        let (_init_mid, prog_id) = init_constructor(demo_exit_handle::scheme());
 
         let GasInfo {
             min_limit: gas_spent,
