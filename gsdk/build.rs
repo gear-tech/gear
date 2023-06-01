@@ -135,7 +135,7 @@ fn get_path(
         // build process.
         panic!(
             "package {} has not been compiled yet, please run \
-             `cargo {}` first, or override environment `GEN_CLIENT_API` with `0` for disabling the api generation \
+             `cargo {}` first, or override environment `GEN_CLIENT_API` with `0` for disabling the api generation",
             pkg,
             args.join(" ")
         );
