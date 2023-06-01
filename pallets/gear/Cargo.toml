@@ -77,7 +77,6 @@ demo-proxy-relay.workspace = true
 demo-proxy-with-gas.workspace = true
 demo-proxy-reservation-with-gas.workspace = true
 demo-init-with-value = { workspace = true, features = ["debug"] } # The `debug` feature is required for assering debug output
-demo-gasless-wasting.workspace = true
 demo-gas-burned.workspace = true
 demo-waiting-proxy.workspace = true
 demo-calc-hash.workspace = true

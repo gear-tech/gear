@@ -4906,7 +4906,7 @@ fn test_message_processing_for_non_existing_destination() {
 
 #[test]
 fn exit_locking_funds() {
-    use demo_constructor::{Calls, Scheme, WASM_BINARY};
+    use demo_constructor::{Calls, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -6389,7 +6389,7 @@ fn init_wait_reply_exit_cleaned_storage() {
 #[test]
 fn locking_gas_for_waitlist() {
     use demo_gas_burned::WASM_BINARY as GAS_BURNED_BINARY;
-    use demo_gasless_wasting::{InputArgs, WASM_BINARY as GASLESS_WASTING_BINARY};
+    use demo_constructor::{Calls, Scheme};
 
     let wat = r#"
     (module
@@ -6418,15 +6418,7 @@ fn locking_gas_for_waitlist() {
 
         // This program sends two empty gasless messages on each handle:
         // for this test first message is waiter, seconds is calculator.
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            GASLESS_WASTING_BINARY.to_vec(),
-            Default::default(),
-            Default::default(),
-            DEFAULT_GAS_LIMIT,
-            0
-        ));
-        let sender = get_last_program_id();
+        let (_init_mid, sender) = submit_constructor_with_args(USER_1, DEFAULT_SALT, Scheme::empty(), 0);
 
         run_to_block(2, None);
 
@@ -6434,12 +6426,11 @@ fn locking_gas_for_waitlist() {
         assert!(Gear::is_initialized(calculator));
         assert!(Gear::is_initialized(sender));
 
-        let payload = InputArgs {
-            prog_to_wait: waiter.into_origin().into(),
-            prog_to_waste: calculator.into_origin().into(),
-        };
+        let calls = Calls::builder()
+            .send(calculator.into_bytes(), [])
+            .send(waiter.into_bytes(), []);
 
-        calculate_handle_and_send_with_extra(USER_1, sender, payload.encode(), None, 0);
+        calculate_handle_and_send_with_extra(USER_1, sender, calls.encode(), None, 0);
         let origin_msg_id = get_last_message_id();
 
         let message_to_be_waited = MessageId::generate_outgoing(origin_msg_id, 1);
@@ -6448,22 +6439,7 @@ fn locking_gas_for_waitlist() {
 
         assert!(WaitlistOf::<Test>::contains(&waiter, &message_to_be_waited));
 
-        let mut expiration = None;
-
-        System::events().iter().for_each(|e| {
-            if let MockRuntimeEvent::Gear(Event::MessageWaited {
-                id,
-                expiration: exp,
-                ..
-            }) = e.event
-            {
-                if id == message_to_be_waited {
-                    expiration = Some(exp);
-                }
-            }
-        });
-
-        let expiration = expiration.unwrap();
+        let expiration = utils::get_waitlist_expiration(message_to_be_waited);
 
         // Expiration block may be really far from current one, so proper
         // `run_to_block` takes a lot, so we use hack here by setting
