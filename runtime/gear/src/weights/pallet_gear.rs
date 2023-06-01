@@ -102,8 +102,6 @@ pub trait WeightInfo {
     fn gr_reservation_reply_wgas_per_kb(n: u32, ) -> Weight;
     fn gr_reservation_reply_commit(r: u32, ) -> Weight;
     fn gr_reservation_reply_commit_wgas(r: u32, ) -> Weight;
-    fn gr_reservation_reply_commit_per_kb(n: u32, ) -> Weight;
-    fn gr_reservation_reply_commit_wgas_per_kb(n: u32, ) -> Weight;
     fn gr_reply_to(r: u32, ) -> Weight;
     fn gr_signal_from(r: u32, ) -> Weight;
     fn gr_reply_push_input(r: u32, ) -> Weight;
@@ -905,26 +903,6 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(94_195_877, 0)
             // Standard Error: 263_692
             .saturating_add(Weight::from_parts(18_178_122, 0).saturating_mul(r.into()))
-    }
-    /// The range of component `n` is `[0, 2048]`.
-    fn gr_reservation_reply_commit_per_kb(n: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 108_419_000 picoseconds.
-        Weight::from_parts(93_346_913, 0)
-            // Standard Error: 1_659
-            .saturating_add(Weight::from_parts(428_792, 0).saturating_mul(n.into()))
-    }
-    /// The range of component `n` is `[0, 2048]`.
-    fn gr_reservation_reply_commit_wgas_per_kb(n: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 108_419_000 picoseconds.
-        Weight::from_parts(93_346_913, 0)
-            // Standard Error: 1_659
-            .saturating_add(Weight::from_parts(428_792, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_to(r: u32, ) -> Weight {
@@ -2725,26 +2703,6 @@ impl WeightInfo for () {
         Weight::from_parts(94_195_877, 0)
             // Standard Error: 263_692
             .saturating_add(Weight::from_parts(18_178_122, 0).saturating_mul(r.into()))
-    }
-    /// The range of component `n` is `[0, 2048]`.
-    fn gr_reservation_reply_commit_per_kb(n: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 108_419_000 picoseconds.
-        Weight::from_parts(93_346_913, 0)
-            // Standard Error: 1_659
-            .saturating_add(Weight::from_parts(428_792, 0).saturating_mul(n.into()))
-    }
-    /// The range of component `n` is `[0, 2048]`.
-    fn gr_reservation_reply_commit_wgas_per_kb(n: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 108_419_000 picoseconds.
-        Weight::from_parts(93_346_913, 0)
-            // Standard Error: 1_659
-            .saturating_add(Weight::from_parts(428_792, 0).saturating_mul(n.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_reply_to(r: u32, ) -> Weight {
