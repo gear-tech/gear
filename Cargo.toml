@@ -42,7 +42,6 @@ members = [
     "examples/binaries/program-factory",
     "examples/binaries/proxy",
     "examples/binaries/proxy-relay",
-    "examples/binaries/proxy-with-gas",
     "examples/binaries/proxy-reservation-with-gas",
     "examples/binaries/reserve-gas",
     "examples/binaries/send-from-reservation",
@@ -347,7 +346,6 @@ demo-program-factory = { path = "examples/binaries/program-factory" }
 demo-proxy = { path = "examples/binaries/proxy", default-features = false }
 demo-proxy-relay = { path = "examples/binaries/proxy-relay" }
 demo-proxy-reservation-with-gas = { path = "examples/binaries/proxy-reservation-with-gas" }
-demo-proxy-with-gas = { path = "examples/binaries/proxy-with-gas" }
 demo-reserve-gas = { path = "examples/binaries/reserve-gas" }
 demo-send-from-reservation = { path = "examples/binaries/send-from-reservation" }
 demo-signal-entry = { path = "examples/binaries/signal-entry" }

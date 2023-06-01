@@ -583,29 +583,16 @@ fn exited_program_zero_gas() {
 
 #[test]
 fn delayed_user_replacement() {
-    use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
+    use demo_constructor::demo_proxy_with_gas;
 
     fn scenario(gas_limit_to_forward: u64, to_mailbox: bool) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
         let future_program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
 
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            PROXY_WGAS_WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            InputArgs {
-                destination: <[u8; 32]>::from(future_program_address).into(),
-                delay: 2,
-            }
-            .encode(),
-            DEFAULT_GAS_LIMIT * 100,
-            0,
+        let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
+            future_program_address.into(),
+            2,
         ));
-
-        let proxy = utils::get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_initialized(proxy));
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -687,28 +674,15 @@ fn delayed_user_replacement() {
 
 #[test]
 fn delayed_send_user_message_payment() {
-    use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
+    use demo_constructor::demo_proxy_with_gas;
 
     // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: BlockNumber) {
         // Upload program that sends message to any user.
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            PROXY_WGAS_WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            InputArgs {
-                destination: USER_2.into(),
-                delay: delay.saturated_into(),
-            }
-            .encode(),
-            DEFAULT_GAS_LIMIT * 100,
-            0,
+        let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
+            USER_2.into_origin().into(),
+            delay.saturated_into(),
         ));
-
-        let proxy = utils::get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_initialized(proxy));
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -902,7 +876,7 @@ fn delayed_send_user_message_with_reservation() {
 
 #[test]
 fn delayed_send_program_message_payment() {
-    use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
+    use demo_constructor::demo_proxy_with_gas;
 
     // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: BlockNumber) {
@@ -919,23 +893,8 @@ fn delayed_send_program_message_payment() {
         let program_address = utils::get_last_program_id();
 
         // Upload program that sends message to another program.
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            PROXY_WGAS_WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            InputArgs {
-                destination: <[u8; 32]>::from(program_address).into(),
-                delay,
-            }
-            .encode(),
-            DEFAULT_GAS_LIMIT * 100,
-            0,
-        ));
-
-        let proxy = utils::get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_initialized(proxy));
+        let (_init_mid, proxy) =
+            init_constructor(demo_proxy_with_gas::scheme(program_address.into(), delay));
         assert!(Gear::is_initialized(program_address));
 
         assert_ok!(Gear::send_message(
@@ -2061,27 +2020,15 @@ fn send_message_works() {
 
 #[test]
 fn mailbox_threshold_works() {
-    use demo_proxy_with_gas::{InputArgs, WASM_BINARY};
+    use demo_constructor::demo_proxy_with_gas;
 
     init_logger();
     new_test_ext().execute_with(|| {
-        System::reset_events();
+        let (_init_mid, proxy) =
+            init_constructor(demo_proxy_with_gas::scheme(USER_1.into_origin().into(), 0));
 
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            vec![],
-            InputArgs {
-                destination: USER_1.into_origin().into(),
-                delay: 0,
-            }
-            .encode(),
-            50_000_000_000u64,
-            0u128
-        ));
-
-        let proxy = utils::get_last_program_id();
         let rent = <Test as Config>::MailboxThreshold::get();
+
         let check_result = |sufficient: bool| -> MessageId {
             run_to_next_block(None);
 
@@ -2150,7 +2097,7 @@ fn mailbox_threshold_works() {
             0,
         ));
         check_result(false);
-    })
+    });
 }
 
 #[test]

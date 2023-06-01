@@ -5,6 +5,7 @@ use parity_scale_codec::{Decode, Encode};
 pub mod demo_exit_handle;
 pub mod demo_exit_init;
 pub mod demo_ping;
+pub mod demo_proxy_with_gas;
 
 #[derive(Encode, Decode, Clone, Debug)]
 /// Represents behavior pattern of `demo_constructor`.

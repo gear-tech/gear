@@ -70,6 +70,10 @@ impl Calls {
         self.add_call(Call::Source).store(key)
     }
 
+    pub fn status_code(self, key: impl AsRef<str>) -> Self {
+        self.add_call(Call::StatusCode).store(key)
+    }
+
     pub fn value(self, key: impl AsRef<str>) -> Self {
         self.add_call(Call::Value).store(key)
     }
@@ -129,7 +133,7 @@ impl Calls {
         self.add_call(Call::Send(
             destination.into(),
             payload.into(),
-            Some(gas_limit),
+            Some(gas_limit.into()),
             value.into(),
             0.into(),
         ))
@@ -192,7 +196,7 @@ impl Calls {
             code_id.into(),
             salt.into(),
             payload.into(),
-            Some(gas_limit),
+            Some(gas_limit.into()),
             value.into(),
             0.into(),
         ))
@@ -209,7 +213,11 @@ impl Calls {
         let gas_limit = gas_limit
             .try_into()
             .expect("Cannot convert given gas limit into `u64`");
-        self.add_call(Call::Reply(payload.into(), Some(gas_limit), 0.into()))
+        self.add_call(Call::Reply(
+            payload.into(),
+            Some(gas_limit.into()),
+            0.into(),
+        ))
     }
 
     pub fn panic(self, message: impl Into<Option<&'static str>>) -> Self {
@@ -235,6 +243,7 @@ impl Calls {
     }
 
     // TODO: support multiple calls for branches by passing mut ref instead of moving value in Call processing.
+    #[track_caller]
     pub fn if_else(
         self,
         bool_arg: impl Into<Arg<bool>>,
@@ -257,5 +266,9 @@ impl Calls {
 
     pub fn load(self, key: impl AsRef<str>) -> Self {
         self.add_call(Call::Load).store(key)
+    }
+
+    pub fn load_bytes(self, key: impl AsRef<str>) -> Self {
+        self.add_call(Call::LoadBytes).store(key)
     }
 }
