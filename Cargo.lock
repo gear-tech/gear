@@ -2063,14 +2063,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-unchecked-mul"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
 name = "demo-wait-timeout"
 version = "0.1.0"
 dependencies = [

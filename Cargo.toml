@@ -48,7 +48,6 @@ members = [
     "examples/binaries/signal-entry",
     "examples/binaries/sys-calls",
     "examples/binaries/syscall-error",
-    "examples/binaries/unchecked-mul",
     "examples/binaries/wait-timeout",
     "examples/binaries/wait_wake",
     "examples/binaries/waiter",
