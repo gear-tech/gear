@@ -96,9 +96,17 @@ where
             SysCallName::ReserveGas => check_gr_reserve_gas::<T>(),
             SysCallName::UnreserveGas => check_gr_unreserve_gas::<T>(),
             SysCallName::ReservationSend => check_gr_reservation_send::<T>(),
+            // TODO: add benchmark
+            SysCallName::ReservationSendWGas => check_gr_reservation_send::<T>(),
             SysCallName::ReservationSendCommit => check_gr_reservation_send_commit::<T>(),
+            // TODO: add benchmark
+            SysCallName::ReservationSendCommitWGas => check_gr_reservation_send_commit::<T>(),
             SysCallName::ReservationReply => check_gr_reservation_reply::<T>(),
+            // TODO: add benchmark
+            SysCallName::ReservationReplyWGas => check_gr_reservation_reply::<T>(),
             SysCallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
+            // TODO: add benchmark
+            SysCallName::ReservationReplyCommitWGas => check_gr_reservation_reply_commit::<T>(),
             SysCallName::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
             SysCallName::PayProgramRent => check_gr_pay_program_rent::<T>(),
         }

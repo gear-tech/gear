@@ -240,6 +240,45 @@ where
         )
     }
 
+    /// Fallible `gr_reservation_send_wgas` syscall.
+    pub fn reservation_send_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let (rid_pid_value_ptr, payload_ptr, len, gas_limit, delay, err_mid_ptr) =
+            args.iter().read_6();
+
+        syscall_trace!(
+            "reservation_send_wgas",
+            rid_pid_value_ptr,
+            payload_ptr,
+            len,
+            gas_limit,
+            delay,
+            err_mid_ptr
+        );
+
+        ctx.run_fallible::<_, _, LengthWithHash>(
+            err_mid_ptr,
+            RuntimeCosts::ReservationSend(len),
+            |ctx| {
+                let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
+                let read_payload = ctx.register_read(payload_ptr, len);
+                let TwoHashesWithValue {
+                    hash1: reservation_id,
+                    hash2: destination,
+                    value,
+                } = ctx.read_as(read_rid_pid_value)?;
+                let payload = ctx.read(read_payload)?.try_into()?;
+
+                ctx.ext
+                    .reservation_send(
+                        reservation_id.into(),
+                        HandlePacket::new_with_gas(destination.into(), payload, gas_limit, value),
+                        delay,
+                    )
+                    .map_err(Into::into)
+            },
+        )
+    }
+
     /// Fallible `gr_reservation_send_commit` syscall.
     pub fn reservation_send_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let (handle, rid_pid_value_ptr, delay, err_mid_ptr) = args.iter().read_4();
@@ -268,6 +307,47 @@ where
                         reservation_id.into(),
                         handle,
                         HandlePacket::new(destination.into(), Default::default(), value),
+                        delay,
+                    )
+                    .map_err(Into::into)
+            },
+        )
+    }
+
+    /// Fallible `gr_reservation_send_commit_wgas` syscall.
+    pub fn reservation_send_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let (handle, rid_pid_value_ptr, gas_limit, delay, err_mid_ptr) = args.iter().read_5();
+
+        syscall_trace!(
+            "reservation_send_commit",
+            handle,
+            rid_pid_value_ptr,
+            gas_limit,
+            delay,
+            err_mid_ptr
+        );
+
+        ctx.run_fallible::<_, _, LengthWithHash>(
+            err_mid_ptr,
+            RuntimeCosts::ReservationSendCommit,
+            |ctx| {
+                let read_rid_pid_value = ctx.register_read_as(rid_pid_value_ptr);
+                let TwoHashesWithValue {
+                    hash1: reservation_id,
+                    hash2: destination,
+                    value,
+                } = ctx.read_as(read_rid_pid_value)?;
+
+                ctx.ext
+                    .reservation_send_commit(
+                        reservation_id.into(),
+                        handle,
+                        HandlePacket::new_with_gas(
+                            destination.into(),
+                            Default::default(),
+                            gas_limit,
+                            value,
+                        ),
                         delay,
                     )
                     .map_err(Into::into)
@@ -562,6 +642,48 @@ where
         )
     }
 
+    /// Fallible `gr_reservation_reply_wgas` syscall.
+    pub fn reservation_reply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let (rid_value_ptr, payload_ptr, len, gas_limit, _delay, err_mid_ptr): (
+            _,
+            _,
+            _,
+            _,
+            u32,
+            _,
+        ) = args.iter().read_6();
+
+        syscall_trace!(
+            "reservation_reply",
+            rid_value_ptr,
+            payload_ptr,
+            len,
+            gas_limit,
+            err_mid_ptr
+        );
+
+        ctx.run_fallible::<_, _, LengthWithHash>(
+            err_mid_ptr,
+            RuntimeCosts::ReservationReply(len),
+            |ctx| {
+                let read_rid_value = ctx.register_read_as(rid_value_ptr);
+                let read_payload = ctx.register_read(payload_ptr, len);
+                let HashWithValue {
+                    hash: reservation_id,
+                    value,
+                } = ctx.read_as(read_rid_value)?;
+                let payload = ctx.read(read_payload)?.try_into()?;
+
+                ctx.ext
+                    .reservation_reply(
+                        reservation_id.into(),
+                        ReplyPacket::new_with_gas(payload, gas_limit, value),
+                    )
+                    .map_err(Into::into)
+            },
+        )
+    }
+
     /// Fallible `gr_reservation_reply_commit` syscall.
     pub fn reservation_reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let (rid_value_ptr, _delay, err_mid_ptr): (_, u32, _) = args.iter().read_3();
@@ -582,6 +704,37 @@ where
                     .reservation_reply_commit(
                         reservation_id.into(),
                         ReplyPacket::new(Default::default(), value),
+                    )
+                    .map_err(Into::into)
+            },
+        )
+    }
+
+    /// Fallible `gr_reservation_reply_commit_wgas` syscall.
+    pub fn reservation_reply_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let (rid_value_ptr, gas_limit, _delay, err_mid_ptr): (_, _, u32, _) = args.iter().read_4();
+
+        syscall_trace!(
+            "reservation_reply_commit_wgas",
+            rid_value_ptr,
+            gas_limit,
+            err_mid_ptr
+        );
+
+        ctx.run_fallible::<_, _, LengthWithHash>(
+            err_mid_ptr,
+            RuntimeCosts::ReservationReplyCommit,
+            |ctx| {
+                let read_rid_value = ctx.register_read_as(rid_value_ptr);
+                let HashWithValue {
+                    hash: reservation_id,
+                    value,
+                } = ctx.read_as(read_rid_value)?;
+
+                ctx.ext
+                    .reservation_reply_commit(
+                        reservation_id.into(),
+                        ReplyPacket::new_with_gas(Default::default(), gas_limit, value),
                     )
                     .map_err(Into::into)
             },

@@ -246,6 +246,10 @@ impl Parse for HostFnMeta {
             }
         }
 
+        // if wgas {
+        //
+        // }
+
         Ok(Self {
             call_type,
             wgas,

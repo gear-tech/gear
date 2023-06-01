@@ -76,8 +76,14 @@ where
         f.build(ReservationSend, |forbidden| {
             F::reservation_send(store, forbidden, memory)
         }),
+        f.build(ReservationSendWGas, |forbidden| {
+            F::reservation_send_wgas(store, forbidden, memory)
+        }),
         f.build(ReservationSendCommit, |forbidden| {
             F::reservation_send_commit(store, forbidden, memory)
+        }),
+        f.build(ReservationSendCommitWGas, |forbidden| {
+            F::reservation_send_commit_wgas(store, forbidden, memory)
         }),
         f.build(Origin, |forbidden| F::origin(store, forbidden, memory)),
         f.build(Reply, |forbidden| F::reply(store, forbidden, memory)),
@@ -127,8 +133,14 @@ where
         f.build(ReservationReply, |forbidden| {
             F::reservation_reply(store, forbidden, memory)
         }),
+        f.build(ReservationReplyWGas, |forbidden| {
+            F::reservation_reply_wgas(store, forbidden, memory)
+        }),
         f.build(ReservationReplyCommit, |forbidden| {
             F::reservation_reply_commit(store, forbidden, memory)
+        }),
+        f.build(ReservationReplyCommitWGas, |forbidden| {
+            F::reservation_reply_commit_wgas(store, forbidden, memory)
         }),
         f.build(PayProgramRent, |forbidden| {
             F::pay_program_rent(store, forbidden, memory)

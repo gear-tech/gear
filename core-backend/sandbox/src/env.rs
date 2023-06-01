@@ -192,9 +192,19 @@ where
         builder.add_func(Wake, Funcs::wake);
         builder.add_func(SystemReserveGas, Funcs::system_reserve_gas);
         builder.add_func(ReservationReply, Funcs::reservation_reply);
+        builder.add_func(ReservationReplyWGas, Funcs::reservation_reply_wgas);
         builder.add_func(ReservationReplyCommit, Funcs::reservation_reply_commit);
+        builder.add_func(
+            ReservationReplyCommitWGas,
+            Funcs::reservation_reply_commit_wgas,
+        );
         builder.add_func(ReservationSend, Funcs::reservation_send);
+        builder.add_func(ReservationSendWGas, Funcs::reservation_send_wgas);
         builder.add_func(ReservationSendCommit, Funcs::reservation_send_commit);
+        builder.add_func(
+            ReservationSendCommitWGas,
+            Funcs::reservation_send_commit_wgas,
+        );
 
         let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.raw(), None) {
             Ok(mem) => mem,

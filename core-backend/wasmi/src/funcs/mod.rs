@@ -121,7 +121,7 @@ where
         state.ext.send_push(handle, &payload)
     }
 
-    #[host(fallible, cost = RuntimeCosts::ReservationSend(len))]
+    #[host(fallible, wgas, cost = RuntimeCosts::ReservationSend(len))]
     pub fn reservation_send(
         ctx: CallerWrap<E>,
         rid_pid_value_ptr: u32,
@@ -147,7 +147,7 @@ where
         )
     }
 
-    #[host(fallible, cost = RuntimeCosts::ReservationSendCommit)]
+    #[host(fallible, wgas, cost = RuntimeCosts::ReservationSendCommit)]
     pub fn reservation_send_commit(
         ctx: CallerWrap<E>,
         handle: u32,
@@ -299,7 +299,7 @@ where
             .reply_commit(ReplyPacket::new(Default::default(), value))
     }
 
-    #[host(fallible, cost = RuntimeCosts::ReservationReply(len))]
+    #[host(fallible, wgas, cost = RuntimeCosts::ReservationReply(len))]
     pub fn reservation_reply(
         ctx: CallerWrap<E>,
         rid_value_ptr: u32,
@@ -322,7 +322,7 @@ where
             .reservation_reply(reservation_id.into(), ReplyPacket::new(payload, value))
     }
 
-    #[host(fallible, cost = RuntimeCosts::ReservationReplyCommit)]
+    #[host(fallible, wgas, cost = RuntimeCosts::ReservationReplyCommit)]
     pub fn reservation_reply_commit(
         ctx: CallerWrap<E>,
         rid_value_ptr: u32,
