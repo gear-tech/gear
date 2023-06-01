@@ -179,7 +179,8 @@ where
         let write_buffer = ctx.register_write(buffer_ptr, len);
 
         let mut memory = CallerWrap::memory(&mut ctx.caller, ctx.memory);
-        let res = ctx.manager
+        let res = ctx
+            .manager
             .write(&mut memory, write_buffer, buffer, &mut gas_left);
         state.ext.set_gas_left(gas_left);
 

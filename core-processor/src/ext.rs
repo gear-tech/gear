@@ -592,6 +592,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
+        // TODO: #2708 charge per byte
         self.context.message_context.reply_push(buffer)?;
         Ok(())
     }
