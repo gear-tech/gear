@@ -329,7 +329,6 @@ impl<Rng: CallGenRng> StressBatchGenerator<Rng> {
         )
         .take(self.batch_size)
         .map(|(i, (existing_programs, rng_seed))| {
-            let mut rng = Rng::seed_from_u64(rng_seed);
             let mut salt = vec![0; rng.gen_range(1..=100)];
             rng.fill_bytes(&mut salt);
             UploadProgramArgs((WASM_BINARY.to_vec(), salt, vec![], rt_settings.gas_limit, 0))
