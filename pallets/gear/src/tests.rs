@@ -1583,24 +1583,11 @@ fn read_state_using_wasm_errors() {
 
 #[test]
 fn mailbox_rent_out_of_rent() {
-    use demo_value_sender::{TestData, WASM_BINARY};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-        ));
-
-        let sender = utils::get_last_program_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_initialized(sender));
+        let (_init_mid, sender) = init_constructor_with_value(Scheme::empty(), 10_000);
 
         // Message removes due to out of rent condition.
         //
@@ -1631,7 +1618,7 @@ fn mailbox_rent_out_of_rent() {
             let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
                 USER_1,
                 sender,
-                data.request(USER_2).encode(),
+                data.request(USER_2.into_origin()).encode(),
                 Some(data.extra_gas),
                 0,
             );
@@ -1689,24 +1676,11 @@ fn mailbox_rent_out_of_rent() {
 
 #[test]
 fn mailbox_rent_claimed() {
-    use demo_value_sender::{TestData, WASM_BINARY};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-        ));
-
-        let sender = utils::get_last_program_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_initialized(sender));
+        let (_init_mid, sender) = init_constructor_with_value(Scheme::empty(), 10_000);
 
         // Message removes due to claim.
         //
@@ -1739,7 +1713,7 @@ fn mailbox_rent_claimed() {
             let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
                 USER_1,
                 sender,
-                data.request(USER_2).encode(),
+                data.request(USER_2.into_origin()).encode(),
                 Some(data.extra_gas),
                 0,
             );
@@ -1796,24 +1770,11 @@ fn mailbox_rent_claimed() {
 
 #[test]
 fn mailbox_sending_instant_transfer() {
-    use demo_value_sender::{SendingRequest, WASM_BINARY};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-        ));
-
-        let sender = utils::get_last_program_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_initialized(sender));
+        let (_init_mid, sender) = init_constructor_with_value(Scheme::empty(), 10_000);
 
         // Message doesn't add to mailbox.
         //
@@ -1839,9 +1800,9 @@ fn mailbox_sending_instant_transfer() {
             );
 
             let payload = if let Some(gas_limit) = gas_limit {
-                SendingRequest::gasful(USER_2, gas_limit, value)
+                TestData::gasful(gas_limit, value)
             } else {
-                SendingRequest::gasless(USER_2, value)
+                TestData::gasless(value, <Test as Config>::MailboxThreshold::get())
             };
 
             // Used like that, because calculate gas info always provides
@@ -1849,7 +1810,7 @@ fn mailbox_sending_instant_transfer() {
             let gas_info = Gear::calculate_gas_info(
                 USER_1.into_origin(),
                 HandleKind::Handle(sender),
-                payload.clone().encode(),
+                payload.request(USER_2.into_origin()).encode(),
                 0,
                 true,
                 true,
@@ -1859,7 +1820,7 @@ fn mailbox_sending_instant_transfer() {
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 sender,
-                payload.encode(),
+                payload.request(USER_2.into_origin()).encode(),
                 gas_info.burned + gas_limit.unwrap_or_default(),
                 0
             ));
@@ -7423,24 +7384,11 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
 #[test]
 fn free_storage_hold_on_scheduler_overwhelm() {
-    use demo_value_sender::{TestData, WASM_BINARY};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-        ));
-
-        let sender = utils::get_last_program_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_initialized(sender));
+        let (_init_mid, sender) = init_constructor(Scheme::empty());
 
         let data = TestData::gasful(20_000, 0);
 
@@ -7462,7 +7410,7 @@ fn free_storage_hold_on_scheduler_overwhelm() {
         let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
             USER_1,
             sender,
-            data.request(USER_2).encode(),
+            data.request(USER_2.into_origin()).encode(),
             Some(data.extra_gas),
             0,
         );
@@ -9707,13 +9655,21 @@ mod utils {
     }
 
     #[track_caller]
-    pub(crate) fn init_constructor(scheme: Scheme) -> (MessageId, ProgramId) {
-        let res = submit_constructor_with_args(USER_1, DEFAULT_SALT, scheme, 0);
+    pub(crate) fn init_constructor_with_value(
+        scheme: Scheme,
+        value: BalanceOf<Test>,
+    ) -> (MessageId, ProgramId) {
+        let res = submit_constructor_with_args(USER_1, DEFAULT_SALT, scheme, value);
 
         run_to_next_block(None);
         assert!(Gear::is_active(res.1));
 
         res
+    }
+
+    #[track_caller]
+    pub(crate) fn init_constructor(scheme: Scheme) -> (MessageId, ProgramId) {
+        init_constructor_with_value(scheme, 0)
     }
 
     #[track_caller]
@@ -9727,6 +9683,7 @@ mod utils {
         assert_eq!(Balances::reserved_balance(account_id), reserved.into());
     }
 
+    #[track_caller]
     pub(super) fn calculate_handle_and_send_with_extra(
         origin: AccountId,
         destination: ProgramId,

@@ -49,7 +49,6 @@ members = [
     "examples/binaries/sys-calls",
     "examples/binaries/syscall-error",
     "examples/binaries/unchecked-mul",
-    "examples/binaries/value-sender",
     "examples/binaries/wait-timeout",
     "examples/binaries/wait_wake",
     "examples/binaries/waiter",
@@ -349,7 +348,6 @@ demo-proxy-reservation-with-gas = { path = "examples/binaries/proxy-reservation-
 demo-reserve-gas = { path = "examples/binaries/reserve-gas" }
 demo-send-from-reservation = { path = "examples/binaries/send-from-reservation" }
 demo-signal-entry = { path = "examples/binaries/signal-entry" }
-demo-value-sender = { path = "examples/binaries/value-sender" }
 demo-waiter = { path = "examples/binaries/waiter" }
 demo-wait-timeout = { path = "examples/binaries/wait-timeout" }
 demo-wait-wake = { path = "examples/binaries/wait_wake" }

@@ -2071,15 +2071,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-value-sender"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "demo-wait-timeout"
 version = "0.1.0"
 dependencies = [
@@ -6909,7 +6900,6 @@ dependencies = [
  "demo-reserve-gas",
  "demo-send-from-reservation",
  "demo-signal-entry",
- "demo-value-sender",
  "demo-wait-timeout",
  "demo-wait-wake",
  "demo-waiter",
