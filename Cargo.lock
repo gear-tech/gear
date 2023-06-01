@@ -1868,15 +1868,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-exit-init"
-version = "0.1.0"
-dependencies = [
- "gcore",
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
 name = "demo-gas-burned"
 version = "0.1.0"
 dependencies = [
@@ -6955,7 +6946,6 @@ dependencies = [
  "demo-distributor",
  "demo-exit-handle",
  "demo-exit-handle-sender",
- "demo-exit-init",
  "demo-gas-burned",
  "demo-gasless-wasting",
  "demo-init-fail-sender",

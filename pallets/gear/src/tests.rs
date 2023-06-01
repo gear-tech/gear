@@ -5142,24 +5142,13 @@ fn terminated_locking_funds() {
 
 #[test]
 fn exit_init() {
-    use demo_exit_init::WASM_BINARY;
+    use demo_constructor::{demo_exit_init, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        System::reset_events();
-
-        let code = WASM_BINARY.to_vec();
         let code_id = CodeId::generate(WASM_BINARY);
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            code,
-            vec![],
-            [0].to_vec(),
-            50_000_000_000u64,
-            0u128
-        ));
 
-        let program_id = utils::get_last_program_id();
+        let (_init_mid, program_id) = submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(false), 0);
 
         let program = ProgramStorageOf::<Test>::get_program(program_id)
             .and_then(|p| ActiveProgram::try_from(p).ok())
@@ -5185,7 +5174,7 @@ fn exit_init() {
             Gear::create_program(
                 RuntimeOrigin::signed(USER_1),
                 code_id,
-                vec![],
+                DEFAULT_SALT.to_vec(),
                 Vec::new(),
                 2_000_000_000,
                 0u128
@@ -7146,21 +7135,9 @@ fn test_create_program_without_gas_works() {
 fn demo_constructor_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
+        use demo_constructor::{Arg, Calls, Scheme};
 
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            Scheme::empty().encode(),
-            BlockGasLimitOf::<Test>::get(),
-            0
-        ));
-
-        let constructor_id = get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_active(constructor_id));
+        let (_init_mid, constructor_id) = utils::init_constructor(Scheme::empty());
 
         let calls = Calls::builder()
             .source("source")
@@ -7232,21 +7209,9 @@ fn demo_constructor_works() {
 fn demo_constructor_value_eq() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
+        use demo_constructor::{Arg, Calls, Scheme};
 
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            Scheme::empty().encode(),
-            BlockGasLimitOf::<Test>::get(),
-            0
-        ));
-
-        let constructor_id = get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_active(constructor_id));
+        let (_init_mid, constructor_id) = utils::init_constructor(Scheme::empty());
 
         let calls = Calls::builder()
             .value_as_vec("value")
@@ -7289,7 +7254,7 @@ fn demo_constructor_value_eq() {
 fn demo_constructor_is_demo_ping() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
+        use demo_constructor::{Arg, Calls, Scheme};
 
         let ping = Arg::bytes("PING");
         let pong = Arg::bytes("PONG");
@@ -7310,19 +7275,7 @@ fn demo_constructor_is_demo_ping() {
         let scheme = Scheme::predefined(init, handle, handle_reply);
 
         // checking init
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            scheme.encode(),
-            BlockGasLimitOf::<Test>::get(),
-            0
-        ));
-
-        let constructor_id = get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_active(constructor_id));
+        let (_init_mid, constructor_id) = utils::init_constructor(scheme);
 
         let init_reply = maybe_any_last_message().expect("Element should be");
         assert_eq!(init_reply.payload(), b"PING");
@@ -7369,25 +7322,13 @@ fn demo_constructor_is_demo_ping() {
 
 #[test]
 fn test_reply_to_terminated_program() {
+    use demo_constructor::demo_exit_init;
+
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_exit_init::WASM_BINARY;
+        let (original_message_id, _program_id) = submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(true), 0);
 
-        // Deploy program, which sends mail and exits
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            // this input makes it first send message to mailbox and then exit
-            [1].to_vec(),
-            27_100_000_000u64,
-            0
-        ));
-
-        let mail_id = {
-            let original_message_id = get_last_message_id();
-            MessageId::generate_outgoing(original_message_id, 0)
-        };
+        let mail_id = MessageId::generate_outgoing(original_message_id, 0);
 
         run_to_block(2, None);
 
@@ -9844,7 +9785,7 @@ mod utils {
         assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test,
     };
     use crate::{
-        mock::{Balances, Gear, System},
+        mock::{Balances, Gear, System, run_to_next_block, USER_1},
         BalanceOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
     };
     use common::{
@@ -9852,6 +9793,7 @@ mod utils {
         storage::{CountedByKey, Counter, IterableByKeyMap},
         Origin, ProgramStorage,
     };
+    use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReason;
     use frame_support::{
@@ -9870,6 +9812,7 @@ mod utils {
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
+    use parity_scale_codec::Encode;
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
@@ -9891,6 +9834,40 @@ mod utils {
             .format_module_path(false)
             .format_level(true)
             .try_init();
+    }
+
+    #[track_caller]
+    pub(crate) fn submit_constructor_with_args(origin: AccountId, salt: impl AsRef<[u8]>, scheme: Scheme, value: BalanceOf<Test>) -> (MessageId, ProgramId) {
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            origin.into_origin(),
+            HandleKind::Init(DEMO_CONSTRUCTOR_WASM_BINARY.to_vec()),
+            scheme.encode(),
+            value,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(origin),
+            DEMO_CONSTRUCTOR_WASM_BINARY.to_vec(),
+            salt.as_ref().to_vec(),
+            scheme.encode(),
+            min_limit,
+            value,
+        ));
+
+        (get_last_message_id(), get_last_program_id())
+    }
+
+    #[track_caller]
+    pub(crate) fn init_constructor(scheme: Scheme) -> (MessageId, ProgramId) {
+        let res = submit_constructor_with_args(USER_1, DEFAULT_SALT, scheme, 0);
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(res.1));
+
+        res
     }
 
     #[track_caller]
