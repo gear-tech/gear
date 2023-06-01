@@ -16,8 +16,10 @@ frame-support.workspace = true
 frame-system.workspace = true
 pallet-authorship.workspace = true
 pallet-balances.workspace = true
+pallet-session.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
+validator-set.workspace = true
 
 # Used for runtime benchmarking
 frame-benchmarking = { workspace = true, optional = true }
@@ -38,9 +40,11 @@ std = [
 	"frame-system-benchmarking?/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
+	"pallet-session/std",
 	"runtime-primitives/std",
 	"sp-runtime/std",
 	"sp-std/std",
+	"validator-set/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
@@ -50,4 +54,9 @@ runtime-benchmarks = [
 	"pallet-balances/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
-try-runtime = ["frame-system/try-runtime", "pallet-balances/try-runtime"]
+try-runtime = [
+	"frame-system/try-runtime",
+	"pallet-balances/try-runtime",
+	"pallet-session/try-runtime",
+	"validator-set/try-runtime",
+]
