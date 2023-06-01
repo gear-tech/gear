@@ -42,4 +42,4 @@ mod scheme;
 pub use arg::Arg;
 pub use builder::Calls;
 pub use call::Call;
-pub use scheme::Scheme;
+pub use scheme::*;

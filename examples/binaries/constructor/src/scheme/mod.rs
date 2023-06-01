@@ -2,6 +2,8 @@ use crate::{Call, Calls};
 use alloc::vec::Vec;
 use parity_scale_codec::{Decode, Encode};
 
+pub mod demo_ping;
+
 #[derive(Encode, Decode, Clone, Debug)]
 /// Represents behavior pattern of `demo_constructor`.
 /// This type will be parsed as init payload of `demo_constructor`.
