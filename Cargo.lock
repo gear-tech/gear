@@ -1823,16 +1823,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-contract-template"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "hex",
- "rand 0.8.5",
-]
-
-[[package]]
 name = "demo-delayed-sender"
 version = "0.1.0"
 dependencies = [

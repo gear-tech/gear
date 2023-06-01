@@ -26,7 +26,6 @@ members = [
     "examples/binaries/calc-hash",
     "examples/binaries/compose",
     "examples/binaries/constructor",
-    "examples/binaries/contract-template",
     "examples/binaries/delayed-sender",
     "examples/binaries/distributor",
     "examples/binaries/gas-burned",
