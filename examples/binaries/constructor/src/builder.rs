@@ -135,6 +135,69 @@ impl Calls {
         ))
     }
 
+    pub fn create_program(
+        self,
+        code_id: impl Into<Arg<[u8; 32]>>,
+        salt: impl Into<Arg<Vec<u8>>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+    ) -> Self {
+        self.create_program_value(code_id, salt, payload, 0)
+    }
+
+    pub fn create_program_value(
+        self,
+        code_id: impl Into<Arg<[u8; 32]>>,
+        salt: impl Into<Arg<Vec<u8>>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+        value: impl Into<Arg<u128>>,
+    ) -> Self {
+        self.add_call(Call::CreateProgram(
+            code_id.into(),
+            salt.into(),
+            payload.into(),
+            None,
+            value.into(),
+            0.into(),
+        ))
+    }
+
+    pub fn create_program_wgas<T: TryInto<u64>>(
+        self,
+        code_id: impl Into<Arg<[u8; 32]>>,
+        salt: impl Into<Arg<Vec<u8>>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+        gas_limit: T,
+    ) -> Self
+    where
+        T::Error: Debug,
+    {
+        self.create_program_value_wgas(code_id, salt, payload, gas_limit, 0)
+    }
+
+    pub fn create_program_value_wgas<T: TryInto<u64>>(
+        self,
+        code_id: impl Into<Arg<[u8; 32]>>,
+        salt: impl Into<Arg<Vec<u8>>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+        gas_limit: T,
+        value: impl Into<Arg<u128>>,
+    ) -> Self
+    where
+        T::Error: Debug,
+    {
+        let gas_limit = gas_limit
+            .try_into()
+            .expect("Cannot convert given gas limit into `u64`");
+        self.add_call(Call::CreateProgram(
+            code_id.into(),
+            salt.into(),
+            payload.into(),
+            Some(gas_limit),
+            value.into(),
+            0.into(),
+        ))
+    }
+
     pub fn reply(self, payload: impl Into<Arg<Vec<u8>>>) -> Self {
         self.add_call(Call::Reply(payload.into(), None, 0.into()))
     }

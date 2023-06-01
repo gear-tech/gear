@@ -6,6 +6,14 @@ use parity_scale_codec::{Decode, Encode};
 /// Represents wasm instruction the should be executed with given parameters.
 pub enum Call {
     Bool(bool),
+    CreateProgram(
+        Arg<[u8; 32]>,
+        Arg<Vec<u8>>,
+        Arg<Vec<u8>>,
+        Option<u64>,
+        Arg<u128>,
+        Arg<u32>,
+    ),
     Vec(Vec<u8>),
     Store(String),
     StoreVec(String),
@@ -31,7 +39,7 @@ pub enum Call {
 mod wasm {
     use super::*;
     use crate::DATA;
-    use gstd::{debug, exec, msg, String, Vec};
+    use gstd::{debug, exec, msg, prog, String, Vec};
 
     type CallResult = (Call, Option<Vec<u8>>);
 
@@ -40,6 +48,29 @@ mod wasm {
             let Self::Bool(b) = self else { unreachable!() };
 
             Some(b.encode())
+        }
+
+        // TODO: expand to be able store mid and pid separately.
+        fn create_program(self) -> Option<Vec<u8>> {
+            let Self::CreateProgram(code_id, salt, payload, gas_limit, value, delay) = self else { unreachable!() };
+
+            let code_id = code_id.value().into();
+            let salt = salt.value();
+            let payload = payload.value();
+            let value = value.value();
+            let delay = delay.value();
+
+            let res = if let Some(gas_limit) = gas_limit {
+                prog::create_program_with_gas_delayed(
+                    code_id, salt, payload, gas_limit, value, delay,
+                )
+            } else {
+                prog::create_program_delayed(code_id, salt, payload, value, delay)
+            };
+
+            let (_message_id, program_id) = res.expect("Failed to create program");
+
+            Some(program_id.encode())
         }
 
         fn vec(self) -> Option<Vec<u8>> {
@@ -186,6 +217,7 @@ mod wasm {
 
             let value = match self {
                 Call::Bool(..) => self.bool(),
+                Call::CreateProgram(..) => self.create_program(),
                 Call::Vec(..) => self.vec(),
                 Call::Store(..) => self.store(previous),
                 Call::StoreVec(..) => self.store_vec(previous),
