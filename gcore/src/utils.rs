@@ -31,7 +31,7 @@ pub mod ext {
     ///
     /// #[no_mangle]
     /// extern "C" fn handle() {
-    ///    let cost = ext::cost(String::from("waitlist")).expect("Unable to get cost");
+    ///     let cost = ext::cost(String::from("waitlist")).expect("Unable to get cost");
     /// }
     /// ```
     pub fn cost(name: String) -> Result<u128> {

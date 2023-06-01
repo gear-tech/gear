@@ -88,6 +88,7 @@ where
             | SysCallName::Debug
             | SysCallName::Panic
             | SysCallName::OomPanic => {/* tests here aren't required, read module docs for more info */},
+            SyscallName::Cost => check_gr_cost::<T>(),
             SysCallName::Alloc => check_mem::<T>(false),
             SysCallName::Free => check_mem::<T>(true),
             SysCallName::OutOfGas | SysCallName::OutOfAllowance => { /*no need for tests */}
@@ -257,6 +258,22 @@ where
         .into();
 
         (TestCall::send_message(mp), Some(post_test))
+    });
+}
+
+fn check_gr_cost<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let cost = 10_000_000;
+        let next_user_mid =
+            utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
+
+        let mp = vec![Kind::Cost(cost)].encode().into();
+
+        (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
 }
 

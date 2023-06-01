@@ -69,7 +69,7 @@ pub trait Ext {
     fn block_timestamp(&self) -> Result<u64, Self::Error>;
 
     /// Get various cost.
-    fn cost(&self, name: String) -> Result<u128, Self::Error>; //TODO: change to CostName
+    fn cost(&self, name: String) -> Result<u128, Self::Error>;
 
     /// Get the id of the user who initiated communication with blockchain,
     /// during which, currently processing message was created.
