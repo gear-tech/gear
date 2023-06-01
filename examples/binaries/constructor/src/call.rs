@@ -5,6 +5,7 @@ use parity_scale_codec::{Decode, Encode};
 #[derive(Clone, Debug, Decode, Encode)]
 /// Represents wasm instruction the should be executed with given parameters.
 pub enum Call {
+    Bool(bool),
     Vec(Vec<u8>),
     Store(String),
     StoreVec(String),
@@ -35,6 +36,12 @@ mod wasm {
     type CallResult = (Call, Option<Vec<u8>>);
 
     impl Call {
+        fn bool(self) -> Option<Vec<u8>> {
+            let Self::Bool(b) = self else { unreachable!() };
+
+            Some(b.encode())
+        }
+
         fn vec(self) -> Option<Vec<u8>> {
             let Self::Vec(v) = self else { unreachable!() };
 
@@ -178,6 +185,7 @@ mod wasm {
             let call = self.clone();
 
             let value = match self {
+                Call::Bool(..) => self.bool(),
                 Call::Vec(..) => self.vec(),
                 Call::Store(..) => self.store(previous),
                 Call::StoreVec(..) => self.store_vec(previous),

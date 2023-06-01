@@ -54,6 +54,10 @@ impl Calls {
             .store_vec(key)
     }
 
+    pub fn bool(self, key: impl AsRef<str>, value: impl Into<bool>) -> Self {
+        self.add_call(Call::Bool(value.into())).store(key)
+    }
+
     pub fn store(self, key: impl AsRef<str>) -> Self {
         self.add_call(Call::Store(key.as_ref().to_string()))
     }
@@ -168,7 +172,12 @@ impl Calls {
     }
 
     // TODO: support multiple calls for branches by passing mut ref instead of moving value in Call processing.
-    pub fn if_else(self, key: impl AsRef<str>, mut true_call: Self, mut false_call: Self) -> Self {
+    pub fn if_else(
+        self,
+        bool_arg: impl Into<Arg<bool>>,
+        mut true_call: Self,
+        mut false_call: Self,
+    ) -> Self {
         if true_call.len() != 1 || false_call.len() != 1 {
             unimplemented!()
         };
@@ -177,7 +186,7 @@ impl Calls {
         let false_call = false_call.0.remove(0);
 
         self.add_call(Call::IfElse(
-            Arg::get(key),
+            bool_arg.into(),
             Box::new(true_call),
             Box::new(false_call),
         ))
