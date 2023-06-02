@@ -22,9 +22,33 @@
 
 use anyhow::Result;
 use gmeta::MetadataRepr;
-use std::{fs, path::Path};
+use std::{fs, io::ErrorKind, path::Path};
 
 const LINEAR_COMPARISON_FILE_SIZE: u64 = 4096;
+
+pub fn copy_if_newer(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<bool> {
+    let from = from.as_ref();
+    let to = to.as_ref();
+
+    if check_if_newer(from, to)? {
+        fs::copy(from, to)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+pub fn check_if_newer(left: impl AsRef<Path>, right: impl AsRef<Path>) -> Result<bool> {
+    let right_metadata = fs::metadata(right);
+    if let Err(io_error) = right_metadata.as_ref() {
+        if io_error.kind() == ErrorKind::NotFound {
+            return Ok(true);
+        }
+    }
+    let right_metadata = right_metadata.unwrap();
+    let left_metadata = fs::metadata(left)?;
+    Ok(left_metadata.modified()? > right_metadata.modified()?)
+}
 
 fn check_changed(path: &Path, contents: &[u8]) -> Result<bool> {
     // file does not exist
