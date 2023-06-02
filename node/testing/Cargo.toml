@@ -26,7 +26,6 @@ pallet-gear-rpc-runtime-api.workspace = true
 gear-runtime = { workspace = true, optional = true }
 vara-runtime = { workspace = true, optional = true }
 gear-runtime-interface.workspace = true
-gear-sandbox-runtime-interface = { workspace = true, features = [ "std" ] }
 
 # Substrate Client
 sc-block-builder.workspace = true

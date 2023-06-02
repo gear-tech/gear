@@ -3628,9 +3628,9 @@ dependencies = [
  "futures",
  "gcli",
  "gear-runtime",
+ "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-runtime-test-cli",
- "gear-sandbox-runtime-interface",
  "gear-service",
  "log",
  "mimalloc",
@@ -3814,7 +3814,6 @@ dependencies = [
  "gear-runtime",
  "gear-runtime-interface",
  "gear-runtime-primitives",
- "gear-sandbox-runtime-interface",
  "log",
  "pallet-gear-rpc-runtime-api",
  "parity-scale-codec",
@@ -3924,12 +3923,16 @@ dependencies = [
  "gear-backend-common",
  "gear-core",
  "gear-lazy-pages",
+ "gear-sandbox-host",
  "libc",
  "log",
+ "once_cell",
  "parity-scale-codec",
  "region",
+ "sp-allocator",
  "sp-runtime-interface",
  "sp-std 5.0.0",
+ "sp-wasm-interface",
  "static_assertions",
  "winapi",
 ]
@@ -3987,8 +3990,8 @@ name = "gear-sandbox"
 version = "0.0.0"
 dependencies = [
  "assert_matches",
+ "gear-runtime-interface",
  "gear-sandbox-env",
- "gear-sandbox-runtime-interface",
  "log",
  "parity-scale-codec",
  "sp-core",
@@ -4024,20 +4027,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-sandbox-runtime-interface"
-version = "0.1.0"
-dependencies = [
- "gear-sandbox-host",
- "log",
- "once_cell",
- "parity-scale-codec",
- "sp-allocator",
- "sp-runtime-interface",
- "sp-std 5.0.0",
- "sp-wasm-interface",
-]
-
-[[package]]
 name = "gear-service"
 version = "0.1.0"
 dependencies = [
@@ -4054,7 +4043,6 @@ dependencies = [
  "gear-runtime-common",
  "gear-runtime-interface",
  "gear-runtime-primitives",
- "gear-sandbox-runtime-interface",
  "hex-literal 0.3.4",
  "jsonrpsee",
  "log",

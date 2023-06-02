@@ -43,6 +43,11 @@ use gear_lazy_pages as lazy_pages;
 
 pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 
+mod sandbox_mod;
+pub use sandbox_mod::sandbox;
+#[cfg(feature = "std")]
+pub use sandbox_mod::init as sandbox_init;
+
 static_assertions::const_assert!(
     core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
 );

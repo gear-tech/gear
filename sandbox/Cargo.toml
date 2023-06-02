@@ -19,7 +19,7 @@ wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext
 sp-core.workspace = true
 sp-std.workspace = true
 sp-wasm-interface.workspace = true
-gear-sandbox-runtime-interface.workspace = true
+gear-runtime-interface.workspace = true
 gear-sandbox-env.workspace = true
 
 [dev-dependencies]
@@ -34,10 +34,10 @@ std = [
 	"sp-core/std",
 	"sp-std/std",
 	"sp-wasm-interface/std",
-	"gear-sandbox-runtime-interface/std",
+	"gear-runtime-interface/std",
 	"gear-sandbox-env/std",
 	"wasmi/std",
 	"wasmi/virtual_memory",
 ]
 strict = []
-host-sandbox = ["gear-sandbox-runtime-interface/host-sandbox"]
+host-sandbox = ["gear-runtime-interface/host-sandbox"]

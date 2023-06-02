@@ -18,9 +18,6 @@
 
 //! Runtime interface for gear node
 
-#![allow(useless_deprecated, deprecated)]
-#![cfg_attr(not(feature = "std"), no_std)]
-
 use sp_runtime_interface::{runtime_interface, Pointer};
 use sp_wasm_interface::HostPointer;
 
