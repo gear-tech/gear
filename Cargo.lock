@@ -3744,7 +3744,7 @@ dependencies = [
  "errno 0.3.0",
  "gear-backend-common",
  "gear-core",
- "gear-sandbox-native",
+ "gear-sandbox-host",
  "libc",
  "log",
  "mach",
@@ -4008,7 +4008,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-sandbox-native"
+name = "gear-sandbox-host"
 version = "0.0.0"
 dependencies = [
  "environmental",
@@ -4027,7 +4027,7 @@ dependencies = [
 name = "gear-sandbox-runtime-interface"
 version = "0.1.0"
 dependencies = [
- "gear-sandbox-native",
+ "gear-sandbox-host",
  "log",
  "once_cell",
  "parity-scale-codec",

@@ -19,7 +19,7 @@
 use super::*;
 
 pub fn method(self_: &mut dyn FunctionContext, memory_idx: u32) -> HostPointer {
-    use gear_sandbox_native::util::MemoryTransfer;
+    use gear_sandbox_host::util::MemoryTransfer;
 
     let mut method_result: HostPointer = u32::MAX.into();
 

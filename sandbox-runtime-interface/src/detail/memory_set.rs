@@ -25,7 +25,7 @@ pub fn method(
     val_ptr: Pointer<u8>,
     val_len: u32,
 ) -> u32 {
-    use gear_sandbox_native::util::MemoryTransfer;
+    use gear_sandbox_host::util::MemoryTransfer;
 
     let mut method_result = u32::MAX;
 

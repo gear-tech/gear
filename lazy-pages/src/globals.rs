@@ -25,7 +25,7 @@ use gear_backend_common::{
     LimitedStr,
 };
 use gear_core::memory::HostPointer;
-use gear_sandbox_native::sandbox::SandboxInstance;
+use gear_sandbox_host::sandbox::SandboxInstance;
 use sp_wasm_interface::Value;
 
 #[derive(Debug, Clone, Copy)]

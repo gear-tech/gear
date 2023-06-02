@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::{Decode, Encode};
-use gear_sandbox_native::sandbox as sandbox_env;
+use gear_sandbox_host::sandbox as sandbox_env;
 use once_cell::unsync::Lazy;
 use sp_wasm_interface::{
     util,
@@ -113,7 +113,7 @@ impl<'a, 'b> sandbox_env::SandboxContext for SandboxContext<'a, 'b> {
         invoke_args_ptr: Pointer<u8>,
         invoke_args_len: WordSize,
         func_idx: sandbox_env::SupervisorFuncIndex,
-    ) -> gear_sandbox_native::error::Result<i64> {
+    ) -> gear_sandbox_host::error::Result<i64> {
         let mut ret_vals = [Val::null()];
         let result = self.dispatch_thunk.call(
             &mut self.caller,

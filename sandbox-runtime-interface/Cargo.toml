@@ -15,7 +15,7 @@ sp-runtime-interface.workspace = true
 sp-wasm-interface.workspace = true
 sp-std.workspace = true
 codec.workspace = true
-gear-sandbox-native = { workspace = true, optional = true }
+gear-sandbox-host = { workspace = true, optional = true }
 once_cell = { version = "1.17.1", optional = true }
 
 [features]
@@ -26,7 +26,7 @@ std = [
 	"sp-wasm-interface/std",
 	"sp-std/std",
 	"log",
-	"gear-sandbox-native",
+	"gear-sandbox-host",
 	"once_cell",
 ]
-host-sandbox = ["gear-sandbox-native?/host-sandbox"]
+host-sandbox = ["gear-sandbox-host?/host-sandbox"]

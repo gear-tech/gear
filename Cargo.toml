@@ -187,7 +187,7 @@ gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
 gear-sandbox = { path = "sandbox", default-features = false }
 gear-sandbox-env = { path = "sandbox-env", default-features = false }
-gear-sandbox-native = { path = "sandbox-native" }
+gear-sandbox-host = { path = "sandbox-host" }
 gear-sandbox-runtime-interface = { path = "sandbox-runtime-interface", default-features = false }
 gear-service = { path = "node/service", default-features = false }
 gear-test = { path = "gear-test" }
