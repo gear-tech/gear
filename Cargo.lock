@@ -1856,6 +1856,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-constructor"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "hex",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-contract-template"
 version = "0.1.0"
 dependencies = [
@@ -4409,7 +4419,6 @@ dependencies = [
  "jsonrpsee",
  "log",
  "parity-scale-codec",
- "primitive-types",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -4418,6 +4427,23 @@ dependencies = [
  "subxt",
  "thiserror",
  "tokio",
+]
+
+[[package]]
+name = "gsdk-api-gen"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "frame-metadata",
+ "gear-runtime-interface",
+ "parity-scale-codec",
+ "proc-macro2",
+ "quote",
+ "sc-executor",
+ "sc-executor-common",
+ "sp-io",
+ "subxt-codegen 0.28.0",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -6971,6 +6997,7 @@ dependencies = [
  "demo-calc-hash-in-one-block",
  "demo-calc-hash-over-blocks",
  "demo-compose",
+ "demo-constructor",
  "demo-delayed-sender",
  "demo-distributor",
  "demo-exit-handle",
@@ -10922,6 +10949,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-core-hashing"
+version = "8.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27449abdfbe41b473e625bce8113745e81d65777dd1d5a8462cf24137930dad8"
+dependencies = [
+ "blake2b_simd",
+ "byteorder",
+ "digest 0.10.6",
+ "sha2 0.10.6",
+ "sha3",
+ "sp-std 7.0.0",
+ "twox-hash",
+]
+
+[[package]]
 name = "sp-core-hashing-proc-macro"
 version = "5.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary#34efda72d128b336f3afd72d70098deccd79c6c2"
@@ -11206,6 +11248,12 @@ name = "sp-std"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af0ee286f98455272f64ac5bb1384ff21ac029fbb669afbaf48477faff12760e"
+
+[[package]]
+name = "sp-std"
+version = "7.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1de8eef39962b5b97478719c493bed2926cf70cb621005bbf68ebe58252ff986"
 
 [[package]]
 name = "sp-storage"
@@ -11669,7 +11717,7 @@ dependencies = [
  "serde_json",
  "sp-core-hashing 6.0.0",
  "subxt-macro",
- "subxt-metadata",
+ "subxt-metadata 0.27.1",
  "thiserror",
  "tracing",
 ]
@@ -11690,8 +11738,29 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scale-info",
- "subxt-metadata",
+ "subxt-metadata 0.27.1",
  "syn 1.0.109",
+ "tokio",
+]
+
+[[package]]
+name = "subxt-codegen"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e924f41069e9273236398ff89662d6d336468a5d94faac812129d44547db0e7f"
+dependencies = [
+ "darling",
+ "frame-metadata",
+ "heck",
+ "hex",
+ "jsonrpsee",
+ "parity-scale-codec",
+ "proc-macro2",
+ "quote",
+ "scale-info",
+ "subxt-metadata 0.28.0",
+ "syn 1.0.109",
+ "thiserror",
  "tokio",
 ]
 
@@ -11703,7 +11772,7 @@ checksum = "74c08de402a78c4c06c3ee3702c80e519efdcb65911348e018b6998d04404916"
 dependencies = [
  "darling 0.14.4",
  "proc-macro-error",
- "subxt-codegen",
+ "subxt-codegen 0.27.1",
  "syn 1.0.109",
 ]
 
@@ -11717,6 +11786,18 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-core-hashing 6.0.0",
+]
+
+[[package]]
+name = "subxt-metadata"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18be3b8f4308fe7369ee1df66ae59c2eca79de20eab57b0f41c75736e843300f"
+dependencies = [
+ "frame-metadata",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core-hashing 8.0.0",
 ]
 
 [[package]]

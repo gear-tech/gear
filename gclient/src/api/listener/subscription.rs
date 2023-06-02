@@ -19,7 +19,7 @@
 use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
-use gsdk::metadata::{runtime_types::gear_runtime::RuntimeEvent, Event};
+use gsdk::metadata::{gear_runtime::RuntimeEvent, Event};
 
 #[async_trait(?Send)]
 impl<I: IntoIterator<Item = RuntimeEvent> + Clone> EventProcessor for I {
@@ -31,7 +31,7 @@ impl<I: IntoIterator<Item = RuntimeEvent> + Clone> EventProcessor for I {
         let mut res = None;
 
         for event in self.clone().into_iter() {
-            if let Some(data) = predicate(event.into()) {
+            if let Some(data) = predicate(event) {
                 res = res.or_else(|| Some(data));
             }
 
@@ -51,7 +51,7 @@ impl<I: IntoIterator<Item = RuntimeEvent> + Clone> EventProcessor for I {
         let mut res = vec![];
 
         for event in self.clone().into_iter() {
-            if let Some(data) = predicate(event.into()) {
+            if let Some(data) = predicate(event) {
                 res.push(data);
             }
         }
