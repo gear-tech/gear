@@ -193,6 +193,9 @@ pub trait Tree {
     /// Return bool, defining does node exist.
     fn exists(key: impl Into<Self::NodeId>) -> bool;
 
+    /// Return bool, defining does node exist and is external.
+    fn exists_and_external(key: impl Into<Self::NodeId>) -> bool;
+
     /// Removes all values.
     fn clear();
 }
