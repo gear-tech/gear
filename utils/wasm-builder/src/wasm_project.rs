@@ -21,7 +21,9 @@ use crate::{
     optimize::{OptType, Optimizer},
     smart_fs,
 };
-use anyhow::{Context, Result};
+use anyhow::{Context, Error, Result};
+use gear_core::code::{Code, CodeError};
+use gear_wasm_instrument::rules::CustomConstantCostRules;
 use gmeta::MetadataRepr;
 use pwasm_utils::parity_wasm::{self, elements::Internal};
 use std::{
@@ -329,6 +331,23 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
         Ok(())
     }
 
+    fn validate_wasm_instructions(raw_code: Vec<u8>) -> Result<()> {
+        Code::new_raw_with_rules(raw_code, 1, false, |_| CustomConstantCostRules::default())
+            .map(|_| ())
+            .map_err(|err| {
+                let mut reason = format!("failed to validate wasm file: {err:?}");
+
+                if err == CodeError::GasInjection {
+                    reason.push_str(
+                        " (probably the smart contract code contains invalid instructions: \
+                        floats (f32/f64), manual memory grow, etc.)",
+                    );
+                }
+
+                Error::msg(reason)
+            })
+    }
+
     fn generate_wasm(from: PathBuf, to_opt: Option<&Path>, to_meta: Option<&Path>) -> Result<()> {
         let mut optimizer = Optimizer::new(from)?;
         optimizer.insert_stack_and_export();
@@ -337,12 +356,14 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
         // Generate *.opt.wasm.
         if let Some(to_opt) = to_opt {
             let opt = optimizer.optimize(OptType::Opt)?;
+            Self::validate_wasm_instructions(opt.clone())?;
             fs::write(to_opt, opt)?;
         }
 
         // Generate *.meta.wasm.
         if let Some(to_meta) = to_meta {
             let meta = optimizer.optimize(OptType::Meta)?;
+            Self::validate_wasm_instructions(meta.clone())?;
             fs::write(to_meta, meta)?;
         }
 

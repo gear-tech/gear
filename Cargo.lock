@@ -4130,6 +4130,7 @@ dependencies = [
  "cargo_metadata",
  "colored",
  "filetime",
+ "gear-core",
  "gear-wasm-instrument",
  "gmeta",
  "log",
