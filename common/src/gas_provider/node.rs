@@ -118,7 +118,7 @@ impl<Balance: Add<Output = Balance> + Copy> Add<Self> for NodeLock<Balance> {
 }
 
 // TODO: decide whether this method should stay or be removed as unused.
-// The only use case curretnly is to check Gas Tree migration upon runtime upgrade.
+// The only use case currently is to check Gas Tree migration upon runtime upgrade.
 impl<Balance: Zero + Copy + sp_runtime::traits::Saturating> NodeLock<Balance> {
     pub fn total_locked(&self) -> Balance {
         self.0
@@ -206,9 +206,9 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
     GasNode<ExternalId, Id, Balance>
 {
     /// Creates a new `GasNode::External` root node for a new tree.
-    pub fn new(origin: ExternalId, value: Balance) -> Self {
+    pub fn new(id: ExternalId, value: Balance) -> Self {
         Self::External {
-            id: origin,
+            id,
             value,
             lock: Zero::zero(),
             system_reserve: Zero::zero(),

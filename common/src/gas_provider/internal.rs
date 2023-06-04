@@ -744,6 +744,22 @@ where
         )
     }
 
+    fn create_external(
+        key: impl Into<Self::NodeId>,
+        new_key: impl Into<Self::NodeId>,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error> {
+        Self::create_from_with_value(
+            key,
+            new_key,
+            amount,
+            |key, value, _parent_node, _parent_id| {
+                let id = Self::get_external(key)?;
+                Ok(GasNode::new(id, value))
+            },
+        )
+    }
+
     fn exists(key: impl Into<Self::NodeId>) -> bool {
         Self::get_node(key).is_some()
     }
