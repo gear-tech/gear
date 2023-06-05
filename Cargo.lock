@@ -1866,16 +1866,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-contract-template"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "hex",
- "rand 0.8.5",
-]
-
-[[package]]
 name = "demo-delayed-sender"
 version = "0.1.0"
 dependencies = [
@@ -1891,32 +1881,6 @@ dependencies = [
  "gstd",
  "gtest",
  "parity-scale-codec",
-]
-
-[[package]]
-name = "demo-exit-handle"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
-name = "demo-exit-handle-sender"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
-]
-
-[[package]]
-name = "demo-exit-init"
-version = "0.1.0"
-dependencies = [
- "gcore",
- "gear-wasm-builder",
- "gstd",
 ]
 
 [[package]]
@@ -1942,15 +1906,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-gasless-wasting"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "demo-init-fail-sender"
 version = "0.1.0"
 dependencies = [
@@ -1972,16 +1927,6 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
-]
-
-[[package]]
-name = "demo-init-with-value"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "hex-literal 0.4.1",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -2123,16 +2068,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-proxy-with-gas"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
 name = "demo-reserve-gas"
 version = "0.1.0"
 dependencies = [
@@ -2170,23 +2105,6 @@ dependencies = [
  "gstd",
  "gsys",
  "gtest",
- "parity-scale-codec",
-]
-
-[[package]]
-name = "demo-unchecked-mul"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
-name = "demo-value-sender"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
  "parity-scale-codec",
 ]
 
@@ -3515,15 +3433,12 @@ dependencies = [
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
  "demo-distributor",
- "demo-exit-handle-sender",
- "demo-gasless-wasting",
  "demo-meta-io",
  "demo-mul-by-const",
  "demo-node",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",
- "demo-proxy-with-gas",
  "demo-reserve-gas",
  "env_logger",
  "futures",
@@ -3968,11 +3883,14 @@ dependencies = [
  "gear-common",
  "gear-core-processor",
  "gear-runtime-primitives",
+ "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-session",
  "sp-runtime",
  "sp-std 5.0.0",
+ "substrate-validator-set",
 ]
 
 [[package]]
@@ -7000,15 +6918,10 @@ dependencies = [
  "demo-constructor",
  "demo-delayed-sender",
  "demo-distributor",
- "demo-exit-handle",
- "demo-exit-handle-sender",
- "demo-exit-init",
  "demo-gas-burned",
- "demo-gasless-wasting",
  "demo-init-fail-sender",
  "demo-init-wait",
  "demo-init-wait-reply-exit",
- "demo-init-with-value",
  "demo-mul-by-const",
  "demo-new-meta",
  "demo-out-of-memory",
@@ -7016,11 +6929,9 @@ dependencies = [
  "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-reservation-with-gas",
- "demo-proxy-with-gas",
  "demo-reserve-gas",
  "demo-send-from-reservation",
  "demo-signal-entry",
- "demo-value-sender",
  "demo-wait-timeout",
  "demo-wait-wake",
  "demo-waiter",
@@ -7042,6 +6953,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-wasm-instrument",
  "gmeta",
+ "gstd",
  "gsys",
  "hex",
  "log",
