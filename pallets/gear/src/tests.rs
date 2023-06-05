@@ -340,6 +340,102 @@ fn auto_reply_out_of_rent_mailbox() {
 }
 
 #[test]
+fn reply_provision_to_program() {
+    use demo_constructor::demo_provision;
+
+    init_logger();
+
+    let checker = USER_1;
+
+    // To program case.
+    new_test_ext().execute_with(|| {
+        let program_id = {
+            let res = upload_program_default(USER_2, ProgramCodeKind::Default);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        let (_init_mid, constructor) = init_constructor(demo_provision::scheme(
+            <[u8; 32]>::from(checker.into_origin()),
+            program_id.into(),
+        ));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            constructor,
+            100_000_000u64.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 2 init + 2 handle + 1 auto reply
+        assert_total_dequeued(5);
+        assert!(!MailboxOf::<Test>::is_empty(&checker));
+    });
+}
+
+#[test]
+fn reply_provision_to_user() {
+    use demo_constructor::demo_provision;
+
+    init_logger();
+
+    let checker = USER_1;
+
+    // To user case.
+    new_test_ext().execute_with(|| {
+        let (_init_mid, constructor) = init_constructor(demo_provision::scheme(
+            <[u8; 32]>::from(checker.into_origin()),
+            <[u8; 32]>::from(USER_2.into_origin()),
+        ));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            constructor,
+            100_000_000u64.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 1 init + 1 handle + 1 auto reply
+        assert_total_dequeued(3);
+        assert!(!MailboxOf::<Test>::is_empty(&checker));
+    });
+}
+
+#[test]
+fn reply_provision_panic_in_handle_reply() {
+    use demo_constructor::demo_provision;
+
+    init_logger();
+
+    let checker = USER_1;
+
+    // To user case with fail in handling reply.
+    new_test_ext().execute_with(|| {
+        let (_init_mid, constructor) = init_constructor(demo_provision::scheme(
+            <[u8; 32]>::from(checker.into_origin()),
+            <[u8; 32]>::from(USER_2.into_origin()),
+        ));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            constructor,
+            1u64.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 1 init + 1 handle + 1 auto reply
+        assert_total_dequeued(3);
+        assert!(MailboxOf::<Test>::is_empty(&checker));
+    });
+}
+
+#[test]
 fn gasfull_after_gasless() {
     init_logger();
 
