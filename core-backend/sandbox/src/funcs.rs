@@ -829,7 +829,7 @@ where
 
         syscall_trace!("reply_deposit", message_id_ptr, gas, err_ptr);
 
-        ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::Null, |ctx| {
+        ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::ReplyDeposit, |ctx| {
             let read_message_id = ctx.register_read_decoded(message_id_ptr);
             let message_id = ctx.read_decoded(read_message_id)?;
 

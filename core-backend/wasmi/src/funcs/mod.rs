@@ -503,8 +503,7 @@ where
         state.ext.pay_program_rent(program_id.into(), rent)
     }
 
-    // TODO (breathx): add cost & benchmark.
-    #[host(fallible, cost = RuntimeCosts::Null, err_len = LengthBytes)]
+    #[host(fallible, cost = RuntimeCosts::ReplyDeposit, err_len = LengthBytes)]
     pub fn reply_deposit(ctx: CallerWrap<E>, message_id_ptr: u32, gas: u64) -> Result<()> {
         let read_message_id = ctx.register_read_decoded(message_id_ptr);
 
