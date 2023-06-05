@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 //! sp-sandbox runtime (here it's contract execution state) realization.
 
-use crate::{funcs::SyscallOutput, MemoryWrap};
+use crate::MemoryWrap;
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
 use gear_backend_common::{
@@ -26,12 +26,13 @@ use gear_backend_common::{
         MemoryAccessError, MemoryAccessManager, MemoryAccessRecorder, MemoryOwner, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
+    runtime::Runtime as CommonRuntime,
     BackendExt, BackendState, BackendTermination, TerminationReason,
 };
-use gear_core::{costs::RuntimeCosts, gas::GasLeft};
+use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
 use gear_core_errors::ExtError;
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
-use sp_sandbox::{HostError, InstanceGlobals, ReturnValue, Value};
+use sp_sandbox::{HostError, InstanceGlobals, Value};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -48,6 +49,69 @@ pub(crate) struct Runtime<E> {
     pub globals: sp_sandbox::default_executor::InstanceGlobals,
     // TODO: make wrapper around runtime and move memory_manager there (issue #2067)
     pub memory_manager: MemoryAccessManager<E>,
+}
+
+impl<E: BackendExt> CommonRuntime<E> for Runtime<E> {
+    type Error = HostError;
+
+    fn ext_mut(&mut self) -> &mut E {
+        &mut self.ext
+    }
+
+    fn unreachable_error_code() -> Self::Error {
+        HostError
+    }
+
+    fn fallible_syscall_error(&self) -> Option<&ExtError> {
+        self.fallible_syscall_error.as_ref()
+    }
+
+    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
+    where
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+    {
+        self.with_globals_update(|ctx| {
+            ctx.prepare_run();
+            ctx.ext.charge_gas_runtime(cost)?;
+            f(ctx)
+        })
+    }
+
+    fn run_fallible<T: Sized, F, R>(
+        &mut self,
+        res_ptr: u32,
+        cost: RuntimeCosts,
+        f: F,
+    ) -> Result<(), Self::Error>
+    where
+        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
+        R: From<Result<T, u32>> + Sized,
+    {
+        self.run_any(cost, |ctx| {
+            let res = f(ctx);
+            let res = ctx.process_fallible_func_result(res)?;
+
+            // TODO: move above or make normal process memory access.
+            let write_res = ctx.memory_manager.register_write_as::<R>(res_ptr);
+
+            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+        })
+        .map(|_| ())
+    }
+
+    fn alloc(&mut self, pages: u32) -> Result<WasmPage, <E>::AllocError> {
+        self.ext.alloc(pages, &mut self.memory)
+    }
+
+    fn memory_manager_write(
+        &mut self,
+        write: WasmMemoryWrite,
+        buff: &[u8],
+        gas_left: &mut GasLeft,
+    ) -> Result<(), MemoryAccessError> {
+        self.memory_manager
+            .write(&mut self.memory, write, buff, gas_left)
+    }
 }
 
 impl<E: BackendExt> Runtime<E> {
@@ -99,46 +163,6 @@ impl<E: BackendExt> Runtime<E> {
         self.update_globals();
 
         result
-    }
-
-    pub fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, HostError>
-    where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
-    {
-        self.with_globals_update(|ctx| {
-            ctx.prepare_run();
-            ctx.ext.charge_gas_runtime(cost)?;
-            f(ctx)
-        })
-    }
-
-    pub fn run_fallible<T: Sized, F, R>(
-        &mut self,
-        res_ptr: u32,
-        cost: RuntimeCosts,
-        f: F,
-    ) -> SyscallOutput
-    where
-        F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
-        R: From<Result<T, u32>> + Sized,
-    {
-        self.run_any(cost, |ctx| {
-            let res = f(ctx);
-            let res = ctx.process_fallible_func_result(res)?;
-
-            // TODO: move above or make normal process memory access.
-            let write_res = ctx.memory_manager.register_write_as::<R>(res_ptr);
-
-            ctx.write_as(write_res, R::from(res)).map_err(Into::into)
-        })
-        .map(|_| ReturnValue::Unit)
-    }
-
-    pub fn run<F>(&mut self, cost: RuntimeCosts, f: F) -> SyscallOutput
-    where
-        F: FnOnce(&mut Self) -> Result<(), TerminationReason>,
-    {
-        self.run_any(cost, f).map(|_| ReturnValue::Unit)
     }
 
     fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>

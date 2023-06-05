@@ -3560,10 +3560,13 @@ dependencies = [
 name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
+ "blake2-rfc",
  "derive_more",
+ "gear-backend-codegen",
  "gear-core",
  "gear-core-errors",
  "gear-wasm-instrument",
+ "gsys",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -3574,7 +3577,6 @@ dependencies = [
 name = "gear-backend-sandbox"
 version = "0.1.0"
 dependencies = [
- "blake2-rfc",
  "derive_more",
  "gear-backend-common",
  "gear-core",
@@ -3590,9 +3592,7 @@ dependencies = [
 name = "gear-backend-wasmi"
 version = "0.1.0"
 dependencies = [
- "blake2-rfc",
  "derive_more",
- "gear-backend-codegen",
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
