@@ -237,13 +237,11 @@ where
                     trap_reply.into_stored_dispatch(program_id, waitlisted.source(), message_id);
 
                 // Creating `GasNode` for the reply.
-                //
-                // # Safety
-                //
-                //  The error is unreachable since the `message_id` is new generated
-                //  from the checked `original_message`."
-                GasHandlerOf::<T>::split(waitlisted.id(), trap_dispatch.id())
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                Pallet::<T>::split(
+                    waitlisted.id(),
+                    trap_dispatch.id(),
+                    trap_dispatch.is_reply(),
+                );
 
                 // Queueing dispatch.
                 QueueOf::<T>::queue(trap_dispatch)

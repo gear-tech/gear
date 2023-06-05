@@ -765,7 +765,9 @@ where
     }
 
     fn exists_and_external(key: impl Into<Self::NodeId>) -> bool {
-        Self::get_node(key).map(|node| node.is_external()).unwrap_or(false)
+        Self::get_node(key)
+            .map(|node| node.is_external())
+            .unwrap_or(false)
     }
 
     fn clear() {
