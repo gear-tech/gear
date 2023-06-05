@@ -393,25 +393,28 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::ReplyDeposit, SysCallName::Send],
-            handle_body: Some(body::fallible_syscall(repetitions, res_offset, &vec![
-                // pid value offset
-                InstrI32Const(COMMON_OFFSET),
-                // payload offset
-                InstrI32Const(COMMON_OFFSET),
-                // payload len
-                InstrI32Const(0),
-                // delay
-                InstrI32Const(10),
-                // res ptr
-                InstrI32Const(send_res_offset),
-                // call send
-                InstrCall(1),
-                // mid ptr
-                InstrI32Const(mid_offset),
-                // gas
-                InstrI64Const(10_000),
-
-            ])),
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // pid value offset
+                    InstrI32Const(COMMON_OFFSET),
+                    // payload offset
+                    InstrI32Const(COMMON_OFFSET),
+                    // payload len
+                    InstrI32Const(0),
+                    // delay
+                    InstrI32Const(10),
+                    // res ptr
+                    InstrI32Const(send_res_offset),
+                    // call send
+                    InstrCall(1),
+                    // mid ptr
+                    InstrI32Const(mid_offset),
+                    // gas
+                    InstrI64Const(10_000),
+                ],
+            )),
             ..Default::default()
         };
 
