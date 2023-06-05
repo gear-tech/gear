@@ -331,6 +331,10 @@ impl EnvExt for LazyPagesExt {
         self.inner.create_program(packet, delay)
     }
 
+    fn create_provision(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error> {
+        self.inner.create_provision(message_id, amount)
+    }
+
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.inner.context.forbidden_funcs
     }
