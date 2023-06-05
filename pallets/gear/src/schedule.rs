@@ -1218,6 +1218,7 @@ mod test {
     use super::*;
     use crate::mock::Test;
     use gas_metering::Rules;
+    use gear_wasm_instrument::rules::CustomConstantCostRules;
 
     fn all_measured_instructions() -> Vec<elements::Instruction> {
         use elements::{BlockType, BrTableData, Instruction::*};
@@ -1361,9 +1362,16 @@ mod test {
     #[test]
     fn instructions_backward_compatibility() {
         let schedule = Schedule::<Test>::default();
-        let rules = schedule.rules(&default_wasm_module());
-        all_measured_instructions()
-            .iter()
-            .for_each(|i| assert!(rules.instruction_cost(i).is_some()))
+
+        // used in `pallet-gear` to estimate the gas used by the program
+        let schedule_rules = schedule.rules(&default_wasm_module());
+
+        // used in `gear-wasm-builder` to check program code at an early stage
+        let custom_cost_rules = CustomConstantCostRules::default();
+
+        all_measured_instructions().iter().for_each(|i| {
+            assert!(schedule_rules.instruction_cost(i).is_some());
+            assert!(custom_cost_rules.instruction_cost(i).is_some());
+        })
     }
 }
