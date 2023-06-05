@@ -54,6 +54,10 @@ impl Calls {
             .store_vec(key)
     }
 
+    pub fn bool(self, key: impl AsRef<str>, value: impl Into<bool>) -> Self {
+        self.add_call(Call::Bool(value.into())).store(key)
+    }
+
     pub fn store(self, key: impl AsRef<str>) -> Self {
         self.add_call(Call::Store(key.as_ref().to_string()))
     }
@@ -64,6 +68,10 @@ impl Calls {
 
     pub fn source(self, key: impl AsRef<str>) -> Self {
         self.add_call(Call::Source).store(key)
+    }
+
+    pub fn status_code(self, key: impl AsRef<str>) -> Self {
+        self.add_call(Call::StatusCode).store(key)
     }
 
     pub fn value(self, key: impl AsRef<str>) -> Self {
@@ -125,7 +133,70 @@ impl Calls {
         self.add_call(Call::Send(
             destination.into(),
             payload.into(),
-            Some(gas_limit),
+            Some(gas_limit.into()),
+            value.into(),
+            0.into(),
+        ))
+    }
+
+    pub fn create_program(
+        self,
+        code_id: impl Into<Arg<[u8; 32]>>,
+        salt: impl Into<Arg<Vec<u8>>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+    ) -> Self {
+        self.create_program_value(code_id, salt, payload, 0)
+    }
+
+    pub fn create_program_value(
+        self,
+        code_id: impl Into<Arg<[u8; 32]>>,
+        salt: impl Into<Arg<Vec<u8>>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+        value: impl Into<Arg<u128>>,
+    ) -> Self {
+        self.add_call(Call::CreateProgram(
+            code_id.into(),
+            salt.into(),
+            payload.into(),
+            None,
+            value.into(),
+            0.into(),
+        ))
+    }
+
+    pub fn create_program_wgas<T: TryInto<u64>>(
+        self,
+        code_id: impl Into<Arg<[u8; 32]>>,
+        salt: impl Into<Arg<Vec<u8>>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+        gas_limit: T,
+    ) -> Self
+    where
+        T::Error: Debug,
+    {
+        self.create_program_value_wgas(code_id, salt, payload, gas_limit, 0)
+    }
+
+    pub fn create_program_value_wgas<T: TryInto<u64>>(
+        self,
+        code_id: impl Into<Arg<[u8; 32]>>,
+        salt: impl Into<Arg<Vec<u8>>>,
+        payload: impl Into<Arg<Vec<u8>>>,
+        gas_limit: T,
+        value: impl Into<Arg<u128>>,
+    ) -> Self
+    where
+        T::Error: Debug,
+    {
+        let gas_limit = gas_limit
+            .try_into()
+            .expect("Cannot convert given gas limit into `u64`");
+        self.add_call(Call::CreateProgram(
+            code_id.into(),
+            salt.into(),
+            payload.into(),
+            Some(gas_limit.into()),
             value.into(),
             0.into(),
         ))
@@ -142,7 +213,11 @@ impl Calls {
         let gas_limit = gas_limit
             .try_into()
             .expect("Cannot convert given gas limit into `u64`");
-        self.add_call(Call::Reply(payload.into(), Some(gas_limit), 0.into()))
+        self.add_call(Call::Reply(
+            payload.into(),
+            Some(gas_limit.into()),
+            0.into(),
+        ))
     }
 
     pub fn panic(self, message: impl Into<Option<&'static str>>) -> Self {
@@ -168,7 +243,13 @@ impl Calls {
     }
 
     // TODO: support multiple calls for branches by passing mut ref instead of moving value in Call processing.
-    pub fn if_else(self, key: impl AsRef<str>, mut true_call: Self, mut false_call: Self) -> Self {
+    #[track_caller]
+    pub fn if_else(
+        self,
+        bool_arg: impl Into<Arg<bool>>,
+        mut true_call: Self,
+        mut false_call: Self,
+    ) -> Self {
         if true_call.len() != 1 || false_call.len() != 1 {
             unimplemented!()
         };
@@ -177,7 +258,7 @@ impl Calls {
         let false_call = false_call.0.remove(0);
 
         self.add_call(Call::IfElse(
-            Arg::get(key),
+            bool_arg.into(),
             Box::new(true_call),
             Box::new(false_call),
         ))
@@ -185,5 +266,9 @@ impl Calls {
 
     pub fn load(self, key: impl AsRef<str>) -> Self {
         self.add_call(Call::Load).store(key)
+    }
+
+    pub fn load_bytes(self, key: impl AsRef<str>) -> Self {
+        self.add_call(Call::LoadBytes).store(key)
     }
 }

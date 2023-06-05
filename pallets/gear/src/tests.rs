@@ -583,29 +583,16 @@ fn exited_program_zero_gas() {
 
 #[test]
 fn delayed_user_replacement() {
-    use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
+    use demo_constructor::demo_proxy_with_gas;
 
     fn scenario(gas_limit_to_forward: u64, to_mailbox: bool) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
         let future_program_address = ProgramId::generate(CodeId::generate(&code), DEFAULT_SALT);
 
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            PROXY_WGAS_WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            InputArgs {
-                destination: <[u8; 32]>::from(future_program_address).into(),
-                delay: 2,
-            }
-            .encode(),
-            DEFAULT_GAS_LIMIT * 100,
-            0,
+        let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
+            future_program_address.into(),
+            2,
         ));
-
-        let proxy = utils::get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_initialized(proxy));
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -687,28 +674,15 @@ fn delayed_user_replacement() {
 
 #[test]
 fn delayed_send_user_message_payment() {
-    use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
+    use demo_constructor::demo_proxy_with_gas;
 
     // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: BlockNumber) {
         // Upload program that sends message to any user.
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            PROXY_WGAS_WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            InputArgs {
-                destination: USER_2.into(),
-                delay: delay.saturated_into(),
-            }
-            .encode(),
-            DEFAULT_GAS_LIMIT * 100,
-            0,
+        let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
+            USER_2.into_origin().into(),
+            delay.saturated_into(),
         ));
-
-        let proxy = utils::get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_initialized(proxy));
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -902,7 +876,7 @@ fn delayed_send_user_message_with_reservation() {
 
 #[test]
 fn delayed_send_program_message_payment() {
-    use demo_proxy_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
+    use demo_constructor::demo_proxy_with_gas;
 
     // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: BlockNumber) {
@@ -919,23 +893,8 @@ fn delayed_send_program_message_payment() {
         let program_address = utils::get_last_program_id();
 
         // Upload program that sends message to another program.
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            PROXY_WGAS_WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            InputArgs {
-                destination: <[u8; 32]>::from(program_address).into(),
-                delay,
-            }
-            .encode(),
-            DEFAULT_GAS_LIMIT * 100,
-            0,
-        ));
-
-        let proxy = utils::get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_initialized(proxy));
+        let (_init_mid, proxy) =
+            init_constructor(demo_proxy_with_gas::scheme(program_address.into(), delay));
         assert!(Gear::is_initialized(program_address));
 
         assert_ok!(Gear::send_message(
@@ -1624,24 +1583,11 @@ fn read_state_using_wasm_errors() {
 
 #[test]
 fn mailbox_rent_out_of_rent() {
-    use demo_value_sender::{TestData, WASM_BINARY};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-        ));
-
-        let sender = utils::get_last_program_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_initialized(sender));
+        let (_init_mid, sender) = init_constructor_with_value(Scheme::empty(), 10_000);
 
         // Message removes due to out of rent condition.
         //
@@ -1672,7 +1618,7 @@ fn mailbox_rent_out_of_rent() {
             let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
                 USER_1,
                 sender,
-                data.request(USER_2).encode(),
+                data.request(USER_2.into_origin()).encode(),
                 Some(data.extra_gas),
                 0,
             );
@@ -1730,24 +1676,11 @@ fn mailbox_rent_out_of_rent() {
 
 #[test]
 fn mailbox_rent_claimed() {
-    use demo_value_sender::{TestData, WASM_BINARY};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-        ));
-
-        let sender = utils::get_last_program_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_initialized(sender));
+        let (_init_mid, sender) = init_constructor_with_value(Scheme::empty(), 10_000);
 
         // Message removes due to claim.
         //
@@ -1780,7 +1713,7 @@ fn mailbox_rent_claimed() {
             let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
                 USER_1,
                 sender,
-                data.request(USER_2).encode(),
+                data.request(USER_2.into_origin()).encode(),
                 Some(data.extra_gas),
                 0,
             );
@@ -1837,24 +1770,11 @@ fn mailbox_rent_claimed() {
 
 #[test]
 fn mailbox_sending_instant_transfer() {
-    use demo_value_sender::{SendingRequest, WASM_BINARY};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-        ));
-
-        let sender = utils::get_last_program_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_initialized(sender));
+        let (_init_mid, sender) = init_constructor_with_value(Scheme::empty(), 10_000);
 
         // Message doesn't add to mailbox.
         //
@@ -1880,9 +1800,9 @@ fn mailbox_sending_instant_transfer() {
             );
 
             let payload = if let Some(gas_limit) = gas_limit {
-                SendingRequest::gasful(USER_2, gas_limit, value)
+                TestData::gasful(gas_limit, value)
             } else {
-                SendingRequest::gasless(USER_2, value)
+                TestData::gasless(value, <Test as Config>::MailboxThreshold::get())
             };
 
             // Used like that, because calculate gas info always provides
@@ -1890,7 +1810,7 @@ fn mailbox_sending_instant_transfer() {
             let gas_info = Gear::calculate_gas_info(
                 USER_1.into_origin(),
                 HandleKind::Handle(sender),
-                payload.clone().encode(),
+                payload.request(USER_2.into_origin()).encode(),
                 0,
                 true,
                 true,
@@ -1900,7 +1820,7 @@ fn mailbox_sending_instant_transfer() {
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 sender,
-                payload.encode(),
+                payload.request(USER_2.into_origin()).encode(),
                 gas_info.burned + gas_limit.unwrap_or_default(),
                 0
             ));
@@ -2061,27 +1981,15 @@ fn send_message_works() {
 
 #[test]
 fn mailbox_threshold_works() {
-    use demo_proxy_with_gas::{InputArgs, WASM_BINARY};
+    use demo_constructor::demo_proxy_with_gas;
 
     init_logger();
     new_test_ext().execute_with(|| {
-        System::reset_events();
+        let (_init_mid, proxy) =
+            init_constructor(demo_proxy_with_gas::scheme(USER_1.into_origin().into(), 0));
 
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            vec![],
-            InputArgs {
-                destination: USER_1.into_origin().into(),
-                delay: 0,
-            }
-            .encode(),
-            50_000_000_000u64,
-            0u128
-        ));
-
-        let proxy = utils::get_last_program_id();
         let rent = <Test as Config>::MailboxThreshold::get();
+
         let check_result = |sufficient: bool| -> MessageId {
             run_to_next_block(None);
 
@@ -2150,7 +2058,7 @@ fn mailbox_threshold_works() {
             0,
         ));
         check_result(false);
-    })
+    });
 }
 
 #[test]
@@ -4906,22 +4814,11 @@ fn test_message_processing_for_non_existing_destination() {
 
 #[test]
 fn exit_locking_funds() {
-    use demo_exit_handle_sender::{Input, WASM_BINARY as EXIT_HANDLE_SENDER_BINARY};
+    use demo_constructor::{Calls, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            EXIT_HANDLE_SENDER_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            vec![],
-            50_000_000_000u64,
-            0u128
-        ));
-
-        let program_id = utils::get_last_program_id();
-
-        run_to_next_block(None);
+        let (_init_mid, program_id) = init_constructor(Scheme::empty());
 
         let user_2_balance = Balances::free_balance(USER_2);
 
@@ -4931,25 +4828,21 @@ fn exit_locking_funds() {
 
         let value = 1_000;
 
-        let payload = Input::SendMessage {
-            destination: program_id.into_origin().into(),
-            payload: vec![],
-            value,
-        };
+        let calls = Calls::builder().send_value(program_id.into_bytes(), [], value);
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            payload.encode(),
+            calls.encode(),
             1_000_000_000,
             value
         ));
         let message_1 = utils::get_last_message_id();
 
-        let payload = Input::Exit(USER_2.into_origin().into());
+        let calls = Calls::builder().exit(<[u8; 32]>::from(USER_2.into_origin()));
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            payload.encode(),
+            calls.encode(),
             1_000_000_000,
             0
         ));
@@ -5142,24 +5035,14 @@ fn terminated_locking_funds() {
 
 #[test]
 fn exit_init() {
-    use demo_exit_init::WASM_BINARY;
+    use demo_constructor::{demo_exit_init, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        System::reset_events();
-
-        let code = WASM_BINARY.to_vec();
         let code_id = CodeId::generate(WASM_BINARY);
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            code,
-            vec![],
-            [0].to_vec(),
-            50_000_000_000u64,
-            0u128
-        ));
 
-        let program_id = utils::get_last_program_id();
+        let (_init_mid, program_id) =
+            submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(false), 0);
 
         let program = ProgramStorageOf::<Test>::get_program(program_id)
             .and_then(|p| ActiveProgram::try_from(p).ok())
@@ -5185,7 +5068,7 @@ fn exit_init() {
             Gear::create_program(
                 RuntimeOrigin::signed(USER_1),
                 code_id,
-                vec![],
+                DEFAULT_SALT.to_vec(),
                 Vec::new(),
                 2_000_000_000,
                 0u128
@@ -6243,29 +6126,13 @@ fn test_create_program_miscellaneous() {
 
 #[test]
 fn exit_handle() {
-    use demo_exit_handle::WASM_BINARY;
+    use demo_constructor::{demo_exit_handle, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        System::reset_events();
-
-        let code = WASM_BINARY.to_vec();
         let code_id = CodeId::generate(WASM_BINARY);
-        let code_hash = generate_code_hash(&code).into();
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            code,
-            vec![],
-            Vec::new(),
-            10_000_000_000u64,
-            0u128
-        ));
 
-        let program_id = utils::get_last_program_id();
-
-        run_to_block(2, None);
-
-        assert!(Gear::is_initialized(program_id));
+        let (_init_mid, program_id) = init_constructor(demo_exit_handle::scheme());
 
         // An expensive operation since "gr_exit" removes all program pages from storage.
         assert_ok!(Gear::send_message(
@@ -6283,16 +6150,14 @@ fn exit_handle() {
         assert!(!Gear::is_initialized(program_id));
         assert!(!Gear::is_active(program_id));
 
-        assert!(<Test as Config>::CodeStorage::exists(CodeId::from_origin(
-            code_hash
-        )));
+        assert!(<Test as Config>::CodeStorage::exists(code_id));
 
         // Program is not removed and can't be submitted again
         assert_noop!(
             Gear::create_program(
                 RuntimeOrigin::signed(USER_1),
                 code_id,
-                vec![],
+                DEFAULT_SALT.to_vec(),
                 Vec::new(),
                 2_000_000_000,
                 0u128
@@ -6306,19 +6171,9 @@ fn exit_handle() {
 fn no_redundant_gas_value_after_exiting() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_exit_handle::WASM_BINARY;
+        use demo_constructor::demo_exit_handle;
 
-        let prog_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            10_000_000_000,
-            0,
-        ));
-
-        run_to_block(2, None);
+        let (_init_mid, prog_id) = init_constructor(demo_exit_handle::scheme());
 
         let GasInfo {
             min_limit: gas_spent,
@@ -6442,8 +6297,8 @@ fn init_wait_reply_exit_cleaned_storage() {
 
 #[test]
 fn locking_gas_for_waitlist() {
+    use demo_constructor::{Calls, Scheme};
     use demo_gas_burned::WASM_BINARY as GAS_BURNED_BINARY;
-    use demo_gasless_wasting::{InputArgs, WASM_BINARY as GASLESS_WASTING_BINARY};
 
     let wat = r#"
     (module
@@ -6472,15 +6327,8 @@ fn locking_gas_for_waitlist() {
 
         // This program sends two empty gasless messages on each handle:
         // for this test first message is waiter, seconds is calculator.
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            GASLESS_WASTING_BINARY.to_vec(),
-            Default::default(),
-            Default::default(),
-            DEFAULT_GAS_LIMIT,
-            0
-        ));
-        let sender = get_last_program_id();
+        let (_init_mid, sender) =
+            submit_constructor_with_args(USER_1, DEFAULT_SALT, Scheme::empty(), 0);
 
         run_to_block(2, None);
 
@@ -6488,12 +6336,11 @@ fn locking_gas_for_waitlist() {
         assert!(Gear::is_initialized(calculator));
         assert!(Gear::is_initialized(sender));
 
-        let payload = InputArgs {
-            prog_to_wait: waiter.into_origin().into(),
-            prog_to_waste: calculator.into_origin().into(),
-        };
+        let calls = Calls::builder()
+            .send(calculator.into_bytes(), [])
+            .send(waiter.into_bytes(), []);
 
-        calculate_handle_and_send_with_extra(USER_1, sender, payload.encode(), None, 0);
+        calculate_handle_and_send_with_extra(USER_1, sender, calls.encode(), None, 0);
         let origin_msg_id = get_last_message_id();
 
         let message_to_be_waited = MessageId::generate_outgoing(origin_msg_id, 1);
@@ -6502,22 +6349,7 @@ fn locking_gas_for_waitlist() {
 
         assert!(WaitlistOf::<Test>::contains(&waiter, &message_to_be_waited));
 
-        let mut expiration = None;
-
-        System::events().iter().for_each(|e| {
-            if let MockRuntimeEvent::Gear(Event::MessageWaited {
-                id,
-                expiration: exp,
-                ..
-            }) = e.event
-            {
-                if id == message_to_be_waited {
-                    expiration = Some(exp);
-                }
-            }
-        });
-
-        let expiration = expiration.unwrap();
+        let expiration = utils::get_waitlist_expiration(message_to_be_waited);
 
         // Expiration block may be really far from current one, so proper
         // `run_to_block` takes a lot, so we use hack here by setting
@@ -6921,20 +6753,25 @@ fn test_two_contracts_composition_works() {
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_value_lt_ed() {
-    use demo_init_with_value::{SendMessage, WASM_BINARY};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        // Ids of custom destinations
+        // Ids of custom_destination
         let ed = get_ed();
         let msg_receiver_1 = 5u64;
+        let msg_receiver_1_hash = <[u8; 32]>::from(msg_receiver_1.into_origin());
         let msg_receiver_2 = 6u64;
+        let msg_receiver_2_hash = <[u8; 32]>::from(msg_receiver_2.into_origin());
+
+        let default_calls = Calls::builder()
+            .send_value(msg_receiver_1_hash, [], 500)
+            .send_value(msg_receiver_2_hash, [], 500);
 
         // Submit the code
-        assert_ok!(Gear::upload_code(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Default.to_bytes(),
-        ));
+        let code = ProgramCodeKind::Default.to_bytes();
+        let code_id = CodeId::generate(&code).into_bytes();
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
 
         // Can't initialize program with value less than ED
         assert_noop!(
@@ -6949,29 +6786,18 @@ fn test_create_program_with_value_lt_ed() {
             Error::<Test>::ValueLessThanMinimal,
         );
 
+        let gas_limit = 200_000_001;
+
         // Simple passing test with values
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            b"test1".to_vec(),
-            // Sending 500 value with "handle" messages. This should not fail.
-            // Must be stated, that "handle" messages send value to some non-existing address
-            // so messages will go to mailbox
-            vec![
-                SendMessage::Handle {
-                    destination: msg_receiver_1.into(),
-                    value: 500
-                },
-                SendMessage::Handle {
-                    destination: msg_receiver_2.into(),
-                    value: 500
-                },
-                SendMessage::Init { value: 0 },
-            ]
-            .encode(),
-            10_000_000_000,
-            1000,
-        ));
+        // Sending 500 value with "handle" messages. This should not fail.
+        // Must be stated, that "handle" messages send value to some non-existing address
+        // so messages will go to mailbox
+        let calls = default_calls
+            .clone()
+            .create_program_wgas(code_id, [], [], gas_limit);
+
+        let (_init_mid, _pid) =
+            submit_constructor_with_args(USER_1, b"test1", Scheme::direct(calls), 1_000);
 
         run_to_block(2, None);
 
@@ -6990,26 +6816,17 @@ fn test_create_program_with_value_lt_ed() {
         System::reset_events();
 
         // Trying to send init message from program with value less than ED.
+        // First two messages won't fail, because provided values are in a valid range
+        // The last message value (which is the value of init message) will end execution with trap
+        let calls = default_calls.create_program_value_wgas(code_id, [], [], gas_limit, ed - 1);
+
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test2".to_vec(),
-            // First two messages won't fail, because provided values are in a valid range
-            // The last message value (which is the value of init message) will end execution with trap
-            vec![
-                SendMessage::Handle {
-                    destination: msg_receiver_1.into(),
-                    value: 500
-                },
-                SendMessage::Handle {
-                    destination: msg_receiver_2.into(),
-                    value: 500
-                },
-                SendMessage::Init { value: ed - 1 },
-            ]
-            .encode(),
+            Scheme::direct(calls).encode(),
             10_000_000_000,
-            1000,
+            10_000,
         ));
 
         let msg_id = get_last_message_id();
@@ -7020,14 +6837,21 @@ fn test_create_program_with_value_lt_ed() {
         // to send init message with value in invalid range.
         assert_total_dequeued(1);
 
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            format!(
+                "Failed to create program: {:?}",
+                TrapExplanation::Ext(ExtError::Message(MessageError::InsufficientValue {
+                    message_value: 499,
+                    existential_deposit: 500
+                }))
+            )
+        } else {
+            String::from("no info")
+        };
+
         assert_failed(
             msg_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Message(
-                MessageError::InsufficientValue {
-                    message_value: 499,
-                    existential_deposit: 500,
-                },
-            ))),
+            ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.into())),
         );
     })
 }
@@ -7045,97 +6869,63 @@ fn test_create_program_with_value_lt_ed() {
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_exceeding_value() {
-    use demo_init_with_value::{SendMessage, WASM_BINARY};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        // Submit the code
-        assert_ok!(Gear::upload_code(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Default.to_bytes(),
-        ));
+        let msg_value = 100001;
+        let calls = Calls::builder().create_program_value([0; 32], [], [], msg_value);
 
-        let sending_to_program = 2 * get_ed();
-        let random_receiver = 1;
-        // Trying to send init message from program with value greater than program can send.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
-            b"test1".to_vec(),
-            vec![
-                SendMessage::Handle {
-                    destination: random_receiver.into(),
-                    value: sending_to_program / 3
-                },
-                SendMessage::Handle {
-                    destination: random_receiver.into(),
-                    value: sending_to_program / 3
-                },
-                SendMessage::Init {
-                    value: sending_to_program + 1,
-                },
-            ]
-            .encode(),
+            DEFAULT_SALT.to_vec(),
+            Scheme::direct(calls).encode(),
             10_000_000_000,
-            sending_to_program,
+            msg_value - 1,
         ));
 
-        run_to_block(2, None);
+        let msg_id = get_last_message_id();
 
-        // Check there are no messages for `random_receiver`. There would be messages in mailbox
-        // if execution didn't end up with an "Not enough value to send message" error.
-        let origin_msg_id =
-            MessageId::generate_from_user(1, ProgramId::from_origin(USER_1.into_origin()), 0);
-        let receiver_mail_msg1 = MessageId::generate_outgoing(origin_msg_id, 0);
-        let receiver_mail_msg2 = MessageId::generate_outgoing(origin_msg_id, 1);
-        assert!(!MailboxOf::<Test>::contains(
-            &random_receiver,
-            &receiver_mail_msg1
-        ));
-        assert!(!MailboxOf::<Test>::contains(
-            &random_receiver,
-            &receiver_mail_msg2
-        ));
+        run_to_next_block(None);
 
         // User's message execution will result in trap, because program tries
-        // to send init message with value more than program has.
+        // to send init message with value in invalid range.
         assert_total_dequeued(1);
 
+        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+            format!(
+                "Failed to create program: {:?}",
+                TrapExplanation::Ext(ExtError::Message(MessageError::NotEnoughValue {
+                    message_value: msg_value,
+                    value_left: msg_value - 1
+                }))
+            )
+        } else {
+            String::from("no info")
+        };
+
         assert_failed(
-            origin_msg_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Message(
-                MessageError::NotEnoughValue {
-                    message_value: 1001,
-                    value_left: 1000,
-                },
-            ))),
+            msg_id,
+            ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.into())),
         );
     })
 }
 
 #[test]
 fn test_create_program_without_gas_works() {
-    use demo_init_with_value::{SendMessage, WASM_BINARY};
+    use demo_constructor::{Calls, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        System::reset_events();
+        let code = ProgramCodeKind::Default.to_bytes();
+        let code_id = CodeId::generate(&code);
 
-        assert_ok!(Gear::upload_code(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Default.to_bytes(),
-        ));
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
 
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            b"test1".to_vec(),
-            vec![SendMessage::InitWithoutGas { value: 0 }].encode(),
-            10_000_000_000,
-            0,
-        ));
+        let calls = Calls::builder().create_program(code_id.into_bytes(), [], []);
 
-        run_to_block(2, None);
+        let _ = init_constructor(Scheme::direct(calls));
 
         assert_total_dequeued(2 + 1);
         assert_init_success(2);
@@ -7146,21 +6936,9 @@ fn test_create_program_without_gas_works() {
 fn demo_constructor_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
+        use demo_constructor::{Arg, Calls, Scheme};
 
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            Scheme::empty().encode(),
-            BlockGasLimitOf::<Test>::get(),
-            0
-        ));
-
-        let constructor_id = get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_active(constructor_id));
+        let (_init_mid, constructor_id) = utils::init_constructor(Scheme::empty());
 
         let calls = Calls::builder()
             .source("source")
@@ -7232,21 +7010,9 @@ fn demo_constructor_works() {
 fn demo_constructor_value_eq() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
+        use demo_constructor::{Arg, Calls, Scheme};
 
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            Scheme::empty().encode(),
-            BlockGasLimitOf::<Test>::get(),
-            0
-        ));
-
-        let constructor_id = get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_active(constructor_id));
+        let (_init_mid, constructor_id) = utils::init_constructor(Scheme::empty());
 
         let calls = Calls::builder()
             .value_as_vec("value")
@@ -7289,7 +7055,7 @@ fn demo_constructor_value_eq() {
 fn demo_constructor_is_demo_ping() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
+        use demo_constructor::{Arg, Calls, Scheme};
 
         let ping = Arg::bytes("PING");
         let pong = Arg::bytes("PONG");
@@ -7310,19 +7076,7 @@ fn demo_constructor_is_demo_ping() {
         let scheme = Scheme::predefined(init, handle, handle_reply);
 
         // checking init
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            scheme.encode(),
-            BlockGasLimitOf::<Test>::get(),
-            0
-        ));
-
-        let constructor_id = get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_active(constructor_id));
+        let (_init_mid, constructor_id) = utils::init_constructor(scheme);
 
         let init_reply = maybe_any_last_message().expect("Element should be");
         assert_eq!(init_reply.payload(), b"PING");
@@ -7369,25 +7123,14 @@ fn demo_constructor_is_demo_ping() {
 
 #[test]
 fn test_reply_to_terminated_program() {
+    use demo_constructor::demo_exit_init;
+
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_exit_init::WASM_BINARY;
+        let (original_message_id, _program_id) =
+            submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(true), 0);
 
-        // Deploy program, which sends mail and exits
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            // this input makes it first send message to mailbox and then exit
-            [1].to_vec(),
-            27_100_000_000u64,
-            0
-        ));
-
-        let mail_id = {
-            let original_message_id = get_last_message_id();
-            MessageId::generate_outgoing(original_message_id, 0)
-        };
+        let mail_id = MessageId::generate_outgoing(original_message_id, 0);
 
         run_to_block(2, None);
 
@@ -7641,24 +7384,11 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
 #[test]
 fn free_storage_hold_on_scheduler_overwhelm() {
-    use demo_value_sender::{TestData, WASM_BINARY};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_2),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT * 100,
-            10_000,
-        ));
-
-        let sender = utils::get_last_program_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_initialized(sender));
+        let (_init_mid, sender) = init_constructor(Scheme::empty());
 
         let data = TestData::gasful(20_000, 0);
 
@@ -7680,7 +7410,7 @@ fn free_storage_hold_on_scheduler_overwhelm() {
         let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
             USER_1,
             sender,
-            data.request(USER_2).encode(),
+            data.request(USER_2.into_origin()).encode(),
             Some(data.extra_gas),
             0,
         );
@@ -9844,7 +9574,7 @@ mod utils {
         assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test,
     };
     use crate::{
-        mock::{Balances, Gear, System},
+        mock::{run_to_next_block, Balances, Gear, System, USER_1},
         BalanceOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
     };
     use common::{
@@ -9854,6 +9584,7 @@ mod utils {
     };
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReason;
+    use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use frame_support::{
         codec::Decode,
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
@@ -9867,6 +9598,7 @@ mod utils {
         reservation::GasReservationMap,
     };
     use gear_core_errors::{ExtError, SimpleCodec, SimpleReplyError};
+    use parity_scale_codec::Encode;
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
@@ -9894,6 +9626,53 @@ mod utils {
     }
 
     #[track_caller]
+    pub(crate) fn submit_constructor_with_args(
+        origin: AccountId,
+        salt: impl AsRef<[u8]>,
+        scheme: Scheme,
+        value: BalanceOf<Test>,
+    ) -> (MessageId, ProgramId) {
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            origin.into_origin(),
+            HandleKind::Init(DEMO_CONSTRUCTOR_WASM_BINARY.to_vec()),
+            scheme.encode(),
+            value,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(origin),
+            DEMO_CONSTRUCTOR_WASM_BINARY.to_vec(),
+            salt.as_ref().to_vec(),
+            scheme.encode(),
+            min_limit,
+            value,
+        ));
+
+        (get_last_message_id(), get_last_program_id())
+    }
+
+    #[track_caller]
+    pub(crate) fn init_constructor_with_value(
+        scheme: Scheme,
+        value: BalanceOf<Test>,
+    ) -> (MessageId, ProgramId) {
+        let res = submit_constructor_with_args(USER_1, DEFAULT_SALT, scheme, value);
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(res.1));
+
+        res
+    }
+
+    #[track_caller]
+    pub(crate) fn init_constructor(scheme: Scheme) -> (MessageId, ProgramId) {
+        init_constructor_with_value(scheme, 0)
+    }
+
+    #[track_caller]
     pub(super) fn assert_balance(
         origin: impl common::Origin,
         free: impl Into<BalanceOf<Test>>,
@@ -9904,6 +9683,7 @@ mod utils {
         assert_eq!(Balances::reserved_balance(account_id), reserved.into());
     }
 
+    #[track_caller]
     pub(super) fn calculate_handle_and_send_with_extra(
         origin: AccountId,
         destination: ProgramId,
