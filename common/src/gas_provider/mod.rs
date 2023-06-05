@@ -200,7 +200,7 @@ pub trait Tree {
     /// Return bool, defining does node exist.
     fn exists(key: impl Into<Self::NodeId>) -> bool;
 
-    /// Return bool, defining does node exist and is external.
+    /// Returns bool, defining does node exist and is external with provision.
     fn exists_and_provision(key: impl Into<Self::NodeId>) -> bool;
 
     /// Removes all values.
