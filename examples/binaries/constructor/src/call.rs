@@ -259,6 +259,7 @@ mod wasm {
             let value = match self {
                 Call::Bool(..) => self.bool(),
                 Call::CreateProgram(..) => self.create_program(),
+                Call::CreateProvision(..) => self.create_provision(),
                 Call::Vec(..) => self.vec(),
                 Call::Store(..) => self.store(previous),
                 Call::StoreVec(..) => self.store_vec(previous),
