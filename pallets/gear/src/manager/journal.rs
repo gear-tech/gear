@@ -623,7 +623,9 @@ where
         });
     }
 
-    fn reply_deposit(&mut self, _message_id: MessageId, _future_reply_id: MessageId, _amount: u64) {
-        unimplemented!();
+    fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
+        log::debug!("Creating reply deposit {amount} gas for message id {future_reply_id}");
+
+        Pallet::<T>::split_with_value(message_id, future_reply_id, amount, true);
     }
 }

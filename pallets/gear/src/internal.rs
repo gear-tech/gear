@@ -842,7 +842,7 @@ where
 
                 // Creating `GasNode` for the auto reply.
                 // TODO: use `msg_id` (e.g. reservation case) as first argument after #1828.
-                Self::split_with_value(origin_msg, reply_message.id(), 0, reply_message.is_reply());
+                Self::split_with_value(origin_msg, reply_message.id(), 0, true);
 
                 // Converting reply message into appropriate type for queueing.
                 let reply_dispatch = reply_message.into_stored_dispatch(
@@ -1052,7 +1052,8 @@ where
         is_reply: bool,
     ) {
         if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(new_key.clone()) {
-            Self::split(key, new_key);
+            GasHandlerOf::<T>::split(key, new_key)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         }
     }
 
@@ -1064,7 +1065,8 @@ where
         is_reply: bool,
     ) {
         if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(new_key.clone()) {
-            Self::split_with_value(key, new_key, amount);
+            GasHandlerOf::<T>::split_with_value(key, new_key, amount)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         }
     }
 }
