@@ -239,6 +239,16 @@ pub enum ExecutionError {
     /// The error occurs when program's paid block count is maximum.
     #[display(fmt = "Rent block count limit has been reached")]
     MaximumBlockCountPaid = 2,
+
+    /// The error occurs when program tries to create provision for message
+    /// that already been created within the execution.
+    #[display(fmt = "Gas provision already exists for given message")]
+    DuplicateProvision = 3,
+
+    /// The error occurs when program tries to create provision for message
+    /// that wasn't sent within the execution or for reply.
+    #[display(fmt = "Gas provision could be only created for init or handle message sent within the execution")]
+    IncorrectMessageForProvision = 4,
 }
 
 /// An error occurred in API.
