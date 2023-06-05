@@ -67,6 +67,10 @@ vara:
 vara-release:
 	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
 
+.PHONY: remote-ext-tests
+remote-ext-tests:
+	@ ./scripts/gear.sh build remote-ext-tests
+
 # Check section
 .PHONY: check
 check: check-gear check-examples

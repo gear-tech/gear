@@ -8867,6 +8867,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "remote-ext-tests-replay-block"
+version = "1.0.0"
+dependencies = [
+ "clap 4.3.0",
+ "frame-remote-externalities",
+ "frame-system",
+ "gear-runtime-primitives",
+ "gear-service",
+ "log",
+ "parity-scale-codec",
+ "sc-cli",
+ "sc-executor",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-keystore",
+ "sp-rpc",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-tracing",
+ "substrate-rpc-client",
+ "tokio",
+ "vara-runtime",
+]
+
+[[package]]
 name = "rend"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

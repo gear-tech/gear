@@ -43,6 +43,10 @@ wasm_proc_build() {
   cargo build -p wasm-proc --release "$@"
 }
 
+remote_ext_tests_build() {
+  cargo build -p remote-ext-tests-replay-block --release "$@"
+}
+
 # $1 = TARGET DIR
 examples_proc() {
   WASM_EXAMPLES_DIR="$1"/wasm32-unknown-unknown/release

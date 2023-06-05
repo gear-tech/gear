@@ -126,6 +126,10 @@ case "$COMMAND" in
         header "Building gear node"
         node_build "$@"; ;;
 
+      remote-ext-tests)
+        header "Building remote-ext-tests CLI"
+        remote_ext_tests_build; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         build_usage

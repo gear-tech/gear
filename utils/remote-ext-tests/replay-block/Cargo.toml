@@ -1,0 +1,55 @@
+[package]
+name = "remote-ext-tests-replay-block"
+version = "1.0.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Internal
+vara-runtime.workspace = true
+runtime-primitives.workspace = true
+service = { workspace = true, features = ["vara-native"] }
+
+# Substrate Primitives
+sp-core.workspace = true
+sp-externalities.workspace = true
+sp-io.workspace = true
+sp-keystore.workspace = true
+sp-rpc.workspace = true
+sp-runtime.workspace = true
+sp-state-machine.workspace = true
+sp-tracing.workspace = true
+
+# Substrate client
+sc-executor.workspace = true
+sc-cli.workspace = true
+
+# Substrate other
+frame-system.workspace = true
+frame-remote-externalities.workspace = true
+substrate-rpc-client.workspace = true
+
+# third-party
+codec.workspace = true
+clap = { workspace = true, features = ["derive"] }
+log.workspace = true
+tokio = { workspace = true, features = ["macros"] }
+
+[features]
+default = ["std"]
+std = [
+    "codec/std",
+    "log/std",
+    "runtime-primitives/std",
+    "vara-runtime/std",
+    "sp-core/std",
+    "sp-io/std",
+    "sp-runtime/std",
+    "sp-state-machine/std",
+    "sp-keystore/std",
+    "sp-tracing/std",
+    "sp-externalities/std",
+    "sc-executor/std",
+    "frame-system/std",
+]
