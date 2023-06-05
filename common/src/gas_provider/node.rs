@@ -142,8 +142,6 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
         system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
-        // TODO (breathx): write migrations.
-        // If GasNode value starts with [0] than push [0] to the end.
         provision: bool,
     },
 
