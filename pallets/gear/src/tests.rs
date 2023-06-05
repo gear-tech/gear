@@ -144,6 +144,58 @@ fn auto_reply_sent() {
 }
 
 #[test]
+fn auto_reply_from_user_no_mailbox() {
+    use demo_constructor::{Call, Calls, Scheme};
+
+    init_logger();
+    // no delay case
+    new_test_ext().execute_with(|| {
+        let (_init_mid, constructor_id) = init_constructor(Scheme::empty());
+
+        let calls = Calls::builder().send_wgas(<[u8; 32]>::from(USER_1.into_origin()), [], 0);
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 1 init message + 1 handle message + 1 auto_reply to program on message sent to user
+        assert_total_dequeued(3);
+    });
+
+    // delay case
+    new_test_ext().execute_with(|| {
+        let (_init_mid, constructor_id) = init_constructor(Scheme::empty());
+
+        let calls = Calls::builder().add_call(Call::Send(
+            <[u8; 32]>::from(USER_1.into_origin()).into(),
+            [].into(),
+            Some(0u64.into()),
+            0u128.into(),
+            1u32.into(),
+        ));
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 1 init message + 1 handle message
+        assert_total_dequeued(2);
+
+        run_to_next_block(None);
+        // 1 init message + 1 handle message + 1 auto_reply to program on message sent to user with delay
+        assert_total_dequeued(3);
+    })
+}
+
+#[test]
 fn auto_reply_out_of_rent_waitlist() {
     use demo_proxy::{InputArgs as ProxyInputArgs, WASM_BINARY as PROXY_WASM_BINARY};
     use demo_waiter::{Command, WaitSubcommand, WASM_BINARY as WAITER_WASM_BINARY};
@@ -734,14 +786,8 @@ fn delayed_send_user_message_payment() {
         run_to_next_block(None);
 
         // Check that last event is UserMessageSent.
-        let last_event = match get_last_event() {
-            MockRuntimeEvent::Gear(e) => e,
-            _ => panic!("Should be one Gear event"),
-        };
-        match last_event {
-            Event::UserMessageSent { message, .. } => assert_eq!(delayed_id, message.id()),
-            _ => panic!("Test failed: expected Event::UserMessageSent"),
-        }
+        let message = maybe_any_last_message().expect("Should be");
+        assert_eq!(delayed_id, message.id());
 
         // Mailbox should be empty.
         assert!(MailboxOf::<Test>::is_empty(&USER_2));

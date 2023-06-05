@@ -20,8 +20,8 @@
 
 use crate::{
     Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
-    GasBalanceOf, GasHandlerOf, GasNodeIdOf, MailboxOf, Pallet, SchedulingCostOf, TaskPoolOf,
-    WaitlistOf,
+    GasBalanceOf, GasHandlerOf, GasNodeIdOf, MailboxOf, Pallet, QueueOf, SchedulingCostOf,
+    TaskPoolOf, WaitlistOf,
 };
 use alloc::collections::BTreeSet;
 use common::{
@@ -41,7 +41,7 @@ use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, Reser
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
-    message::{Dispatch, DispatchKind, Message, StoredDispatch, StoredMessage},
+    message::{Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, StoredMessage},
 };
 use sp_runtime::{
     traits::{
@@ -630,6 +630,17 @@ where
             GasHandlerOf::<T>::cut(sender_node, dispatch.id(), gas_amount)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
+            // Generating gas node for future auto reply.
+            // TODO: use `sender_node` (e.g. reservation case) as first argument after #1828.
+            if !to_mailbox {
+                GasHandlerOf::<T>::split_with_value(
+                    origin_msg,
+                    MessageId::generate_reply(dispatch.id()),
+                    0,
+                )
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            }
+
             // TODO: adapt this line if gasful sending appears for reservations (#1828)
             if let Some(reservation_id) = reservation {
                 Self::remove_gas_reservation_with_task(dispatch.source(), reservation_id);
@@ -825,6 +836,27 @@ where
             CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
                 .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
 
+            if !message.is_reply() {
+                // Creating auto reply message.
+                let reply_message = ReplyMessage::auto(message.id());
+
+                // Creating `GasNode` for the auto reply.
+                // TODO: use `msg_id` (e.g. reservation case) as first argument after #1828.
+                GasHandlerOf::<T>::split_with_value(origin_msg, reply_message.id(), 0)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+                // Converting reply message into appropriate type for queueing.
+                let reply_dispatch = reply_message.into_stored_dispatch(
+                    message.destination(),
+                    message.source(),
+                    message.id(),
+                );
+
+                // Queueing dispatch.
+                QueueOf::<T>::queue(reply_dispatch)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            }
+
             // No expiration block due to absence of insertion in storage.
             None
         };
@@ -902,6 +934,25 @@ where
         } else {
             // Transferring reserved funds.
             Self::transfer_reserved(&from, &to, value);
+
+            // Message is never reply here, because delayed reply sending forbidden.
+            if !message.is_reply() {
+                // Creating reply message.
+                let reply_message = ReplyMessage::auto(message.id());
+
+                // `GasNode` was created on send already.
+
+                // Converting reply message into appropriate type for queueing.
+                let reply_dispatch = reply_message.into_stored_dispatch(
+                    message.destination(),
+                    message.source(),
+                    message.id(),
+                );
+
+                // Queueing dispatch.
+                QueueOf::<T>::queue(reply_dispatch)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            }
 
             Self::consume_and_retrieve(message.id());
             // No expiration block due to absence of insertion in storage.
