@@ -363,7 +363,7 @@ fn reply_deposit_to_program() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_3),
             constructor,
-            100_000_000u64.encode(),
+            10_000_000_000u64.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
         ));
@@ -393,7 +393,7 @@ fn reply_deposit_to_user() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_3),
             constructor,
-            100_000_000u64.encode(),
+            10_000_000_000u64.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
         ));

@@ -26,7 +26,8 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
     storage::*,
-    CodeStorage, LockableTree, Origin, Program, ProgramState, ProgramStorage, ReservableTree,
+    CodeStorage, GasTree, LockableTree, Origin, Program, ProgramState, ProgramStorage,
+    ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{
@@ -626,6 +627,7 @@ where
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
         log::debug!("Creating reply deposit {amount} gas for message id {future_reply_id}");
 
-        Pallet::<T>::split_with_value(message_id, future_reply_id, amount, true);
+        GasHandlerOf::<T>::create_deposit(message_id, future_reply_id, amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
     }
 }
