@@ -56,7 +56,7 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
     storage::{Interval, Queue},
-    ActiveProgram, CodeStorage, GasTree, Origin, ProgramState, ProgramStorage, ReservableTree,
+    ActiveProgram, CodeStorage, Origin, ProgramState, ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -379,8 +379,12 @@ where
 
             // Splitting gas for newly created reply message.
             // TODO: don't split (#1743)
-            GasHandlerOf::<T>::split_with_value(message_id, trap_signal.id(), reserved)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            Pallet::<T>::split_with_value(
+                message_id,
+                trap_signal.id(),
+                reserved,
+                trap_signal.is_reply(),
+            );
 
             // Enqueueing dispatch into message queue.
             QueueOf::<T>::queue(trap_signal)

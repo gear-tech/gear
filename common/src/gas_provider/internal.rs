@@ -445,7 +445,7 @@ where
             return Err(InternalError::node_already_exists().into());
         }
 
-        let node = GasNode::new(origin, amount);
+        let node = GasNode::new(origin, amount, false);
 
         // Save value node to storage
         StorageMap::insert(key, node);
@@ -744,8 +744,38 @@ where
         )
     }
 
+    fn create_provision(
+        key: impl Into<Self::NodeId>,
+        new_key: impl Into<Self::NodeId>,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error> {
+        Self::create_from_with_value(
+            key,
+            new_key,
+            amount,
+            |key, value, _parent_node, _parent_id| {
+                let id = Self::get_external(key)?;
+                Ok(GasNode::new(id, value, true))
+            },
+        )
+    }
+
     fn exists(key: impl Into<Self::NodeId>) -> bool {
         Self::get_node(key).is_some()
+    }
+
+    fn exists_and_provision(key: impl Into<Self::NodeId>) -> bool {
+        Self::get_node(key)
+            .map(|node| {
+                matches!(
+                    node,
+                    GasNode::External {
+                        provision: true,
+                        ..
+                    }
+                )
+            })
+            .unwrap_or(false)
     }
 
     fn clear() {

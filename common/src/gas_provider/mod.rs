@@ -190,8 +190,18 @@ pub trait Tree {
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
 
+    /// Creates provision external node to be used as pre-defined gas node.
+    fn create_provision(
+        key: impl Into<Self::NodeId>,
+        new_key: impl Into<Self::NodeId>,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error>;
+
     /// Return bool, defining does node exist.
     fn exists(key: impl Into<Self::NodeId>) -> bool;
+
+    /// Return bool, defining does node exist and is external.
+    fn exists_and_provision(key: impl Into<Self::NodeId>) -> bool;
 
     /// Removes all values.
     fn clear();
