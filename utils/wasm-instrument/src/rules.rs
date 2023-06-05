@@ -139,11 +139,9 @@ impl Rules for CustomConstantCostRules {
             | I64Rotl
             | I32Rotr
             | I64Rotr
-            | SignExt(_) => (),
-            _ => return None,
-        };
-
-        Some(self.instruction_cost)
+            | SignExt(_) => Some(self.instruction_cost),
+            _ => None,
+        }
     }
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {
