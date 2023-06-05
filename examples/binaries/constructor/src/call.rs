@@ -14,6 +14,7 @@ pub enum Call {
         Arg<u128>,
         Arg<u32>,
     ),
+    CreateProvision(Arg<[u8; 32]>, Arg<u64>),
     Vec(Vec<u8>),
     Store(String),
     StoreVec(String),
@@ -78,6 +79,17 @@ mod wasm {
             let (_message_id, program_id) = res.expect("Failed to create program");
 
             Some(program_id.encode())
+        }
+
+        fn create_provision(self) -> Option<Vec<u8>> {
+            let Self::CreateProvision(message_id, gas_limit) = self else { unreachable!() };
+
+            let message_id = message_id.value().into();
+            let gas_limit = gas_limit.value();
+
+            exec::create_provision(message_id, gas_limit).expect("Failed to create provision");
+
+            None
         }
 
         fn vec(self) -> Option<Vec<u8>> {
