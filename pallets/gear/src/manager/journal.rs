@@ -19,15 +19,14 @@
 use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
-    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf,
-    RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
+    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, Pallet, ProgramStorageOf,
+    QueueOf, RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
     storage::*,
-    CodeStorage, GasTree, LockableTree, Origin, Program, ProgramState, ProgramStorage,
-    ReservableTree,
+    CodeStorage, LockableTree, Origin, Program, ProgramState, ProgramStorage, ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{
