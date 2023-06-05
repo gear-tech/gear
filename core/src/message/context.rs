@@ -27,7 +27,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_core_errors::MessageError as Error;
+use gear_core_errors::{ExecutionError, MessageError as Error};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -487,6 +487,40 @@ impl MessageContext {
         } else {
             Err(Error::DuplicateWaking)
         }
+    }
+
+    /// Create provision for future reply on message id was sent.
+    pub fn create_provision(
+        &mut self,
+        message_id: MessageId,
+        amount: u64,
+    ) -> Result<(), ExecutionError> {
+        if self
+            .outcome
+            .provisions
+            .iter()
+            .any(|(mid, _)| mid == &message_id)
+        {
+            return Err(ExecutionError::DuplicateProvision);
+        }
+
+        if !self
+            .outcome
+            .handle
+            .iter()
+            .any(|(message, ..)| message.id() == message_id)
+            && !self
+                .outcome
+                .init
+                .iter()
+                .any(|(message, ..)| message.id() == message_id)
+        {
+            return Err(ExecutionError::IncorrectMessageForProvision);
+        }
+
+        self.outcome.provisions.push((message_id, amount));
+
+        Ok(())
     }
 
     /// Current processing incoming message.

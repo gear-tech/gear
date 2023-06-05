@@ -916,12 +916,14 @@ impl EnvExt for Ext {
         Ok((mid, pid))
     }
 
-    fn create_provision(
-        &mut self,
-        _message_id: MessageId,
-        _amount: u64,
-    ) -> Result<(), Self::Error> {
-        unimplemented!()
+    fn create_provision(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error> {
+        self.charge_gas_if_enough(amount)?;
+
+        self.context
+            .message_context
+            .create_provision(message_id, amount)?;
+
+        Ok(())
     }
 
     fn random(&self) -> Result<(&[u8], u32), Self::Error> {
