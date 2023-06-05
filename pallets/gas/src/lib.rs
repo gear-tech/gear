@@ -145,7 +145,7 @@ type BlockGasLimitOf<T> = <T as Config>::BlockGasLimit;
 type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 
 /// The current storage version.
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
 #[frame_support::pallet]
 pub mod pallet {
