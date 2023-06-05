@@ -207,6 +207,13 @@ impl Ext for MockExt {
     ) -> Result<(MessageId, ProgramId), Self::Error> {
         Ok((Default::default(), Default::default()))
     }
+    fn create_provision(
+        &mut self,
+        _message_id: MessageId,
+        _amount: u64,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.0
     }

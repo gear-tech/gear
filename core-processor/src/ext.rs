@@ -915,6 +915,14 @@ impl EnvExt for Ext {
         Ok((mid, pid))
     }
 
+    fn create_provision(
+        &mut self,
+        _message_id: MessageId,
+        _amount: u64,
+    ) -> Result<(), Self::Error> {
+        unimplemented!()
+    }
+
     fn random(&self) -> Result<(&[u8], u32), Self::Error> {
         Ok((&self.context.random_data.0, self.context.random_data.1))
     }
