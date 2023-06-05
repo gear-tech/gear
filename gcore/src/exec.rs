@@ -81,7 +81,30 @@ pub fn block_timestamp() -> u64 {
     timestamp
 }
 
-/// TODO (breathx): add docs
+/// Provide gas deposit from current message to handle reply message on given message id.
+///
+/// This message id should be sent within the execution. Once destination actor
+/// or system sends reply on it, the gas limit ignores, if the program gave
+/// deposit - the only it wil be used for execution of `handle_reply`.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     let message_id = msg::send(msg::source(), b"Outgoing message", 0)
+///         .expect("Failed to send message");
+///
+///     exec::reply_deposit(message_id, 100_000).expect("Failed to deposit reply");
+/// }
+///
+/// #[no_mangle]
+/// extern "C" fn handle_reply() {
+///     // I will be executed for pre-defined (deposited) 100_000 of gas!
+/// }
+/// ```
 pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
     let mut len = 0u32;
     unsafe { gsys::gr_reply_deposit(message_id.as_ptr(), amount, &mut len as *mut u32) };
