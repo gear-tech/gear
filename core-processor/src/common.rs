@@ -339,6 +339,15 @@ pub enum JournalNote {
         /// Amount of blocks to pay for.
         block_count: u32,
     },
+    /// Create provision for reply to.
+    CreateProvision {
+        /// Message id of the message that generated this message.
+        message_id: MessageId,
+        /// Future reply id to be sponsored.
+        future_reply_id: MessageId,
+        /// Amount of gas for reply.
+        amount: u64,
+    },
 }
 
 /// Journal handler.
@@ -426,6 +435,8 @@ pub trait JournalHandler {
     );
     /// Pay rent for the program.
     fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32);
+    /// Create provision for reply.
+    fn create_provision(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
 }
 
 /// Execution error

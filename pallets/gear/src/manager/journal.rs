@@ -622,4 +622,13 @@ where
             );
         });
     }
+
+    fn create_provision(
+        &mut self,
+        _message_id: MessageId,
+        _future_reply_id: MessageId,
+        _amount: u64,
+    ) {
+        unimplemented!();
+    }
 }
