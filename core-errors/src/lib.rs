@@ -247,7 +247,9 @@ pub enum ExecutionError {
 
     /// The error occurs when program tries to create provision for message
     /// that wasn't sent within the execution or for reply.
-    #[display(fmt = "Gas provision could be only created for init or handle message sent within the execution")]
+    #[display(
+        fmt = "Gas provision could be only created for init or handle message sent within the execution"
+    )]
     IncorrectMessageForProvision = 4,
 }
 

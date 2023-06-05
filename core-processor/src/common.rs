@@ -74,6 +74,8 @@ pub struct DispatchResult {
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     /// List of messages that should be woken.
     pub awakening: Vec<(MessageId, u32)>,
+    /// List of provisions to be provided.
+    pub provisions: Vec<(MessageId, u64)>,
     /// New programs to be created with additional data (corresponding code hash and init message id).
     pub program_candidates: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     /// Map of program ids to paid blocks.
@@ -127,6 +129,7 @@ impl DispatchResult {
             context_store: Default::default(),
             generated_dispatches: Default::default(),
             awakening: Default::default(),
+            provisions: Default::default(),
             program_candidates: Default::default(),
             program_rents: Default::default(),
             gas_amount,

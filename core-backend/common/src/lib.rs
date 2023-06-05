@@ -226,6 +226,7 @@ pub struct ExtInfo {
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
+    pub provisions: Vec<(MessageId, u64)>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     pub program_rents: BTreeMap<ProgramId, u32>,
     pub context_store: ContextStore,

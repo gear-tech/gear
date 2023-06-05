@@ -261,6 +261,7 @@ impl BackendExt for MockExt {
             pages_data: Default::default(),
             generated_dispatches: Default::default(),
             awakening: Default::default(),
+            provisions: Default::default(),
             program_candidates_data: Default::default(),
             program_rents: Default::default(),
             context_store: Default::default(),

@@ -40,7 +40,8 @@ use gear_core::{
         NoopGrowHandler, PageBuf, PageU32Size, WasmPage,
     },
     message::{
-        GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
+        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
+        ReplyPacket, StatusCode,
     },
     reservation::GasReserver,
 };
@@ -980,7 +981,11 @@ impl Ext {
         }
 
         let (outcome, mut context_store) = message_context.drain();
-        let (generated_dispatches, awakening) = outcome.drain();
+        let ContextOutcomeDrain {
+            outgoing_dispatches: generated_dispatches,
+            awakening,
+            provisions,
+        } = outcome.drain();
 
         let system_reservation_context = SystemReservationContext {
             current_reservation: system_reservation,
@@ -1002,6 +1007,7 @@ impl Ext {
             pages_data,
             generated_dispatches,
             awakening,
+            provisions,
             context_store,
             program_candidates_data,
             program_rents,

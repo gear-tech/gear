@@ -108,10 +108,14 @@ pub type OutgoingMessageInfo<T> = (T, u32, Option<ReservationId>);
 pub type OutgoingMessageInfoNoDelay<T> = (T, Option<ReservationId>);
 
 /// Context outcome dispatches and awakening ids.
-pub type ContextOutcomeDrain = (
-    Vec<(Dispatch, u32, Option<ReservationId>)>,
-    Vec<(MessageId, u32)>,
-);
+pub struct ContextOutcomeDrain {
+    /// Outgoing dispatches to be sent.
+    pub outgoing_dispatches: Vec<OutgoingMessageInfo<Dispatch>>,
+    /// Messages to be waken.
+    pub awakening: Vec<(MessageId, u32)>,
+    /// Provisions to be provided.
+    pub provisions: Vec<(MessageId, u64)>,
+}
 
 /// Context outcome.
 ///
@@ -124,7 +128,8 @@ pub struct ContextOutcome {
     // u32 is delay
     awakening: Vec<(MessageId, u32)>,
     // u64 is gas limit
-    provision: Vec<(MessageId, u64, Option<ReservationId>)>,
+    // TODO: add Option<ReservationId> after #1828
+    provisions: Vec<(MessageId, u64)>,
     // Additional information section.
     program_id: ProgramId,
     source: ProgramId,
@@ -162,7 +167,11 @@ impl ContextOutcome {
             ));
         };
 
-        (dispatches, self.awakening)
+        ContextOutcomeDrain {
+            outgoing_dispatches: dispatches,
+            awakening: self.awakening,
+            provisions: self.provisions,
+        }
     }
 }
 

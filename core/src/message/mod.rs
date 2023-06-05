@@ -34,7 +34,9 @@ mod signal;
 mod stored;
 
 pub use common::{Dispatch, Message, MessageDetails, ReplyDetails, SignalDetails};
-pub use context::{ContextOutcome, ContextSettings, ContextStore, MessageContext};
+pub use context::{
+    ContextOutcome, ContextOutcomeDrain, ContextSettings, ContextStore, MessageContext,
+};
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};
