@@ -493,8 +493,7 @@ mod wasm {
                 let mid = msg::send_bytes(ActorId::zero(), [], 0)
                     .expect("internal error: failed to send message");
 
-                exec::reply_deposit(mid, amount)
-                    .expect("Kind::ReplyDeposit: call test failed");
+                exec::reply_deposit(mid, amount).expect("Kind::ReplyDeposit: call test failed");
             }
         }
     }

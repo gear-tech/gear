@@ -28,7 +28,8 @@ pub use gcore::exec::{
     value_available, wait, wait_for, wait_up_to,
 };
 
-/// Provide gas deposit from current message to handle reply message on given message id.
+/// Provide gas deposit from current message to handle reply message on given
+/// message id.
 ///
 /// This message id should be sent within the execution. Once destination actor
 /// or system sends reply on it, the gas limit ignores, if the program gave
@@ -41,8 +42,8 @@ pub use gcore::exec::{
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     let message_id = msg::send(msg::source(), b"Outgoing message", 0)
-///         .expect("Failed to send message");
+///     let message_id =
+///         msg::send(msg::source(), b"Outgoing message", 0).expect("Failed to send message");
 ///
 ///     exec::reply_deposit(message_id, 100_000).expect("Failed to deposit reply");
 /// }
