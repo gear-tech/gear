@@ -290,7 +290,7 @@ pub fn process_success(
         program_id,
         context_store,
         allocations,
-        provisions,
+        reply_deposits,
         ..
     } = dispatch_result;
 
@@ -390,8 +390,8 @@ pub fn process_success(
         });
     }
 
-    for (message_id_sent, amount) in provisions {
-        journal.push(JournalNote::CreateProvision {
+    for (message_id_sent, amount) in reply_deposits {
+        journal.push(JournalNote::ReplyDeposit {
             message_id,
             future_reply_id: MessageId::generate_reply(message_id_sent),
             amount,

@@ -26,8 +26,8 @@ pub fn handle() -> Calls {
         .store(MESSAGE_ID_VAR)
         // Storing u64 from payload under `GAS_LIMIT_VAR`.
         .load_bytes(GAS_LIMIT_VAR)
-        // Creating provision.
-        .add_call(Call::CreateProvision(
+        // Creating reply deposit.
+        .add_call(Call::ReplyDeposit(
             MESSAGE_ID_VAR.into(),
             GAS_LIMIT_VAR.into(),
         ))

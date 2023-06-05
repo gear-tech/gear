@@ -113,8 +113,8 @@ pub struct ContextOutcomeDrain {
     pub outgoing_dispatches: Vec<OutgoingMessageInfo<Dispatch>>,
     /// Messages to be waken.
     pub awakening: Vec<(MessageId, u32)>,
-    /// Provisions to be provided.
-    pub provisions: Vec<(MessageId, u64)>,
+    /// Reply deposits to be provided.
+    pub reply_deposits: Vec<(MessageId, u64)>,
 }
 
 /// Context outcome.
@@ -129,7 +129,7 @@ pub struct ContextOutcome {
     awakening: Vec<(MessageId, u32)>,
     // u64 is gas limit
     // TODO: add Option<ReservationId> after #1828
-    provisions: Vec<(MessageId, u64)>,
+    reply_deposits: Vec<(MessageId, u64)>,
     // Additional information section.
     program_id: ProgramId,
     source: ProgramId,
@@ -170,7 +170,7 @@ impl ContextOutcome {
         ContextOutcomeDrain {
             outgoing_dispatches: dispatches,
             awakening: self.awakening,
-            provisions: self.provisions,
+            reply_deposits: self.reply_deposits,
         }
     }
 }
@@ -489,19 +489,19 @@ impl MessageContext {
         }
     }
 
-    /// Create provision for future reply on message id was sent.
-    pub fn create_provision(
+    /// Create deposit to handle future reply on message id was sent.
+    pub fn reply_deposit(
         &mut self,
         message_id: MessageId,
         amount: u64,
     ) -> Result<(), ExecutionError> {
         if self
             .outcome
-            .provisions
+            .reply_deposits
             .iter()
             .any(|(mid, _)| mid == &message_id)
         {
-            return Err(ExecutionError::DuplicateProvision);
+            return Err(ExecutionError::DuplicateReplyDeposit);
         }
 
         if !self
@@ -515,10 +515,10 @@ impl MessageContext {
                 .iter()
                 .any(|(message, ..)| message.id() == message_id)
         {
-            return Err(ExecutionError::IncorrectMessageForProvision);
+            return Err(ExecutionError::IncorrectMessageForReplyDeposit);
         }
 
-        self.outcome.provisions.push((message_id, amount));
+        self.outcome.reply_deposits.push((message_id, amount));
 
         Ok(())
     }
@@ -839,7 +839,7 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_provision() {
+    fn duplicate_reply_deposit() {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
             ProgramId::from(INCOMING_MESSAGE_SOURCE),
@@ -865,15 +865,15 @@ mod tests {
             .send_commit(handle, HandlePacket::default(), 0, None)
             .expect("unreachable");
 
-        assert!(message_context.create_provision(message_id, 1234).is_ok());
+        assert!(message_context.reply_deposit(message_id, 1234).is_ok());
         assert_err!(
-            message_context.create_provision(message_id, 1234),
-            ExecutionError::DuplicateProvision
+            message_context.reply_deposit(message_id, 1234),
+            ExecutionError::DuplicateReplyDeposit
         );
     }
 
     #[test]
-    fn inexistent_provision() {
+    fn inexistent_reply_deposit() {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
             ProgramId::from(INCOMING_MESSAGE_SOURCE),
@@ -896,12 +896,12 @@ mod tests {
             .expect("unreachable");
 
         assert_err!(
-            message_context.create_provision(message_id, 1234),
-            ExecutionError::IncorrectMessageForProvision
+            message_context.reply_deposit(message_id, 1234),
+            ExecutionError::IncorrectMessageForReplyDeposit
         );
         assert_err!(
-            message_context.create_provision(Default::default(), 1234),
-            ExecutionError::IncorrectMessageForProvision
+            message_context.reply_deposit(Default::default(), 1234),
+            ExecutionError::IncorrectMessageForReplyDeposit
         );
     }
 }

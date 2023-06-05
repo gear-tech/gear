@@ -29,8 +29,8 @@ pub use gcore::exec::{
 };
 
 /// TODO (breathx): add docs
-pub fn create_provision(message_id: MessageId, amount: u64) -> Result<()> {
-    gcore::exec::create_provision(message_id.into(), amount).map_err(Into::into)
+pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
+    gcore::exec::reply_deposit(message_id.into(), amount).map_err(Into::into)
 }
 
 /// Terminate the execution of a program.

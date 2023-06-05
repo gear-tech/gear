@@ -14,7 +14,7 @@ pub enum Call {
         Arg<u128>,
         Arg<u32>,
     ),
-    CreateProvision(Arg<[u8; 32]>, Arg<u64>),
+    ReplyDeposit(Arg<[u8; 32]>, Arg<u64>),
     Vec(Vec<u8>),
     Store(String),
     StoreVec(String),
@@ -81,13 +81,13 @@ mod wasm {
             Some(program_id.encode())
         }
 
-        fn create_provision(self) -> Option<Vec<u8>> {
-            let Self::CreateProvision(message_id, gas_limit) = self else { unreachable!() };
+        fn reply_deposit(self) -> Option<Vec<u8>> {
+            let Self::ReplyDeposit(message_id, gas_limit) = self else { unreachable!() };
 
             let message_id = message_id.value().into();
             let gas_limit = gas_limit.value();
 
-            exec::create_provision(message_id, gas_limit).expect("Failed to create provision");
+            exec::reply_deposit(message_id, gas_limit).expect("Failed to deposit reply");
 
             None
         }
@@ -259,7 +259,7 @@ mod wasm {
             let value = match self {
                 Call::Bool(..) => self.bool(),
                 Call::CreateProgram(..) => self.create_program(),
-                Call::CreateProvision(..) => self.create_provision(),
+                Call::ReplyDeposit(..) => self.reply_deposit(),
                 Call::Vec(..) => self.vec(),
                 Call::Store(..) => self.store(previous),
                 Call::StoreVec(..) => self.store_vec(previous),

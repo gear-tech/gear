@@ -450,7 +450,7 @@ where
         context_store: info.context_store,
         generated_dispatches: info.generated_dispatches,
         awakening: info.awakening,
-        provisions: info.provisions,
+        reply_deposits: info.reply_deposits,
         program_candidates,
         program_rents: info.program_rents,
         gas_amount: info.gas_amount,

@@ -340,8 +340,8 @@ fn auto_reply_out_of_rent_mailbox() {
 }
 
 #[test]
-fn reply_provision_to_program() {
-    use demo_constructor::demo_provision;
+fn reply_deposit_to_program() {
+    use demo_constructor::demo_reply_deposit;
 
     init_logger();
 
@@ -355,7 +355,7 @@ fn reply_provision_to_program() {
             res.expect("submit result was asserted")
         };
 
-        let (_init_mid, constructor) = init_constructor(demo_provision::scheme(
+        let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
             <[u8; 32]>::from(checker.into_origin()),
             program_id.into(),
         ));
@@ -376,8 +376,8 @@ fn reply_provision_to_program() {
 }
 
 #[test]
-fn reply_provision_to_user() {
-    use demo_constructor::demo_provision;
+fn reply_deposit_to_user() {
+    use demo_constructor::demo_reply_deposit;
 
     init_logger();
 
@@ -385,7 +385,7 @@ fn reply_provision_to_user() {
 
     // To user case.
     new_test_ext().execute_with(|| {
-        let (_init_mid, constructor) = init_constructor(demo_provision::scheme(
+        let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
             <[u8; 32]>::from(checker.into_origin()),
             <[u8; 32]>::from(USER_2.into_origin()),
         ));
@@ -406,8 +406,8 @@ fn reply_provision_to_user() {
 }
 
 #[test]
-fn reply_provision_panic_in_handle_reply() {
-    use demo_constructor::demo_provision;
+fn reply_deposit_panic_in_handle_reply() {
+    use demo_constructor::demo_reply_deposit;
 
     init_logger();
 
@@ -415,7 +415,7 @@ fn reply_provision_panic_in_handle_reply() {
 
     // To user case with fail in handling reply.
     new_test_ext().execute_with(|| {
-        let (_init_mid, constructor) = init_constructor(demo_provision::scheme(
+        let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
             <[u8; 32]>::from(checker.into_origin()),
             <[u8; 32]>::from(USER_2.into_origin()),
         ));

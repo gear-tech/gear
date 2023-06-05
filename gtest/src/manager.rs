@@ -1129,11 +1129,6 @@ impl JournalHandler for ExtManager {
 
     fn pay_program_rent(&mut self, _payer: ProgramId, _program_id: ProgramId, _block_count: u32) {}
 
-    fn create_provision(
-        &mut self,
-        _message_id: MessageId,
-        _future_reply_id: MessageId,
-        _amount: u64,
-    ) {
+    fn reply_deposit(&mut self, _message_id: MessageId, _future_reply_id: MessageId, _amount: u64) {
     }
 }

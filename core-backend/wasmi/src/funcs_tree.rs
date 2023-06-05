@@ -155,8 +155,8 @@ where
         f.build(CreateProgramWGas, |forbidden| {
             F::create_program_wgas(store, forbidden, memory)
         }),
-        f.build(CreateProvision, |forbidden| {
-            F::create_provision(store, forbidden, memory)
+        f.build(ReplyDeposit, |forbidden| {
+            F::reply_deposit(store, forbidden, memory)
         }),
         f.build(Error, |forbidden| F::error(store, forbidden, memory)),
         f.build(ReserveGas, |forbidden| {

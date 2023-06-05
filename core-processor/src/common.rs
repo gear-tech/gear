@@ -74,8 +74,8 @@ pub struct DispatchResult {
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     /// List of messages that should be woken.
     pub awakening: Vec<(MessageId, u32)>,
-    /// List of provisions to be provided.
-    pub provisions: Vec<(MessageId, u64)>,
+    /// List of reply deposits to be provided.
+    pub reply_deposits: Vec<(MessageId, u64)>,
     /// New programs to be created with additional data (corresponding code hash and init message id).
     pub program_candidates: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     /// Map of program ids to paid blocks.
@@ -129,7 +129,7 @@ impl DispatchResult {
             context_store: Default::default(),
             generated_dispatches: Default::default(),
             awakening: Default::default(),
-            provisions: Default::default(),
+            reply_deposits: Default::default(),
             program_candidates: Default::default(),
             program_rents: Default::default(),
             gas_amount,
@@ -339,8 +339,8 @@ pub enum JournalNote {
         /// Amount of blocks to pay for.
         block_count: u32,
     },
-    /// Create provision for reply to.
-    CreateProvision {
+    /// Create deposit for future reply.
+    ReplyDeposit {
         /// Message id of the message that generated this message.
         message_id: MessageId,
         /// Future reply id to be sponsored.
@@ -435,8 +435,8 @@ pub trait JournalHandler {
     );
     /// Pay rent for the program.
     fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32);
-    /// Create provision for reply.
-    fn create_provision(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
+    /// Create deposit for future reply.
+    fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
 }
 
 /// Execution error

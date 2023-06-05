@@ -82,9 +82,9 @@ pub fn block_timestamp() -> u64 {
 }
 
 /// TODO (breathx): add docs
-pub fn create_provision(message_id: MessageId, amount: u64) -> Result<()> {
+pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
     let mut len = 0u32;
-    unsafe { gsys::gr_create_provision(message_id.as_ptr(), amount, &mut len as *mut u32) };
+    unsafe { gsys::gr_reply_deposit(message_id.as_ptr(), amount, &mut len as *mut u32) };
     SyscallError(len).into_result()
 }
 

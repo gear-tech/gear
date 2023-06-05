@@ -916,12 +916,12 @@ impl EnvExt for Ext {
         Ok((mid, pid))
     }
 
-    fn create_provision(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error> {
+    fn reply_deposit(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error> {
         self.charge_gas_if_enough(amount)?;
 
         self.context
             .message_context
-            .create_provision(message_id, amount)?;
+            .reply_deposit(message_id, amount)?;
 
         Ok(())
     }
@@ -986,7 +986,7 @@ impl Ext {
         let ContextOutcomeDrain {
             outgoing_dispatches: generated_dispatches,
             awakening,
-            provisions,
+            reply_deposits,
         } = outcome.drain();
 
         let system_reservation_context = SystemReservationContext {
@@ -1009,7 +1009,7 @@ impl Ext {
             pages_data,
             generated_dispatches,
             awakening,
-            provisions,
+            reply_deposits,
             context_store,
             program_candidates_data,
             program_rents,

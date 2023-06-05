@@ -223,8 +223,8 @@ pub trait Ext {
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::Error>;
 
-    /// Create provision for reply on given message.
-    fn create_provision(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error>;
+    /// Create deposit to handle reply on given message.
+    fn reply_deposit(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error>;
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName>;

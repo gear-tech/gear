@@ -202,7 +202,7 @@ impl Calls {
         ))
     }
 
-    pub fn create_provision<T: TryInto<u64>>(
+    pub fn reply_deposit<T: TryInto<u64>>(
         self,
         message_id: impl Into<Arg<[u8; 32]>>,
         gas_limit: T,
@@ -213,7 +213,7 @@ impl Calls {
         let gas_limit = gas_limit
             .try_into()
             .expect("Cannot convert given gas limit into `u64`");
-        self.add_call(Call::CreateProvision(message_id.into(), gas_limit.into()))
+        self.add_call(Call::ReplyDeposit(message_id.into(), gas_limit.into()))
     }
 
     pub fn reply(self, payload: impl Into<Arg<Vec<u8>>>) -> Self {

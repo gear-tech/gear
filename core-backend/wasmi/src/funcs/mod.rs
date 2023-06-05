@@ -505,13 +505,13 @@ where
 
     // TODO (breathx): add cost & benchmark.
     #[host(fallible, cost = RuntimeCosts::Null, err_len = LengthBytes)]
-    pub fn create_provision(ctx: CallerWrap<E>, message_id_ptr: u32, gas: u64) -> Result<()> {
+    pub fn reply_deposit(ctx: CallerWrap<E>, message_id_ptr: u32, gas: u64) -> Result<()> {
         let read_message_id = ctx.register_read_decoded(message_id_ptr);
 
         let message_id = ctx.read_decoded(read_message_id)?;
 
         let state = ctx.host_state_mut();
-        state.ext.create_provision(message_id, gas)
+        state.ext.reply_deposit(message_id, gas)
     }
 
     #[host(cost = RuntimeCosts::ProgramId)]
