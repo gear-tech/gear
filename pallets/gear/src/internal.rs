@@ -1049,7 +1049,7 @@ where
         new_key: impl Into<GasNodeIdOf<T>> + Clone,
         is_reply: bool,
     ) {
-        if !is_reply || !GasHandlerOf::<T>::exists_and_provision(new_key.clone()) {
+        if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(new_key.clone()) {
             GasHandlerOf::<T>::split(key, new_key)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         }
@@ -1061,7 +1061,7 @@ where
         amount: GasBalanceOf<T>,
         is_reply: bool,
     ) {
-        if !is_reply || !GasHandlerOf::<T>::exists_and_provision(new_key.clone()) {
+        if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(new_key.clone()) {
             GasHandlerOf::<T>::split_with_value(key, new_key, amount)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         }

@@ -86,34 +86,68 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
         );
 
         if current == 2 && onchain == 1 {
-            let mut total = 0_u64;
             let mut translated = 0_u64;
             GasNodes::<T>::translate::<OldGasNode<AccountIdOf<T>, NodeId, Balance>, _>(
                 |_key, old_value| {
-                    total.saturating_inc();
-
-                    if let OldGasNode::External {
-                        id,
-                        value,
-                        lock,
-                        system_reserve,
-                        refs,
-                        consumed,
-                    } = old_value
-                    {
-                        translated.saturating_inc();
-                        Some(GasNode::External {
+                    let new_value = match old_value {
+                        OldGasNode::Cut { id, value, lock } => GasNode::Cut { id, value, lock },
+                        OldGasNode::External {
                             id,
                             value,
                             lock,
                             system_reserve,
                             refs,
                             consumed,
-                            provision: false,
-                        })
-                    } else {
-                        None
-                    }
+                        } => GasNode::External {
+                            id,
+                            value,
+                            lock,
+                            system_reserve,
+                            refs,
+                            consumed,
+                            deposit: false,
+                        },
+                        OldGasNode::Reserved {
+                            id,
+                            value,
+                            lock,
+                            refs,
+                            consumed,
+                        } => GasNode::Reserved {
+                            id,
+                            value,
+                            lock,
+                            refs,
+                            consumed,
+                        },
+                        OldGasNode::SpecifiedLocal {
+                            parent,
+                            value,
+                            lock,
+                            system_reserve,
+                            refs,
+                            consumed,
+                        } => GasNode::SpecifiedLocal {
+                            parent,
+                            value,
+                            lock,
+                            system_reserve,
+                            refs,
+                            consumed,
+                        },
+                        OldGasNode::UnspecifiedLocal {
+                            parent,
+                            lock,
+                            system_reserve,
+                        } => GasNode::UnspecifiedLocal {
+                            parent,
+                            lock,
+                            system_reserve,
+                        },
+                    };
+
+                    translated.saturating_inc();
+                    Some(new_value)
                 },
             );
             current.put::<Pallet<T>>();
@@ -122,7 +156,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
                 translated,
                 current
             );
-            T::DbWeight::get().reads_writes(total + 1, translated + 1)
+            T::DbWeight::get().reads_writes(translated + 1, translated + 1)
         } else {
             log::info!("❌ Migration did not execute. This probably should be removed");
             T::DbWeight::get().reads(1)
@@ -164,12 +198,7 @@ pub mod test_v2 {
         let storage_prefix = storage_prefix(<Pallet<Test>>::name().as_bytes(), b"GasNodes");
         let key_hashed = key.using_encoded(Identity::hash);
 
-        let mut final_key = Vec::with_capacity(storage_prefix.len() + key_hashed.len());
-
-        final_key.extend_from_slice(&storage_prefix);
-        final_key.extend_from_slice(key_hashed.as_ref());
-
-        final_key
+        [storage_prefix.as_ref(), key_hashed.as_ref()].concat()
     }
 
     #[test]
@@ -178,7 +207,8 @@ pub mod test_v2 {
         new_test_ext().execute_with(|| {
             StorageVersion::new(1).put::<crate::Pallet<Test>>();
 
-            let message_ids = (0..25)
+            let nodes_amount = 25;
+            let message_ids = (0..nodes_amount)
                 .map(|_| MessageId::from_origin(H256::random()))
                 .collect::<Vec<_>>();
 
@@ -222,10 +252,12 @@ pub mod test_v2 {
             assert_ne!(weight.ref_time(), 0);
 
             for (_key, node) in GasNodes::<Test>::iter() {
-                if let GasNode::External { provision, .. } = node {
-                    assert!(!provision, "Incorrect migration");
+                if let GasNode::External { deposit, .. } = node {
+                    assert!(!deposit, "Incorrect migration");
                 }
             }
+
+            assert_eq!(GasNodes::<Test>::iter().count(), nodes_amount)
         });
     }
 }
