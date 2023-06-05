@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,9 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// Unchecked multiplication (overflow-prone) of two u64 numebrs.
+#![no_std]
 
-#![cfg_attr(not(feature = "std"), no_std)]
+extern crate alloc;
+
+#[cfg(not(feature = "std"))]
+mod wasm;
+
+#[cfg(not(feature = "std"))]
+pub(crate) use wasm::DATA;
 
 #[cfg(feature = "std")]
 mod code {
@@ -28,26 +34,12 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[cfg(not(feature = "std"))]
-mod wasm {
-    extern crate alloc;
+mod arg;
+mod builder;
+mod call;
+mod scheme;
 
-    use gstd::{debug, exec, msg};
-
-    #[no_mangle]
-    extern "C" fn handle() {
-        let (x, y): (u64, u64) = msg::load().expect("Expected a pair of u64 numbers");
-        let z: u64 = x.checked_mul(y).expect("Multiplication overflow");
-        debug!(
-            "[unchecked-multiplier::handle] Calculated {} x {} == {}",
-            x, y, z
-        );
-
-        msg::reply(z, 0).unwrap();
-    }
-
-    #[no_mangle]
-    extern "C" fn init() {
-        msg::reply_bytes([], 0).unwrap();
-    }
-}
+pub use arg::Arg;
+pub use builder::Calls;
+pub use call::Call;
+pub use scheme::*;
