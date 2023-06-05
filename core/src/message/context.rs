@@ -837,4 +837,71 @@ mod tests {
             Err(Error::DuplicateWaking)
         );
     }
+
+    #[test]
+    fn duplicate_provision() {
+        let incoming_message = IncomingMessage::new(
+            MessageId::from(INCOMING_MESSAGE_ID),
+            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            vec![1, 2].try_into().unwrap(),
+            0,
+            0,
+            None,
+        );
+
+        let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
+
+        let mut message_context = MessageContext::new(
+            incoming_dispatch,
+            Default::default(),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+        );
+
+        let handle = message_context.send_init().expect("unreachable");
+        message_context
+            .send_push(handle, b"payload")
+            .expect("unreachable");
+        let message_id = message_context
+            .send_commit(handle, HandlePacket::default(), 0, None)
+            .expect("unreachable");
+
+        assert!(message_context.create_provision(message_id, 1234).is_ok());
+        assert_err!(
+            message_context.create_provision(message_id, 1234),
+            ExecutionError::DuplicateProvision
+        );
+    }
+
+    #[test]
+    fn inexistent_provision() {
+        let incoming_message = IncomingMessage::new(
+            MessageId::from(INCOMING_MESSAGE_ID),
+            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            vec![1, 2].try_into().unwrap(),
+            0,
+            0,
+            None,
+        );
+
+        let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
+
+        let mut message_context = MessageContext::new(
+            incoming_dispatch,
+            Default::default(),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+        );
+
+        let message_id = message_context
+            .reply_commit(ReplyPacket::default(), None)
+            .expect("unreachable");
+
+        assert_err!(
+            message_context.create_provision(message_id, 1234),
+            ExecutionError::IncorrectMessageForProvision
+        );
+        assert_err!(
+            message_context.create_provision(Default::default(), 1234),
+            ExecutionError::IncorrectMessageForProvision
+        );
+    }
 }
