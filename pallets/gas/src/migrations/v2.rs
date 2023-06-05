@@ -198,9 +198,7 @@ pub mod test_v2 {
         let storage_prefix = storage_prefix(<Pallet<Test>>::name().as_bytes(), b"GasNodes");
         let key_hashed = key.using_encoded(Identity::hash);
 
-        [storage_prefix.as_ref(), key_hashed.as_ref()]
-            .concat()
-            .to_vec()
+        [storage_prefix.as_ref(), key_hashed.as_ref()].concat()
     }
 
     #[test]
