@@ -3831,11 +3831,14 @@ dependencies = [
  "gear-common",
  "gear-core-processor",
  "gear-runtime-primitives",
+ "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-session",
  "sp-runtime",
  "sp-std 5.0.0",
+ "substrate-validator-set",
 ]
 
 [[package]]

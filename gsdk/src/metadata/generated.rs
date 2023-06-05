@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -15,6 +15,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+#[allow(rustdoc::broken_intra_doc_links)] //subxt-codegen produces incorrect docs
 #[allow(dead_code, unused_imports, non_camel_case_types)]
 #[allow(clippy::all)]
 pub mod runtime_types {
@@ -1663,6 +1664,12 @@ pub mod runtime_types {
                     #[doc = ""]
                     #[doc = "Requires root origin (eventually, will only be set via referendum)"]
                     set_execute_inherent { value: ::core::primitive::bool },
+                    #[codec(index = 8)]
+                    #[doc = "Pay additional rent for the program."]
+                    pay_program_rent {
+                        program_id: runtime_types::gear_core::ids::ProgramId,
+                        block_count: ::core::primitive::u32,
+                    },
                 }
                 #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
@@ -1721,6 +1728,9 @@ pub mod runtime_types {
                     #[codec(index = 12)]
                     #[doc = "Message queue processing is disabled."]
                     MessageQueueProcessingDisabled,
+                    #[codec(index = 13)]
+                    #[doc = "Program with the specified id is not found."]
+                    ProgramNotFound,
                 }
                 #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
@@ -1821,6 +1831,7 @@ pub mod runtime_types {
                     pub gr_gas_available: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_message_id: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_origin: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_pay_program_rent: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_program_id: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_source: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_value: runtime_types::sp_weights::weight_v2::Weight,
@@ -1987,8 +1998,8 @@ pub mod runtime_types {
                 }
                 #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct MemoryWeights {
-                    pub signal_read: runtime_types::sp_weights::weight_v2::Weight,
-                    pub signal_write: runtime_types::sp_weights::weight_v2::Weight,
+                    pub lazy_pages_signal_read: runtime_types::sp_weights::weight_v2::Weight,
+                    pub lazy_pages_signal_write: runtime_types::sp_weights::weight_v2::Weight,
                     pub lazy_pages_signal_write_after_read:
                         runtime_types::sp_weights::weight_v2::Weight,
                     pub lazy_pages_host_func_read: runtime_types::sp_weights::weight_v2::Weight,
