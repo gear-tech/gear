@@ -67,7 +67,7 @@ where
             SysCallName::ReplyInputWGas => check_reply_input::<T>(Some(25_000_000_000)),
             SysCallName::CreateProgram => check_create_program::<T>(None),
             SysCallName::CreateProgramWGas => check_create_program::<T>(Some(25_000_000_000)),
-            SysCallName::ReplyDeposit => { } // TODO (breathx): add test,
+            SysCallName::ReplyDeposit => check_gr_reply_deposit::<T>(),
             SysCallName::Read => {/* checked in all the calls internally */},
             SysCallName::Size => check_gr_size::<T>(),
             SysCallName::StatusCode => {/* checked in reply_to */},
@@ -158,6 +158,37 @@ where
         };
 
         let mp = vec![Kind::SystemReserveGas(reserve_amount)].encode().into();
+
+        (TestCall::send_message(mp), Some(post_check))
+    });
+}
+
+fn check_gr_reply_deposit<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    run_tester::<T, _, _, T::AccountId>(|_, _| {
+        let deposit_amount = 10_000_000;
+        let next_user_mid =
+            utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
+
+        let outgoing_mid = MessageId::generate_outgoing(next_user_mid, 0);
+        let future_reply_id = MessageId::generate_reply(outgoing_mid);
+
+        let post_check = move || {
+            assert!(
+                GasHandlerOf::<T>::exists_and_deposit(future_reply_id),
+                "gas tree post check failed"
+            );
+            assert_eq!(
+                Ok(deposit_amount),
+                GasHandlerOf::<T>::get_limit(future_reply_id),
+                "reply deposit gas post check failed"
+            );
+        };
+
+        let mp = vec![Kind::ReplyDeposit(deposit_amount)].encode().into();
 
         (TestCall::send_message(mp), Some(post_check))
     });
