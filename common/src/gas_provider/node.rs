@@ -142,7 +142,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
         system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
-        provision: bool,
+        deposit: bool,
     },
 
     /// A node created by "cutting" value from some other tree node.
@@ -207,7 +207,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
     GasNode<ExternalId, Id, Balance>
 {
     /// Creates a new `GasNode::External` root node for a new tree.
-    pub fn new(id: ExternalId, value: Balance, provision: bool) -> Self {
+    pub fn new(id: ExternalId, value: Balance, deposit: bool) -> Self {
         Self::External {
             id,
             value,
@@ -215,7 +215,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
             system_reserve: Zero::zero(),
             refs: Default::default(),
             consumed: false,
-            provision,
+            deposit,
         }
     }
 

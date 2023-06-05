@@ -124,7 +124,7 @@ pub struct ContextOutcome {
     // u32 is delay
     awakening: Vec<(MessageId, u32)>,
     // u64 is gas limit
-    provision: Vec<(MessageId, u64, Option<ReservationId>)>,
+    deposits: Vec<(MessageId, u64, Option<ReservationId>)>,
     // Additional information section.
     program_id: ProgramId,
     source: ProgramId,

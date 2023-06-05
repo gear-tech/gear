@@ -744,7 +744,7 @@ where
         )
     }
 
-    fn create_provision(
+    fn create_deposit(
         key: impl Into<Self::NodeId>,
         new_key: impl Into<Self::NodeId>,
         amount: Self::Balance,
@@ -764,17 +764,9 @@ where
         Self::get_node(key).is_some()
     }
 
-    fn exists_and_provision(key: impl Into<Self::NodeId>) -> bool {
+    fn exists_and_deposit(key: impl Into<Self::NodeId>) -> bool {
         Self::get_node(key)
-            .map(|node| {
-                matches!(
-                    node,
-                    GasNode::External {
-                        provision: true,
-                        ..
-                    }
-                )
-            })
+            .map(|node| matches!(node, GasNode::External { deposit: true, .. }))
             .unwrap_or(false)
     }
 
