@@ -190,7 +190,7 @@ pub trait Tree {
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
 
-    fn create_external(
+    fn create_provision(
         key: impl Into<Self::NodeId>,
         new_key: impl Into<Self::NodeId>,
         amount: Self::Balance,
@@ -200,7 +200,7 @@ pub trait Tree {
     fn exists(key: impl Into<Self::NodeId>) -> bool;
 
     /// Return bool, defining does node exist and is external.
-    fn exists_and_external(key: impl Into<Self::NodeId>) -> bool;
+    fn exists_and_provision(key: impl Into<Self::NodeId>) -> bool;
 
     /// Removes all values.
     fn clear();

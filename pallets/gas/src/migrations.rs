@@ -192,6 +192,7 @@ pub mod v1 {
                                 if !lock.is_zero() {
                                     new_lock[appropriate_lock_id(&key)] = lock;
                                 }
+                                // TODO (breathx): make migration accurate dependent on version.
                                 GasNode::External {
                                     id,
                                     value,
@@ -199,6 +200,7 @@ pub mod v1 {
                                     system_reserve,
                                     refs,
                                     consumed,
+                                    provision: false,
                                 }
                             }
                             OldGasNode::Cut { id, value, lock } => {
