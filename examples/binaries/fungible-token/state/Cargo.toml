@@ -1,7 +1,10 @@
 [package]
 name = "ft-state"
 version = "0.1.4"
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+workspace = "../../../../"
 
 [dependencies]
 gstd = { path = "../../gear/gstd" }
