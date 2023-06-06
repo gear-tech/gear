@@ -223,34 +223,13 @@ impl WasmProject {
                 r#"{source_code}
 #[allow(improper_ctypes)]
 mod fake_gsys {{
-    pub type BlockNumber = u32;
-    pub type BufferStart = u8;
-    pub type Hash = [u8; 32];
-    pub type Length = u32;
-    pub type Value = u128;
-
-    #[repr(C, packed)]
-    #[derive(Default)]
-    pub struct LengthWithHash {{
-        pub length: Length,
-        pub hash: Hash,
-    }}
-
-    impl LengthWithHash {{
-        pub fn as_mut_ptr(&mut self) -> *mut Self {{
-            self as _
-        }}
-    }}
-
-    pub const PTR_SPECIAL: *const u128 = u32::MAX as *const u128;
-
     extern "C" {{
         pub fn gr_reply(
-            payload: *const BufferStart,
-            len: Length,
-            value: *const Value,
-            _delay: BlockNumber,
-            err_mid: *mut LengthWithHash,
+            payload: *const u8,
+            len: u32,
+            value: *const u128,
+            _delay: u32,
+            err_mid: *mut [u8; 36],
         );
     }}
 }}
@@ -258,14 +237,14 @@ mod fake_gsys {{
 #[no_mangle]
 extern "C" fn metahash() {{
     const METAHASH: [u8; 32] = {:?};
-    let mut res: fake_gsys::LengthWithHash = Default::default();
+    let mut res: [u8; 36] = [0; 36];
     unsafe {{
         fake_gsys::gr_reply(
             METAHASH.as_ptr(),
             METAHASH.len() as _,
-            fake_gsys::PTR_SPECIAL,
+            u32::MAX as _,
             0,
-            res.as_mut_ptr(),
+            &mut res as _,
         );
     }}
 }}
