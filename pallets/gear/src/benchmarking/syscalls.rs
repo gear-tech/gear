@@ -386,7 +386,8 @@ where
 
     pub fn gr_reply_deposit(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let send_res_offset = COMMON_OFFSET;
+        let pid_value_offset = COMMON_OFFSET;
+        let send_res_offset = COMMON_OFFSET + PID_VALUE_SIZE;
         let mid_offset = send_res_offset + ERR_LEN_SIZE;
         let res_offset = send_res_offset + ERR_MID_SIZE;
 
@@ -398,13 +399,13 @@ where
                 res_offset,
                 &[
                     // pid value offset
-                    InstrI32Const(COMMON_OFFSET),
+                    InstrI32Const(pid_value_offset),
                     // payload offset
                     InstrI32Const(COMMON_OFFSET),
                     // payload len
                     InstrI32Const(0),
                     // delay
-                    InstrI32Const(10),
+                    InstrI32Const(0),
                     // res ptr
                     InstrI32Const(send_res_offset),
                     // call send
