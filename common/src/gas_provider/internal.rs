@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -445,7 +445,7 @@ where
             return Err(InternalError::node_already_exists().into());
         }
 
-        let node = GasNode::new(origin, amount);
+        let node = GasNode::new(origin, amount, false);
 
         // Save value node to storage
         StorageMap::insert(key, node);
@@ -525,14 +525,24 @@ where
     /// message went to wait list, so wasn't consumed but the one generated
     /// during the execution of the original message went to message queue
     /// and was successfully executed.
-    #[cfg_attr(all(not(test), feature = "fuzz"), mutagen::mutate)]
-    #[cfg_attr(
-        all(not(test), feature = "fuzz"),
-        allow(clippy::blocks_in_if_conditions)
-    )]
     fn consume(key: impl Into<Self::NodeId>) -> ConsumeResultOf<Self> {
         let key = key.into();
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        #[cfg(feature = "fuzz")]
+        {
+            let s = fail::FailScenario::setup();
+            // This is a fail point with name `fail_fuzzer`.
+            // It's supposed to return an error if `FAILPOINTS`
+            // env variable is set.
+            fail::fail_point!("fail_fuzzer", |_| {
+                // We intentionally return this error, as it has
+                // unique usage here and we won't confuse it with
+                // other real errors.
+                Err(InternalError::node_already_exists().into())
+            });
+            s.teardown();
+        }
 
         if node.is_consumed() {
             return Err(InternalError::node_was_consumed().into());
@@ -734,8 +744,30 @@ where
         )
     }
 
+    fn create_deposit(
+        key: impl Into<Self::NodeId>,
+        new_key: impl Into<Self::NodeId>,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error> {
+        Self::create_from_with_value(
+            key,
+            new_key,
+            amount,
+            |key, value, _parent_node, _parent_id| {
+                let id = Self::get_external(key)?;
+                Ok(GasNode::new(id, value, true))
+            },
+        )
+    }
+
     fn exists(key: impl Into<Self::NodeId>) -> bool {
         Self::get_node(key).is_some()
+    }
+
+    fn exists_and_deposit(key: impl Into<Self::NodeId>) -> bool {
+        Self::get_node(key)
+            .map(|node| matches!(node, GasNode::External { deposit: true, .. }))
+            .unwrap_or(false)
     }
 
     fn clear() {

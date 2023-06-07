@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -123,6 +123,8 @@ pub struct ContextOutcome {
     reply: Option<OutgoingMessageInfoNoDelay<ReplyMessage>>,
     // u32 is delay
     awakening: Vec<(MessageId, u32)>,
+    // u64 is gas limit
+    deposits: Vec<(MessageId, u64, Option<ReservationId>)>,
     // Additional information section.
     program_id: ProgramId,
     source: ProgramId,

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -133,43 +133,58 @@ fn check_gear_stack_end(module: &Module) -> Result<(), CodeError> {
 }
 
 /// Instrumentation error.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum CodeError {
     /// The provided code doesn't contain required import section.
+    #[display(fmt = "Import section not found")]
     ImportSectionNotFound,
     /// The provided code doesn't contain memory entry section.
+    #[display(fmt = "Memory entry not found")]
     MemoryEntryNotFound,
     /// The provided code doesn't contain export section.
+    #[display(fmt = "Export section not found")]
     ExportSectionNotFound,
     /// The provided code doesn't contain the required `init` or `handle` export function.
+    #[display(fmt = "Required export function `init` or `handle` not found")]
     RequiredExportFnNotFound,
     /// The provided code contains unnecessary function exports.
+    #[display(fmt = "Unnecessary function exports found")]
     NonGearExportFnFound,
     /// Error occurred during decoding original program code.
     ///
     /// The provided code was a malformed Wasm bytecode or contained unsupported features
     /// (atomics, simd instructions, etc.).
+    #[display(fmt = "The wasm bytecode is malformed or contains unsupported features")]
     Decode,
     /// Error occurred during injecting gas metering instructions.
     ///
     /// This might be due to program contained unsupported/non-deterministic instructions
     /// (floats, manual memory grow, etc.).
+    #[display(fmt = "Failed to inject instructions for gas metrics: \
+        program contains unsupported instructions (floats, manual memory grow, etc.)")]
     GasInjection,
     /// Error occurred during stack height instrumentation.
+    #[display(fmt = "Failed to set stack height limits")]
     StackLimitInjection,
     /// Error occurred during encoding instrumented program.
     ///
     /// The only possible reason for that might be OOM.
+    #[display(fmt = "Failed to encode instrumented program (probably because OOM)")]
     Encode,
     /// We restrict start sections in smart contracts.
+    #[display(fmt = "Start section is not allowed for smart contracts")]
     StartSectionExists,
     /// The provided code has invalid count of static pages.
+    #[display(fmt = "The wasm bytecode has invalid count of static pages")]
     InvalidStaticPageCount,
     /// Unsupported initialization of gear stack end global variable.
+    #[display(fmt = "Unsupported initialization of gear stack end global variable")]
     StackEndInitialization,
     /// Unsupported initialization of data segment.
+    #[display(fmt = "Unsupported initialization of data segment")]
     DataSegmentInitialization,
     /// Pointer to the stack end overlaps data segment.
+    #[display(fmt = "Pointer to the stack end overlaps data segment")]
     StackEndOverlaps,
 }
 

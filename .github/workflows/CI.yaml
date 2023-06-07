@@ -15,7 +15,7 @@ env:
   RUST_BACKTRACE: short
   TERM: xterm-256color
   NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
-  SCCACHE_VERSION: v0.4.1
+  SCCACHE_VERSION: v0.5.1
 
 jobs:
   # TODO: add to specific branches.
@@ -781,7 +781,7 @@ jobs:
         uses: actions/download-artifact@v3
 
       - name: Delete previous release
-        uses: dev-drprasad/delete-tag-and-release@v0.2.1
+        uses: dev-drprasad/delete-tag-and-release@v1.0.1
         with:
           delete_release: true
           tag_name: build
