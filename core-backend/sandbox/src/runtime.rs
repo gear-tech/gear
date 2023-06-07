@@ -52,13 +52,13 @@ pub(crate) struct Runtime<E> {
 }
 
 impl<E: BackendExt> CommonRuntime<E> for Runtime<E> {
-    type Error = HostError;
+    type RunError = HostError;
 
     fn ext_mut(&mut self) -> &mut E {
         &mut self.ext
     }
 
-    fn unreachable_error_code() -> Self::Error {
+    fn unreachable_error_code() -> Self::RunError {
         HostError
     }
 
@@ -66,7 +66,7 @@ impl<E: BackendExt> CommonRuntime<E> for Runtime<E> {
         self.fallible_syscall_error.as_ref()
     }
 
-    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
+    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::RunError>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
@@ -82,7 +82,7 @@ impl<E: BackendExt> CommonRuntime<E> for Runtime<E> {
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), Self::RunError>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
         R: From<Result<T, u32>> + Sized,

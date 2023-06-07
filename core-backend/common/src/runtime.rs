@@ -19,22 +19,22 @@
 //! Trait that both sandbox and wasmi runtimes must implement.
 
 use crate::{
-    memory::{MemoryAccessError, WasmMemoryWrite},
-    BackendExt, TerminationReason,
+    memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner, WasmMemoryWrite},
+    BackendExt, BackendState, TerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
 use gear_core_errors::ExtError;
 
-pub trait Runtime<E: BackendExt> {
-    type Error;
+pub trait Runtime<E: BackendExt>: MemoryOwner + MemoryAccessRecorder + BackendState {
+    type RunError;
 
-    fn unreachable_error_code() -> Self::Error;
+    fn unreachable_error_code() -> Self::RunError;
 
     fn fallible_syscall_error(&self) -> Option<&ExtError>;
 
     fn ext_mut(&mut self) -> &mut E;
 
-    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
+    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::RunError>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>;
 
@@ -43,7 +43,7 @@ pub trait Runtime<E: BackendExt> {
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), Self::RunError>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
         R: From<Result<T, u32>> + Sized;

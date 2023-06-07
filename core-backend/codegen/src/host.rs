@@ -82,7 +82,7 @@ impl HostFn {
         inputs.into_iter().for_each(|a| {
             if let FnArg::Typed(PatType { pat, .. }) = a.clone() {
                 if let Pat::Ident(ident) = pat.as_ref() {
-                    // FIXME: This is a very implicit behaviour.
+                    // TODO #2722
                     if !injected && (ident.ident == "value_ptr" || ident.ident == "delay") {
                         new_inputs.push(parse_quote!(gas_limit: u64));
                         injected = true;
