@@ -391,6 +391,8 @@ where
         let mid_offset = send_res_offset + ERR_LEN_SIZE;
         let res_offset = send_res_offset + ERR_MID_SIZE;
 
+        // `gr_send` is required to populate `message_context.outcome.handle`
+        // so `gr_reply_deposit` can be called and won't fail.
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SysCallName::ReplyDeposit, SysCallName::Send],
