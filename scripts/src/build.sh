@@ -34,7 +34,7 @@ gear_build() {
 }
 
 fuzzer_build() {
-  $CARGO +nightly build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
+  $CARGO build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
 }
 
 gear_test_build() {
@@ -75,9 +75,9 @@ examples_build() {
   if [ -z "$YAMLS" ]
   then
     cd "$ROOT_DIR"
-    cargo +nightly build --release -p "demo-*" "$@"
+    cargo build --release -p "demo-*" "$@"
     cd "$ROOT_DIR"/examples
-    CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release --workspace "$@"
+    CARGO_TARGET_DIR="$TARGET_DIR" cargo hack build --release --workspace "$@"
     cd "$ROOT_DIR"
   else
     # If there is specified yaml list, then parses yaml files and build
@@ -85,7 +85,7 @@ examples_build() {
     for path in $(get_demo_list $ROOT_DIR $YAMLS)
     do
       cd $path
-      CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release "$@"
+      CARGO_TARGET_DIR="$TARGET_DIR" cargo hack build --release "$@"
       cd -
     done
   fi
