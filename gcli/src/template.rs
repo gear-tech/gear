@@ -29,6 +29,16 @@ use std::{
 };
 
 const GEAR_REPO: &str = "https://github.com/gear-tech/gear";
+const CONFIG_TOML: &str = r#"
+[build]
+target = "wasm32-unknown-unknown"
+
+[target.wasm32-unknown-unknown]
+rustflags = [
+  "-C", "link-args=--import-memory",
+  "-C", "linker-plugin-lto",
+]
+"#;
 
 /// Template manager
 pub struct Template {
@@ -62,7 +72,8 @@ impl Template {
         let to = to.as_ref().into();
         etc::cp_r(from, &to)?;
 
-        let manifest = Etc::new(to)?.open("Cargo.toml")?;
+        let proj = Etc::new(to)?;
+        let manifest = proj.open("Cargo.toml")?;
         let mut toml = String::from_utf8_lossy(
             &manifest
                 .read()
@@ -70,8 +81,13 @@ impl Template {
         )
         .to_string();
 
+        // Update `Cargo.toml`.
         Self::process_manifest(&mut toml)?;
         manifest.write(toml.as_bytes())?;
+
+        // Add `config.toml`.
+        proj.open(".cargo/config.toml")?
+            .write(CONFIG_TOML.trim_start().as_bytes())?;
 
         Ok(())
     }
