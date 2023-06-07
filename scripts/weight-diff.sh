@@ -11,11 +11,17 @@ Generate comparison tables with weights between branches
 USAGE:
     ./weight-diff.sh <BRANCH1> <BRANCH2> <RUNTIME> <KIND>
 
+EXAMPLES:
+    ./weight-diff.sh $(git branch --show-current) master gear all
+
+FLAGS:
+    --display-units  if present, displays the value in units
+
 ARGUMENTS:
   <BRANCH1>  branch #1 from where to get the weights
   <BRANCH2>  branch #2 from where to get the weights
   <RUNTIME>  what runtime to compare? [possible values: gear, vara]
-  <KIND>     for which weights to generate a table? [possible values: instruction, host-fn]
+  <KIND>     for which weights to generate a table? [possible values: all, instruction, host-fn]
 EOF
 }
 
@@ -47,4 +53,9 @@ cargo run --package gear-weight-diff --release -- dump "$dump_path2" --label "$b
 
 git checkout "$current_branch"
 
-cargo run --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "$kind" $flag
+if [ "$kind" == "all" ]; then
+  cargo run --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "instruction" $flag
+  cargo run --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "host-fn" $flag
+else
+  cargo run --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "$kind" $flag
+fi
