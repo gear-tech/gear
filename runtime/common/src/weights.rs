@@ -65,6 +65,11 @@ pub fn check_instructions_weights<T: pallet_gear::Config>(
     check_instruction_weight(weights.i32popcnt, expected.i32popcnt);
     check_instruction_weight(weights.i64eqz, expected.i64eqz);
     check_instruction_weight(weights.i32eqz, expected.i32eqz);
+    check_instruction_weight(weights.i32extend8s, expected.i32extend8s);
+    check_instruction_weight(weights.i32extend16s, expected.i32extend16s);
+    check_instruction_weight(weights.i64extend8s, expected.i64extend8s);
+    check_instruction_weight(weights.i64extend16s, expected.i64extend16s);
+    check_instruction_weight(weights.i64extend32s, expected.i64extend32s);
     check_instruction_weight(weights.i64extendsi32, expected.i64extendsi32);
     check_instruction_weight(weights.i64extendui32, expected.i64extendui32);
     check_instruction_weight(weights.i32wrapi64, expected.i32wrapi64);

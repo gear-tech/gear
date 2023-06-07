@@ -101,7 +101,7 @@ impl HostFn {
     /// Build the function body.
     fn build_block(&self) -> Box<Block> {
         let name = self.item.sig.ident.clone().to_string();
-        let cost = self.meta.runtime_costs.clone();
+        let cost = self.meta.runtime_costs();
         let err_len = self.meta.err_len.clone();
         let inner_block = self.item.block.clone();
         let mut inputs = self.build_inputs();
@@ -203,7 +203,7 @@ pub struct HostFnMeta {
     /// If the host function is wgas.
     pub wgas: bool,
     /// The runtime costs of the host function.
-    pub runtime_costs: Expr,
+    runtime_costs: Expr,
     /// The length of the error.
     pub err_len: Expr,
 }
@@ -223,14 +223,35 @@ impl HostFnMeta {
     pub fn state_taken(&self) -> bool {
         matches!(self.call_type, CallType::StateTaken)
     }
+
+    /// Build runtime costs.
+    ///
+    /// If the host function is wgas, the runtime costs will be
+    /// appended `WGas`.
+    pub fn runtime_costs(&self) -> Expr {
+        let mut costs = self.runtime_costs.clone();
+        if self.wgas {
+            if let Expr::Path(ExprPath {
+                path: Path { segments, .. },
+                ..
+            }) = &mut costs
+            {
+                if let Some(call) = segments.last_mut() {
+                    call.ident = Ident::new(&(call.ident.to_string() + "WGas"), call.ident.span());
+                }
+            }
+        }
+
+        costs
+    }
 }
 
 impl Parse for HostFnMeta {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut call_type = Default::default();
         let mut wgas = false;
-        let mut runtime_costs = None;
-        let mut err_len = None;
+        let mut runtime_costs = parse_quote!(RuntimeCosts::Null);
+        let mut err_len = parse_quote!(LengthWithHash);
 
         let meta_list = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
         for meta in meta_list {
@@ -240,8 +261,8 @@ impl Parse for HostFnMeta {
                 "state_taken" => call_type = CallType::StateTaken,
                 "fallible_state_taken" => call_type = CallType::FallibleStateTaken,
                 "wgas" => wgas = true,
-                "cost" => runtime_costs = Some(meta.require_name_value()?.value.clone()),
-                "err_len" => err_len = Some(meta.require_name_value()?.value.clone()),
+                "cost" => runtime_costs = meta.require_name_value()?.value.clone(),
+                "err_len" => err_len = meta.require_name_value()?.value.clone(),
                 _ => {}
             }
         }
@@ -249,8 +270,8 @@ impl Parse for HostFnMeta {
         Ok(Self {
             call_type,
             wgas,
-            runtime_costs: runtime_costs.expect("Missing runtime cost"),
-            err_len: err_len.unwrap_or(parse_quote!(LengthWithHash)),
+            runtime_costs,
+            err_len,
         })
     }
 }

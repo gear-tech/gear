@@ -260,6 +260,11 @@ pub struct InstructionWeights<T: Config> {
     pub i32popcnt: u32,
     pub i64eqz: u32,
     pub i32eqz: u32,
+    pub i32extend8s: u32,
+    pub i32extend16s: u32,
+    pub i64extend8s: u32,
+    pub i64extend16s: u32,
+    pub i64extend32s: u32,
     pub i64extendsi32: u32,
     pub i64extendui32: u32,
     pub i32wrapi64: u32,
@@ -773,6 +778,11 @@ impl<T: Config> Default for InstructionWeights<T> {
             i32popcnt: cost_instr!(instr_i32popcnt, 1),
             i64eqz: cost_instr!(instr_i64eqz, 1),
             i32eqz: cost_instr!(instr_i32eqz, 1),
+            i32extend8s: cost_instr!(instr_i32extend8s, 0),
+            i32extend16s: cost_instr!(instr_i32extend16s, 0),
+            i64extend8s: cost_instr!(instr_i64extend8s, 1),
+            i64extend16s: cost_instr!(instr_i64extend16s, 1),
+            i64extend32s: cost_instr!(instr_i64extend32s, 1),
             i64extendsi32: cost_instr!(instr_i64extendsi32, 0),
             i64extendui32: cost_instr!(instr_i64extendui32, 0),
             i32wrapi64: cost_instr!(instr_i32wrapi64, 1),
@@ -1194,14 +1204,12 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
             I64Rotl => w.i64rotl,
             I32Rotr => w.i32rotr,
             I64Rotr => w.i64rotr,
-
-            // TODO: Correct weights for sign extension instructions. (#2523)
             SignExt(ref s) => match s {
-                I32Extend8S => w.i64extendsi32,
-                I32Extend16S => w.i64extendsi32,
-                I64Extend8S => w.i64extendsi32,
-                I64Extend16S => w.i64extendsi32,
-                I64Extend32S => w.i64extendsi32,
+                I32Extend8S => w.i32extend8s,
+                I32Extend16S => w.i32extend16s,
+                I64Extend8S => w.i64extend8s,
+                I64Extend16S => w.i64extend16s,
+                I64Extend32S => w.i64extend32s,
             },
             // Returning None makes the gas instrumentation fail which we intend for
             // unsupported or unknown instructions.
@@ -1224,6 +1232,7 @@ mod test {
     use super::*;
     use crate::mock::Test;
     use gas_metering::Rules;
+    use gear_wasm_instrument::rules::CustomConstantCostRules;
 
     fn all_measured_instructions() -> Vec<elements::Instruction> {
         use elements::{BlockType, BrTableData, Instruction::*};
@@ -1367,9 +1376,16 @@ mod test {
     #[test]
     fn instructions_backward_compatibility() {
         let schedule = Schedule::<Test>::default();
-        let rules = schedule.rules(&default_wasm_module());
-        all_measured_instructions()
-            .iter()
-            .for_each(|i| assert!(rules.instruction_cost(i).is_some()))
+
+        // used in `pallet-gear` to estimate the gas used by the program
+        let schedule_rules = schedule.rules(&default_wasm_module());
+
+        // used in `gear-wasm-builder` to check program code at an early stage
+        let custom_cost_rules = CustomConstantCostRules::default();
+
+        all_measured_instructions().iter().for_each(|i| {
+            assert!(schedule_rules.instruction_cost(i).is_some());
+            assert!(custom_cost_rules.instruction_cost(i).is_some());
+        })
     }
 }

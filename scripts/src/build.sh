@@ -51,7 +51,10 @@ wasm_proc_build() {
 
 # $1 = TARGET DIR
 examples_proc() {
-  "$1"/release/wasm-proc --legacy-meta "$1"/wasm32-unknown-unknown/release/*.wasm
+  # exclude `demo-out-of-memory` because it cannot be processed
+  WASM_EXAMPLES_DIR="$1"/wasm32-unknown-unknown/release
+  WASM_EXAMPLES_LIST=$(find $WASM_EXAMPLES_DIR -name "*.wasm" -a -not -name "*demo_out_of_memory*" | tr '\n' ' ' | sed 's/ $//')
+  "$1"/release/wasm-proc --legacy-meta $WASM_EXAMPLES_LIST
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR

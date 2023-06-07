@@ -39,10 +39,3 @@ extern "C" fn handle() {
 extern "C" fn state() {
     msg::reply(unsafe { WALLETS.clone() }, 0).expect("Failed to share state");
 }
-
-// Hash of metadata sharing function (to on-chain verify metadata compatibility)
-#[no_mangle]
-extern "C" fn metahash() {
-    let metahash: [u8; 32] = include!("../.metahash");
-    msg::reply(metahash, 0).expect("Failed to share metahash");
-}

@@ -37,6 +37,7 @@ pub use wasm_instrument::{self, parity_wasm};
 #[cfg(test)]
 mod tests;
 
+pub mod rules;
 pub mod syscalls;
 
 pub const GLOBAL_NAME_GAS: &str = "gear_gas";

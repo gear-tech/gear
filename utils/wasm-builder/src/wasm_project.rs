@@ -198,17 +198,12 @@ impl WasmProject {
 
         fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)?;
 
-        let src_dir = self.out_dir.join("src");
-        fs::create_dir_all(&src_dir)?;
-        fs::write(
-            src_dir.join("lib.rs"),
-            "#![no_std] pub use orig_project::*;",
-        )?;
-
         // Copy original `Cargo.lock` if any
         let from_lock = self.original_dir.join("Cargo.lock");
         let to_lock = self.out_dir.join("Cargo.lock");
         let _ = fs::copy(from_lock, to_lock);
+
+        let mut source_code = "#![no_std] pub use orig_project::*;\n".to_owned();
 
         // Write metadata
         if let Some(metadata) = &self.project_type.metadata() {
@@ -220,14 +215,47 @@ impl WasmProject {
             let wasm_meta_path = self
                 .original_dir
                 .join([file_base_name, ".meta.txt"].concat());
-            let wasm_meta_hash_path = self.original_dir.join(".metahash");
 
             smart_fs::write_metadata(wasm_meta_path, metadata)
                 .context("unable to write `*.meta.txt`")?;
 
-            smart_fs::write(wasm_meta_hash_path, format!("{:?}", metadata.hash()))
-                .context("unable to write `.metahash`")?;
+            source_code = format!(
+                r#"{source_code}
+#[allow(improper_ctypes)]
+mod fake_gsys {{
+    extern "C" {{
+        pub fn gr_reply(
+            payload: *const u8,
+            len: u32,
+            value: *const u128,
+            _delay: u32,
+            err_mid: *mut [u8; 36],
+        );
+    }}
+}}
+
+#[no_mangle]
+extern "C" fn metahash() {{
+    const METAHASH: [u8; 32] = {:?};
+    let mut res: [u8; 36] = [0; 36];
+    unsafe {{
+        fake_gsys::gr_reply(
+            METAHASH.as_ptr(),
+            METAHASH.len() as _,
+            u32::MAX as _,
+            0,
+            &mut res as _,
+        );
+    }}
+}}
+"#,
+                metadata.hash(),
+            );
         }
+
+        let src_dir = self.out_dir.join("src");
+        fs::create_dir_all(&src_dir)?;
+        fs::write(src_dir.join("lib.rs"), source_code)?;
 
         Ok(())
     }
