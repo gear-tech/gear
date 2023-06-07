@@ -361,17 +361,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fungible-token"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "hex",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
-]
-
-[[package]]
 name = "futures"
 version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"

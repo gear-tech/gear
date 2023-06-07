@@ -28,6 +28,7 @@ members = [
     "examples/binaries/constructor",
     "examples/binaries/delayed-sender",
     "examples/binaries/distributor",
+    "examples/binaries/fungible-token",
     "examples/binaries/gas-burned",
     "examples/binaries/init-fail-sender",
     "examples/binaries/init-wait",
@@ -330,6 +331,7 @@ demo-constructor = { path = "examples/binaries/constructor" }
 demo-delayed-sender = { path = "examples/binaries/delayed-sender" }
 demo-distributor = { path = "examples/binaries/distributor" }
 demo-gas-burned = { path = "examples/binaries/gas-burned" }
+demo-fungible-token = { path = "examples/binaries/fungible-token" }
 demo-init-fail-sender = { path = "examples/binaries/init-fail-sender" }
 demo-init-wait = { path = "examples/binaries/init-wait" }
 demo-init-wait-reply-exit = { path = "examples/binaries/init-wait-reply-exit" }
