@@ -34,7 +34,7 @@ impl New {
         let templates = tm.ls();
 
         if let Some(template) = &self.template {
-            if templates.contains(&template) {
+            if templates.contains(template) {
                 tm.cp(template, template)?;
             } else {
                 tm.cp("ping", template)?;

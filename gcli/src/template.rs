@@ -111,7 +111,8 @@ impl Template {
     }
 
     /// Clone or update the local gear repo.
-    fn fetch(repo: &PathBuf) -> Result<()> {
+    fn fetch(repo: impl AsRef<Path>) -> Result<()> {
+        let repo = repo.as_ref();
         if !repo.exists() {
             Command::new("git")
                 .args([
@@ -136,7 +137,8 @@ impl Template {
     }
 
     /// Get all examples.
-    fn list(repo: &PathBuf) -> Result<BTreeMap<String, PathBuf>> {
+    fn list(repo: impl AsRef<Path>) -> Result<BTreeMap<String, PathBuf>> {
+        let repo = repo.as_ref();
         let templates = fs::read_dir(repo.join("examples"))?;
 
         let mut map = BTreeMap::new();
