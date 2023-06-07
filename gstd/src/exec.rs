@@ -33,7 +33,7 @@ pub use gcore::exec::{
 ///
 /// This message id should be sent within the execution. Once destination actor
 /// or system sends reply on it, the gas limit ignores, if the program gave
-/// deposit - the only it wil be used for execution of `handle_reply`.
+/// deposit - the only it will be used for execution of `handle_reply`.
 ///
 /// # Examples
 ///
