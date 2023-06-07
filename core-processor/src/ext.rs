@@ -917,7 +917,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_deposit(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error> {
-        self.charge_gas_if_enough(amount)?;
+        self.reduce_gas(amount)?;
 
         self.context
             .message_context
