@@ -4147,7 +4147,7 @@ dependencies = [
 name = "gear-weight-diff"
 version = "1.0.0"
 dependencies = [
- "clap 4.2.1",
+ "clap 4.3.0",
  "frame-support",
  "gear-runtime",
  "indexmap",
