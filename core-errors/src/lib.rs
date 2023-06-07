@@ -214,6 +214,12 @@ pub enum ReservationError {
     /// An error occurs in attempt to reserve gas less than mailbox threshold.
     #[display(fmt = "Reservation amount cannot be below mailbox threshold")]
     ReservationBelowMailboxThreshold = 5,
+    /// An error occurs in attempt to use reservation ID twice.
+    #[display(fmt = "Reservation already in use")]
+    AlreadyInUse = 6,
+    /// An error occurs in attempt to access a non-existent reservation ID.
+    #[display(fmt = "Non-existent reservation ID")]
+    ReservationNotFound = 7,
 }
 
 /// Execution error.

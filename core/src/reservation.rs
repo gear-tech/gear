@@ -115,7 +115,7 @@ impl GasReserver {
         let state = self
             .states
             .remove(&id)
-            .ok_or(ReservationError::InvalidReservationId)?;
+            .ok_or(ReservationError::ReservationNotFound)?;
 
         let amount = match state {
             GasReservationState::Exists { amount, finish, .. } => {
@@ -139,13 +139,13 @@ impl GasReserver {
         ) = self.states.get_mut(&id)
         {
             if *used {
-                Err(ReservationError::InvalidReservationId)
+                Err(ReservationError::AlreadyInUse)
             } else {
                 *used = true;
                 Ok(())
             }
         } else {
-            Err(ReservationError::InvalidReservationId)
+            Err(ReservationError::ReservationNotFound)
         }
     }
 
@@ -287,15 +287,12 @@ mod tests {
         let mut reserver = new_reserver();
         let id = reserver.reserve(1, 1).unwrap();
         reserver.mark_used(id).unwrap();
-        assert_eq!(
-            reserver.mark_used(id),
-            Err(ReservationError::InvalidReservationId)
-        );
 
-        // not found
+        assert_eq!(reserver.mark_used(id), Err(ReservationError::AlreadyInUse));
+
         assert_eq!(
             reserver.mark_used(ReservationId::default()),
-            Err(ReservationError::InvalidReservationId)
+            Err(ReservationError::ReservationNotFound)
         );
     }
 
@@ -304,9 +301,10 @@ mod tests {
         let mut reserver = new_reserver();
         let id = reserver.reserve(1, 1).unwrap();
         reserver.unreserve(id).unwrap();
+
         assert_eq!(
             reserver.unreserve(id),
-            Err(ReservationError::InvalidReservationId)
+            Err(ReservationError::ReservationNotFound)
         );
     }
 }
