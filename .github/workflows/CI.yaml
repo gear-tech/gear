@@ -340,7 +340,8 @@ jobs:
           path: artifact
 
   build-win-native:
-    if: ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/tltsutltsu/native-windows-ci-fix' }}    needs: build
+    if: ${{ github.ref == 'refs/heads/tltsutltsu/native-windows-ci-fix' }}
+    needs: build
     runs-on: ci-win
     defaults:
       run:
