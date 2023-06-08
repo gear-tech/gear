@@ -340,7 +340,6 @@ jobs:
           path: artifact
 
   build-win-native:
-    if: ${{ github.ref == 'refs/heads/tltsutltsu/native-windows-ci-fix' }}
     runs-on: ci-win
     defaults:
       run:
