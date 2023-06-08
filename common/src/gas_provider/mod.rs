@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -190,8 +190,18 @@ pub trait Tree {
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
 
+    /// Creates deposit external node to be used as pre-defined gas node.
+    fn create_deposit(
+        key: impl Into<Self::NodeId>,
+        new_key: impl Into<Self::NodeId>,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error>;
+
     /// Return bool, defining does node exist.
     fn exists(key: impl Into<Self::NodeId>) -> bool;
+
+    /// Returns bool, defining does node exist and is external with deposit.
+    fn exists_and_deposit(key: impl Into<Self::NodeId>) -> bool;
 
     /// Removes all values.
     fn clear();

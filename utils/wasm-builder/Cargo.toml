@@ -21,6 +21,7 @@ pathdiff.workspace = true
 which.workspace = true
 colored.workspace = true
 gmeta.workspace = true
+gear-core.workspace = true
 gear-wasm-instrument.workspace = true
 wasm-opt = { workspace = true, optional = true }
 wasmparser.workspace = true

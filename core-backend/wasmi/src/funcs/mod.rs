@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -179,12 +179,12 @@ where
         let write_buffer = ctx.register_write(buffer_ptr, len);
 
         let mut memory = CallerWrap::memory(&mut ctx.caller, ctx.memory);
-        ctx.manager
-            .write(&mut memory, write_buffer, buffer, &mut gas_left)?;
-
+        let res = ctx
+            .manager
+            .write(&mut memory, write_buffer, buffer, &mut gas_left);
         state.ext.set_gas_left(gas_left);
 
-        Result::<(), TerminationReason>::Ok(())
+        res.map_err(Into::<TerminationReason>::into)
     }
 
     #[host(cost = RuntimeCosts::Size)]
