@@ -7,10 +7,8 @@ license.workspace = true
 workspace = "../../../../"
 
 [dependencies]
-gstd = { path = "../../gear/gstd" }
-gmeta = { path = "../../gear/gmeta", features = ["codegen"] }
+gstd = { workspace = true }
+gmeta = { workspace = true, features = ["codegen"] }
 
 [build-dependencies]
-gear-wasm-builder = { path = "../../gear/utils/wasm-builder", features = [
-    "metawasm",
-] }
+gear-wasm-builder = { workspace = true, features = ["metawasm"] }
