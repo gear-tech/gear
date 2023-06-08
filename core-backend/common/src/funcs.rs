@@ -229,6 +229,7 @@ where
         Ok(page)
     }
 
+    // The `page` is calculated before `run_any` body so it's impossible to use #[host] here.
     pub fn free(ctx: &mut R, page_no: u32) -> Result<i32, R::RunError> {
         syscall_trace!("free", page_no);
 
@@ -301,7 +302,7 @@ where
         payload_ptr: u32,
         len: u32,
         value_ptr: u32,
-        delay: u32,
+        _delay: u32,
     ) -> Result<(), R::RunError> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let value = Self::register_and_read_value(ctx, value_ptr)?;
@@ -313,7 +314,7 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::ReplyCommit)]
-    pub fn reply_commit(ctx: &mut R, value_ptr: u32, delay: u32) -> Result<(), R::RunError> {
+    pub fn reply_commit(ctx: &mut R, value_ptr: u32, _delay: u32) -> Result<(), R::RunError> {
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
         ctx.ext_mut()
@@ -327,7 +328,7 @@ where
         rid_value_ptr: u32,
         payload_ptr: u32,
         len: u32,
-        delay: u32,
+        _delay: u32,
     ) -> Result<(), R::RunError> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let read_payload = ctx.register_read(payload_ptr, len);
@@ -346,7 +347,7 @@ where
     pub fn reservation_reply_commit(
         ctx: &mut R,
         rid_value_ptr: u32,
-        delay: u32,
+        _delay: u32,
     ) -> Result<(), R::RunError> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let HashWithValue {

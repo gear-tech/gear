@@ -66,22 +66,26 @@ impl From<i64> for SandboxValue {
     }
 }
 
-impl From<SandboxValue> for u32 {
-    fn from(val: SandboxValue) -> u32 {
+impl TryFrom<SandboxValue> for u32 {
+    type Error = HostError;
+
+    fn try_from(val: SandboxValue) -> Result<u32, HostError> {
         if let Value::I32(val) = val.0 {
-            val as u32
+            Ok(val as u32)
         } else {
-            unreachable!("Expected Value::I32")
+            Err(HostError)
         }
     }
 }
 
-impl From<SandboxValue> for u64 {
-    fn from(val: SandboxValue) -> u64 {
+impl TryFrom<SandboxValue> for u64 {
+    type Error = HostError;
+
+    fn try_from(val: SandboxValue) -> Result<u64, HostError> {
         if let Value::I64(val) = val.0 {
-            val as u64
+            Ok(val as u64)
         } else {
-            unreachable!("Expected Value::I64")
+            Err(HostError)
         }
     }
 }
@@ -89,7 +93,7 @@ impl From<SandboxValue> for u64 {
 macro_rules! wrap_common_func_internal_ret{
     ($func:path, $($arg_no:expr),*) => {
         |ctx, args| -> Result<ReturnValue, HostError> {
-            $func(ctx, $(SandboxValue(args[$arg_no]).into(),)*).map(|ret| Into::<SandboxValue>::into(ret).0.into())
+            $func(ctx, $(SandboxValue(args[$arg_no]).try_into()?,)*).map(|ret| Into::<SandboxValue>::into(ret).0.into())
         }
     }
 }
@@ -97,7 +101,7 @@ macro_rules! wrap_common_func_internal_ret{
 macro_rules! wrap_common_func_internal_no_ret{
     ($func:path, $($arg_no:expr),*) => {
         |ctx, _args| -> Result<ReturnValue, HostError> {
-            $func(ctx, $(SandboxValue(_args[$arg_no]).into(),)*).map(|_| ReturnValue::Unit)
+            $func(ctx, $(SandboxValue(_args[$arg_no]).try_into()?,)*).map(|_| ReturnValue::Unit)
         }
     }
 }
