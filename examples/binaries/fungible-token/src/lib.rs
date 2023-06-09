@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(target_arch = "wasm32", no_std)]
 
-#[cfg(feature = "std")]
+#[cfg(not(target_arch = "wasm32"))]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-#[cfg(feature = "std")]
+#[cfg(not(target_arch = "wasm32"))]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[cfg(not(feature = "std"))]
+#[cfg(target_arch = "wasm32")]
 pub mod contract;
