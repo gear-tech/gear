@@ -18,9 +18,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-extern crate alloc;
-extern crate gstd;
-
 #[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -29,5 +26,5 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(not(feature = "std"))]
 pub mod contract;
