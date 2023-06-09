@@ -340,6 +340,8 @@ jobs:
           path: artifact
 
   build-win-native:
+    if: ${{ github.ref == 'refs/heads/master' }}
+    needs: build
     runs-on: ci-win
     defaults:
       run:
@@ -419,9 +421,6 @@ jobs:
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
 
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
@@ -430,6 +429,9 @@ jobs:
 
       - name: "Build: wasm-proc"
         run: ./scripts/gear.sh build wasm-proc --locked
+
+      - name: "Build: Examples (WASM)"
+        run: ./scripts/gear.sh build examples --locked
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
