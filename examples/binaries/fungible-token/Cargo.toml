@@ -18,7 +18,6 @@ gclient = { workspace = true }
 
 [build-dependencies]
 gear-wasm-builder = { workspace = true }
-ft-io = { path = "io" }
 
 [features]
 debug = ["gstd/debug"]
