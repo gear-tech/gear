@@ -16,14 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg_attr(target_arch = "wasm32", no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(not(target_arch = "wasm32"))]
+extern crate alloc;
+extern crate gstd;
+
+#[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(target_arch = "wasm32")]
