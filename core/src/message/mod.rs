@@ -24,6 +24,9 @@ use scale_info::{
     TypeInfo,
 };
 
+// TODO (breathx): open an issue to create special unified type StatusCode
+// of 32 bits size instead of using real numeric i32.
+
 mod common;
 mod context;
 mod handle;
