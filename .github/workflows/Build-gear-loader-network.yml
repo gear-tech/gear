@@ -6,6 +6,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   SCCACHE_VERSION: v0.5.1
+  BINARYEN_VERSION: version_111
 
 jobs:
   build-gear-loader:
@@ -30,8 +31,8 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
           sudo wget -c https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
           sudo cp sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl/sccache /usr/bin/
           sudo chmod +x /usr/bin/sccache
