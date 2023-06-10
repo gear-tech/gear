@@ -56,12 +56,8 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          components: clippy, rustfmt
-          targets: wasm32-unknown-unknown
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: Build deps"
         run: |
@@ -126,12 +122,8 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v3
@@ -367,11 +359,8 @@ jobs:
             procps
             mingw-w64-x86_64-protobuf
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: wasm32-unknown-unknown
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: cargo-nextest"
         run: |
@@ -480,12 +469,8 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: MSVC target"
         run: rustup target add x86_64-pc-windows-msvc
@@ -651,11 +636,8 @@ jobs:
       - name: "Install: protobuf"
         run: brew install protobuf
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: wasm32-unknown-unknown
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
@@ -727,12 +709,8 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: Build deps"
         run: |

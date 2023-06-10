@@ -23,11 +23,8 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: wasm32-unknown-unknown
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v3
