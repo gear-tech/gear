@@ -459,25 +459,16 @@ extern "C" {
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
-    pub fn gr_reply_commit_wgas(
-        gas_limit: Gas,
-        value: *const Value,
-        _delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
-    );
+    pub fn gr_reply_commit_wgas(gas_limit: Gas, value: *const Value, err_mid: *mut LengthWithHash);
 
     /// Fallible `gr_reply_commit` send syscall.
     ///
     /// Arguments type:
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
-    pub fn gr_reply_commit(value: *const Value, _delay: BlockNumber, err_mid: *mut LengthWithHash);
+    pub fn gr_reply_commit(value: *const Value, err_mid: *mut LengthWithHash);
 
     /// Fallible `gr_reply_push` send syscall.
     ///
@@ -515,15 +506,12 @@ extern "C" {
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply_input_wgas(
         offset: Index,
         len: Length,
         gas_limit: Gas,
         value: *const Value,
-        _delay: BlockNumber,
         err_mid: *mut LengthWithHash,
     );
 
@@ -535,15 +523,12 @@ extern "C" {
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply_wgas(
         payload: *const BufferStart,
         len: Length,
         gas_limit: Gas,
         value: *const Value,
-        _delay: BlockNumber,
         err_mid: *mut LengthWithHash,
     );
 
@@ -554,14 +539,11 @@ extern "C" {
     /// - `len`: `u32` length of the payload buffer.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply(
         payload: *const BufferStart,
         len: Length,
         value: *const Value,
-        _delay: BlockNumber,
         err_mid: *mut LengthWithHash,
     );
 
@@ -572,14 +554,11 @@ extern "C" {
     /// - `len`: `u32` defining slice length of the input buffer to use.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reply_input(
         offset: Index,
         len: Length,
         value: *const Value,
-        _delay: BlockNumber,
         err_mid: *mut LengthWithHash,
     );
 
@@ -589,12 +568,9 @@ extern "C" {
     /// - `rid_value`: `const ptr` for concatenated reservation id and value.
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reservation_reply_commit(
         rid_value: *const HashWithValue,
-        _delay: BlockNumber,
         err_mid: *mut LengthWithHash,
     );
 
@@ -604,14 +580,11 @@ extern "C" {
     /// - `rid_value`: `const ptr` for concatenated reservation id and value.
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error length and message id.
     pub fn gr_reservation_reply(
         rid_value: *const HashWithValue,
         payload: *const BufferStart,
         len: Length,
-        _delay: BlockNumber,
         err_mid: *mut LengthWithHash,
     );
 

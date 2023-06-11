@@ -180,15 +180,7 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
 
     let value_ptr = value_ptr(&value);
 
-    unsafe {
-        gsys::gr_reply(
-            payload.as_ptr(),
-            payload_len,
-            value_ptr,
-            0,
-            res.as_mut_ptr(),
-        )
-    };
+    unsafe { gsys::gr_reply(payload.as_ptr(), payload_len, value_ptr, res.as_mut_ptr()) };
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))
@@ -233,7 +225,6 @@ pub fn reply_from_reservation(id: ReservationId, payload: &[u8], value: u128) ->
             rid_value.as_ptr(),
             payload.as_ptr(),
             payload_len,
-            0,
             res.as_mut_ptr(),
         )
     };
@@ -274,7 +265,6 @@ pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<Mes
             payload_len,
             gas_limit,
             value_ptr,
-            0,
             res.as_mut_ptr(),
         )
     };
@@ -323,7 +313,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 
     let value_ptr = value_ptr(&value);
 
-    unsafe { gsys::gr_reply_commit(value_ptr, 0, res.as_mut_ptr()) }
+    unsafe { gsys::gr_reply_commit(value_ptr, res.as_mut_ptr()) }
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))
@@ -352,7 +342,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
 
     let value_ptr = value_ptr(&value);
 
-    unsafe { gsys::gr_reply_commit_wgas(gas_limit, value_ptr, 0, res.as_mut_ptr()) }
+    unsafe { gsys::gr_reply_commit_wgas(gas_limit, value_ptr, res.as_mut_ptr()) }
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))
@@ -382,7 +372,7 @@ pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<M
 
     let mut res: LengthWithHash = Default::default();
 
-    unsafe { gsys::gr_reservation_reply_commit(rid_value.as_ptr(), 0, res.as_mut_ptr()) };
+    unsafe { gsys::gr_reservation_reply_commit(rid_value.as_ptr(), res.as_mut_ptr()) };
     SyscallError(res.length).into_result()?;
 
     Ok(MessageId(res.hash))
@@ -477,7 +467,7 @@ pub fn reply_input(value: u128, offset: u32, len: u32) -> Result<MessageId> {
     let value_ptr = value_ptr(&value);
 
     unsafe {
-        gsys::gr_reply_input(offset, len, value_ptr, 0, res.as_mut_ptr());
+        gsys::gr_reply_input(offset, len, value_ptr, res.as_mut_ptr());
     }
 
     SyscallError(res.length).into_result()?;
@@ -526,7 +516,7 @@ pub fn reply_input_with_gas(
     let value_ptr = value_ptr(&value);
 
     unsafe {
-        gsys::gr_reply_input_wgas(offset, len, gas_limit, value_ptr, 0, res.as_mut_ptr());
+        gsys::gr_reply_input_wgas(offset, len, gas_limit, value_ptr, res.as_mut_ptr());
     }
     SyscallError(res.length).into_result()?;
 
