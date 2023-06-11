@@ -633,12 +633,12 @@ where
             // Generating gas node for future auto reply.
             // TODO: use `sender_node` (e.g. reservation case) as first argument after #1828.
             if !to_mailbox {
-                GasHandlerOf::<T>::split_with_value(
+                Self::split_with_value(
                     origin_msg,
                     MessageId::generate_reply(dispatch.id()),
                     0,
-                )
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                    true,
+                );
             }
 
             // TODO: adapt this line if gasful sending appears for reservations (#1828)
@@ -842,8 +842,7 @@ where
 
                 // Creating `GasNode` for the auto reply.
                 // TODO: use `msg_id` (e.g. reservation case) as first argument after #1828.
-                GasHandlerOf::<T>::split_with_value(origin_msg, reply_message.id(), 0)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                Self::split_with_value(origin_msg, reply_message.id(), 0, true);
 
                 // Converting reply message into appropriate type for queueing.
                 let reply_dispatch = reply_message.into_stored_dispatch(
@@ -1044,6 +1043,9 @@ where
         Ok(())
     }
 
+    /// This fn and [`split_with_value`] works the same: they call api of gas
+    /// handler to split (optionally with value) for all cases except reply
+    /// sent and contains deposit in storage.
     pub(crate) fn split(
         key: impl Into<GasNodeIdOf<T>>,
         new_key: impl Into<GasNodeIdOf<T>> + Clone,
@@ -1055,6 +1057,7 @@ where
         }
     }
 
+    /// See ['split'].
     pub(crate) fn split_with_value(
         key: impl Into<GasNodeIdOf<T>>,
         new_key: impl Into<GasNodeIdOf<T>> + Clone,
