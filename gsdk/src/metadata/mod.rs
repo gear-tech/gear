@@ -26,8 +26,11 @@ mod impls;
 
 pub use self::{
     errors::ModuleError,
-    generated::runtime_types::runtime_types::{
-        self, vara_runtime as gear_runtime, vara_runtime::RuntimeEvent as Event,
+    generated::{
+        calls::{self, CallInfo},
+        runtime_types::runtime_types::{
+            self, vara_runtime as gear_runtime, vara_runtime::RuntimeEvent as Event,
+        },
     },
 };
 

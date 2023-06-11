@@ -20,6 +20,7 @@
 use crate::{
     config::GearConfig,
     metadata::{
+        calls::{BalancesCall, GearCall, SudoCall, UtilityCall},
         gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call,
@@ -61,16 +62,14 @@ const ERRORS_REQUIRE_RETRYING: [&str; 2] = ["Connection reset by peer", "Connect
 impl Signer {
     /// `pallet_balances::transfer`
     pub async fn transfer(&self, dest: impl Into<AccountId32>, value: u128) -> InBlock {
-        let tx = subxt::dynamic::tx(
-            "Balances",
-            "transfer",
+        self.run_tx(
+            BalancesCall::Transfer,
             vec![
                 Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
                 Value::u128(value),
             ],
-        );
-
-        self.process(tx).await
+        )
+        .await
     }
 }
 
@@ -85,9 +84,8 @@ impl Signer {
         gas_limit: u64,
         value: u128,
     ) -> InBlock {
-        let tx = subxt::dynamic::tx(
-            "Gear",
-            "create_program",
+        self.run_tx(
+            GearCall::CreateProgram,
             vec![
                 Value::from_bytes(code_id),
                 Value::from_bytes(salt),
@@ -95,15 +93,14 @@ impl Signer {
                 Value::u128(gas_limit as u128),
                 Value::u128(value),
             ],
-        );
-
-        self.process(tx).await
+        )
+        .await
     }
 
     /// `pallet_gear::claim_value`
     pub async fn claim_value(&self, message_id: MessageId) -> InBlock {
-        let tx = subxt::dynamic::tx("Gear", "claim_value", vec![Value::from_bytes(message_id)]);
-        self.process(tx).await
+        self.run_tx(GearCall::ClaimValue, vec![Value::from_bytes(message_id)])
+            .await
     }
 
     /// `pallet_gear::send_message`
@@ -114,18 +111,16 @@ impl Signer {
         gas_limit: u64,
         value: u128,
     ) -> InBlock {
-        let tx = subxt::dynamic::tx(
-            "Gear",
-            "send_message",
+        self.run_tx(
+            GearCall::SendMessage,
             vec![
                 Value::from_bytes(destination),
                 Value::from_bytes(payload),
                 Value::u128(gas_limit as u128),
                 Value::u128(value),
             ],
-        );
-
-        self.process(tx).await
+        )
+        .await
     }
 
     /// `pallet_gear::send_reply`
@@ -136,24 +131,22 @@ impl Signer {
         gas_limit: u64,
         value: u128,
     ) -> InBlock {
-        let tx = subxt::dynamic::tx(
-            "Gear",
-            "send_reply",
+        self.run_tx(
+            GearCall::SendReply,
             vec![
                 Value::from_bytes(reply_to_id),
                 Value::from_bytes(payload),
                 Value::u128(gas_limit as u128),
                 Value::u128(value),
             ],
-        );
-
-        self.process(tx).await
+        )
+        .await
     }
 
     /// `pallet_gear::upload_code`
     pub async fn upload_code(&self, code: Vec<u8>) -> InBlock {
-        let tx = subxt::dynamic::tx("Gear", "upload_code", vec![Value::from_bytes(code)]);
-        self.process(tx).await
+        self.run_tx(GearCall::UploadCode, vec![Value::from_bytes(code)])
+            .await
     }
 
     /// `pallet_gear::upload_program`
@@ -165,9 +158,8 @@ impl Signer {
         gas_limit: u64,
         value: u128,
     ) -> InBlock {
-        let tx = subxt::dynamic::tx(
-            "Gear",
-            "upload_program",
+        self.run_tx(
+            GearCall::UploadProgram,
             vec![
                 Value::from_bytes(code),
                 Value::from_bytes(salt),
@@ -175,9 +167,8 @@ impl Signer {
                 Value::u128(gas_limit as u128),
                 Value::u128(value),
             ],
-        );
-
-        self.process(tx).await
+        )
+        .await
     }
 }
 
@@ -185,19 +176,17 @@ impl Signer {
 impl Signer {
     /// `pallet_utility::force_batch`
     pub async fn force_batch(&self, calls: Vec<RuntimeCall>) -> InBlock {
-        let tx = subxt::dynamic::tx(
-            "Utility",
-            "force_batch",
+        self.run_tx(
+            UtilityCall::ForceBatch,
             vec![calls.into_iter().map(Value::from).collect::<Vec<Value>>()],
-        );
-
-        self.process(tx).await
+        )
+        .await
     }
 }
 
 // pallet-sudo
 impl Signer {
-    async fn process_sudo(&self, tx: DynamicTxPayload<'_>) -> EventsResult {
+    pub(crate) async fn process_sudo(&self, tx: DynamicTxPayload<'_>) -> EventsResult {
         let tx = self.process(tx).await?;
         let events = tx.wait_for_success().await?;
         for event in events.iter() {
@@ -215,9 +204,8 @@ impl Signer {
 
     /// `pallet_sudo::sudo_unchecked_weight`
     pub async fn sudo_unchecked_weight(&self, call: RuntimeCall, weight: Weight) -> EventsResult {
-        let tx = subxt::dynamic::tx(
-            "Sudo",
-            "sudo_unchecked_weight",
+        self.sudo_run_tx(
+            SudoCall::Sudo,
             // As `call` implements conversion to `Value`.
             vec![
                 call.into(),
@@ -226,15 +214,14 @@ impl Signer {
                     ("proof_size", Value::u128(weight.proof_size as u128)),
                 ]),
             ],
-        );
-        self.process_sudo(tx).await
+        )
+        .await
     }
 
     /// `pallet_sudo::sudo`
     pub async fn sudo(&self, call: RuntimeCall) -> EventsResult {
-        let tx = subxt::dynamic::tx("Sudo", "sudo", vec![Value::from(call)]);
-
-        self.process_sudo(tx).await
+        self.sudo_run_tx(SudoCall::Sudo, vec![Value::from(call)])
+            .await
     }
 }
 
@@ -415,7 +402,7 @@ impl Signer {
     }
 
     /// Listen transaction process and print logs.
-    async fn process<'a>(&self, tx: DynamicTxPayload<'a>) -> InBlock {
+    pub(crate) async fn process<'a>(&self, tx: DynamicTxPayload<'a>) -> InBlock {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;

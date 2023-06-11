@@ -63,7 +63,7 @@ fn generate_api() -> Vec<u8> {
     ]
     .map(|(relative_path, pkg, features)| get_path(root, &profile, relative_path, pkg, features));
 
-    // rebuild me.
+    // rebuild mmmm.
 
     // Generate api
     let code = Command::new(api_gen)

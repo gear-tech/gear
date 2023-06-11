@@ -169,13 +169,13 @@ fn generate_calls(wrapper: &RuntimeMetadata) -> ItemMod {
 
     let (mut ie, mut ii): (Vec<ItemEnum>, Vec<ItemImpl>) = (vec![], vec![]);
     for (pallet, calls) in table {
-        let pallet_ident = Ident::new(&pallet, Span::call_site());
+        let pallet_ident = Ident::new(&(pallet.clone() + "Call"), Span::call_site());
         let call_var = calls
             .iter()
             .map(|call| {
                 // Convert snake case call name to camel case
                 let var = call
-                    .split("_")
+                    .split('_')
                     .map(|w| {
                         let mut c = w.chars();
                         c.next()
@@ -209,7 +209,7 @@ fn generate_calls(wrapper: &RuntimeMetadata) -> ItemMod {
             impl CallInfo for #pallet_ident {
                 const PALLET: &'static str = #pallet;
 
-                fn call_name(&self) -> &str {
+                fn call_name(&self) -> &'static str {
                     match self {
                         #(
                             Self::#call_var => #calls,
@@ -227,7 +227,7 @@ fn generate_calls(wrapper: &RuntimeMetadata) -> ItemMod {
                 const PALLET: &'static str;
 
                 /// returns call name.
-                fn call_name(&self) -> &str;
+                fn call_name(&self) -> &'static str;
             }
 
             #(

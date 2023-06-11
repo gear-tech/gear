@@ -389,6 +389,7 @@ wasmprinter = "0.2"                                                       # util
 whoami = "1.4.0"                                                          # gcli
 which = "4.4.0"                                                           # utils/wasm-builder
 fail = "0.5"                                                              # gear-common
+scale-value = "^0.6"                                                      # gsdk
 
 [profile.release]
 panic = "unwind"

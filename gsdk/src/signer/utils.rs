@@ -18,7 +18,13 @@
 
 //! Utils
 
-use crate::{result::Result, signer::Signer};
+use crate::{
+    config::GearConfig, metadata::CallInfo, result::Result, signer::Signer, types::InBlock, Error,
+};
+use scale_value::Composite;
+use subxt::blocks::ExtrinsicEvents;
+
+type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
 impl Signer {
     /// Get self balance
@@ -32,5 +38,27 @@ impl Signer {
         log::info!("	Balance spent: {after}");
 
         Ok(())
+    }
+
+    /// Run transaction.
+    pub async fn run_tx<'a, Call: CallInfo>(
+        &self,
+        call: Call,
+        fields: impl Into<Composite<()>>,
+    ) -> InBlock {
+        let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
+
+        self.process(tx).await
+    }
+
+    /// Run transaction with sudo.
+    pub async fn sudo_run_tx<'a, Call: CallInfo>(
+        &self,
+        call: Call,
+        fields: impl Into<Composite<()>>,
+    ) -> EventsResult {
+        let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
+
+        self.process_sudo(tx).await
     }
 }
