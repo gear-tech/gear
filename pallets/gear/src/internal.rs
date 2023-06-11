@@ -38,7 +38,7 @@ use common::{
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReason;
 use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency};
-use frame_system::pallet_prelude::BlockNumberFor;
+use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
     message::{Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, StoredMessage},
@@ -1066,6 +1066,19 @@ where
     ) {
         if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(new_key.clone()) {
             GasHandlerOf::<T>::split_with_value(key, new_key, amount)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        }
+    }
+
+    /// See ['split'].
+    pub(crate) fn create(
+        origin: OriginFor<T>,
+        key: impl Into<GasNodeIdOf<T>> + Clone,
+        amount: GasBalanceOf<T>,
+        is_reply: bool,
+    ) {
+        if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(key.clone()) {
+            GasHandlerOf::<T>::create(origin, key, amount)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         }
     }
