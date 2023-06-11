@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -63,6 +63,11 @@ fn instruction_weights_heuristics_test() {
         i32popcnt: 800,
         i64eqz: 4_000,
         i32eqz: 2_400,
+        i32extend8s: 800,
+        i32extend16s: 800,
+        i64extend8s: 800,
+        i64extend16s: 800,
+        i64extend32s: 800,
         i64extendsi32: 800,
         i64extendui32: 400,
         i32wrapi64: 200,

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -154,6 +154,9 @@ where
         }),
         f.build(CreateProgramWGas, |forbidden| {
             F::create_program_wgas(store, forbidden, memory)
+        }),
+        f.build(ReplyDeposit, |forbidden| {
+            F::reply_deposit(store, forbidden, memory)
         }),
         f.build(Error, |forbidden| F::error(store, forbidden, memory)),
         f.build(ReserveGas, |forbidden| {

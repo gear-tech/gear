@@ -25,10 +25,10 @@ format() {
   MANIFEST="$1"
   shift
 
-  cargo +nightly fmt --all --manifest-path="$MANIFEST" -- "$@"
+  cargo fmt --all --manifest-path="$MANIFEST" -- "$@"
 }
 
 doc_format() {
-  cargo +nightly fmt -p gstd -p gcore -p gclient -p gtest -- "$@" \
+  cargo fmt -p gstd -p gcore -p gclient -p gtest -- "$@" \
     --config wrap_comments=true,format_code_in_doc_comments=true
 }

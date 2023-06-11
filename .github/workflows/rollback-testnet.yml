@@ -12,20 +12,18 @@ env:
   IMAGE_NAME: ghcr.io/gear-tech/node:${{ github.event.inputs.image-tag }}
 
 jobs:
-
   rollback-one-validator:
     runs-on: ubuntu-latest
     environment: production
     steps:
-
       - name: Checkout
         uses: actions/checkout@v3
 
       - name: Install Info
         run: |
-            ls -l .
-            ls -l ../..
-            pwd
+          ls -l .
+          ls -l ../..
+          pwd
 
       - name: Send telegram notify before run playbook
         uses: appleboy/telegram-action@master
@@ -35,7 +33,6 @@ jobs:
           message: |
             Attention!
             Rollback second validator with docker image ${{ env.IMAGE_NAME }}
-
 
       - name: Run playbook
         uses: dawidd6/action-ansible-playbook@v2
@@ -57,15 +54,14 @@ jobs:
     needs: rollback-one-validator
     environment: production
     steps:
-
       - name: Checkout
         uses: actions/checkout@v3
 
       - name: Install Info
         run: |
-            ls -l .
-            ls -l ../..
-            pwd
+          ls -l .
+          ls -l ../..
+          pwd
 
       - name: Send telegram notify before run playbook
         uses: appleboy/telegram-action@master

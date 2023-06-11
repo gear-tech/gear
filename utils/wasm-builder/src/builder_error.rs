@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use gear_core::code::CodeError;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -34,13 +35,8 @@ pub enum BuilderError {
     #[error("unable to find the root package in cargo metadata")]
     RootPackageNotFound,
 
-    #[error("WASM module does't contain export section `{0}`")]
-    ExportSectionNotFound(PathBuf),
-
-    #[error(
-        "WASM module doesn't contain required export funtions (init/handle) after optimized `{0}`"
-    )]
-    RequiredExportFnNotFound(PathBuf),
+    #[error("code check failed: `{0}`")]
+    CodeCheckFailed(CodeError),
 
     #[error("cargo path is invalid `{0}`")]
     CargoPathInvalid(PathBuf),

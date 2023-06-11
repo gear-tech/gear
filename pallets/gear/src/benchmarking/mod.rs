@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -86,7 +86,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_wasm_instrument::{
-    parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType},
+    parity_wasm::elements::{BlockType, BrTableData, Instruction, SignExtInstruction, ValueType},
     syscalls::SysCallName,
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
@@ -806,6 +806,17 @@ benchmarks! {
         let n in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = Benches::<T>::gr_random(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reply_deposit {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reply_deposit(r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1927,6 +1938,91 @@ benchmarks! {
             Instruction::I32Eqz,
             r * INSTR_BENCHMARK_BATCH_SIZE,
         ));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_extend = w_bench
+    //
+    // i32.extend8_s
+    instr_i32extend8s {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                RandomI32Repeated(1),
+                Regular(Instruction::SignExt(SignExtInstruction::I32Extend8S)),
+                Regular(Instruction::Drop),
+            ])),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_extend = w_bench
+    //
+    // i32.extend16_s
+    instr_i32extend16s {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                RandomI32Repeated(1),
+                Regular(Instruction::SignExt(SignExtInstruction::I32Extend16S)),
+                Regular(Instruction::Drop),
+            ])),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_extend = w_bench
+    //
+    // i64.extend8_s
+    instr_i64extend8s {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                RandomI64Repeated(1),
+                Regular(Instruction::SignExt(SignExtInstruction::I64Extend8S)),
+                Regular(Instruction::Drop),
+            ])),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_extend = w_bench
+    //
+    // i64.extend16_s
+    instr_i64extend16s {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                RandomI64Repeated(1),
+                Regular(Instruction::SignExt(SignExtInstruction::I64Extend16S)),
+                Regular(Instruction::Drop),
+            ])),
+            .. Default::default()
+        }));
+    }: {
+        sbox.invoke();
+    }
+
+    // w_extend = w_bench
+    //
+    // i64.extend32_s
+    instr_i64extend32s {
+        let r in 0 .. INSTR_BENCHMARK_BATCHES;
+        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+                RandomI64Repeated(1),
+                Regular(Instruction::SignExt(SignExtInstruction::I64Extend32S)),
+                Regular(Instruction::Drop),
+            ])),
+            .. Default::default()
+        }));
     }: {
         sbox.invoke();
     }
