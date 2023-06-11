@@ -352,6 +352,14 @@ extern "C" {
         err_mid_pid: *mut LengthWithTwoHashes,
     );
 
+    /// Fallible `gr_reply_deposit` syscall.
+    ///
+    /// Arguments type:
+    /// - `message_id`: `const ptr` for message id.
+    /// - `gas`: `u64` defining gas limit to deposit.
+    /// - `err`: `mut ptr` for error length.
+    pub fn gr_reply_deposit(message_id: *const Hash, gas: Gas, err: *mut Length);
+
     /// Infallible `gr_debug` info syscall.
     ///
     /// Arguments type:

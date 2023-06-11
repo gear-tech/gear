@@ -63,24 +63,6 @@ jobs:
           components: clippy, rustfmt
           targets: wasm32-unknown-unknown
 
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          targets: wasm32-unknown-unknown
-          components: clippy, rustfmt
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-
       - name: "Install: Build deps"
         run: |
           sudo apt update
@@ -150,24 +132,6 @@ jobs:
           toolchain: nightly
           targets: wasm32-unknown-unknown
           components: llvm-tools-preview
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v3
@@ -280,7 +244,7 @@ jobs:
 
       - name: "Test: Sys-calls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls --release
-        
+
       - name: "Test: `try-runtime` feature tests"
         run: |
           cargo test -p "pallet-*" --features try-runtime --release --locked
@@ -408,25 +372,6 @@ jobs:
         with:
           toolchain: nightly
           targets: wasm32-unknown-unknown
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          $(Get-Item $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc).Delete()
-          New-Item -Path $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc -ItemType SymbolicLink -Value $env:USERPROFILE\.rustup\toolchains\nightly-$env:NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc
-        shell: powershell
 
       - name: "Install: cargo-nextest"
         run: |
@@ -730,24 +675,6 @@ jobs:
           toolchain: nightly
           targets: wasm32-unknown-unknown
 
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-apple-darwin
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-apple-darwin $RUSTUP_HOME/toolchains/nightly-x86_64-apple-darwin
-
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
@@ -824,24 +751,6 @@ jobs:
           toolchain: nightly
           targets: wasm32-unknown-unknown
           components: llvm-tools-preview
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Build deps"
         run: |

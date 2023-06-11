@@ -31,7 +31,7 @@ use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
 use gear_backend_common::{BackendExt, BackendExtError, Environment, SystemReservationContext};
 use gear_core::{
     env::Ext,
-    ids::ProgramId,
+    ids::{MessageId, ProgramId},
     memory::{GearPage, PageBuf},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
@@ -290,6 +290,7 @@ pub fn process_success(
         program_id,
         context_store,
         allocations,
+        reply_deposits,
         ..
     } = dispatch_result;
 
@@ -386,6 +387,14 @@ pub fn process_success(
             payer,
             program_id,
             block_count,
+        });
+    }
+
+    for (message_id_sent, amount) in reply_deposits {
+        journal.push(JournalNote::ReplyDeposit {
+            message_id,
+            future_reply_id: MessageId::generate_reply(message_id_sent),
+            amount,
         });
     }
 
