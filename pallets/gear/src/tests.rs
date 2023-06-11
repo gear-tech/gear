@@ -7450,7 +7450,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             RuntimeOrigin::signed(USER_1),
             WAITING_PROXY_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
-            (<[u8; 32]>::from(contract_id), 0).encode(),
+            (<[u8; 32]>::from(contract_id), 0u64).encode(),
             5_000_000_000,
             0,
         ));
