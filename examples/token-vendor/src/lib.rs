@@ -160,7 +160,7 @@ async fn main() {
 
             let id = ActorId::new(hex.to_fixed_bytes());
 
-            let response = msg::send_bytes_for_reply(id, &String::from("ping").encode(), 0)
+            let response = msg::send_bytes_for_reply(id, &String::from("ping").encode(), 0, 0)
                 .unwrap()
                 .await
                 .expect("Error in async message processing");
@@ -171,10 +171,11 @@ async fn main() {
             debug!("Got ping-reply: '{}'", ping);
 
             if ping.to_lowercase() == "pong" {
-                let response = msg::send_bytes_for_reply(id, &String::from("success").encode(), 0)
-                    .unwrap()
-                    .await
-                    .expect("Error in async message processing");
+                let response =
+                    msg::send_bytes_for_reply(id, &String::from("success").encode(), 0, 0)
+                        .unwrap()
+                        .await
+                        .expect("Error in async message processing");
 
                 let success = String::decode(&mut response.as_ref())
                     .expect("Failed to decode string from MemberID-response");

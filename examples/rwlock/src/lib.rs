@@ -35,7 +35,7 @@ async fn main() {
             *val += 1;
         }
         "ping&get" => {
-            let _ = msg::send_bytes_for_reply(unsafe { PING_DEST }, b"PING", 0)
+            let _ = msg::send_bytes_for_reply(unsafe { PING_DEST }, b"PING", 0, 0)
                 .unwrap()
                 .await
                 .expect("Error in async message processing");
@@ -44,14 +44,14 @@ async fn main() {
         "inc&ping" => {
             let mut val = RWLOCK.write().await;
             *val += 1;
-            let _ = msg::send_bytes_for_reply(unsafe { PING_DEST }, b"PING", 0)
+            let _ = msg::send_bytes_for_reply(unsafe { PING_DEST }, b"PING", 0, 0)
                 .unwrap()
                 .await
                 .expect("Error in async message processing");
         }
         "get&ping" => {
             let val = RWLOCK.read().await;
-            let _ = msg::send_bytes_for_reply(unsafe { PING_DEST }, b"PING", 0)
+            let _ = msg::send_bytes_for_reply(unsafe { PING_DEST }, b"PING", 0, 0)
                 .unwrap()
                 .await
                 .expect("Error in async message processing");

@@ -35,7 +35,7 @@ mod wasm {
     #[gstd::async_main]
     async fn main() {
         let input = msg::load_bytes().expect("Failed to load payload bytes");
-        if let Ok(outcome) = msg::send_bytes_for_reply(unsafe { DESTINATION }, &input[..], 0)
+        if let Ok(outcome) = msg::send_bytes_for_reply(unsafe { DESTINATION }, &input[..], 0, 0)
             .expect("Error sending message")
             .await
         {
