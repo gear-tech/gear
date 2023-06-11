@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
   COUNT: 100
-  SCCACHE_VERSION: v0.5.1
+  SCCACHE_VERSION: v0.5.3
   BINARYEN_VERSION: version_111
 
 jobs:
