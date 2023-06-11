@@ -9,10 +9,10 @@ help() {
 Generate comparison tables with weights between branches
 
 USAGE:
-    ./scripts/weight-diff.sh <BRANCH1> <BRANCH2> <RUNTIME> <KIND> [FLAGS]
+    ./weight-diff.sh <BRANCH1> <BRANCH2> <RUNTIME> <KIND> [FLAGS]
 
 EXAMPLES:
-    ./scripts/weight-diff.sh $(git branch --show-current) master gear all --display-units
+    ./weight-diff.sh $(git branch --show-current) master gear all --display-units
 
 FLAGS:
     --display-units  if present, displays the value in units
