@@ -8,7 +8,7 @@ env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
-  SCCACHE_VERSION: v0.5.1
+  SCCACHE_VERSION: v0.5.3
 
 jobs:
   generate-changelog:
