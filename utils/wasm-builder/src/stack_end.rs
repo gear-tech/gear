@@ -160,13 +160,10 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
         .iter()
         .enumerate()
     {
-        if !global.global_type().is_mutable() {
-            continue;
-        }
-        if index == data_end_index as usize {
-            continue;
-        }
-        if index == stack_pointer_index as usize {
+        if !global.global_type().is_mutable()
+            || index == data_end_index as usize
+            || index == stack_pointer_index as usize
+        {
             continue;
         }
 
@@ -286,9 +283,8 @@ fn get_global_index(module_bytes: &[u8], name_predicate: impl Fn(&str) -> bool) 
             _ => None,
         })
         .flatten()
-        .filter_map(|res| res.ok())
         .filter_map(|name| match name {
-            Name::Global(m) => Some(m),
+            Ok(Name::Global(m)) => Some(m),
             _ => None,
         })
         .flat_map(|naming| naming.into_iter())
