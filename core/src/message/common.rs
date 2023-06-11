@@ -179,6 +179,7 @@ pub enum MessageDetails {
 impl MessageDetails {
     /// Returns bool defining if message is error reply.
     pub fn is_error_reply(&self) -> bool {
+        // TODO: issue #2739.
         self.is_reply_details() && self.status_code().to_le_bytes()[0] != 0
     }
 
