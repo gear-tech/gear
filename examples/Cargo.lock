@@ -150,13 +150,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-minimal"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-panicker"
 version = "0.1.0"
 dependencies = [

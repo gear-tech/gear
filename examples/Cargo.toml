@@ -15,7 +15,6 @@ members = [
     "status-code",
     "guestbook",
     "loop",
-    "minimal",
     "panicker",
     "program_generator",
     "program-id",
