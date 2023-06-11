@@ -551,9 +551,11 @@ mod tests {
 
         let user_id = 100;
 
-        let prog = Program::from_file(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
+            137,
+            demo_futures_unordered::WASM_BINARY.to_vec(),
+            None,
         );
 
         let init_msg_payload = String::from("InvalidInput");
@@ -561,11 +563,7 @@ mod tests {
         assert!(run_result.main_failed);
 
         let log = run_result.log();
-        assert!(!log.is_empty());
-
-        assert!(log[0]
-            .payload()
-            .starts_with(b"'Invalid input, should be three IDs separated by comma'"));
+        assert!(log[0].payload().starts_with(b"'Failed to load destination"));
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 

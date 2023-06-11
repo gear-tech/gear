@@ -4516,6 +4516,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "colored",
+ "demo-futures-unordered",
  "demo-piggy-bank",
  "derive_more",
  "env_logger",
