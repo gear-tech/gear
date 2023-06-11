@@ -18,14 +18,15 @@
 use color_eyre::eyre::Result;
 use frame_metadata::{RuntimeMetadata, RuntimeMetadataPrefixed};
 use parity_scale_codec::Decode;
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, Span, TokenStream};
+use quote::{quote, ToTokens};
 use std::{
     collections::BTreeMap,
     env, fs,
     io::{self, Write},
 };
 use subxt_codegen::{DerivesRegistry, RuntimeGenerator, TypeSubstitutes};
-use syn::parse_quote;
+use syn::{parse_quote, Fields, ItemEnum, ItemImpl, ItemMod, Variant};
 
 const RUNTIME_WASM: &str = "RUNTIME_WASM";
 const USAGE: &str = r#"
@@ -70,15 +71,19 @@ fn main() -> Result<()> {
     let metadata = <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded[4..].as_ref())
         .expect("decode metadata failed");
 
-    {
-        // TODO: customized code here. ( #2668 )
-        generate_calls(&metadata.1);
+    // Customized code here.
+    let calls = generate_calls(&metadata.1);
+    let types = generate_runtime_types(metadata);
+
+    let output = quote! {
+        #types
+
+        #calls
     }
+    .to_token_stream();
 
     // Generate api.
-    let runtime_types =
-        LICENSE.trim_start().to_string() + &generate_runtime_types(metadata).to_string();
-    // io::stdout().write_all(runtime_types.as_bytes())?;
+    io::stdout().write_all((LICENSE.trim_start().to_string() + &output.to_string()).as_bytes())?;
 
     Ok(())
 }
@@ -133,8 +138,8 @@ fn generate_runtime_types(metadata: RuntimeMetadataPrefixed) -> TokenStream {
         .expect("Failed to generate runtime types")
 }
 
-/// Generate the table of calls.
-fn generate_calls(wrapper: &RuntimeMetadata) {
+/// Generate a table for the calls.
+fn generate_calls(wrapper: &RuntimeMetadata) -> ItemMod {
     let metadata = if let RuntimeMetadata::V14(v14) = wrapper {
         v14
     } else {
@@ -143,24 +148,93 @@ fn generate_calls(wrapper: &RuntimeMetadata) {
 
     // Call table.
     let mut table: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    println!("length of the pallets {:?}", metadata.pallets.len());
     for pallet in metadata.pallets.clone().into_iter() {
-        // Get pallet name.
-        let name = pallet.name.clone();
-
-        // Get calls.
-        if let Some(ref call) = pallet.calls {
+        let pallet_name = pallet.name.clone();
+        let calls = pallet.calls.map(|call| {
             let scale_info::TypeDef::Variant(variant) = &metadata.types.resolve(call.ty.id).expect("Unknown calls").type_def else {
                 panic!("Invalid call type {call:?}");
             };
 
-            let names = variant
+            variant
                 .variants
                 .iter()
                 .map(|variant| variant.name.clone())
-                .collect::<Vec<_>>();
+                .collect::<Vec<_>>()
+        });
 
-            println!("{names:#?}");
+        if let Some(calls) = calls {
+            table.insert(pallet_name, calls);
+        }
+    }
+
+    let (mut ie, mut ii): (Vec<ItemEnum>, Vec<ItemImpl>) = (vec![], vec![]);
+    for (pallet, calls) in table {
+        let pallet_ident = Ident::new(&pallet, Span::call_site());
+        let call_var = calls
+            .iter()
+            .map(|call| {
+                // Convert snake case call name to camel case
+                let var = call
+                    .split("_")
+                    .map(|w| {
+                        let mut c = w.chars();
+                        c.next()
+                            .expect("Invalid string in call name")
+                            .to_uppercase()
+                            .chain(c)
+                            .collect::<String>()
+                    })
+                    .collect::<Vec<_>>()
+                    .concat();
+
+                let ident = Ident::new(&var, Span::call_site());
+                Variant {
+                    attrs: vec![],
+                    ident,
+                    fields: Fields::Unit,
+                    discriminant: None,
+                }
+            })
+            .collect::<Vec<Variant>>();
+
+        let doc = format!("Calls of pallet `{}`.", pallet);
+        ie.push(parse_quote! {
+            #[doc = #doc]
+            pub enum #pallet_ident {
+                #(#call_var,)*
+            }
+        });
+
+        ii.push(parse_quote! {
+            impl CallInfo for #pallet_ident {
+                const PALLET: &'static str = #pallet;
+
+                fn call_name(&self) -> &str {
+                    match self {
+                        #(
+                            Self::#call_var => #calls,
+                        )*
+                    }
+                }
+            }
+        });
+    }
+
+    parse_quote! {
+        pub mod calls {
+            /// Show the call info.
+            pub trait CallInfo {
+                const PALLET: &'static str;
+
+                /// returns call name.
+                fn call_name(&self) -> &str;
+            }
+
+            #(
+                #ie
+
+                #ii
+            )*
         }
     }
 }

@@ -2296,6 +2296,83 @@ pub mod runtime_types {
                 }
             }
         }
+        pub mod pallet_gear_debug {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(
+                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
+                )]
+                #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+                pub enum Call {
+                    #[codec(index = 0)]
+                    #[doc = "Turn the debug mode on and off."]
+                    #[doc = ""]
+                    #[doc = "The origin must be the root."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `debug_mode_on`: if true, debug mode will be turned on, turned off otherwise."]
+                    #[doc = ""]
+                    #[doc = "Emits the following events:"]
+                    #[doc = "- `DebugMode(debug_mode_on)."]
+                    enable_debug_mode {
+                        debug_mode_on: ::core::primitive::bool,
+                    },
+                }
+                #[derive(
+                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
+                )]
+                pub struct DebugData {
+                    pub dispatch_queue:
+                        ::std::vec::Vec<runtime_types::gear_core::message::stored::StoredDispatch>,
+                    pub programs:
+                        ::std::vec::Vec<runtime_types::pallet_gear_debug::pallet::ProgramDetails>,
+                }
+                #[derive(
+                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
+                )]
+                #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+                pub enum Error {}
+                #[derive(
+                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
+                )]
+                #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+                pub enum Event {
+                    #[codec(index = 0)]
+                    DebugMode(::core::primitive::bool),
+                    #[codec(index = 1)]
+                    #[doc = "A snapshot of the debug data: programs and message queue ('debug mode' only)"]
+                    DebugDataSnapshot(runtime_types::pallet_gear_debug::pallet::DebugData),
+                }
+                #[derive(
+                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
+                )]
+                pub struct ProgramDetails {
+                    pub id: runtime_types::gear_core::ids::ProgramId,
+                    pub state: runtime_types::pallet_gear_debug::pallet::ProgramState,
+                }
+                #[derive(
+                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
+                )]
+                pub struct ProgramInfo {
+                    pub static_pages: runtime_types::gear_core::memory::WasmPage,
+                    pub persistent_pages: ::subxt::utils::KeyedVec<
+                        runtime_types::gear_core::memory::GearPage,
+                        runtime_types::gear_core::memory::PageBuf,
+                    >,
+                    pub code_hash: ::subxt::utils::H256,
+                }
+                #[derive(
+                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
+                )]
+                pub enum ProgramState {
+                    #[codec(index = 0)]
+                    Active(runtime_types::pallet_gear_debug::pallet::ProgramInfo),
+                    #[codec(index = 1)]
+                    Terminated,
+                }
+            }
+        }
         pub mod pallet_gear_gas {
             use super::runtime_types;
             pub mod pallet {
@@ -7434,6 +7511,8 @@ pub mod runtime_types {
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Call),
                 #[codec(index = 198)]
                 Airdrop(runtime_types::pallet_airdrop::pallet::Call),
+                #[codec(index = 199)]
+                GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
             }
             #[derive(
                 ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
@@ -7491,6 +7570,8 @@ pub mod runtime_types {
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Event),
                 #[codec(index = 198)]
                 Airdrop(runtime_types::pallet_airdrop::pallet::Event),
+                #[codec(index = 199)]
+                GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
             #[derive(
                 ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
@@ -7500,6 +7581,620 @@ pub mod runtime_types {
                 pub grandpa: runtime_types::sp_consensus_grandpa::app::Public,
                 pub im_online: runtime_types::pallet_im_online::sr25519::app_sr25519::Public,
                 pub authority_discovery: runtime_types::sp_authority_discovery::app::Public,
+            }
+        }
+    }
+}
+pub mod calls {
+    #[doc = r" Show the call info."]
+    pub trait CallInfo {
+        const PALLET: &'static str;
+        #[doc = r" returns call name."]
+        fn call_name(&self) -> &str;
+    }
+    #[doc = "Calls of pallet `Airdrop`."]
+    pub enum Airdrop {
+        Transfer,
+    }
+    impl CallInfo for Airdrop {
+        const PALLET: &'static str = "Airdrop";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Transfer => "transfer",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Babe`."]
+    pub enum Babe {
+        ReportEquivocation,
+        ReportEquivocationUnsigned,
+        PlanConfigChange,
+    }
+    impl CallInfo for Babe {
+        const PALLET: &'static str = "Babe";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::ReportEquivocation => "report_equivocation",
+                Self::ReportEquivocationUnsigned => "report_equivocation_unsigned",
+                Self::PlanConfigChange => "plan_config_change",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `BagsList`."]
+    pub enum BagsList {
+        Rebag,
+        PutInFrontOf,
+    }
+    impl CallInfo for BagsList {
+        const PALLET: &'static str = "BagsList";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Rebag => "rebag",
+                Self::PutInFrontOf => "put_in_front_of",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Balances`."]
+    pub enum Balances {
+        Transfer,
+        SetBalance,
+        ForceTransfer,
+        TransferKeepAlive,
+        TransferAll,
+        ForceUnreserve,
+    }
+    impl CallInfo for Balances {
+        const PALLET: &'static str = "Balances";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Transfer => "transfer",
+                Self::SetBalance => "set_balance",
+                Self::ForceTransfer => "force_transfer",
+                Self::TransferKeepAlive => "transfer_keep_alive",
+                Self::TransferAll => "transfer_all",
+                Self::ForceUnreserve => "force_unreserve",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `ConvictionVoting`."]
+    pub enum ConvictionVoting {
+        Vote,
+        Delegate,
+        Undelegate,
+        Unlock,
+        RemoveVote,
+        RemoveOtherVote,
+    }
+    impl CallInfo for ConvictionVoting {
+        const PALLET: &'static str = "ConvictionVoting";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Vote => "vote",
+                Self::Delegate => "delegate",
+                Self::Undelegate => "undelegate",
+                Self::Unlock => "unlock",
+                Self::RemoveVote => "remove_vote",
+                Self::RemoveOtherVote => "remove_other_vote",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `FellowshipCollective`."]
+    pub enum FellowshipCollective {
+        AddMember,
+        PromoteMember,
+        DemoteMember,
+        RemoveMember,
+        Vote,
+        CleanupPoll,
+    }
+    impl CallInfo for FellowshipCollective {
+        const PALLET: &'static str = "FellowshipCollective";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::AddMember => "add_member",
+                Self::PromoteMember => "promote_member",
+                Self::DemoteMember => "demote_member",
+                Self::RemoveMember => "remove_member",
+                Self::Vote => "vote",
+                Self::CleanupPoll => "cleanup_poll",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `FellowshipReferenda`."]
+    pub enum FellowshipReferenda {
+        Submit,
+        PlaceDecisionDeposit,
+        RefundDecisionDeposit,
+        Cancel,
+        Kill,
+        NudgeReferendum,
+        OneFewerDeciding,
+        RefundSubmissionDeposit,
+        SetMetadata,
+    }
+    impl CallInfo for FellowshipReferenda {
+        const PALLET: &'static str = "FellowshipReferenda";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Submit => "submit",
+                Self::PlaceDecisionDeposit => "place_decision_deposit",
+                Self::RefundDecisionDeposit => "refund_decision_deposit",
+                Self::Cancel => "cancel",
+                Self::Kill => "kill",
+                Self::NudgeReferendum => "nudge_referendum",
+                Self::OneFewerDeciding => "one_fewer_deciding",
+                Self::RefundSubmissionDeposit => "refund_submission_deposit",
+                Self::SetMetadata => "set_metadata",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Gear`."]
+    pub enum Gear {
+        UploadCode,
+        UploadProgram,
+        CreateProgram,
+        SendMessage,
+        SendReply,
+        ClaimValue,
+        Run,
+        SetExecuteInherent,
+        PayProgramRent,
+    }
+    impl CallInfo for Gear {
+        const PALLET: &'static str = "Gear";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::UploadCode => "upload_code",
+                Self::UploadProgram => "upload_program",
+                Self::CreateProgram => "create_program",
+                Self::SendMessage => "send_message",
+                Self::SendReply => "send_reply",
+                Self::ClaimValue => "claim_value",
+                Self::Run => "run",
+                Self::SetExecuteInherent => "set_execute_inherent",
+                Self::PayProgramRent => "pay_program_rent",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `GearDebug`."]
+    pub enum GearDebug {
+        EnableDebugMode,
+    }
+    impl CallInfo for GearDebug {
+        const PALLET: &'static str = "GearDebug";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::EnableDebugMode => "enable_debug_mode",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Grandpa`."]
+    pub enum Grandpa {
+        ReportEquivocation,
+        ReportEquivocationUnsigned,
+        NoteStalled,
+    }
+    impl CallInfo for Grandpa {
+        const PALLET: &'static str = "Grandpa";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::ReportEquivocation => "report_equivocation",
+                Self::ReportEquivocationUnsigned => "report_equivocation_unsigned",
+                Self::NoteStalled => "note_stalled",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Identity`."]
+    pub enum Identity {
+        AddRegistrar,
+        SetIdentity,
+        SetSubs,
+        ClearIdentity,
+        RequestJudgement,
+        CancelRequest,
+        SetFee,
+        SetAccountId,
+        SetFields,
+        ProvideJudgement,
+        KillIdentity,
+        AddSub,
+        RenameSub,
+        RemoveSub,
+        QuitSub,
+    }
+    impl CallInfo for Identity {
+        const PALLET: &'static str = "Identity";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::AddRegistrar => "add_registrar",
+                Self::SetIdentity => "set_identity",
+                Self::SetSubs => "set_subs",
+                Self::ClearIdentity => "clear_identity",
+                Self::RequestJudgement => "request_judgement",
+                Self::CancelRequest => "cancel_request",
+                Self::SetFee => "set_fee",
+                Self::SetAccountId => "set_account_id",
+                Self::SetFields => "set_fields",
+                Self::ProvideJudgement => "provide_judgement",
+                Self::KillIdentity => "kill_identity",
+                Self::AddSub => "add_sub",
+                Self::RenameSub => "rename_sub",
+                Self::RemoveSub => "remove_sub",
+                Self::QuitSub => "quit_sub",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `ImOnline`."]
+    pub enum ImOnline {
+        Heartbeat,
+    }
+    impl CallInfo for ImOnline {
+        const PALLET: &'static str = "ImOnline";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Heartbeat => "heartbeat",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Multisig`."]
+    pub enum Multisig {
+        AsMultiThreshold1,
+        AsMulti,
+        ApproveAsMulti,
+        CancelAsMulti,
+    }
+    impl CallInfo for Multisig {
+        const PALLET: &'static str = "Multisig";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::AsMultiThreshold1 => "as_multi_threshold_1",
+                Self::AsMulti => "as_multi",
+                Self::ApproveAsMulti => "approve_as_multi",
+                Self::CancelAsMulti => "cancel_as_multi",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Preimage`."]
+    pub enum Preimage {
+        NotePreimage,
+        UnnotePreimage,
+        RequestPreimage,
+        UnrequestPreimage,
+    }
+    impl CallInfo for Preimage {
+        const PALLET: &'static str = "Preimage";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::NotePreimage => "note_preimage",
+                Self::UnnotePreimage => "unnote_preimage",
+                Self::RequestPreimage => "request_preimage",
+                Self::UnrequestPreimage => "unrequest_preimage",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Proxy`."]
+    pub enum Proxy {
+        Proxy,
+        AddProxy,
+        RemoveProxy,
+        RemoveProxies,
+        CreatePure,
+        KillPure,
+        Announce,
+        RemoveAnnouncement,
+        RejectAnnouncement,
+        ProxyAnnounced,
+    }
+    impl CallInfo for Proxy {
+        const PALLET: &'static str = "Proxy";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Proxy => "proxy",
+                Self::AddProxy => "add_proxy",
+                Self::RemoveProxy => "remove_proxy",
+                Self::RemoveProxies => "remove_proxies",
+                Self::CreatePure => "create_pure",
+                Self::KillPure => "kill_pure",
+                Self::Announce => "announce",
+                Self::RemoveAnnouncement => "remove_announcement",
+                Self::RejectAnnouncement => "reject_announcement",
+                Self::ProxyAnnounced => "proxy_announced",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Referenda`."]
+    pub enum Referenda {
+        Submit,
+        PlaceDecisionDeposit,
+        RefundDecisionDeposit,
+        Cancel,
+        Kill,
+        NudgeReferendum,
+        OneFewerDeciding,
+        RefundSubmissionDeposit,
+        SetMetadata,
+    }
+    impl CallInfo for Referenda {
+        const PALLET: &'static str = "Referenda";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Submit => "submit",
+                Self::PlaceDecisionDeposit => "place_decision_deposit",
+                Self::RefundDecisionDeposit => "refund_decision_deposit",
+                Self::Cancel => "cancel",
+                Self::Kill => "kill",
+                Self::NudgeReferendum => "nudge_referendum",
+                Self::OneFewerDeciding => "one_fewer_deciding",
+                Self::RefundSubmissionDeposit => "refund_submission_deposit",
+                Self::SetMetadata => "set_metadata",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Scheduler`."]
+    pub enum Scheduler {
+        Schedule,
+        Cancel,
+        ScheduleNamed,
+        CancelNamed,
+        ScheduleAfter,
+        ScheduleNamedAfter,
+    }
+    impl CallInfo for Scheduler {
+        const PALLET: &'static str = "Scheduler";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Schedule => "schedule",
+                Self::Cancel => "cancel",
+                Self::ScheduleNamed => "schedule_named",
+                Self::CancelNamed => "cancel_named",
+                Self::ScheduleAfter => "schedule_after",
+                Self::ScheduleNamedAfter => "schedule_named_after",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Session`."]
+    pub enum Session {
+        SetKeys,
+        PurgeKeys,
+    }
+    impl CallInfo for Session {
+        const PALLET: &'static str = "Session";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::SetKeys => "set_keys",
+                Self::PurgeKeys => "purge_keys",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Staking`."]
+    pub enum Staking {
+        Bond,
+        BondExtra,
+        Unbond,
+        WithdrawUnbonded,
+        Validate,
+        Nominate,
+        Chill,
+        SetPayee,
+        SetController,
+        SetValidatorCount,
+        IncreaseValidatorCount,
+        ScaleValidatorCount,
+        ForceNoEras,
+        ForceNewEra,
+        SetInvulnerables,
+        ForceUnstake,
+        ForceNewEraAlways,
+        CancelDeferredSlash,
+        PayoutStakers,
+        Rebond,
+        ReapStash,
+        Kick,
+        SetStakingConfigs,
+        ChillOther,
+        ForceApplyMinCommission,
+        SetMinCommission,
+    }
+    impl CallInfo for Staking {
+        const PALLET: &'static str = "Staking";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Bond => "bond",
+                Self::BondExtra => "bond_extra",
+                Self::Unbond => "unbond",
+                Self::WithdrawUnbonded => "withdraw_unbonded",
+                Self::Validate => "validate",
+                Self::Nominate => "nominate",
+                Self::Chill => "chill",
+                Self::SetPayee => "set_payee",
+                Self::SetController => "set_controller",
+                Self::SetValidatorCount => "set_validator_count",
+                Self::IncreaseValidatorCount => "increase_validator_count",
+                Self::ScaleValidatorCount => "scale_validator_count",
+                Self::ForceNoEras => "force_no_eras",
+                Self::ForceNewEra => "force_new_era",
+                Self::SetInvulnerables => "set_invulnerables",
+                Self::ForceUnstake => "force_unstake",
+                Self::ForceNewEraAlways => "force_new_era_always",
+                Self::CancelDeferredSlash => "cancel_deferred_slash",
+                Self::PayoutStakers => "payout_stakers",
+                Self::Rebond => "rebond",
+                Self::ReapStash => "reap_stash",
+                Self::Kick => "kick",
+                Self::SetStakingConfigs => "set_staking_configs",
+                Self::ChillOther => "chill_other",
+                Self::ForceApplyMinCommission => "force_apply_min_commission",
+                Self::SetMinCommission => "set_min_commission",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `StakingRewards`."]
+    pub enum StakingRewards {
+        Refill,
+        ForceRefill,
+        Withdraw,
+    }
+    impl CallInfo for StakingRewards {
+        const PALLET: &'static str = "StakingRewards";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Refill => "refill",
+                Self::ForceRefill => "force_refill",
+                Self::Withdraw => "withdraw",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Sudo`."]
+    pub enum Sudo {
+        Sudo,
+        SudoUncheckedWeight,
+        SetKey,
+        SudoAs,
+    }
+    impl CallInfo for Sudo {
+        const PALLET: &'static str = "Sudo";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Sudo => "sudo",
+                Self::SudoUncheckedWeight => "sudo_unchecked_weight",
+                Self::SetKey => "set_key",
+                Self::SudoAs => "sudo_as",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `System`."]
+    pub enum System {
+        Remark,
+        SetHeapPages,
+        SetCode,
+        SetCodeWithoutChecks,
+        SetStorage,
+        KillStorage,
+        KillPrefix,
+        RemarkWithEvent,
+    }
+    impl CallInfo for System {
+        const PALLET: &'static str = "System";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Remark => "remark",
+                Self::SetHeapPages => "set_heap_pages",
+                Self::SetCode => "set_code",
+                Self::SetCodeWithoutChecks => "set_code_without_checks",
+                Self::SetStorage => "set_storage",
+                Self::KillStorage => "kill_storage",
+                Self::KillPrefix => "kill_prefix",
+                Self::RemarkWithEvent => "remark_with_event",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Timestamp`."]
+    pub enum Timestamp {
+        Set,
+    }
+    impl CallInfo for Timestamp {
+        const PALLET: &'static str = "Timestamp";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Set => "set",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Treasury`."]
+    pub enum Treasury {
+        ProposeSpend,
+        RejectProposal,
+        ApproveProposal,
+        Spend,
+        RemoveApproval,
+    }
+    impl CallInfo for Treasury {
+        const PALLET: &'static str = "Treasury";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::ProposeSpend => "propose_spend",
+                Self::RejectProposal => "reject_proposal",
+                Self::ApproveProposal => "approve_proposal",
+                Self::Spend => "spend",
+                Self::RemoveApproval => "remove_approval",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Utility`."]
+    pub enum Utility {
+        Batch,
+        AsDerivative,
+        BatchAll,
+        DispatchAs,
+        ForceBatch,
+        WithWeight,
+    }
+    impl CallInfo for Utility {
+        const PALLET: &'static str = "Utility";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Batch => "batch",
+                Self::AsDerivative => "as_derivative",
+                Self::BatchAll => "batch_all",
+                Self::DispatchAs => "dispatch_as",
+                Self::ForceBatch => "force_batch",
+                Self::WithWeight => "with_weight",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `ValidatorSet`."]
+    pub enum ValidatorSet {
+        AddValidator,
+        RemoveValidator,
+        AddValidatorAgain,
+    }
+    impl CallInfo for ValidatorSet {
+        const PALLET: &'static str = "ValidatorSet";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::AddValidator => "add_validator",
+                Self::RemoveValidator => "remove_validator",
+                Self::AddValidatorAgain => "add_validator_again",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Vesting`."]
+    pub enum Vesting {
+        Vest,
+        VestOther,
+        VestedTransfer,
+        ForceVestedTransfer,
+        MergeSchedules,
+    }
+    impl CallInfo for Vesting {
+        const PALLET: &'static str = "Vesting";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::Vest => "vest",
+                Self::VestOther => "vest_other",
+                Self::VestedTransfer => "vested_transfer",
+                Self::ForceVestedTransfer => "force_vested_transfer",
+                Self::MergeSchedules => "merge_schedules",
+            }
+        }
+    }
+    #[doc = "Calls of pallet `Whitelist`."]
+    pub enum Whitelist {
+        WhitelistCall,
+        RemoveWhitelistedCall,
+        DispatchWhitelistedCall,
+        DispatchWhitelistedCallWithPreimage,
+    }
+    impl CallInfo for Whitelist {
+        const PALLET: &'static str = "Whitelist";
+        fn call_name(&self) -> &str {
+            match self {
+                Self::WhitelistCall => "whitelist_call",
+                Self::RemoveWhitelistedCall => "remove_whitelisted_call",
+                Self::DispatchWhitelistedCall => "dispatch_whitelisted_call",
+                Self::DispatchWhitelistedCallWithPreimage => {
+                    "dispatch_whitelisted_call_with_preimage"
+                }
             }
         }
     }

@@ -30,8 +30,6 @@ fn main() {
     println!("cargo:rerun-if-changed=../runtime");
     println!("cargo:rerun-if-env-changed={}", GSDK_API_GEN);
 
-    println!("rebuild me plz");
-
     // This build script should only work when building gsdk as the primary package,
     // and the environment variable GSDK_API_GEN should be set to 1.
     if option_env!("CARGO_PRIMARY_PACKAGE") != Some("1") || env::var(GSDK_API_GEN) != Ok("1".into())
@@ -64,6 +62,8 @@ fn generate_api() -> Vec<u8> {
         (GSDK_API_GEN_RELATIVE_PATH, GSDK_API_GEN_PKG, vec![]),
     ]
     .map(|(relative_path, pkg, features)| get_path(root, &profile, relative_path, pkg, features));
+
+    // rebuild me.
 
     // Generate api
     let code = Command::new(api_gen)
