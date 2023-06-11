@@ -340,7 +340,7 @@ where
 
         syscall_trace!("alloc", pages);
 
-        ctx.run_any(RuntimeCosts::Alloc, |ctx| {
+        ctx.run_any(RuntimeCosts::Alloc(pages), |ctx| {
             let res = ctx.ext.alloc(pages, &mut ctx.memory);
             let res = ctx.process_alloc_func_result(res)?;
 

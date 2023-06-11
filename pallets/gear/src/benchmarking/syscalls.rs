@@ -156,10 +156,11 @@ where
         )
     }
 
-    pub fn alloc(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn alloc(repetitions: u32, pages: u32) -> Result<Exec<T>, &'static str> {
+        assert!(repetitions * pages <= max_pages::<T>() as u32);
+
         let mut instructions = vec![
-            // Alloc 0 pages take almost the same amount of resources as another amount.
-            Instruction::I32Const(0),
+            Instruction::I32Const(pages as i32),
             Instruction::Call(0),
             Instruction::I32Const(i32::MAX),
         ];
@@ -169,7 +170,10 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
             imported_functions: vec![SysCallName::Alloc],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &instructions)),
+            handle_body: Some(body::repeated(
+                repetitions * API_BENCHMARK_BATCH_SIZE,
+                &instructions,
+            )),
             ..Default::default()
         };
 

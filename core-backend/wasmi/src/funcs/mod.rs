@@ -209,7 +209,7 @@ where
         state.ext.status_code()
     }
 
-    #[host(state_taken, cost = RuntimeCosts::Alloc)]
+    #[host(state_taken, cost = RuntimeCosts::Alloc(pages))]
     pub fn alloc(ctx: CallerWrap<E>, state: &mut State<E>, pages: u32) -> FnResult<u32> {
         let mut mem = CallerWrap::memory(&mut ctx.caller, ctx.memory);
 

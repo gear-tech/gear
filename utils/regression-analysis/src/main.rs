@@ -307,6 +307,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                 HostFnWeights {
                     _phantom,
                     alloc,
+                    alloc_per_page,
                     free,
                     gr_gas_available,
                     gr_message_id,

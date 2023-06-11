@@ -615,10 +615,23 @@ benchmarks! {
         Gear::<T>::reinstrument_code(code_id, &schedule);
     }
 
+    // Alloc there 1 page because `alloc` execution time is nearly a constant for any non-zero amount of pages but for 0 pages it's significally less.
     alloc {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::alloc(r)?;
+        let exec = Benches::<T>::alloc(r, 1)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    // For now it's nearly a constant for any non-zero amount of pages.
+    alloc_per_page {
+        let p in 1..MAX_PAGES;
+        let mut res = None;
+        let exec = Benches::<T>::alloc(1, p)?;
     }: {
         res.replace(run_process(exec));
     }
