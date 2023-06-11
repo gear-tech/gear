@@ -26,40 +26,30 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod bounded_vec {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct BoundedVec<_0>(pub ::std::vec::Vec<_0>);
             }
             pub mod weak_bounded_vec {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct WeakBoundedVec<_0>(pub ::std::vec::Vec<_0>);
             }
         }
         pub mod finality_grandpa {
             use super::runtime_types;
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Equivocation<_0, _1, _2> {
                 pub round_number: ::core::primitive::u64,
                 pub identity: _0,
                 pub first: (_1, _2),
                 pub second: (_1, _2),
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Precommit<_0, _1> {
                 pub target_hash: _0,
                 pub target_number: _1,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Prevote<_0, _1> {
                 pub target_hash: _0,
                 pub target_number: _1,
@@ -69,9 +59,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod dispatch {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum DispatchClass {
                     #[codec(index = 0)]
                     Normal,
@@ -80,42 +68,32 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     Mandatory,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct DispatchInfo {
                     pub weight: runtime_types::sp_weights::weight_v2::Weight,
                     pub class: runtime_types::frame_support::dispatch::DispatchClass,
                     pub pays_fee: runtime_types::frame_support::dispatch::Pays,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum Pays {
                     #[codec(index = 0)]
                     Yes,
                     #[codec(index = 1)]
                     No,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct PerDispatchClass<_0> {
                     pub normal: _0,
                     pub operational: _0,
                     pub mandatory: _0,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct PostDispatchInfo {
                     pub actual_weight:
                         ::core::option::Option<runtime_types::sp_weights::weight_v2::Weight>,
                     pub pays_fee: runtime_types::frame_support::dispatch::Pays,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum RawOrigin<_0> {
                     #[codec(index = 0)]
                     Root,
@@ -129,11 +107,7 @@ pub mod runtime_types {
                 use super::runtime_types;
                 pub mod misc {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct WrapperOpaque<_0>(
                         #[codec(compact)] pub ::core::primitive::u32,
                         pub _0,
@@ -141,11 +115,7 @@ pub mod runtime_types {
                 }
                 pub mod preimages {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub enum Bounded<_0> {
                         #[codec(index = 0)]
                         Legacy {
@@ -167,11 +137,7 @@ pub mod runtime_types {
                 }
                 pub mod schedule {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub enum DispatchTime<_0> {
                         #[codec(index = 0)]
                         At(_0),
@@ -184,9 +150,7 @@ pub mod runtime_types {
                     pub mod misc {
                         use super::runtime_types;
                         #[derive(
-                            ::subxt::ext::codec::Decode,
-                            ::subxt::ext::codec::Encode,
-                            Debug,
+                            ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
                         )]
                         pub enum BalanceStatus {
                             #[codec(index = 0)]
@@ -197,9 +161,7 @@ pub mod runtime_types {
                     }
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct PalletId(pub [::core::primitive::u8; 8usize]);
         }
         pub mod frame_system {
@@ -208,81 +170,49 @@ pub mod runtime_types {
                 use super::runtime_types;
                 pub mod check_genesis {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct CheckGenesis;
                 }
                 pub mod check_mortality {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct CheckMortality(pub runtime_types::sp_runtime::generic::era::Era);
                 }
                 pub mod check_non_zero_sender {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct CheckNonZeroSender;
                 }
                 pub mod check_nonce {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct CheckNonce(#[codec(compact)] pub ::core::primitive::u32);
                 }
                 pub mod check_spec_version {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct CheckSpecVersion;
                 }
                 pub mod check_tx_version {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct CheckTxVersion;
                 }
                 pub mod check_weight {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct CheckWeight;
                 }
             }
             pub mod limits {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct BlockLength {
                     pub max: runtime_types::frame_support::dispatch::PerDispatchClass<
                         ::core::primitive::u32,
                     >,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct BlockWeights {
                     pub base_block: runtime_types::sp_weights::weight_v2::Weight,
                     pub max_block: runtime_types::sp_weights::weight_v2::Weight,
@@ -290,9 +220,7 @@ pub mod runtime_types {
                         runtime_types::frame_system::limits::WeightsPerClass,
                     >,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct WeightsPerClass {
                     pub base_extrinsic: runtime_types::sp_weights::weight_v2::Weight,
                     pub max_extrinsic:
@@ -305,9 +233,7 @@ pub mod runtime_types {
             }
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -365,9 +291,7 @@ pub mod runtime_types {
                         remark: ::std::vec::Vec<::core::primitive::u8>,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Error for the System pallet"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -393,9 +317,7 @@ pub mod runtime_types {
                     #[doc = "The origin filter prevent the call to be dispatched."]
                     CallFiltered,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Event for the System pallet."]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -414,14 +336,10 @@ pub mod runtime_types {
                     CodeUpdated,
                     #[codec(index = 3)]
                     #[doc = "A new account was created."]
-                    NewAccount {
-                        account: sp_runtime::AccountId32,
-                    },
+                    NewAccount { account: sp_runtime::AccountId32 },
                     #[codec(index = 4)]
                     #[doc = "An account was reaped."]
-                    KilledAccount {
-                        account: sp_runtime::AccountId32,
-                    },
+                    KilledAccount { account: sp_runtime::AccountId32 },
                     #[codec(index = 5)]
                     #[doc = "On on-chain remark happened."]
                     Remarked {
@@ -430,9 +348,7 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct AccountInfo<_0, _1> {
                 pub nonce: _0,
                 pub consumers: _0,
@@ -440,25 +356,19 @@ pub mod runtime_types {
                 pub sufficients: _0,
                 pub data: _1,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct EventRecord<_0, _1> {
                 pub phase: runtime_types::frame_system::Phase,
                 pub event: _0,
                 pub topics: ::std::vec::Vec<_1>,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct LastRuntimeUpgradeInfo {
                 #[codec(compact)]
                 pub spec_version: ::core::primitive::u32,
                 pub spec_name: ::std::string::String,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum Phase {
                 #[codec(index = 0)]
                 ApplyExtrinsic(::core::primitive::u32),
@@ -472,9 +382,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod event {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum CodeChangeKind<_0> {
                     #[codec(index = 0)]
                     Active {
@@ -485,9 +393,7 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     Reinstrumented,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum DispatchStatus {
                     #[codec(index = 0)]
                     Success,
@@ -496,9 +402,7 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     NotExecuted,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum MessageEntry {
                     #[codec(index = 0)]
                     Init,
@@ -509,9 +413,7 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     Signal,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum MessageWaitedRuntimeReason {
                     #[codec(index = 0)]
                     WaitCalled,
@@ -522,23 +424,17 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     WaitUpToCalledFull,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum MessageWaitedSystemReason {
                     #[codec(index = 0)]
                     ProgramIsNotInitialized,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum MessageWokenRuntimeReason {
                     #[codec(index = 0)]
                     WakeCalled,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum MessageWokenSystemReason {
                     #[codec(index = 0)]
                     ProgramGotInitialized,
@@ -547,9 +443,7 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     OutOfRent,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum ProgramChangeKind<_0> {
                     #[codec(index = 0)]
                     Active { expiration: _0 },
@@ -564,27 +458,21 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     ProgramSet { expiration: _0 },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum Reason<_0, _1> {
                     #[codec(index = 0)]
                     Runtime(_0),
                     #[codec(index = 1)]
                     System(_1),
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum UserMessageReadRuntimeReason {
                     #[codec(index = 0)]
                     MessageReplied,
                     #[codec(index = 1)]
                     MessageClaimed,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum UserMessageReadSystemReason {
                     #[codec(index = 0)]
                     OutOfRent,
@@ -594,20 +482,12 @@ pub mod runtime_types {
                 use super::runtime_types;
                 pub mod node {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct ChildrenRefs {
                         pub spec_refs: ::core::primitive::u32,
                         pub unspec_refs: ::core::primitive::u32,
                     }
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub enum GasNode<_0, _1, _2> {
                         #[codec(index = 0)]
                         External {
@@ -649,22 +529,14 @@ pub mod runtime_types {
                             system_reserve: _2,
                         },
                     }
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub enum GasNodeId<_0, _1> {
                         #[codec(index = 0)]
                         Node(_0),
                         #[codec(index = 1)]
                         Reservation(_1),
                     }
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct NodeLock<_0>(pub [_0; 4usize]);
                 }
             }
@@ -672,11 +544,7 @@ pub mod runtime_types {
                 use super::runtime_types;
                 pub mod task {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub enum ScheduledTask<_0> {
                         #[codec(index = 0)]
                         PauseProgram(runtime_types::gear_core::ids::ProgramId),
@@ -718,9 +586,7 @@ pub mod runtime_types {
                     pub mod dequeue {
                         use super::runtime_types;
                         #[derive(
-                            ::subxt::ext::codec::Decode,
-                            ::subxt::ext::codec::Encode,
-                            Debug,
+                            ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
                         )]
                         pub struct LinkedNode<_0, _1> {
                             pub next: ::core::option::Option<_0>,
@@ -730,20 +596,14 @@ pub mod runtime_types {
                 }
                 pub mod primitives {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct Interval<_0> {
                         pub start: _0,
                         pub finish: _0,
                     }
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct ActiveProgram<_0> {
                 pub allocations: ::std::vec::Vec<runtime_types::gear_core::memory::WasmPage>,
                 pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::memory::GearPage>,
@@ -757,17 +617,13 @@ pub mod runtime_types {
                 pub state: runtime_types::gear_common::ProgramState,
                 pub expiration_block: _0,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct CodeMetadata {
                 pub author: ::subxt::utils::H256,
                 #[codec(compact)]
                 pub block_number: ::core::primitive::u32,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum Program<_0> {
                 #[codec(index = 0)]
                 Active(runtime_types::gear_common::ActiveProgram<_0>),
@@ -776,9 +632,7 @@ pub mod runtime_types {
                 #[codec(index = 2)]
                 Terminated(runtime_types::gear_core::ids::ProgramId),
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum ProgramState {
                 #[codec(index = 0)]
                 Uninitialized {
@@ -792,9 +646,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod buffer {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct LimitedVec<_0, _1>(
                     pub ::std::vec::Vec<_0>,
                     #[codec(skip)] pub ::core::marker::PhantomData<_1>,
@@ -802,9 +654,7 @@ pub mod runtime_types {
             }
             pub mod code {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct InstrumentedCode {
                     pub code: ::std::vec::Vec<::core::primitive::u8>,
                     pub original_code_len: ::core::primitive::u32,
@@ -815,21 +665,13 @@ pub mod runtime_types {
             }
             pub mod ids {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct CodeId(pub [::core::primitive::u8; 32usize]);
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct MessageId(pub [::core::primitive::u8; 32usize]);
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct ProgramId(pub [::core::primitive::u8; 32usize]);
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct ReservationId(pub [::core::primitive::u8; 32usize]);
             }
             pub mod memory {
@@ -841,9 +683,7 @@ pub mod runtime_types {
                     Debug,
                 )]
                 pub struct GearPage(pub ::core::primitive::u32);
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct PageBuf(
                     pub runtime_types::gear_core::buffer::LimitedVec<::core::primitive::u8, ()>,
                 );
@@ -859,31 +699,19 @@ pub mod runtime_types {
                 use super::runtime_types;
                 pub mod common {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub enum MessageDetails {
                         #[codec(index = 0)]
                         Reply(runtime_types::gear_core::message::common::ReplyDetails),
                         #[codec(index = 1)]
                         Signal(runtime_types::gear_core::message::common::SignalDetails),
                     }
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct ReplyDetails {
                         pub reply_to: runtime_types::gear_core::ids::MessageId,
                         pub status_code: ::core::primitive::i32,
                     }
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct SignalDetails {
                         pub from: runtime_types::gear_core::ids::MessageId,
                         pub status_code: ::core::primitive::i32,
@@ -891,11 +719,7 @@ pub mod runtime_types {
                 }
                 pub mod context {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct ContextStore {
                         pub outgoing: ::subxt::utils::KeyedVec<
                             ::core::primitive::u32,
@@ -921,11 +745,7 @@ pub mod runtime_types {
                 }
                 pub mod stored {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct StoredDispatch {
                         pub kind: runtime_types::gear_core::message::DispatchKind,
                         pub message: runtime_types::gear_core::message::stored::StoredMessage,
@@ -933,11 +753,7 @@ pub mod runtime_types {
                             runtime_types::gear_core::message::context::ContextStore,
                         >,
                     }
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct StoredMessage {
                         pub id: runtime_types::gear_core::ids::MessageId,
                         pub source: runtime_types::gear_core::ids::ProgramId,
@@ -953,9 +769,7 @@ pub mod runtime_types {
                         >,
                     }
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum DispatchKind {
                     #[codec(index = 0)]
                     Init,
@@ -966,16 +780,12 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     Signal,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct PayloadSizeError;
             }
             pub mod reservation {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct GasReservationSlot {
                     pub amount: ::core::primitive::u64,
                     pub start: ::core::primitive::u32,
@@ -987,9 +797,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1010,9 +818,7 @@ pub mod runtime_types {
                         amount: ::core::primitive::u128,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -1027,9 +833,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1079,9 +883,7 @@ pub mod runtime_types {
                         config: runtime_types::sp_consensus_babe::digests::NextConfigDescriptor,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -1103,16 +905,12 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod list {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Bag {
                     pub head: ::core::option::Option<sp_runtime::AccountId32>,
                     pub tail: ::core::option::Option<sp_runtime::AccountId32>,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum ListError {
                     #[codec(index = 0)]
                     Duplicate,
@@ -1123,9 +921,7 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     NodeNotFound,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Node {
                     pub id: sp_runtime::AccountId32,
                     pub prev: ::core::option::Option<sp_runtime::AccountId32>,
@@ -1136,9 +932,7 @@ pub mod runtime_types {
             }
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1168,18 +962,14 @@ pub mod runtime_types {
                         lighter: sp_runtime::MultiAddress<sp_runtime::AccountId32, ()>,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
                     #[doc = "A error in the list interface implementation."]
                     List(runtime_types::pallet_bags_list::list::ListError),
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -1202,9 +992,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1305,9 +1093,7 @@ pub mod runtime_types {
                         amount: ::core::primitive::u128,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -1335,9 +1121,7 @@ pub mod runtime_types {
                     #[doc = "Number of named reserves exceed MaxReserves"]
                     TooManyReserves,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -1409,26 +1193,20 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct AccountData<_0> {
                 pub free: _0,
                 pub reserved: _0,
                 pub misc_frozen: _0,
                 pub fee_frozen: _0,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct BalanceLock<_0> {
                 pub id: [::core::primitive::u8; 8usize],
                 pub amount: _0,
                 pub reasons: runtime_types::pallet_balances::Reasons,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum Reasons {
                 #[codec(index = 0)]
                 Fee,
@@ -1437,9 +1215,7 @@ pub mod runtime_types {
                 #[codec(index = 2)]
                 All,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct ReserveData<_0, _1> {
                 pub id: _0,
                 pub amount: _1,
@@ -1449,9 +1225,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod conviction {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum Conviction {
                     #[codec(index = 0)]
                     None,
@@ -1471,9 +1245,7 @@ pub mod runtime_types {
             }
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1610,9 +1382,7 @@ pub mod runtime_types {
                         index: ::core::primitive::u32,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -1653,9 +1423,7 @@ pub mod runtime_types {
                     #[doc = "The class ID supplied is invalid."]
                     BadClass,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -1668,16 +1436,12 @@ pub mod runtime_types {
             }
             pub mod types {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Delegations<_0> {
                     pub votes: _0,
                     pub capital: _0,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Tally<_0> {
                     pub ayes: _0,
                     pub nays: _0,
@@ -1686,9 +1450,7 @@ pub mod runtime_types {
             }
             pub mod vote {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum AccountVote<_0> {
                     #[codec(index = 0)]
                     Standard {
@@ -1700,9 +1462,7 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     SplitAbstain { aye: _0, nay: _0, abstain: _0 },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Casting<_0, _1, _2> {
                     pub votes: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
                         _1,
@@ -1714,9 +1474,7 @@ pub mod runtime_types {
                     #[codec(skip)]
                     pub __subxt_unused_type_params: ::core::marker::PhantomData<_2>,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Delegating<_0, _1, _2> {
                     pub balance: _0,
                     pub target: _1,
@@ -1725,9 +1483,7 @@ pub mod runtime_types {
                         runtime_types::pallet_conviction_voting::types::Delegations<_0>,
                     pub prior: runtime_types::pallet_conviction_voting::vote::PriorLock<_2, _0>,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct PriorLock<_0, _1>(pub _0, pub _1);
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
@@ -1736,9 +1492,7 @@ pub mod runtime_types {
                     Debug,
                 )]
                 pub struct Vote(pub ::core::primitive::u8);
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum Voting<_0, _1, _2, _3> {
                     #[codec(index = 0)]
                     Casting(runtime_types::pallet_conviction_voting::vote::Casting<_0, _2, _2>),
@@ -1754,9 +1508,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1920,9 +1672,7 @@ pub mod runtime_types {
                         block_count: ::core::primitive::u32,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -1983,9 +1733,7 @@ pub mod runtime_types {
                     #[doc = "Program with the specified id is not found."]
                     ProgramNotFound,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -2074,9 +1822,7 @@ pub mod runtime_types {
             }
             pub mod schedule {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct HostFnWeights {
                     pub alloc: runtime_types::sp_weights::weight_v2::Weight,
                     pub free: runtime_types::sp_weights::weight_v2::Weight,
@@ -2151,9 +1897,7 @@ pub mod runtime_types {
                     pub gr_create_program_wgas_salt_per_byte:
                         runtime_types::sp_weights::weight_v2::Weight,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct InstructionWeights {
                     pub version: ::core::primitive::u32,
                     pub i64const: ::core::primitive::u32,
@@ -2244,9 +1988,7 @@ pub mod runtime_types {
                     pub i64rotr: ::core::primitive::u32,
                     pub i32rotr: ::core::primitive::u32,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Limits {
                     pub stack_height: ::core::option::Option<::core::primitive::u32>,
                     pub globals: ::core::primitive::u32,
@@ -2260,9 +2002,7 @@ pub mod runtime_types {
                     pub payload_len: ::core::primitive::u32,
                     pub code_len: ::core::primitive::u32,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct MemoryWeights {
                     pub lazy_pages_signal_read: runtime_types::sp_weights::weight_v2::Weight,
                     pub lazy_pages_signal_write: runtime_types::sp_weights::weight_v2::Weight,
@@ -2278,9 +2018,7 @@ pub mod runtime_types {
                     pub mem_grow: runtime_types::sp_weights::weight_v2::Weight,
                     pub parachain_read_heuristic: runtime_types::sp_weights::weight_v2::Weight,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Schedule {
                     pub limits: runtime_types::pallet_gear::schedule::Limits,
                     pub instruction_weights:
@@ -2300,9 +2038,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -2319,23 +2055,17 @@ pub mod runtime_types {
                         debug_mode_on: ::core::primitive::bool,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct DebugData {
                     pub dispatch_queue:
                         ::std::vec::Vec<runtime_types::gear_core::message::stored::StoredDispatch>,
                     pub programs:
                         ::std::vec::Vec<runtime_types::pallet_gear_debug::pallet::ProgramDetails>,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {}
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -2344,16 +2074,12 @@ pub mod runtime_types {
                     #[doc = "A snapshot of the debug data: programs and message queue ('debug mode' only)"]
                     DebugDataSnapshot(runtime_types::pallet_gear_debug::pallet::DebugData),
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct ProgramDetails {
                     pub id: runtime_types::gear_core::ids::ProgramId,
                     pub state: runtime_types::pallet_gear_debug::pallet::ProgramState,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct ProgramInfo {
                     pub static_pages: runtime_types::gear_core::memory::WasmPage,
                     pub persistent_pages: ::subxt::utils::KeyedVec<
@@ -2362,9 +2088,7 @@ pub mod runtime_types {
                     >,
                     pub code_hash: ::subxt::utils::H256,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum ProgramState {
                     #[codec(index = 0)]
                     Active(runtime_types::pallet_gear_debug::pallet::ProgramInfo),
@@ -2377,9 +2101,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2437,9 +2159,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2489,9 +2209,7 @@ pub mod runtime_types {
         }
         pub mod pallet_gear_payment {
             use super::runtime_types;
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct CustomChargeTransactionPayment<_0>(
                 pub runtime_types::pallet_transaction_payment::ChargeTransactionPayment,
                 #[codec(skip)] pub ::core::marker::PhantomData<_0>,
@@ -2501,9 +2219,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2521,9 +2237,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2539,16 +2253,12 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod extension {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct StakingBlackList;
             }
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -2564,9 +2274,7 @@ pub mod runtime_types {
                         value: ::core::primitive::u128,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Error for the staking rewards pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2576,9 +2284,7 @@ pub mod runtime_types {
                     #[doc = "Failure to withdraw funds from the rewards pool."]
                     FailureToWithdrawFromPool,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -2597,9 +2303,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -2653,9 +2357,7 @@ pub mod runtime_types {
                         best_finalized_block_number: ::core::primitive::u32,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2682,9 +2384,7 @@ pub mod runtime_types {
                     #[doc = "A given equivocation report is valid but already previously reported."]
                     DuplicateOffenceReport,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -2703,9 +2403,7 @@ pub mod runtime_types {
                     Resumed,
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct StoredPendingChange<_0> {
                 pub scheduled_at: _0,
                 pub delay: _0,
@@ -2716,9 +2414,7 @@ pub mod runtime_types {
                     )>,
                 pub forced: ::core::option::Option<_0>,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum StoredState<_0> {
                 #[codec(index = 0)]
                 Live,
@@ -2734,9 +2430,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Identity pallet declaration."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3003,9 +2697,7 @@ pub mod runtime_types {
                     #[doc = "controller of an account is maliciously registered as a sub-account."]
                     quit_sub,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3063,9 +2755,7 @@ pub mod runtime_types {
                     #[doc = "Error that occurs when there is an issue paying for judgement."]
                     JudgementPaymentFailed,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -3142,9 +2832,7 @@ pub mod runtime_types {
                     pub ::core::primitive::u64,
                     #[codec(skip)] pub ::core::marker::PhantomData<_0>,
                 );
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum Data {
                     #[codec(index = 0)]
                     None,
@@ -3223,9 +2911,7 @@ pub mod runtime_types {
                     #[codec(index = 37)]
                     ShaThree256([::core::primitive::u8; 32usize]),
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum IdentityField {
                     #[codec(index = 1)]
                     Display,
@@ -3244,9 +2930,7 @@ pub mod runtime_types {
                     #[codec(index = 128)]
                     Twitter,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct IdentityInfo {
                     pub additional: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
                         runtime_types::pallet_identity::types::Data,
@@ -3261,9 +2945,7 @@ pub mod runtime_types {
                     pub image: runtime_types::pallet_identity::types::Data,
                     pub twitter: runtime_types::pallet_identity::types::Data,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum Judgement<_0> {
                     #[codec(index = 0)]
                     Unknown,
@@ -3280,9 +2962,7 @@ pub mod runtime_types {
                     #[codec(index = 6)]
                     Erroneous,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct RegistrarInfo<_0, _1> {
                     pub account: _1,
                     pub fee: _0,
@@ -3290,9 +2970,7 @@ pub mod runtime_types {
                         runtime_types::pallet_identity::types::IdentityField,
                     >,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Registration<_0> {
                     pub judgements: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
                         ::core::primitive::u32,
@@ -3307,9 +2985,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3324,9 +3000,7 @@ pub mod runtime_types {
                         signature: runtime_types::pallet_im_online::sr25519::app_sr25519::Signature,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3336,9 +3010,7 @@ pub mod runtime_types {
                     #[doc = "Duplicated heartbeat."]
                     DuplicatedHeartbeat,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -3366,23 +3038,13 @@ pub mod runtime_types {
                 use super::runtime_types;
                 pub mod app_sr25519 {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct Public(pub runtime_types::sp_core::sr25519::Public);
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct Signature(pub runtime_types::sp_core::sr25519::Signature);
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct BoundedOpaqueNetworkState {
                 pub peer_id: runtime_types::bounded_collections::weak_bounded_vec::WeakBoundedVec<
                     ::core::primitive::u8,
@@ -3394,9 +3056,7 @@ pub mod runtime_types {
                         >,
                     >,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Heartbeat<_0> {
                 pub block_number: _0,
                 pub network_state: runtime_types::sp_core::offchain::OpaqueNetworkState,
@@ -3409,9 +3069,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3550,9 +3208,7 @@ pub mod runtime_types {
                         call_hash: [::core::primitive::u8; 32usize],
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3598,9 +3254,7 @@ pub mod runtime_types {
                     #[doc = "The data to be stored is already stored."]
                     AlreadyStored,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -3641,18 +3295,14 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Multisig<_0, _1, _2> {
                 pub when: runtime_types::pallet_multisig::Timepoint<_0>,
                 pub deposit: _1,
                 pub depositor: _2,
                 pub approvals: runtime_types::bounded_collections::bounded_vec::BoundedVec<_2>,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Timepoint<_0> {
                 pub height: _0,
                 pub index: _0,
@@ -3662,9 +3312,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3695,9 +3343,7 @@ pub mod runtime_types {
                     #[doc = "NOTE: THIS MUST NOT BE CALLED ON `hash` MORE TIMES THAN `request_preimage`."]
                     unrequest_preimage { hash: ::subxt::utils::H256 },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3719,9 +3365,7 @@ pub mod runtime_types {
                     #[doc = "The preimage request cannot be removed since no outstanding requests exist."]
                     NotRequested,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -3735,9 +3379,7 @@ pub mod runtime_types {
                     Cleared { hash: ::subxt::utils::H256 },
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum RequestStatus<_0, _1> {
                 #[codec(index = 0)]
                 Unrequested {
@@ -3756,9 +3398,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3933,9 +3573,7 @@ pub mod runtime_types {
                         call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3963,9 +3601,7 @@ pub mod runtime_types {
                     #[doc = "Cannot add self as proxy."]
                     NoSelfProxy,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4008,17 +3644,13 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Announcement<_0, _1, _2> {
                 pub real: _0,
                 pub call_hash: _1,
                 pub height: _2,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct ProxyDefinition<_0, _1, _2> {
                 pub delegate: _0,
                 pub proxy_type: _1,
@@ -4029,9 +3661,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -4110,9 +3740,7 @@ pub mod runtime_types {
                         max: ::core::primitive::u32,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -4143,9 +3771,7 @@ pub mod runtime_types {
                     #[doc = "The origin is not sufficiently privileged to do the operation."]
                     NoPermission,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4183,17 +3809,13 @@ pub mod runtime_types {
             pub struct MemberRecord {
                 pub rank: ::core::primitive::u16,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Tally {
                 pub bare_ayes: ::core::primitive::u32,
                 pub ayes: ::core::primitive::u32,
                 pub nays: ::core::primitive::u32,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum VoteRecord {
                 #[codec(index = 0)]
                 Aye(::core::primitive::u32),
@@ -4205,9 +3827,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -4305,9 +3925,7 @@ pub mod runtime_types {
                         maybe_hash: ::core::option::Option<::subxt::utils::H256>,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -4350,9 +3968,7 @@ pub mod runtime_types {
                     #[doc = "The preimage does not exist."]
                     PreimageNotExist,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4454,9 +4070,7 @@ pub mod runtime_types {
             }
             pub mod types {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum Curve {
                     #[codec(index = 0)]
                     LinearDecreasing {
@@ -4478,23 +4092,17 @@ pub mod runtime_types {
                         y_offset: runtime_types::sp_arithmetic::fixed_point::FixedI64,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct DecidingStatus<_0> {
                     pub since: _0,
                     pub confirming: ::core::option::Option<_0>,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Deposit<_0, _1> {
                     pub who: _0,
                     pub amount: _1,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum ReferendumInfo<_0, _1, _2, _3, _4, _5, _6, _7> {
                     #[codec(index = 0)]
                     Ongoing(
@@ -4552,9 +4160,7 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     Killed(_2),
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct ReferendumStatus<_0, _1, _2, _3, _4, _5, _6, _7> {
                     pub track: _0,
                     pub origin: _1,
@@ -4572,9 +4178,7 @@ pub mod runtime_types {
                     pub in_queue: ::core::primitive::bool,
                     pub alarm: ::core::option::Option<(_2, _7)>,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct TrackInfo<_0, _1> {
                     pub name: ::std::string::String,
                     pub max_deciding: _1,
@@ -4592,9 +4196,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -4655,9 +4257,7 @@ pub mod runtime_types {
                         call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -4676,9 +4276,7 @@ pub mod runtime_types {
                     #[doc = "Attempt to use a non-named function on a named task."]
                     Named,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Events type."]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4721,9 +4319,7 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Scheduled<_0, _1, _2, _3, _4> {
                 pub maybe_id: ::core::option::Option<_0>,
                 pub priority: ::core::primitive::u8,
@@ -4738,9 +4334,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -4772,9 +4366,7 @@ pub mod runtime_types {
                     #[doc = "  `T::Keys::key_ids()` which is fixed."]
                     purge_keys,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Error for the session pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -4793,9 +4385,7 @@ pub mod runtime_types {
                     #[doc = "Key setting account is not live, so it's impossible to associate keys."]
                     NoAccount,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4813,11 +4403,7 @@ pub mod runtime_types {
                 use super::runtime_types;
                 pub mod pallet {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                     pub enum Call {
                         #[codec(index = 0)]
@@ -4837,8 +4423,7 @@ pub mod runtime_types {
                         #[doc = "NOTE: Two of the storage writes (`Self::bonded`, `Self::payee`) are _never_ cleaned"]
                         #[doc = "unless the `origin` falls below _existential deposit_ and gets removed as dust."]
                         bond {
-                            controller:
-                                sp_runtime::MultiAddress<sp_runtime::AccountId32, ()>,
+                            controller: sp_runtime::MultiAddress<sp_runtime::AccountId32, ()>,
                             #[codec(compact)]
                             value: ::core::primitive::u128,
                             payee: runtime_types::pallet_staking::RewardDestination<
@@ -4974,8 +4559,7 @@ pub mod runtime_types {
                         #[doc = "- Contains a limited number of reads."]
                         #[doc = "- Writes are limited to the `origin` account key."]
                         set_controller {
-                            controller:
-                                sp_runtime::MultiAddress<sp_runtime::AccountId32, ()>,
+                            controller: sp_runtime::MultiAddress<sp_runtime::AccountId32, ()>,
                         },
                         #[codec(index = 9)]
                         #[doc = "Sets the ideal number of validators."]
@@ -5210,9 +4794,7 @@ pub mod runtime_types {
                         #[doc = ""]
                         #[doc = "This can be helpful if bond requirements are updated, and we need to remove old users"]
                         #[doc = "who do not satisfy these requirements."]
-                        chill_other {
-                            controller: sp_runtime::AccountId32,
-                        },
+                        chill_other { controller: sp_runtime::AccountId32 },
                         #[codec(index = 24)]
                         #[doc = "Force a validator to have at least the minimum commission. This will not affect a"]
                         #[doc = "validator who already has a commission greater than or equal to the minimum. Any account"]
@@ -5229,11 +4811,7 @@ pub mod runtime_types {
                             new: runtime_types::sp_arithmetic::per_things::Perbill,
                         },
                     }
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub enum ConfigOp<_0> {
                         #[codec(index = 0)]
                         Noop,
@@ -5242,11 +4820,7 @@ pub mod runtime_types {
                         #[codec(index = 2)]
                         Remove,
                     }
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                     pub enum Error {
                         #[codec(index = 0)]
@@ -5329,11 +4903,7 @@ pub mod runtime_types {
                         #[doc = "Some bound is not met."]
                         BoundNotMet,
                     }
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                     pub enum Event {
                         #[codec(index = 0)]
@@ -5429,40 +4999,30 @@ pub mod runtime_types {
             }
             pub mod slashing {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct SlashingSpans {
                     pub span_index: ::core::primitive::u32,
                     pub last_start: ::core::primitive::u32,
                     pub last_nonzero_slash: ::core::primitive::u32,
                     pub prior: ::std::vec::Vec<::core::primitive::u32>,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct SpanRecord<_0> {
                     pub slashed: _0,
                     pub paid_out: _0,
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct ActiveEraInfo {
                 pub index: ::core::primitive::u32,
                 pub start: ::core::option::Option<::core::primitive::u64>,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct EraRewardPoints<_0> {
                 pub total: ::core::primitive::u32,
                 pub individual: ::subxt::utils::KeyedVec<_0, ::core::primitive::u32>,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Exposure<_0, _1> {
                 #[codec(compact)]
                 pub total: _1,
@@ -5471,9 +5031,7 @@ pub mod runtime_types {
                 pub others:
                     ::std::vec::Vec<runtime_types::pallet_staking::IndividualExposure<_0, _1>>,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum Forcing {
                 #[codec(index = 0)]
                 NotForcing,
@@ -5484,17 +5042,13 @@ pub mod runtime_types {
                 #[codec(index = 3)]
                 ForceAlways,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct IndividualExposure<_0, _1> {
                 pub who: _0,
                 #[codec(compact)]
                 pub value: _1,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Nominations {
                 pub targets: runtime_types::bounded_collections::bounded_vec::BoundedVec<
                     sp_runtime::AccountId32,
@@ -5502,9 +5056,7 @@ pub mod runtime_types {
                 pub submitted_in: ::core::primitive::u32,
                 pub suppressed: ::core::primitive::bool,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum RewardDestination<_0> {
                 #[codec(index = 0)]
                 Staked,
@@ -5517,9 +5069,7 @@ pub mod runtime_types {
                 #[codec(index = 4)]
                 None,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct StakingLedger {
                 pub stash: sp_runtime::AccountId32,
                 #[codec(compact)]
@@ -5533,9 +5083,7 @@ pub mod runtime_types {
                     ::core::primitive::u32,
                 >,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct UnappliedSlash<_0, _1> {
                 pub validator: _0,
                 pub own: _1,
@@ -5543,18 +5091,14 @@ pub mod runtime_types {
                 pub reporters: ::std::vec::Vec<_0>,
                 pub payout: _1,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct UnlockChunk<_0> {
                 #[codec(compact)]
                 pub value: _0,
                 #[codec(compact)]
                 pub era: ::core::primitive::u32,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct ValidatorPrefs {
                 #[codec(compact)]
                 pub commission: runtime_types::sp_arithmetic::per_things::Perbill,
@@ -5565,9 +5109,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -5617,18 +5159,14 @@ pub mod runtime_types {
                         call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Error for the Sudo pallet"]
                 pub enum Error {
                     #[codec(index = 0)]
                     #[doc = "Sender must be the Sudo account"]
                     RequireSudo,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -5655,9 +5193,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -5687,9 +5223,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -5702,13 +5236,9 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct ChargeTransactionPayment(#[codec(compact)] pub ::core::primitive::u128);
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum Releases {
                 #[codec(index = 0)]
                 V1Ancient,
@@ -5720,9 +5250,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -5793,9 +5321,7 @@ pub mod runtime_types {
                         proposal_id: ::core::primitive::u32,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Error for the treasury pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -5815,9 +5341,7 @@ pub mod runtime_types {
                     #[doc = "Proposal has not been approved."]
                     ProposalNotApproved,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -5871,9 +5395,7 @@ pub mod runtime_types {
                     },
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Proposal<_0, _1> {
                 pub proposer: _0,
                 pub value: _1,
@@ -5885,9 +5407,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -5987,18 +5507,14 @@ pub mod runtime_types {
                         weight: runtime_types::sp_weights::weight_v2::Weight,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
                     #[doc = "Too many calls batched."]
                     TooManyCalls,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -6035,9 +5551,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -6137,9 +5651,7 @@ pub mod runtime_types {
                         schedule2_index: ::core::primitive::u32,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Error for the vesting pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -6159,9 +5671,7 @@ pub mod runtime_types {
                     #[doc = "Failed to create a new schedule because some parameter was invalid."]
                     InvalidScheduleParams,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -6173,25 +5683,19 @@ pub mod runtime_types {
                     },
                     #[codec(index = 1)]
                     #[doc = "An \\[account\\] has become fully vested."]
-                    VestingCompleted {
-                        account: sp_runtime::AccountId32,
-                    },
+                    VestingCompleted { account: sp_runtime::AccountId32 },
                 }
             }
             pub mod vesting_info {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct VestingInfo<_0, _1> {
                     pub locked: _0,
                     pub per_block: _0,
                     pub starting_block: _1,
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum Releases {
                 #[codec(index = 0)]
                 V0,
@@ -6203,9 +5707,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -6223,9 +5725,7 @@ pub mod runtime_types {
                         call: ::std::boxed::Box<runtime_types::vara_runtime::RuntimeCall>,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -6244,9 +5744,7 @@ pub mod runtime_types {
                     #[doc = "The call was already whitelisted; No-Op."]
                     CallAlreadyWhitelisted,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -6270,9 +5768,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod fixed_point {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct FixedI64(pub ::core::primitive::i64);
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
@@ -6313,9 +5809,7 @@ pub mod runtime_types {
                 )]
                 pub struct Perquintill(pub ::core::primitive::u64);
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum ArithmeticError {
                 #[codec(index = 0)]
                 Underflow,
@@ -6329,9 +5823,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod app {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Public(pub runtime_types::sp_core::sr25519::Public);
             }
         }
@@ -6339,16 +5831,12 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod app {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Public(pub runtime_types::sp_core::sr25519::Public);
             }
             pub mod digests {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum NextConfigDescriptor {
                     #[codec(index = 1)]
                     V1 {
@@ -6356,9 +5844,7 @@ pub mod runtime_types {
                         allowed_slots: runtime_types::sp_consensus_babe::AllowedSlots,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum PreDigest {
                     #[codec(index = 1)]
                     Primary(runtime_types::sp_consensus_babe::digests::PrimaryPreDigest),
@@ -6369,25 +5855,19 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     SecondaryVRF(runtime_types::sp_consensus_babe::digests::SecondaryVRFPreDigest),
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct PrimaryPreDigest {
                     pub authority_index: ::core::primitive::u32,
                     pub slot: runtime_types::sp_consensus_slots::Slot,
                     pub vrf_output: [::core::primitive::u8; 32usize],
                     pub vrf_proof: [::core::primitive::u8; 64usize],
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct SecondaryPlainPreDigest {
                     pub authority_index: ::core::primitive::u32,
                     pub slot: runtime_types::sp_consensus_slots::Slot,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct SecondaryVRFPreDigest {
                     pub authority_index: ::core::primitive::u32,
                     pub slot: runtime_types::sp_consensus_slots::Slot,
@@ -6395,9 +5875,7 @@ pub mod runtime_types {
                     pub vrf_proof: [::core::primitive::u8; 64usize],
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum AllowedSlots {
                 #[codec(index = 0)]
                 PrimarySlots,
@@ -6406,9 +5884,7 @@ pub mod runtime_types {
                 #[codec(index = 2)]
                 PrimaryAndSecondaryVRFSlots,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct BabeEpochConfiguration {
                 pub c: (::core::primitive::u64, ::core::primitive::u64),
                 pub allowed_slots: runtime_types::sp_consensus_babe::AllowedSlots,
@@ -6418,18 +5894,12 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod app {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Public(pub runtime_types::sp_core::ed25519::Public);
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Signature(pub runtime_types::sp_core::ed25519::Signature);
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum Equivocation<_0, _1> {
                 #[codec(index = 0)]
                 Prevote(
@@ -6448,9 +5918,7 @@ pub mod runtime_types {
                     >,
                 ),
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct EquivocationProof<_0, _1> {
                 pub set_id: ::core::primitive::u64,
                 pub equivocation: runtime_types::sp_consensus_grandpa::Equivocation<_0, _1>,
@@ -6458,9 +5926,7 @@ pub mod runtime_types {
         }
         pub mod sp_consensus_slots {
             use super::runtime_types;
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct EquivocationProof<_0, _1> {
                 pub offender: _1,
                 pub slot: runtime_types::sp_consensus_slots::Slot,
@@ -6479,38 +5945,26 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod crypto {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct KeyTypeId(pub [::core::primitive::u8; 4usize]);
             }
             pub mod ecdsa {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Signature(pub [::core::primitive::u8; 65usize]);
             }
             pub mod ed25519 {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Public(pub [::core::primitive::u8; 32usize]);
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Signature(pub [::core::primitive::u8; 64usize]);
             }
             pub mod offchain {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct OpaqueMultiaddr(pub ::std::vec::Vec<::core::primitive::u8>);
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct OpaqueNetworkState {
                     pub peer_id: runtime_types::sp_core::OpaquePeerId,
                     pub external_addresses:
@@ -6519,22 +5973,14 @@ pub mod runtime_types {
             }
             pub mod sr25519 {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Public(pub [::core::primitive::u8; 32usize]);
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Signature(pub [::core::primitive::u8; 64usize]);
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct OpaquePeerId(pub ::std::vec::Vec<::core::primitive::u8>);
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum Void {}
         }
         pub mod sp_runtime {
@@ -6543,20 +5989,12 @@ pub mod runtime_types {
                 use super::runtime_types;
                 pub mod digest {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct Digest {
                         pub logs:
                             ::std::vec::Vec<runtime_types::sp_runtime::generic::digest::DigestItem>,
                     }
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub enum DigestItem {
                         #[codec(index = 6)]
                         PreRuntime(
@@ -6581,11 +6019,7 @@ pub mod runtime_types {
                 }
                 pub mod era {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub enum Era {
                         #[codec(index = 0)]
                         Immortal,
@@ -7103,11 +6537,7 @@ pub mod runtime_types {
                 }
                 pub mod header {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct Header<_0, _1> {
                         pub parent_hash: ::subxt::utils::H256,
                         #[codec(compact)]
@@ -7121,11 +6551,7 @@ pub mod runtime_types {
                 }
                 pub mod unchecked_extrinsic {
                     use super::runtime_types;
-                    #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        Debug,
-                    )]
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct UncheckedExtrinsic<_0, _1, _2, _3>(
                         pub ::std::vec::Vec<::core::primitive::u8>,
                         #[codec(skip)] pub ::core::marker::PhantomData<(_1, _0, _2, _3)>,
@@ -7134,14 +6560,10 @@ pub mod runtime_types {
             }
             pub mod traits {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct BlakeTwo256;
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum DispatchError {
                 #[codec(index = 0)]
                 Other,
@@ -7170,23 +6592,17 @@ pub mod runtime_types {
                 #[codec(index = 12)]
                 Unavailable,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct DispatchErrorWithPostInfo<_0> {
                 pub post_info: _0,
                 pub error: runtime_types::sp_runtime::DispatchError,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct ModuleError {
                 pub index: ::core::primitive::u8,
                 pub error: [::core::primitive::u8; 4usize],
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum MultiSignature {
                 #[codec(index = 0)]
                 Ed25519(runtime_types::sp_core::ed25519::Signature),
@@ -7195,9 +6611,7 @@ pub mod runtime_types {
                 #[codec(index = 2)]
                 Ecdsa(runtime_types::sp_core::ecdsa::Signature),
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum TokenError {
                 #[codec(index = 0)]
                 NoFunds,
@@ -7214,9 +6628,7 @@ pub mod runtime_types {
                 #[codec(index = 6)]
                 Unsupported,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum TransactionalError {
                 #[codec(index = 0)]
                 LimitReached,
@@ -7226,9 +6638,7 @@ pub mod runtime_types {
         }
         pub mod sp_session {
             use super::runtime_types;
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct MembershipProof {
                 pub session: ::core::primitive::u32,
                 pub trie_nodes: ::std::vec::Vec<::std::vec::Vec<::core::primitive::u8>>,
@@ -7237,9 +6647,7 @@ pub mod runtime_types {
         }
         pub mod sp_version {
             use super::runtime_types;
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct RuntimeVersion {
                 pub spec_name: ::std::string::String,
                 pub impl_name: ::std::string::String,
@@ -7256,9 +6664,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod weight_v2 {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct Weight {
                     #[codec(compact)]
                     pub ref_time: ::core::primitive::u64,
@@ -7266,9 +6672,7 @@ pub mod runtime_types {
                     pub proof_size: ::core::primitive::u64,
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct RuntimeDbWeight {
                 pub read: ::core::primitive::u64,
                 pub write: ::core::primitive::u64,
@@ -7278,9 +6682,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -7310,9 +6712,7 @@ pub mod runtime_types {
                         validator_id: sp_runtime::AccountId32,
                     },
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -7328,9 +6728,7 @@ pub mod runtime_types {
                     #[doc = "Only the validator can add itself back after coming online."]
                     BadOrigin,
                 }
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -7346,9 +6744,7 @@ pub mod runtime_types {
             use super::runtime_types;
             pub mod extensions {
                 use super::runtime_types;
-                #[derive(
-                    ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-                )]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct DisableValueTransfers;
             }
             pub mod governance {
@@ -7358,9 +6754,7 @@ pub mod runtime_types {
                     pub mod pallet_custom_origins {
                         use super::runtime_types;
                         #[derive(
-                            ::subxt::ext::codec::Decode,
-                            ::subxt::ext::codec::Encode,
-                            Debug,
+                            ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
                         )]
                         pub enum Origin {
                             #[codec(index = 0)]
@@ -7417,14 +6811,10 @@ pub mod runtime_types {
                     }
                 }
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum OriginCaller {
                 #[codec(index = 0)]
-                system(
-                    runtime_types::frame_support::dispatch::RawOrigin<sp_runtime::AccountId32>,
-                ),
+                system(runtime_types::frame_support::dispatch::RawOrigin<sp_runtime::AccountId32>),
                 #[codec(index = 20)]
                 Origins(
                     runtime_types::vara_runtime::governance::origins::pallet_custom_origins::Origin,
@@ -7432,9 +6822,7 @@ pub mod runtime_types {
                 #[codec(index = 2)]
                 Void(runtime_types::sp_core::Void),
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum ProxyType {
                 #[codec(index = 0)]
                 Any,
@@ -7449,13 +6837,9 @@ pub mod runtime_types {
                 #[codec(index = 5)]
                 CancelProxy,
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct Runtime;
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum RuntimeCall {
                 #[codec(index = 0)]
                 System(runtime_types::frame_system::pallet::Call),
@@ -7514,9 +6898,7 @@ pub mod runtime_types {
                 #[codec(index = 199)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum RuntimeEvent {
                 #[codec(index = 0)]
                 System(runtime_types::frame_system::pallet::Event),
@@ -7573,9 +6955,7 @@ pub mod runtime_types {
                 #[codec(index = 199)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
-            #[derive(
-                ::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug,
-            )]
+            #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct SessionKeys {
                 pub babe: runtime_types::sp_consensus_babe::app::Public,
                 pub grandpa: runtime_types::sp_consensus_grandpa::app::Public,
