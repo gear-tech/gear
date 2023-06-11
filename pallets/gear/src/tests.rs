@@ -358,6 +358,7 @@ fn reply_deposit_to_program() {
         let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
             <[u8; 32]>::from(checker.into_origin()),
             program_id.into(),
+            0
         ));
 
         assert_ok!(Gear::send_message(
@@ -376,7 +377,7 @@ fn reply_deposit_to_program() {
 }
 
 #[test]
-fn reply_deposit_to_user() {
+fn reply_deposit_to_user_auto_reply() {
     use demo_constructor::demo_reply_deposit;
 
     init_logger();
@@ -388,6 +389,7 @@ fn reply_deposit_to_user() {
         let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
             <[u8; 32]>::from(checker.into_origin()),
             <[u8; 32]>::from(USER_2.into_origin()),
+            0,
         ));
 
         assert_ok!(Gear::send_message(
@@ -418,6 +420,7 @@ fn reply_deposit_panic_in_handle_reply() {
         let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
             <[u8; 32]>::from(checker.into_origin()),
             <[u8; 32]>::from(USER_2.into_origin()),
+            0,
         ));
 
         assert_ok!(Gear::send_message(
