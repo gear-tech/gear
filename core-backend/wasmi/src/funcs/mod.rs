@@ -279,7 +279,6 @@ where
         payload_ptr: u32,
         len: u32,
         value_ptr: u32,
-        delay: u32,
     ) -> Result<MessageId> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let value = ctx.register_and_read_value(value_ptr)?;
@@ -290,7 +289,7 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::ReplyCommit)]
-    pub fn reply_commit(ctx: CallerWrap<E>, value_ptr: u32, delay: u32) -> Result<MessageId> {
+    pub fn reply_commit(ctx: CallerWrap<E>, value_ptr: u32) -> Result<MessageId> {
         let value = ctx.register_and_read_value(value_ptr)?;
 
         let state = ctx.host_state_mut();
@@ -305,7 +304,6 @@ where
         rid_value_ptr: u32,
         payload_ptr: u32,
         len: u32,
-        delay: u32,
     ) -> Result<MessageId> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let read_payload = ctx.register_read(payload_ptr, len);
@@ -323,11 +321,7 @@ where
     }
 
     #[host(fallible, cost = RuntimeCosts::ReservationReplyCommit)]
-    pub fn reservation_reply_commit(
-        ctx: CallerWrap<E>,
-        rid_value_ptr: u32,
-        delay: u32,
-    ) -> Result<MessageId> {
+    pub fn reservation_reply_commit(ctx: CallerWrap<E>, rid_value_ptr: u32) -> Result<MessageId> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
 
         let HashWithValue {
@@ -369,7 +363,6 @@ where
         offset: u32,
         len: u32,
         value_ptr: u32,
-        delay: u32,
     ) -> Result<MessageId> {
         let value = ctx.register_and_read_value(value_ptr)?;
         let state = ctx.host_state_mut();
