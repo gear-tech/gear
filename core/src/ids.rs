@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -25,6 +25,8 @@ const HASH_LENGTH: usize = 32;
 type Hash = [u8; HASH_LENGTH];
 
 /// Creates a unique identifier by passing given argument to blake2b hash-function.
+///
+/// # SAFETY: DO NOT ADJUST HASH FUNCTION, BECAUSE MESSAGE ID IS SENSITIVE FOR IT.
 fn hash(argument: &[u8]) -> Hash {
     let blake2b_hash = blake2b::blake2b(HASH_LENGTH, &[], argument);
 
@@ -176,6 +178,9 @@ impl MessageId {
     }
 
     /// Generate MessageId for reply message depend on status code
+    ///
+    /// # SAFETY: DO NOT ADJUST REPLY MESSAGE ID GENERATION,
+    /// BECAUSE AUTO-REPLY LOGIC DEPENDS ON PRE-DEFINED REPLY ID.
     pub fn generate_reply(origin_msg_id: MessageId) -> MessageId {
         const SALT: &[u8] = b"reply";
 

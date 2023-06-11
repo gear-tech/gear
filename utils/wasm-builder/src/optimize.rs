@@ -2,7 +2,8 @@ use crate::builder_error::BuilderError;
 use anyhow::{Context, Result};
 #[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
-use gear_wasm_instrument::STACK_END_EXPORT_NAME;
+use gear_core::code::Code;
+use gear_wasm_instrument::{rules::CustomConstantCostRules, STACK_END_EXPORT_NAME};
 use pwasm_utils::{
     parity_wasm,
     parity_wasm::elements::{Internal, Module, Section, Serialize},
@@ -12,7 +13,7 @@ use std::process::Command;
 use std::{
     ffi::OsStr,
     fs::{self, metadata},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 #[cfg(feature = "wasm-opt")]
@@ -108,13 +109,28 @@ impl Optimizer {
                 )
             })?;
 
-        // Post check exports if optimizing program binary.
-        if ty == OptType::Opt {
-            check_exports(&module, &self.file)?;
-        }
-
         let mut code = vec![];
         module.serialize(&mut code)?;
+
+        // Post-checking the program code for possible errors
+        // `pallet-gear` crate performs the same check at the node level when the user tries to upload program code
+        let raw_code = code.clone();
+        match ty {
+            // validate metawasm code
+            // see `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`
+            OptType::Meta => {
+                Code::new_raw_with_rules(raw_code, 1, false, |_| CustomConstantCostRules::default())
+                    .map(|_| ())
+                    .map_err(BuilderError::CodeCheckFailed)?
+            }
+            // validate wasm code
+            // see `pallet_gear::pallet::Pallet::upload_program(...)`
+            OptType::Opt => {
+                Code::try_new(raw_code, 1, |_| CustomConstantCostRules::default(), None)
+                    .map(|_| ())
+                    .map_err(BuilderError::CodeCheckFailed)?
+            }
+        }
 
         Ok(code)
     }
@@ -281,21 +297,4 @@ pub fn do_optimization(
     .expect("The wasm-opt optimization failed");
 
     Ok(())
-}
-
-fn check_exports(module: &Module, path: &Path) -> Result<()> {
-    if module
-        .export_section()
-        .ok_or_else(|| BuilderError::ExportSectionNotFound(path.to_path_buf()))?
-        .entries()
-        .iter()
-        .any(|entry| {
-            matches!(entry.internal(), Internal::Function(_))
-                && matches!(entry.field(), "init" | "handle")
-        })
-    {
-        Ok(())
-    } else {
-        Err(BuilderError::RequiredExportFnNotFound(path.to_path_buf()).into())
-    }
 }

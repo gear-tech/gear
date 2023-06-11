@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -101,6 +101,8 @@ pub enum Kind {
     ReservationReplyCommit(Vec<u8>, MessageId),
     // Param(reserve amount)
     SystemReserveGas(u64),
+    // Param(deposit amount)
+    ReplyDeposit(u64),
 }
 
 pub const PAY_PROGRAM_RENT_EXPECT: &str = "Unable to pay rent";
@@ -486,6 +488,12 @@ mod wasm {
                 msg::send_delayed(msg::source(), b"ok", 0, 0)
                     .expect("internal error: report send failed");
                 exec::wait_for(2);
+            }
+            Kind::ReplyDeposit(amount) => {
+                let mid = msg::send_bytes(ActorId::zero(), [], 0)
+                    .expect("internal error: failed to send message");
+
+                exec::reply_deposit(mid, amount).expect("Kind::ReplyDeposit: call test failed");
             }
         }
     }

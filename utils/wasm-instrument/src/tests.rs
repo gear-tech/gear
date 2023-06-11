@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::syscalls::SysCallName;
+use crate::{rules::CustomConstantCostRules, syscalls::SysCallName};
 use elements::Instruction::*;
 use gas_metering::ConstantCostRules;
 use parity_wasm::serialize;
@@ -180,6 +180,22 @@ fn duplicate_export() {
     let module = parse_wat(&wat);
 
     assert!(inject(module, &ConstantCostRules::default(), "env").is_err());
+}
+
+#[test]
+fn unsupported_instruction() {
+    let module = parse_wat(
+        r#"(module
+        (func (result f64)
+            f64.const 10
+            f64.const 3
+            f64.div)
+        (global i32 (i32.const 42))
+        (memory 0 1)
+        )"#,
+    );
+
+    assert!(inject(module, &CustomConstantCostRules::default(), "env").is_err());
 }
 
 #[test]

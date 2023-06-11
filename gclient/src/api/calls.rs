@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,10 @@
 
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
-use gear_common::memory_dump::{MemoryPageDump, ProgramMemoryDump};
+use gear_common::{
+    memory_dump::{MemoryPageDump, ProgramMemoryDump},
+    LockId,
+};
 use gear_core::{
     ids::*,
     memory::{GearPage, PageBuf, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
@@ -32,13 +35,10 @@ use gsdk::{
     metadata::{
         balances::Event as BalancesEvent,
         gear::Event as GearEvent,
+        gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
-            gear_common::{
-                event::{CodeChangeKind, MessageEntry},
-                gas_provider::lockable::LockId,
-            },
-            gear_runtime::RuntimeCall,
+            gear_common::event::{CodeChangeKind, MessageEntry},
             pallet_balances::{pallet::Call as BalancesCall, AccountData},
             pallet_gear::pallet::Call as GearCall,
             sp_weights::weight_v2::Weight,
@@ -296,7 +296,7 @@ impl GearApi {
             } = &gas_node.1
             {
                 accounts_with_reserved_funds.insert(id);
-                src_program_reserved_gas_total += value + lock[LockId::Reservation];
+                src_program_reserved_gas_total += value + lock.0[LockId::Reservation as usize];
             } else {
                 unreachable!("Unexpected gas node type");
             }

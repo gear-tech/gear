@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -78,9 +78,7 @@ where
                 )?;
             }
             HandleKind::Signal(_signal_from, _status_code) => {
-                return Err("Gas calculation for `handle_signal` is not supported"
-                    .as_bytes()
-                    .to_vec());
+                return Err(b"Gas calculation for `handle_signal` is not supported".to_vec());
             }
         };
 
@@ -114,9 +112,26 @@ where
 
         let mut ext_manager = ExtManager::<T>::default();
 
-        while let Some(queued_dispatch) =
-            QueueOf::<T>::dequeue().map_err(|_| b"MQ storage corrupted".to_vec())?
-        {
+        // Gas calculation info should not depend on the current block gas allowance.
+        // We set it to 'block gas limit" * 5 for the calculation purposes with a subsequent restore.
+        // This is done in order to avoid abusing running node. If one wants to check
+        // executions exceeding the set threshold, they can build their own node with that
+        // parameter set to a higher value.
+        let gas_allowance = GasAllowanceOf::<T>::get();
+        GasAllowanceOf::<T>::put(BlockGasLimitOf::<T>::get() * 5);
+        // Restore gas allowance.
+        let _guard = scopeguard::guard((), |_| GasAllowanceOf::<T>::put(gas_allowance));
+
+        loop {
+            if QueueProcessingOf::<T>::denied() {
+                return Err(
+                    b"Calculation gas limit exceeded. Consider using custom built node.".to_vec(),
+                );
+            }
+
+            let Some(queued_dispatch) = QueueOf::<T>::dequeue()
+                .map_err(|_| b"MQ storage corrupted".to_vec())? else { break; };
+
             let actor_id = queued_dispatch.destination();
 
             let actor = ext_manager
@@ -289,9 +304,10 @@ where
                     }
 
                     JournalNote::MessageDispatched {
-                        outcome: CoreDispatchOutcome::MessageTrap { trap, program_id },
+                        outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
+                        message_id,
                         ..
-                    } if (program_id == main_program_id || !allow_other_panics)
+                    } if (message_id == main_message_id || !allow_other_panics)
                         && !(skip_if_allowed && allow_skip_zero_replies) =>
                     {
                         return Err(format!("Program terminated with a trap: {trap}").into_bytes());

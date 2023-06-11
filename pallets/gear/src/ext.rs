@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -329,6 +329,10 @@ impl EnvExt for LazyPagesExt {
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::Error> {
         self.inner.create_program(packet, delay)
+    }
+
+    fn reply_deposit(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error> {
+        self.inner.reply_deposit(message_id, amount)
     }
 
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
