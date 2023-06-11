@@ -196,9 +196,9 @@ pub enum MemoryError {
 #[non_exhaustive]
 #[repr(u8)]
 pub enum ReservationError {
-    /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
-    #[display(fmt = "Invalid reservation ID")]
-    InvalidReservationId = 0,
+    /// An error occurs in attempt to access a non-existent reservation ID.
+    #[display(fmt = "Non-existent reservation ID")]
+    ReservationNotFound = 0,
     /// An error occurs in attempt to reserve more gas than available.
     #[display(fmt = "Insufficient gas for reservation")]
     InsufficientGasForReservation = 1,
@@ -217,9 +217,6 @@ pub enum ReservationError {
     /// An error occurs in attempt to use reservation ID twice.
     #[display(fmt = "Reservation already in use")]
     AlreadyInUse = 6,
-    /// An error occurs in attempt to access a non-existent reservation ID.
-    #[display(fmt = "Non-existent reservation ID")]
-    ReservationNotFound = 7,
 }
 
 /// Execution error.

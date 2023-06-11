@@ -125,7 +125,7 @@ impl GasReserver {
             }
             GasReservationState::Created { amount, .. } => amount,
             GasReservationState::Removed { .. } => {
-                return Err(ReservationError::InvalidReservationId);
+                return Err(ReservationError::ReservationNotFound);
             }
         };
 
@@ -327,7 +327,7 @@ mod tests {
 
         assert_eq!(
             reserver.unreserve(id),
-            Err(ReservationError::InvalidReservationId)
+            Err(ReservationError::ReservationNotFound)
         );
     }
 }
