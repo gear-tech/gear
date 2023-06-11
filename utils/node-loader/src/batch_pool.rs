@@ -1,3 +1,4 @@
+use self::report::MailboxReport;
 use crate::{
     args::{LoadParams, SeedVariant},
     utils::{self, SwapResult},
