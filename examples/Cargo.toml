@@ -16,8 +16,6 @@ members = [
     "loop",
     "panicker",
     "program_generator",
-    "token-vendor",
-    "token-vendor/workshop-example",
     "wait",
 ]
 

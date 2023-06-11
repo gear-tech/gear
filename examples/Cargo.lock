@@ -687,18 +687,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "token-vendor"
-version = "0.1.0"
-dependencies = [
- "bs58",
- "gstd",
- "hex",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
-]
-
-[[package]]
 name = "toml_datetime"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -774,16 +762,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae8970b36c66498d8ff1d66685dc86b91b29db0c7739899012f63a63814b4b28"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "workshop-example"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "hex",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
