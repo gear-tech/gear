@@ -4368,6 +4368,7 @@ dependencies = [
  "quote",
  "sc-executor",
  "sc-executor-common",
+ "scale-info",
  "sp-io",
  "subxt-codegen 0.28.0",
  "syn 1.0.109",

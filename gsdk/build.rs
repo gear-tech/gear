@@ -25,10 +25,12 @@ const INCOMPATIBLE_LINES: [&str; 4] = [
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=api-gen");
     println!("cargo:rerun-if-changed=../Cargo.lock");
     println!("cargo:rerun-if-changed=../runtime");
-    println!("cargo:rerun-if-changed=../pallets/gear");
     println!("cargo:rerun-if-env-changed={}", GSDK_API_GEN);
+
+    println!("rebuild me plz");
 
     // This build script should only work when building gsdk as the primary package,
     // and the environment variable GSDK_API_GEN should be set to 1.

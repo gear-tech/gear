@@ -16,10 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 use color_eyre::eyre::Result;
-use frame_metadata::RuntimeMetadataPrefixed;
+use frame_metadata::{RuntimeMetadata, RuntimeMetadataPrefixed};
 use parity_scale_codec::Decode;
 use proc_macro2::TokenStream;
 use std::{
+    collections::BTreeMap,
     env, fs,
     io::{self, Write},
 };
@@ -71,12 +72,13 @@ fn main() -> Result<()> {
 
     {
         // TODO: customized code here. ( #2668 )
+        generate_calls(&metadata.1);
     }
 
     // Generate api.
     let runtime_types =
         LICENSE.trim_start().to_string() + &generate_runtime_types(metadata).to_string();
-    io::stdout().write_all(runtime_types.as_bytes())?;
+    // io::stdout().write_all(runtime_types.as_bytes())?;
 
     Ok(())
 }
@@ -117,6 +119,7 @@ fn generate_runtime_types(metadata: RuntimeMetadataPrefixed) -> TokenStream {
     );
 
     let crate_path = Default::default();
+
     // TODO: extend `Copy` for Ids and Hashes. ( #2668 )
     let derives = DerivesRegistry::new(&crate_path);
     generator
@@ -128,4 +131,36 @@ fn generate_runtime_types(metadata: RuntimeMetadataPrefixed) -> TokenStream {
             true,
         )
         .expect("Failed to generate runtime types")
+}
+
+/// Generate the table of calls.
+fn generate_calls(wrapper: &RuntimeMetadata) {
+    let metadata = if let RuntimeMetadata::V14(v14) = wrapper {
+        v14
+    } else {
+        panic!("Unsupported metadata version, only support v14.");
+    };
+
+    // Call table.
+    let mut table: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    println!("length of the pallets {:?}", metadata.pallets.len());
+    for pallet in metadata.pallets.clone().into_iter() {
+        // Get pallet name.
+        let name = pallet.name.clone();
+
+        // Get calls.
+        if let Some(ref call) = pallet.calls {
+            let scale_info::TypeDef::Variant(variant) = &metadata.types.resolve(call.ty.id).expect("Unknown calls").type_def else {
+                panic!("Invalid call type {call:?}");
+            };
+
+            let names = variant
+                .variants
+                .iter()
+                .map(|variant| variant.name.clone())
+                .collect::<Vec<_>>();
+
+            println!("{names:#?}");
+        }
+    }
 }
