@@ -38,7 +38,7 @@ use common::{
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReason;
 use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency};
-use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
     message::{Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, StoredMessage},
@@ -1072,7 +1072,7 @@ where
 
     /// See ['split'].
     pub(crate) fn create(
-        origin: OriginFor<T>,
+        origin: T::AccountId,
         key: impl Into<GasNodeIdOf<T>> + Clone,
         amount: GasBalanceOf<T>,
         is_reply: bool,
