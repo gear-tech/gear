@@ -331,6 +331,9 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// /// Same as [`send_bytes`](self::send_bytes), but the program
 /// /// will interrupt until the reply is received.
 /// ///
+/// /// Argument `reply_deposit: u64` used to provide gas for
+/// /// future reply handling (skipped if zero).
+/// ///
 /// /// # See also
 /// ///
 /// /// - [`send_bytes_for_reply_as`](self::send_bytes_for_reply_as)
@@ -338,8 +341,17 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     program: ActorId,
 ///     payload: T,
 ///     value: u128,
+///     reply_deposit: u64
 /// ) -> Result<MessageFuture> {
+///     // Function call.
 ///     let waiting_reply_to = send_bytes(program, payload, value)?;
+///
+///     // Depositing gas for future reply handling if not zero.
+///     if reply_deposit != 0 {
+///         crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+///     }
+///
+///     // Registering signal.
 ///     signals().register_signal(waiting_reply_to);
 ///
 ///     Ok(MessageFuture { waiting_reply_to })
@@ -347,6 +359,9 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// /// Same as [`send_bytes`](self::send_bytes), but the program
 /// /// will interrupt until the reply is received.
+/// ///
+/// /// Argument `reply_deposit: u64` used to provide gas for
+/// /// future reply handling (skipped if zero).
 /// ///
 /// /// The output should be decodable via SCALE codec.
 /// ///
@@ -358,8 +373,17 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     program: ActorId,
 ///     payload: T,
 ///     value: u128,
+///     reply_deposit: u64,
 /// ) -> Result<CodecMessageFuture<D>> {
+///     // Function call.
 ///     let waiting_reply_to = send_bytes(program, payload, value)?;
+///
+///     // Depositing gas for future reply handling if not zero.
+///     if reply_deposit != 0 {
+///         crate::exec::reply_deposit(waiting_reply_to, reply_deposit)?;
+///     }
+///
+///     // Registering signal.
 ///     signals().register_signal(waiting_reply_to);
 ///
 ///     Ok(CodecMessageFuture::<D> {
@@ -457,7 +481,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     .into()
 }
 
-/// Similar to `wait_for_reply`, but works with functions that create programs:
+/// Similar to [`wait_for_reply`], but works with functions that create programs:
 /// It returns a message id with a newly created program id.
 #[proc_macro_attribute]
 pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
