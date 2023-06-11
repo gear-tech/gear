@@ -136,13 +136,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-collector"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-loop"
 version = "0.1.0"
 dependencies = [
