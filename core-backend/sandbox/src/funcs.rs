@@ -453,8 +453,7 @@ where
 
     /// Fallible `gr_reply` syscall.
     pub fn reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (payload_ptr, len, value_ptr, _delay, err_mid_ptr): (_, _, _, u32, _) =
-            args.iter().read_5();
+        let (payload_ptr, len, value_ptr, err_mid_ptr) = args.iter().read_4();
 
         syscall_trace!("reply", payload_ptr, len, value_ptr, err_mid_ptr);
 
@@ -471,8 +470,7 @@ where
 
     /// Fallible `gr_reply_wgas` syscall.
     pub fn reply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (payload_ptr, len, gas_limit, value_ptr, _delay, err_mid_ptr): (_, _, _, _, u32, _) =
-            args.iter().read_6();
+        let (payload_ptr, len, gas_limit, value_ptr, err_mid_ptr) = args.iter().read_5();
 
         syscall_trace!(
             "reply_wgas",
@@ -496,7 +494,7 @@ where
 
     /// Fallible `gr_reply_commit` syscall.
     pub fn reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (value_ptr, _delay, err_mid_ptr): (_, u32, _) = args.iter().read_3();
+        let (value_ptr, err_mid_ptr) = args.iter().read_2();
 
         syscall_trace!("reply_commit", value_ptr, err_mid_ptr);
 
@@ -511,7 +509,7 @@ where
 
     /// Fallible `gr_reply_commit_wgas` syscall.
     pub fn reply_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (gas_limit, value_ptr, _delay, err_mid_ptr): (_, _, u32, _) = args.iter().read_4();
+        let (gas_limit, value_ptr, err_mid_ptr) = args.iter().read_3();
 
         syscall_trace!("reply_commit_wgas", gas_limit, value_ptr, err_mid_ptr);
 
@@ -534,8 +532,7 @@ where
 
     /// Fallible `gr_reservation_reply` syscall.
     pub fn reservation_reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (rid_value_ptr, payload_ptr, len, _delay, err_mid_ptr): (_, _, _, u32, _) =
-            args.iter().read_5();
+        let (rid_value_ptr, payload_ptr, len, err_mid_ptr) = args.iter().read_4();
 
         syscall_trace!(
             "reservation_reply",
@@ -566,7 +563,7 @@ where
 
     /// Fallible `gr_reservation_reply_commit` syscall.
     pub fn reservation_reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (rid_value_ptr, _delay, err_mid_ptr): (_, u32, _) = args.iter().read_3();
+        let (rid_value_ptr, err_mid_ptr) = args.iter().read_2();
 
         syscall_trace!("reservation_reply_commit", rid_value_ptr, err_mid_ptr);
 
@@ -628,7 +625,7 @@ where
 
     /// Fallible `gr_reply_input` syscall.
     pub fn reply_input(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (offset, len, value_ptr, _delay, err_mid_ptr): (_, _, _, u32, _) = args.iter().read_5();
+        let (offset, len, value_ptr, err_mid_ptr) = args.iter().read_4();
 
         syscall_trace!("reply_input", offset, len, value_ptr, err_mid_ptr);
 
@@ -659,8 +656,7 @@ where
 
     /// Fallible `gr_reply_input_wgas` syscall.
     pub fn reply_input_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (offset, len, gas_limit, value_ptr, _delay, err_mid_ptr): (_, _, _, _, u32, _) =
-            args.iter().read_6();
+        let (offset, len, gas_limit, value_ptr, err_mid_ptr) = args.iter().read_5();
 
         syscall_trace!(
             "reply_input_wgas",
