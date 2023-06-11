@@ -17,7 +17,6 @@ members = [
     "loop",
     "minimal",
     "panicker",
-    "ping-gas",
     "program_generator",
     "program-id",
     "token-vendor",
