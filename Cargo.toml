@@ -366,6 +366,7 @@ keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.34", default-features = false }               # node/cli
 nacl = "0.5.3"                                                            # gcli
+etc = "0.1.6"                                                             # gcli
 nix = "0.26.2"                                                            # gear-lazy-pages
 nonempty = "0.8.1"                                                        # utils/utils
 libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
