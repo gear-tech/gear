@@ -186,6 +186,12 @@ pub enum CodeError {
     /// Pointer to the stack end overlaps data segment.
     #[display(fmt = "Pointer to the stack end overlaps data segment")]
     StackEndOverlaps,
+    /// Incorrect global export index. Can occur when export refers to not existing global index.
+    #[display(fmt = "Global index in export is incorrect")]
+    IncorrectGlobalExport,
+    /// Gear protocol restriction for now.
+    #[display(fmt = "Program cannot have mutable globals in export section")]
+    MutGlobalExport,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
@@ -200,6 +206,44 @@ pub struct Code {
     static_pages: WasmPage,
     #[codec(compact)]
     instruction_weights_version: u32,
+}
+
+fn check_for_mut_global_exports(module: &Module) -> Result<(), CodeError> {
+    let global_exports_indexes = module
+        .export_section()
+        .iter()
+        .flat_map(|export_section| export_section.entries().iter())
+        .filter_map(|export| {
+            if export.field() == STACK_END_EXPORT_NAME {
+                return None;
+            }
+            match export.internal() {
+                Internal::Global(index) => Some(*index as usize),
+                _ => None,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    if global_exports_indexes.is_empty() {
+        return Ok(());
+    }
+
+    if let Some(globals_section) = module.global_section() {
+        for index in global_exports_indexes {
+            if globals_section
+                .clone()
+                .entries()
+                .get(index)
+                .ok_or(CodeError::IncorrectGlobalExport)?
+                .global_type()
+                .is_mutable()
+            {
+                return Err(CodeError::MutGlobalExport);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 impl Code {
@@ -218,6 +262,8 @@ impl Code {
 
         let module: Module =
             parity_wasm::deserialize_buffer(&raw_code).map_err(|_| CodeError::Decode)?;
+
+        check_for_mut_global_exports(&module)?;
 
         if module.start_section().is_some() {
             log::debug!("Found start section in contract code, which is not allowed");

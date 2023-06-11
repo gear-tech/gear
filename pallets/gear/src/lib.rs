@@ -1089,7 +1089,7 @@ pub mod pallet {
             code
         }
 
-        pub(crate) fn check_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
+        pub(crate) fn try_new_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
             let schedule = T::Schedule::get();
 
             ensure!(
@@ -1271,7 +1271,8 @@ pub mod pallet {
         pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let code_id = Self::set_code_with_metadata(Self::check_code(code)?, who.into_origin())?;
+            let code_id =
+                Self::set_code_with_metadata(Self::try_new_code(code)?, who.into_origin())?;
 
             // TODO: replace this temporary (`None`) value
             // for expiration block number with properly
@@ -1338,7 +1339,7 @@ pub mod pallet {
 
             Self::check_gas_limit_and_value(gas_limit, value)?;
 
-            let code_and_id = Self::check_code(code)?;
+            let code_and_id = Self::try_new_code(code)?;
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
             let packet = Self::init_packet(
                 who.clone(),
