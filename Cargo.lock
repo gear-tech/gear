@@ -1776,6 +1776,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-async-custom-entry"
 version = "0.1.0"
 dependencies = [
@@ -1783,6 +1792,25 @@ dependencies = [
  "gstd",
  "gtest",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-async-init"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-async-recursion"
+version = "0.1.0"
+dependencies = [
+ "async-recursion",
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
@@ -1903,12 +1931,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-futures-unordered"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-gas-burned"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
+]
+
+[[package]]
+name = "demo-incomplete-async-payloads"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -2033,6 +2080,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-piggy-bank"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-ping"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
@@ -2084,6 +2147,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-rwlock"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-send-from-reservation"
 version = "0.1.0"
 dependencies = [
@@ -2104,6 +2176,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-state-rollback"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-sync-duplicate"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-syscall-error"
 version = "0.1.0"
 dependencies = [
@@ -2112,6 +2200,14 @@ dependencies = [
  "gsys",
  "gtest",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-vec"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
@@ -4109,8 +4205,8 @@ version = "0.1.2"
 dependencies = [
  "anyhow",
  "cargo_metadata",
+ "chrono",
  "colored",
- "filetime",
  "gear-core",
  "gear-wasm-instrument",
  "gmeta",
@@ -4427,6 +4523,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "colored",
+ "demo-futures-unordered",
+ "demo-piggy-bank",
  "derive_more",
  "env_logger",
  "gear-backend-common",
@@ -6919,7 +7017,10 @@ name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
  "blake2-rfc",
+ "demo-async",
  "demo-async-custom-entry",
+ "demo-async-init",
+ "demo-async-recursion",
  "demo-async-signal-entry",
  "demo-async-tester",
  "demo-backend-error",
@@ -6931,20 +7032,26 @@ dependencies = [
  "demo-constructor",
  "demo-delayed-sender",
  "demo-distributor",
+ "demo-futures-unordered",
  "demo-gas-burned",
+ "demo-incomplete-async-payloads",
  "demo-init-fail-sender",
  "demo-init-wait",
  "demo-init-wait-reply-exit",
  "demo-mul-by-const",
  "demo-new-meta",
  "demo-out-of-memory",
+ "demo-ping",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-reservation-with-gas",
  "demo-reserve-gas",
+ "demo-rwlock",
  "demo-send-from-reservation",
  "demo-signal-entry",
+ "demo-state-rollback",
+ "demo-sync-duplicate",
  "demo-wait-timeout",
  "demo-wait-wake",
  "demo-waiter",
@@ -7003,6 +7110,7 @@ dependencies = [
 name = "pallet-gear-debug"
 version = "2.0.0"
 dependencies = [
+ "demo-vec",
  "env_logger",
  "frame-benchmarking",
  "frame-support",

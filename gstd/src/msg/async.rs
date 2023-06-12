@@ -55,7 +55,7 @@ where
             // Remove lock after waking.
             async_runtime::locks().remove(msg_id, waiting_reply_to);
 
-            if status_code != 0 {
+            if status_code.to_le_bytes()[0] != 0 {
                 return Poll::Ready(Err(ContractError::StatusCode(status_code)));
             }
 
