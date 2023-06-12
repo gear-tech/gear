@@ -18,7 +18,8 @@
 
 use super::*;
 use crate::mock::{
-    new_test_ext, Airdrop, AirdropCall, Balances, RuntimeCall, RuntimeOrigin, Sudo, ALICE, ROOT,
+    new_test_ext, Airdrop, AirdropCall, Balances, RuntimeCall, RuntimeOrigin, Sudo, ALICE, BOB,
+    ROOT,
 };
 use frame_support::{assert_noop, assert_ok};
 
@@ -26,7 +27,7 @@ use frame_support::{assert_noop, assert_ok};
 fn test_setup_works() {
     new_test_ext().execute_with(|| {
         assert_eq!(Sudo::key(), Some(ROOT));
-        assert_eq!(Balances::total_issuance(), 100_000_000);
+        assert_eq!(Balances::total_issuance(), 200_000_000);
     });
 }
 
@@ -41,7 +42,21 @@ fn sudo_call_works() {
         assert_ok!(Sudo::sudo(RuntimeOrigin::signed(ROOT), call));
         assert_eq!(Balances::total_balance(&ALICE), 10_000_000);
         assert_eq!(Balances::total_balance(&ROOT), 90_000_000);
-        assert_eq!(Balances::total_issuance(), 100_000_000);
+        assert_eq!(Balances::total_issuance(), 200_000_000);
+
+        assert_eq!(Balances::locks(&BOB).len(), 1);
+        let call = Box::new(RuntimeCall::Airdrop(
+            AirdropCall::remove_vesting_and_transfer {
+                source: BOB,
+                dest: ALICE,
+                schedule_index: 0,
+            },
+        ));
+        assert_ok!(Sudo::sudo(RuntimeOrigin::signed(ROOT), call));
+        assert_eq!(Balances::total_balance(&BOB), 0);
+        assert_eq!(Balances::locks(&BOB), vec![]);
+        assert_eq!(Balances::total_balance(&ALICE), 110_000_000);
+        assert_eq!(Balances::total_issuance(), 200_000_000);
     });
 }
 
@@ -50,6 +65,10 @@ fn signed_extrinsic_fails() {
     new_test_ext().execute_with(|| {
         assert_noop!(
             Airdrop::transfer(RuntimeOrigin::signed(ROOT), ROOT, ALICE, 10_000_000_u128),
+            DispatchError::BadOrigin,
+        );
+        assert_noop!(
+            Airdrop::remove_vesting_and_transfer(RuntimeOrigin::signed(ROOT), BOB, ALICE, 0),
             DispatchError::BadOrigin,
         );
     });
