@@ -20,7 +20,7 @@
 
 use frame_support::{
     pallet_prelude::*,
-    traits::{Currency, ExistenceRequirement},
+    traits::{Currency, ExistenceRequirement, VestingSchedule},
 };
 pub use pallet::*;
 pub use weights::WeightInfo;
@@ -47,12 +47,20 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_gear::Config + pallet_balances::Config {
+    pub trait Config:
+        frame_system::Config
+        + pallet_gear::Config
+        + pallet_balances::Config
+        + pallet_vesting::Config
+    {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
+
+        /// To modify/remove vesting schedule
+        type VestingSchedule: VestingSchedule<Self::AccountId>;
     }
 
     #[pallet::pallet]
@@ -64,6 +72,10 @@ pub mod pallet {
         TokensDeposited {
             account: T::AccountId,
             amount: BalanceOf<T>,
+        },
+        VestingScheduleRemoved {
+            who: T::AccountId,
+            schedule_index: u32,
         },
     }
 
@@ -100,6 +112,51 @@ pub mod pallet {
                 account: dest,
                 amount,
             });
+
+            // This extrinsic is not chargeable
+            Ok(Pays::No.into())
+        }
+
+        /// Remove vesting for `source` account and transfer tokens to `dest` account.
+        ///
+        /// The origin must be the root.
+        ///
+        /// Parameters:
+        /// - `source`: the pre-funded account (i.e. root),
+        /// - `dest`: the beneficiary account,
+        /// - `schedule_index`: the index of VestingInfo for source account.
+        ///
+        /// Emits the following events:
+        /// - `VestingScheduleRemoved{ who, schedule_index }`
+        #[pallet::call_index(1)]
+        #[pallet::weight(<T as Config>::WeightInfo::transfer())]
+        pub fn remove_vesting_and_transfer(
+            origin: OriginFor<T>,
+            source: T::AccountId,
+            dest: T::AccountId,
+            schedule_index: u32,
+        ) -> DispatchResultWithPostInfo {
+            ensure_root(origin)?;
+
+            if let Some(vesting) = pallet_vesting::Pallet::<T>::vesting(&source) {
+                let schedule = *vesting
+                    .get(schedule_index as usize)
+                    .ok_or(pallet_vesting::Error::<T>::ScheduleIndexOutOfBounds)?;
+
+                T::VestingSchedule::remove_vesting_schedule(&source, schedule_index)?;
+
+                Self::deposit_event(Event::VestingScheduleRemoved {
+                    who: source.clone(),
+                    schedule_index,
+                });
+
+                <<T as pallet_vesting::Config>::Currency as Currency<_>>::transfer(
+                    &source,
+                    &dest,
+                    schedule.locked(),
+                    ExistenceRequirement::AllowDeath,
+                )?;
+            }
 
             // This extrinsic is not chargeable
             Ok(Pays::No.into())
