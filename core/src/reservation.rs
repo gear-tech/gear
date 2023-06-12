@@ -115,7 +115,7 @@ impl GasReserver {
         let state = self
             .states
             .remove(&id)
-            .ok_or(ReservationError::ReservationNotFound)?;
+            .ok_or(ReservationError::InvalidReservationId)?;
 
         let amount = match state {
             GasReservationState::Exists { amount, finish, .. } => {
@@ -125,7 +125,7 @@ impl GasReserver {
             }
             GasReservationState::Created { amount, .. } => amount,
             GasReservationState::Removed { .. } => {
-                return Err(ReservationError::ReservationNotFound);
+                return Err(ReservationError::InvalidReservationId);
             }
         };
 
@@ -139,13 +139,13 @@ impl GasReserver {
         ) = self.states.get_mut(&id)
         {
             if *used {
-                Err(ReservationError::AlreadyInUse)
+                Err(ReservationError::InvalidReservationId)
             } else {
                 *used = true;
                 Ok(())
             }
         } else {
-            Err(ReservationError::ReservationNotFound)
+            Err(ReservationError::InvalidReservationId)
         }
     }
 
@@ -287,12 +287,15 @@ mod tests {
         let mut reserver = new_reserver();
         let id = reserver.reserve(1, 1).unwrap();
         reserver.mark_used(id).unwrap();
+        assert_eq!(
+            reserver.mark_used(id),
+            Err(ReservationError::InvalidReservationId)
+        );
 
-        assert_eq!(reserver.mark_used(id), Err(ReservationError::AlreadyInUse));
-
+        // not found
         assert_eq!(
             reserver.mark_used(ReservationId::default()),
-            Err(ReservationError::ReservationNotFound)
+            Err(ReservationError::InvalidReservationId)
         );
     }
 
@@ -301,10 +304,9 @@ mod tests {
         let mut reserver = new_reserver();
         let id = reserver.reserve(1, 1).unwrap();
         reserver.unreserve(id).unwrap();
-
         assert_eq!(
             reserver.unreserve(id),
-            Err(ReservationError::ReservationNotFound)
+            Err(ReservationError::InvalidReservationId)
         );
     }
 
@@ -327,7 +329,7 @@ mod tests {
 
         assert_eq!(
             reserver.unreserve(id),
-            Err(ReservationError::ReservationNotFound)
+            Err(ReservationError::InvalidReservationId)
         );
     }
 }
