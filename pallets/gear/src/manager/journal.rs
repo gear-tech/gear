@@ -19,8 +19,8 @@
 use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
-    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf,
-    RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
+    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, Pallet, ProgramStorageOf,
+    QueueOf, RentFreePeriodOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -621,5 +621,12 @@ where
                 "Could not update active program {program_id}: {e:?}. Program is not active?"
             );
         });
+    }
+
+    fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
+        log::debug!("Creating reply deposit {amount} gas for message id {future_reply_id}");
+
+        GasHandlerOf::<T>::create_deposit(message_id, future_reply_id, amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
     }
 }

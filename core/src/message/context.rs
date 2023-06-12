@@ -27,7 +27,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_core_errors::MessageError as Error;
+use gear_core_errors::{ExecutionError, MessageError as Error};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -108,10 +108,14 @@ pub type OutgoingMessageInfo<T> = (T, u32, Option<ReservationId>);
 pub type OutgoingMessageInfoNoDelay<T> = (T, Option<ReservationId>);
 
 /// Context outcome dispatches and awakening ids.
-pub type ContextOutcomeDrain = (
-    Vec<(Dispatch, u32, Option<ReservationId>)>,
-    Vec<(MessageId, u32)>,
-);
+pub struct ContextOutcomeDrain {
+    /// Outgoing dispatches to be sent.
+    pub outgoing_dispatches: Vec<OutgoingMessageInfo<Dispatch>>,
+    /// Messages to be waken.
+    pub awakening: Vec<(MessageId, u32)>,
+    /// Reply deposits to be provided.
+    pub reply_deposits: Vec<(MessageId, u64)>,
+}
 
 /// Context outcome.
 ///
@@ -124,7 +128,8 @@ pub struct ContextOutcome {
     // u32 is delay
     awakening: Vec<(MessageId, u32)>,
     // u64 is gas limit
-    deposits: Vec<(MessageId, u64, Option<ReservationId>)>,
+    // TODO: add Option<ReservationId> after #1828
+    reply_deposits: Vec<(MessageId, u64)>,
     // Additional information section.
     program_id: ProgramId,
     source: ProgramId,
@@ -162,7 +167,11 @@ impl ContextOutcome {
             ));
         };
 
-        (dispatches, self.awakening)
+        ContextOutcomeDrain {
+            outgoing_dispatches: dispatches,
+            awakening: self.awakening,
+            reply_deposits: self.reply_deposits,
+        }
     }
 }
 
@@ -480,6 +489,40 @@ impl MessageContext {
         }
     }
 
+    /// Create deposit to handle future reply on message id was sent.
+    pub fn reply_deposit(
+        &mut self,
+        message_id: MessageId,
+        amount: u64,
+    ) -> Result<(), ExecutionError> {
+        if self
+            .outcome
+            .reply_deposits
+            .iter()
+            .any(|(mid, _)| mid == &message_id)
+        {
+            return Err(ExecutionError::DuplicateReplyDeposit);
+        }
+
+        if !self
+            .outcome
+            .handle
+            .iter()
+            .any(|(message, ..)| message.id() == message_id)
+            && !self
+                .outcome
+                .init
+                .iter()
+                .any(|(message, ..)| message.id() == message_id)
+        {
+            return Err(ExecutionError::IncorrectMessageForReplyDeposit);
+        }
+
+        self.outcome.reply_deposits.push((message_id, amount));
+
+        Ok(())
+    }
+
     /// Current processing incoming message.
     pub fn current(&self) -> &IncomingMessage {
         &self.current
@@ -792,6 +835,73 @@ mod tests {
         assert_eq!(
             context.wake(MessageId::default(), 1),
             Err(Error::DuplicateWaking)
+        );
+    }
+
+    #[test]
+    fn duplicate_reply_deposit() {
+        let incoming_message = IncomingMessage::new(
+            MessageId::from(INCOMING_MESSAGE_ID),
+            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            vec![1, 2].try_into().unwrap(),
+            0,
+            0,
+            None,
+        );
+
+        let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
+
+        let mut message_context = MessageContext::new(
+            incoming_dispatch,
+            Default::default(),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+        );
+
+        let handle = message_context.send_init().expect("unreachable");
+        message_context
+            .send_push(handle, b"payload")
+            .expect("unreachable");
+        let message_id = message_context
+            .send_commit(handle, HandlePacket::default(), 0, None)
+            .expect("unreachable");
+
+        assert!(message_context.reply_deposit(message_id, 1234).is_ok());
+        assert_err!(
+            message_context.reply_deposit(message_id, 1234),
+            ExecutionError::DuplicateReplyDeposit
+        );
+    }
+
+    #[test]
+    fn inexistent_reply_deposit() {
+        let incoming_message = IncomingMessage::new(
+            MessageId::from(INCOMING_MESSAGE_ID),
+            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            vec![1, 2].try_into().unwrap(),
+            0,
+            0,
+            None,
+        );
+
+        let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
+
+        let mut message_context = MessageContext::new(
+            incoming_dispatch,
+            Default::default(),
+            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+        );
+
+        let message_id = message_context
+            .reply_commit(ReplyPacket::default(), None)
+            .expect("unreachable");
+
+        assert_err!(
+            message_context.reply_deposit(message_id, 1234),
+            ExecutionError::IncorrectMessageForReplyDeposit
+        );
+        assert_err!(
+            message_context.reply_deposit(Default::default(), 1234),
+            ExecutionError::IncorrectMessageForReplyDeposit
         );
     }
 }

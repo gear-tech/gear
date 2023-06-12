@@ -8,7 +8,7 @@ env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
-  SCCACHE_VERSION: v0.5.1
+  SCCACHE_VERSION: v0.5.3
 
 jobs:
   generate-changelog:
@@ -56,11 +56,8 @@ jobs:
       - name: Set cargo path
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: Install toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: wasm32-unknown-unknown
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: Install build deps
         run: |

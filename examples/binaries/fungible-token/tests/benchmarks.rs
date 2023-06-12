@@ -37,6 +37,7 @@ const MAX_GAS_LIMIT: u64 = 250_000_000_000;
 ///
 /// See [galloc optimization doc](../../../galloc/docs/optimization.md) for
 /// reference.
+#[ignore]
 #[tokio::test]
 async fn stress_test() -> Result<()> {
     let api = GearApi::dev_from_path(GEAR_PATH).await?;

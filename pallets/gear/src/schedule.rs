@@ -385,6 +385,9 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_random`.
     pub gr_random: Weight,
 
+    /// Weight of calling `gr_reply_deposit`.
+    pub gr_reply_deposit: Weight,
+
     /// Weight of calling `gr_send`.
     pub gr_send: Weight,
 
@@ -860,6 +863,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_block_height: self.gr_block_height.ref_time(),
             gr_block_timestamp: self.gr_block_timestamp.ref_time(),
             gr_random: self.gr_random.ref_time(),
+            gr_reply_deposit: self.gr_reply_deposit.ref_time(),
             gr_send: self.gr_send.ref_time(),
             gr_send_per_byte: self.gr_send_per_byte.ref_time(),
             gr_send_wgas: self.gr_send_wgas.ref_time(),
@@ -920,6 +924,9 @@ impl<T: Config> HostFnWeights<T> {
 impl<T: Config> Default for HostFnWeights<T> {
     fn default() -> Self {
         Self {
+            gr_reply_deposit: to_weight!(cost_batched!(gr_reply_deposit))
+                .saturating_sub(to_weight!(cost_batched!(gr_send))),
+
             gr_send: to_weight!(cost_batched!(gr_send)),
             gr_send_per_byte: to_weight!(cost_byte_batched!(gr_send_per_kb)),
             gr_send_wgas: to_weight!(cost_batched!(gr_send_wgas)),

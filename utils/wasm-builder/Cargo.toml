@@ -29,6 +29,7 @@ regex.workspace = true
 
 [dev-dependencies]
 wabt.workspace = true
+wasmi = {workspace = true, features = ["std"]}
 
 [features]
 metawasm = ["gmeta/codegen"]

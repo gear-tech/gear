@@ -32,8 +32,6 @@ mod smart_fs;
 mod stack_end;
 mod wasm_project;
 
-pub use stack_end::insert_stack_end_export;
-
 pub const TARGET: &str = env!("TARGET");
 
 /// WASM building tool.

@@ -17,33 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `new`
-use crate::result::Result;
+use crate::{result::Result, template::Template};
 use clap::Parser;
-use std::process::{self, Command};
-
-const ORG: &str = "https://github.com/gear-dapps/";
-const GIT_SUFFIX: &str = ".git";
-const TEMPLATES: &[&str] = &[
-    "concert",
-    "crowdsale-ico",
-    "dao",
-    "dao-light",
-    "dutch-auction",
-    "escrow",
-    "feeds",
-    "fungible-token",
-    "gear-feeds-channel",
-    "lottery",
-    "multisig-wallet",
-    "nft-pixelboard",
-    "non-fungible-token",
-    "ping",
-    "RMRK",
-    "rock-paper-scissors",
-    "staking",
-    "supply-chain",
-    "swap",
-];
 
 /// Create a new gear program
 #[derive(Debug, Parser)]
@@ -53,32 +28,21 @@ pub struct New {
 }
 
 impl New {
-    fn template(name: &str) -> String {
-        ORG.to_string() + name + GIT_SUFFIX
-    }
-
-    fn help() {
-        println!("Available templates: \n\n{}", TEMPLATES.join("\n"));
-    }
-
     /// run command new
     pub async fn exec(&self) -> Result<()> {
+        let tm = Template::new()?;
+        let templates = tm.ls();
+
         if let Some(template) = &self.template {
-            if TEMPLATES.contains(&template.as_ref()) {
-                if !Command::new("git")
-                    .args(["clone", &Self::template(template)])
-                    .status()?
-                    .success()
-                {
-                    process::exit(1);
-                }
+            if templates.contains(template) {
+                tm.cp(template, template)?;
             } else {
-                crate::template::create(template)?;
+                tm.cp("ping", template)?;
             }
 
             println!("Successfully created {template}!");
         } else {
-            Self::help();
+            println!("Available templates: {:#?}", templates);
         }
 
         Ok(())
