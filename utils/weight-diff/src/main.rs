@@ -166,9 +166,9 @@ fn format_diff(value1: Option<u64>, value2: Option<u64>) -> String {
     value1
         .filter(|&a| a != 0)
         .zip(value2)
-        .map(|(a, b)| {
-            let (a, b) = (a as f64, b as f64);
-            let percentage_diff = ((b - a) / a) * 100.0;
+        .map(|(value1, value2)| {
+            let (value1, value2) = (value1 as f64, value2 as f64);
+            let percentage_diff = ((value1 / value2) - 1.0) * 100.0;
             format!("{percentage_diff:+.2}%")
         })
         .unwrap_or_else(|| "N/A".into())

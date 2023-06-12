@@ -12,7 +12,7 @@ USAGE:
     ./weight-diff.sh <BRANCH1> <BRANCH2> <RUNTIME> [FLAGS]
 
 EXAMPLES:
-    ./weight-diff.sh $(git branch --show-current) master gear --display-units
+    ./weight-diff.sh master $(git branch --show-current) gear --display-units
 
 FLAGS:
     --display-units  if present, displays the value in units
