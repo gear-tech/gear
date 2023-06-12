@@ -356,7 +356,9 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
             .context("unable to write `wasm_binary.rs`")?;
         }
 
-        self.force_rerun_on_next_run(&from_path)
+        let _ = self.force_rerun_on_next_run(&from_path)?;
+
+        Ok(())
     }
 
     fn generate_wasm(from: PathBuf, to_opt: Option<&Path>, to_meta: Option<&Path>) -> Result<()> {

@@ -26,7 +26,7 @@ use std::{fs, io::ErrorKind, path::Path};
 
 const LINEAR_COMPARISON_FILE_SIZE: u64 = 4096;
 
-pub fn copy_if_newer(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<bool> {
+pub(crate) fn copy_if_newer(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<bool> {
     let from = from.as_ref();
     let to = to.as_ref();
 
@@ -38,7 +38,7 @@ pub fn copy_if_newer(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<boo
     }
 }
 
-pub fn check_if_newer(left: impl AsRef<Path>, right: impl AsRef<Path>) -> Result<bool> {
+pub(crate) fn check_if_newer(left: impl AsRef<Path>, right: impl AsRef<Path>) -> Result<bool> {
     let right_metadata = fs::metadata(right);
     if let Err(io_error) = right_metadata.as_ref() {
         if io_error.kind() == ErrorKind::NotFound {
@@ -67,7 +67,7 @@ fn check_changed(path: &Path, contents: &[u8]) -> Result<bool> {
     Ok(old_contents != contents)
 }
 
-pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> Result<()> {
+pub(crate) fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> Result<()> {
     let path = path.as_ref();
     let contents = contents.as_ref();
 
@@ -91,7 +91,7 @@ fn check_metadata_changed(path: &Path, metadata: &MetadataRepr) -> Result<bool> 
     Ok(old_metadata != *metadata)
 }
 
-pub fn write_metadata<P: AsRef<Path>>(path: P, metadata: &MetadataRepr) -> Result<()> {
+pub(crate) fn write_metadata<P: AsRef<Path>>(path: P, metadata: &MetadataRepr) -> Result<()> {
     let path = path.as_ref();
 
     if check_metadata_changed(path, metadata)? {
