@@ -246,6 +246,10 @@ impl Calls {
         self.add_call(Call::Wait)
     }
 
+    pub fn wake(self, message_id: impl Into<Arg<[u8; 32]>>) -> Self {
+        self.add_call(Call::Wake(message_id.into()))
+    }
+
     pub fn bytes_eq(
         self,
         key: impl AsRef<str>,
