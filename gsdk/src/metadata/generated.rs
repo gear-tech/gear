@@ -7579,3 +7579,707 @@ pub mod calls {
         }
     }
 }
+pub mod storage {
+    #[doc = r" Show the call info."]
+    pub trait StorageInfo {
+        const PALLET: &'static str;
+        #[doc = r" returns call name."]
+        fn storage_name(&self) -> &'static str;
+    }
+    #[doc = "Storage of pallet `AuthorityDiscovery`."]
+    pub enum AuthorityDiscoveryStorage {
+        Keys,
+        NextKeys,
+    }
+    impl StorageInfo for AuthorityDiscoveryStorage {
+        const PALLET: &'static str = "AuthorityDiscovery";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Keys => "Keys",
+                Self::NextKeys => "NextKeys",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Authorship`."]
+    pub enum AuthorshipStorage {
+        Author,
+    }
+    impl StorageInfo for AuthorshipStorage {
+        const PALLET: &'static str = "Authorship";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Author => "Author",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Babe`."]
+    pub enum BabeStorage {
+        EpochIndex,
+        Authorities,
+        GenesisSlot,
+        CurrentSlot,
+        Randomness,
+        PendingEpochConfigChange,
+        NextRandomness,
+        NextAuthorities,
+        SegmentIndex,
+        UnderConstruction,
+        Initialized,
+        AuthorVrfRandomness,
+        EpochStart,
+        Lateness,
+        EpochConfig,
+        NextEpochConfig,
+        SkippedEpochs,
+    }
+    impl StorageInfo for BabeStorage {
+        const PALLET: &'static str = "Babe";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::EpochIndex => "EpochIndex",
+                Self::Authorities => "Authorities",
+                Self::GenesisSlot => "GenesisSlot",
+                Self::CurrentSlot => "CurrentSlot",
+                Self::Randomness => "Randomness",
+                Self::PendingEpochConfigChange => "PendingEpochConfigChange",
+                Self::NextRandomness => "NextRandomness",
+                Self::NextAuthorities => "NextAuthorities",
+                Self::SegmentIndex => "SegmentIndex",
+                Self::UnderConstruction => "UnderConstruction",
+                Self::Initialized => "Initialized",
+                Self::AuthorVrfRandomness => "AuthorVrfRandomness",
+                Self::EpochStart => "EpochStart",
+                Self::Lateness => "Lateness",
+                Self::EpochConfig => "EpochConfig",
+                Self::NextEpochConfig => "NextEpochConfig",
+                Self::SkippedEpochs => "SkippedEpochs",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `BagsList`."]
+    pub enum BagsListStorage {
+        ListNodes,
+        CounterForListNodes,
+        ListBags,
+    }
+    impl StorageInfo for BagsListStorage {
+        const PALLET: &'static str = "BagsList";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ListNodes => "ListNodes",
+                Self::CounterForListNodes => "CounterForListNodes",
+                Self::ListBags => "ListBags",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Balances`."]
+    pub enum BalancesStorage {
+        TotalIssuance,
+        InactiveIssuance,
+        Account,
+        Locks,
+        Reserves,
+    }
+    impl StorageInfo for BalancesStorage {
+        const PALLET: &'static str = "Balances";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::TotalIssuance => "TotalIssuance",
+                Self::InactiveIssuance => "InactiveIssuance",
+                Self::Account => "Account",
+                Self::Locks => "Locks",
+                Self::Reserves => "Reserves",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `ConvictionVoting`."]
+    pub enum ConvictionVotingStorage {
+        VotingFor,
+        ClassLocksFor,
+    }
+    impl StorageInfo for ConvictionVotingStorage {
+        const PALLET: &'static str = "ConvictionVoting";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::VotingFor => "VotingFor",
+                Self::ClassLocksFor => "ClassLocksFor",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `FellowshipCollective`."]
+    pub enum FellowshipCollectiveStorage {
+        MemberCount,
+        Members,
+        IdToIndex,
+        IndexToId,
+        Voting,
+        VotingCleanup,
+    }
+    impl StorageInfo for FellowshipCollectiveStorage {
+        const PALLET: &'static str = "FellowshipCollective";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::MemberCount => "MemberCount",
+                Self::Members => "Members",
+                Self::IdToIndex => "IdToIndex",
+                Self::IndexToId => "IndexToId",
+                Self::Voting => "Voting",
+                Self::VotingCleanup => "VotingCleanup",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `FellowshipReferenda`."]
+    pub enum FellowshipReferendaStorage {
+        ReferendumCount,
+        ReferendumInfoFor,
+        TrackQueue,
+        DecidingCount,
+        MetadataOf,
+    }
+    impl StorageInfo for FellowshipReferendaStorage {
+        const PALLET: &'static str = "FellowshipReferenda";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ReferendumCount => "ReferendumCount",
+                Self::ReferendumInfoFor => "ReferendumInfoFor",
+                Self::TrackQueue => "TrackQueue",
+                Self::DecidingCount => "DecidingCount",
+                Self::MetadataOf => "MetadataOf",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Gear`."]
+    pub enum GearStorage {
+        ExecuteInherent,
+        BlockNumber,
+        LastGearBlockNumber,
+    }
+    impl StorageInfo for GearStorage {
+        const PALLET: &'static str = "Gear";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ExecuteInherent => "ExecuteInherent",
+                Self::BlockNumber => "BlockNumber",
+                Self::LastGearBlockNumber => "LastGearBlockNumber",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearDebug`."]
+    pub enum GearDebugStorage {
+        DebugMode,
+        RemapId,
+        ProgramsMap,
+    }
+    impl StorageInfo for GearDebugStorage {
+        const PALLET: &'static str = "GearDebug";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::DebugMode => "DebugMode",
+                Self::RemapId => "RemapId",
+                Self::ProgramsMap => "ProgramsMap",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearGas`."]
+    pub enum GearGasStorage {
+        TotalIssuance,
+        GasNodes,
+        Allowance,
+    }
+    impl StorageInfo for GearGasStorage {
+        const PALLET: &'static str = "GearGas";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::TotalIssuance => "TotalIssuance",
+                Self::GasNodes => "GasNodes",
+                Self::Allowance => "Allowance",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearMessenger`."]
+    pub enum GearMessengerStorage {
+        Dequeued,
+        Dispatches,
+        CounterForDispatches,
+        Head,
+        Mailbox,
+        QueueProcessing,
+        Sent,
+        Tail,
+        Waitlist,
+        DispatchStash,
+    }
+    impl StorageInfo for GearMessengerStorage {
+        const PALLET: &'static str = "GearMessenger";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Dequeued => "Dequeued",
+                Self::Dispatches => "Dispatches",
+                Self::CounterForDispatches => "CounterForDispatches",
+                Self::Head => "Head",
+                Self::Mailbox => "Mailbox",
+                Self::QueueProcessing => "QueueProcessing",
+                Self::Sent => "Sent",
+                Self::Tail => "Tail",
+                Self::Waitlist => "Waitlist",
+                Self::DispatchStash => "DispatchStash",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearProgram`."]
+    pub enum GearProgramStorage {
+        CodeStorage,
+        CodeLenStorage,
+        OriginalCodeStorage,
+        MetadataStorage,
+        ProgramStorage,
+        MemoryPageStorage,
+        WaitingInitStorage,
+        PausedProgramStorage,
+    }
+    impl StorageInfo for GearProgramStorage {
+        const PALLET: &'static str = "GearProgram";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::CodeStorage => "CodeStorage",
+                Self::CodeLenStorage => "CodeLenStorage",
+                Self::OriginalCodeStorage => "OriginalCodeStorage",
+                Self::MetadataStorage => "MetadataStorage",
+                Self::ProgramStorage => "ProgramStorage",
+                Self::MemoryPageStorage => "MemoryPageStorage",
+                Self::WaitingInitStorage => "WaitingInitStorage",
+                Self::PausedProgramStorage => "PausedProgramStorage",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearScheduler`."]
+    pub enum GearSchedulerStorage {
+        FirstIncompleteTasksBlock,
+        TaskPool,
+    }
+    impl StorageInfo for GearSchedulerStorage {
+        const PALLET: &'static str = "GearScheduler";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::FirstIncompleteTasksBlock => "FirstIncompleteTasksBlock",
+                Self::TaskPool => "TaskPool",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Grandpa`."]
+    pub enum GrandpaStorage {
+        State,
+        PendingChange,
+        NextForced,
+        Stalled,
+        CurrentSetId,
+        SetIdSession,
+    }
+    impl StorageInfo for GrandpaStorage {
+        const PALLET: &'static str = "Grandpa";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::State => "State",
+                Self::PendingChange => "PendingChange",
+                Self::NextForced => "NextForced",
+                Self::Stalled => "Stalled",
+                Self::CurrentSetId => "CurrentSetId",
+                Self::SetIdSession => "SetIdSession",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Historical`."]
+    pub enum HistoricalStorage {
+        HistoricalSessions,
+        StoredRange,
+    }
+    impl StorageInfo for HistoricalStorage {
+        const PALLET: &'static str = "Historical";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::HistoricalSessions => "HistoricalSessions",
+                Self::StoredRange => "StoredRange",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Identity`."]
+    pub enum IdentityStorage {
+        IdentityOf,
+        SuperOf,
+        SubsOf,
+        Registrars,
+    }
+    impl StorageInfo for IdentityStorage {
+        const PALLET: &'static str = "Identity";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::IdentityOf => "IdentityOf",
+                Self::SuperOf => "SuperOf",
+                Self::SubsOf => "SubsOf",
+                Self::Registrars => "Registrars",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `ImOnline`."]
+    pub enum ImOnlineStorage {
+        HeartbeatAfter,
+        Keys,
+        ReceivedHeartbeats,
+        AuthoredBlocks,
+    }
+    impl StorageInfo for ImOnlineStorage {
+        const PALLET: &'static str = "ImOnline";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::HeartbeatAfter => "HeartbeatAfter",
+                Self::Keys => "Keys",
+                Self::ReceivedHeartbeats => "ReceivedHeartbeats",
+                Self::AuthoredBlocks => "AuthoredBlocks",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Multisig`."]
+    pub enum MultisigStorage {
+        Multisigs,
+    }
+    impl StorageInfo for MultisigStorage {
+        const PALLET: &'static str = "Multisig";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Multisigs => "Multisigs",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Preimage`."]
+    pub enum PreimageStorage {
+        StatusFor,
+        PreimageFor,
+    }
+    impl StorageInfo for PreimageStorage {
+        const PALLET: &'static str = "Preimage";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::StatusFor => "StatusFor",
+                Self::PreimageFor => "PreimageFor",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Proxy`."]
+    pub enum ProxyStorage {
+        Proxies,
+        Announcements,
+    }
+    impl StorageInfo for ProxyStorage {
+        const PALLET: &'static str = "Proxy";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Proxies => "Proxies",
+                Self::Announcements => "Announcements",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Referenda`."]
+    pub enum ReferendaStorage {
+        ReferendumCount,
+        ReferendumInfoFor,
+        TrackQueue,
+        DecidingCount,
+        MetadataOf,
+    }
+    impl StorageInfo for ReferendaStorage {
+        const PALLET: &'static str = "Referenda";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ReferendumCount => "ReferendumCount",
+                Self::ReferendumInfoFor => "ReferendumInfoFor",
+                Self::TrackQueue => "TrackQueue",
+                Self::DecidingCount => "DecidingCount",
+                Self::MetadataOf => "MetadataOf",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Scheduler`."]
+    pub enum SchedulerStorage {
+        IncompleteSince,
+        Agenda,
+        Lookup,
+    }
+    impl StorageInfo for SchedulerStorage {
+        const PALLET: &'static str = "Scheduler";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::IncompleteSince => "IncompleteSince",
+                Self::Agenda => "Agenda",
+                Self::Lookup => "Lookup",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Session`."]
+    pub enum SessionStorage {
+        Validators,
+        CurrentIndex,
+        QueuedChanged,
+        QueuedKeys,
+        DisabledValidators,
+        NextKeys,
+        KeyOwner,
+    }
+    impl StorageInfo for SessionStorage {
+        const PALLET: &'static str = "Session";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Validators => "Validators",
+                Self::CurrentIndex => "CurrentIndex",
+                Self::QueuedChanged => "QueuedChanged",
+                Self::QueuedKeys => "QueuedKeys",
+                Self::DisabledValidators => "DisabledValidators",
+                Self::NextKeys => "NextKeys",
+                Self::KeyOwner => "KeyOwner",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Staking`."]
+    pub enum StakingStorage {
+        ValidatorCount,
+        MinimumValidatorCount,
+        Invulnerables,
+        Bonded,
+        MinNominatorBond,
+        MinValidatorBond,
+        MinimumActiveStake,
+        MinCommission,
+        Ledger,
+        Payee,
+        Validators,
+        CounterForValidators,
+        MaxValidatorsCount,
+        Nominators,
+        CounterForNominators,
+        MaxNominatorsCount,
+        CurrentEra,
+        ActiveEra,
+        ErasStartSessionIndex,
+        ErasStakers,
+        ErasStakersClipped,
+        ErasValidatorPrefs,
+        ErasValidatorReward,
+        ErasRewardPoints,
+        ErasTotalStake,
+        ForceEra,
+        SlashRewardFraction,
+        CanceledSlashPayout,
+        UnappliedSlashes,
+        BondedEras,
+        ValidatorSlashInEra,
+        NominatorSlashInEra,
+        SlashingSpans,
+        SpanSlash,
+        CurrentPlannedSession,
+        OffendingValidators,
+        ChillThreshold,
+    }
+    impl StorageInfo for StakingStorage {
+        const PALLET: &'static str = "Staking";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ValidatorCount => "ValidatorCount",
+                Self::MinimumValidatorCount => "MinimumValidatorCount",
+                Self::Invulnerables => "Invulnerables",
+                Self::Bonded => "Bonded",
+                Self::MinNominatorBond => "MinNominatorBond",
+                Self::MinValidatorBond => "MinValidatorBond",
+                Self::MinimumActiveStake => "MinimumActiveStake",
+                Self::MinCommission => "MinCommission",
+                Self::Ledger => "Ledger",
+                Self::Payee => "Payee",
+                Self::Validators => "Validators",
+                Self::CounterForValidators => "CounterForValidators",
+                Self::MaxValidatorsCount => "MaxValidatorsCount",
+                Self::Nominators => "Nominators",
+                Self::CounterForNominators => "CounterForNominators",
+                Self::MaxNominatorsCount => "MaxNominatorsCount",
+                Self::CurrentEra => "CurrentEra",
+                Self::ActiveEra => "ActiveEra",
+                Self::ErasStartSessionIndex => "ErasStartSessionIndex",
+                Self::ErasStakers => "ErasStakers",
+                Self::ErasStakersClipped => "ErasStakersClipped",
+                Self::ErasValidatorPrefs => "ErasValidatorPrefs",
+                Self::ErasValidatorReward => "ErasValidatorReward",
+                Self::ErasRewardPoints => "ErasRewardPoints",
+                Self::ErasTotalStake => "ErasTotalStake",
+                Self::ForceEra => "ForceEra",
+                Self::SlashRewardFraction => "SlashRewardFraction",
+                Self::CanceledSlashPayout => "CanceledSlashPayout",
+                Self::UnappliedSlashes => "UnappliedSlashes",
+                Self::BondedEras => "BondedEras",
+                Self::ValidatorSlashInEra => "ValidatorSlashInEra",
+                Self::NominatorSlashInEra => "NominatorSlashInEra",
+                Self::SlashingSpans => "SlashingSpans",
+                Self::SpanSlash => "SpanSlash",
+                Self::CurrentPlannedSession => "CurrentPlannedSession",
+                Self::OffendingValidators => "OffendingValidators",
+                Self::ChillThreshold => "ChillThreshold",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `StakingRewards`."]
+    pub enum StakingRewardsStorage {
+        TargetInflation,
+        IdealStakingRatio,
+        NonStakeableShare,
+        FilteredAccounts,
+    }
+    impl StorageInfo for StakingRewardsStorage {
+        const PALLET: &'static str = "StakingRewards";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::TargetInflation => "TargetInflation",
+                Self::IdealStakingRatio => "IdealStakingRatio",
+                Self::NonStakeableShare => "NonStakeableShare",
+                Self::FilteredAccounts => "FilteredAccounts",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Sudo`."]
+    pub enum SudoStorage {
+        Key,
+    }
+    impl StorageInfo for SudoStorage {
+        const PALLET: &'static str = "Sudo";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Key => "Key",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `System`."]
+    pub enum SystemStorage {
+        Account,
+        ExtrinsicCount,
+        BlockWeight,
+        AllExtrinsicsLen,
+        BlockHash,
+        ExtrinsicData,
+        Number,
+        ParentHash,
+        Digest,
+        Events,
+        EventCount,
+        EventTopics,
+        LastRuntimeUpgrade,
+        UpgradedToU32RefCount,
+        UpgradedToTripleRefCount,
+        ExecutionPhase,
+    }
+    impl StorageInfo for SystemStorage {
+        const PALLET: &'static str = "System";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Account => "Account",
+                Self::ExtrinsicCount => "ExtrinsicCount",
+                Self::BlockWeight => "BlockWeight",
+                Self::AllExtrinsicsLen => "AllExtrinsicsLen",
+                Self::BlockHash => "BlockHash",
+                Self::ExtrinsicData => "ExtrinsicData",
+                Self::Number => "Number",
+                Self::ParentHash => "ParentHash",
+                Self::Digest => "Digest",
+                Self::Events => "Events",
+                Self::EventCount => "EventCount",
+                Self::EventTopics => "EventTopics",
+                Self::LastRuntimeUpgrade => "LastRuntimeUpgrade",
+                Self::UpgradedToU32RefCount => "UpgradedToU32RefCount",
+                Self::UpgradedToTripleRefCount => "UpgradedToTripleRefCount",
+                Self::ExecutionPhase => "ExecutionPhase",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Timestamp`."]
+    pub enum TimestampStorage {
+        Now,
+        DidUpdate,
+    }
+    impl StorageInfo for TimestampStorage {
+        const PALLET: &'static str = "Timestamp";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Now => "Now",
+                Self::DidUpdate => "DidUpdate",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `TransactionPayment`."]
+    pub enum TransactionPaymentStorage {
+        NextFeeMultiplier,
+        StorageVersion,
+    }
+    impl StorageInfo for TransactionPaymentStorage {
+        const PALLET: &'static str = "TransactionPayment";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::NextFeeMultiplier => "NextFeeMultiplier",
+                Self::StorageVersion => "StorageVersion",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Treasury`."]
+    pub enum TreasuryStorage {
+        ProposalCount,
+        Proposals,
+        Deactivated,
+        Approvals,
+    }
+    impl StorageInfo for TreasuryStorage {
+        const PALLET: &'static str = "Treasury";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::ProposalCount => "ProposalCount",
+                Self::Proposals => "Proposals",
+                Self::Deactivated => "Deactivated",
+                Self::Approvals => "Approvals",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `ValidatorSet`."]
+    pub enum ValidatorSetStorage {
+        Validators,
+        ApprovedValidators,
+        OfflineValidators,
+    }
+    impl StorageInfo for ValidatorSetStorage {
+        const PALLET: &'static str = "ValidatorSet";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Validators => "Validators",
+                Self::ApprovedValidators => "ApprovedValidators",
+                Self::OfflineValidators => "OfflineValidators",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Vesting`."]
+    pub enum VestingStorage {
+        Vesting,
+        StorageVersion,
+    }
+    impl StorageInfo for VestingStorage {
+        const PALLET: &'static str = "Vesting";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Vesting => "Vesting",
+                Self::StorageVersion => "StorageVersion",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `Whitelist`."]
+    pub enum WhitelistStorage {
+        WhitelistedCall,
+    }
+    impl StorageInfo for WhitelistStorage {
+        const PALLET: &'static str = "Whitelist";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::WhitelistedCall => "WhitelistedCall",
+            }
+        }
+    }
+}
