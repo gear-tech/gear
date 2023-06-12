@@ -80,16 +80,12 @@ pub struct ResumeSession<BlockNumber> {
     allocations: BTreeSet<WasmPage>,
     code_hash: H256,
     start_block: BlockNumber,
-    rent_blocks: BlockNumber,
-    rent_fee: u128,
 }
 
 /// The entity defines result of the [`PausedProgramStorage::resume_session_commit()`] method.
 pub struct ResumeResult<BlockNumber> {
     /// The session start block number.
     pub start_block: BlockNumber,
-    /// The rent fee.
-    pub rent_fee: u128,
     /// If a program resumed successfully then this field contains
     /// a tuple with id and expiration block of the program.
     pub info: Option<(ProgramId, BlockNumber)>,
@@ -166,11 +162,9 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         program_id: ProgramId,
         allocations: BTreeSet<WasmPage>,
         code_hash: H256,
-        rent_blocks: Self::BlockNumber,
-        rent_fee: u128,
-    ) -> Option<u64> {
+    ) -> Result<u64, Self::Error> {
         if !Self::paused_program_exists(&program_id) {
-            return None;
+            return Err(Self::InternalError::item_not_found().into());
         }
 
         let nonce = Self::NonceStorage::mutate(|nonce| {
@@ -187,7 +181,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         };
         Self::ResumeSessions::mutate(session_id, |session| {
             if session.is_some() {
-                return None;
+                return Err(Self::InternalError::duplicate_resume_session().into());
             }
 
             *session = Some(ResumeSession {
@@ -197,11 +191,9 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 allocations,
                 code_hash,
                 start_block,
-                rent_blocks,
-                rent_fee,
             });
 
-            Some(session_id)
+            Ok(session_id)
         })
     }
 
@@ -238,21 +230,18 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     fn resume_session_commit(
         session_id: u64,
         user: AccountId32,
-        current_block: Self::BlockNumber,
+        expiration_block: Self::BlockNumber,
     ) -> Result<ResumeResult<Self::BlockNumber>, Self::Error> {
         Self::ResumeSessions::mutate(session_id, |maybe_session| {
             let session = match maybe_session.as_mut() {
+                Some(s) if s.user == user => s,
+                Some(_) => return Err(Self::InternalError::not_session_owner().into()),
                 None => return Err(Self::InternalError::resume_session_not_found().into()),
-                Some(s) if s.user != user => {
-                    return Err(Self::InternalError::not_session_owner().into())
-                }
-                Some(s) => s,
             };
 
             let Some((_block_number, hash)) = Self::PausedProgramMap::get(&session.program_id) else {
                 let result = ResumeResult {
                     start_block: session.start_block,
-                    rent_fee: session.rent_fee,
                     info: None,
                 };
 
@@ -295,13 +284,12 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 code_exports: code.exports().clone(),
                 static_pages: code.static_pages(),
                 state: ProgramState::Initialized,
-                expiration_block: current_block.saturating_add(session.rent_blocks),
+                expiration_block,
             };
 
             let program_id = session.program_id;
             let result = ResumeResult {
                 start_block: session.start_block,
-                rent_fee: session.rent_fee,
                 info: Some((program_id, program.expiration_block)),
             };
 
@@ -326,12 +314,12 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     }
 
     /// Remove all data created by a call to `resume_session_init`.
-    fn remove_resume_session(session_id: u64) -> Result<(AccountId32, u128), Self::Error> {
+    fn remove_resume_session(session_id: u64) -> Result<(), Self::Error> {
         Self::ResumeSessions::mutate(session_id, |maybe_session| match maybe_session.take() {
-            Some(s) => {
+            Some(_) => {
                 Self::SessionMemoryPages::remove(session_id);
 
-                Ok((s.user, s.rent_fee))
+                Ok(())
             }
             None => Err(Self::InternalError::item_not_found().into()),
         })

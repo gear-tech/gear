@@ -190,6 +190,7 @@ pub mod pallet {
         NotSessionOwner,
         ResumeSessionFailed,
         ProgramCodeNotFound,
+        DuplicateResumeSession,
     }
 
     impl<T: Config> common::ProgramStorageError for Error<T> {
@@ -223,6 +224,10 @@ pub mod pallet {
 
         fn program_code_not_found() -> Self {
             Self::ProgramCodeNotFound
+        }
+
+        fn duplicate_resume_session() -> Self {
+            Self::DuplicateResumeSession
         }
     }
 

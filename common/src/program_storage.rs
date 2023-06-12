@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sp_arithmetic::traits::UniqueSaturatedInto;
 use super::*;
 use crate::storage::{AppendMapStorage, DoubleMapStorage, MapStorage};
 use core::fmt::Debug;
+use sp_arithmetic::traits::UniqueSaturatedInto;
 
 /// Trait for ProgramStorage errors.
 ///
@@ -48,6 +48,9 @@ pub trait Error {
 
     /// Failed to find the program binary code.
     fn program_code_not_found() -> Self;
+
+    /// Resume session with the specified id already exists in storage.
+    fn duplicate_resume_session() -> Self;
 }
 
 pub type MemoryMap = BTreeMap<GearPage, PageBuf>;

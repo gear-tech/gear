@@ -461,8 +461,6 @@ pub mod pallet {
         MessageQueueProcessingDisabled,
         /// Block count doesn't cover MinimalResumePeriod.
         ResumePeriodLessThanMinimal,
-        /// Session of program resume cannot be started.
-        ProgramResumeSessionCannotBeStarted,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -1763,13 +1761,12 @@ pub mod pallet {
 
         /// Starts a resume session of the previously paused program.
         ///
-        /// The origin must be Signed and the sender must have sufficient funds.
+        /// The origin must be Signed.
         ///
         /// Parameters:
         /// - `program_id`: id of the program to resume.
         /// - `allocations`: memory allocations of program prior to stop.
         /// - `code_hash`: id of the program binary code.
-        /// - `block_count`: the specified period of rent.
         #[pallet::call_index(9)]
         #[pallet::weight(<T as Config>::WeightInfo::resume_session_init())]
         pub fn resume_session_init(
@@ -1777,31 +1774,17 @@ pub mod pallet {
             program_id: ProgramId,
             allocations: BTreeSet<WasmPage>,
             code_hash: H256,
-            block_count: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            ensure!(
-                block_count >= ResumeMinimalPeriodOf::<T>::get(),
-                Error::<T>::ResumePeriodLessThanMinimal
-            );
-
-            let rent_fee = Self::rent_fee_for(block_count);
-            CurrencyOf::<T>::reserve(&who, rent_fee)
-                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
-
             let start_block = Self::block_number();
-            let Some(session_id) = ProgramStorageOf::<T>::resume_session_init(
+            let session_id = ProgramStorageOf::<T>::resume_session_init(
                 AccountId32::from_origin(who.into_origin()),
                 start_block,
                 program_id,
                 allocations,
                 code_hash,
-                block_count,
-                rent_fee.saturated_into(),
-            ) else {
-                return Err(Error::<T>::ProgramResumeSessionCannotBeStarted.into());
-            };
+            )?;
 
             let task = ScheduledTask::RemoveResumeSession(session_id);
             let session_end_block = start_block.saturating_add(ResumeSessionDurationOf::<T>::get());
@@ -1848,18 +1831,31 @@ pub mod pallet {
         ///
         /// Parameters:
         /// - `session_id`: id of the resume session.
+        /// - `block_count`: the specified period of rent.
         #[pallet::call_index(11)]
         #[pallet::weight(DbWeightOf::<T>::get().reads(1) + <T as Config>::WeightInfo::resume_session_commit(ProgramStorageOf::<T>::resume_session_page_count(session_id).unwrap_or(0)))]
         pub fn resume_session_commit(
             origin: OriginFor<T>,
             session_id: u64,
+            block_count: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
+
+            ensure!(
+                block_count >= ResumeMinimalPeriodOf::<T>::get(),
+                Error::<T>::ResumePeriodLessThanMinimal
+            );
+
+            let rent_fee = Self::rent_fee_for(block_count);
+            ensure!(
+                CurrencyOf::<T>::free_balance(&who) >= rent_fee,
+                Error::<T>::InsufficientBalanceForReserve
+            );
 
             let result = ProgramStorageOf::<T>::resume_session_commit(
                 session_id,
                 AccountId32::from_origin(who.clone().into_origin()),
-                Self::block_number(),
+                Self::block_number().saturating_add(block_count),
             )?;
 
             let task = ScheduledTask::RemoveResumeSession(session_id);
@@ -1876,16 +1872,13 @@ pub mod pallet {
                 TaskPoolOf::<T>::add(expiration_block, task)
                     .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
-                let leftover = CurrencyOf::<T>::repatriate_reserved(
+                CurrencyOf::<T>::transfer(
                     &who,
                     &block_author,
-                    result.rent_fee.saturated_into(),
-                    BalanceStatus::Free,
+                    rent_fee,
+                    ExistenceRequirement::AllowDeath,
                 )
-                .unwrap_or_else(|e| unreachable!("Failed to repatriate reserved funds: {:?}", e));
-                if !leftover.is_zero() {
-                    unreachable!("Reserved funds wasn't fully repatriated: {:?}", leftover)
-                }
+                .unwrap_or_else(|e| unreachable!("Failed to transfer rent: {:?}", e));
 
                 Self::deposit_event(Event::ProgramChanged {
                     id: program_id,
@@ -1893,11 +1886,6 @@ pub mod pallet {
                         expiration: expiration_block,
                     },
                 });
-            } else {
-                let leftover = CurrencyOf::<T>::unreserve(&who, result.rent_fee.saturated_into());
-                if !leftover.is_zero() {
-                    unreachable!("Not all requested value was unreserved: {:?}", leftover);
-                }
             }
 
             Ok(().into())

@@ -467,7 +467,7 @@ benchmarks! {
             .try_into()
             .expect("program should be active");
         ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
-    }: _(RawOrigin::Signed(caller.clone()), program_id, program.allocations, program.code_hash, ResumeMinimalPeriodOf::<T>::get())
+    }: _(RawOrigin::Signed(caller.clone()), program_id, program.allocations, program.code_hash)
     verify {
         assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
     }
@@ -490,7 +490,7 @@ benchmarks! {
             .expect("program should be active");
         ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
 
-        Gear::<T>::resume_session_init(RawOrigin::Signed(caller.clone()).into(), program_id, program.allocations, program.code_hash, ResumeMinimalPeriodOf::<T>::get()).expect("failed to start resume session");
+        Gear::<T>::resume_session_init(RawOrigin::Signed(caller.clone()).into(), program_id, program.allocations, program.code_hash).expect("failed to start resume session");
 
         let event_record = SystemPallet::<T>::events().pop().unwrap();
         let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
@@ -557,7 +557,7 @@ benchmarks! {
         }).expect("program should exist");
         ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
 
-        Gear::<T>::resume_session_init(RawOrigin::Signed(caller.clone()).into(), program_id, program.allocations, program.code_hash, ResumeMinimalPeriodOf::<T>::get()).expect("failed to start resume session");
+        Gear::<T>::resume_session_init(RawOrigin::Signed(caller.clone()).into(), program_id, program.allocations, program.code_hash).expect("failed to start resume session");
 
         let event_record = SystemPallet::<T>::events().pop().unwrap();
         let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
@@ -580,7 +580,7 @@ benchmarks! {
         };
 
         Gear::<T>::resume_session_push(RawOrigin::Signed(caller.clone()).into(), session_id, memory_pages).expect("failed to append memory pages");
-    }: _(RawOrigin::Signed(caller.clone()), session_id)
+    }: _(RawOrigin::Signed(caller.clone()), session_id, ResumeMinimalPeriodOf::<T>::get())
     verify {
         assert!(
             Gear::<T>::is_active(program_id)
