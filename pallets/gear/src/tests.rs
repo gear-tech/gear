@@ -52,7 +52,6 @@ use core_processor::{common::ActorExecutionErrorReason, ActorPrepareMemoryError}
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
-use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 use frame_support::{
     assert_err, assert_noop, assert_ok,
     codec::{Decode, Encode},
@@ -640,6 +639,62 @@ fn reply_deposit_to_user_out_of_rent() {
         assert_total_dequeued(3);
         assert!(!MailboxOf::<Test>::is_empty(&checker));
         assert_balance(USER_2, user_2_balance, 0u128);
+    });
+}
+
+#[test]
+fn reply_deposit_gstd_async() {
+    use demo_waiting_proxy::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            (USER_2.into_origin().as_fixed_bytes(), 1_000_000_000u64).encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let program_id = get_last_program_id();
+
+        let hello = b"Hello!";
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            hello.to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        let handle_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(program_id));
+
+        let mail = get_last_mail(USER_2);
+        assert_eq!(mail.payload(), hello);
+
+        let hello_reply = b"U2";
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_2),
+            mail.id(),
+            hello_reply.to_vec(),
+            0,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert_succeed(handle_id);
+
+        let reply = maybe_any_last_message().expect("Should be");
+        assert_eq!(
+            reply.reply().expect("Should be").into_parts(),
+            (handle_id, 0)
+        );
+        assert_eq!(reply.payload(), hello_reply);
     });
 }
 
@@ -7640,6 +7695,8 @@ fn delayed_wake() {
 
 #[test]
 fn cascading_messages_with_value_do_not_overcharge() {
+    use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
+
     init_logger();
     new_test_ext().execute_with(|| {
         let contract_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract");
