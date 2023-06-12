@@ -122,7 +122,7 @@ pub mod pallet {
         /// The origin must be the root.
         ///
         /// Parameters:
-        /// - `source`: the pre-funded account (i.e. root),
+        /// - `source`: the account with vesting running,
         /// - `dest`: the beneficiary account,
         /// - `schedule_index`: the index of VestingInfo for source account.
         ///
