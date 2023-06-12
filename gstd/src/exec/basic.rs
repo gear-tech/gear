@@ -76,7 +76,7 @@ pub fn exit(inheritor_id: ActorId) -> ! {
 
 /// Resume previously paused message handling.
 ///
-/// Suppose a message has been paused using the [`wait`] function,
+/// Suppose a message has been paused using the [`gcore::exec::wait`] function,
 /// it is possible to continue its execution by calling this function.
 ///
 /// `message_id` specifies a particular message to be taken out of the *waiting
