@@ -157,8 +157,6 @@ where
     }
 
     pub fn alloc(repetitions: u32, pages: u32) -> Result<Exec<T>, &'static str> {
-        assert!(repetitions * pages <= max_pages::<T>() as u32);
-
         let mut instructions = vec![
             Instruction::I32Const(pages as i32),
             Instruction::Call(0),
