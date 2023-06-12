@@ -144,6 +144,58 @@ fn auto_reply_sent() {
 }
 
 #[test]
+fn auto_reply_from_user_no_mailbox() {
+    use demo_constructor::{Call, Calls, Scheme};
+
+    init_logger();
+    // no delay case
+    new_test_ext().execute_with(|| {
+        let (_init_mid, constructor_id) = init_constructor(Scheme::empty());
+
+        let calls = Calls::builder().send_wgas(<[u8; 32]>::from(USER_1.into_origin()), [], 0);
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 1 init message + 1 handle message + 1 auto_reply to program on message sent to user
+        assert_total_dequeued(3);
+    });
+
+    // delay case
+    new_test_ext().execute_with(|| {
+        let (_init_mid, constructor_id) = init_constructor(Scheme::empty());
+
+        let calls = Calls::builder().add_call(Call::Send(
+            <[u8; 32]>::from(USER_1.into_origin()).into(),
+            [].into(),
+            Some(0u64.into()),
+            0u128.into(),
+            1u32.into(),
+        ));
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            constructor_id,
+            calls.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 1 init message + 1 handle message
+        assert_total_dequeued(2);
+
+        run_to_next_block(None);
+        // 1 init message + 1 handle message + 1 auto_reply to program on message sent to user with delay
+        assert_total_dequeued(3);
+    })
+}
+
+#[test]
 fn auto_reply_out_of_rent_waitlist() {
     use demo_proxy::{InputArgs as ProxyInputArgs, WASM_BINARY as PROXY_WASM_BINARY};
     use demo_waiter::{Command, WaitSubcommand, WASM_BINARY as WAITER_WASM_BINARY};
@@ -284,6 +336,310 @@ fn auto_reply_out_of_rent_mailbox() {
             dispatch.status_code().expect("Should be"),
             err.into_status_code()
         );
+    });
+}
+
+#[test]
+fn reply_deposit_to_program() {
+    use demo_constructor::demo_reply_deposit;
+
+    init_logger();
+
+    let checker = USER_1;
+
+    // To program case.
+    new_test_ext().execute_with(|| {
+        let program_id = {
+            let res = upload_program_default(USER_2, ProgramCodeKind::Default);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
+            <[u8; 32]>::from(checker.into_origin()),
+            program_id.into(),
+            0,
+        ));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            constructor,
+            10_000_000_000u64.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 2 init + 2 handle + 1 auto reply
+        assert_total_dequeued(5);
+        assert!(!MailboxOf::<Test>::is_empty(&checker));
+    });
+}
+
+#[test]
+fn reply_deposit_to_user_auto_reply() {
+    use demo_constructor::demo_reply_deposit;
+
+    init_logger();
+
+    let checker = USER_1;
+
+    // To user case.
+    new_test_ext().execute_with(|| {
+        let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
+            <[u8; 32]>::from(checker.into_origin()),
+            <[u8; 32]>::from(USER_2.into_origin()),
+            0,
+        ));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            constructor,
+            10_000_000_000u64.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 1 init + 1 handle + 1 auto reply
+        assert_total_dequeued(3);
+        assert!(!MailboxOf::<Test>::is_empty(&checker));
+    });
+}
+
+#[test]
+fn reply_deposit_panic_in_handle_reply() {
+    use demo_constructor::demo_reply_deposit;
+
+    init_logger();
+
+    let checker = USER_1;
+
+    // To user case with fail in handling reply.
+    new_test_ext().execute_with(|| {
+        let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
+            <[u8; 32]>::from(checker.into_origin()),
+            <[u8; 32]>::from(USER_2.into_origin()),
+            0,
+        ));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            constructor,
+            1u64.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 1 init + 1 handle + 1 auto reply
+        assert_total_dequeued(3);
+        assert!(MailboxOf::<Test>::is_empty(&checker));
+    });
+}
+
+#[test]
+fn reply_deposit_to_user_reply() {
+    use demo_constructor::demo_reply_deposit;
+
+    init_logger();
+
+    let checker = USER_1;
+
+    // To user case.
+    new_test_ext().execute_with(|| {
+        let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
+            <[u8; 32]>::from(checker.into_origin()),
+            <[u8; 32]>::from(USER_2.into_origin()),
+            15_000,
+        ));
+
+        let reply_deposit = 10_000_000_000u64;
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            constructor,
+            reply_deposit.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 1 init + 1 handle
+        assert_total_dequeued(2);
+
+        let mail = get_last_mail(USER_2);
+        assert_eq!(mail.payload(), demo_reply_deposit::DESTINATION_MESSAGE);
+
+        let user_2_balance = Balances::total_balance(&USER_2);
+        assert_balance(USER_2, user_2_balance, 0u128);
+
+        let value = 12_345u128;
+
+        let reply_id = MessageId::generate_reply(mail.id());
+
+        assert!(GasHandlerOf::<Test>::exists_and_deposit(reply_id));
+        assert_eq!(
+            GasHandlerOf::<Test>::get_limit(reply_id).expect("Gas tree invalidated"),
+            reply_deposit
+        );
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_2),
+            mail.id(),
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            value,
+        ));
+
+        assert_eq!(get_last_message_id(), reply_id);
+        assert!(GasHandlerOf::<Test>::exists_and_deposit(reply_id));
+        assert_eq!(
+            GasHandlerOf::<Test>::get_limit(reply_id).expect("Gas tree invalidated"),
+            reply_deposit
+        );
+
+        assert_balance(USER_2, user_2_balance - value, value);
+
+        run_to_next_block(None);
+
+        // 1 init + 1 handle + 1 reply
+        assert_total_dequeued(3);
+        assert!(!MailboxOf::<Test>::is_empty(&checker));
+        assert_balance(USER_2, user_2_balance - value, 0u128);
+    });
+}
+
+#[test]
+fn reply_deposit_to_user_claim() {
+    use demo_constructor::demo_reply_deposit;
+
+    init_logger();
+
+    let checker = USER_1;
+
+    // To user case.
+    new_test_ext().execute_with(|| {
+        let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
+            <[u8; 32]>::from(checker.into_origin()),
+            <[u8; 32]>::from(USER_2.into_origin()),
+            15_000,
+        ));
+
+        let reply_deposit = 10_000_000_000u64;
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            constructor,
+            reply_deposit.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 1 init + 1 handle
+        assert_total_dequeued(2);
+
+        let mail = get_last_mail(USER_2);
+        assert_eq!(mail.payload(), demo_reply_deposit::DESTINATION_MESSAGE);
+
+        let user_2_balance = Balances::total_balance(&USER_2);
+        assert_balance(USER_2, user_2_balance, 0u128);
+
+        let reply_id = MessageId::generate_reply(mail.id());
+
+        assert!(GasHandlerOf::<Test>::exists_and_deposit(reply_id));
+        assert_eq!(
+            GasHandlerOf::<Test>::get_limit(reply_id).expect("Gas tree invalidated"),
+            reply_deposit
+        );
+
+        assert_ok!(Gear::claim_value(RuntimeOrigin::signed(USER_2), mail.id(),));
+
+        assert!(GasHandlerOf::<Test>::exists_and_deposit(reply_id));
+        assert_eq!(
+            GasHandlerOf::<Test>::get_limit(reply_id).expect("Gas tree invalidated"),
+            reply_deposit
+        );
+
+        assert_balance(USER_2, user_2_balance, 0u128);
+
+        run_to_next_block(None);
+
+        // 1 init + 1 handle + 1 auto reply on claim
+        assert_total_dequeued(3);
+        assert!(!MailboxOf::<Test>::is_empty(&checker));
+        assert_balance(USER_2, user_2_balance, 0u128);
+    });
+}
+
+#[test]
+fn reply_deposit_to_user_out_of_rent() {
+    use demo_constructor::demo_reply_deposit;
+
+    init_logger();
+
+    let checker = USER_1;
+
+    // To user case.
+    new_test_ext().execute_with(|| {
+        let (_init_mid, constructor) = init_constructor(demo_reply_deposit::scheme(
+            <[u8; 32]>::from(checker.into_origin()),
+            <[u8; 32]>::from(USER_2.into_origin()),
+            15_000,
+        ));
+
+        let reply_deposit = 10_000_000_000u64;
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_3),
+            constructor,
+            reply_deposit.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+        // 1 init + 1 handle
+        assert_total_dequeued(2);
+
+        let (mail, interval) = MailboxOf::<Test>::iter_key(USER_2)
+            .next()
+            .expect("Element should be");
+
+        assert_eq!(mail.payload(), demo_reply_deposit::DESTINATION_MESSAGE);
+
+        let user_2_balance = Balances::total_balance(&USER_2);
+        assert_balance(USER_2, user_2_balance, 0u128);
+
+        let reply_id = MessageId::generate_reply(mail.id());
+
+        assert!(GasHandlerOf::<Test>::exists_and_deposit(reply_id));
+        assert_eq!(
+            GasHandlerOf::<Test>::get_limit(reply_id).expect("Gas tree invalidated"),
+            reply_deposit
+        );
+
+        // Hack to fast spend blocks till expiration.
+        System::set_block_number(interval.finish - 1);
+        Gear::set_block_number(interval.finish - 1);
+
+        assert!(GasHandlerOf::<Test>::exists_and_deposit(reply_id));
+        assert_eq!(
+            GasHandlerOf::<Test>::get_limit(reply_id).expect("Gas tree invalidated"),
+            reply_deposit
+        );
+
+        assert_balance(USER_2, user_2_balance, 0u128);
+
+        run_to_next_block(None);
+
+        assert!(!GasHandlerOf::<Test>::exists(reply_id));
+
+        // 1 init + 1 handle + 1 error reply on out of rent from mailbox
+        assert_total_dequeued(3);
+        assert!(!MailboxOf::<Test>::is_empty(&checker));
+        assert_balance(USER_2, user_2_balance, 0u128);
     });
 }
 
@@ -734,14 +1090,8 @@ fn delayed_send_user_message_payment() {
         run_to_next_block(None);
 
         // Check that last event is UserMessageSent.
-        let last_event = match get_last_event() {
-            MockRuntimeEvent::Gear(e) => e,
-            _ => panic!("Should be one Gear event"),
-        };
-        match last_event {
-            Event::UserMessageSent { message, .. } => assert_eq!(delayed_id, message.id()),
-            _ => panic!("Test failed: expected Event::UserMessageSent"),
-        }
+        let message = maybe_any_last_message().expect("Should be");
+        assert_eq!(delayed_id, message.id());
 
         // Mailbox should be empty.
         assert!(MailboxOf::<Test>::is_empty(&USER_2));

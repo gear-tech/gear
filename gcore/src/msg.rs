@@ -168,7 +168,6 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
 ///
 /// # See also
 ///
-/// - [`reply_delayed`] function sends a reply after the delay.
 /// - [`reply_push`] function allows forming a reply message in parts.
 /// - [`send`] function sends a new message to the program or user.
 pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {

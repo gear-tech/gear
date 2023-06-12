@@ -4,6 +4,23 @@
 
 set -e
 
+say() {
+  echo "$@"
+}
+
+say_err() {
+  say "$@" >&2
+}
+
+err() {
+  if [ ! -z ${td-} ]; then
+    rm -rf $td
+  fi
+
+  say_err "error: $@"
+  exit 1
+}
+
 need() {
   if ! command -v $1 >/dev/null 2>&1; then
     err "need $1 (command not found)"

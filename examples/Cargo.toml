@@ -16,7 +16,6 @@ members = [
     "capacitor",
     "collector",
     "status-code",
-    "fungible-token",
     "futures-unordered",
     "guestbook",
     "incomplete_async_payloads",
@@ -34,12 +33,10 @@ members = [
     "sync_duplicate",
     "token-vendor",
     "token-vendor/workshop-example",
-    "wait"
+    "wait",
 ]
 
-exclude = [
-    "binaries/*"
-]
+exclude = ["binaries/*"]
 
 [workspace.dependencies]
 galloc = { path = "../galloc" }

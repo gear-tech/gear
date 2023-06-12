@@ -13,7 +13,7 @@ gear-core-errors.workspace = true
 hashbrown.workspace = true
 bs58 = { workspace = true, features = ["alloc"] }
 hex = { workspace = true, features = ["alloc"] }
-primitive-types = { workspace = true, features = ["scale-info"]}
+primitive-types = { workspace = true, features = ["scale-info"] }
 scale-info = { workspace = true, features = ["derive"] }
 futures = { workspace = true, features = ["alloc"] }
 
