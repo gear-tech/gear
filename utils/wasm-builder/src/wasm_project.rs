@@ -18,7 +18,7 @@
 
 use crate::{
     crate_info::CrateInfo,
-    optimize::{OptType, Optimizer},
+    optimize::{self, OptType, Optimizer},
     smart_fs,
 };
 use anyhow::{Context, Result};
@@ -285,7 +285,7 @@ extern "C" fn metahash() {{
         // Optimize source.
         if !self.project_type.is_metawasm() {
             fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
-            _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
+            _ = optimize::optimize_wasm(to_path.clone(), to_path.clone(), "s", false);
         }
 
         let metadata = self
@@ -359,7 +359,9 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
 
     fn generate_wasm(from: PathBuf, to_opt: Option<&Path>, to_meta: Option<&Path>) -> Result<()> {
         let mut optimizer = Optimizer::new(from)?;
-        optimizer.insert_stack_and_export();
+        optimizer
+            .insert_stack_end_export()
+            .unwrap_or_else(|err| log::debug!("Cannot insert stack end export: {}", err));
         optimizer.strip_custom_sections();
 
         // Generate *.opt.wasm.

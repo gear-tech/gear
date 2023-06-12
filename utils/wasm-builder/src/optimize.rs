@@ -1,4 +1,4 @@
-use crate::builder_error::BuilderError;
+use crate::{builder_error::BuilderError, stack_end};
 use anyhow::{Context, Result};
 #[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
@@ -18,6 +18,8 @@ use std::{
 
 #[cfg(feature = "wasm-opt")]
 use wasm_opt::{OptimizationOptions, Pass};
+
+pub const FUNC_EXPORTS: [&str; 4] = ["init", "handle", "handle_reply", "handle_signal"];
 
 const OPTIMIZED_EXPORTS: [&str; 7] = [
     "handle",
@@ -41,7 +43,6 @@ pub enum OptType {
 pub struct OptimizerError(pwasm_utils::OptimizerError);
 
 pub struct Optimizer {
-    module_bytes: Option<Vec<u8>>,
     module: Module,
     file: PathBuf,
 }
@@ -51,20 +52,19 @@ impl Optimizer {
         let contents = fs::read(&file)?;
         let module = parity_wasm::deserialize_buffer(&contents)
             .with_context(|| format!("File path: {file:?}"))?;
-        Ok(Self {
-            module_bytes: Some(contents),
-            module,
-            file,
-        })
+        Ok(Self { module, file })
     }
 
-    pub fn insert_stack_and_export(&mut self) {
-        let module_bytes = self
-            .module_bytes
-            .take()
-            .expect("self exists so do the field 'module_bytes'");
-        let _ = crate::insert_stack_end_export(&module_bytes, &mut self.module)
-            .map_err(|s| log::debug!("{}", s));
+    pub fn insert_start_call_in_export_funcs(&mut self) -> Result<(), &'static str> {
+        stack_end::insert_start_call_in_export_funcs(&mut self.module)
+    }
+
+    pub fn move_mut_globals_to_static(&mut self) -> Result<(), &'static str> {
+        stack_end::move_mut_globals_to_static(&mut self.module)
+    }
+
+    pub fn insert_stack_end_export(&mut self) -> Result<(), &'static str> {
+        stack_end::insert_stack_end_export(&mut self.module)
     }
 
     /// Strips all custom sections.
@@ -75,6 +75,10 @@ impl Optimizer {
         self.module
             .sections_mut()
             .retain(|section| !matches!(section, Section::Reloc(_) | Section::Custom(_)))
+    }
+
+    pub fn flush_to_file(self, path: &PathBuf) {
+        fs::write(path, self.module.to_bytes().unwrap()).unwrap();
     }
 
     /// Process optimization.
@@ -137,7 +141,6 @@ impl Optimizer {
 }
 
 pub struct OptimizationResult {
-    pub dest_wasm: PathBuf,
     pub original_size: f64,
     pub optimized_size: f64,
 }
@@ -148,41 +151,29 @@ pub struct OptimizationResult {
 /// optimizations (or bugs?) between Rust and Wasm.
 pub fn optimize_wasm(
     source: PathBuf,
+    destination: PathBuf,
     optimization_passes: &str,
     keep_debug_symbols: bool,
 ) -> Result<OptimizationResult> {
-    let mut dest_optimized = source.clone();
-
-    dest_optimized.set_file_name(format!(
-        "{}-opt.wasm",
-        source
-            .file_name()
-            .unwrap_or_else(|| OsStr::new("program"))
-            .to_str()
-            .unwrap()
-    ));
+    let original_size = metadata(&source)?.len() as f64 / 1000.0;
 
     do_optimization(
         source.as_os_str(),
-        dest_optimized.as_os_str(),
+        destination.as_os_str(),
         optimization_passes,
         keep_debug_symbols,
     )?;
 
-    if !dest_optimized.exists() {
+    if !destination.exists() {
         return Err(anyhow::anyhow!(
             "Optimization failed, optimized wasm output file `{}` not found.",
-            dest_optimized.display()
+            destination.display()
         ));
     }
 
-    let original_size = metadata(&source)?.len() as f64 / 1000.0;
-    let optimized_size = metadata(&dest_optimized)?.len() as f64 / 1000.0;
+    let optimized_size = metadata(&destination)?.len() as f64 / 1000.0;
 
-    // overwrite existing destination wasm file with the optimized version
-    fs::rename(&dest_optimized, &source)?;
     Ok(OptimizationResult {
-        dest_wasm: source,
         original_size,
         optimized_size,
     })
