@@ -51,6 +51,32 @@ use subxt::{
 
 impl Api {
     /// Shortcut for fetching storage at specified block.
+    ///
+    /// # You may not need this.
+    ///
+    /// Read the docs of [`Api`] to checkout the wrappred storage queries,
+    /// we need this function only when we want to execute a query which
+    /// has not been wrapped in `gsdk`.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use gsdk::{Api, metadata::storage::SystemStorage};
+    ///
+    /// let api = Api::new(None);
+    ///
+    /// {
+    ///     let address = Api::storage(SystemStorage::Number);
+    ///     let bn = api.fetch_storage(address).await?;
+    /// }
+    ///
+    /// // The code above equals to:
+    ///
+    /// {
+    ///     let bn = api.number().await?;
+    /// }
+    ///
+    /// ```
     #[storage_fetch]
     pub async fn fetch_storage_at<'a, Address, Value>(
         &self,

@@ -77,6 +77,24 @@ impl Api {
     }
 
     /// Subscribe all blocks
+    ///
+    /// # Parse events from blocks
+    ///
+    /// ```ignore
+    /// use gsdk::metadata::Event;
+    ///
+    /// let api = Api::new(None).await?;
+    /// let mut blocks = api.blocks().await?;
+    ///
+    /// while let Some(Ok(events)) = blocks.next_events().await {
+    ///   for event in events {
+    ///     let ev = event.as_root_event::<Event>();
+    ///
+    ///     // Match events here.
+    ///     matches!(ev, Event::System(system::Event::ExtrinsicSuccess(_)));
+    ///   }
+    /// }
+    /// ```
     pub async fn blocks(&self) -> Result<types::Blocks> {
         Ok(types::Blocks(self.client.blocks().subscribe_all().await?))
     }

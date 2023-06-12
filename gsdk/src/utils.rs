@@ -65,7 +65,7 @@ impl Api {
         SubxtDispatchError::Other(dispatch_error.encode()).into()
     }
 
-    /// Get the storage from storage info.
+    /// Get the storage address from storage info.
     pub fn storage<'a, Encodable: EncodeWithMetadata, T: StorageInfo>(
         storage: T,
         encodable: Vec<Encodable>,
@@ -73,7 +73,7 @@ impl Api {
         subxt::dynamic::storage(T::PALLET, storage.storage_name(), encodable)
     }
 
-    /// Get the storage root from storage info.
+    /// Get the storage root address from storage info.
     pub fn storage_root<'a, T: StorageInfo>(storage: T) -> DynamicStorageAddress<'a, Value> {
         subxt::dynamic::storage_root(T::PALLET, storage.storage_name())
     }
