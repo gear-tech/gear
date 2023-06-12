@@ -343,7 +343,7 @@ demo-compose = { path = "examples/binaries/compose" }
 demo-constructor = { path = "examples/binaries/constructor" }
 demo-delayed-sender = { path = "examples/binaries/delayed-sender" }
 demo-distributor = { path = "examples/binaries/distributor" }
-demo-futures-unordered = { path = "examples/binaries/futures-unordered" }
+demo-futures-unordered = { path = "examples/binaries/futures-unordered", features = ["debug"] }
 demo-gas-burned = { path = "examples/binaries/gas-burned" }
 demo-fungible-token = { path = "examples/binaries/fungible-token" }
 demo-incomplete-async-payloads = { path = "examples/binaries/incomplete-async-payloads" }
@@ -356,7 +356,7 @@ demo-mul-by-const = { path = "examples/binaries/mul-by-const" }
 demo-new-meta = { path = "examples/binaries/new-meta" }
 demo-node = { path = "examples/binaries/node" }
 demo-out-of-memory = { path = "examples/binaries/out-of-memory" }
-demo-piggy-bank = { path = "examples/binaries/piggy-bank" }
+demo-piggy-bank = { path = "examples/binaries/piggy-bank", features = ["debug"] }
 demo-ping = { path = "examples/binaries/ping" }
 demo-program-factory = { path = "examples/binaries/program-factory" }
 demo-proxy = { path = "examples/binaries/proxy", default-features = false }
