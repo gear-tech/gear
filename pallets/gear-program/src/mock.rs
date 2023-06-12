@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(unused)]
+
 use crate as pallet_gear_program;
 use crate::*;
 use frame_support::{
@@ -40,11 +42,8 @@ type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
 
-#[allow(unused)]
 pub(crate) const USER_1: AccountId = 1;
-#[allow(unused)]
 pub(crate) const USER_2: AccountId = 2;
-#[allow(unused)]
 pub(crate) const USER_3: AccountId = 3;
 pub(crate) const LOW_BALANCE_USER: AccountId = 4;
 pub(crate) const BLOCK_AUTHOR: AccountId = 255;
@@ -166,7 +165,6 @@ impl pallet_timestamp::Config for Test {
 }
 
 // Build genesis storage according to the mock runtime.
-#[allow(unused)]
 pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut t = system::GenesisConfig::default()
         .build_storage::<Test>()
