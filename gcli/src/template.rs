@@ -18,157 +18,58 @@
 
 //! Gear program template
 
-use crate::{result::Result, utils};
+use crate::result::Result;
 use anyhow::anyhow;
-use etc::{Etc, FileSystem, Read, Write};
-use gmeta::BTreeMap;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use reqwest::Client;
+use std::process::Command;
 
-const GEAR_REPO: &str = "https://github.com/gear-tech/gear";
-const CONFIG_TOML: &str = r#"
-[build]
-target = "wasm32-unknown-unknown"
+/// see https://docs.github.com/en/rest/repos/repos
+const GEAR_DAPPS_GH_API: &str = "https://api.github.com/orgs/gear-dapps/repos";
+const GEAR_DAPP_ORG: &str = "https://github.com/gear-dapps/";
 
-[target.wasm32-unknown-unknown]
-rustflags = [
-  "-C", "link-args=--import-memory",
-  "-C", "linker-plugin-lto",
-]
-"#;
-
-/// Template manager
-pub struct Template {
-    /// Template lists
-    list: BTreeMap<String, PathBuf>,
+/// Repo object from github api response.
+#[derive(serde::Deserialize)]
+struct Repo {
+    pub name: String,
 }
 
-impl Template {
-    /// Initialize a new template manager.
-    pub fn new() -> Result<Self> {
-        let repo = utils::home().join("gear");
+/// List all examples.
+pub async fn list() -> Result<Vec<String>> {
+    let r = Client::builder()
+        .user_agent("gcli")
+        .build()
+        .map_err(|e| anyhow!("Failed to build http client: {}", e))?
+        .get(GEAR_DAPPS_GH_API)
+        .send()
+        .await
+        .map_err(|e| anyhow!("Failed to get examples: {}", e))?;
 
-        Self::fetch(&repo)?;
-        let list = Self::list(&repo)?;
+    let repos = r
+        .json::<Vec<Repo>>()
+        .await
+        .map_err(|e| anyhow!("Failed to deserialize example list: {}", e))?
+        .into_iter()
+        .map(|repo| repo.name)
+        .collect();
 
-        Ok(Self { list })
-    }
+    Ok(repos)
+}
 
-    /// List all templates.
-    pub fn ls(&self) -> Vec<String> {
-        self.list.keys().cloned().collect()
-    }
+/// Download example
+pub async fn download(example: &str) -> Result<()> {
+    let url = format!("{}{}.git", GEAR_DAPP_ORG, example);
+    Command::new("git")
+        .args(["clone", &url, "--depth=1"])
+        .output()
+        .map_err(|e| anyhow!("Failed to download example: {}", e))?;
 
-    /// Copy example to path.
-    pub fn cp(&self, name: &str, to: impl AsRef<Path>) -> Result<()> {
-        let from = self
-            .list
-            .get(name)
-            .ok_or_else(|| anyhow!("Invalid example name"))?;
+    Ok(())
+}
 
-        let to = to.as_ref().into();
-        etc::cp_r(from, &to)?;
-
-        let proj = Etc::new(to)?;
-        let manifest = proj.open("Cargo.toml")?;
-        let mut toml = String::from_utf8_lossy(
-            &manifest
-                .read()
-                .map_err(|_| anyhow!("Failed to read Cargo.toml"))?,
-        )
-        .to_string();
-
-        // Update `Cargo.toml`.
-        Self::process_manifest(&mut toml)?;
-        manifest.write(toml.as_bytes())?;
-
-        // Add `config.toml`.
-        proj.open(".cargo/config.toml")?
-            .write(CONFIG_TOML.trim_start().as_bytes())?;
-
-        Ok(())
-    }
-
-    /// Update project manifest.
-    fn process_manifest(manifest: &mut String) -> Result<()> {
-        let (user, email) = {
-            let user_bytes = Command::new("git")
-                .args(["config", "--global", "--get", "user.name"])
-                .output()?
-                .stdout;
-            let user = String::from_utf8_lossy(&user_bytes);
-
-            let email_bytes = Command::new("git")
-                .args(["config", "--global", "--get", "user.email"])
-                .output()?
-                .stdout;
-            let email = String::from_utf8_lossy(&email_bytes);
-
-            (user.to_string(), email.to_string())
-        };
-
-        *manifest = manifest
-            .replace(
-                "authors.workspace = true",
-                &format!("authors = [\"{} <{}>\"]", user.trim(), email.trim()),
-            )
-            .replace("edition.workspace = true", "edition = \"2021\"")
-            .replace("license.workspace = true", "license = \"GPL-3.0\"")
-            .replace(
-                ".workspace = true",
-                &format!(" = {{ git = \"{}\" }}", GEAR_REPO),
-            )
-            .replace("workspace = true", &format!("git = \"{}\"", GEAR_REPO));
-
-        Ok(())
-    }
-
-    /// Clone or update the local gear repo.
-    fn fetch(repo: impl AsRef<Path>) -> Result<()> {
-        let repo = repo.as_ref();
-        if !repo.exists() {
-            Command::new("git")
-                .args([
-                    "clone",
-                    GEAR_REPO,
-                    repo.to_string_lossy().as_ref(),
-                    "--depth=1",
-                ])
-                .output()
-                .map_err(|_| anyhow!("Failed to clone gear repo"))?;
-        } else {
-            Command::new("git")
-                .args([
-                    &format!("--git-dir={}", repo.join(".git").to_string_lossy().as_ref()),
-                    "pull",
-                ])
-                .output()
-                .map_err(|_| anyhow!("Failed to update gear repo"))?;
-        }
-
-        Ok(())
-    }
-
-    /// Get all examples.
-    fn list(repo: impl AsRef<Path>) -> Result<BTreeMap<String, PathBuf>> {
-        let repo = repo.as_ref();
-        let templates = fs::read_dir(repo.join("examples"))?;
-
-        let mut map = BTreeMap::new();
-        for template in templates {
-            let t = template?.file_name();
-            let example = t.to_string_lossy();
-            if example.contains('.') {
-                continue;
-            }
-
-            let path = repo.join("examples").join(example.as_ref());
-            map.insert(example.to_string(), path);
-        }
-
-        Ok(map)
-    }
+#[tokio::test]
+async fn list_examples() {
+    assert!(list()
+        .await
+        .expect("Failed to get examples")
+        .contains(&"react-app".to_string()));
 }

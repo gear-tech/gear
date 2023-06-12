@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `new`
-use crate::{result::Result, template::Template};
+use crate::{result::Result, template};
 use clap::Parser;
 
 /// Create a new gear program
@@ -30,19 +30,18 @@ pub struct New {
 impl New {
     /// run command new
     pub async fn exec(&self) -> Result<()> {
-        let tm = Template::new()?;
-        let templates = tm.ls();
+        let templates = template::list().await?;
 
         if let Some(template) = &self.template {
             if templates.contains(template) {
-                tm.cp(template, template)?;
+                template::download(template).await?;
+                println!("Successfully created {template}!");
             } else {
-                tm.cp("ping", template)?;
+                println!("Available templates: {:#?}", templates);
             }
-
-            println!("Successfully created {template}!");
         } else {
-            println!("Available templates: {:#?}", templates);
+            template::download("app").await?;
+            println!("Successfully created app!");
         }
 
         Ok(())

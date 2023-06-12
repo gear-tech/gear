@@ -65,8 +65,6 @@ pub enum Error {
     InvalidWasm,
     #[error("Wasm execution error {0}")]
     WasmExecution(String),
-    #[error(transparent)]
-    Etc(#[from] etc::Error),
 }
 
 impl From<nacl::Error> for Error {
