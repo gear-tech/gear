@@ -242,6 +242,10 @@ impl Calls {
         self.add_call(Call::Exit(inheritor.into()))
     }
 
+    pub fn wait(self) -> Self {
+        self.add_call(Call::Wait)
+    }
+
     pub fn bytes_eq(
         self,
         key: impl AsRef<str>,

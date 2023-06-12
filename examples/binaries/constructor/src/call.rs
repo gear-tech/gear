@@ -36,6 +36,7 @@ pub enum Call {
     IfElse(Arg<bool>, Box<Self>, Box<Self>),
     Load,
     LoadBytes,
+    Wait,
 }
 
 #[cfg(not(feature = "std"))]
@@ -252,6 +253,12 @@ mod wasm {
             Some(msg::load_bytes().expect("Failed to load bytes"))
         }
 
+        fn wait(self) -> ! {
+            (!matches!(self, Self::Wait)).then(|| unreachable!());
+
+            exec::wait()
+        }
+
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
             debug!("\t[CONSTRUCTOR] >> Processing {:?}", self);
             let call = self.clone();
@@ -275,6 +282,7 @@ mod wasm {
                 Call::Value => self.value(),
                 Call::Load => self.load(),
                 Call::LoadBytes => self.load_bytes(),
+                Call::Wait => self.wait(),
             };
 
             (call, value)
