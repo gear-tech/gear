@@ -62,7 +62,7 @@ pub(crate) struct CallerWrap<'a, E> {
 }
 
 impl<'a, E: BackendExt + 'static> Runtime<E> for CallerWrap<'a, E> {
-    type RunError = Trap;
+    type Error = Trap;
 
     fn ext_mut(&mut self) -> &mut E {
         &mut self
@@ -73,7 +73,7 @@ impl<'a, E: BackendExt + 'static> Runtime<E> for CallerWrap<'a, E> {
             .ext
     }
 
-    fn unreachable_error_code() -> Self::RunError {
+    fn unreachable_error_code() -> Self::Error {
         Trap::Code(TrapCode::Unreachable)
     }
 
@@ -87,7 +87,7 @@ impl<'a, E: BackendExt + 'static> Runtime<E> for CallerWrap<'a, E> {
     }
 
     #[track_caller]
-    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::RunError>
+    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
     {
@@ -103,7 +103,7 @@ impl<'a, E: BackendExt + 'static> Runtime<E> for CallerWrap<'a, E> {
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(), Self::RunError>
+    ) -> Result<(), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
         R: From<Result<T, u32>> + Sized,

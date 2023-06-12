@@ -26,15 +26,15 @@ use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
 use gear_core_errors::ExtError;
 
 pub trait Runtime<E: BackendExt>: MemoryOwner + MemoryAccessRecorder + BackendState {
-    type RunError;
+    type Error;
 
-    fn unreachable_error_code() -> Self::RunError;
+    fn unreachable_error_code() -> Self::Error;
 
     fn fallible_syscall_error(&self) -> Option<&ExtError>;
 
     fn ext_mut(&mut self) -> &mut E;
 
-    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::RunError>
+    fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>;
 
@@ -43,7 +43,7 @@ pub trait Runtime<E: BackendExt>: MemoryOwner + MemoryAccessRecorder + BackendSt
         res_ptr: u32,
         cost: RuntimeCosts,
         f: F,
-    ) -> Result<(), Self::RunError>
+    ) -> Result<(), Self::Error>
     where
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
         R: From<Result<T, u32>> + Sized;
