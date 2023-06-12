@@ -56,11 +56,11 @@ pub async fn list() -> Result<Vec<String>> {
 }
 
 /// Download example
-pub async fn download(example: &str) -> Result<()> {
+pub async fn download(example: &str, path: &str) -> Result<()> {
     let url = format!("{}{}.git", GEAR_DAPP_ORG, example);
     Command::new("git")
-        .args(["clone", &url, "--depth=1"])
-        .output()
+        .args(["clone", &url, path, "--depth=1"])
+        .status()
         .map_err(|e| anyhow!("Failed to download example: {}", e))?;
 
     Ok(())

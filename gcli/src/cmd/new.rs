@@ -23,8 +23,12 @@ use clap::Parser;
 /// Create a new gear program
 #[derive(Debug, Parser)]
 pub struct New {
-    /// Create gear program from templates
-    pub template: Option<String>,
+    /// Create gear program from templates.
+    #[arg(short, long, default_value = "app")]
+    pub template: String,
+
+    /// Create gear program in specified path.
+    pub path: Option<String>,
 }
 
 impl New {
@@ -32,16 +36,13 @@ impl New {
     pub async fn exec(&self) -> Result<()> {
         let templates = template::list().await?;
 
-        if let Some(template) = &self.template {
-            if templates.contains(template) {
-                template::download(template).await?;
-                println!("Successfully created {template}!");
-            } else {
-                println!("Available templates: {:#?}", templates);
-            }
+        let template = &self.template;
+        if templates.contains(template) {
+            let path = self.path.as_deref().unwrap_or(template);
+            template::download(template, path).await?;
+            println!("Successfully created {path}!");
         } else {
-            template::download("app").await?;
-            println!("Successfully created app!");
+            println!("Available templates: {:#?}", templates);
         }
 
         Ok(())
