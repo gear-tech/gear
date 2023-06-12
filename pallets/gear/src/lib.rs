@@ -1771,8 +1771,8 @@ pub mod pallet {
         /// - `code_hash`: id of the program binary code.
         /// - `block_count`: the specified period of rent.
         #[pallet::call_index(9)]
-        #[pallet::weight(<T as Config>::WeightInfo::start_program_resume())]
-        pub fn start_program_resume(
+        #[pallet::weight(<T as Config>::WeightInfo::resume_session_init())]
+        pub fn resume_session_init(
             origin: OriginFor<T>,
             program_id: ProgramId,
             allocations: BTreeSet<WasmPage>,
@@ -1791,7 +1791,7 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
             let start_block = Self::block_number();
-            let Some(session_id) = ProgramStorageOf::<T>::start_program_resume(
+            let Some(session_id) = ProgramStorageOf::<T>::resume_session_init(
                 AccountId32::from_origin(who.into_origin()),
                 start_block,
                 program_id,
@@ -1825,15 +1825,15 @@ pub mod pallet {
         /// - `session_id`: id of the resume session.
         /// - `memory_pages`: program memory (or its part) before it was paused.
         #[pallet::call_index(10)]
-        #[pallet::weight(<T as Config>::WeightInfo::resume_session_append(memory_pages.len() as u32))]
-        pub fn resume_session_append(
+        #[pallet::weight(<T as Config>::WeightInfo::resume_session_push(memory_pages.len() as u32))]
+        pub fn resume_session_push(
             origin: OriginFor<T>,
             session_id: u64,
             memory_pages: Vec<(GearPage, PageBuf)>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            ProgramStorageOf::<T>::resume_session_append(
+            ProgramStorageOf::<T>::resume_session_push(
                 session_id,
                 AccountId32::from_origin(who.into_origin()),
                 memory_pages,
@@ -1849,14 +1849,14 @@ pub mod pallet {
         /// Parameters:
         /// - `session_id`: id of the resume session.
         #[pallet::call_index(11)]
-        #[pallet::weight(DbWeightOf::<T>::get().reads(1) + <T as Config>::WeightInfo::resume_session_finish(ProgramStorageOf::<T>::resume_session_page_count(session_id).unwrap_or(0)))]
-        pub fn resume_session_finish(
+        #[pallet::weight(DbWeightOf::<T>::get().reads(1) + <T as Config>::WeightInfo::resume_session_commit(ProgramStorageOf::<T>::resume_session_page_count(session_id).unwrap_or(0)))]
+        pub fn resume_session_commit(
             origin: OriginFor<T>,
             session_id: u64,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let result = ProgramStorageOf::<T>::resume_session_finish(
+            let result = ProgramStorageOf::<T>::resume_session_commit(
                 session_id,
                 AccountId32::from_origin(who.clone().into_origin()),
                 Self::block_number(),

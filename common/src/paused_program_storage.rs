@@ -84,7 +84,7 @@ pub struct ResumeSession<BlockNumber> {
     rent_fee: u128,
 }
 
-/// The entity defines result of the [`PausedProgramStorage::resume_session_finish()`] method.
+/// The entity defines result of the [`PausedProgramStorage::resume_session_commit()`] method.
 pub struct ResumeResult<BlockNumber> {
     /// The session start block number.
     pub start_block: BlockNumber,
@@ -160,7 +160,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     }
 
     /// Create a session for program resume. Returns the session id on success.
-    fn start_program_resume(
+    fn resume_session_init(
         user: AccountId32,
         start_block: Self::BlockNumber,
         program_id: ProgramId,
@@ -211,7 +211,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     }
 
     /// Append program memory pages to the session data.
-    fn resume_session_append(
+    fn resume_session_push(
         session_id: u64,
         user: AccountId32,
         memory_pages: Vec<(GearPage, PageBuf)>,
@@ -235,7 +235,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     }
 
     /// Finish program resume session with the given key `session_id`.
-    fn resume_session_finish(
+    fn resume_session_commit(
         session_id: u64,
         user: AccountId32,
         current_block: Self::BlockNumber,
@@ -325,7 +325,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         })
     }
 
-    /// Remove all data created by a call to `start_program_resume`.
+    /// Remove all data created by a call to `resume_session_init`.
     fn remove_resume_session(session_id: u64) -> Result<(AccountId32, u128), Self::Error> {
         Self::ResumeSessions::mutate(session_id, |maybe_session| match maybe_session.take() {
             Some(s) => {

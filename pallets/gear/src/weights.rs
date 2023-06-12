@@ -42,9 +42,9 @@ pub trait WeightInfo {
     fn instantiate_module_per_kb(c: u32, ) -> Weight;
     fn claim_value() -> Weight;
     fn pay_program_rent() -> Weight;
-    fn start_program_resume() -> Weight;
-    fn resume_session_append(c: u32, ) -> Weight;
-    fn resume_session_finish(c: u32, ) -> Weight;
+    fn resume_session_init() -> Weight;
+    fn resume_session_push(c: u32, ) -> Weight;
+    fn resume_session_commit(c: u32, ) -> Weight;
     fn upload_code(c: u32, ) -> Weight;
     fn create_program(s: u32, ) -> Weight;
     fn upload_program(c: u32, s: u32, ) -> Weight;
@@ -290,7 +290,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(7_u64))
             .saturating_add(T::DbWeight::get().writes(5_u64))
     }
-    fn start_program_resume() -> Weight {
+    fn resume_session_init() -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `602`
         //  Estimated: `20935`
@@ -300,7 +300,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(5_u64))
     }
     /// The range of component `c` is `[0, 64]`.
-    fn resume_session_append(c: u32, ) -> Weight {
+    fn resume_session_push(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `366`
         //  Estimated: `7660`
@@ -312,7 +312,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(1_u64))
     }
     /// The range of component `c` is `[0, 2044]`.
-    fn resume_session_finish(c: u32, ) -> Weight {
+    fn resume_session_commit(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `1337 + c * (16389 ±0)`
         //  Estimated: `41107 + c * (131112 ±0)`
@@ -2135,7 +2135,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().reads(7_u64))
             .saturating_add(RocksDbWeight::get().writes(5_u64))
     }
-    fn start_program_resume() -> Weight {
+    fn resume_session_init() -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `602`
         //  Estimated: `20935`
@@ -2145,7 +2145,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(5_u64))
     }
     /// The range of component `c` is `[0, 64]`.
-    fn resume_session_append(c: u32, ) -> Weight {
+    fn resume_session_push(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `366`
         //  Estimated: `7660`
@@ -2157,7 +2157,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(1_u64))
     }
     /// The range of component `c` is `[0, 2044]`.
-    fn resume_session_finish(c: u32, ) -> Weight {
+    fn resume_session_commit(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `1337 + c * (16389 ±0)`
         //  Estimated: `41107 + c * (131112 ±0)`

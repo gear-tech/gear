@@ -451,7 +451,7 @@ benchmarks! {
         assert_eq!(program.expiration_block, RentFreePeriodOf::<T>::get() + block_count);
     }
 
-    start_program_resume {
+    resume_session_init {
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
@@ -472,7 +472,7 @@ benchmarks! {
         assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
     }
 
-    resume_session_append {
+    resume_session_push {
         let c in 0 .. 16 * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -490,7 +490,7 @@ benchmarks! {
             .expect("program should be active");
         ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
 
-        Gear::<T>::start_program_resume(RawOrigin::Signed(caller.clone()).into(), program_id, program.allocations, program.code_hash, ResumeMinimalPeriodOf::<T>::get()).expect("failed to start resume session");
+        Gear::<T>::resume_session_init(RawOrigin::Signed(caller.clone()).into(), program_id, program.allocations, program.code_hash, ResumeMinimalPeriodOf::<T>::get()).expect("failed to start resume session");
 
         let event_record = SystemPallet::<T>::events().pop().unwrap();
         let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
@@ -524,7 +524,7 @@ benchmarks! {
         );
     }
 
-    resume_session_finish {
+    resume_session_commit {
         let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -557,7 +557,7 @@ benchmarks! {
         }).expect("program should exist");
         ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
 
-        Gear::<T>::start_program_resume(RawOrigin::Signed(caller.clone()).into(), program_id, program.allocations, program.code_hash, ResumeMinimalPeriodOf::<T>::get()).expect("failed to start resume session");
+        Gear::<T>::resume_session_init(RawOrigin::Signed(caller.clone()).into(), program_id, program.allocations, program.code_hash, ResumeMinimalPeriodOf::<T>::get()).expect("failed to start resume session");
 
         let event_record = SystemPallet::<T>::events().pop().unwrap();
         let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
@@ -579,7 +579,7 @@ benchmarks! {
             pages
         };
 
-        Gear::<T>::resume_session_append(RawOrigin::Signed(caller.clone()).into(), session_id, memory_pages).expect("failed to append memory pages");
+        Gear::<T>::resume_session_push(RawOrigin::Signed(caller.clone()).into(), session_id, memory_pages).expect("failed to append memory pages");
     }: _(RawOrigin::Signed(caller.clone()), session_id)
     verify {
         assert!(
