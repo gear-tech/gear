@@ -39,15 +39,10 @@ use subxt::{
     Error, OnlineClient,
 };
 
+type SubxtBlock = Block<GearConfig, OnlineClient<GearConfig>>;
+
 /// Subscription of finalized blocks.
-#[allow(clippy::type_complexity)]
-pub struct Blocks(
-    pub  Pin<
-        Box<
-            dyn Stream<Item = StdResult<Block<GearConfig, OnlineClient<GearConfig>>, Error>> + Send,
-        >,
-    >,
-);
+pub struct Blocks(pub Pin<Box<dyn Stream<Item = StdResult<SubxtBlock, Error>> + Send>>);
 
 impl Unpin for Blocks {}
 

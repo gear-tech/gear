@@ -45,7 +45,7 @@ async fn listen_events(tx: Sender<subxt::events::Events<GearConfig>>, node: Stri
 }
 
 async fn load_node(params: LoadParams) -> Result<()> {
-    let (tx, rx1) = tokio::sync::broadcast::channel(16);
+    let (tx, rx) = tokio::sync::broadcast::channel(16);
     tokio::spawn(listen_events(tx, params.node.clone()));
     let mut name_gen = Generator::default();
     let run_name = name_gen
@@ -61,5 +61,5 @@ async fn load_node(params: LoadParams) -> Result<()> {
         env!("CARGO_PKG_VERSION"),
     );
 
-    BatchPool::<SmallRng>::run(params, rx1).await
+    BatchPool::<SmallRng>::run(params, rx).await
 }

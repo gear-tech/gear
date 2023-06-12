@@ -1,4 +1,3 @@
-use self::report::MailboxReport;
 use crate::{
     args::{LoadParams, SeedVariant},
     utils::{self, SwapResult},
@@ -14,7 +13,7 @@ use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
 use gsdk::metadata::{gear::Event as GearEvent, Event};
 use primitive_types::H256;
 pub use report::CrashAlert;
-use report::{BatchRunReport, Report};
+use report::{BatchRunReport, MailboxReport, Report};
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
@@ -298,25 +297,22 @@ async fn process_events(
 async fn inspect_crash_events(
     mut rx: Receiver<subxt::events::Events<gsdk::config::GearConfig>>,
 ) -> Result<()> {
-    let mut bh = H256::zero();
-
     // Error means either event is not found and can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    'event_loop: while let Ok(events) = rx.recv().await {
-        bh = events.block_hash();
+    while let Ok(events) = rx.recv().await {
+        let bh = events.block_hash();
         for event in events.iter() {
             let event = event?.as_root_event::<gsdk::metadata::Event>()?;
             if matches!(event, Event::Gear(GearEvent::QueueProcessingReverted)) {
-                break 'event_loop;
+                let crash_err = CrashAlert::MsgProcessingStopped;
+                tracing::info!("{crash_err} at block hash {bh:?}");
+                return Err(crash_err.into());
             }
         }
     }
 
-    let crash_err = CrashAlert::MsgProcessingStopped;
-    tracing::info!("{crash_err} at block hash {bh:?}");
-
-    Err(crash_err.into())
+    Ok(())
 }
 
 async fn create_renew_balance_task(
