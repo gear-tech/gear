@@ -28,12 +28,13 @@ use crate::{
             gear_core::code::InstrumentedCode,
             sp_weights::weight_v2::Weight,
         },
+        storage::{GearGasStorage, GearProgramStorage},
         sudo::Event as SudoEvent,
         Event,
     },
     signer::Signer,
     types::{self, InBlock, TxStatus},
-    BlockNumber, Error,
+    Api, BlockNumber, Error,
 };
 use anyhow::anyhow;
 use async_recursion::async_recursion;
@@ -254,7 +255,7 @@ impl Signer {
 impl Signer {
     /// Writes gas total issuance into storage.
     pub async fn set_total_issuance(&self, value: u64) -> EventsResult {
-        let addr = subxt::dynamic::storage_root("GearGas", "TotalIssuance");
+        let addr = Api::storage_root(GearGasStorage::TotalIssuance);
         self.set_storage(&[(addr, value)]).await
     }
 
@@ -266,9 +267,8 @@ impl Signer {
         let gas_nodes = gas_nodes.as_ref();
         let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
         for gas_node in gas_nodes {
-            let addr = subxt::dynamic::storage(
-                "GearGas",
-                "GasNodes",
+            let addr = Api::storage(
+                GearGasStorage::GasNodes,
                 vec![subxt::metadata::EncodeStaticType(gas_node.0)],
             );
             gas_nodes_to_set.push((addr, &gas_node.1));
@@ -281,9 +281,8 @@ impl Signer {
 impl Signer {
     /// Writes `InstrumentedCode` length into storage at `CodeId`
     pub async fn set_code_len_storage(&self, code_id: CodeId, code_len: u32) -> EventsResult {
-        let addr = subxt::dynamic::storage(
-            "GearProgram",
-            "CodeLenStorage",
+        let addr = Api::storage(
+            GearProgramStorage::CodeLenStorage,
             vec![Value::from_bytes(code_id)],
         );
         self.set_storage(&[(addr, code_len)]).await
@@ -291,9 +290,8 @@ impl Signer {
 
     /// Writes `InstrumentedCode` into storage at `CodeId`
     pub async fn set_code_storage(&self, code_id: CodeId, code: &InstrumentedCode) -> EventsResult {
-        let addr = subxt::dynamic::storage(
-            "GearProgram",
-            "CodeStorage",
+        let addr = Api::storage(
+            GearProgramStorage::CodeStorage,
             vec![Value::from_bytes(code_id)],
         );
         self.set_storage(&[(addr, code)]).await
@@ -307,9 +305,8 @@ impl Signer {
     ) -> EventsResult {
         let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
         for program_page in program_pages {
-            let addr = subxt::dynamic::storage(
-                "GearProgram",
-                "MemoryPageStorage",
+            let addr = Api::storage(
+                GearProgramStorage::MemoryPageStorage,
                 vec![
                     subxt::dynamic::Value::from_bytes(program_id),
                     subxt::dynamic::Value::u128(*program_page.0 as u128),
@@ -329,9 +326,8 @@ impl Signer {
         program_id: ProgramId,
         program: ActiveProgram<BlockNumber>,
     ) -> EventsResult {
-        let addr = subxt::dynamic::storage(
-            "GearProgram",
-            "ProgramStorage",
+        let addr = Api::storage(
+            GearProgramStorage::ProgramStorage,
             vec![Value::from_bytes(program_id)],
         );
         self.set_storage(&[(addr, &Program::Active(program))]).await

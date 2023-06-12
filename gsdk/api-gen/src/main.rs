@@ -78,8 +78,8 @@ fn main() -> Result<()> {
     };
 
     // Customized code here.
-    let calls = generate_calls(&metadata_v14);
-    let storage = generate_storage(&metadata_v14);
+    let calls = generate_calls(metadata_v14);
+    let storage = generate_storage(metadata_v14);
     let types = generate_runtime_types(metadata);
 
     let output = quote! {
@@ -266,7 +266,7 @@ fn generate_storage(metadata: &RuntimeMetadataV14) -> ItemMod {
         let storage_var = storage
             .iter()
             .map(|storage| {
-                let ident = Ident::new(&storage, Span::call_site());
+                let ident = Ident::new(storage, Span::call_site());
                 Variant {
                     attrs: vec![],
                     ident,

@@ -17,9 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api utils
-use crate::{metadata::runtime_types::sp_runtime::DispatchError, result::Result, Api};
+use crate::{
+    metadata::{runtime_types::sp_runtime::DispatchError, storage::StorageInfo},
+    result::Result,
+    Api,
+};
 use parity_scale_codec::Encode;
-use subxt::error::{DispatchError as SubxtDispatchError, Error, ModuleError, ModuleErrorData};
+use subxt::{
+    dynamic::Value,
+    error::{DispatchError as SubxtDispatchError, Error, ModuleError, ModuleErrorData},
+    metadata::EncodeWithMetadata,
+    storage::address::DynamicStorageAddress,
+};
 
 impl Api {
     /// compare gas limit
@@ -54,5 +63,18 @@ impl Api {
         }
 
         SubxtDispatchError::Other(dispatch_error.encode()).into()
+    }
+
+    /// Get the storage from storage info.
+    pub fn storage<'a, Encodable: EncodeWithMetadata, T: StorageInfo>(
+        storage: T,
+        encodable: Vec<Encodable>,
+    ) -> DynamicStorageAddress<'a, Encodable> {
+        subxt::dynamic::storage(T::PALLET, storage.storage_name(), encodable)
+    }
+
+    /// Get the storage root from storage info.
+    pub fn storage_root<'a, T: StorageInfo>(storage: T) -> DynamicStorageAddress<'a, Value> {
+        subxt::dynamic::storage_root(T::PALLET, storage.storage_name())
     }
 }

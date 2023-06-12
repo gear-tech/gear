@@ -26,6 +26,10 @@ use crate::{
             gear_core::{code::InstrumentedCode, message::stored::StoredMessage},
             pallet_balances::AccountData,
         },
+        storage::{
+            GearGasStorage, GearMessengerStorage, GearProgramStorage, GearStorage, SessionStorage,
+            SystemStorage, TimestampStorage,
+        },
     },
     result::{Error, Result},
     types, Api, BlockNumber,
@@ -87,14 +91,14 @@ impl Api {
         block_hash: Option<H256>,
     ) -> Result<AccountInfo<u32, AccountData<u128>>> {
         let dest = AccountId32::from_ss58check(address)?;
-        let addr = subxt::dynamic::storage("System", "Account", vec![Value::from_bytes(dest)]);
+        let addr = Self::storage(SystemStorage::Account, vec![Value::from_bytes(dest)]);
 
         self.fetch_storage_at(&addr, block_hash).await
     }
 
     /// Get block number.
     pub async fn number(&self) -> Result<u32> {
-        let addr = subxt::dynamic::storage_root("System", "Number");
+        let addr = Self::storage_root(SystemStorage::Number);
         self.fetch_storage(&addr).await
     }
 
@@ -106,7 +110,7 @@ impl Api {
     /// Get events at specified block.
     #[storage_fetch]
     pub async fn get_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
-        let addr = subxt::dynamic::storage_root("System", "Events");
+        let addr = Self::storage_root(SystemStorage::Events);
         let thunk = self
             .storage()
             .at(block_hash)
@@ -129,7 +133,7 @@ impl Api {
 impl Api {
     /// Return a timestamp of the block.
     pub async fn block_timestamp(&self, block_hash: Option<H256>) -> Result<u64> {
-        let addr = subxt::dynamic::storage_root("Timestamp", "now");
+        let addr = Self::storage_root(TimestampStorage::Now);
         let thunk = self
             .storage()
             .at(block_hash)
@@ -147,7 +151,7 @@ impl Api {
 impl Api {
     /// Get all validators from pallet_session.
     pub async fn validators(&self) -> Result<Vec<AccountId32>> {
-        let addr = subxt::dynamic::storage_root("Session", "Validators");
+        let addr = Self::storage_root(SessionStorage::Validators);
         self.fetch_storage(&addr).await
     }
 }
@@ -157,7 +161,7 @@ impl Api {
     /// Get value of gas total issuance at specified block.
     #[storage_fetch]
     pub async fn total_issuance_at(&self, block_hash: Option<H256>) -> Result<u64> {
-        let addr = subxt::dynamic::storage_root("GearGas", "TotalIssuance");
+        let addr = Self::storage_root(GearGasStorage::TotalIssuance);
         self.fetch_storage_at(&addr, block_hash).await
     }
 
@@ -172,9 +176,8 @@ impl Api {
         let mut gas_nodes = Vec::with_capacity(gas_node_ids.len());
 
         for gas_node_id in gas_node_ids {
-            let addr = subxt::dynamic::storage(
-                "GearGas",
-                "GasNodes",
+            let addr = Self::storage(
+                GearGasStorage::GasNodes,
                 vec![subxt::metadata::EncodeStaticType(gas_node_id)],
             );
             let gas_node = self.fetch_storage_at(&addr, block_hash).await?;
@@ -188,7 +191,7 @@ impl Api {
 impl Api {
     /// Check whether the message queue processing is stopped or not.
     pub async fn execute_inherent(&self) -> Result<bool> {
-        let addr = subxt::dynamic::storage_root("Gear", "ExecuteInherent");
+        let addr = Self::storage_root(GearStorage::ExecuteInherent);
         let thunk = self
             .storage()
             .at(None)
@@ -202,7 +205,7 @@ impl Api {
 
     /// Get gear block number.
     pub async fn gear_block_number(&self, block_hash: Option<H256>) -> Result<BlockNumber> {
-        let addr = subxt::dynamic::storage_root("Gear", "BlockNumber");
+        let addr = Self::storage_root(GearStorage::BlockNumber);
         let thunk = self
             .storage()
             .at(block_hash)
@@ -224,9 +227,8 @@ impl Api {
         code_id: CodeId,
         block_hash: Option<H256>,
     ) -> Result<InstrumentedCode> {
-        let addr = subxt::dynamic::storage(
-            "GearProgram",
-            "CodeStorage",
+        let addr = Self::storage(
+            GearProgramStorage::CodeStorage,
             vec![Value::from_bytes(code_id)],
         );
         self.fetch_storage_at(&addr, block_hash).await
@@ -239,9 +241,8 @@ impl Api {
         code_id: CodeId,
         block_hash: Option<H256>,
     ) -> Result<u32> {
-        let addr = subxt::dynamic::storage(
-            "GearProgram",
-            "CodeLenStorage",
+        let addr = Self::storage(
+            GearProgramStorage::CodeLenStorage,
             vec![Value::from_bytes(code_id)],
         );
         self.fetch_storage_at(&addr, block_hash).await
@@ -254,9 +255,8 @@ impl Api {
         program_id: ProgramId,
         block_hash: Option<H256>,
     ) -> Result<ActiveProgram<BlockNumber>> {
-        let addr = subxt::dynamic::storage(
-            "GearProgram",
-            "ProgramStorage",
+        let addr = Self::storage(
+            GearProgramStorage::ProgramStorage,
             vec![Value::from_bytes(program_id)],
         );
 
@@ -281,9 +281,8 @@ impl Api {
         let mut pages = HashMap::new();
 
         for page in &program.pages_with_data {
-            let addr = subxt::dynamic::storage(
-                "GearProgram",
-                "MemoryPageStorage",
+            let addr = Self::storage(
+                GearProgramStorage::MemoryPageStorage,
                 vec![Value::from_bytes(program_id), Value::u128(page.0 as u128)],
             );
 
@@ -313,9 +312,8 @@ impl Api {
         account_id: AccountId32,
         message_id: impl AsRef<[u8]>,
     ) -> Result<Option<(StoredMessage, Interval<u32>)>> {
-        let addr = subxt::dynamic::storage(
-            "GearMessenger",
-            "Mailbox",
+        let addr = Self::storage(
+            GearMessengerStorage::Mailbox,
             vec![
                 Value::from_bytes(account_id),
                 Value::from_bytes(message_id.as_ref()),
@@ -334,7 +332,7 @@ impl Api {
     ) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
         let storage = self.storage().at(None).await?;
         let mut query_key =
-            storage_address_root_bytes(&subxt::dynamic::storage_root("GearMessenger", "Mailbox"));
+            storage_address_root_bytes(&Self::storage_root(GearMessengerStorage::Mailbox));
 
         if let Some(account_id) = account_id {
             StorageMapKey::new(&account_id, StorageHasher::Identity).to_bytes(&mut query_key);
