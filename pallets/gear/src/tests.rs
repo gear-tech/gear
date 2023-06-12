@@ -5774,9 +5774,7 @@ fn resume_session_append_works() {
         assert_ok!(
             Gear::resume_session_append(RuntimeOrigin::signed(USER_1), session_id, memory_pages.clone().into_iter().collect())
         );
-        assert!(
-            matches!(ProgramStorageOf::<Test>::resume_session_page_count(&session_id), Some(count) if count == memory_pages.len() as u32)
-        );
+        assert_eq!(ProgramStorageOf::<Test>::resume_session_page_count(&session_id).unwrap(), memory_pages.len() as u32);
 
         System::set_block_number(session_end_block - 1);
         Gear::set_block_number(session_end_block - 1);

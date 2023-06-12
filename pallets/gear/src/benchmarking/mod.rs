@@ -505,8 +505,7 @@ benchmarks! {
 
         let memory_page = {
             let mut page = PageBuf::new_zeroed();
-            let page_ref = &mut page;
-            page_ref[0] = 1;
+            page[0] = 1;
 
             page
         };
@@ -539,10 +538,7 @@ benchmarks! {
 
         let memory_page = {
             let mut page = PageBuf::new_zeroed();
-            let page_ref = &mut page;
-            for (page_byte, b) in page_ref.iter_mut().zip(c.to_le_bytes()) {
-                *page_byte = b;
-            }
+            page[0] = 1;
 
             page
         };

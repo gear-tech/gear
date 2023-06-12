@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use sp_arithmetic::traits::UniqueSaturatedInto;
-
 use super::*;
 use crate::storage::{AppendMapStorage, DoubleMapStorage, MapStorage};
 use core::fmt::Debug;

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "512")]
+#![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "1024")]
 
 extern crate alloc;
 

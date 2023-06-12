@@ -173,18 +173,12 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             return None;
         }
 
-        let nonce = Self::NonceStorage::mutate(|nonce| match nonce {
-            Some(n) => {
-                let result = *n;
-                *n = n.wrapping_add(1);
+        let nonce = Self::NonceStorage::mutate(|nonce| {
+            let nonce = nonce.get_or_insert(0);
+            let result = *nonce;
+            *nonce = result.wrapping_add(1);
 
-                result
-            }
-            None => {
-                *nonce = Some(1);
-
-                0
-            }
+            result
         });
 
         let session_id = {
