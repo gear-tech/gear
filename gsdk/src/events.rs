@@ -63,7 +63,7 @@ impl Api {
     }
 
     /// Parse transaction fee from InBlockEvents
-    pub fn capture_weight_info(details: &EventDetails) -> Result<()> {
+    pub fn capture_weight_info(details: &EventDetails<GearConfig>) -> Result<()> {
         let event: Event = details.as_root_event::<(Phase, Event)>()?.1;
 
         if let Event::System(SystemEvent::ExtrinsicSuccess { dispatch_info })

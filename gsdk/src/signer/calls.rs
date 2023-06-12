@@ -48,7 +48,7 @@ use subxt::{
     dynamic::Value,
     metadata::EncodeWithMetadata,
     storage::StorageAddress,
-    tx::{DynamicTxPayload, TxProgress},
+    tx::{DynamicPayload, TxProgress},
     Error as SubxtError, OnlineClient,
 };
 
@@ -197,7 +197,7 @@ impl Signer {
 
 // pallet-sudo
 impl Signer {
-    async fn process_sudo(&self, tx: DynamicTxPayload<'_>) -> EventsResult {
+    async fn process_sudo(&self, tx: DynamicPayload) -> EventsResult {
         let tx = self.process(tx).await?;
         let events = tx.wait_for_success().await?;
         for event in events.iter() {
@@ -381,7 +381,7 @@ impl Signer {
     #[async_recursion(?Send)]
     async fn sign_and_submit_then_watch<'a>(
         &self,
-        tx: &DynamicTxPayload<'a>,
+        tx: &DynamicPayload,
         counter: u16,
     ) -> Result<TxProgressT, SubxtError> {
         let process = if let Some(nonce) = self.nonce {
@@ -415,7 +415,7 @@ impl Signer {
     }
 
     /// Listen transaction process and print logs.
-    async fn process<'a>(&self, tx: DynamicTxPayload<'a>) -> InBlock {
+    async fn process<'a>(&self, tx: DynamicPayload) -> InBlock {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;
