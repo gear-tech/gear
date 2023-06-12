@@ -113,6 +113,11 @@ pub fn handle_journal(
                 program_id,
                 block_count,
             } => handler.pay_program_rent(payer, program_id, block_count),
+            JournalNote::ReplyDeposit {
+                message_id,
+                future_reply_id,
+                amount,
+            } => handler.reply_deposit(message_id, future_reply_id, amount),
         }
     }
 

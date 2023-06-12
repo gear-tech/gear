@@ -29,6 +29,7 @@ filetime = "0.2"
 
 [dev-dependencies]
 wabt.workspace = true
+wasmi = {workspace = true, features = ["std"]}
 
 [features]
 metawasm = ["gmeta/codegen"]

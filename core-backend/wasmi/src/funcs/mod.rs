@@ -503,6 +503,16 @@ where
         state.ext.pay_program_rent(program_id.into(), rent)
     }
 
+    #[host(fallible, cost = RuntimeCosts::ReplyDeposit, err_len = LengthBytes)]
+    pub fn reply_deposit(ctx: CallerWrap<E>, message_id_ptr: u32, gas: u64) -> Result<()> {
+        let read_message_id = ctx.register_read_decoded(message_id_ptr);
+
+        let message_id = ctx.read_decoded(read_message_id)?;
+
+        let state = ctx.host_state_mut();
+        state.ext.reply_deposit(message_id, gas)
+    }
+
     #[host(cost = RuntimeCosts::ProgramId)]
     pub fn program_id(ctx: CallerWrap<E>, program_id_ptr: u32) -> Result<()> {
         let program_id = ctx.host_state_mut().ext.program_id()?;
