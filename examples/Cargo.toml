@@ -7,32 +7,14 @@ license = "GPL-3.0"
 resolver = "2"
 
 members = [
-    "async",
-    "async-init",
     "async-multisig",
     "async-sign",
-    "async-recursion",
     "bot",
     "capacitor",
-    "collector",
     "status-code",
-    "futures-unordered",
-    "guestbook",
-    "incomplete_async_payloads",
     "loop",
-    "minimal",
-    "mutex",
     "panicker",
-    "piggy-bank",
-    "ping",
-    "ping-gas",
     "program_generator",
-    "program-id",
-    "rwlock",
-    "rwlock_write",
-    "sync_duplicate",
-    "token-vendor",
-    "token-vendor/workshop-example",
     "wait",
 ]
 
