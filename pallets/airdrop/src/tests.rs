@@ -44,7 +44,7 @@ fn sudo_call_works() {
         assert_eq!(Balances::total_balance(&ROOT), 90_000_000);
         assert_eq!(Balances::total_issuance(), 200_000_000);
 
-        assert_eq!(Balances::locks(&BOB).len(), 1);
+        assert_eq!(Balances::locks(BOB).len(), 1);
         let call = Box::new(RuntimeCall::Airdrop(
             AirdropCall::remove_vesting_and_transfer {
                 source: BOB,
@@ -54,7 +54,7 @@ fn sudo_call_works() {
         ));
         assert_ok!(Sudo::sudo(RuntimeOrigin::signed(ROOT), call));
         assert_eq!(Balances::total_balance(&BOB), 0);
-        assert_eq!(Balances::locks(&BOB), vec![]);
+        assert_eq!(Balances::locks(BOB), vec![]);
         assert_eq!(Balances::total_balance(&ALICE), 110_000_000);
         assert_eq!(Balances::total_issuance(), 200_000_000);
     });
