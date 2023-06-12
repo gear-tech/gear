@@ -4109,8 +4109,8 @@ version = "0.1.2"
 dependencies = [
  "anyhow",
  "cargo_metadata",
+ "chrono",
  "colored",
- "filetime",
  "gear-core",
  "gear-wasm-instrument",
  "gmeta",
