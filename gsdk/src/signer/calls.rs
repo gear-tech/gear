@@ -375,7 +375,7 @@ impl Signer {
     }
 
     /// Wrapper for submit and watch with nonce.
-    async fn sign_and_submit<'a>(
+    async fn sign_and_submit_then_watch<'a>(
         &self,
         tx: &DynamicTxPayload<'a>,
     ) -> Result<TxProgressT, SubxtError> {
@@ -398,7 +398,7 @@ impl Signer {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;
-        let mut process = self.sign_and_submit(&tx).await?;
+        let mut process = self.sign_and_submit_then_watch(&tx).await?;
 
         // Get extrinsic details.
         let (pallet, name) = (tx.pallet_name(), tx.call_name());
