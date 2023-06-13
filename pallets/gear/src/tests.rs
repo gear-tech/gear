@@ -5874,6 +5874,21 @@ fn resume_program_works() {
             Error::<Test>::ResumePeriodLessThanMinimal,
         );
 
+        // attempt to finish session with abscent binary code should fail
+        assert!(<Test as Config>::CodeStorage::remove_code(
+            CodeId::generate(code)
+        ));
+        assert_err!(
+            Gear::resume_session_commit(RuntimeOrigin::signed(USER_3), session_id, block_count,),
+            pallet_gear_program::Error::<Test>::ProgramCodeNotFound
+        );
+
+        // resubmit binary code
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            code.to_vec(),
+        ));
+
         let balance_before = Balances::free_balance(BLOCK_AUTHOR);
         assert_ok!(Gear::resume_session_commit(
             RuntimeOrigin::signed(USER_3),

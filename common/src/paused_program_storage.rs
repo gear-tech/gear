@@ -209,13 +209,11 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         memory_pages: Vec<(GearPage, PageBuf)>,
     ) -> Result<(), Self::Error> {
         Self::ResumeSessions::mutate(session_id, |maybe_session| {
-            let Some(session) = maybe_session.as_mut() else {
-                return Err(Self::InternalError::resume_session_not_found().into())
+            let session = match maybe_session.as_mut() {
+                Some(s) if s.user == user => s,
+                Some(_) => return Err(Self::InternalError::not_session_owner().into()),
+                None => return Err(Self::InternalError::resume_session_not_found().into()),
             };
-
-            if session.user != user {
-                return Err(Self::InternalError::not_session_owner().into());
-            }
 
             session.page_count += memory_pages.len() as u32;
             for page in memory_pages {
