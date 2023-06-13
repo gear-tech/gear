@@ -823,6 +823,20 @@ where
         })
     }
 
+    /// Fallible `gr_reply_deposit` syscall.
+    pub fn reply_deposit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let (message_id_ptr, gas, err_ptr) = args.iter().read_3();
+
+        syscall_trace!("reply_deposit", message_id_ptr, gas, err_ptr);
+
+        ctx.run_fallible::<_, _, LengthBytes>(err_ptr, RuntimeCosts::ReplyDeposit, |ctx| {
+            let read_message_id = ctx.register_read_decoded(message_id_ptr);
+            let message_id = ctx.read_decoded(read_message_id)?;
+
+            ctx.ext.reply_deposit(message_id, gas).map_err(Into::into)
+        })
+    }
+
     /// Fallible `gr_unreserve_gas` syscall.
     pub fn unreserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let (reservation_id_ptr, err_unreserved_ptr) = args.iter().read_2();

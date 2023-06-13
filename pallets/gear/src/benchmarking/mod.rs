@@ -419,7 +419,7 @@ benchmarks! {
     verify {
         let auto_reply = QueueOf::<T>::dequeue().expect("Error in algorithm").expect("Element should be");
         assert!(auto_reply.payload().is_empty());
-        assert_eq!(auto_reply.status_code().expect("Should be"), 0);
+        assert_eq!(auto_reply.status_code().expect("Should be").to_le_bytes()[0], 0);
         assert!(MailboxOf::<T>::is_empty(&caller));
     }
 
@@ -806,6 +806,17 @@ benchmarks! {
         let n in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = Benches::<T>::gr_random(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_reply_deposit {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_reply_deposit(r)?;
     }: {
         res.replace(run_process(exec));
     }

@@ -17,12 +17,12 @@ async fn main() {
             }
         },
         Command::WaitLost(to) => {
-            let wait = msg::send_bytes_for_reply(to, b"ping", 0)
+            let wait = msg::send_bytes_for_reply(to, b"ping", 0, 0)
                 .expect("send message failed")
                 .up_to(Some(5))
                 .expect("Invalid wait duration.");
 
-            if let Err(e) = msg::send_bytes_for_reply(to, b"", 0)
+            if let Err(e) = msg::send_bytes_for_reply(to, b"", 0, 0)
                 .expect("send message failed")
                 .up_to(Some(10))
                 .expect("Invalid wait duration.")
@@ -48,7 +48,7 @@ async fn main() {
         Command::SendTimeout(to, duration) => {
             unsafe { TIMEOUT_MESSAGE_ID = Some(msg::id()) };
 
-            let reply = msg::send_bytes_for_reply(to, b"", 0)
+            let reply = msg::send_bytes_for_reply(to, b"", 0, 0)
                 .expect("send message failed")
                 .up_to(Some(duration))
                 .expect("Invalid wait duration.")
@@ -67,11 +67,11 @@ async fn main() {
             // the same time when both of them are finished.
             let reply = {
                 let (a, b) = future::join(
-                    msg::send_bytes_for_reply(to, b"", 0)
+                    msg::send_bytes_for_reply(to, b"", 0, 0)
                         .expect("send message failed")
                         .up_to(Some(duration_a))
                         .expect("Invalid wait duration."),
-                    msg::send_bytes_for_reply(to, b"", 0)
+                    msg::send_bytes_for_reply(to, b"", 0, 0)
                         .expect("send message failed")
                         .up_to(Some(duration_b))
                         .expect("Invalid wait duration."),
@@ -93,11 +93,11 @@ async fn main() {
             // Select from two waited messages, futures complete at
             // the same time when one of them getting failed.
             let reply = match future::select(
-                msg::send_bytes_for_reply(to, b"", 0)
+                msg::send_bytes_for_reply(to, b"", 0, 0)
                     .expect("send message failed")
                     .up_to(Some(duration_a))
                     .expect("Invalid wait duration."),
-                msg::send_bytes_for_reply(to, b"", 0)
+                msg::send_bytes_for_reply(to, b"", 0, 0)
                     .expect("send message failed")
                     .up_to(Some(duration_b))
                     .expect("Invalid wait duration."),

@@ -18,10 +18,11 @@
 
 use crate::{
     crate_info::CrateInfo,
-    optimize::{OptType, Optimizer},
+    optimize::{self, OptType, Optimizer},
     smart_fs,
 };
 use anyhow::{Context, Result};
+use chrono::offset::Local as ChronoLocal;
 use gmeta::MetadataRepr;
 use pwasm_utils::parity_wasm::{self, elements::Internal};
 use std::{
@@ -196,7 +197,7 @@ impl WasmProject {
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
 
-        fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)?;
+        smart_fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)?;
 
         // Copy original `Cargo.lock` if any
         let from_lock = self.original_dir.join("Cargo.lock");
@@ -255,7 +256,7 @@ extern "C" fn metahash() {{
 
         let src_dir = self.out_dir.join("src");
         fs::create_dir_all(&src_dir)?;
-        fs::write(src_dir.join("lib.rs"), source_code)?;
+        smart_fs::write(src_dir.join("lib.rs"), source_code)?;
 
         Ok(())
     }
@@ -283,9 +284,10 @@ extern "C" fn metahash() {{
             .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
 
         // Optimize source.
-        if !self.project_type.is_metawasm() {
-            fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
-            _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
+        if !self.project_type.is_metawasm()
+            && smart_fs::copy_if_newer(&from_path, &to_path).context("unable to copy WASM file")?
+        {
+            _ = optimize::optimize_wasm(to_path.clone(), to_path.clone(), "s", false);
         }
 
         let metadata = self
@@ -301,7 +303,7 @@ extern "C" fn metahash() {{
 
         // Generate wasm binaries
         Self::generate_wasm(
-            from_path,
+            from_path.clone(),
             (!self.project_type.is_metawasm()).then_some(&to_opt_path),
             self.project_type.is_metawasm().then_some(&to_meta_path),
         )?;
@@ -322,7 +324,7 @@ extern "C" fn metahash() {{
         let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
 
         if !self.project_type.is_metawasm() {
-            fs::write(
+            smart_fs::write(
                 wasm_binary_rs,
                 format!(
                     r#"#[allow(unused)]
@@ -338,7 +340,7 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
             )
             .context("unable to write `wasm_binary.rs`")?;
         } else {
-            fs::write(
+            smart_fs::write(
                 wasm_binary_rs,
                 format!(
                     r#"#[allow(unused)]
@@ -354,12 +356,24 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
             .context("unable to write `wasm_binary.rs`")?;
         }
 
-        Ok(())
+        self.force_rerun_on_next_run(&from_path)
     }
 
     fn generate_wasm(from: PathBuf, to_opt: Option<&Path>, to_meta: Option<&Path>) -> Result<()> {
+        let generate_opt = to_opt
+            .map(|to_opt| smart_fs::check_if_newer(&from, to_opt))
+            .unwrap_or(Ok(false))?;
+        let generate_meta = to_meta
+            .map(|to_meta| smart_fs::check_if_newer(&from, to_meta))
+            .unwrap_or(Ok(false))?;
+        if !generate_opt && !generate_meta {
+            return Ok(());
+        }
+
         let mut optimizer = Optimizer::new(from)?;
-        optimizer.insert_stack_and_export();
+        optimizer
+            .insert_stack_end_export()
+            .unwrap_or_else(|err| log::debug!("Cannot insert stack end export: {}", err));
         optimizer.strip_custom_sections();
 
         // Generate *.opt.wasm.
@@ -396,6 +410,15 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
             .collect();
 
         Ok(exports)
+    }
+
+    // Force cargo to re-run the build script next time it is invoked.
+    // It is needed because feature set or toolchain can change.
+    fn force_rerun_on_next_run(&self, wasm_file_path: &Path) -> Result<()> {
+        let stamp_file_path = wasm_file_path.with_extension("stamp");
+        fs::write(&stamp_file_path, ChronoLocal::now().to_rfc3339())?;
+        println!("cargo:rerun-if-changed={}", stamp_file_path.display());
+        Ok(())
     }
 }
 

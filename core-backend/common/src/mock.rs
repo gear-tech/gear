@@ -207,6 +207,9 @@ impl Ext for MockExt {
     ) -> Result<(MessageId, ProgramId), Self::Error> {
         Ok((Default::default(), Default::default()))
     }
+    fn reply_deposit(&mut self, _message_id: MessageId, _amount: u64) -> Result<(), Self::Error> {
+        Ok(())
+    }
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.0
     }
@@ -254,6 +257,7 @@ impl BackendExt for MockExt {
             pages_data: Default::default(),
             generated_dispatches: Default::default(),
             awakening: Default::default(),
+            reply_deposits: Default::default(),
             program_candidates_data: Default::default(),
             program_rents: Default::default(),
             context_store: Default::default(),

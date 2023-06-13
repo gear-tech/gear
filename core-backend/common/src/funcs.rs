@@ -19,9 +19,10 @@
 //! Syscall implementations generic over wasmi and sandbox backends.
 
 use crate::{
-    memory::MemoryAccessError, runtime::Runtime, syscall_trace, ActorTerminationReason,
-    BackendAllocExtError, BackendExt, BackendExtError, MessageWaitedType, TrapExplanation,
-    PTR_SPECIAL,
+    memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
+    runtime::Runtime,
+    syscall_trace, ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError,
+    BackendState, MessageWaitedType, TerminationReason, TrapExplanation, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
@@ -43,7 +44,8 @@ use gsys::{
 use parity_scale_codec::Encode;
 
 pub struct FuncsHandler<E: Ext + 'static, R> {
-    _phantom: PhantomData<(E, R)>,
+    _phantom_ext: PhantomData<E>,
+    _phantom_runtime: PhantomData<R>,
 }
 
 impl<E, R> FuncsHandler<E, R>
@@ -51,10 +53,10 @@ where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
-    R: Runtime<E>,
+    R: Runtime<E> + MemoryOwner + MemoryAccessRecorder + BackendState,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,
-    /// because it may contain register read.
+    /// because it may contain registered read.
     fn register_and_read_value(ctx: &mut R, value_ptr: u32) -> Result<u128, MemoryAccessError> {
         if value_ptr != PTR_SPECIAL {
             let read_value = ctx.register_read_decoded(value_ptr);
@@ -178,11 +180,10 @@ where
         let buffer = buffer.to_vec();
 
         let write_buffer = ctx.register_write(buffer_ptr, len);
-        let res = ctx.memory_manager_write(write_buffer, &buffer, &mut gas_left);
+        ctx.memory_manager_write(write_buffer, &buffer, &mut gas_left)?;
 
         ctx.ext_mut().set_gas_left(gas_left);
-
-        res.map_err(Into::into)
+        Ok(())
     }
 
     #[host(cost = RuntimeCosts::Size)]
@@ -224,27 +225,25 @@ where
         Ok(page)
     }
 
-    // The `page` is calculated before `run_any` body so it's impossible to use #[host] here.
+    #[host(cost = RuntimeCosts::Free)]
     pub fn free(ctx: &mut R, page_no: u32) -> Result<i32, R::Error> {
-        syscall_trace!("free", page_no);
+        let page = WasmPage::new(page_no).map_err(|_| {
+            TerminationReason::Actor(ActorTerminationReason::Trap(TrapExplanation::Unknown))
+        })?;
 
-        let page = WasmPage::new(page_no).map_err(|_| R::unreachable_error_code())?;
+        let res = ctx.ext_mut().free(page);
+        let res = ctx.process_alloc_func_result(res)?;
 
-        ctx.run_any(RuntimeCosts::Free, |ctx| {
-            let res = ctx.ext_mut().free(page);
-            let res = ctx.process_alloc_func_result(res)?;
+        match &res {
+            Ok(()) => {
+                log::trace!("Free {page:?}");
+            }
+            Err(err) => {
+                log::trace!("Free failed: {err}");
+            }
+        };
 
-            match &res {
-                Ok(()) => {
-                    log::trace!("Free {page:?}");
-                }
-                Err(err) => {
-                    log::trace!("Free failed: {err}");
-                }
-            };
-
-            Ok(res.is_err() as i32)
-        })
+        Ok(res.is_err() as i32)
     }
 
     #[host(cost = RuntimeCosts::BlockHeight)]
@@ -297,7 +296,7 @@ where
         payload_ptr: u32,
         len: u32,
         value_ptr: u32,
-        _delay: u32,
+        delay: u32,
     ) -> Result<(), R::Error> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let value = Self::register_and_read_value(ctx, value_ptr)?;
@@ -309,7 +308,7 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::ReplyCommit)]
-    pub fn reply_commit(ctx: &mut R, value_ptr: u32, _delay: u32) -> Result<(), R::Error> {
+    pub fn reply_commit(ctx: &mut R, value_ptr: u32, delay: u32) -> Result<(), R::Error> {
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
         ctx.ext_mut()
@@ -323,7 +322,7 @@ where
         rid_value_ptr: u32,
         payload_ptr: u32,
         len: u32,
-        _delay: u32,
+        delay: u32,
     ) -> Result<(), R::Error> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let read_payload = ctx.register_read(payload_ptr, len);
@@ -342,7 +341,7 @@ where
     pub fn reservation_reply_commit(
         ctx: &mut R,
         rid_value_ptr: u32,
-        _delay: u32,
+        delay: u32,
     ) -> Result<(), R::Error> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let HashWithValue {
@@ -382,9 +381,9 @@ where
         offset: u32,
         len: u32,
         value_ptr: u32,
-        _delay: u32,
+        delay: u32,
     ) -> Result<(), R::Error> {
-        // Charge for `len` inside `reply_push_input`
+        // Charge for `len` is inside `reply_push_input`
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
         let mut f = || {
@@ -398,7 +397,6 @@ where
 
     #[host(fallible, cost = RuntimeCosts::ReplyPushInput, err_len = LengthBytes)]
     pub fn reply_push_input(ctx: &mut R, offset: u32, len: u32) -> Result<(), R::Error> {
-        // Charge for `len` inside `reply_push_input`
         ctx.ext_mut()
             .reply_push_input(offset, len)
             .map_err(Into::into)
@@ -473,6 +471,22 @@ where
     #[host(fallible, cost = RuntimeCosts::ReserveGas)]
     pub fn reserve_gas(ctx: &mut R, gas: u64, duration: u32) -> Result<(), R::Error> {
         ctx.ext_mut().reserve_gas(gas, duration).map_err(Into::into)
+    }
+
+    pub fn reply_deposit(
+        ctx: &mut R,
+        message_id_ptr: u32,
+        gas: u64,
+        err_mid_ptr: u32,
+    ) -> Result<(), R::Error> {
+        ctx.run_fallible::<_, _, LengthBytes>(err_mid_ptr, RuntimeCosts::ReplyDeposit, |ctx| {
+            let read_message_id = ctx.register_read_decoded(message_id_ptr);
+            let message_id = ctx.read_decoded(read_message_id)?;
+
+            ctx.ext_mut()
+                .reply_deposit(message_id, gas)
+                .map_err(Into::into)
+        })
     }
 
     #[host(fallible, cost = RuntimeCosts::UnreserveGas, err_len = LengthWithGas)]
@@ -647,7 +661,7 @@ where
             ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into(),
         );
 
-        Err(R::unreachable_error_code())
+        Err(R::unreachable_error())
     }
 
     pub fn out_of_allowance(ctx: &mut R) -> Result<(), R::Error> {
@@ -655,6 +669,6 @@ where
 
         ctx.set_termination_reason(ActorTerminationReason::GasAllowanceExceeded.into());
 
-        Err(R::unreachable_error_code())
+        Err(R::unreachable_error())
     }
 }

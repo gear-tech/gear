@@ -309,4 +309,27 @@ mod tests {
             Err(ReservationError::InvalidReservationId)
         );
     }
+
+    #[test]
+    fn remove_non_existing_reservation_fails() {
+        let id = ReservationId::from([0xff; 32]);
+
+        let mut map = GasReservationMap::new();
+        map.insert(
+            id,
+            GasReservationSlot {
+                amount: 1,
+                start: 1,
+                finish: 100,
+            },
+        );
+
+        let mut reserver = GasReserver::new(Default::default(), 0, map, 256);
+        reserver.unreserve(id).unwrap();
+
+        assert_eq!(
+            reserver.unreserve(id),
+            Err(ReservationError::InvalidReservationId)
+        );
+    }
 }
