@@ -492,7 +492,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git curl libssl-dev libudev-dev cmake wabt protobuf-compiler wget bzip2 ninja-build
+          sudo apt install -y git curl libssl-dev libudev-dev cmake wabt protobuf-compiler wget bzip2 ninja-build pkg-config
 
       - name: "Install: Wine"
         run: |
