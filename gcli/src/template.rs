@@ -68,8 +68,6 @@ pub async fn download(example: &str, path: &str) -> Result<()> {
 
 #[tokio::test]
 async fn list_examples() {
-    assert!(list()
-        .await
-        .expect("Failed to get examples")
-        .contains(&"react-app".to_string()));
+    let ls = list().await.expect("Failed to get examples");
+    assert!(ls.contains(&"app".to_string()), "all templates: {ls:?}");
 }
