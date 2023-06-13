@@ -12128,3 +12128,91 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
         );
     });
 }
+
+#[test]
+fn reservation_manager() {
+    use demo_reservation_manager::{Action, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("Program uploading failed");
+
+        run_to_next_block(None);
+
+        let assert_for_expected_message = move |action, expected: Option<_>| {
+            System::reset_events();
+
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                action,
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+
+            run_to_next_block(None);
+
+            let expected_message_received = System::events().into_iter().any(|e| match e.event {
+                MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) => {
+                    if message.destination().into_origin() == USER_1.into_origin() {
+                        expected.is_none() || Some(message.payload().to_vec()) == expected
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            });
+
+            assert!(expected_message_received);
+
+            System::reset_events();
+        };
+
+        let assert_failed = move |action| {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                action,
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+
+            let message_id = get_last_message_id();
+
+            run_to_next_block(None);
+
+            let status = dispatch_status(message_id).expect("Message not found");
+            assert_eq!(status, DispatchStatus::Failed);
+        };
+
+        // Try unreserve 100 gas when there's no reservations.
+        assert_failed(Action::SendMessageFromReservation { gas_amount: 100 }.encode());
+        // Reserve 10_000 gas.
+        assert_for_expected_message(
+            Action::Reserve {
+                amount: 10_000,
+                duration: 100,
+            }
+            .encode(),
+            None,
+        );
+        // Try to unreserve 50_000 gas.
+        assert_failed(Action::SendMessageFromReservation { gas_amount: 50_000 }.encode());
+        // Try to unreserve 8_000 gas.
+        assert_for_expected_message(
+            Action::SendMessageFromReservation { gas_amount: 8_000 }.encode(),
+            Some(vec![]),
+        );
+        // Try to unreserve 8_000 gas.
+        assert_failed(Action::SendMessageFromReservation { gas_amount: 8_000 }.encode());
+    });
+}

@@ -160,7 +160,7 @@ pub mod prog;
 pub mod util;
 
 pub use async_runtime::{handle_signal, message_loop, record_reply};
-pub use common::{errors, primitives::*};
+pub use common::{errors, primitives::*, reservations::*};
 pub use config::Config;
 pub use gstd_codegen::{async_init, async_main};
 
