@@ -1,0 +1,19 @@
+[package]
+name = "gear-weight-diff"
+version = "1.0.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+indexmap.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tabled.workspace = true
+
+pallet-gear.workspace = true
+frame-support.workspace = true
+
+gear-runtime.workspace = true
+vara-runtime.workspace = true

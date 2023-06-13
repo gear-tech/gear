@@ -19,13 +19,13 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{
-    funcs::FuncsHandler as Funcs,
     memory::MemoryWrap,
     runtime::{self, Runtime},
 };
 use alloc::{collections::BTreeSet, format};
 use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
+    funcs::FuncsHandler,
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessMod},
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
     BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
@@ -41,9 +41,92 @@ use gear_wasm_instrument::{
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
-    HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
-    SandboxMemory, Value,
+    HostError, HostFuncType, InstanceGlobals, ReturnValue, SandboxEnvironmentBuilder,
+    SandboxInstance, SandboxMemory, Value,
 };
+
+#[derive(Clone, Copy)]
+struct SandboxValue(Value);
+
+impl From<i32> for SandboxValue {
+    fn from(value: i32) -> Self {
+        SandboxValue(Value::I32(value))
+    }
+}
+
+impl From<u32> for SandboxValue {
+    fn from(value: u32) -> Self {
+        SandboxValue(Value::I32(value as i32))
+    }
+}
+
+impl From<i64> for SandboxValue {
+    fn from(value: i64) -> Self {
+        SandboxValue(Value::I64(value))
+    }
+}
+
+impl TryFrom<SandboxValue> for u32 {
+    type Error = HostError;
+
+    fn try_from(val: SandboxValue) -> Result<u32, HostError> {
+        if let Value::I32(val) = val.0 {
+            Ok(val as u32)
+        } else {
+            Err(HostError)
+        }
+    }
+}
+
+impl TryFrom<SandboxValue> for u64 {
+    type Error = HostError;
+
+    fn try_from(val: SandboxValue) -> Result<u64, HostError> {
+        if let Value::I64(val) = val.0 {
+            Ok(val as u64)
+        } else {
+            Err(HostError)
+        }
+    }
+}
+
+macro_rules! wrap_common_func_internal_ret{
+    ($func:path, $($arg_no:expr),*) => {
+        |ctx, args| -> Result<ReturnValue, HostError> {
+            $func(ctx, $(SandboxValue(args[$arg_no]).try_into()?,)*).map(|ret| Into::<SandboxValue>::into(ret).0.into())
+        }
+    }
+}
+
+macro_rules! wrap_common_func_internal_no_ret{
+    ($func:path, $($arg_no:expr),*) => {
+        |ctx, _args| -> Result<ReturnValue, HostError> {
+            $func(ctx, $(SandboxValue(_args[$arg_no]).try_into()?,)*).map(|_| ReturnValue::Unit)
+        }
+    }
+}
+
+#[rustfmt::skip]
+macro_rules! wrap_common_func {
+    ($func:path, () -> ()) =>   { wrap_common_func_internal_no_ret!($func,) };
+    ($func:path, (1) -> ()) =>  { wrap_common_func_internal_no_ret!($func, 0) };
+    ($func:path, (2) -> ()) =>  { wrap_common_func_internal_no_ret!($func, 0, 1) };
+    ($func:path, (3) -> ()) =>  { wrap_common_func_internal_no_ret!($func, 0, 1, 2) };
+    ($func:path, (4) -> ()) =>  { wrap_common_func_internal_no_ret!($func, 0, 1, 2, 3) };
+    ($func:path, (5) -> ()) =>  { wrap_common_func_internal_no_ret!($func, 0, 1, 2, 3, 4) };
+    ($func:path, (6) -> ()) =>  { wrap_common_func_internal_no_ret!($func, 0, 1, 2, 3, 4, 5) };
+    ($func:path, (7) -> ()) =>  { wrap_common_func_internal_no_ret!($func, 0, 1, 2, 3, 4, 5, 6) };
+    ($func:path, (8) -> ()) =>  { wrap_common_func_internal_no_ret!($func, 0, 1, 2, 3, 4, 5, 6, 7) };
+
+    ($func:path, () -> (1)) =>  { wrap_common_func_internal_ret!($func,) };
+    ($func:path, (1) -> (1)) => { wrap_common_func_internal_ret!($func, 0) };
+    ($func:path, (2) -> (1)) => { wrap_common_func_internal_ret!($func, 0, 1) };
+    ($func:path, (3) -> (1)) => { wrap_common_func_internal_ret!($func, 0, 1, 2) };
+    ($func:path, (4) -> (1)) => { wrap_common_func_internal_ret!($func, 0, 1, 2, 3) };
+    ($func:path, (5) -> (1)) => { wrap_common_func_internal_ret!($func, 0, 1, 2, 3, 4) };
+    ($func:path, (6) -> (1)) => { wrap_common_func_internal_ret!($func, 0, 1, 2, 3, 4, 5) };
+    ($func:path, (7) -> (1)) => { wrap_common_func_internal_ret!($func, 0, 1, 2, 3, 4, 5, 6) };
+}
 
 #[derive(Debug, derive_more::Display)]
 pub enum SandboxEnvironmentError {
@@ -85,8 +168,11 @@ where
 {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>) {
         if self.forbidden_funcs.contains(&name) {
-            self.env_def_builder
-                .add_host_func("env", name.to_str(), Funcs::forbidden);
+            self.env_def_builder.add_host_func(
+                "env",
+                name.to_str(),
+                wrap_common_func!(FuncsHandler::forbidden, () -> ()),
+            );
         } else {
             self.env_def_builder.add_host_func("env", name.to_str(), f);
         }
@@ -102,6 +188,76 @@ where
 impl<E: BackendExt> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
     fn from(builder: EnvBuilder<E>) -> Self {
         builder.env_def_builder
+    }
+}
+
+impl<E, EP> SandboxEnvironment<E, EP>
+where
+    E: BackendExt + 'static,
+    E::Error: BackendExtError,
+    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
+    EP: WasmEntry,
+{
+    #[rustfmt::skip]
+    fn bind_funcs(builder: &mut EnvBuilder<E>) {
+        builder.add_func(BlockHeight, wrap_common_func!(FuncsHandler::block_height, (1) -> ()));
+        builder.add_func(BlockTimestamp,wrap_common_func!(FuncsHandler::block_timestamp, (1) -> ()));
+        builder.add_func(CreateProgram, wrap_common_func!(FuncsHandler::create_program, (7) -> ()));
+        builder.add_func(CreateProgramWGas, wrap_common_func!(FuncsHandler::create_program_wgas, (8) -> ()));
+        builder.add_func(Debug, wrap_common_func!(FuncsHandler::debug, (2) -> ()));
+        builder.add_func(Panic, wrap_common_func!(FuncsHandler::panic, (2) -> ()));
+        builder.add_func(OomPanic, wrap_common_func!(FuncsHandler::oom_panic, () -> ()));
+        builder.add_func(Error, wrap_common_func!(FuncsHandler::error, (2) -> ()));
+        builder.add_func(Exit, wrap_common_func!(FuncsHandler::exit, (1) -> ()));
+        builder.add_func(StatusCode, wrap_common_func!(FuncsHandler::status_code, (1) -> ()));
+        builder.add_func(ReserveGas, wrap_common_func!(FuncsHandler::reserve_gas, (3) -> ()));
+        builder.add_func(ReplyDeposit, wrap_common_func!(FuncsHandler::reply_deposit, (3) -> ()));
+        builder.add_func(UnreserveGas, wrap_common_func!(FuncsHandler::unreserve_gas, (2) -> ()));
+        builder.add_func(GasAvailable, wrap_common_func!(FuncsHandler::gas_available, (1) -> ()));
+        builder.add_func(Leave, wrap_common_func!(FuncsHandler::leave, () -> ()));
+        builder.add_func(MessageId, wrap_common_func!(FuncsHandler::message_id, (1) -> ()));
+        builder.add_func(Origin, wrap_common_func!(FuncsHandler::origin, (1) -> ()));
+        builder.add_func(PayProgramRent, wrap_common_func!(FuncsHandler::pay_program_rent, (2) -> ()));
+        builder.add_func(ProgramId, wrap_common_func!(FuncsHandler::program_id, (1) -> ()));
+        builder.add_func(Random, wrap_common_func!(FuncsHandler::random, (2) -> ()));
+        builder.add_func(Read, wrap_common_func!(FuncsHandler::read, (4) -> ()));
+        builder.add_func(Reply, wrap_common_func!(FuncsHandler::reply, (4) -> ()));
+        builder.add_func(ReplyCommit, wrap_common_func!(FuncsHandler::reply_commit, (2) -> ()));
+        builder.add_func(ReplyCommitWGas, wrap_common_func!(FuncsHandler::reply_commit_wgas, (3) -> ()));
+        builder.add_func(ReplyPush, wrap_common_func!(FuncsHandler::reply_push, (3) -> ()));
+        builder.add_func(ReplyTo, wrap_common_func!(FuncsHandler::reply_to, (1) -> ()));
+        builder.add_func(SignalFrom, wrap_common_func!(FuncsHandler::signal_from, (1) -> ()));
+        builder.add_func(ReplyWGas, wrap_common_func!(FuncsHandler::reply_wgas, (5) -> ()));
+        builder.add_func(ReplyInput, wrap_common_func!(FuncsHandler::reply_input, (4) -> ()));
+        builder.add_func(ReplyPushInput, wrap_common_func!(FuncsHandler::reply_push_input, (3) -> ()));
+        builder.add_func(ReplyInputWGas, wrap_common_func!(FuncsHandler::reply_input_wgas, (5) -> ()));
+        builder.add_func(Send, wrap_common_func!(FuncsHandler::send, (5) -> ()));
+        builder.add_func(SendCommit, wrap_common_func!(FuncsHandler::send_commit, (4) -> ()));
+        builder.add_func(SendCommitWGas, wrap_common_func!(FuncsHandler::send_commit_wgas, (5) -> ()));
+        builder.add_func(SendInit, wrap_common_func!(FuncsHandler::send_init, (1) -> ()));
+        builder.add_func(SendPush, wrap_common_func!(FuncsHandler::send_push, (4) -> ()));
+        builder.add_func(SendWGas, wrap_common_func!(FuncsHandler::send_wgas, (6) -> ()));
+        builder.add_func(SendInput, wrap_common_func!(FuncsHandler::send_input, (5) -> ()));
+        builder.add_func(SendPushInput, wrap_common_func!(FuncsHandler::send_push_input, (4) -> ()));
+        builder.add_func(SendInputWGas, wrap_common_func!(FuncsHandler::send_input_wgas, (6) -> ()));
+        builder.add_func(Size, wrap_common_func!(FuncsHandler::size, (1) -> ()));
+        builder.add_func(Source, wrap_common_func!(FuncsHandler::source, (1) -> ()));
+        builder.add_func(Value, wrap_common_func!(FuncsHandler::value, (1) -> ()));
+        builder.add_func(ValueAvailable, wrap_common_func!(FuncsHandler::value_available, (1) -> ()));
+        builder.add_func(Wait, wrap_common_func!(FuncsHandler::wait, () -> ()));
+        builder.add_func(WaitFor, wrap_common_func!(FuncsHandler::wait_for, (1) -> ()));
+        builder.add_func(WaitUpTo, wrap_common_func!(FuncsHandler::wait_up_to, (1) -> ()));
+        builder.add_func(Wake, wrap_common_func!(FuncsHandler::wake, (3) -> ()));
+        builder.add_func(SystemReserveGas, wrap_common_func!(FuncsHandler::system_reserve_gas, (2) -> ()));
+        builder.add_func(ReservationReply, wrap_common_func!(FuncsHandler::reservation_reply, (4) -> ()));
+        builder.add_func(ReservationReplyCommit, wrap_common_func!(FuncsHandler::reservation_reply_commit, (2) -> ()));
+        builder.add_func(ReservationSend, wrap_common_func!(FuncsHandler::reservation_send, (5) -> ()));
+        builder.add_func(ReservationSendCommit, wrap_common_func!(FuncsHandler::reservation_send_commit, (4) -> ()));
+        builder.add_func(OutOfGas, wrap_common_func!(FuncsHandler::out_of_gas, () -> ()));
+        builder.add_func(OutOfAllowance, wrap_common_func!(FuncsHandler::out_of_allowance, () -> ()));
+
+        builder.add_func(Alloc, wrap_common_func!(FuncsHandler::alloc, (1) -> (1)));
+        builder.add_func(Free, wrap_common_func!(FuncsHandler::free, (1) -> (1)));
     }
 }
 
@@ -143,70 +299,14 @@ where
             funcs_count: 0,
         };
 
-        builder.add_func(BlockHeight, Funcs::block_height);
-        builder.add_func(BlockTimestamp, Funcs::block_timestamp);
-        builder.add_func(CreateProgram, Funcs::create_program);
-        builder.add_func(CreateProgramWGas, Funcs::create_program_wgas);
-        builder.add_func(ReplyDeposit, Funcs::reply_deposit);
-        builder.add_func(Debug, Funcs::debug);
-        builder.add_func(Panic, Funcs::panic);
-        builder.add_func(OomPanic, Funcs::oom_panic);
-        builder.add_func(Error, Funcs::error);
-        builder.add_func(Exit, Funcs::exit);
-        builder.add_func(StatusCode, Funcs::status_code);
-        builder.add_func(ReserveGas, Funcs::reserve_gas);
-        builder.add_func(UnreserveGas, Funcs::unreserve_gas);
-        builder.add_func(GasAvailable, Funcs::gas_available);
-        builder.add_func(Leave, Funcs::leave);
-        builder.add_func(MessageId, Funcs::message_id);
-        builder.add_func(Origin, Funcs::origin);
-        builder.add_func(PayProgramRent, Funcs::pay_program_rent);
-        builder.add_func(ProgramId, Funcs::program_id);
-        builder.add_func(Random, Funcs::random);
-        builder.add_func(Read, Funcs::read);
-        builder.add_func(Reply, Funcs::reply);
-        builder.add_func(ReplyCommit, Funcs::reply_commit);
-        builder.add_func(ReplyCommitWGas, Funcs::reply_commit_wgas);
-        builder.add_func(ReplyPush, Funcs::reply_push);
-        builder.add_func(ReplyTo, Funcs::reply_to);
-        builder.add_func(SignalFrom, Funcs::signal_from);
-        builder.add_func(ReplyWGas, Funcs::reply_wgas);
-        builder.add_func(ReplyInput, Funcs::reply_input);
-        builder.add_func(ReplyPushInput, Funcs::reply_push_input);
-        builder.add_func(ReplyInputWGas, Funcs::reply_input_wgas);
-        builder.add_func(Send, Funcs::send);
-        builder.add_func(SendCommit, Funcs::send_commit);
-        builder.add_func(SendCommitWGas, Funcs::send_commit_wgas);
-        builder.add_func(SendInit, Funcs::send_init);
-        builder.add_func(SendPush, Funcs::send_push);
-        builder.add_func(SendWGas, Funcs::send_wgas);
-        builder.add_func(SendInput, Funcs::send_input);
-        builder.add_func(SendPushInput, Funcs::send_push_input);
-        builder.add_func(SendInputWGas, Funcs::send_input_wgas);
-        builder.add_func(Size, Funcs::size);
-        builder.add_func(Source, Funcs::source);
-        builder.add_func(Value, Funcs::value);
-        builder.add_func(ValueAvailable, Funcs::value_available);
-        builder.add_func(Wait, Funcs::wait);
-        builder.add_func(WaitFor, Funcs::wait_for);
-        builder.add_func(WaitUpTo, Funcs::wait_up_to);
-        builder.add_func(Wake, Funcs::wake);
-        builder.add_func(SystemReserveGas, Funcs::system_reserve_gas);
-        builder.add_func(ReservationReply, Funcs::reservation_reply);
-        builder.add_func(ReservationReplyCommit, Funcs::reservation_reply_commit);
-        builder.add_func(ReservationSend, Funcs::reservation_send);
-        builder.add_func(ReservationSendCommit, Funcs::reservation_send_commit);
-
         let memory: DefaultExecutorMemory = match SandboxMemory::new(mem_size.raw(), None) {
             Ok(mem) => mem,
             Err(e) => return Err(System(CreateEnvMemory(e))),
         };
 
         builder.add_memory(memory.clone());
-        builder.add_func(Alloc, Funcs::alloc);
-        builder.add_func(Free, Funcs::free);
-        builder.add_func(OutOfGas, Funcs::out_of_gas);
-        builder.add_func(OutOfAllowance, Funcs::out_of_allowance);
+
+        Self::bind_funcs(&mut builder);
 
         // Check that we have implementations for all the sys-calls.
         // This is intended to panic during any testing, when the

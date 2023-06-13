@@ -1069,4 +1069,17 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         }
     }
+
+    /// See ['split'].
+    pub(crate) fn create(
+        origin: T::AccountId,
+        key: impl Into<GasNodeIdOf<T>> + Clone,
+        amount: GasBalanceOf<T>,
+        is_reply: bool,
+    ) {
+        if !is_reply || !GasHandlerOf::<T>::exists_and_deposit(key.clone()) {
+            GasHandlerOf::<T>::create(origin, key, amount)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        }
+    }
 }

@@ -99,7 +99,7 @@
 //!
 //!     let mut requests: Vec<_> = unsafe { APPROVERS }
 //!         .iter()
-//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0))
+//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0, 0))
 //!         .collect::<Result<_, _>>()
 //!         .unwrap();
 //!
@@ -123,7 +123,7 @@
 //!
 //!     let requests: Vec<_> = unsafe { APPROVERS }
 //!         .iter()
-//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0))
+//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0, 0))
 //!         .collect::<Result<_, _>>()
 //!         .unwrap();
 //!
