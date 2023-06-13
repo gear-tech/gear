@@ -116,6 +116,10 @@ pub use extensions::DisableValueTransfers;
 
 mod migrations;
 
+#[link_section = "wasm_runtime_version"]
+static _RUNTIME_VERSION: [u8; const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION")).len()] =
+    const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"));
+
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),

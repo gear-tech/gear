@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
 use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Index};
-use sc_client_api::AuxStore;
+use sc_client_api::{AuxStore, BlockBackend, StorageProvider};
 use sc_consensus_babe::{BabeConfiguration, Epoch};
 use sc_consensus_epochs::SharedEpochChanges;
 use sc_consensus_grandpa::{
@@ -39,6 +39,8 @@ use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
 use sp_keystore::SyncCryptoStorePtr;
+
+mod runtime_info;
 
 /// Extra dependencies for BABE.
 pub struct BabeDeps {
@@ -89,10 +91,11 @@ pub fn create_full<C, P, SC, B>(
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
     C: ProvideRuntimeApi<Block>
-        + sc_client_api::BlockBackend<Block>
+        + BlockBackend<Block>
         + HeaderBackend<Block>
         + AuxStore
         + HeaderMetadata<Block, Error = BlockChainError>
+        + StorageProvider<Block, B>
         + Sync
         + Send
         + 'static,
@@ -108,6 +111,7 @@ where
 {
     use pallet_gear_rpc::{Gear, GearApiServer};
     use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
+    use runtime_info::{RuntimeInfoApi, RuntimeInfoServer};
     use sc_consensus_babe_rpc::{Babe, BabeApiServer};
     use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};
     use sc_rpc::dev::{Dev, DevApiServer};
@@ -186,7 +190,9 @@ where
     io.merge(StateMigration::new(client.clone(), backend, deny_unsafe).into_rpc())?;
     io.merge(Dev::new(client.clone(), deny_unsafe).into_rpc())?;
 
-    io.merge(Gear::new(client).into_rpc())?;
+    io.merge(Gear::new(client.clone()).into_rpc())?;
+
+    io.merge(RuntimeInfoApi::<C, Block, B>::new(client.clone()).into_rpc())?;
 
     Ok(io)
 }

@@ -98,6 +98,10 @@ mod migrations;
 // Weights used in the runtime.
 mod weights;
 
+#[link_section = "wasm_runtime_version"]
+static _RUNTIME_VERSION: [u8; const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION")).len()] =
+    const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"));
+
 // The version of the runtime specification.
 //
 // Full node will not attempt to use its native runtime in substitute for the
