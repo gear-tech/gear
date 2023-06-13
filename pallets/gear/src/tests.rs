@@ -701,6 +701,46 @@ fn reply_deposit_gstd_async() {
     });
 }
 
+// TODO (#2763): resolve panic caused by "duplicate" wake in message A
+#[test]
+#[should_panic]
+fn pseudo_duplicate_wake() {
+    use demo_constructor::{Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_mid, constructor) = init_constructor(Scheme::empty());
+
+        let execute = |calls: Calls| {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                constructor,
+                calls.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+            let mid = get_last_message_id();
+            run_to_next_block(None);
+
+            mid
+        };
+
+        // message wakes some message id and waits
+        let waited_mid = execute(Calls::builder().wake([0u8; 32]).wait());
+        let waited_mid_bytes: [u8; 32] = waited_mid.into();
+
+        assert_last_dequeued(1);
+        assert!(WaitlistOf::<Test>::contains(&constructor, &waited_mid));
+
+        // message B wakes message A
+        // message A results in waiting again
+        execute(Calls::builder().wake(waited_mid_bytes));
+
+        assert_last_dequeued(2);
+        assert!(WaitlistOf::<Test>::contains(&constructor, &waited_mid));
+    });
+}
+
 #[test]
 fn gasfull_after_gasless() {
     init_logger();
