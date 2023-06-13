@@ -35,7 +35,7 @@ use super::primitives::ReservationId;
 use tests::ReservationIdMock as ReservationId;
 
 /// Stores additional data along with [`ReservationId`] to track its state.
-#[derive(Clone, Debug, TypeInfo, Hash, Encode, Decode)]
+#[derive(Clone, Copy, Debug, TypeInfo, Hash, Encode, Decode)]
 pub struct Reservation {
     id: ReservationId,
     amount: u64,
@@ -56,11 +56,6 @@ impl Reservation {
             amount,
             valid_until: duration.saturating_add(block_height),
         })
-    }
-
-    /// Borrow underlying [`ReservationId`].
-    pub fn id(&self) -> &ReservationId {
-        &self.id
     }
 
     /// Converts this [`Reservation`] into [`ReservationId`].
@@ -288,7 +283,7 @@ mod tests {
     use parity_scale_codec::{Decode, Encode};
 
     #[must_use]
-    #[derive(Clone, Debug, TypeInfo, Hash, Encode, Decode)]
+    #[derive(Clone, Copy, Debug, TypeInfo, Hash, Encode, Decode)]
     pub struct ReservationIdMock {
         pub valid_until: u32,
         pub amount: u64,
