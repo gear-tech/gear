@@ -42,7 +42,7 @@ impl New {
             template::download(template, path).await?;
             println!("Successfully created {path}!");
         } else {
-            println!("Available templates: {:#?}", templates);
+            println!("Template not found, available templates: {:#?}", templates);
         }
 
         Ok(())
