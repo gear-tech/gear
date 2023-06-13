@@ -4489,7 +4489,8 @@ dependencies = [
  "sc-executor-common",
  "sp-io",
  "subxt-codegen",
- "syn 1.0.109",
+ "subxt-metadata",
+ "syn 2.0.18",
 ]
 
 [[package]]

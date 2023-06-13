@@ -413,6 +413,7 @@ whoami = "1.4.0"                                                          # gcli
 which = "4.4.0"                                                           # utils/wasm-builder
 fail = "0.5"                                                              # gear-common
 subxt-codegen = "^0.29.0"                                                 # gsdk-codegen
+subxt-metadata = "^0.29.0"                                                # gsdk-codegen
 
 [profile.release]
 panic = "unwind"

@@ -16,14 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 use color_eyre::eyre::Result;
-use frame_metadata::RuntimeMetadataPrefixed;
+use frame_metadata::{RuntimeMetadata, RuntimeMetadataPrefixed, RuntimeMetadataV14};
 use parity_scale_codec::Decode;
 use proc_macro2::TokenStream;
+use quote::{quote, ToTokens};
 use std::{
     env, fs,
     io::{self, Write},
 };
 use subxt_codegen::{DerivesRegistry, RuntimeGenerator, TypeSubstitutes};
+use subxt_metadata::Metadata;
 use syn::parse_quote;
 
 const RUNTIME_WASM: &str = "RUNTIME_WASM";
@@ -69,15 +71,22 @@ fn main() -> Result<()> {
     let metadata = <RuntimeMetadataPrefixed as Decode>::decode(&mut encoded[4..].as_ref())
         .expect("decode metadata failed");
 
-    {
-        // TODO: customized code here. ( #2668 )
+    let output = {
+        let v14 = if let RuntimeMetadata::V14(v14) = metadata.1 {
+            v14
+        } else {
+            panic!("Runtime metadata is not v14");
+        };
+
+        let runtime_types = generate_runtime_types(v14);
+
+        quote! {
+            #runtime_types
+        }
     }
+    .to_token_stream();
 
-    // Generate api.
-    let runtime_types =
-        LICENSE.trim_start().to_string() + &generate_runtime_types(metadata).to_string();
-    io::stdout().write_all(runtime_types.as_bytes())?;
-
+    io::stdout().write_all((LICENSE.trim_start().to_string() + &output.to_string()).as_bytes())?;
     Ok(())
 }
 
@@ -110,22 +119,24 @@ fn metadata() -> Vec<u8> {
         .to_vec()
 }
 
-fn generate_runtime_types(metadata: RuntimeMetadataPrefixed) -> TokenStream {
+fn generate_runtime_types(metadata: RuntimeMetadataV14) -> TokenStream {
+    let metadata = Metadata::try_from(metadata).expect("Failed to convert metadata");
     let generator = RuntimeGenerator::new(metadata);
     let runtime_types_mod = parse_quote!(
         pub mod runtime_types {}
     );
 
     let crate_path = Default::default();
-    // TODO: extend `Copy` for Ids and Hashes. ( #2668 )
-    let derives = DerivesRegistry::new(&crate_path);
+    let derives = DerivesRegistry::new();
     generator
         .generate_runtime_types(
             runtime_types_mod,
             derives,
-            TypeSubstitutes::new(&crate_path),
+            TypeSubstitutes::new(),
             crate_path,
             true,
         )
         .expect("Failed to generate runtime types")
 }
+
+fn _generate_impls(_metadata: RuntimeMetadataV14) {}
