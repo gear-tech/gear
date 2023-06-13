@@ -30,6 +30,7 @@ use crate::{
     result::{Error, Result},
     types, Api, BlockNumber,
 };
+use anyhow::anyhow;
 use gear_core::ids::*;
 use gsdk_codegen::storage_fetch;
 use hex::ToHex;
@@ -39,6 +40,7 @@ use sp_runtime::AccountId32;
 use std::collections::HashMap;
 use subxt::{
     dynamic::{DecodedValueThunk, Value},
+    metadata::subxt_metadata::StorageEntryType,
     storage::{
         address::{StorageAddress, StorageHasher, StorageMapKey, Yes},
         utils::storage_address_root_bytes,
@@ -361,14 +363,17 @@ pub(crate) fn storage_type_id(
     metadata: &subxt::Metadata,
     address: &impl StorageAddress,
 ) -> Result<u32> {
-    // This code is taken from subxt implementation of fetching decoded storage value.
-    let storage_type = &metadata
-        .pallet(address.pallet_name())?
-        .storage(address.entry_name())?
-        .ty;
+    let storage_type = metadata
+        .pallet_by_name_err(address.pallet_name())?
+        .storage()
+        .ok_or(anyhow!("Storage {} not found", address.pallet_name()))?
+        .entry_by_name(address.entry_name())
+        .ok_or(anyhow!("entry {} not found", address.entry_name()))?
+        .entry_type();
+
     let storage_type_id = match storage_type {
-        subxt::ext::frame_metadata::StorageEntryType::Plain(ty) => ty.id,
-        subxt::ext::frame_metadata::StorageEntryType::Map { value, .. } => value.id,
+        StorageEntryType::Plain(ty) => ty.id,
+        StorageEntryType::Map { value, .. } => value.id,
     };
     Ok(storage_type_id)
 }
