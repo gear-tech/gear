@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -63,6 +63,8 @@ const RANDOM_SUBJECT_SIZE: u32 = 32;
 
 /// Size of struct with fields: error len and handle
 const ERR_HANDLE_SIZE: u32 = ERR_LEN_SIZE + HANDLE_SIZE;
+/// Size of struct with fields: error len and message id
+const ERR_MID_SIZE: u32 = ERR_LEN_SIZE + MID_SIZE;
 /// Size of struct with fields: reservation id and value
 const RID_VALUE_SIZE: u32 = RID_SIZE + VALUE_SIZE;
 /// Size of struct with fields: program id and value
@@ -380,6 +382,46 @@ where
         };
 
         Self::prepare_handle(module, 0)
+    }
+
+    pub fn gr_reply_deposit(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let pid_value_offset = COMMON_OFFSET;
+        let send_res_offset = COMMON_OFFSET + PID_VALUE_SIZE;
+        let mid_offset = send_res_offset + ERR_LEN_SIZE;
+        let res_offset = send_res_offset + ERR_MID_SIZE;
+
+        // `gr_send` is required to populate `message_context.outcome.handle`
+        // so `gr_reply_deposit` can be called and won't fail.
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SysCallName::ReplyDeposit, SysCallName::Send],
+            handle_body: Some(body::fallible_syscall(
+                repetitions,
+                res_offset,
+                &[
+                    // pid value offset
+                    InstrI32Const(pid_value_offset),
+                    // payload offset
+                    InstrI32Const(COMMON_OFFSET),
+                    // payload len
+                    InstrI32Const(0),
+                    // delay
+                    InstrI32Const(0),
+                    // res ptr
+                    InstrI32Const(send_res_offset),
+                    // call send
+                    InstrCall(1),
+                    // mid ptr
+                    InstrI32Const(mid_offset),
+                    // gas
+                    InstrI64Const(10_000),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 10000000)
     }
 
     pub fn gr_send(

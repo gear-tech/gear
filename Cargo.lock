@@ -427,7 +427,7 @@ checksum = "0e97ce7de6cf12de5d7226c73f5ba9811622f4db3a5b91b55c53e987e5f91cba"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -438,7 +438,7 @@ checksum = "b9ccdd8f2a161be9bd5c023df56f1b2a0bd1d83872ae53b71a84a12c9bf6e842"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -1076,7 +1076,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -1645,7 +1645,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scratch",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -1662,7 +1662,7 @@ checksum = "2345488264226bf682893e25de0769f3360aac9957980ec49361b083ddaa5bc5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -1727,6 +1727,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-async-custom-entry"
 version = "0.1.0"
 dependencies = [
@@ -1734,6 +1743,25 @@ dependencies = [
  "gstd",
  "gtest",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-async-init"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-async-recursion"
+version = "0.1.0"
+dependencies = [
+ "async-recursion",
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
@@ -1813,13 +1841,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-contract-template"
+name = "demo-constructor"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
  "hex",
- "rand 0.8.5",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -1841,29 +1869,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-exit-handle"
-version = "0.1.0"
+name = "demo-fungible-token"
+version = "0.1.4"
 dependencies = [
+ "ft-io",
+ "gclient",
  "gear-wasm-builder",
+ "gmeta",
  "gstd",
+ "hashbrown 0.13.2",
+ "tokio",
 ]
 
 [[package]]
-name = "demo-exit-handle-sender"
+name = "demo-futures-unordered"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
-]
-
-[[package]]
-name = "demo-exit-init"
-version = "0.1.0"
-dependencies = [
- "gcore",
- "gear-wasm-builder",
- "gstd",
 ]
 
 [[package]]
@@ -1876,7 +1901,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-gasless-wasting"
+name = "demo-incomplete-async-payloads"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
@@ -1906,16 +1931,6 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
-]
-
-[[package]]
-name = "demo-init-with-value"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "hex-literal 0.4.0",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -2016,6 +2031,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-piggy-bank"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-ping"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
@@ -2057,22 +2088,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-proxy-with-gas"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
 name = "demo-reserve-gas"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-rwlock"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
 ]
 
@@ -2097,6 +2127,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-state-rollback"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-sync-duplicate"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-syscall-error"
 version = "0.1.0"
 dependencies = [
@@ -2108,20 +2154,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-unchecked-mul"
+name = "demo-vec"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
-]
-
-[[package]]
-name = "demo-value-sender"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -2726,6 +2763,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "etc"
+version = "0.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f7935cc590ee512e8073c4fe82b85e056216324e65aed24459204e3f6d9f72e"
+
+[[package]]
 name = "event-listener"
 version = "2.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3263,6 +3306,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ft-io"
+version = "0.1.4"
+dependencies = [
+ "gmeta",
+ "gstd",
+]
+
+[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3340,7 +3391,7 @@ checksum = "89ca545a94061b6365f2c7355b4b32bd20df3ff95f02da9329b34ccc3bd6ee72"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -3419,6 +3470,7 @@ dependencies = [
  "demo-waiter",
  "dirs",
  "env_logger",
+ "etc",
  "gear-backend-wasmi",
  "gear-core",
  "gear-core-processor",
@@ -3453,15 +3505,12 @@ dependencies = [
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
  "demo-distributor",
- "demo-exit-handle-sender",
- "demo-gasless-wasting",
  "demo-meta-io",
  "demo-mul-by-const",
  "demo-node",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",
- "demo-proxy-with-gas",
  "demo-reserve-gas",
  "env_logger",
  "futures",
@@ -3469,6 +3518,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-utils",
+ "gmeta",
  "gsdk",
  "gstd",
  "hex",
@@ -3543,7 +3593,7 @@ version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -3685,7 +3735,7 @@ name = "gear-common-codegen"
 version = "0.1.0"
 dependencies = [
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -3908,11 +3958,14 @@ dependencies = [
  "gear-common",
  "gear-core-processor",
  "gear-runtime-primitives",
+ "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-session",
  "sp-runtime",
  "sp-std 5.0.0",
+ "substrate-validator-set",
 ]
 
 [[package]]
@@ -4162,8 +4215,9 @@ version = "0.1.2"
 dependencies = [
  "anyhow",
  "cargo_metadata",
+ "chrono",
  "colored",
- "filetime",
+ "gear-core",
  "gear-wasm-instrument",
  "gmeta",
  "log",
@@ -4175,6 +4229,7 @@ dependencies = [
  "toml 0.7.3",
  "wabt",
  "wasm-opt",
+ "wasmi 0.14.0",
  "wasmparser-nostd 0.100.1",
  "which",
 ]
@@ -4206,6 +4261,21 @@ dependencies = [
  "wasm-instrument 0.2.1",
  "wasmparser-nostd 0.100.1",
  "wat",
+]
+
+[[package]]
+name = "gear-weight-diff"
+version = "1.0.0"
+dependencies = [
+ "clap 4.2.1",
+ "frame-support",
+ "gear-runtime",
+ "indexmap",
+ "pallet-gear",
+ "serde",
+ "serde_json",
+ "tabled",
+ "vara-runtime",
 ]
 
 [[package]]
@@ -4371,7 +4441,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scale-info",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -4404,7 +4474,6 @@ dependencies = [
  "jsonrpsee",
  "log",
  "parity-scale-codec",
- "primitive-types",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -4416,12 +4485,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "gsdk-api-gen"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "frame-metadata",
+ "gear-runtime-interface",
+ "parity-scale-codec",
+ "proc-macro2",
+ "quote",
+ "sc-executor",
+ "sc-executor-common",
+ "sp-io",
+ "subxt-codegen 0.28.0",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "gsdk-codegen"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -4448,7 +4534,7 @@ dependencies = [
  "gstd",
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
  "trybuild",
 ]
 
@@ -4462,6 +4548,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "colored",
+ "demo-futures-unordered",
+ "demo-piggy-bank",
  "derive_more",
  "env_logger",
  "gear-backend-common",
@@ -6962,7 +7050,10 @@ name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
  "blake2-rfc",
+ "demo-async",
  "demo-async-custom-entry",
+ "demo-async-init",
+ "demo-async-recursion",
  "demo-async-signal-entry",
  "demo-async-tester",
  "demo-backend-error",
@@ -6971,29 +7062,29 @@ dependencies = [
  "demo-calc-hash-in-one-block",
  "demo-calc-hash-over-blocks",
  "demo-compose",
+ "demo-constructor",
  "demo-delayed-sender",
  "demo-distributor",
- "demo-exit-handle",
- "demo-exit-handle-sender",
- "demo-exit-init",
+ "demo-futures-unordered",
  "demo-gas-burned",
- "demo-gasless-wasting",
+ "demo-incomplete-async-payloads",
  "demo-init-fail-sender",
  "demo-init-wait",
  "demo-init-wait-reply-exit",
- "demo-init-with-value",
  "demo-mul-by-const",
  "demo-new-meta",
  "demo-out-of-memory",
+ "demo-ping",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-reservation-with-gas",
- "demo-proxy-with-gas",
  "demo-reserve-gas",
+ "demo-rwlock",
  "demo-send-from-reservation",
  "demo-signal-entry",
- "demo-value-sender",
+ "demo-state-rollback",
+ "demo-sync-duplicate",
  "demo-wait-timeout",
  "demo-wait-wake",
  "demo-waiter",
@@ -7016,6 +7107,7 @@ dependencies = [
  "gear-sandbox",
  "gear-wasm-instrument",
  "gmeta",
+ "gstd",
  "gsys",
  "hex",
  "log",
@@ -7051,6 +7143,7 @@ dependencies = [
 name = "pallet-gear-debug"
 version = "2.0.0"
 dependencies = [
+ "demo-vec",
  "env_logger",
  "frame-benchmarking",
  "frame-support",
@@ -7172,7 +7265,7 @@ version = "2.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -7867,7 +7960,7 @@ dependencies = [
  "pest_meta",
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -8565,7 +8658,7 @@ checksum = "8d2275aab483050ab2a7364c1a46604865ee7d6906684e08db0f090acf74f9e7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -10360,7 +10453,7 @@ checksum = "4c614d17805b093df4b147b51339e7e44bf05ef59fba1e45d83500bcfb4d8585"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -10382,7 +10475,7 @@ checksum = "bcec881020c684085e55a25f7fd888954d56609ef363479dc5a1305eb0d40cab"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -10904,6 +10997,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-core-hashing"
+version = "8.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27449abdfbe41b473e625bce8113745e81d65777dd1d5a8462cf24137930dad8"
+dependencies = [
+ "blake2b_simd",
+ "byteorder",
+ "digest 0.10.6",
+ "sha2 0.10.6",
+ "sha3",
+ "sp-std 7.0.0",
+ "twox-hash",
+]
+
+[[package]]
 name = "sp-core-hashing-proc-macro"
 version = "5.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gshep/polkadot-v0.9.41#c3ac527d48c6b23caa5785999bd2af439a607330"
@@ -11173,6 +11281,12 @@ name = "sp-std"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af0ee286f98455272f64ac5bb1384ff21ac029fbb669afbaf48477faff12760e"
+
+[[package]]
+name = "sp-std"
+version = "7.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1de8eef39962b5b97478719c493bed2926cf70cb621005bbf68ebe58252ff986"
 
 [[package]]
 name = "sp-storage"
@@ -11647,7 +11761,7 @@ dependencies = [
  "serde_json",
  "sp-core-hashing 6.0.0",
  "subxt-macro",
- "subxt-metadata",
+ "subxt-metadata 0.27.1",
  "thiserror",
  "tracing",
 ]
@@ -11668,8 +11782,29 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scale-info",
- "subxt-metadata",
+ "subxt-metadata 0.27.1",
  "syn 1.0.109",
+ "tokio",
+]
+
+[[package]]
+name = "subxt-codegen"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e924f41069e9273236398ff89662d6d336468a5d94faac812129d44547db0e7f"
+dependencies = [
+ "darling",
+ "frame-metadata",
+ "heck",
+ "hex",
+ "jsonrpsee",
+ "parity-scale-codec",
+ "proc-macro2",
+ "quote",
+ "scale-info",
+ "subxt-metadata 0.28.0",
+ "syn 1.0.109",
+ "thiserror",
  "tokio",
 ]
 
@@ -11681,7 +11816,7 @@ checksum = "74c08de402a78c4c06c3ee3702c80e519efdcb65911348e018b6998d04404916"
 dependencies = [
  "darling",
  "proc-macro-error",
- "subxt-codegen",
+ "subxt-codegen 0.27.1",
  "syn 1.0.109",
 ]
 
@@ -11698,6 +11833,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "subxt-metadata"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18be3b8f4308fe7369ee1df66ae59c2eca79de20eab57b0f41c75736e843300f"
+dependencies = [
+ "frame-metadata",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core-hashing 8.0.0",
+]
+
+[[package]]
 name = "syn"
 version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11710,9 +11857,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.13"
+version = "2.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c9da457c5285ac1f936ebd076af6dac17a61cfe7826f2076b4d015cf47bc8ec"
+checksum = "a6f671d4b5ffdb8eadec19c0ae67fe2639df8684bd7bc4b83d986b8db549cf01"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -11848,7 +11995,7 @@ checksum = "f9456a42c5b0d803c8cd86e73dd7cc9edd429499f37a3550d286d5e86720569f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -11995,7 +12142,7 @@ checksum = "61a573bdc87985e9d6ddeed1b3d864e8a302c847e40d647746df2f1de209d1ce"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -14173,7 +14320,7 @@ checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.13",
+ "syn 2.0.16",
 ]
 
 [[package]]

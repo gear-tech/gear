@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, Config, CurrencyOf, DispatchStashOf, Event, GasHandlerOf, Pallet,
-    ProgramStorageOf, QueueOf, WaitlistOf,
+    manager::ExtManager, Config, CurrencyOf, DispatchStashOf, Event, Pallet, ProgramStorageOf,
+    QueueOf, WaitlistOf,
 };
 use alloc::string::ToString;
 use common::{
@@ -28,7 +28,7 @@ use common::{
     },
     scheduler::*,
     storage::*,
-    GasTree, Origin, PausedProgramStorage, Program, ProgramStorage,
+    Origin, PausedProgramStorage, Program, ProgramStorage,
 };
 use core::convert::TryInto;
 use frame_support::traits::{Currency, ExistenceRequirement};
@@ -171,14 +171,7 @@ where
         // So, the message id of this reply message will not be duplicated.
         let message = ReplyMessage::system(message_id, err_payload, err);
 
-        // Creating `GasNode` for the reply.
-        //
-        // # Safety
-        //
-        //  The error is unreachable since the `message_id` is new generated
-        //  from the checked `original_message`."
-        GasHandlerOf::<T>::create(user_id.clone(), message.id(), 0)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        Pallet::<T>::create(user_id.clone(), message.id(), 0, true);
 
         // Reading message from mailbox.
         let mailboxed = Pallet::<T>::read_message(user_id, message_id, reason)
@@ -237,13 +230,11 @@ where
                     trap_reply.into_stored_dispatch(program_id, waitlisted.source(), message_id);
 
                 // Creating `GasNode` for the reply.
-                //
-                // # Safety
-                //
-                //  The error is unreachable since the `message_id` is new generated
-                //  from the checked `original_message`."
-                GasHandlerOf::<T>::split(waitlisted.id(), trap_dispatch.id())
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                Pallet::<T>::split(
+                    waitlisted.id(),
+                    trap_dispatch.id(),
+                    trap_dispatch.is_reply(),
+                );
 
                 // Queueing dispatch.
                 QueueOf::<T>::queue(trap_dispatch)

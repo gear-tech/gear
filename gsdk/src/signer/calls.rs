@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -20,11 +20,11 @@
 use crate::{
     config::GearConfig,
     metadata::{
+        gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call,
             gear_common::{ActiveProgram, Program},
             gear_core::code::InstrumentedCode,
-            gear_runtime::RuntimeCall,
             sp_weights::weight_v2::Weight,
         },
         sudo::Event as SudoEvent,

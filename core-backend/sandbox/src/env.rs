@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -147,6 +147,7 @@ where
         builder.add_func(BlockTimestamp, Funcs::block_timestamp);
         builder.add_func(CreateProgram, Funcs::create_program);
         builder.add_func(CreateProgramWGas, Funcs::create_program_wgas);
+        builder.add_func(ReplyDeposit, Funcs::reply_deposit);
         builder.add_func(Debug, Funcs::debug);
         builder.add_func(Panic, Funcs::panic);
         builder.add_func(OomPanic, Funcs::oom_panic);

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -34,7 +34,9 @@ mod signal;
 mod stored;
 
 pub use common::{Dispatch, Message, MessageDetails, ReplyDetails, SignalDetails};
-pub use context::{ContextOutcome, ContextSettings, ContextStore, MessageContext};
+pub use context::{
+    ContextOutcome, ContextOutcomeDrain, ContextSettings, ContextStore, MessageContext,
+};
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};

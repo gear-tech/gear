@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 
 use std::time::Duration;
 
-use gclient::{EventProcessor, GearApi};
+use gclient::{errors, Error, EventProcessor, GearApi};
 
 const PATHS: [&str; 2] = [
     "../target/wat-examples/wrong_load.wasm",
@@ -215,6 +215,23 @@ async fn get_mailbox() -> anyhow::Result<()> {
         assert_eq!(msg.0.payload().len(), 1000 * 1024); // 1MB payload
         assert!(msg.0.payload().starts_with(b"PONG"));
     }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_upload_failed() -> anyhow::Result<()> {
+    let api = GearApi::dev_from_path("../target/release/gear").await?;
+
+    let err = api
+        .upload_program(vec![], vec![], b"", u64::MAX, 0)
+        .await
+        .expect_err("Should fail");
+
+    assert!(matches!(
+        err,
+        Error::Module(errors::ModuleError::Gear(errors::Gear::GasLimitTooHigh))
+    ));
 
     Ok(())
 }

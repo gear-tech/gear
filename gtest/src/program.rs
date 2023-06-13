@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -273,7 +273,10 @@ impl<'a> Program<'a> {
 
         let opt_code = if !is_opt {
             let mut optimizer = Optimizer::new(path).expect("Failed to create optimizer");
-            optimizer.insert_stack_and_export();
+
+            // Ignore result, because it's not important.
+            _ = optimizer.insert_stack_end_export();
+
             optimizer.strip_custom_sections();
             optimizer
                 .optimize(OptType::Opt)
@@ -551,9 +554,11 @@ mod tests {
 
         let user_id = 100;
 
-        let prog = Program::from_file(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
+            137,
+            demo_futures_unordered::WASM_BINARY.to_vec(),
+            None,
         );
 
         let init_msg_payload = String::from("InvalidInput");
@@ -561,11 +566,7 @@ mod tests {
         assert!(run_result.main_failed);
 
         let log = run_result.log();
-        assert!(!log.is_empty());
-
-        assert!(log[0]
-            .payload()
-            .starts_with(b"'Invalid input, should be three IDs separated by comma'"));
+        assert!(log[0].payload().starts_with(b"'Failed to load destination"));
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 
@@ -616,9 +617,11 @@ mod tests {
         sys.mint_to(sender1, 10000);
         sys.mint_to(sender2, 10000);
 
-        let prog = Program::from_file(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+            137,
+            demo_piggy_bank::WASM_BINARY.to_vec(),
+            None,
         );
 
         prog.send_bytes(receiver, b"init");
@@ -658,10 +661,11 @@ mod tests {
         let sys = System::new();
 
         let user = 1;
-        let prog = Program::from_file_with_id(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             2,
-            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+            demo_piggy_bank::WASM_BINARY.to_vec(),
+            None,
         );
 
         assert_eq!(sys.balance_of(user), 0);
@@ -681,9 +685,11 @@ mod tests {
 
         sys.mint_to(sender, 10000);
 
-        let prog = Program::from_file(
+        let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
-            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+            137,
+            demo_piggy_bank::WASM_BINARY.to_vec(),
+            None,
         );
 
         prog.send_bytes(receiver, b"init");

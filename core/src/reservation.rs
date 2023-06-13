@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -304,6 +304,29 @@ mod tests {
         let mut reserver = new_reserver();
         let id = reserver.reserve(1, 1).unwrap();
         reserver.unreserve(id).unwrap();
+        assert_eq!(
+            reserver.unreserve(id),
+            Err(ReservationError::InvalidReservationId)
+        );
+    }
+
+    #[test]
+    fn remove_non_existing_reservation_fails() {
+        let id = ReservationId::from([0xff; 32]);
+
+        let mut map = GasReservationMap::new();
+        map.insert(
+            id,
+            GasReservationSlot {
+                amount: 1,
+                start: 1,
+                finish: 100,
+            },
+        );
+
+        let mut reserver = GasReserver::new(Default::default(), 0, map, 256);
+        reserver.unreserve(id).unwrap();
+
         assert_eq!(
             reserver.unreserve(id),
             Err(ReservationError::InvalidReservationId)

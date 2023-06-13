@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -15,37 +15,19 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-// Copyright (C) 2022 Gear Technologies Inc.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-use super::runtime_types::{
-    frame_system::pallet::Call as SystemCall,
-    gear_common::{
-        event::*,
-        gas_provider::{
-            lockable::LockId,
-            node::{GasNodeId, NodeLock},
-        },
-    },
-    gear_core::{ids as generated_ids, message as generated_message},
+use super::{
     gear_runtime::{RuntimeCall, RuntimeEvent},
-    pallet_balances::pallet::Call as BalancesCall,
-    pallet_gear::pallet::Call as GearCall,
-    pallet_sudo::pallet::Call as SudoCall,
+    runtime_types::{
+        frame_system::pallet::Call as SystemCall,
+        gear_common::{
+            event::*,
+            gas_provider::node::{GasNodeId, NodeLock},
+        },
+        gear_core::{ids as generated_ids, message as generated_message},
+        pallet_balances::pallet::Call as BalancesCall,
+        pallet_gear::pallet::Call as GearCall,
+        pallet_sudo::pallet::Call as SudoCall,
+    },
 };
 use core::ops::{Index, IndexMut};
 use gear_core::{ids, message, message::StoredMessage};
@@ -134,18 +116,6 @@ impl From<generated_message::stored::StoredMessage> for message::StoredMessage {
     }
 }
 
-impl From<ApiEvent> for RuntimeEvent {
-    fn from(ev: ApiEvent) -> Self {
-        RuntimeEvent::decode(&mut ev.encode().as_ref()).expect("Infallible")
-    }
-}
-
-impl From<RuntimeEvent> for ApiEvent {
-    fn from(ev: RuntimeEvent) -> Self {
-        ApiEvent::decode(&mut ev.encode().as_ref()).expect("Infallible")
-    }
-}
-
 impl<M> From<generated_ids::ReservationId> for GasNodeId<M, ids::ReservationId> {
     fn from(other: generated_ids::ReservationId) -> Self {
         GasNodeId::Reservation(other.into())
@@ -164,20 +134,6 @@ impl<M: Clone, R: Clone> Clone for GasNodeId<M, R> {
 }
 
 impl<M: Copy, R: Copy> Copy for GasNodeId<M, R> {}
-
-impl<B> Index<LockId> for NodeLock<B> {
-    type Output = B;
-
-    fn index(&self, index: LockId) -> &Self::Output {
-        &self.0[index as usize]
-    }
-}
-
-impl<B> IndexMut<LockId> for NodeLock<B> {
-    fn index_mut(&mut self, index: LockId) -> &mut Self::Output {
-        &mut self.0[index as usize]
-    }
-}
 
 macro_rules! impl_basic {
     ($t:ty) => {
@@ -200,7 +156,7 @@ macro_rules! impl_basic {
 }
 
 impl_basic! {
-    ApiEvent, RuntimeEvent, generated_ids::MessageId,
+    ApiEvent, generated_ids::MessageId,
     generated_ids::ProgramId, generated_ids::CodeId, generated_ids::ReservationId,
     Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>
 }

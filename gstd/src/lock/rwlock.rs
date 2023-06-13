@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -117,6 +117,9 @@ pub struct RwLock<T> {
 }
 
 impl<T> RwLock<T> {
+    /// Limit of readers for `RwLock`
+    pub const READERS_LIMIT: ReadersCount = READERS_LIMIT;
+
     /// Create a new instance of an `RwLock<T>` which is unlocked.
     pub const fn new(t: T) -> RwLock<T> {
         RwLock {

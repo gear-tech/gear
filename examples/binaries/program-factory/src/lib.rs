@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -91,7 +91,7 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle_reply() {
-        if msg::status_code().unwrap() != 0 {
+        if msg::status_code().unwrap().to_le_bytes()[0] != 0 {
             let origin = unsafe { ORIGIN.clone().unwrap() };
             msg::send_bytes(origin, [], 0).unwrap();
         }

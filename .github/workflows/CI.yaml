@@ -14,8 +14,8 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
   TERM: xterm-256color
-  NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
-  SCCACHE_VERSION: v0.4.1
+  SCCACHE_VERSION: v0.5.3
+  BINARYEN_VERSION: version_111
 
 jobs:
   # TODO: add to specific branches.
@@ -56,37 +56,15 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          components: clippy, rustfmt
-          targets: wasm32-unknown-unknown
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          targets: wasm32-unknown-unknown
-          components: clippy, rustfmt
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: Build deps"
         run: |
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
           sudo wget -c https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
           sudo cp sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl/sccache /usr/bin/
           sudo chmod +x /usr/bin/sccache
@@ -144,30 +122,8 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v3
@@ -184,8 +140,8 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
           sudo wget -c https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
           sudo cp sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl/sccache /usr/bin/
           sudo chmod +x /usr/bin/sccache
@@ -280,7 +236,7 @@ jobs:
 
       - name: "Test: Sys-calls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls --release
-        
+
       - name: "Test: `try-runtime` feature tests"
         run: |
           cargo test -p "pallet-*" --features try-runtime --release --locked
@@ -403,30 +359,8 @@ jobs:
             procps
             mingw-w64-x86_64-protobuf
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: wasm32-unknown-unknown
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          $(Get-Item $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc).Delete()
-          New-Item -Path $env:USERPROFILE\.rustup\toolchains\nightly-x86_64-pc-windows-msvc -ItemType SymbolicLink -Value $env:USERPROFILE\.rustup\toolchains\nightly-$env:NIGHTLY_TOOLCHAIN_VERSION-x86_64-pc-windows-msvc
-        shell: powershell
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: cargo-nextest"
         run: |
@@ -449,11 +383,11 @@ jobs:
       - name: "Install: binaryen"
         run: |
           $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'tar.gz' } -PassThru
-          Invoke-WebRequest -OutFile $tmp https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-windows.tar.gz
+          Invoke-WebRequest -OutFile $tmp "https://github.com/WebAssembly/binaryen/releases/download/$Env:BINARYEN_VERSION/binaryen-$Env:BINARYEN_VERSION-x86_64-windows.tar.gz"
           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
           tar zxf $tmp
-          cp ./binaryen-version_111/bin/* $outputDir
-          Remove-Item -Recurse ./binaryen-version_111
+          cp "./binaryen-$Env:BINARYEN_VERSION/bin/*" $outputDir
+          Remove-Item -Recurse "./binaryen-$Env:BINARYEN_VERSION"
           $tmp | Remove-Item
         shell: powershell
 
@@ -535,33 +469,11 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: MSVC target"
-        run: rustup target add x86_64-pc-windows-msvc --toolchain nightly
+        run: rustup target add x86_64-pc-windows-msvc
 
       - name: "Install: cargo config"
         run: cp ./.github/build-win-cross/config.toml ${CARGO_HOME:-~/.cargo}/config.toml
@@ -610,8 +522,8 @@ jobs:
 
       - name: "Install: binaryen"
         run: |
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
 
       - name: "Install: sccache"
         run: |
@@ -724,29 +636,8 @@ jobs:
       - name: "Install: protobuf"
         run: brew install protobuf
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: wasm32-unknown-unknown
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-apple-darwin
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-apple-darwin $RUSTUP_HOME/toolchains/nightly-x86_64-apple-darwin
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
@@ -781,7 +672,7 @@ jobs:
         uses: actions/download-artifact@v3
 
       - name: Delete previous release
-        uses: dev-drprasad/delete-tag-and-release@v0.2.1
+        uses: dev-drprasad/delete-tag-and-release@v1.0.1
         with:
           delete_release: true
           tag_name: build
@@ -818,37 +709,15 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
-
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
       - name: "Install: Build deps"
         run: |
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2 jq
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
           sudo wget -c https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
           sudo cp sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl/sccache /usr/bin/
           sudo chmod +x /usr/bin/sccache

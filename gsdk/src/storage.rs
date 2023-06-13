@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,12 +18,14 @@
 
 //! Gear storage apis
 use crate::{
-    metadata::runtime_types::{
-        frame_system::{AccountInfo, EventRecord},
-        gear_common::{storage::primitives::Interval, ActiveProgram, Program},
-        gear_core::{code::InstrumentedCode, message::stored::StoredMessage},
+    metadata::{
         gear_runtime::RuntimeEvent,
-        pallet_balances::AccountData,
+        runtime_types::{
+            frame_system::{AccountInfo, EventRecord},
+            gear_common::{storage::primitives::Interval, ActiveProgram, Program},
+            gear_core::{code::InstrumentedCode, message::stored::StoredMessage},
+            pallet_balances::AccountData,
+        },
     },
     result::{Error, Result},
     types, Api, BlockNumber,
