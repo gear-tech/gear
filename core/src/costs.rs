@@ -18,7 +18,7 @@
 
 //! Costs module.
 
-use crate::{gas::Token, memory::PageU32Size};
+use crate::{gas::Token, pages::PageU32Size};
 use core::{fmt::Debug, marker::PhantomData};
 use paste::paste;
 use scale_info::scale::{Decode, Encode};

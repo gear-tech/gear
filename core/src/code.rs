@@ -20,8 +20,8 @@
 
 use crate::{
     ids::CodeId,
-    memory::{PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntry},
+    pages::{PageU32Size, WasmPage},
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use core::ops::ControlFlow;

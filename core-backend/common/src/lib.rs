@@ -46,11 +46,12 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, IncorrectAllocationDataError, Memory, MemoryInterval, PageBuf, WasmPage},
+    memory::{IncorrectAllocationDataError, Memory, MemoryInterval, PageBuf},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
         PayloadSizeError, WasmEntry,
     },
+    pages::{GearPage, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::{ExecutionError, ExtError, MemoryError, MessageError};

@@ -21,8 +21,9 @@
 use crate::{
     gas::GasLeft,
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, WasmPage},
+    memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
+    pages::WasmPage,
 };
 use alloc::collections::BTreeSet;
 use core::fmt::{Debug, Display};
