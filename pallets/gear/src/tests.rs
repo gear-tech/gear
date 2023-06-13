@@ -11324,7 +11324,7 @@ fn check_mutable_global_exports_restriction() {
     new_test_ext().execute_with(|| {
         assert_ok!(upload_program_default(
             USER_1,
-            ProgramCodeKind::CustomInvalid(wat_correct)
+            ProgramCodeKind::CustomInvalid(&wat_correct)
         ));
         assert_noop!(
             upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(wat_incorrect)),
