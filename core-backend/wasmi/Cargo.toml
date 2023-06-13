@@ -13,7 +13,6 @@ gear-wasm-instrument.workspace = true
 
 codec.workspace = true
 derive_more.workspace = true
-gsys.workspace = true
 log.workspace = true
 wasmi.workspace = true
 

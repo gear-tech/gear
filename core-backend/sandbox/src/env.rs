@@ -211,6 +211,7 @@ where
         builder.add_func(Exit, wrap_common_func!(FuncsHandler::exit, (1) -> ()));
         builder.add_func(StatusCode, wrap_common_func!(FuncsHandler::status_code, (1) -> ()));
         builder.add_func(ReserveGas, wrap_common_func!(FuncsHandler::reserve_gas, (3) -> ()));
+        builder.add_func(ReplyDeposit, wrap_common_func!(FuncsHandler::reply_deposit, (3) -> ()));
         builder.add_func(UnreserveGas, wrap_common_func!(FuncsHandler::unreserve_gas, (2) -> ()));
         builder.add_func(GasAvailable, wrap_common_func!(FuncsHandler::gas_available, (1) -> ()));
         builder.add_func(Leave, wrap_common_func!(FuncsHandler::leave, () -> ()));
