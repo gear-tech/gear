@@ -38,6 +38,7 @@ pub enum Call {
     LoadBytes,
     Wait,
     Wake(Arg<[u8; 32]>),
+    MessageId,
 }
 
 #[cfg(not(feature = "std"))]
@@ -270,6 +271,12 @@ mod wasm {
             None
         }
 
+        fn message_id(self) -> Option<Vec<u8>> {
+            (!matches!(self, Self::MessageId)).then(|| unreachable!());
+
+            Some(msg::id().encode())
+        }
+
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
             debug!("\t[CONSTRUCTOR] >> Processing {:?}", self);
             let call = self.clone();
@@ -295,6 +302,7 @@ mod wasm {
                 Call::LoadBytes => self.load_bytes(),
                 Call::Wait => self.wait(),
                 Call::Wake(..) => self.wake(),
+                Call::MessageId => self.message_id(),
             };
 
             (call, value)
