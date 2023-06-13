@@ -4416,8 +4416,11 @@ version = "0.1.0"
 dependencies = [
  "blake2-rfc",
  "derive_more",
+ "gear-wasm-builder",
  "gmeta-codegen",
+ "gstd",
  "hex",
+ "parity-scale-codec",
  "scale-info",
 ]
 

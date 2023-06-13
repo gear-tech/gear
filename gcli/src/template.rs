@@ -21,8 +21,8 @@
 use crate::{result::Result, utils};
 use anyhow::anyhow;
 use etc::{Etc, FileSystem, Read, Write};
-use gmeta::BTreeMap;
 use std::{
+    collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
     process::Command,
