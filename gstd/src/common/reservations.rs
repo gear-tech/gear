@@ -22,6 +22,7 @@
 //! providing simple interface to user.
 
 use crate::{errors::Result, prelude::*};
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(not(test))]
 use crate::exec;
@@ -34,6 +35,7 @@ use super::primitives::ReservationId;
 use tests::ReservationIdMock as ReservationId;
 
 /// Stores additional data along with [`ReservationId`] to track its state.
+#[derive(Clone, Debug, TypeInfo, Hash, Encode, Decode)]
 pub struct Reservation {
     id: ReservationId,
     amount: u64,
@@ -56,6 +58,11 @@ impl Reservation {
         })
     }
 
+    /// Borrow underlying [`ReservationId`].
+    pub fn id(&self) -> &ReservationId {
+        &self.id
+    }
+
     /// Converts this [`Reservation`] into [`ReservationId`].
     pub fn into_id(self) -> ReservationId {
         self.id
@@ -76,6 +83,12 @@ impl Reservation {
     /// Returns block number when this `Reservation` expires.
     pub fn valid_until(&self) -> u32 {
         self.valid_until
+    }
+}
+
+impl From<Reservation> for ReservationId {
+    fn from(res: Reservation) -> Self {
+        res.id
     }
 }
 
@@ -109,21 +122,19 @@ impl Reservation {
 ///     }
 /// }
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let reservation = unsafe { RESERVATIONS.try_take_reservation(100_000) };
-///     match reservation {
-///         Some(res) => {
-///             msg::send_bytes_from_reservation(
-///                 res.into_id(),
-///                 msg::source(),
-///                 b"send_bytes_from_reservation",
-///                 0,
-///             )
-///             .expect("Failed to send message from reservation");
-///         }
-///         None => {
-///             msg::send_bytes(msg::source(), b"send_bytes", 0).expect("Failed to send message");
-///         }
+///     if let Some(reservation) = reservation {
+///         msg::send_bytes_from_reservation(
+///             reservation.into_id(),
+///             msg::source(),
+///             b"send_bytes_from_reservation",
+///             0,
+///         )
+///         .expect("Failed to send message from reservation");
+///     } else {
+///         msg::send_bytes(msg::source(), b"send_bytes", 0).expect("Failed to send message");
 ///     }
 /// }
 /// ```
@@ -132,7 +143,7 @@ impl Reservation {
 /// - [`ReservationId`](ReservationId) is used to reserve and unreserve gas
 /// for program execution later.
 /// - [`Reservation`] stores some additional data along with `ReservationId`.
-#[derive(Default)]
+#[derive(Default, Clone, Debug, TypeInfo, Hash, Encode, Decode)]
 pub struct Reservations(Vec<Reservation>);
 
 impl Reservations {
@@ -273,9 +284,11 @@ impl Reservations {
 #[cfg(test)]
 mod tests {
     use super::Reservations;
-    use crate::errors::Result;
+    use crate::{errors::Result, prelude::*};
+    use parity_scale_codec::{Decode, Encode};
 
     #[must_use]
+    #[derive(Clone, Debug, TypeInfo, Hash, Encode, Decode)]
     pub struct ReservationIdMock {
         pub valid_until: u32,
         pub amount: u64,

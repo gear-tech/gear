@@ -12132,6 +12132,7 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
 #[test]
 fn reservation_manager() {
     use demo_reservation_manager::{Action, WASM_BINARY};
+    use utils::Assertion;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -12148,71 +12149,60 @@ fn reservation_manager() {
 
         run_to_next_block(None);
 
-        let assert_for_expected_message = move |action, expected: Option<_>| {
+        fn scenario(pid: ProgramId, payload: Action, expected: Vec<Assertion>) {
             System::reset_events();
 
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 pid,
-                action,
+                payload.encode(),
                 BlockGasLimitOf::<Test>::get(),
                 0,
             ));
 
             run_to_next_block(None);
 
-            let expected_message_received = System::events().into_iter().any(|e| match e.event {
-                MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) => {
-                    if message.destination().into_origin() == USER_1.into_origin() {
-                        expected.is_none() || Some(message.payload().to_vec()) == expected
-                    } else {
-                        false
-                    }
-                }
-                _ => false,
-            });
-
-            assert!(expected_message_received);
-
-            System::reset_events();
-        };
-
-        let assert_failed = move |action| {
-            assert_ok!(Gear::send_message(
-                RuntimeOrigin::signed(USER_1),
-                pid,
-                action,
-                BlockGasLimitOf::<Test>::get(),
-                0,
-            ));
-
-            let message_id = get_last_message_id();
-
-            run_to_next_block(None);
-
-            let status = dispatch_status(message_id).expect("Message not found");
-            assert_eq!(status, DispatchStatus::Failed);
-        };
+            assert_responses_to_user(USER_1, expected);
+        }
 
         // Try unreserve 100 gas when there's no reservations.
-        assert_failed(Action::SendMessageFromReservation { gas_amount: 100 }.encode());
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 100 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
         // Reserve 10_000 gas.
-        assert_for_expected_message(
+        scenario(
+            pid,
             Action::Reserve {
                 amount: 10_000,
                 duration: 100,
-            }
-            .encode(),
-            None,
+            },
+            vec![Assertion::StatusCode(Some(0))],
         );
         // Try to unreserve 50_000 gas.
-        assert_failed(Action::SendMessageFromReservation { gas_amount: 50_000 }.encode());
-        // Try to unreserve 8_000 gas.
-        assert_for_expected_message(
-            Action::SendMessageFromReservation { gas_amount: 8_000 }.encode(),
-            Some(vec![]),
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 50_000 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
         );
         // Try to unreserve 8_000 gas.
-        assert_failed(Action::SendMessageFromReservation { gas_amount: 8_000 }.encode());
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 8_000 },
+            vec![Assertion::StatusCode(Some(0)), Assertion::Payload(vec![])],
+        );
+        // Try to unreserve 8_000 gas again.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 8_000 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
     });
 }

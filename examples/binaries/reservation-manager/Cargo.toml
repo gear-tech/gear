@@ -3,12 +3,12 @@ name = "demo-reservation-manager"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
-license = "GPL-3.0"
+license.workspace = true
 workspace = "../../../"
 
 [dependencies]
-parity-scale-codec = { workspace = true, default-features = false, features = ["derive"] }
 gstd.workspace = true
+parity-scale-codec = { workspace = true, default-features = false, features = ["derive"] }
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
