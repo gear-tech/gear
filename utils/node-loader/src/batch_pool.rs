@@ -29,32 +29,37 @@ mod report;
 
 type Seed = u64;
 type CallId = usize;
+type EventsReciever = Receiver<subxt::events::Events<gsdk::config::GearConfig>>;
 
 pub struct BatchPool<Rng: CallGenRng> {
     api: GearApiFacade,
     pool_size: usize,
     batch_size: usize,
     tasks_context: Context,
+    rx: EventsReciever,
     _phantom: PhantomData<Rng>,
 }
 
 impl<Rng: CallGenRng> BatchPool<Rng> {
-    fn new(api: GearApiFacade, batch_size: usize, pool_size: usize) -> Self {
+    fn new(api: GearApiFacade, batch_size: usize, pool_size: usize, rx: EventsReciever) -> Self {
         Self {
             api,
             pool_size,
             batch_size,
             tasks_context: Context::new(),
+            rx,
             _phantom: PhantomData,
         }
     }
 
-    pub async fn run(
-        params: LoadParams,
-        rx: Receiver<subxt::events::Events<gsdk::config::GearConfig>>,
-    ) -> Result<()> {
+    pub async fn run(params: LoadParams, rx: EventsReciever) -> Result<()> {
         let api = GearApiFacade::try_new(params.node, params.user).await?;
-        let mut batch_pool = Self::new(api.clone(), params.batch_size, params.workers);
+        let mut batch_pool = Self::new(
+            api.clone(),
+            params.batch_size,
+            params.workers,
+            rx.resubscribe(),
+        );
 
         let run_pool_task = batch_pool.run_pool_loop(params.loader_seed, params.code_seed_type);
         let inspect_crash_task = tokio::spawn(inspect_crash_events(rx));
@@ -247,32 +252,37 @@ async fn process_events(
 
     let mut mailbox_added = BTreeSet::new();
 
-    let results = loop {
-        let r = match api.events_since(block_hash, wait_for_events_blocks).await {
-            Ok(mut v) => {
-                // `gclient::EventProcessor` implementation on `IntoIterator` implementor clones `self` without mutating
-                // it, although `proc` and `proc_many` take mutable reference on `self`.
-                let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &mut v)
-                    .await
-                    .expect("always valid by definition");
-                mailbox_added.append(&mut mailbox_from_events);
+    let results = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async {
+            let results = loop {
+                let r = match api.events_since(block_hash, wait_for_events_blocks).await {
+                    Ok(mut v) => {
+                        // `gclient::EventProcessor` implementation on `IntoIterator` implementor clones `self` without mutating
+                        // it, although `proc` and `proc_many` take mutable reference on `self`.
+                        let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &mut v)
+                            .await
+                            .expect("always valid by definition");
+                        mailbox_added.append(&mut mailbox_from_events);
 
-                v.err_or_succeed_batch(messages.keys().copied()).await
-            }
-            Err(e) => Err(e),
-        };
+                        v.err_or_succeed_batch(messages.keys().copied()).await
+                    }
+                    Err(e) => Err(e),
+                };
 
-        if (gear_utils::now_millis() - now) as usize > wait_for_events_millisec {
-            tracing::debug!("Timeout is reached while waiting for events");
-            return Err(anyhow!(utils::EVENTS_TIMEOUT_ERR_STR));
-        }
+                if (gear_utils::now_millis() - now) as usize > wait_for_events_millisec {
+                    tracing::debug!("Timeout is reached while waiting for events");
+                    return Err(anyhow!(utils::EVENTS_TIMEOUT_ERR_STR));
+                }
 
-        if matches!(r, Err(GClientError::EventNotFoundInIterator)) {
-            continue;
-        } else {
-            break r;
-        }
-    };
+                if matches!(r, Err(GClientError::EventNotFoundInIterator)) {
+                    continue;
+                } else {
+                    break r;
+                }
+            };
+            Ok(results)
+        })?
+    });
 
     let mut program_ids = BTreeSet::new();
 
@@ -294,9 +304,7 @@ async fn process_events(
     })
 }
 
-async fn inspect_crash_events(
-    mut rx: Receiver<subxt::events::Events<gsdk::config::GearConfig>>,
-) -> Result<()> {
+async fn inspect_crash_events(mut rx: EventsReciever) -> Result<()> {
     // Error means either event is not found and can't be found
     // in the listener, or some other error during event
     // parsing occurred.
@@ -348,36 +356,30 @@ async fn create_renew_balance_task(
             };
             tracing::debug!("User balance demand {user_balance_demand}");
 
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    // Calling `set_balance` for `user` is potentially dangerous, because getting actual
-                    // reserved balance is a complicated task, as reserved balance is changed by another
-                    // task, which loads the node.
-                    //
-                    // Reserved balance mustn't be changed as it can cause runtime panics within reserving
-                    // or unreserving funds logic.
-                    root_api
-                        .set_balance(
-                            root_address.clone(),
-                            root_target_balance + user_balance_demand,
-                            0,
-                        )
-                        .await
-                        .map_err(|e| {
-                            tracing::debug!("Failed to set balance of the root address: {e}");
-                            e
-                        })?;
-                    root_api
-                        .transfer(ProgramId::from(user_address.as_ref()), user_balance_demand)
-                        .await
-                        .map_err(|e| {
-                            tracing::debug!("Failed to transfer to user address: {e}");
-                            e
-                        })?;
-
-                    Ok::<(), anyhow::Error>(())
-                })
-            })?;
+            // Calling `set_balance` for `user` is potentially dangerous, because getting actual
+            // reserved balance is a complicated task, as reserved balance is changed by another
+            // task, which loads the node.
+            //
+            // Reserved balance mustn't be changed as it can cause runtime panics within reserving
+            // or unreserving funds logic.
+            root_api
+                .set_balance(
+                    root_address.clone(),
+                    root_target_balance + user_balance_demand,
+                    0,
+                )
+                .await
+                .map_err(|e| {
+                    tracing::debug!("Failed to set balance of the root address: {e}");
+                    e
+                })?;
+            root_api
+                .transfer(ProgramId::from(user_address.as_ref()), user_balance_demand)
+                .await
+                .map_err(|e| {
+                    tracing::debug!("Failed to transfer to user address: {e}");
+                    e
+                })?;
 
             tracing::debug!("Successfully renewed balances!");
         }
