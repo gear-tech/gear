@@ -9,9 +9,9 @@
 //! you need:
 //!
 //! - Add `gmeta` crate to your `Cargo.toml` file.
-//! - Define a struct that implements the [`Metadata`] trait.
-//! - Implement the [`Metadata`] trait for the struct by defining the associated
-//!   types of the trait.
+//! - Define an empty struct that will identify the contract metadata.
+//! - Implement the [`Metadata`] trait for this struct by defining the
+//!   associated types of the trait.
 //! - Call [`gear_wasm_builder::build_with_metadata`](https://docs.gear.rs/gear_wasm_builder/fn.build_with_metadata.html)
 //!   function instead of [`gear_wasm_builder::build`](https://docs.gear.rs/gear_wasm_builder/fn.build.html)
 //!   function in `build.rs` file.
@@ -20,13 +20,14 @@
 //!
 //! In this example we will create a simple ping-pong contract.
 //!
-//! We will define message type for `handle()` and `state()` functions.
+//! We will define message types for `handle()` and `state()` functions.
 //!
 //! ```
 //! #[no_std]
 //! use gmeta::{InOut, Metadata};
 //! use gstd::{msg, prelude::*, ActorId};
 //!
+//! // Counter that will be incremented on each `Ping` message.
 //! static mut COUNTER: i32 = 0;
 //!
 //! // Message type for `handle()` function.
@@ -36,6 +37,7 @@
 //!     Pong,
 //! }
 //!
+//! // Metadata struct.
 //! pub struct ContractMetadata;
 //!
 //! impl Metadata for ContractMetadata {
@@ -58,10 +60,12 @@
 //!
 //! #[no_mangle]
 //! extern "C" fn handle() {
-//!     let payload = msg::load().expect("Unable to load");
+//!     // Load incoming message of `PingPong` type.
+//!     let payload: PingPong = msg::load().expect("Unable to load");
 //!
 //!     if let PingPong::Ping = payload {
 //!         unsafe { COUNTER += 1 };
+//!         // Send a reply message of `PingPong` type back to the sender.
 //!         msg::reply(PingPong::Pong, 0).expect("Unable to reply");
 //!     }
 //! }
