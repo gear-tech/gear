@@ -28,7 +28,7 @@ use gear_core_errors::ExtError;
 pub trait Runtime<E: BackendExt> {
     type Error;
 
-    fn unreachable_error_code() -> Self::Error;
+    fn unreachable_error() -> Self::Error;
 
     fn fallible_syscall_error(&self) -> Option<&ExtError>;
 

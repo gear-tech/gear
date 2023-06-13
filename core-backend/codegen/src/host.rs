@@ -185,6 +185,29 @@ pub struct HostFnMeta {
     pub err_len: Expr,
 }
 
+impl HostFnMeta {
+    /// Build runtime costs.
+    ///
+    /// If the host function is wgas, the runtime costs will be
+    /// appended `WGas`.
+    pub fn runtime_costs(&self) -> Expr {
+        let mut costs = self.runtime_costs.clone();
+        if self.wgas {
+            if let Expr::Path(ExprPath {
+                path: Path { segments, .. },
+                ..
+            }) = &mut costs
+            {
+                if let Some(call) = segments.last_mut() {
+                    call.ident = Ident::new(&(call.ident.to_string() + "WGas"), call.ident.span());
+                }
+            }
+        }
+
+        costs
+    }
+}
+
 impl Parse for HostFnMeta {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut call_type = Default::default();

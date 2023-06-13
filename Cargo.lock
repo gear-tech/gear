@@ -3674,7 +3674,6 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-wasm-instrument",
- "gsys",
  "log",
  "parity-scale-codec",
  "wasmi 0.14.0",

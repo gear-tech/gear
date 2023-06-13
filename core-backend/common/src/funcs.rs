@@ -22,7 +22,7 @@ use crate::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
     runtime::Runtime,
     syscall_trace, ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError,
-    BackendState, MessageWaitedType, TrapExplanation, PTR_SPECIAL,
+    BackendState, MessageWaitedType, TerminationReason, TrapExplanation, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
@@ -56,7 +56,7 @@ where
     R: Runtime<E> + MemoryOwner + MemoryAccessRecorder + BackendState,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,
-    /// because it may contain register read.
+    /// because it may contain registered read.
     fn register_and_read_value(ctx: &mut R, value_ptr: u32) -> Result<u128, MemoryAccessError> {
         if value_ptr != PTR_SPECIAL {
             let read_value = ctx.register_read_decoded(value_ptr);
@@ -228,9 +228,11 @@ where
     pub fn free(ctx: &mut R, page_no: u32) -> Result<i32, R::Error> {
         syscall_trace!("free", page_no);
 
-        let page = WasmPage::new(page_no).map_err(|_| R::unreachable_error_code())?;
-
         ctx.run_any(RuntimeCosts::Free, |ctx| {
+            let page = WasmPage::new(page_no).map_err(|_| {
+                TerminationReason::Actor(ActorTerminationReason::Trap(TrapExplanation::Unknown))
+            })?;
+
             let res = ctx.ext_mut().free(page);
             let res = ctx.process_alloc_func_result(res)?;
 
@@ -384,7 +386,7 @@ where
         value_ptr: u32,
         delay: u32,
     ) -> Result<(), R::Error> {
-        // Charge for `len` inside `reply_push_input`
+        // Charge for `len` is inside `reply_push_input`
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
         let mut f = || {
@@ -472,6 +474,22 @@ where
     #[host(fallible, cost = RuntimeCosts::ReserveGas)]
     pub fn reserve_gas(ctx: &mut R, gas: u64, duration: u32) -> Result<(), R::Error> {
         ctx.ext_mut().reserve_gas(gas, duration).map_err(Into::into)
+    }
+
+    pub fn reply_deposit(
+        ctx: &mut R,
+        message_id_ptr: u32,
+        gas: u64,
+        err_mid_ptr: u32,
+    ) -> Result<(), R::Error> {
+        ctx.run_fallible::<_, _, LengthBytes>(err_mid_ptr, RuntimeCosts::ReplyDeposit, |ctx| {
+            let read_message_id = ctx.register_read_decoded(message_id_ptr);
+            let message_id = ctx.read_decoded(read_message_id)?;
+
+            ctx.ext_mut()
+                .reply_deposit(message_id, gas)
+                .map_err(Into::into)
+        })
     }
 
     #[host(fallible, cost = RuntimeCosts::UnreserveGas, err_len = LengthWithGas)]
@@ -646,7 +664,7 @@ where
             ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into(),
         );
 
-        Err(R::unreachable_error_code())
+        Err(R::unreachable_error())
     }
 
     pub fn out_of_allowance(ctx: &mut R) -> Result<(), R::Error> {
@@ -654,6 +672,6 @@ where
 
         ctx.set_termination_reason(ActorTerminationReason::GasAllowanceExceeded.into());
 
-        Err(R::unreachable_error_code())
+        Err(R::unreachable_error())
     }
 }

@@ -73,7 +73,7 @@ impl<'a, E: BackendExt + 'static> Runtime<E> for CallerWrap<'a, E> {
             .ext
     }
 
-    fn unreachable_error_code() -> Self::Error {
+    fn unreachable_error() -> Self::Error {
         Trap::Code(TrapCode::Unreachable)
     }
 

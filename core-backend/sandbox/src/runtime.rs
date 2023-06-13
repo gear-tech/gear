@@ -58,7 +58,7 @@ impl<E: BackendExt> CommonRuntime<E> for Runtime<E> {
         &mut self.ext
     }
 
-    fn unreachable_error_code() -> Self::Error {
+    fn unreachable_error() -> Self::Error {
         HostError
     }
 
