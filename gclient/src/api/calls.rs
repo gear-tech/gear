@@ -533,14 +533,14 @@ impl GearApi {
         &self,
         args: impl IntoIterator<Item = MessageId> + Clone,
     ) -> Result<(Vec<Result<u128>>, H256)> {
-        let message_ids: Vec<MessageId> = args.clone().into_iter().collect();
+        let message_ids: Vec<_> = args.clone().into_iter().collect();
 
         let messages = futures::future::try_join_all(
             message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
         )
         .await?;
 
-        let mut values: BTreeMap<MessageId, u128> = messages
+        let mut values: BTreeMap<_, _> = messages
             .into_iter()
             .flatten()
             .map(|(msg, _interval)| (msg.id(), msg.value()))
@@ -755,15 +755,14 @@ impl GearApi {
         &self,
         args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)> + Clone,
     ) -> Result<(Vec<Result<(MessageId, ProgramId, u128)>>, H256)> {
-        let message_ids: Vec<MessageId> =
-            args.clone().into_iter().map(|(mid, _, _, _)| mid).collect();
+        let message_ids: Vec<_> = args.clone().into_iter().map(|(mid, _, _, _)| mid).collect();
 
         let messages = futures::future::try_join_all(
             message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
         )
         .await?;
 
-        let mut values: BTreeMap<MessageId, u128> = messages
+        let mut values: BTreeMap<_, _> = messages
             .into_iter()
             .flatten()
             .map(|(msg, _interval)| (msg.id(), msg.value()))
