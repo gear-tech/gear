@@ -52,7 +52,7 @@
 //!     type Reply = ();
 //!     // The unit tuple is used as we don't process any signals in this contract.
 //!     type Signal = ();
-//!     // The unit tuple is used as we don't define the `state()` function in this contract.
+//!     // We return a counter value (`i32`) in the `state()` function in this contract.
 //!     type State = i32;
 //! }
 //!
