@@ -534,14 +534,16 @@ impl GearApi {
         args: impl IntoIterator<Item = MessageId> + Clone,
     ) -> Result<(Vec<Result<u128>>, H256)> {
         let message_ids: Vec<MessageId> = args.clone().into_iter().collect();
-        let mailbox_messages = self
-            .get_mailbox_messages(100)
-            .await?
+
+        let messages = futures::future::try_join_all(
+            message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
+        )
+        .await?;
+
+        let mut values: BTreeMap<MessageId, u128> = messages
             .into_iter()
-            .map(|(message, _interval)| (message.id(), message.value()));
-        let mut values: BTreeMap<MessageId, Option<u128>> = mailbox_messages
-            .filter(|(mid, _value)| message_ids.contains(mid))
-            .map(|(mid, value)| (mid, Some(value)))
+            .flatten()
+            .map(|(msg, _interval)| (msg.id(), msg.value()))
             .collect();
 
         let calls: Vec<_> = args
@@ -562,7 +564,6 @@ impl GearApi {
             match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::UserMessageRead { id, .. }) => res.push(Ok(values
                     .remove(&id.into())
-                    .flatten()
                     .expect("Data appearance guaranteed above"))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
                     res.push(Err(self.0.api().decode_error(error).into()))
@@ -756,14 +757,16 @@ impl GearApi {
     ) -> Result<(Vec<Result<(MessageId, ProgramId, u128)>>, H256)> {
         let message_ids: Vec<MessageId> =
             args.clone().into_iter().map(|(mid, _, _, _)| mid).collect();
-        let mailbox_messages = self
-            .get_mailbox_messages(100)
-            .await?
+
+        let messages = futures::future::try_join_all(
+            message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
+        )
+        .await?;
+
+        let mut values: BTreeMap<MessageId, u128> = messages
             .into_iter()
-            .map(|(message, _interval)| (message.id(), message.value()));
-        let mut values: BTreeMap<MessageId, Option<u128>> = mailbox_messages
-            .filter(|(mid, _value)| message_ids.contains(mid))
-            .map(|(mid, value)| (mid, Some(value)))
+            .flatten()
+            .map(|(msg, _interval)| (msg.id(), msg.value()))
             .collect();
 
         let calls: Vec<_> = args
@@ -795,7 +798,6 @@ impl GearApi {
                     destination.into(),
                     values
                         .remove(&reply_to_id.into())
-                        .flatten()
                         .expect("Data appearance guaranteed above"),
                 ))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
