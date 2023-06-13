@@ -1,13 +1,19 @@
 //! Crate for providing metadata for smart contracts.
 //!
-//! Metadata is used to describe the interface of a smart contract. For example, it can be used when uploading a contract using <https://idea.gear-tech.io>. The metadata informs the user about the contract's interface and allows them to interact with it using custom types.
+//! Metadata is used to describe the interface of a smart contract. For example,
+//! it can be used when uploading a contract using <https://idea.gear-tech.io>.
+//! The metadata informs the user about the contract's interface and allows them
+//! to interact with it using custom types.
 //!
 //! To generate a metadata output file `contract_name.meta.txt` for a contract, you need:
 //!
 //! - Add `gmeta` crate to your `Cargo.toml` file.
 //! - Define a struct that implements the [`Metadata`] trait.
 //! - Implement the [`Metadata`] trait for the struct by defining the associated types of the trait.
-//! - Call [`gear_wasm_builder::build_with_metadata`](https://docs.gear.rs/gear_wasm_builder/fn.build_with_metadata.html) function instead of [`gear_wasm_builder::build`](https://docs.gear.rs/gear_wasm_builder/fn.build.html) function in `build.rs` file.
+//! - Call [`gear_wasm_builder::build_with_metadata`](https://docs.gear.rs/gear_wasm_builder/fn.build_with_metadata.html)
+//!   function instead of
+//!   [`gear_wasm_builder::build`](https://docs.gear.rs/gear_wasm_builder/fn.build.html)
+//!   function in `build.rs` file.
 //!
 //! # Example
 //!
@@ -64,9 +70,8 @@
 //! # const IGNORE: &'static str = stringify! {
 //! use ping::ContractMetadata;
 //! # };
-//! # use gmeta::Metadata;
 //! # pub struct ContractMetadata;
-//! # impl Metadata for ContractMetadata {
+//! # impl gmeta::Metadata for ContractMetadata {
 //! #     type Init = ();
 //! #     type Handle = ();
 //! #     type Others = ();
