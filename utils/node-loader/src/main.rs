@@ -61,5 +61,5 @@ async fn load_node(params: LoadParams) -> Result<()> {
         env!("CARGO_PKG_VERSION"),
     );
 
-    BatchPool::<SmallRng>::run(params, rx).await
+    tokio::spawn(BatchPool::<SmallRng>::run(params, rx)).await?
 }
