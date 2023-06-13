@@ -3496,7 +3496,7 @@ dependencies = [
 
 [[package]]
 name = "gcli"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "base64 0.21.2",
@@ -3706,7 +3706,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "clap 4.3.2",
  "frame-benchmarking",
