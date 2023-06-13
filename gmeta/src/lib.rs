@@ -5,14 +5,15 @@
 //! The metadata informs the user about the contract's interface and allows them
 //! to interact with it using custom types.
 //!
-//! To generate a metadata output file `contract_name.meta.txt` for a contract, you need:
+//! To generate a metadata output file `contract_name.meta.txt` for a contract,
+//! you need:
 //!
 //! - Add `gmeta` crate to your `Cargo.toml` file.
 //! - Define a struct that implements the [`Metadata`] trait.
-//! - Implement the [`Metadata`] trait for the struct by defining the associated types of the trait.
+//! - Implement the [`Metadata`] trait for the struct by defining the associated
+//!   types of the trait.
 //! - Call [`gear_wasm_builder::build_with_metadata`](https://docs.gear.rs/gear_wasm_builder/fn.build_with_metadata.html)
-//!   function instead of
-//!   [`gear_wasm_builder::build`](https://docs.gear.rs/gear_wasm_builder/fn.build.html)
+//!   function instead of [`gear_wasm_builder::build`](https://docs.gear.rs/gear_wasm_builder/fn.build.html)
 //!   function in `build.rs` file.
 //!
 //! # Example
@@ -23,15 +24,16 @@
 //!
 //! ```
 //! #[no_std]
-//!
 //! use gmeta::{InOut, Metadata};
 //! use gstd::{msg, prelude::*, ActorId};
+//!
+//! static mut COUNTER: i32 = 0;
 //!
 //! // Message type for `handle()` function.
 //! #[derive(Encode, Decode, TypeInfo)]
 //! pub enum PingPong {
-//!    Ping,
-//!    Pong,
+//!     Ping,
+//!     Pong,
 //! }
 //!
 //! pub struct ContractMetadata;
@@ -40,7 +42,7 @@
 //!     // The unit tuple is used as neither incoming nor outgoing messages are
 //!     // expected in the `init()` function.
 //!     type Init = ();
-//!     // We use the same [`PingPong`] type for both incoming and outgoing
+//!     // We use the same `PingPong` type for both incoming and outgoing
 //!     // messages.
 //!     type Handle = InOut<PingPong, PingPong>;
 //!     // The unit tuple is used as we don't use asynchronous interaction in this
@@ -51,7 +53,7 @@
 //!     // The unit tuple is used as we don't process any signals in this contract.
 //!     type Signal = ();
 //!     // The unit tuple is used as we don't define the `state()` function in this contract.
-//!     type State = ();
+//!     type State = i32;
 //! }
 //!
 //! #[no_mangle]
@@ -59,8 +61,14 @@
 //!     let payload = msg::load().expect("Unable to load");
 //!
 //!     if let PingPong::Ping = payload {
+//!         unsafe { COUNTER += 1 };
 //!         msg::reply(PingPong::Pong, 0).expect("Unable to reply");
 //!     }
+//! }
+//!
+//! #[no_mangle]
+//! extern "C" fn state() {
+//!     msg::reply(unsafe { COUNTER }, 0).expect("Unable to reply");
 //! }
 //! ```
 //!
@@ -225,7 +233,8 @@ impl MetadataRepr {
         arr
     }
 
-    /// Calculate BLAKE2b hash of metadata representation and encode it into hex string.
+    /// Calculate BLAKE2b hash of metadata representation and encode it into hex
+    /// string.
     pub fn hash_hex(&self) -> String {
         hex::encode(self.hash())
     }
@@ -246,19 +255,27 @@ pub trait Metadata {
     ///
     /// Describes incoming/outgoing types for the `init()` function.
     ///
-    /// - Use unit tuple `()` if neither incoming nor outgoing messages are expected in the `init()` function.
-    /// - Use [`In`] type alias if only incoming message is expected in the `init()` function.
-    /// - Use [`Out`] type alias if only outgoing message is expected in the `init()` function.
-    /// - Use [`InOut`] type alias if both incoming and outgoing messages are expected in the `init()` function.
+    /// - Use unit tuple `()` if neither incoming nor outgoing messages are
+    ///   expected in the `init()` function.
+    /// - Use [`In`] type alias if only incoming message is expected in the
+    ///   `init()` function.
+    /// - Use [`Out`] type alias if only outgoing message is expected in the
+    ///   `init()` function.
+    /// - Use [`InOut`] type alias if both incoming and outgoing messages are
+    ///   expected in the `init()` function.
     type Init: Types;
     /// Handle message type.
     ///
     /// Describes incoming/outgoing types for the `handle()` function.
     ///
-    /// - Use unit tuple `()` if neither incoming nor outgoing messages are expected in the `handle()` function.
-    /// - Use [`In`] type alias if only incoming message is expected in the `handle()` function.
-    /// - Use [`Out`] type alias if only outgoing message is expected in the `handle()` function.
-    /// - Use [`InOut`] type alias if both incoming and outgoing messages are expected in the `handle()` function.
+    /// - Use unit tuple `()` if neither incoming nor outgoing messages are
+    ///   expected in the `handle()` function.
+    /// - Use [`In`] type alias if only incoming message is expected in the
+    ///   `handle()` function.
+    /// - Use [`Out`] type alias if only outgoing message is expected in the
+    ///   `handle()` function.
+    /// - Use [`InOut`] type alias if both incoming and outgoing messages are
+    ///   expected in the `handle()` function.
     type Handle: Types;
     /// Reply message type.
     ///
@@ -266,13 +283,32 @@ pub trait Metadata {
     type Reply: Types;
     /// Asynchronous handle message type.
     ///
-    /// Describes incoming/outgoing types for the `main()` function in case of asynchronous interaction.
+    /// Describes incoming/outgoing types for the `main()` function in case of
+    /// asynchronous interaction.
+    ///
+    /// - Use unit tuple `()` if neither incoming nor outgoing messages are
+    ///   expected in the `main()` function.
+    /// - Use [`In`] type alias if only incoming message is expected in the
+    ///   `main()` function.
+    /// - Use [`Out`] type alias if only outgoing message is expected in the
+    ///   `main()` function.
+    /// - Use [`InOut`] type alias if both incoming and outgoing messages are
+    ///   expected in the `main()` function.
     type Others: Types;
     /// Signal message type.
+    ///
+    /// - Use unit tuple `()` if neither incoming nor outgoing messages are
+    ///   expected in the `handle_signal()` function.
+    /// - Use [`Out`] type alias if only outgoing message is expected in the
+    ///   `handle_signal()` function.
     type Signal: Type;
     /// State message type.
     ///
-    /// Describes only the outgoing type from the program while processing the system signal.
+    /// Describes the type for the queried state returned by the state()
+    /// function.
+    ///
+    /// Use the type that you pass to the `msg::reply` function in the `state()`
+    /// function or unit tuple `()` if no `state()` function is defined.
     type State: Type;
 
     /// Create metadata representation and register types in registry.
