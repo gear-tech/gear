@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::string::String;
+use alloc::{borrow::Cow, string::String};
 use core::ops::Deref;
 use scale_info::{
     scale::{self, Decode, Encode},
@@ -87,8 +87,16 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
     }
 }
 
-#[derive(Debug, Copy, Clone, derive_more::Display)]
-pub struct LimitedStr<'a>(&'a str);
+/// Wrapped string to fit `core-backend::TRIMMED_MAX_LEN` amount of bytes.
+///
+/// This is a version of `TrimmedString` but with a `Cow` instead of a `String`.
+/// The `Cow` is used to avoid allocating a new `String` when the `LimitedStr` is
+/// created from a `&str`.
+///
+/// Plain `str` is not used because it can't be properly encoded/decoded via scale codec.
+#[derive(Encode, Decode, Debug, Clone, derive_more::Display)]
+#[codec(crate = scale)]
+pub struct LimitedStr<'a>(Cow<'a, str>);
 impl<'a> LimitedStr<'a> {
     const INIT_ERROR_MSG: &'static str = concat!(
         "String must be less than ",
@@ -101,11 +109,11 @@ impl<'a> LimitedStr<'a> {
             return Err(Self::INIT_ERROR_MSG);
         }
 
-        Ok(Self(s))
+        Ok(Self(Cow::from(s)))
     }
 
-    pub fn as_str(&self) -> &'a str {
-        self.0
+    pub fn as_str(&self) -> &str {
+        self.0.as_ref()
     }
 }
 

@@ -23,6 +23,7 @@ use crate::{
     signal::ExceptionInfo,
     LazyPagesVersion, UserSignalHandler,
 };
+use gear_backend_common::LimitedStr;
 use gear_core::memory::{GearPage, PageU32Size, WasmPage};
 use region::Protection;
 
@@ -80,7 +81,7 @@ fn read_write_flag_works() {
     init_with_handler::<TestHandler>(
         LazyPagesVersion::Version1,
         vec![WasmPage::size(), GearPage::size()],
-        vec!["".to_string(); 2],
+        vec![LimitedStr::new("").expect("too long"); 2],
         Default::default(),
     )
     .unwrap();
@@ -130,7 +131,7 @@ fn test_mprotect_pages() {
     init_with_handler::<TestHandler>(
         LazyPagesVersion::Version1,
         vec![WasmPage::size(), GearPage::size()],
-        vec!["".to_string(); 2],
+        vec![LimitedStr::new("").expect("too long"); 2],
         Default::default(),
     )
     .unwrap();
