@@ -1,0 +1,18 @@
+[package]
+name = "demo-sync-duplicate"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+workspace = "../../../"
+
+[dependencies]
+gstd.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []

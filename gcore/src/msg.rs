@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -168,7 +168,6 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
 ///
 /// # See also
 ///
-/// - [`reply_delayed`] function sends a reply after the delay.
 /// - [`reply_push`] function allows forming a reply message in parts.
 /// - [`send`] function sends a new message to the program or user.
 pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {

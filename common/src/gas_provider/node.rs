@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -118,7 +118,7 @@ impl<Balance: Add<Output = Balance> + Copy> Add<Self> for NodeLock<Balance> {
 }
 
 // TODO: decide whether this method should stay or be removed as unused.
-// The only use case curretnly is to check Gas Tree migration upon runtime upgrade.
+// The only use case currently is to check Gas Tree migration upon runtime upgrade.
 impl<Balance: Zero + Copy + sp_runtime::traits::Saturating> NodeLock<Balance> {
     pub fn total_locked(&self) -> Balance {
         self.0
@@ -142,6 +142,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
         system_reserve: Balance,
         refs: ChildrenRefs,
         consumed: bool,
+        deposit: bool,
     },
 
     /// A node created by "cutting" value from some other tree node.
@@ -206,14 +207,15 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Default + Zero + Clone + Copy
     GasNode<ExternalId, Id, Balance>
 {
     /// Creates a new `GasNode::External` root node for a new tree.
-    pub fn new(origin: ExternalId, value: Balance) -> Self {
+    pub fn new(id: ExternalId, value: Balance, deposit: bool) -> Self {
         Self::External {
-            id: origin,
+            id,
             value,
             lock: Zero::zero(),
             system_reserve: Zero::zero(),
             refs: Default::default(),
             consumed: false,
+            deposit,
         }
     }
 

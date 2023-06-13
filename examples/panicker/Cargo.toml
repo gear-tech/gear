@@ -10,3 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gstd = { workspace = true, features = ["debug"] }
+
+[features]
+default = ["std"]
+std = []

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,84 +18,157 @@
 
 //! Gear program template
 
-use crate::result::Result;
-use std::{fs, process::Command};
+use crate::{result::Result, utils};
+use anyhow::anyhow;
+use etc::{Etc, FileSystem, Read, Write};
+use gmeta::BTreeMap;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
-const NAME: &str = "$NAME";
-const USER: &str = "$USER";
+const GEAR_REPO: &str = "https://github.com/gear-tech/gear";
+const CONFIG_TOML: &str = r#"
+[build]
+target = "wasm32-unknown-unknown"
 
-/// cargo.toml
-pub const CARTO_TOML: &str = r#"
-[package]
-name = "$NAME"
-version = "0.1.0"
-authors = ["$USER"]
-edition = "2021"
-license = "GPL-3.0"
-
-[dependencies]
-gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"] }
-
-[build-dependencies]
-gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git" }
-
-[dev-dependencies]
-gtest = { git = "https://github.com/gear-tech/gear.git" }
+[target.wasm32-unknown-unknown]
+rustflags = [
+  "-C", "link-args=--import-memory",
+  "-C", "linker-plugin-lto",
+]
 "#;
 
-/// build.rs
-pub const BUILD_RS: &str = r#"
-fn main() {
-    gear_wasm_builder::build();
+/// Template manager
+pub struct Template {
+    /// Template lists
+    list: BTreeMap<String, PathBuf>,
 }
-"#;
 
-/// lib.rs
-pub const LIB_RS: &str = r#"
-#![no_std]
+impl Template {
+    /// Initialize a new template manager.
+    pub fn new() -> Result<Self> {
+        let repo = utils::home().join("gear");
 
-use gstd::{debug, msg, prelude::*};
+        Self::fetch(&repo)?;
+        let list = Self::list(&repo)?;
 
-static mut MESSAGE_LOG: Vec<String> = vec![];
-
-#[no_mangle]
-extern "C" fn handle() {
-    let new_msg = String::from_utf8(msg::load_bytes().unwrap()).expect("Invalid message");
-
-    if new_msg == "PING" {
-        msg::reply_bytes("PONG", 0).unwrap();
+        Ok(Self { list })
     }
 
-    unsafe { MESSAGE_LOG.push(new_msg) };
+    /// List all templates.
+    pub fn ls(&self) -> Vec<String> {
+        self.list.keys().cloned().collect()
+    }
 
-    debug!("{:?} total message(s) stored: ", unsafe { MESSAGE_LOG.len() });
-}
-"#;
+    /// Copy example to path.
+    pub fn cp(&self, name: &str, to: impl AsRef<Path>) -> Result<()> {
+        let from = self
+            .list
+            .get(name)
+            .ok_or_else(|| anyhow!("Invalid example name"))?;
 
-/// create rust project for gear program in `PWD`
-pub fn create(name: &str) -> Result<()> {
-    let user_bytes = Command::new("git")
-        .args(["config", "--global", "--get", "user.name"])
-        .output()?
-        .stdout;
-    let user = String::from_utf8_lossy(&user_bytes);
+        let to = to.as_ref().into();
+        etc::cp_r(from, &to)?;
 
-    let email_bytes = Command::new("git")
-        .args(["config", "--global", "--get", "user.email"])
-        .output()?
-        .stdout;
-    let email = String::from_utf8_lossy(&email_bytes);
+        let proj = Etc::new(to)?;
+        let manifest = proj.open("Cargo.toml")?;
+        let mut toml = String::from_utf8_lossy(
+            &manifest
+                .read()
+                .map_err(|_| anyhow!("Failed to read Cargo.toml"))?,
+        )
+        .to_string();
 
-    fs::create_dir_all(format!("{name}/src"))?;
+        // Update `Cargo.toml`.
+        Self::process_manifest(&mut toml)?;
+        manifest.write(toml.as_bytes())?;
 
-    fs::write(
-        format!("{name}/Cargo.toml"),
-        CARTO_TOML
-            .replace(NAME, name)
-            .replace(USER, &format!("{} <{}>", user.trim(), email.trim())),
-    )?;
-    fs::write(format!("{name}/build.rs"), BUILD_RS)?;
-    fs::write(format!("{name}/src/lib.rs"), LIB_RS)?;
+        // Add `config.toml`.
+        proj.open(".cargo/config.toml")?
+            .write(CONFIG_TOML.trim_start().as_bytes())?;
 
-    Ok(())
+        Ok(())
+    }
+
+    /// Update project manifest.
+    fn process_manifest(manifest: &mut String) -> Result<()> {
+        let (user, email) = {
+            let user_bytes = Command::new("git")
+                .args(["config", "--global", "--get", "user.name"])
+                .output()?
+                .stdout;
+            let user = String::from_utf8_lossy(&user_bytes);
+
+            let email_bytes = Command::new("git")
+                .args(["config", "--global", "--get", "user.email"])
+                .output()?
+                .stdout;
+            let email = String::from_utf8_lossy(&email_bytes);
+
+            (user.to_string(), email.to_string())
+        };
+
+        *manifest = manifest
+            .replace(
+                "authors.workspace = true",
+                &format!("authors = [\"{} <{}>\"]", user.trim(), email.trim()),
+            )
+            .replace("edition.workspace = true", "edition = \"2021\"")
+            .replace("license.workspace = true", "license = \"GPL-3.0\"")
+            .replace(
+                ".workspace = true",
+                &format!(" = {{ git = \"{}\" }}", GEAR_REPO),
+            )
+            .replace("workspace = true", &format!("git = \"{}\"", GEAR_REPO));
+
+        Ok(())
+    }
+
+    /// Clone or update the local gear repo.
+    fn fetch(repo: impl AsRef<Path>) -> Result<()> {
+        let repo = repo.as_ref();
+        if !repo.exists() {
+            Command::new("git")
+                .args([
+                    "clone",
+                    GEAR_REPO,
+                    repo.to_string_lossy().as_ref(),
+                    "--depth=1",
+                ])
+                .output()
+                .map_err(|_| anyhow!("Failed to clone gear repo"))?;
+        } else {
+            Command::new("git")
+                .args([
+                    &format!("--git-dir={}", repo.join(".git").to_string_lossy().as_ref()),
+                    "pull",
+                ])
+                .output()
+                .map_err(|_| anyhow!("Failed to update gear repo"))?;
+        }
+
+        Ok(())
+    }
+
+    /// Get all examples.
+    fn list(repo: impl AsRef<Path>) -> Result<BTreeMap<String, PathBuf>> {
+        let repo = repo.as_ref();
+        let templates = fs::read_dir(repo.join("examples"))?;
+
+        let mut map = BTreeMap::new();
+        for template in templates {
+            let t = template?.file_name();
+            let example = t.to_string_lossy();
+            if example.contains('.') {
+                continue;
+            }
+
+            let path = repo.join("examples").join(example.as_ref());
+            map.insert(example.to_string(), path);
+        }
+
+        Ok(map)
+    }
 }

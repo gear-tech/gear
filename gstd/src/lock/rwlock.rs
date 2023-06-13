@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -78,7 +78,7 @@ const READERS_LIMIT: ReadersCount = 32;
 ///             *val += 1;
 ///         }
 ///         b"ping&get" => {
-///             let _ = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0)
+///             let _ = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0, 0)
 ///                 .expect("Unable to send bytes")
 ///                 .await
 ///                 .expect("Error in async message processing");
@@ -87,14 +87,14 @@ const READERS_LIMIT: ReadersCount = 32;
 ///         b"inc&ping" => {
 ///             let mut val = RWLOCK.write().await;
 ///             *val += 1;
-///             let _ = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0)
+///             let _ = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0, 0)
 ///                 .expect("Unable to send bytes")
 ///                 .await
 ///                 .expect("Error in async message processing");
 ///         }
 ///         b"get&ping" => {
 ///             let val = RWLOCK.read().await;
-///             let _ = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0)
+///             let _ = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0, 0)
 ///                 .expect("Unable to send bytes")
 ///                 .await
 ///                 .expect("Error in async message processing");
@@ -117,6 +117,9 @@ pub struct RwLock<T> {
 }
 
 impl<T> RwLock<T> {
+    /// Limit of readers for `RwLock`
+    pub const READERS_LIMIT: ReadersCount = READERS_LIMIT;
+
     /// Create a new instance of an `RwLock<T>` which is unlocked.
     pub const fn new(t: T) -> RwLock<T> {
         RwLock {

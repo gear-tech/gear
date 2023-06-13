@@ -11,6 +11,7 @@ readme = "README.md"
 [dependencies]
 anyhow.workspace = true
 cargo_metadata.workspace = true
+chrono = "0.4"
 once_cell.workspace = true
 pwasm-utils = { workspace = true, features = ["sign_ext"] }
 toml.workspace = true
@@ -20,14 +21,15 @@ pathdiff.workspace = true
 which.workspace = true
 colored.workspace = true
 gmeta.workspace = true
+gear-core.workspace = true
 gear-wasm-instrument.workspace = true
 wasm-opt = { workspace = true, optional = true }
 wasmparser.workspace = true
 regex.workspace = true
-filetime = "0.2"
 
 [dev-dependencies]
 wabt.workspace = true
+wasmi = {workspace = true, features = ["std"]}
 
 [features]
 metawasm = ["gmeta/codegen"]

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -257,4 +257,8 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             )
         }))
     }
+}
+
+pub fn run_to_next_block(remaining_weight: Option<u64>) {
+    run_to_block(System::block_number() + 1, remaining_weight);
 }

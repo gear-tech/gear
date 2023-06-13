@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -40,7 +40,8 @@ use gear_core::{
         NoopGrowHandler, PageBuf, PageU32Size, WasmPage,
     },
     message::{
-        GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket, StatusCode,
+        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
+        ReplyPacket, StatusCode,
     },
     reservation::GasReserver,
 };
@@ -915,6 +916,16 @@ impl EnvExt for Ext {
         Ok((mid, pid))
     }
 
+    fn reply_deposit(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error> {
+        self.reduce_gas(amount)?;
+
+        self.context
+            .message_context
+            .reply_deposit(message_id, amount)?;
+
+        Ok(())
+    }
+
     fn random(&self) -> Result<(&[u8], u32), Self::Error> {
         Ok((&self.context.random_data.0, self.context.random_data.1))
     }
@@ -972,7 +983,11 @@ impl Ext {
         }
 
         let (outcome, mut context_store) = message_context.drain();
-        let (generated_dispatches, awakening) = outcome.drain();
+        let ContextOutcomeDrain {
+            outgoing_dispatches: generated_dispatches,
+            awakening,
+            reply_deposits,
+        } = outcome.drain();
 
         let system_reservation_context = SystemReservationContext {
             current_reservation: system_reservation,
@@ -994,6 +1009,7 @@ impl Ext {
             pages_data,
             generated_dispatches,
             awakening,
+            reply_deposits,
             context_store,
             program_candidates_data,
             program_rents,
