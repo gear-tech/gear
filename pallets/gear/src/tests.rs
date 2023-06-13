@@ -11296,3 +11296,39 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
         );
     });
 }
+
+#[test]
+fn check_mutable_global_exports_restriction() {
+    init_logger();
+
+    let wat_correct = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (func $init)
+            (global (;0;) (mut i32) (i32.const 65536))
+            (export "init" (func $init))
+            (export "{STACK_END_EXPORT_NAME}" (global 0))
+        )"#
+    );
+
+    let wat_incorrect = r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (func $init)
+            (global (;0;) (mut i32) (i32.const 65536))
+            (export "init" (func $init))
+            (export "global" (global 0))
+        )"#;
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(upload_program_default(
+            USER_1,
+            ProgramCodeKind::CustomInvalid(&wat_correct)
+        ));
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(&wat_incorrect)),
+            Error::<Test>::ProgramConstructionFailed
+        );
+    });
+}
