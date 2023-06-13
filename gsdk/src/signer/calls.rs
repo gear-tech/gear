@@ -55,7 +55,8 @@ use subxt::{
 type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
 type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
 
-const ERRORS_REQUIRE_RETRYING: [&str; 2] = ["Connection reset by peer", "Connection refused"];
+// TODO: Somehow match error outside of async recursion in `sign_and_submit_then_watch`
+// const ERRORS_REQUIRE_RETRYING: [&str; 2] = ["Connection reset by peer", "Connection refused"];
 
 // pallet-balances
 impl Signer {
@@ -378,7 +379,7 @@ impl Signer {
     }
 
     /// Wrapper for submit and watch with error handling.
-    #[async_recursion(?Send)]
+    #[async_recursion]
     async fn sign_and_submit_then_watch<'a>(
         &self,
         tx: &DynamicTxPayload<'a>,
@@ -401,14 +402,8 @@ impl Signer {
             return process;
         }
 
-        // TODO: Add more patterns for this retrying job.
-        if let Err(SubxtError::Rpc(rpc_error)) = &process {
-            let error_string = rpc_error.to_string();
-            for error in ERRORS_REQUIRE_RETRYING {
-                if error_string.contains(error) {
-                    return self.sign_and_submit_then_watch(tx, counter + 1).await;
-                }
-            }
+        if process.is_err() {
+            return self.sign_and_submit_then_watch(tx, counter + 1).await;
         }
 
         process
