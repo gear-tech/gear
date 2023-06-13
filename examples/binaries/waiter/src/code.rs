@@ -51,14 +51,14 @@ async fn main() {
 
             process_wait_subcommand(subcommand);
         }
-        Command::DelayFor(duration) => {
+        Command::SleepFor(duration) => {
             msg::send(
                 msg::source(),
                 format!("Before the delay at block: {}", exec::block_height()),
                 0,
             )
             .expect("Failed to send before the delay");
-            exec::delay_for(duration).await;
+            exec::sleep_for(duration).await;
             msg::send(
                 msg::source(),
                 format!("After the delay at block: {}", exec::block_height()),

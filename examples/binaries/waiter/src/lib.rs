@@ -57,6 +57,6 @@ pub enum Command {
     SendUpToWait(ActorId, u32),
     SendAndWaitFor(u32, ActorId),
     ReplyAndWait(WaitSubcommand),
-    DelayFor(u32),
+    SleepFor(u32),
     WakeUp([u8; 32]),
 }

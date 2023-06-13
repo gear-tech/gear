@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module for asynchronous execution of messages.
+
 use crate::{async_runtime, msg, MessageId};
 use core::{
     future::Future,
@@ -29,7 +31,7 @@ use gcore::exec;
 /// to continue execution after the delay in the same handler. It is worth
 /// mentioning that the program state gets persisted inside the call, and the
 /// execution resumes with potentially different state.
-pub fn delay_for(block_count: u32) -> impl Future<Output = ()> {
+pub fn sleep_for(block_count: u32) -> impl Future<Output = ()> {
     MessageDelayFuture::new(msg::id(), exec::block_height().saturating_add(block_count))
 }
 

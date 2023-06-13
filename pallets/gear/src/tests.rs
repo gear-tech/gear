@@ -8019,10 +8019,10 @@ fn call_forbidden_function() {
 }
 
 #[test]
-fn async_delay_for() {
+fn async_sleep_for() {
     use demo_waiter::{Command as WaiterCommand, WASM_BINARY as WAITER_WASM};
 
-    const DELAY_FOR_BLOCKS: u32 = 2;
+    const SLEEP_FOR_BLOCKS: u32 = 2;
 
     init_logger();
 
@@ -8047,7 +8047,7 @@ fn async_delay_for() {
         Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             waiter_prog_id,
-            WaiterCommand::DelayFor(DELAY_FOR_BLOCKS).encode(),
+            WaiterCommand::SleepFor(SLEEP_FOR_BLOCKS).encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
         )
@@ -8108,7 +8108,7 @@ fn async_delay_for() {
             waiter_reply,
             format!(
                 "After the delay at block: {}",
-                delay_for_block_number + DELAY_FOR_BLOCKS
+                delay_for_block_number + SLEEP_FOR_BLOCKS
             )
         );
 
