@@ -28,6 +28,7 @@ use crate::{
         Balances,
         BlockNumber,
         Gear,
+        GearVoucher,
         // Randomness,
         RuntimeEvent as MockRuntimeEvent,
         RuntimeOrigin,
@@ -12822,5 +12823,110 @@ fn check_mutable_global_exports_restriction() {
             upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(wat_incorrect)),
             Error::<Test>::ProgramConstructionFailed
         );
+    });
+}
+
+#[test]
+fn send_message_with_voucher_works() {
+    init_logger();
+
+    let minimal_weight = mock::get_min_weight();
+
+    new_test_ext().execute_with(|| {
+        let user1_initial_balance = Balances::free_balance(USER_1);
+        let user2_initial_balance = Balances::free_balance(USER_2);
+
+        // No gas has been created initially
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
+
+        let program_id = {
+            let res = upload_program_default(USER_1, ProgramCodeKind::Default);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        // Test 1: USER_2 sends a message to the program with a voucher
+        // Expect failure because USER_2 has no voucher
+        assert_noop!(
+            Gear::send_message_with_voucher(
+                RuntimeOrigin::signed(USER_2),
+                program_id,
+                EMPTY_PAYLOAD.to_vec(),
+                DEFAULT_GAS_LIMIT,
+                0,
+            ),
+            Error::<Test>::FailureRedeemingVoucher
+        );
+
+        // USER_1 as the program owner issues a voucher for USER_2 enough to send a message
+        assert_ok!(GearVoucher::issue(
+            RuntimeOrigin::signed(USER_1),
+            USER_2,
+            program_id,
+            GasPrice::gas_price(DEFAULT_GAS_LIMIT),
+        ));
+
+        // Balances check
+        // USER_1 can spend up to 2 default messages worth of gas (submit program and issue voucher)
+        let user1_potential_msgs_spends = GasPrice::gas_price(2 * DEFAULT_GAS_LIMIT);
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user1_initial_balance - user1_potential_msgs_spends
+        );
+
+        // Clear messages from the queue to refund unused gas
+        run_to_block(2, None);
+
+        // Balance check
+        // Voucher has been issued, but not used yet, so funds should be still in the respective account
+        let voucher_id = GearVoucher::voucher_account_id(&USER_2, &program_id);
+        assert_eq!(
+            Balances::free_balance(voucher_id),
+            GasPrice::gas_price(DEFAULT_GAS_LIMIT)
+        );
+
+        // Test 2: USER_2 sends a message to the program with a voucher
+        // Now that voucher is issued, the message should be sent successfully
+        assert_ok!(Gear::send_message_with_voucher(
+            RuntimeOrigin::signed(USER_2),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            1_000_000_u128,
+        ));
+
+        // Balances check
+        // USER_2 as a voucher holder can send one message completely free of charge
+        // The value in message, however, is still offset against the USER_2's own balance
+        let user2_potential_msgs_spends = 1_000_000_u128;
+        assert_eq!(
+            Balances::free_balance(USER_2),
+            user2_initial_balance - user2_potential_msgs_spends
+        );
+        // Instead, the gas has been paid from the voucher
+        assert_eq!(Balances::free_balance(voucher_id), 0_u128);
+
+        // Run the queue processing to figure out the actual gas burned
+        let remaining_weight = 300_000_000;
+        run_to_block(3, Some(remaining_weight));
+
+        let actual_gas_burned =
+            remaining_weight - minimal_weight.ref_time() - GasAllowanceOf::<Test>::get();
+        assert_ne!(actual_gas_burned, 0);
+
+        // Check that the gas leftover has been returned to the voucher
+        assert_eq!(
+            Balances::free_balance(voucher_id),
+            GasPrice::gas_price(DEFAULT_GAS_LIMIT) - GasPrice::gas_price(actual_gas_burned)
+        );
+
+        // USER_2 total balance has been reduced by the value in the message
+        assert_eq!(
+            Balances::total_balance(&USER_2),
+            user2_initial_balance - user2_potential_msgs_spends
+        );
+
+        // No gas has got stuck in the system
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
     });
 }

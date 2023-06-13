@@ -356,6 +356,7 @@ benchmarks! {
 
     where_clause { where
         T::AccountId: Origin,
+        T: pallet_gear_voucher::Config,
     }
 
     #[extra]
@@ -675,6 +676,27 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
         let payload = vec![0_u8; p as usize];
+
+        init_block::<T>(None);
+    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance)
+    verify {
+        assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
+    }
+
+    send_message_with_voucher {
+        let p in 0 .. MAX_PAYLOAD_LEN;
+
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
+        let payload = vec![0_u8; p as usize];
+
+        // Add voucher for the (caller, program_id) pair
+        let voucher_id = pallet_gear_voucher::Pallet::<T>::voucher_account_id(&caller, &program_id);
+        <T as pallet::Config>::Currency::deposit_creating(&voucher_id, 100_000_000_000_000_u128.unique_saturated_into());
 
         init_block::<T>(None);
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance)

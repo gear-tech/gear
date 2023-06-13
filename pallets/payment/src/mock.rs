@@ -45,6 +45,7 @@ type Balance = u128;
 
 pub const ALICE: AccountId = 1;
 pub const BLOCK_AUTHOR: AccountId = 255;
+pub const FEE_PAYER: AccountId = 201;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -191,6 +192,7 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type Voucher = ();
     type ProgramRentFreePeriod = RentFreePeriod;
     type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
     type ProgramRentCostPerBlock = RentCostPerBlock;
@@ -252,8 +254,21 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
     }
 }
 
+pub struct DelegateFeeAccountBuilder;
+impl pallet_gear_payment::DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
+    fn delegate_account(call: &RuntimeCall, _who: &AccountId) -> Option<AccountId> {
+        match call {
+            RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher { .. }) => {
+                Some(FEE_PAYER)
+            }
+            _ => None,
+        }
+    }
+}
+
 impl pallet_gear_payment::Config for Test {
     type ExtraFeeCallFilter = ExtraFeeFilter;
+    type DelegateFee = DelegateFeeAccountBuilder;
     type Messenger = GearMessenger;
 }
 
@@ -264,7 +279,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(ALICE, 100_000_000_000u128), (BLOCK_AUTHOR, 1_000u128)],
+        balances: vec![
+            (ALICE, 100_000_000_000u128),
+            (BLOCK_AUTHOR, 1_000u128),
+            (FEE_PAYER, 10_000_000u128),
+        ],
     }
     .assimilate_storage(&mut t)
     .unwrap();

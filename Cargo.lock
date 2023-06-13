@@ -3967,6 +3967,7 @@ dependencies = [
  "pallet-gear-program",
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-scheduler",
+ "pallet-gear-voucher",
  "pallet-grandpa",
  "pallet-multisig",
  "pallet-proxy",
@@ -7128,6 +7129,7 @@ dependencies = [
  "pallet-gear-proc-macro",
  "pallet-gear-program",
  "pallet-gear-scheduler",
+ "pallet-gear-voucher",
  "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
@@ -7386,6 +7388,29 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-authority-discovery",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 5.0.0",
+]
+
+[[package]]
+name = "pallet-gear-voucher"
+version = "1.0.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "gear-core",
+ "log",
+ "pallet-balances",
+ "parity-scale-codec",
+ "parity-wasm 0.45.0",
+ "primitive-types",
+ "scale-info",
+ "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -12795,6 +12820,7 @@ dependencies = [
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-scheduler",
  "pallet-gear-staking-rewards",
+ "pallet-gear-voucher",
  "pallet-grandpa",
  "pallet-identity",
  "pallet-im-online",

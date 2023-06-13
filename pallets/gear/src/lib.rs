@@ -53,7 +53,7 @@ use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
     storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasPrice, GasProvider, GasTree, Origin,
-    PausedProgramStorage, Program, ProgramState, ProgramStorage, QueueRunner,
+    PausedProgramStorage, PaymentVoucher, Program, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -133,6 +133,7 @@ pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
 pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
 pub type ResumeMinimalPeriodOf<T> = <T as Config>::ProgramResumeMinimalRentPeriod;
 pub type ResumeSessionDurationOf<T> = <T as Config>::ProgramResumeSessionDuration;
+pub(crate) type VoucherOf<T> = <T as Config>::Voucher;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -270,6 +271,14 @@ pub mod pallet {
 
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
+
+        /// Type that allows to check calller's eligibility for using voucher for payment.
+        type Voucher: PaymentVoucher<
+            Self::AccountId,
+            ProgramId,
+            BalanceOf<Self>,
+            VoucherId = Self::AccountId,
+        >;
 
         /// The free of charge period of rent.
         #[pallet::constant]
@@ -464,6 +473,10 @@ pub mod pallet {
         MessageQueueProcessingDisabled,
         /// Block count doesn't cover MinimalResumePeriod.
         ResumePeriodLessThanMinimal,
+        /// Program with the specified id is not found.
+        ProgramNotFound,
+        /// Voucher can't be redemmed
+        FailureRedeemingVoucher,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -1868,6 +1881,102 @@ pub mod pallet {
                     },
                 });
             }
+
+            Ok(().into())
+        }
+
+        /// Sends a message to a program using pre-allocated funds.
+        ///
+        /// The origin must be Signed and the sender must have been issued a `voucher` -
+        /// a record for the (`AccountId`, `ProgramId`) pair exists in the `Voucher` pallet
+        /// and the respective synthesize account for such pair has funds in it.
+        /// The `gas` and transaction fees will, therefore, be paid from this synthesize account.
+        ///
+        /// Parameters:
+        /// - `destination`: the message destination (must be an initialized program).
+        /// - `payload`: in case of a program destination, parameters of the `handle` function.
+        /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
+        /// - `value`: balance to be transferred to the program once it's been created.
+        ///
+        /// Emits the following events:
+        /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
+        #[pallet::call_index(9)]
+        #[pallet::weight(<T as Config>::WeightInfo::send_message_with_voucher(payload.len() as u32))]
+        pub fn send_message_with_voucher(
+            origin: OriginFor<T>,
+            destination: ProgramId,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+            let who = ensure_signed(origin)?;
+            let origin = who.clone().into_origin();
+
+            Self::check_gas_limit_and_value(gas_limit, value)?;
+
+            let message = HandleMessage::from_packet(
+                Self::next_message_id(origin),
+                HandlePacket::new_with_gas(
+                    destination,
+                    payload,
+                    gas_limit,
+                    value.unique_saturated_into(),
+                ),
+            );
+
+            ensure!(
+                Self::program_exists(destination) && Self::is_active(destination),
+                Error::<T>::InactiveProgram
+            );
+
+            // Message is not guaranteed to be executed, that's why value is not immediately
+            // transferred. That's because destination can fail to be initialized by the time
+            // this dispatch message is next in the queue.
+            //
+            // Note: reservaton is made from the user's account as voucher can only be used
+            // to pay for gas or settle transaction fees, but not as source for value transfer.
+            CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
+
+            let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
+
+            // We want to charge the expenses on the voucher issued for the tx sender
+            // First we reserve enough funds on the account to pay for `gas_limit`.
+            // Note: this time around the cost of gas is covered by the voucher.
+            let voucher_id =
+                VoucherOf::<T>::redeem_with_id(who.clone(), destination, gas_limit_reserve)
+                    .map_err(|_| {
+                        log::debug!(
+                            "Failed to redeem voucher for user {:?} and program {:?}",
+                            who,
+                            destination,
+                        );
+                        Error::<T>::FailureRedeemingVoucher
+                    })?;
+
+            // # Safety
+            //
+            // The `unreachable` clause is due to the `message_id` being newly generated
+            // with `Self::next_message_id`.
+            //
+            // Note: using the `voucher_id` as the external parent of the gas node in order for
+            // the leftover being refunded back to the voucher account and not the user's account.
+            GasHandlerOf::<T>::create(voucher_id, message.id(), gas_limit)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
+
+            Self::deposit_event(Event::MessageQueued {
+                id: message.id(),
+                source: who,
+                destination: message.destination(),
+                entry: MessageEntry::Handle,
+            });
+
+            QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
             Ok(().into())
         }

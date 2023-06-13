@@ -41,14 +41,14 @@ pub use frame_support::{
         },
         Weight,
     },
-    RuntimeDebug, StorageValue,
+    PalletId, RuntimeDebug, StorageValue,
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
     EnsureRoot,
 };
 pub use pallet_gear::manager::{ExtManager, HandleKind};
-pub use pallet_gear_payment::CustomChargeTransactionPayment;
+pub use pallet_gear_payment::{CustomChargeTransactionPayment, DelegateFee};
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
@@ -460,6 +460,7 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type Voucher = GearVoucher;
     type ProgramRentFreePeriod = ConstU32<RENT_FREE_PERIOD>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
@@ -507,9 +508,33 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
     }
 }
 
+pub struct DelegateFeeAccountBuilder;
+impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
+    fn delegate_account(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
+        match call {
+            RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher {
+                destination, ..
+            }) => Some(GearVoucher::voucher_account_id(who, destination)),
+            _ => None,
+        }
+    }
+}
+
 impl pallet_gear_payment::Config for Runtime {
     type ExtraFeeCallFilter = ExtraFeeFilter;
     type Messenger = GearMessenger;
+    type DelegateFee = DelegateFeeAccountBuilder;
+}
+
+parameter_types! {
+    pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+}
+
+impl pallet_gear_voucher::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type PalletId = VoucherPalletId;
+    type WeightInfo = pallet_gear_voucher::weights::SubstrateWeight<Runtime>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
@@ -554,6 +579,7 @@ construct_runtime!(
         GearGas: pallet_gear_gas = 103,
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
+        GearVoucher: pallet_gear_voucher = 106,
 
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug = 199,
@@ -588,6 +614,7 @@ construct_runtime!(
         GearGas: pallet_gear_gas = 103,
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
+        GearVoucher: pallet_gear_voucher = 106,
     }
 );
 
@@ -645,6 +672,7 @@ mod benches {
         [pallet_utility, Utility]
         // Gear pallets
         [pallet_gear, Gear]
+        [pallet_gear_voucher, GearVoucher]
     );
 }
 

@@ -558,3 +558,59 @@ fn query_info_and_fee_details_work() {
         );
     });
 }
+
+#[test]
+fn fee_payer_replacement_works() {
+    new_test_ext().execute_with(|| {
+        let alice_initial_balance = Balances::free_balance(ALICE);
+        let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
+        let synthesized_initial_balance = Balances::free_balance(FEE_PAYER);
+
+        let program_id = ProgramId::from_origin(H256::random());
+
+        let call: &<Test as frame_system::Config>::RuntimeCall =
+            &RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher {
+                destination: program_id,
+                payload: Default::default(),
+                gas_limit: 100_000,
+                value: 0,
+            });
+
+        let len = 100usize;
+        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len as u64, 0));
+
+        let weight = Weight::from_parts(1_000, 0);
+
+        let pre = CustomChargeTransactionPayment::<Test>::from(0)
+            .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
+            .unwrap();
+
+        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
+
+        // Alice hasn't paid fees
+        assert_eq!(Balances::free_balance(ALICE), alice_initial_balance);
+
+        // But the Synthesized account has
+        assert_eq!(
+            Balances::free_balance(FEE_PAYER),
+            synthesized_initial_balance - fee_weight - fee_length
+        );
+
+        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
+            Some(pre),
+            &info_from_weight(weight),
+            &default_post_info(),
+            len,
+            &Ok(())
+        ));
+        assert_eq!(Balances::free_balance(ALICE), alice_initial_balance);
+        assert_eq!(
+            Balances::free_balance(FEE_PAYER),
+            synthesized_initial_balance - fee_weight - fee_length
+        );
+        assert_eq!(
+            Balances::free_balance(BLOCK_AUTHOR),
+            author_initial_balance + fee_weight + fee_length
+        );
+    });
+}
