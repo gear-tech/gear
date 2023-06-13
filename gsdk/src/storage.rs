@@ -125,7 +125,7 @@ impl Api {
     /// Return a timestamp of the block.
     pub async fn block_timestamp(&self, block_hash: Option<H256>) -> Result<u64> {
         let addr = subxt::dynamic::storage_root("Timestamp", "now");
-        Ok(self.fetch_storage_at(&addr, block_hash).await?)
+        self.fetch_storage_at(&addr, block_hash).await
     }
 }
 

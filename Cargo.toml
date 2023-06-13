@@ -414,6 +414,7 @@ which = "4.4.0"                                                           # util
 fail = "0.5"                                                              # gear-common
 subxt-codegen = "^0.29.0"                                                 # gsdk-codegen
 subxt-metadata = "^0.29.0"                                                # gsdk-codegen
+heck = "^0.4.1"                                                           # gsdk-api-gen
 
 [profile.release]
 panic = "unwind"

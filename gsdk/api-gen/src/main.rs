@@ -16,10 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 use color_eyre::eyre::Result;
-use frame_metadata::{RuntimeMetadata, RuntimeMetadataPrefixed, RuntimeMetadataV14};
+use frame_metadata::RuntimeMetadataPrefixed;
+use heck::ToSnakeCase as _;
 use parity_scale_codec::Decode;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use std::{
     env, fs,
     io::{self, Write},
@@ -72,16 +73,15 @@ fn main() -> Result<()> {
         .expect("decode metadata failed");
 
     let output = {
-        let v14 = if let RuntimeMetadata::V14(v14) = metadata.1 {
-            v14
-        } else {
-            panic!("Runtime metadata is not v14");
-        };
+        let metadata = Metadata::try_from(metadata).expect("Failed to convert metadata");
 
-        let runtime_types = generate_runtime_types(v14);
+        let impls = generate_impls(&metadata);
+        let runtime_types = generate_runtime_types(metadata);
 
         quote! {
             #runtime_types
+
+            #impls
         }
     }
     .to_token_stream();
@@ -119,24 +119,64 @@ fn metadata() -> Vec<u8> {
         .to_vec()
 }
 
-fn generate_runtime_types(metadata: RuntimeMetadataV14) -> TokenStream {
-    let metadata = Metadata::try_from(metadata).expect("Failed to convert metadata");
+fn generate_runtime_types(metadata: Metadata) -> TokenStream {
     let generator = RuntimeGenerator::new(metadata);
     let runtime_types_mod = parse_quote!(
         pub mod runtime_types {}
     );
 
     let crate_path = Default::default();
-    let derives = DerivesRegistry::new();
+
     generator
         .generate_runtime_types(
             runtime_types_mod,
-            derives,
-            TypeSubstitutes::new(),
+            DerivesRegistry::with_default_derives(&crate_path),
+            TypeSubstitutes::with_default_substitutes(&crate_path),
             crate_path,
             true,
         )
         .expect("Failed to generate runtime types")
 }
 
-fn _generate_impls(_metadata: RuntimeMetadataV14) {}
+fn generate_impls(metadata: &Metadata) -> TokenStream {
+    let root_event_if_arms = metadata.pallets().filter_map(|p| {
+        let variant_name_str = &p.name();
+        let variant_name = format_ident!("{}", variant_name_str);
+        let mod_name = format_ident!("{}", variant_name_str.to_string().to_snake_case());
+
+        p.event_ty_id().map(|_| {
+            quote! {
+                if pallet_name == #variant_name_str {
+                    return Ok(Event::#variant_name(crate::metadata::#mod_name::Event::decode_with_metadata(
+                        &mut &*pallet_bytes,
+                        pallet_ty,
+                        metadata
+                    )?));
+                }
+            }
+        })
+    });
+
+    quote! {
+        pub mod impls {
+            use crate::metadata::Event;
+
+            impl subxt::events::RootEvent for Event {
+                fn root_event(
+                    pallet_bytes: &[u8],
+                    pallet_name: &str,
+                    pallet_ty: u32,
+                    metadata: &subxt::Metadata
+                ) -> Result<Self, subxt::Error> {
+                    use subxt::metadata::DecodeWithMetadata;
+
+                    #( #root_event_if_arms )*
+
+                    Err(subxt::ext::scale_decode::Error::custom(
+                        format!("Pallet name '{}' not found in root Event enum", pallet_name)
+                    ).into())
+                }
+            }
+        }
+    }
+}

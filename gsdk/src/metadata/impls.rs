@@ -32,8 +32,7 @@ use super::{
 use core::ops::{Index, IndexMut};
 use gear_core::{ids, message, message::StoredMessage};
 use parity_scale_codec::{Decode, Encode};
-use sp_runtime::MultiAddress;
-use subxt::dynamic::Value;
+use subxt::{dynamic::Value, utils::MultiAddress};
 
 type ApiEvent = super::Event;
 

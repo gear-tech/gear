@@ -13,21 +13,8 @@ const VARA_RUNTIME_RELATIVE_PATH: &str = "wbuild/vara-runtime/vara_runtime.compa
 const GENERATED_API_PATH: &str = "src/metadata/generated.rs";
 const ENV_RUNTIME_WASM: &str = "RUNTIME_WASM";
 
-// These attributes are not supported by subxt 0.27.0.
-//
-// TODO: (issue #2666)
-const INCOMPATIBLE_LINES: [&str; 4] = [
-    ":: subxt :: ext :: scale_encode :: EncodeAsType ,",
-    ":: subxt :: ext :: scale_decode :: DecodeAsType ,",
-    r#"# [encode_as_type (crate_path = ":: subxt :: ext :: scale_encode")]"#,
-    r#"# [decode_as_type (crate_path = ":: subxt :: ext :: scale_decode")]"#,
-];
-
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=../Cargo.lock");
-    println!("cargo:rerun-if-changed=../runtime");
-    println!("cargo:rerun-if-changed=../pallets/gear");
     println!("cargo:rerun-if-env-changed={}", GSDK_API_GEN);
 
     // This build script should only work when building gsdk as the primary package,
@@ -78,11 +65,7 @@ fn generate_api() -> Vec<u8> {
 // - remove the incompatible attributes.
 // - remove verbose whitespaces.
 fn format(stream: &[u8]) -> String {
-    let mut raw = String::from_utf8_lossy(stream).to_string();
-    for line in INCOMPATIBLE_LINES.iter() {
-        raw = raw.replace(line, "");
-    }
-
+    let raw = String::from_utf8_lossy(stream).to_string();
     let mut rustfmt = Command::new("rustfmt");
     let mut code = rustfmt
         .stdin(Stdio::piped())
@@ -101,8 +84,6 @@ fn format(stream: &[u8]) -> String {
         .to_string()
         .replace(":: subxt", "::subxt")
         .replace(" :: ", "::")
-        .replace("::subxt::utils::MultiAddress", "sp_runtime::MultiAddress")
-        .replace("::subxt::utils::AccountId32", "sp_runtime::AccountId32")
 }
 
 // Get the path of the compiled package.

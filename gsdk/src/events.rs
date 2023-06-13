@@ -65,14 +65,14 @@ impl Api {
     /// Parse transaction fee from InBlockEvents
     ///
     /// FIXME: Generate the impl of `RootEvent` for `Event`
-    pub fn capture_weight_info(_details: &EventDetails<GearConfig>) -> Result<()> {
-        // let event: Event = details.as_root_event::<Event>()?;
-        //
-        // if let Event::System(SystemEvent::ExtrinsicSuccess { dispatch_info })
-        // | Event::System(SystemEvent::ExtrinsicFailed { dispatch_info, .. }) = event
-        // {
-        //     log::info!("	Weight cost: {:?}", dispatch_info.weight);
-        // }
+    pub fn capture_weight_info(details: &EventDetails<GearConfig>) -> Result<()> {
+        let event: Event = details.as_root_event::<Event>()?;
+
+        if let Event::System(SystemEvent::ExtrinsicSuccess { dispatch_info })
+        | Event::System(SystemEvent::ExtrinsicFailed { dispatch_info, .. }) = event
+        {
+            log::info!("	Weight cost: {:?}", dispatch_info.weight);
+        }
 
         Err(Error::EventNotFound)
     }

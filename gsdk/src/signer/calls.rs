@@ -199,22 +199,20 @@ impl Signer {
 
 // pallet-sudo
 impl Signer {
-    // FIXME: parsing event.
     async fn process_sudo(&self, tx: DynamicPayload) -> EventsResult {
-        todo!()
-        // let tx = self.process(tx).await?;
-        // let events = tx.wait_for_success().await?;
-        // for event in events.iter() {
-        //     let event = event?.as_root_event::<Event>()?;
-        //     if let Event::Sudo(SudoEvent::Sudid {
-        //         sudo_result: Err(err),
-        //     }) = event
-        //     {
-        //         return Err(self.api().decode_error(err).into());
-        //     }
-        // }
-        //
-        // Ok(events)
+        let tx = self.process(tx).await?;
+        let events = tx.wait_for_success().await?;
+        for event in events.iter() {
+            let event = event?.as_root_event::<Event>()?;
+            if let Event::Sudo(SudoEvent::Sudid {
+                sudo_result: Err(err),
+            }) = event
+            {
+                return Err(self.api().decode_error(err).into());
+            }
+        }
+
+        Ok(events)
     }
 
     /// `pallet_sudo::sudo_unchecked_weight`

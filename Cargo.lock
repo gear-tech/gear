@@ -4482,6 +4482,7 @@ dependencies = [
  "color-eyre",
  "frame-metadata",
  "gear-runtime-interface",
+ "heck",
  "parity-scale-codec",
  "proc-macro2",
  "quote",

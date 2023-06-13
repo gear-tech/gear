@@ -84,7 +84,7 @@ pub mod fellowship_collective {
 }
 
 pub mod fellowship_referenda {
-    pub use super::runtime_types::pallet_ranked_collective::pallet::Event;
+    pub use super::runtime_types::pallet_referenda::pallet::Event2 as Event;
 }
 
 pub mod whitelist {
@@ -124,6 +124,18 @@ pub mod airdrop {
 
 pub mod gear_debug {
     pub use super::runtime_types::pallet_gear_debug::pallet::Event;
+}
+
+pub mod validator_set {
+    pub use super::runtime_types::substrate_validator_set::pallet::Event;
+}
+
+pub mod multisig {
+    pub use super::runtime_types::pallet_multisig::pallet::Event;
+}
+
+pub mod proxy {
+    pub use super::runtime_types::pallet_proxy::pallet::Event;
 }
 
 pub type DispatchError = runtime_types::sp_runtime::DispatchError;
