@@ -18,8 +18,7 @@ parity-scale-codec.workspace = true
 #
 # Same version from `/Cargo.lock`
 frame-metadata = "15.1.0"
-# NOTE: only required by this package.
-subxt-codegen = "0.28.0"
+subxt-codegen.workspace = true
 # TODO: inherit from workspace
 #
 # use "1.0.1.9" because subxt-codegen-0.28.0 requires it.

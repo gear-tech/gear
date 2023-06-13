@@ -28,23 +28,23 @@ use crate::{
         },
     },
     result::{Error, Result},
-    types, Api, BlockNumber,
+    types,
+    utils::storage_address_bytes,
+    Api, BlockNumber,
 };
 use anyhow::anyhow;
 use gear_core::ids::*;
 use gsdk_codegen::storage_fetch;
 use hex::ToHex;
-use parity_scale_codec::Decode;
 use sp_core::{crypto::Ss58Codec, H256};
 use sp_runtime::AccountId32;
 use std::collections::HashMap;
 use subxt::{
     dynamic::{DecodedValueThunk, Value},
-    metadata::subxt_metadata::StorageEntryType,
-    storage::{
-        address::{StorageAddress, StorageHasher, StorageMapKey, Yes},
-        utils::storage_address_root_bytes,
-    },
+    ext::codec::{Decode, Encode},
+    metadata::types::StorageEntryType,
+    storage::address::{StorageAddress, Yes},
+    utils::Static,
 };
 
 impl Api {
@@ -60,11 +60,15 @@ impl Api {
             StorageAddress<IsFetchable = Yes, IsDefaultable = Yes, Target = DecodedValueThunk> + 'a,
         Value: Decode,
     {
+        let client = self.storage();
+        let storage = if let Some(h) = block_hash {
+            client.at(h)
+        } else {
+            client.at_latest().await?
+        };
+
         Ok(Value::decode(
-            &mut self
-                .storage()
-                .at(block_hash)
-                .await?
+            &mut storage
                 .fetch(address)
                 .await?
                 .ok_or(Error::StorageNotFound)?
@@ -109,21 +113,10 @@ impl Api {
     #[storage_fetch]
     pub async fn get_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
         let addr = subxt::dynamic::storage_root("System", "Events");
-        let thunk = self
-            .storage()
-            .at(block_hash)
-            .await?
-            .fetch(&addr)
-            .await?
-            .ok_or(Error::StorageNotFound)?
-            .into_encoded();
+        let evs: Vec<EventRecord<RuntimeEvent, H256>> =
+            self.fetch_storage_at(&addr, block_hash).await?;
 
-        Ok(
-            Vec::<EventRecord<RuntimeEvent, H256>>::decode(&mut thunk.as_ref())?
-                .into_iter()
-                .map(|ev| ev.event)
-                .collect(),
-        )
+        Ok(evs.into_iter().map(|ev| ev.event).collect())
     }
 }
 
@@ -132,16 +125,7 @@ impl Api {
     /// Return a timestamp of the block.
     pub async fn block_timestamp(&self, block_hash: Option<H256>) -> Result<u64> {
         let addr = subxt::dynamic::storage_root("Timestamp", "now");
-        let thunk = self
-            .storage()
-            .at(block_hash)
-            .await?
-            .fetch(&addr)
-            .await?
-            .ok_or(Error::StorageNotFound)?
-            .into_encoded();
-
-        Ok(u64::decode(&mut thunk.as_ref())?)
+        Ok(self.fetch_storage_at(&addr, block_hash).await?)
     }
 }
 
@@ -174,11 +158,7 @@ impl Api {
         let mut gas_nodes = Vec::with_capacity(gas_node_ids.len());
 
         for gas_node_id in gas_node_ids {
-            let addr = subxt::dynamic::storage(
-                "GearGas",
-                "GasNodes",
-                vec![subxt::metadata::EncodeStaticType(gas_node_id)],
-            );
+            let addr = subxt::dynamic::storage("GearGas", "GasNodes", vec![Static(gas_node_id)]);
             let gas_node = self.fetch_storage_at(&addr, block_hash).await?;
             gas_nodes.push((*gas_node_id, gas_node));
         }
@@ -192,8 +172,7 @@ impl Api {
     pub async fn execute_inherent(&self) -> Result<bool> {
         let addr = subxt::dynamic::storage_root("Gear", "ExecuteInherent");
         let thunk = self
-            .storage()
-            .at(None)
+            .get_storage(None)
             .await?
             .fetch_or_default(&addr)
             .await?
@@ -206,13 +185,11 @@ impl Api {
     pub async fn gear_block_number(&self, block_hash: Option<H256>) -> Result<BlockNumber> {
         let addr = subxt::dynamic::storage_root("Gear", "BlockNumber");
         let thunk = self
-            .storage()
-            .at(block_hash)
+            .get_storage(block_hash)
             .await?
             .fetch_or_default(&addr)
             .await?
             .into_encoded();
-
         Ok(BlockNumber::decode(&mut thunk.as_ref())?)
     }
 }
@@ -290,11 +267,10 @@ impl Api {
             );
 
             let metadata = self.metadata();
-            let lookup_bytes = subxt::storage::utils::storage_address_bytes(&addr, &metadata)?;
+            let lookup_bytes = storage_address_bytes(&addr, &metadata)?;
 
             let encoded_page = self
-                .storage()
-                .at(block_hash)
+                .get_storage(block_hash)
                 .await?
                 .fetch_raw(&lookup_bytes)
                 .await?
@@ -334,12 +310,12 @@ impl Api {
         account_id: Option<AccountId32>,
         count: u32,
     ) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
-        let storage = self.storage().at(None).await?;
+        let storage = self.storage().at_latest().await?;
         let mut query_key =
-            storage_address_root_bytes(&subxt::dynamic::storage_root("GearMessenger", "Mailbox"));
+            subxt::dynamic::storage_root("GearMessenger", "Mailbox").to_root_bytes();
 
         if let Some(account_id) = account_id {
-            StorageMapKey::new(&account_id, StorageHasher::Identity).to_bytes(&mut query_key);
+            query_key.extend(account_id.encode());
         }
 
         let keys = storage.fetch_keys(&query_key, count, None).await?;
@@ -372,8 +348,9 @@ pub(crate) fn storage_type_id(
         .entry_type();
 
     let storage_type_id = match storage_type {
-        StorageEntryType::Plain(ty) => ty.id,
-        StorageEntryType::Map { value, .. } => value.id,
+        StorageEntryType::Plain(id) => id,
+        StorageEntryType::Map { value_ty, .. } => value_ty,
     };
-    Ok(storage_type_id)
+
+    Ok(*storage_type_id)
 }

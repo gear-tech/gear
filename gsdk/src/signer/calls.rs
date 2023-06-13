@@ -32,6 +32,7 @@ use crate::{
     },
     signer::Signer,
     types::{self, InBlock, TxStatus},
+    utils::storage_address_bytes,
     BlockNumber, Error,
 };
 use anyhow::anyhow;
@@ -48,7 +49,8 @@ use subxt::{
     dynamic::Value,
     metadata::EncodeWithMetadata,
     storage::StorageAddress,
-    tx::{DynamicPayload, TxProgress},
+    tx::{DynamicPayload, TxPayload, TxProgress},
+    utils::Static,
     Error as SubxtError, OnlineClient,
 };
 
@@ -197,20 +199,22 @@ impl Signer {
 
 // pallet-sudo
 impl Signer {
+    // FIXME: parsing event.
     async fn process_sudo(&self, tx: DynamicPayload) -> EventsResult {
-        let tx = self.process(tx).await?;
-        let events = tx.wait_for_success().await?;
-        for event in events.iter() {
-            let event = event?.as_root_event::<Event>()?;
-            if let Event::Sudo(SudoEvent::Sudid {
-                sudo_result: Err(err),
-            }) = event
-            {
-                return Err(self.api().decode_error(err).into());
-            }
-        }
-
-        Ok(events)
+        todo!()
+        // let tx = self.process(tx).await?;
+        // let events = tx.wait_for_success().await?;
+        // for event in events.iter() {
+        //     let event = event?.as_root_event::<Event>()?;
+        //     if let Event::Sudo(SudoEvent::Sudid {
+        //         sudo_result: Err(err),
+        //     }) = event
+        //     {
+        //         return Err(self.api().decode_error(err).into());
+        //     }
+        // }
+        //
+        // Ok(events)
     }
 
     /// `pallet_sudo::sudo_unchecked_weight`
@@ -245,10 +249,10 @@ impl Signer {
         let metadata = self.api().metadata();
         let mut items_to_set = Vec::with_capacity(items.len());
         for item in items {
-            let item_key = subxt::storage::utils::storage_address_bytes(&item.0, &metadata)?;
+            let item_key = storage_address_bytes(&item.0, &metadata)?;
             let mut item_value_bytes = Vec::new();
             let item_value_type_id = crate::storage::storage_type_id(&metadata, &item.0)?;
-            subxt::metadata::EncodeStaticType(&item.1).encode_with_metadata(
+            Static(&item.1).encode_with_metadata(
                 item_value_type_id,
                 &metadata,
                 &mut item_value_bytes,
@@ -279,11 +283,7 @@ impl Signer {
         let gas_nodes = gas_nodes.as_ref();
         let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
         for gas_node in gas_nodes {
-            let addr = subxt::dynamic::storage(
-                "GearGas",
-                "GasNodes",
-                vec![subxt::metadata::EncodeStaticType(gas_node.0)],
-            );
+            let addr = subxt::dynamic::storage("GearGas", "GasNodes", vec![Static(gas_node.0)]);
             gas_nodes_to_set.push((addr, &gas_node.1));
         }
         self.set_storage(&gas_nodes_to_set).await
@@ -421,8 +421,16 @@ impl Signer {
         let before = self.balance().await?;
         let mut process = self.sign_and_submit_then_watch(&tx, 0).await?;
 
+        // FIXME:
+        //
+        // subxt 0.29.0 hides ex details again.
+        //
         // Get extrinsic details.
-        let (pallet, name) = (tx.pallet_name(), tx.call_name());
+        let (pallet, name) = tx
+            .validation_details()
+            .map(|d| (d.pallet_name.to_string(), d.call_name.to_string()))
+            .unwrap_or_else(|| ("Unknown".to_string(), "Unknown".to_string()));
+
         log::info!("Submitted extrinsic {}::{}", pallet, name);
 
         while let Some(status) = process.next_item().await {

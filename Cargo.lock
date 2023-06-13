@@ -4488,7 +4488,7 @@ dependencies = [
  "sc-executor",
  "sc-executor-common",
  "sp-io",
- "subxt-codegen 0.28.0",
+ "subxt-codegen",
  "syn 1.0.109",
 ]
 
@@ -11025,21 +11025,6 @@ dependencies = [
 
 [[package]]
 name = "sp-core-hashing"
-version = "8.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27449abdfbe41b473e625bce8113745e81d65777dd1d5a8462cf24137930dad8"
-dependencies = [
- "blake2b_simd",
- "byteorder",
- "digest 0.10.7",
- "sha2 0.10.6",
- "sha3",
- "sp-std 7.0.0",
- "twox-hash",
-]
-
-[[package]]
-name = "sp-core-hashing"
 version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ee599a8399448e65197f9a6cee338ad192e9023e35e31f22382964c3c174c68"
@@ -11332,12 +11317,6 @@ dependencies = [
 name = "sp-std"
 version = "5.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary#34efda72d128b336f3afd72d70098deccd79c6c2"
-
-[[package]]
-name = "sp-std"
-version = "7.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1de8eef39962b5b97478719c493bed2926cf70cb621005bbf68ebe58252ff986"
 
 [[package]]
 name = "sp-std"
@@ -11808,30 +11787,9 @@ dependencies = [
  "serde_json",
  "sp-core-hashing 9.0.0",
  "subxt-macro",
- "subxt-metadata 0.29.0",
+ "subxt-metadata",
  "thiserror",
  "tracing",
-]
-
-[[package]]
-name = "subxt-codegen"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e924f41069e9273236398ff89662d6d336468a5d94faac812129d44547db0e7f"
-dependencies = [
- "darling 0.14.4",
- "frame-metadata",
- "heck",
- "hex",
- "jsonrpsee",
- "parity-scale-codec",
- "proc-macro2",
- "quote",
- "scale-info",
- "subxt-metadata 0.28.0",
- "syn 1.0.109",
- "thiserror",
- "tokio",
 ]
 
 [[package]]
@@ -11848,7 +11806,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scale-info",
- "subxt-metadata 0.29.0",
+ "subxt-metadata",
  "syn 2.0.18",
  "thiserror",
  "tokio",
@@ -11862,20 +11820,8 @@ checksum = "e544e41e1c84b616632cd2f86862342868f62e11e4cd9062a9e3dbf5fc871f64"
 dependencies = [
  "darling 0.20.1",
  "proc-macro-error",
- "subxt-codegen 0.29.0",
+ "subxt-codegen",
  "syn 2.0.18",
-]
-
-[[package]]
-name = "subxt-metadata"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18be3b8f4308fe7369ee1df66ae59c2eca79de20eab57b0f41c75736e843300f"
-dependencies = [
- "frame-metadata",
- "parity-scale-codec",
- "scale-info",
- "sp-core-hashing 8.0.0",
 ]
 
 [[package]]
