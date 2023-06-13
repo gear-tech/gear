@@ -105,6 +105,15 @@ impl<'a> LimitedStr<'a> {
         " bytes."
     );
 
+    #[track_caller]
+    pub const fn from_small_str(s: &'a str) -> Self {
+        if s.len() > TRIMMED_MAX_LEN {
+            panic!("{}", Self::INIT_ERROR_MSG)
+        }
+
+        Self(Cow::Borrowed(s))
+    }
+
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
     }

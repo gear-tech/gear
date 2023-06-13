@@ -52,8 +52,8 @@ pub fn try_to_enable_lazy_pages(prefix: [u8; 32]) -> bool {
     let ctx = LazyPagesRuntimeContext {
         page_sizes: vec![WasmPage::size(), GearPage::size()],
         global_names: vec![
-            LimitedStr::try_from(GLOBAL_NAME_GAS).expect("Infallible"),
-            LimitedStr::try_from(GLOBAL_NAME_ALLOWANCE).expect("Infallible"),
+            LimitedStr::from_small_str(GLOBAL_NAME_GAS),
+            LimitedStr::from_small_str(GLOBAL_NAME_ALLOWANCE),
         ],
         pages_storage_prefix: prefix.to_vec(),
     };
