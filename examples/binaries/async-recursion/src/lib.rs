@@ -43,7 +43,7 @@ mod wasm {
     /// repeat with `val` decreased by reply len while `val` > reply len.
     #[async_recursion]
     async fn rec_func(val: i32) {
-        let reply = msg::send_bytes_for_reply(unsafe { DESTINATION }, "PING", 0)
+        let reply = msg::send_bytes_for_reply(unsafe { DESTINATION }, "PING", 0, 0)
             .expect("Failed to send message")
             .await
             .expect("Received error reply");

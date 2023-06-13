@@ -63,7 +63,7 @@ use super::access::AccessQueue;
 ///     if payload == b"START" {
 ///         let _unused = MUTEX.lock().await;
 ///
-///         let reply = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0)
+///         let reply = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0, 0)
 ///             .expect("Unable to send bytes")
 ///             .await
 ///             .expect("Error in async message processing");
