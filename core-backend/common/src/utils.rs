@@ -97,6 +97,7 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
 #[derive(Encode, Decode, Debug, Clone, derive_more::Display)]
 #[codec(crate = scale)]
 pub struct LimitedStr<'a>(Cow<'a, str>);
+
 impl<'a> LimitedStr<'a> {
     const INIT_ERROR_MSG: &'static str = concat!(
         "String must be less than ",
@@ -104,16 +105,32 @@ impl<'a> LimitedStr<'a> {
         " bytes."
     );
 
-    pub fn new(s: &'a str) -> Result<Self, &'static str> {
+    pub fn as_str(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl<'a> TryFrom<&'a str> for LimitedStr<'a> {
+    type Error = &'static str;
+
+    fn try_from(s: &'a str) -> Result<Self, Self::Error> {
         if s.len() > TRIMMED_MAX_LEN {
             return Err(Self::INIT_ERROR_MSG);
         }
 
         Ok(Self(Cow::from(s)))
     }
+}
 
-    pub fn as_str(&self) -> &str {
-        self.0.as_ref()
+impl<'a> TryFrom<String> for LimitedStr<'a> {
+    type Error = &'static str;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        if s.len() > TRIMMED_MAX_LEN {
+            return Err(Self::INIT_ERROR_MSG);
+        }
+
+        Ok(Self(Cow::from(s)))
     }
 }
 

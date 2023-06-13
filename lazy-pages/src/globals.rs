@@ -97,7 +97,7 @@ fn apply_for_global_internal(
     name: &str,
     mut f: impl FnMut(u64) -> Result<Option<u64>, Error>,
 ) -> Result<u64, Error> {
-    let name = LimitedStr::new(name).map_err(|_| Error::AccessGlobal(GlobalsAccessError))?;
+    let name = LimitedStr::try_from(name).map_err(|_| Error::AccessGlobal(GlobalsAccessError))?;
 
     let current_value = globals_access_provider.get_i64(&name)? as u64;
     if let Some(new_value) = f(current_value)? {
