@@ -45,7 +45,6 @@ pub mod benchmarking;
 use core::fmt;
 use frame_support::{
     codec::{self, Decode, Encode},
-    dispatch::DispatchError,
     scale_info::{self, TypeInfo},
     sp_runtime::{
         self,
@@ -164,16 +163,6 @@ pub trait QueueRunner {
     type Gas;
 
     fn run_queue(initial_gas: Self::Gas) -> Self::Gas;
-}
-
-pub trait PaymentProvider<AccountId> {
-    type Balance;
-
-    fn withhold_reserved(
-        source: H256,
-        dest: &AccountId,
-        amount: Self::Balance,
-    ) -> Result<(), DispatchError>;
 }
 
 /// Contains various limits for the block.

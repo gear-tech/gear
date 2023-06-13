@@ -66,8 +66,8 @@ use frame_support::{
     ensure,
     pallet_prelude::*,
     traits::{
-        BalanceStatus, ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency,
-        Randomness, ReservableCurrency, StorageVersion,
+        ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
+        ReservableCurrency, StorageVersion,
     },
     weights::Weight,
 };
@@ -2005,39 +2005,6 @@ pub mod pallet {
 
             // Calculating weight burned within the block.
             initial_gas.saturating_sub(GasAllowanceOf::<T>::get())
-        }
-    }
-
-    impl<T: Config> common::PaymentProvider<T::AccountId> for Pallet<T>
-    where
-        T::AccountId: Origin,
-    {
-        type Balance = BalanceOf<T>;
-
-        fn withhold_reserved(
-            source: H256,
-            dest: &T::AccountId,
-            amount: Self::Balance,
-        ) -> Result<(), DispatchError> {
-            let leftover = CurrencyOf::<T>::repatriate_reserved(
-                &<T::AccountId as Origin>::from_origin(source),
-                dest,
-                amount,
-                BalanceStatus::Free,
-            )?;
-
-            if !leftover.is_zero() {
-                log::debug!(
-                    target: "essential",
-                    "Reserved funds not fully repatriated from {} to 0x{:?} : amount = {:?}, leftover = {:?}",
-                    source,
-                    dest,
-                    amount,
-                    leftover,
-                );
-            }
-
-            Ok(())
         }
     }
 }
