@@ -23,8 +23,11 @@ derive_more = { workspace = true, features = ["add", "add_assign", "display", "m
 env_logger.workspace = true
 path-clean.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
+scale-info.workspace = true
 gear-wasm-instrument.workspace = true
+gmeta.workspace = true
 
 [dev-dependencies]
 demo-piggy-bank.workspace = true
 demo-futures-unordered.workspace = true
+demo-meta-io.workspace = true

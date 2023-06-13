@@ -24,6 +24,8 @@ use crate::{
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
     RENT_COST, RESERVATION_COST, RESERVE_FOR, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
 };
+use codec::{Decode, Encode};
+use core::panic;
 use core_processor::{
     common::*,
     configs::{BlockConfig, BlockInfo, PageCosts, TESTS_MAX_PAGES_NUMBER},
@@ -43,6 +45,7 @@ use gear_core::{
 };
 use gear_core_errors::{SimpleExecutionError, SimpleReplyError, SimpleSignalError};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+use gmeta::{MetaType, MetawasmData, PortableRegistry, Registry, TypeInfo};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
@@ -461,12 +464,12 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn read_state_bytes_using_wasm(
+    pub(crate) fn read_state_bytes_using_wasm<E: Encode + TypeInfo + 'static>(
         &mut self,
         program_id: &ProgramId,
         fn_name: &str,
         wasm: Vec<u8>,
-        argument: Option<Vec<u8>>,
+        args: Option<E>,
     ) -> Result<Vec<u8>> {
         let mapping_code =
             Code::new_raw(wasm, 1, None, true, false).map_err(|_| TestError::Instrumentation)?;
@@ -475,8 +478,58 @@ impl ExtManager {
             .into_parts()
             .0;
 
-        // The `metawasm` macro knows how to decode this as a tuple
-        let mut mapping_code_payload = argument.unwrap_or_default();
+        let metadata =
+            core_processor::informational::execute_for_reply::<WasmiEnvironment<Ext, _>, _>(
+                "metadata".to_string(),
+                mapping_code.clone(),
+                None,
+                None,
+                None,
+                vec![],
+                u64::MAX,
+                self.block_info,
+            )
+            .map_err(TestError::ReadMetadataError)?;
+        let metadata =
+            MetawasmData::decode(&mut &*metadata).expect("fn metadata() returned incorrect data");
+
+        let func = metadata
+            .funcs
+            .get(fn_name)
+            .ok_or(TestError::ReadMetadataError(format!(
+                "{fn_name} not found in metadata"
+            )))?;
+        let mut types_registry = PortableRegistry::decode(&mut &*metadata.registry)
+            .expect("fn metadata() returned incorrect data");
+        let mapping = types_registry.retain(|id| Some(id) == func.input);
+        let func_input = func.input.map(|inp| {
+            types_registry.resolve(*mapping.get(&inp).expect("Entry not found in mapping"))
+        });
+
+        fn new_metatype<T: 'static + TypeInfo>(_: &T) -> MetaType {
+            MetaType::new::<T>()
+        }
+
+        let mut mapping_code_payload = if let Some(args) = args {
+            let mut registry = Registry::new();
+            let provided_type_id = registry.register_type(&new_metatype(&args).clone()).id;
+            let mut registry = PortableRegistry::from(registry);
+            let mapping = registry.retain(|id| id == provided_type_id);
+            let provided_type = registry.resolve(
+                *mapping
+                    .get(&provided_type_id)
+                    .expect("Entry not found in mapping"),
+            );
+
+            assert_eq!(func_input, Some(provided_type));
+
+            args.encode()
+        } else {
+            assert_eq!(func_input, None);
+
+            vec![]
+        };
+
         mapping_code_payload.append(&mut self.read_state_bytes(program_id)?);
 
         core_processor::informational::execute_for_reply::<WasmiEnvironment<Ext, _>, _>(

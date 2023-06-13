@@ -34,6 +34,7 @@ use gear_core_errors::SimpleSignalError;
 use gear_wasm_builder::optimize::{OptType, Optimizer};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
+use scale_info::TypeInfo;
 use std::{
     cell::RefCell,
     convert::TryInto,
@@ -170,6 +171,19 @@ impl From<&str> for ProgramIdWrapper {
 
         Self(bytes.into())
     }
+}
+
+#[macro_export]
+macro_rules! read_state_wasm_args {
+    () => {
+        Option::<()>::None
+    };
+    ($single:expr) => {
+        Some($single)
+    };
+    ($($multiple:expr),*) => {
+        Some(($($multiple,)*))
+    };
 }
 
 pub struct Program<'a> {
@@ -434,15 +448,43 @@ impl<'a> Program<'a> {
     /// Reads the program’s transformed state as a byte vector. The transformed
     /// state is a result of applying the `fn_name` function from the `wasm`
     /// binary with the optional `argument`.
-    pub fn read_state_bytes_using_wasm(
+    ///
+    /// # Usage
+    /// You can pass arguments as `Option<(arg1, arg2, ...)>` or by using
+    /// [`read_state_wasm_args`] macro.
+    ///
+    /// # Examples
+    ///
+    /// Read state with no arguments passed to wasm.
+    /// ```
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Option::<()>::None)?;
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, read_state_wasm_args!())?;
+    /// ```
+    ///
+    /// Read state with one arguments passed to wasm.
+    /// ```
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some(ARG_1))?;
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, read_state_wasm_args!(ARG_1))?;
+    /// ```
+    ///
+    /// Read state with multiple arguments passed to wasm.
+    /// ```
+    /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2)))?;
+    /// let _ = program.read_state_bytes_using_wasm(
+    ///     "fn_name",
+    ///     WASM,
+    ///     read_state_wasm_args!(ARG_1, ARG_2),
+    /// )?;
+    /// ```
+    pub fn read_state_bytes_using_wasm<E: Encode + TypeInfo + 'static>(
         &self,
         fn_name: &str,
         wasm: Vec<u8>,
-        argument: Option<Vec<u8>>,
+        args: Option<E>,
     ) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
-            .read_state_bytes_using_wasm(&self.id, fn_name, wasm, argument)
+            .read_state_bytes_using_wasm(&self.id, fn_name, wasm, args)
     }
 
     /// Reads and decodes the program's state .
@@ -454,15 +496,41 @@ impl<'a> Program<'a> {
     /// Reads and decodes the program’s transformed state. The transformed state
     /// is a result of applying the `fn_name` function from the `wasm`
     /// binary with the optional `argument`.
-    pub fn read_state_using_wasm<E: Encode, D: Decode>(
+    ///
+    /// # Usage
+    /// You can pass arguments as `Option<(arg1, arg2, ...)>` or by using
+    /// [`read_state_wasm_args`] macro.
+    ///
+    /// # Examples
+    ///
+    /// Read state with no arguments passed to wasm.
+    /// ```
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, Option::<()>::None)?;
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, read_state_wasm_args!())?;
+    /// ```
+    ///
+    /// Read state with one arguments passed to wasm.
+    /// ```
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, Some(ARG_1))?;
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, read_state_wasm_args!(ARG_1))?;
+    /// ```
+    ///
+    /// Read state with multiple arguments passed to wasm.
+    /// ```
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2)))?;
+    /// let _ = program.read_state_using_wasm("fn_name", WASM, read_state_wasm_args!(ARG_1, ARG_2))?;
+    /// ```
+    pub fn read_state_using_wasm<E: Encode + TypeInfo + 'static, D: Decode>(
         &self,
         fn_name: &str,
         wasm: Vec<u8>,
         argument: Option<E>,
     ) -> Result<D> {
-        let argument_bytes = argument.map(|arg| arg.encode());
-        let state_bytes = self.read_state_bytes_using_wasm(fn_name, wasm, argument_bytes)?;
-        D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
+        let res = self
+            .manager
+            .borrow_mut()
+            .read_state_bytes_using_wasm(&self.id, fn_name, wasm, argument)?;
+        D::decode(&mut &*res).map_err(Into::into)
     }
 
     pub fn mint(&mut self, value: Balance) {

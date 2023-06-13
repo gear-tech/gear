@@ -4539,6 +4539,7 @@ dependencies = [
  "anyhow",
  "colored",
  "demo-futures-unordered",
+ "demo-meta-io",
  "demo-piggy-bank",
  "derive_more",
  "env_logger",
@@ -4550,11 +4551,13 @@ dependencies = [
  "gear-core-processor",
  "gear-wasm-builder",
  "gear-wasm-instrument",
+ "gmeta",
  "hex",
  "log",
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+ "scale-info",
 ]
 
 [[package]]
