@@ -421,24 +421,3 @@ where
         })
     }
 }
-
-#[test]
-fn i32_to_u32_conversion() {
-    use std::convert::TryFrom;
-
-    let i32_var: i32 = 5;
-    let u32_var: u32 = 5;
-
-    assert_eq!(i32_var.to_le_bytes(), u32_var.to_le_bytes());
-    assert_eq!(i32_var as u32, u32_var);
-
-    let i32_overflow: u32 = u32::try_from(i32::MAX).unwrap() + 1;
-
-    let i32_overflowed: i32 = i32_overflow as i32;
-
-    assert!(u32::try_from(i32_overflowed).is_err());
-
-    let converted: u32 = i32_overflowed as u32;
-
-    assert_eq!(i32_overflow, converted)
-}
