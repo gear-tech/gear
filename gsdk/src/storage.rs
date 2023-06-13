@@ -368,7 +368,7 @@ pub(crate) fn storage_type_id(
         .storage()
         .ok_or(anyhow!("Storage {} not found", address.pallet_name()))?
         .entry_by_name(address.entry_name())
-        .ok_or(anyhow!("entry {} not found", address.entry_name()))?
+        .ok_or(anyhow!("Entry {} not found", address.entry_name()))?
         .entry_type();
 
     let storage_type_id = match storage_type {
