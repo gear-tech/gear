@@ -763,7 +763,7 @@ impl EnvExt for Ext {
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error> {
         let amount = self.context.gas_reserver.unreserve(id)?;
 
-        // This statement increases `"eft" counter, but do not affect "burned" counter,
+        // This statement is like an op that increases `"eft" counter, but do not affect "burned" counter,
         // because we don't actually refund, we just rise "left" counter during unreserve
         // and it won't affect gas allowance counter because we don't make any actual calculations
         // TODO: uncomment when unreserving in current message features is discussed
