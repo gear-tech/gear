@@ -54,17 +54,17 @@ async fn main() {
         Command::SleepFor(duration) => {
             msg::send(
                 msg::source(),
-                format!("Before the delay at block: {}", exec::block_height()),
+                format!("Before the sleep at block: {}", exec::block_height()),
                 0,
             )
-            .expect("Failed to send before the delay");
+            .expect("Failed to send before the sleep");
             exec::sleep_for(duration).await;
             msg::send(
                 msg::source(),
-                format!("After the delay at block: {}", exec::block_height()),
+                format!("After the sleep at block: {}", exec::block_height()),
                 0,
             )
-            .expect("Failed to reply after the delay");
+            .expect("Failed to send after the sleep");
         }
         Command::WakeUp(msg_id) => {
             exec::wake(msg_id.into()).expect("Failed to wake up the message");

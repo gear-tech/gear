@@ -8051,26 +8051,26 @@ fn async_sleep_for() {
             BlockGasLimitOf::<Test>::get(),
             0,
         )
-        .expect("Failed to send the DelayFor message");
-        let delay_for_msg_id = get_last_message_id();
-        let delay_for_block_number = System::block_number() + 1;
+        .expect("Failed to send the SleepFor message");
+        let sleep_for_msg_id = get_last_message_id();
+        let sleep_for_block_number = System::block_number() + 1;
         run_to_next_block(None);
 
-        // Assert the program replied with a message before the delay.
+        // Assert the program replied with a message before the sleep.
         // The message payload is a number of the block the program received
-        // the DelayFor message in.
+        // the SleepFor message in.
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
         let waiter_reply = <String>::decode(&mut get_last_mail(USER_1).payload())
             .expect("Failed to decode Waiter reply");
         assert_eq!(
             waiter_reply,
-            format!("Before the delay at block: {}", delay_for_block_number)
+            format!("Before the sleep at block: {}", sleep_for_block_number)
         );
 
-        // Assert the DelayFor message is in the waitlist.
+        // Assert the SleepFor message is in the waitlist.
         assert!(WaitlistOf::<Test>::contains(
             &waiter_prog_id,
-            &delay_for_msg_id
+            &sleep_for_msg_id
         ));
 
         // Block 4
@@ -8078,7 +8078,7 @@ fn async_sleep_for() {
         Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             waiter_prog_id,
-            WaiterCommand::WakeUp(delay_for_msg_id.into()).encode(),
+            WaiterCommand::WakeUp(sleep_for_msg_id.into()).encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
         )
@@ -8088,34 +8088,34 @@ fn async_sleep_for() {
         // Assert there are no any replies yet.
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
 
-        // Assert the DelayFor message is still in the waitlist.
+        // Assert the SleepFor message is still in the waitlist.
         assert!(WaitlistOf::<Test>::contains(
             &waiter_prog_id,
-            &delay_for_msg_id
+            &sleep_for_msg_id
         ));
 
         // Block 5
         MailboxOf::<Test>::clear();
         run_to_next_block(None);
 
-        // Assert the program replied with a message after the delay.
+        // Assert the program replied with a message after the sleep.
         // The message payload is a number of the block the program
-        // exited the dealy, i.e. delay_for_block_number + DELAY_FOR_BLOCKS.
+        // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
         let waiter_reply = <String>::decode(&mut get_last_mail(USER_1).payload())
             .expect("Failed to decode Waiter reply");
         assert_eq!(
             waiter_reply,
             format!(
-                "After the delay at block: {}",
-                delay_for_block_number + SLEEP_FOR_BLOCKS
+                "After the sleep at block: {}",
+                sleep_for_block_number + SLEEP_FOR_BLOCKS
             )
         );
 
-        // Assert the DelayFor message is no longer in the waitlist.
+        // Assert the SleepFor message is no longer in the waitlist.
         assert!(!WaitlistOf::<Test>::contains(
             &waiter_prog_id,
-            &delay_for_msg_id
+            &sleep_for_msg_id
         ));
     });
 }
