@@ -709,7 +709,7 @@ fn pseudo_duplicate_wake() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let (_init_mid, constructor) = init_constructor(Scheme::empty());
+        let (_init_msg_id, constructor) = init_constructor(Scheme::empty());
 
         let execute = |calls: Calls| {
             assert_ok!(Gear::send_message(
@@ -719,25 +719,24 @@ fn pseudo_duplicate_wake() {
                 BlockGasLimitOf::<Test>::get(),
                 0,
             ));
-            let mid = get_last_message_id();
+            let msg_id = get_last_message_id();
             run_to_next_block(None);
 
-            mid
+            msg_id
         };
 
         // message wakes some message id and waits
-        let waited_mid = execute(Calls::builder().wake([0u8; 32]).wait());
-        let waited_mid_bytes: [u8; 32] = waited_mid.into();
+        let waited_msg_id = execute(Calls::builder().wake([0u8; 32]).wait());
 
         assert_last_dequeued(1);
-        assert!(WaitlistOf::<Test>::contains(&constructor, &waited_mid));
+        assert!(WaitlistOf::<Test>::contains(&constructor, &waited_msg_id));
 
         // message B wakes message A
         // message A results in waiting again
-        execute(Calls::builder().wake(waited_mid_bytes));
+        execute(Calls::builder().wake(<[u8; 32]>::from(waited_msg_id)));
 
         assert_last_dequeued(2);
-        assert!(WaitlistOf::<Test>::contains(&constructor, &waited_mid));
+        assert!(WaitlistOf::<Test>::contains(&constructor, &waited_msg_id));
     });
 }
 
