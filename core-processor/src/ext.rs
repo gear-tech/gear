@@ -43,7 +43,7 @@ use gear_core::{
         ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
         ReplyPacket, StatusCode,
     },
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, PageError, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::{

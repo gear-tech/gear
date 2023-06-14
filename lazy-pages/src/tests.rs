@@ -20,7 +20,7 @@ use crate::{
     common::Error, init_with_handler, mprotect, signal::ExceptionInfo, LazyPagesVersion,
     UserSignalHandler,
 };
-use gear_core::pages::{GearPage, PageU32Size, WasmPage};
+use gear_core::pages::{GearPage, PageDynSize, PageU32Size, WasmPage};
 use region::Protection;
 
 fn handler_tester<F: FnOnce()>(f: F) {
@@ -100,8 +100,8 @@ fn test_mprotect_pages() {
     const NEW_VALUE: u8 = 100;
 
     let page_size = 0x4000;
-    let new_page = |p: u32| GearPageNumber::new(p, &page_size).unwrap();
-    let offset = |p: GearPageNumber| p.offset(&page_size) as usize;
+    let new_page = |p: u32| GearPage::new(p, &page_size).unwrap();
+    let offset = |p: GearPage| p.offset(&page_size) as usize;
 
     struct TestHandler;
 
