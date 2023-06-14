@@ -46,7 +46,7 @@ mod wasm {
         if payload == b"async" {
             unsafe { COUNTER += 1 };
 
-            let _ = msg::send_bytes_for_reply(unsafe { DESTINATION }, "PING", 0)
+            let _ = msg::send_bytes_for_reply(unsafe { DESTINATION }, "PING", 0, 0)
                 .expect("Failed to send message")
                 .await
                 .expect("Received error reply");

@@ -9,15 +9,12 @@ license.workspace = true
 gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
 gear-backend-common.workspace = true
-gear-backend-codegen.workspace = true
-gsys ={ workspace = true }
-
 gear-wasm-instrument.workspace = true
-wasmi.workspace = true
-log.workspace = true
-derive_more.workspace = true
+
 codec.workspace = true
-blake2-rfc.workspace = true
+derive_more.workspace = true
+log.workspace = true
+wasmi.workspace = true
 
 [dev-dependencies]
 gear-backend-common = { workspace = true, features = ["mock"] }

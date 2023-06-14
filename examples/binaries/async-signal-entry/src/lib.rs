@@ -45,7 +45,7 @@ mod wasm {
         match action {
             InitAction::None => {}
             InitAction::Panic => {
-                let _bytes = msg::send_for_reply(msg::source(), b"init", 0)
+                let _bytes = msg::send_for_reply(msg::source(), b"init", 0, 0)
                     .unwrap()
                     .await
                     .unwrap();
