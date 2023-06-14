@@ -3447,6 +3447,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+ "which",
  "whoami",
 ]
 

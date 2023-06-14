@@ -51,6 +51,9 @@ demo-new-meta.workspace = true
 demo-waiter.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
 
+[build-dependencies]
+which.workspace = true
+
 [features]
 node-key = [ "libp2p" ]
 vara-testing = [ ]

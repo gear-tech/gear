@@ -146,6 +146,7 @@ wat = "1.0.61"
 wabt = "0.10.0"
 wasmi = { version = "0.14.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
+which = "4.4.0"
 winapi = "0.3.9"
 paste = "1.0"
 
@@ -386,7 +387,6 @@ trybuild = "1"                                                            # gstd
 wasm-opt = "0.111.0"                                                      # utils/wasm-builder
 wasmprinter = "0.2"                                                       # utils/wasm-gen
 whoami = "1.4.0"                                                          # gcli
-which = "4.4.0"                                                           # utils/wasm-builder
 fail = "0.5"                                                              # gear-common
 etc = "0.1.16"                                                            # gcli
 
