@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::paused_program_storage::SessionId;
 use frame_support::{
     codec::{self, Decode, Encode, MaxEncodedLen},
     scale_info::{self, TypeInfo},
@@ -80,7 +81,7 @@ pub enum ScheduledTask<AccountId> {
 
     /// Remove resume program session.
     #[codec(index = 9)]
-    RemoveResumeSession(u64),
+    RemoveResumeSession(SessionId),
 }
 
 impl<AccountId> ScheduledTask<AccountId> {
@@ -141,7 +142,7 @@ pub trait TaskHandler<AccountId> {
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId);
 
     /// Remove data created by resume program session.
-    fn remove_resume_session(&mut self, session_id: u64);
+    fn remove_resume_session(&mut self, session_id: SessionId);
 }
 
 #[test]

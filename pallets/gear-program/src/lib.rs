@@ -145,7 +145,10 @@ pub(crate) type TaskPoolOf<T> =
 pub mod pallet {
     use super::*;
     use common::{
-        paused_program_storage::ResumeSession, scheduler::*, storage::*, CodeMetadata, Program,
+        paused_program_storage::{ResumeSession, SessionId},
+        scheduler::*,
+        storage::*,
+        CodeMetadata, Program,
     };
     #[cfg(feature = "debug-mode")]
     use frame_support::storage::PrefixIterator;
@@ -183,7 +186,7 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         DuplicateItem,
-        ItemNotFound,
+        ProgramNotFound,
         NotActiveProgram,
         CannotFindDataForPage,
         ResumeSessionNotFound,
@@ -199,7 +202,7 @@ pub mod pallet {
         }
 
         fn item_not_found() -> Self {
-            Self::ItemNotFound
+            Self::ProgramNotFound
         }
 
         fn not_active_program() -> Self {
@@ -323,35 +326,39 @@ pub mod pallet {
     );
 
     #[pallet::storage]
-    pub(crate) type ResumeSessionsNonce<T> = StorageValue<_, u128>;
+    pub(crate) type ResumeSessionsNonce<T> = StorageValue<_, SessionId>;
 
     common::wrap_storage_value!(
         storage: ResumeSessionsNonce,
         name: ResumeSessionsNonceWrap,
-        value: u128
+        value: SessionId
     );
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type ResumeSessions<T: Config> =
-        StorageMap<_, Identity, u64, ResumeSession<BlockNumberFor<T>>>;
+    pub(crate) type ResumeSessions<T: Config> = StorageMap<
+        _,
+        Identity,
+        SessionId,
+        ResumeSession<<T as frame_system::Config>::AccountId, BlockNumberFor<T>>,
+    >;
 
     common::wrap_storage_map!(
         storage: ResumeSessions,
         name: ResumeSessionsWrap,
-        key: u64,
-        value: ResumeSession<BlockNumberFor<T>>
+        key: SessionId,
+        value: ResumeSession<<T as frame_system::Config>::AccountId, BlockNumberFor<T>>
     );
 
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type SessionMemoryPages<T: Config> =
-        StorageMap<_, Identity, u64, Vec<(GearPage, PageBuf)>>;
+        StorageMap<_, Identity, SessionId, Vec<(GearPage, PageBuf)>>;
 
     common::wrap_storage_map!(
         storage: SessionMemoryPages,
         name: SessionMemoryPagesWrap,
-        key: u64,
+        key: SessionId,
         value: Vec<(GearPage, PageBuf)>
     );
 
@@ -380,6 +387,7 @@ pub mod pallet {
         type PausedProgramMap = PausedProgramStorageWrap<T>;
         type CodeStorage = Self;
         type NonceStorage = ResumeSessionsNonceWrap<T>;
+        type AccountId = <T as frame_system::Config>::AccountId;
         type ResumeSessions = ResumeSessionsWrap<T>;
         type SessionMemoryPages = SessionMemoryPagesWrap<T>;
     }
@@ -410,7 +418,7 @@ pub mod pallet {
         }
     }
 
-    impl<T: Config> AppendMapStorage<(GearPage, PageBuf), u64, Vec<(GearPage, PageBuf)>>
+    impl<T: Config> AppendMapStorage<(GearPage, PageBuf), SessionId, Vec<(GearPage, PageBuf)>>
         for SessionMemoryPagesWrap<T>
     {
         fn append<EncodeLikeKey, EncodeLikeItem>(key: EncodeLikeKey, item: EncodeLikeItem)

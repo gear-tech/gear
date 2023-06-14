@@ -65,6 +65,7 @@ use ::alloc::{
 };
 use common::{
     self, benchmarking,
+    paused_program_storage::SessionId,
     storage::{Counter, *},
     ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, PausedProgramStorage,
     ProgramStorage, ReservableTree,
@@ -237,6 +238,46 @@ where
         exec.memory_pages,
     )
     .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
+}
+
+fn resume_session_prepare<T: Config>(
+    c: u32,
+    program_id: ProgramId,
+    program: ActiveProgram<T::BlockNumber>,
+    caller: T::AccountId,
+    memory_page: &PageBuf,
+) -> (SessionId, Vec<(GearPage, PageBuf)>)
+where
+    T::AccountId: Origin,
+{
+    ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
+
+    Gear::<T>::resume_session_init(
+        RawOrigin::Signed(caller).into(),
+        program_id,
+        program.allocations,
+        CodeId::from_origin(program.code_hash),
+    )
+    .expect("failed to start resume session");
+
+    let event_record = SystemPallet::<T>::events().pop().unwrap();
+    let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
+    let event: Result<Event<T>, _> = event.try_into();
+    let session_id = match event {
+        Ok(Event::ProgramResumeSessionStarted { session_id, .. }) => session_id,
+        _ => unreachable!(),
+    };
+
+    let memory_pages = {
+        let mut pages = Vec::with_capacity(c as usize);
+        for i in 0..c {
+            pages.push((GearPage::from(i as u16), memory_page.clone()));
+        }
+
+        pages
+    };
+
+    (session_id, memory_pages)
 }
 
 /// An instantiated and deployed program.
@@ -467,9 +508,13 @@ benchmarks! {
             .try_into()
             .expect("program should be active");
         ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
-    }: _(RawOrigin::Signed(caller.clone()), program_id, program.allocations, program.code_hash)
+    }: _(RawOrigin::Signed(caller.clone()), program_id, program.allocations, CodeId::from_origin(program.code_hash))
     verify {
         assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
+        assert!(
+            !Gear::<T>::is_active(program_id)
+        );
+        assert!(!ProgramStorageOf::<T>::program_exists(program_id));
     }
 
     resume_session_push {
@@ -488,20 +533,6 @@ benchmarks! {
             .expect("program should exist")
             .try_into()
             .expect("program should be active");
-        ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
-
-        Gear::<T>::resume_session_init(RawOrigin::Signed(caller.clone()).into(), program_id, program.allocations, program.code_hash).expect("failed to start resume session");
-
-        let event_record = SystemPallet::<T>::events().pop().unwrap();
-        let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
-        let event: Result<Event<T>, _> = event.try_into();
-        let session_id = match event {
-            Ok(Event::ProgramResumeSessionStarted {
-                session_id,
-                ..
-            }) => session_id,
-            _ => unreachable!(),
-        };
 
         let memory_page = {
             let mut page = PageBuf::new_zeroed();
@@ -509,19 +540,18 @@ benchmarks! {
 
             page
         };
-        let memory_pages = {
-            let mut pages = Vec::with_capacity(c as usize);
-            for i in 0 .. c {
-                pages.push((GearPage::from(i as u16), memory_page.clone()));
-            }
 
-            pages
-        };
+        let (session_id, memory_pages) = resume_session_prepare::<T>(c, program_id, program, caller.clone(), &memory_page);
     }: _(RawOrigin::Signed(caller.clone()), session_id, memory_pages)
     verify {
         assert!(
             matches!(ProgramStorageOf::<T>::resume_session_page_count(&session_id), Some(count) if count == c)
         );
+        assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
+        assert!(
+            !Gear::<T>::is_active(program_id)
+        );
+        assert!(!ProgramStorageOf::<T>::program_exists(program_id));
     }
 
     resume_session_commit {
@@ -555,36 +585,17 @@ benchmarks! {
 
             program.clone()
         }).expect("program should exist");
-        ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
 
-        Gear::<T>::resume_session_init(RawOrigin::Signed(caller.clone()).into(), program_id, program.allocations, program.code_hash).expect("failed to start resume session");
-
-        let event_record = SystemPallet::<T>::events().pop().unwrap();
-        let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
-        let event: Result<Event<T>, _> = event.try_into();
-        let session_id = match event {
-            Ok(Event::ProgramResumeSessionStarted {
-                session_id,
-                ..
-            }) => session_id,
-            _ => unreachable!(),
-        };
-
-        let memory_pages = {
-            let mut pages = Vec::with_capacity(c as usize);
-            for i in 0 .. c {
-                pages.push((GearPage::from(i as u16), memory_page.clone()));
-            }
-
-            pages
-        };
+        let (session_id, memory_pages) = resume_session_prepare::<T>(c, program_id, program, caller.clone(), &memory_page);
 
         Gear::<T>::resume_session_push(RawOrigin::Signed(caller.clone()).into(), session_id, memory_pages).expect("failed to append memory pages");
     }: _(RawOrigin::Signed(caller.clone()), session_id, ResumeMinimalPeriodOf::<T>::get())
     verify {
+        assert!(ProgramStorageOf::<T>::program_exists(program_id));
         assert!(
             Gear::<T>::is_active(program_id)
         );
+        assert!(!ProgramStorageOf::<T>::paused_program_exists(&program_id));
     }
 
     // This constructs a program that is maximal expensive to instrument.

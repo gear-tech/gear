@@ -22,12 +22,12 @@ use gear_core::{
     code::MAX_WASM_PAGE_COUNT,
     memory::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
 };
-use sp_arithmetic::traits::UniqueSaturatedInto;
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_io::hashing;
-use sp_runtime::AccountId32;
 
 const SPLIT_COUNT: u16 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 * MAX_WASM_PAGE_COUNT / 2;
+
+pub type SessionId = u128;
 
 // The entity helps to calculate hash of program's data and memory pages.
 // Its structure designed that way to avoid memory allocation of more than MAX_POSSIBLE_ALLOCATION bytes.
@@ -73,19 +73,19 @@ impl Item {
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub struct ResumeSession<BlockNumber> {
+pub struct ResumeSession<AccountId, BlockNumber> {
     page_count: u32,
-    user: AccountId32,
+    user: AccountId,
     program_id: ProgramId,
     allocations: BTreeSet<WasmPage>,
-    code_hash: H256,
-    start_block: BlockNumber,
+    code_hash: CodeId,
+    end_block: BlockNumber,
 }
 
 /// The entity defines result of the [`PausedProgramStorage::resume_session_commit()`] method.
 pub struct ResumeResult<BlockNumber> {
-    /// The session start block number.
-    pub start_block: BlockNumber,
+    /// The session end block number.
+    pub end_block: BlockNumber,
     /// If a program resumed successfully then this field contains
     /// a tuple with id and expiration block of the program.
     pub info: Option<(ProgramId, BlockNumber)>,
@@ -95,9 +95,17 @@ pub struct ResumeResult<BlockNumber> {
 pub trait PausedProgramStorage: super::ProgramStorage {
     type PausedProgramMap: MapStorage<Key = ProgramId, Value = (Self::BlockNumber, H256)>;
     type CodeStorage: super::CodeStorage;
-    type NonceStorage: ValueStorage<Value = u128>;
-    type ResumeSessions: MapStorage<Key = u64, Value = ResumeSession<Self::BlockNumber>>;
-    type SessionMemoryPages: AppendMapStorage<(GearPage, PageBuf), u64, Vec<(GearPage, PageBuf)>>;
+    type NonceStorage: ValueStorage<Value = SessionId>;
+    type AccountId: Eq + PartialEq;
+    type ResumeSessions: MapStorage<
+        Key = SessionId,
+        Value = ResumeSession<Self::AccountId, Self::BlockNumber>,
+    >;
+    type SessionMemoryPages: AppendMapStorage<
+        (GearPage, PageBuf),
+        SessionId,
+        Vec<(GearPage, PageBuf)>,
+    >;
 
     /// Attempt to remove all items from all the associated maps.
     fn reset() {
@@ -157,17 +165,17 @@ pub trait PausedProgramStorage: super::ProgramStorage {
 
     /// Create a session for program resume. Returns the session id on success.
     fn resume_session_init(
-        user: AccountId32,
-        start_block: Self::BlockNumber,
+        user: Self::AccountId,
+        end_block: Self::BlockNumber,
         program_id: ProgramId,
         allocations: BTreeSet<WasmPage>,
-        code_hash: H256,
-    ) -> Result<u64, Self::Error> {
+        code_hash: CodeId,
+    ) -> Result<SessionId, Self::Error> {
         if !Self::paused_program_exists(&program_id) {
             return Err(Self::InternalError::item_not_found().into());
         }
 
-        let nonce = Self::NonceStorage::mutate(|nonce| {
+        let session_id = Self::NonceStorage::mutate(|nonce| {
             let nonce = nonce.get_or_insert(0);
             let result = *nonce;
             *nonce = result.wrapping_add(1);
@@ -175,10 +183,6 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             result
         });
 
-        let session_id = {
-            let start_block: u128 = start_block.unique_saturated_into();
-            u64::from_le_bytes((program_id, start_block, nonce).using_encoded(hashing::twox_64))
-        };
         Self::ResumeSessions::mutate(session_id, |session| {
             if session.is_some() {
                 return Err(Self::InternalError::duplicate_resume_session().into());
@@ -190,7 +194,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 program_id,
                 allocations,
                 code_hash,
-                start_block,
+                end_block,
             });
 
             Ok(session_id)
@@ -198,14 +202,14 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     }
 
     /// Get the count of uploaded memory pages of the specified session.
-    fn resume_session_page_count(session_id: &u64) -> Option<u32> {
+    fn resume_session_page_count(session_id: &SessionId) -> Option<u32> {
         Self::ResumeSessions::get(session_id).map(|session| session.page_count)
     }
 
     /// Append program memory pages to the session data.
     fn resume_session_push(
-        session_id: u64,
-        user: AccountId32,
+        session_id: SessionId,
+        user: Self::AccountId,
         memory_pages: Vec<(GearPage, PageBuf)>,
     ) -> Result<(), Self::Error> {
         Self::ResumeSessions::mutate(session_id, |maybe_session| {
@@ -226,8 +230,8 @@ pub trait PausedProgramStorage: super::ProgramStorage {
 
     /// Finish program resume session with the given key `session_id`.
     fn resume_session_commit(
-        session_id: u64,
-        user: AccountId32,
+        session_id: SessionId,
+        user: Self::AccountId,
         expiration_block: Self::BlockNumber,
     ) -> Result<ResumeResult<Self::BlockNumber>, Self::Error> {
         Self::ResumeSessions::mutate(session_id, |maybe_session| {
@@ -239,7 +243,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
 
             let Some((_block_number, hash)) = Self::PausedProgramMap::get(&session.program_id) else {
                 let result = ResumeResult {
-                    start_block: session.start_block,
+                    end_block: session.end_block,
                     info: None,
                 };
 
@@ -250,22 +254,27 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 return Ok(result)
             };
 
+            if !Self::CodeStorage::exists(session.code_hash) {
+                log::debug!(
+                    "Failed to find the code {} to resume program",
+                    session.code_hash
+                );
+
+                return Err(Self::InternalError::program_code_not_found().into());
+            }
+
             let memory_pages: MemoryMap = Self::SessionMemoryPages::get(&session_id)
                 .unwrap_or_default()
                 .into_iter()
                 .collect();
-            let code_hash = session.code_hash;
+            let code_hash = session.code_hash.into_origin();
             let item = Item::from((session.allocations.clone(), code_hash, memory_pages));
             if item.hash() != hash {
                 return Err(Self::InternalError::resume_session_failed().into());
             }
 
-            let code =
-                Self::CodeStorage::get_code(CodeId::from_origin(code_hash)).ok_or_else(|| {
-                    log::debug!("Failed to find the code {code_hash} to resume program");
-
-                    Self::InternalError::program_code_not_found()
-                })?;
+            let code = Self::CodeStorage::get_code(session.code_hash)
+                .expect("code existence checked before");
             let Item {
                 data: (allocations, _, memory_pages),
                 remaining_pages,
@@ -287,7 +296,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
 
             let program_id = session.program_id;
             let result = ResumeResult {
-                start_block: session.start_block,
+                end_block: session.end_block,
                 info: Some((program_id, program.expiration_block)),
             };
 
@@ -312,7 +321,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     }
 
     /// Remove all data created by a call to `resume_session_init`.
-    fn remove_resume_session(session_id: u64) -> Result<(), Self::Error> {
+    fn remove_resume_session(session_id: SessionId) -> Result<(), Self::Error> {
         Self::ResumeSessions::mutate(session_id, |maybe_session| match maybe_session.take() {
             Some(_) => {
                 Self::SessionMemoryPages::remove(session_id);

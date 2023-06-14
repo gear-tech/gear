@@ -19,7 +19,6 @@
 use super::*;
 use crate::storage::{AppendMapStorage, DoubleMapStorage, MapStorage};
 use core::fmt::Debug;
-use sp_arithmetic::traits::UniqueSaturatedInto;
 
 /// Trait for ProgramStorage errors.
 ///
@@ -59,7 +58,7 @@ pub type MemoryMap = BTreeMap<GearPage, PageBuf>;
 pub trait ProgramStorage {
     type InternalError: Error;
     type Error: From<Self::InternalError> + Debug;
-    type BlockNumber: Copy + Saturating + UniqueSaturatedInto<u128>;
+    type BlockNumber: Copy + Saturating;
 
     type ProgramMap: MapStorage<Key = ProgramId, Value = Program<Self::BlockNumber>>;
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;

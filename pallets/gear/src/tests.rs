@@ -40,10 +40,10 @@ use crate::{
         USER_2,
         USER_3,
     },
-    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasBalanceOf, GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, QueueOf, RentCostPerBlockOf,
-    RentFreePeriodOf, ResumeMinimalPeriodOf, ResumeSessionDurationOf, Schedule, TaskPoolOf,
-    WaitlistOf,
+    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, Error, Event,
+    GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, QueueOf,
+    RentCostPerBlockOf, RentFreePeriodOf, ReservableCurrency, ResumeMinimalPeriodOf,
+    ResumeSessionDurationOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
@@ -2311,12 +2311,12 @@ fn upload_program_expected_failure() {
                 DEFAULT_GAS_LIMIT,
                 balance + 1
             ),
-            Error::<Test>::InsufficientBalanceForReserve
+            Error::<Test>::InsufficientBalance
         );
 
         assert_noop!(
             upload_program_default(LOW_BALANCE_USER, ProgramCodeKind::Default),
-            Error::<Test>::InsufficientBalanceForReserve
+            Error::<Test>::InsufficientBalance
         );
 
         // Gas limit is too high
@@ -2571,7 +2571,7 @@ fn send_message_expected_failure() {
 
         assert_noop!(
             call_default_message(program_id).dispatch(RuntimeOrigin::signed(LOW_BALANCE_USER)),
-            Error::<Test>::InsufficientBalanceForReserve
+            Error::<Test>::InsufficientBalance
         );
 
         let low_balance_user_balance = Balances::free_balance(LOW_BALANCE_USER);
@@ -5880,6 +5880,10 @@ fn resume_session_init_works() {
 
         run_to_next_block(None);
 
+        assert!(!ProgramStorageOf::<Test>::paused_program_exists(
+            &program_id
+        ));
+
         // attempt to resume an active program should fail
         assert_err!(
             Gear::resume_session_init(
@@ -5888,7 +5892,7 @@ fn resume_session_init_works() {
                 Default::default(),
                 Default::default(),
             ),
-            pallet_gear_program::Error::<Test>::ItemNotFound,
+            pallet_gear_program::Error::<Test>::ProgramNotFound,
         );
 
         let program = ProgramStorageOf::<Test>::get_program(program_id)
@@ -5910,22 +5914,12 @@ fn resume_session_init_works() {
             Default::default(),
         ));
 
-        let (session_id, session_end_block) = match get_last_event() {
-            MockRuntimeEvent::Gear(Event::ProgramResumeSessionStarted {
-                session_id,
-                program_id: resume_program_id,
-                session_end_block,
-            }) => {
-                assert_eq!(resume_program_id, program_id);
-                assert_eq!(
-                    session_end_block,
-                    Gear::block_number().saturating_add(ResumeSessionDurationOf::<Test>::get())
-                );
-
-                (session_id, session_end_block)
-            }
-            _ => unreachable!(),
-        };
+        let (session_id, session_end_block, resume_program_id, _) = get_started_session();
+        assert_eq!(resume_program_id, program_id);
+        assert_eq!(
+            session_end_block,
+            Gear::block_number().saturating_add(ResumeSessionDurationOf::<Test>::get())
+        );
 
         assert!(TaskPoolOf::<Test>::contains(
             &session_end_block,
@@ -6017,14 +6011,7 @@ fn resume_session_push_works() {
             Default::default(),
         ));
 
-        let (session_id, session_end_block) = match get_last_event() {
-            MockRuntimeEvent::Gear(Event::ProgramResumeSessionStarted {
-                session_id,
-                session_end_block,
-                ..
-            }) => (session_id, session_end_block),
-            _ => unreachable!(),
-        };
+        let (session_id, session_end_block, ..) = get_started_session();
 
         // another user may not append memory pages to the session
         assert_err!(
@@ -6132,34 +6119,21 @@ fn resume_program_works() {
             RuntimeOrigin::signed(USER_3),
             program_id,
             program.allocations.clone(),
-            program.code_hash,
+            CodeId::from_origin(program.code_hash),
         ));
 
-        let (session_id, session_end_block) = match get_last_event() {
-            MockRuntimeEvent::Gear(Event::ProgramResumeSessionStarted {
-                session_id,
-                session_end_block,
-                ..
-            }) => (session_id, session_end_block),
-            _ => unreachable!(),
-        };
+        let (session_id, session_end_block, ..) = get_started_session();
 
         // start another session
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_2),
             program_id,
             program.allocations,
-            program.code_hash,
+            CodeId::from_origin(program.code_hash),
         ));
 
-        let (session_id_2, session_end_block_2) = match get_last_event() {
-            MockRuntimeEvent::Gear(Event::ProgramResumeSessionStarted {
-                session_id,
-                session_end_block,
-                ..
-            }) => (session_id, session_end_block),
-            _ => unreachable!(),
-        };
+        let (session_id_2, session_end_block_2, ..) = get_started_session();
+        assert_ne!(session_id, session_id_2);
 
         assert_ok!(Gear::resume_session_push(
             RuntimeOrigin::signed(USER_3),
@@ -6173,7 +6147,7 @@ fn resume_program_works() {
             pallet_gear_program::Error::<Test>::NotSessionOwner,
         );
 
-        // attempt to resume for the amout of blocks that is less than the minimum should fail
+        // attempt to resume for the amount of blocks that is less than the minimum should fail
         assert_err!(
             Gear::resume_session_commit(RuntimeOrigin::signed(USER_3), session_id, 0,),
             Error::<Test>::ResumePeriodLessThanMinimal,
@@ -6194,6 +6168,18 @@ fn resume_program_works() {
             code.to_vec(),
         ));
 
+        // if user doesn't have enough funds the extrinsic should fail
+        let to_reserve = Balances::free_balance(USER_3);
+        CurrencyOf::<Test>::reserve(&USER_3, to_reserve).unwrap();
+
+        assert_err!(
+            Gear::resume_session_commit(RuntimeOrigin::signed(USER_3), session_id, block_count,),
+            Error::<Test>::InsufficientBalance,
+        );
+
+        let _ = CurrencyOf::<Test>::unreserve(&USER_3, to_reserve);
+
+        // successful execution
         let balance_before = Balances::free_balance(BLOCK_AUTHOR);
         assert_ok!(Gear::resume_session_commit(
             RuntimeOrigin::signed(USER_3),
@@ -6272,17 +6258,7 @@ fn resume_program_works() {
 
         run_to_next_block(None);
 
-        let message = System::events()
-            .into_iter()
-            .find_map(|record| {
-                let MockRuntimeEvent::Gear(event) = record.event else { return None };
-                match event {
-                    Event::UserMessageSent { message, .. } => Some(message),
-                    _ => None,
-                }
-            })
-            .expect("message to user should be sent");
-
+        let message = maybe_any_last_message().expect("message to user should be sent");
         let reply = Reply::decode(&mut message.payload()).unwrap();
         assert!(matches!(reply, Reply::List(vec) if vec == vec![(0, 1)]));
     })
@@ -6698,7 +6674,7 @@ fn pay_program_rent_extrinsic_works() {
         // attempt to pay rent for not existing program
         assert_err!(
             Gear::pay_program_rent(RuntimeOrigin::signed(USER_1), [0u8; 32].into(), block_count),
-            pallet_gear_program::Error::<Test>::ItemNotFound,
+            pallet_gear_program::Error::<Test>::ProgramNotFound,
         );
 
         // attempt to pay rent that is greater than payer's balance
@@ -6712,7 +6688,7 @@ fn pay_program_rent_extrinsic_works() {
                 program_id,
                 block_count
             ),
-            pallet::Error::<Test>::InsufficientBalanceForReserve
+            pallet::Error::<Test>::InsufficientBalance
         );
 
         // attempt to pay for u32::MAX blocks. Some value should be refunded because of the overflow.
@@ -11018,6 +10994,7 @@ mod utils {
     };
     use common::{
         event::*,
+        paused_program_storage::SessionId,
         storage::{CountedByKey, Counter, IterableByKeyMap},
         Origin, ProgramStorage,
     };
@@ -11590,6 +11567,24 @@ mod utils {
             .expect("Failed to find appropriate MessageWaited event");
 
         (message_id.unwrap(), exp.unwrap())
+    }
+
+    #[track_caller]
+    pub(super) fn get_started_session() -> (
+        SessionId,
+        BlockNumberFor<Test>,
+        ProgramId,
+        <Test as frame_system::Config>::AccountId,
+    ) {
+        match get_last_event() {
+            MockRuntimeEvent::Gear(Event::ProgramResumeSessionStarted {
+                session_id,
+                session_end_block,
+                account_id,
+                program_id,
+            }) => (session_id, session_end_block, program_id, account_id),
+            _ => unreachable!(),
+        }
     }
 
     #[track_caller]
