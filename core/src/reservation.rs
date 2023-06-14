@@ -114,8 +114,16 @@ impl GasReserver {
     pub fn unreserve(&mut self, id: ReservationId) -> Result<u64, ReservationError> {
         let state = self
             .states
-            .remove(&id)
+            .get(&id)
             .ok_or(ReservationError::InvalidReservationId)?;
+
+        if let GasReservationState::Exists { used: true, .. }
+        | GasReservationState::Created { used: true, .. } = state
+        {
+            return Err(ReservationError::InvalidReservationId);
+        }
+
+        let state = self.states.remove(&id).unwrap();
 
         let amount = match state {
             GasReservationState::Exists { amount, finish, .. } => {
@@ -327,6 +335,39 @@ mod tests {
         let mut reserver = GasReserver::new(Default::default(), 0, map, 256);
         reserver.unreserve(id).unwrap();
 
+        assert_eq!(
+            reserver.unreserve(id),
+            Err(ReservationError::InvalidReservationId)
+        );
+    }
+
+    #[test]
+    fn fresh_reserve_unreserve() {
+        let mut reserver = new_reserver();
+        let id = reserver.reserve(10_000, 5).unwrap();
+        reserver.mark_used(id).unwrap();
+        assert_eq!(
+            reserver.unreserve(id),
+            Err(ReservationError::InvalidReservationId)
+        );
+    }
+
+    #[test]
+    fn existing_reserve_unreserve() {
+        let id = ReservationId::from([0xff; 32]);
+
+        let mut map = GasReservationMap::new();
+        map.insert(
+            id,
+            GasReservationSlot {
+                amount: 1,
+                start: 1,
+                finish: 100,
+            },
+        );
+
+        let mut reserver = GasReserver::new(Default::default(), 0, map, 256);
+        reserver.mark_used(id).unwrap();
         assert_eq!(
             reserver.unreserve(id),
             Err(ReservationError::InvalidReservationId)
