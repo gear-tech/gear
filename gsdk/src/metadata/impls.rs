@@ -322,3 +322,29 @@ fn system_call_to_scale_value(call: SystemCall) -> Value {
 
     Value::unnamed_variant("System", [variant])
 }
+
+/// Convert to type.
+pub trait Convert<T> {
+    fn convert(self) -> T;
+}
+
+impl Convert<subxt::utils::AccountId32> for sp_runtime::AccountId32 {
+    fn convert(self) -> subxt::utils::AccountId32 {
+        let hash: &[u8; 32] = self.as_ref();
+        subxt::utils::AccountId32::from(*hash)
+    }
+}
+
+impl Convert<subxt::utils::MultiAddress<subxt::utils::AccountId32, ()>>
+    for sp_runtime::MultiAddress<sp_runtime::AccountId32, ()>
+{
+    fn convert(self) -> subxt::utils::MultiAddress<subxt::utils::AccountId32, ()> {
+        match self {
+            sp_runtime::MultiAddress::Address20(id) => subxt::utils::MultiAddress::Address20(id),
+            sp_runtime::MultiAddress::Address32(id) => subxt::utils::MultiAddress::Address32(id),
+            sp_runtime::MultiAddress::Id(id) => subxt::utils::MultiAddress::Id(id.convert()),
+            sp_runtime::MultiAddress::Index(index) => subxt::utils::MultiAddress::Index(index),
+            sp_runtime::MultiAddress::Raw(raw) => subxt::utils::MultiAddress::Raw(raw),
+        }
+    }
+}

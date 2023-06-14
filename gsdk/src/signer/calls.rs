@@ -435,11 +435,6 @@ impl Signer {
             let status = status?;
             self.log_status(&status);
             match status {
-                Future | Ready | Broadcast(_) | InBlock(_) => (),
-                Dropped | Invalid | Usurped(_) | FinalityTimeout(_) | Retracted(_) => {
-                    self.log_balance_spent(before).await?;
-                    return Err(status.into());
-                }
                 Finalized(b) => {
                     log::info!(
                         "Successfully submitted call {}::{} {} at {}!",
@@ -451,6 +446,10 @@ impl Signer {
 
                     self.log_balance_spent(before).await?;
                     return Ok(b);
+                }
+                _ => {
+                    self.log_balance_spent(before).await?;
+                    return Err(status.into());
                 }
             }
         }

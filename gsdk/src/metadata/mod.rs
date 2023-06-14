@@ -29,6 +29,7 @@ pub use self::{
     generated::runtime_types::runtime_types::{
         self, vara_runtime as gear_runtime, vara_runtime::RuntimeEvent as Event,
     },
+    impls::Convert,
 };
 
 pub mod system {

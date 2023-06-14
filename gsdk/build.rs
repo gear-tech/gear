@@ -15,6 +15,7 @@ const ENV_RUNTIME_WASM: &str = "RUNTIME_WASM";
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=../api-gen/src/main.rs");
     println!("cargo:rerun-if-env-changed={}", GSDK_API_GEN);
 
     // This build script should only work when building gsdk as the primary package,
@@ -84,6 +85,8 @@ fn format(stream: &[u8]) -> String {
         .to_string()
         .replace(":: subxt", "::subxt")
         .replace(" :: ", "::")
+    // .replace("::subxt::utils::MultiAddress", "sp_runtime::MultiAddress")
+    // .replace("::subxt::utils::AccountId32", "sp_runtime::AccountId32")
 }
 
 // Get the path of the compiled package.

@@ -45,7 +45,7 @@ use gsdk::{
         },
         system::Event as SystemEvent,
         utility::Event as UtilityEvent,
-        Event,
+        Convert, Event,
     },
     types, Error as GsdkError,
 };
@@ -279,7 +279,7 @@ impl GearApi {
         let src_program_reserved_gas_node_ids: Vec<types::GearGasNodeId> = src_program
             .gas_reservation_map
             .iter()
-            .map(|gr| gr.0.into())
+            .map(|gr| gr.0.clone().into())
             .collect();
 
         let src_program_reserved_gas_nodes = self
@@ -1183,7 +1183,7 @@ impl GearApi {
             .0
             .sudo_unchecked_weight(
                 RuntimeCall::Balances(BalancesCall::set_balance {
-                    who: to.into(),
+                    who: to.into().convert(),
                     new_free,
                     new_reserved,
                 }),
