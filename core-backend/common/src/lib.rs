@@ -156,8 +156,6 @@ pub enum ActorTerminationReason {
 
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
 pub enum SystemTerminationReason {
-    #[display(fmt = "{_0}")]
-    IncorrectAllocationData(IncorrectAllocationDataError),
     #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
 }

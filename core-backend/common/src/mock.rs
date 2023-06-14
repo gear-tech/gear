@@ -77,10 +77,6 @@ impl CountersOwner for MockExt {
         Ok(())
     }
 
-    fn refund_gas(&mut self, _amount: u64) -> Result<(), ChargeError> {
-        Ok(())
-    }
-
     fn gas_left(&self) -> GasLeft {
         GasLeft {
             gas: 0,

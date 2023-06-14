@@ -446,15 +446,6 @@ impl CountersOwner for Ext {
         )
     }
 
-    fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError> {
-        if self.context.gas_counter.refund(amount) == ChargeResult::Enough {
-            self.context.gas_allowance_counter.refund(amount);
-            Ok(())
-        } else {
-            Err(ChargeError::TooManyGasAdded)
-        }
-    }
-
     fn gas_left(&self) -> GasLeft {
         GasLeft {
             gas: self.context.gas_counter.left(),
@@ -772,8 +763,8 @@ impl EnvExt for Ext {
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error> {
         let amount = self.context.gas_reserver.unreserve(id)?;
 
-        // this statement is like in `Self::refund_gas()` but it won't affect "burned" counter
-        // because we don't actually refund we just rise "left" counter during unreservation
+        // This statement increases `"eft" counter, but do not affect "burned" counter,
+        // because we don't actually refund, we just rise "left" counter during unreserve
         // and it won't affect gas allowance counter because we don't make any actual calculations
         // TODO: uncomment when unreserving in current message features is discussed
         /*if !self.context.gas_counter.increase(amount) {
