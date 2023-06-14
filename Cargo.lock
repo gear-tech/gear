@@ -2137,6 +2137,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-reservation-manager"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-reserve-gas"
 version = "0.1.0"
 dependencies = [
@@ -4513,6 +4523,7 @@ dependencies = [
  "gstd-codegen",
  "hashbrown 0.13.2",
  "hex",
+ "parity-scale-codec",
  "primitive-types",
  "scale-info",
  "static_assertions",
@@ -7062,6 +7073,7 @@ dependencies = [
  "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-reservation-with-gas",
+ "demo-reservation-manager",
  "demo-reserve-gas",
  "demo-rwlock",
  "demo-send-from-reservation",

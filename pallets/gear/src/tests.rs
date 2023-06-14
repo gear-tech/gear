@@ -12187,6 +12187,84 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
 }
 
 #[test]
+fn reservation_manager() {
+    use demo_reservation_manager::{Action, WASM_BINARY};
+    use utils::Assertion;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("Program uploading failed");
+
+        run_to_next_block(None);
+
+        fn scenario(pid: ProgramId, payload: Action, expected: Vec<Assertion>) {
+            System::reset_events();
+
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                payload.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+
+            run_to_next_block(None);
+
+            assert_responses_to_user(USER_1, expected);
+        }
+
+        // Try unreserve 100 gas when there's no reservations.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 100 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
+        // Reserve 10_000 gas.
+        scenario(
+            pid,
+            Action::Reserve {
+                amount: 10_000,
+                duration: 100,
+            },
+            vec![Assertion::StatusCode(Some(0))],
+        );
+        // Try to unreserve 50_000 gas.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 50_000 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
+        // Try to unreserve 8_000 gas.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 8_000 },
+            vec![Assertion::StatusCode(Some(0)), Assertion::Payload(vec![])],
+        );
+        // Try to unreserve 8_000 gas again.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 8_000 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
+    });
+}
+
+#[test]
 fn check_mutable_global_exports_restriction() {
     init_logger();
 
