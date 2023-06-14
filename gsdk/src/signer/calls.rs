@@ -36,7 +36,6 @@ use crate::{
     BlockNumber, Error,
 };
 use anyhow::anyhow;
-use async_recursion::async_recursion;
 use gear_core::{
     ids::*,
     memory::{PageBuf, PageBufInner},
@@ -56,8 +55,6 @@ use subxt::{
 
 type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
 type EventsResult = Result<ExtrinsicEvents<GearConfig>, Error>;
-
-const ERRORS_REQUIRE_RETRYING: [&str; 2] = ["Connection reset by peer", "Connection refused"];
 
 // pallet-balances
 impl Signer {
@@ -375,14 +372,12 @@ impl Signer {
         }
     }
 
-    /// Wrapper for submit and watch with error handling.
-    #[async_recursion(?Send)]
+    /// Wrapper for submit and watch with nonce.
     async fn sign_and_submit_then_watch<'a>(
         &self,
-        tx: &DynamicPayload,
-        counter: u16,
+        tx: &DynamicTxPayload<'a>,
     ) -> Result<TxProgressT, SubxtError> {
-        let process = if let Some(nonce) = self.nonce {
+        if let Some(nonce) = self.nonce {
             self.api
                 .tx()
                 .create_signed_with_nonce(tx, &self.signer, nonce, Default::default())?
@@ -393,23 +388,7 @@ impl Signer {
                 .tx()
                 .sign_and_submit_then_watch_default(tx, &self.signer)
                 .await
-        };
-
-        if counter >= self.api().retry {
-            return process;
         }
-
-        // TODO: Add more patterns for this retrying job.
-        if let Err(SubxtError::Rpc(rpc_error)) = &process {
-            let error_string = rpc_error.to_string();
-            for error in ERRORS_REQUIRE_RETRYING {
-                if error_string.contains(error) {
-                    return self.sign_and_submit_then_watch(tx, counter + 1).await;
-                }
-            }
-        }
-
-        process
     }
 
     /// Listen transaction process and print logs.
@@ -417,7 +396,7 @@ impl Signer {
         use subxt::tx::TxStatus::*;
 
         let before = self.balance().await?;
-        let mut process = self.sign_and_submit_then_watch(&tx, 0).await?;
+        let mut process = self.sign_and_submit_then_watch(&tx).await?;
 
         // FIXME:
         //
