@@ -32,8 +32,9 @@ use gear_backend_common::{BackendExt, BackendExtError, Environment, SystemReserv
 use gear_core::{
     env::Ext,
     ids::{MessageId, ProgramId},
-    memory::{GearPage, PageBuf},
+    memory::PageBuf,
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
+    pages::GearPage,
     reservation::GasReservationState,
 };
 use gear_core_errors::{SimpleReplyError, SimpleSignalError};

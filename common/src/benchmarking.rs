@@ -18,7 +18,7 @@
 
 use super::*;
 
-use gear_core::memory::{PageU32Size, WasmPage};
+use gear_core::pages::{PageNumber, PageU32Size, WasmPage};
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;
@@ -44,7 +44,7 @@ pub fn create_module(num_pages: WasmPage) -> parity_wasm::elements::Module {
         Section::Import(ImportSection::with_entries(vec![ImportEntry::new(
             "env".into(),
             "memory".into(),
-            External::Memory(MemoryType::new(num_pages.raw(), None)),
+            External::Memory(MemoryType::new(PageNumber::raw(&num_pages), None)),
         )])),
         Section::Function(FunctionSection::with_entries(vec![Func::new(0)])),
         Section::Export(ExportSection::with_entries(vec![ExportEntry::new(
@@ -107,7 +107,7 @@ pub fn generate_wasm2(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
             FuncBody::new(
                 vec![Local::new(1, ValueType::I32)],
                 Instructions::new(vec![
-                    Instruction::I32Const(num_pages.raw() as i32),
+                    Instruction::I32Const(PageNumber::raw(&num_pages) as i32),
                     Instruction::Call(0),
                     Instruction::SetLocal(0),
                     Instruction::End,

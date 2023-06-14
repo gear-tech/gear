@@ -57,8 +57,9 @@ use frame_support::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{GearPage, PageBuf, WasmPage},
+    memory::PageBuf,
     message::DispatchKind,
+    pages::{GearPage, WasmPage},
     reservation::GasReservationMap,
 };
 use primitive_types::H256;

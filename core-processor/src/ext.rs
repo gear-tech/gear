@@ -36,13 +36,14 @@ use gear_core::{
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocError, AllocationsContext, GearPage, GrowHandler, Memory, MemoryInterval,
-        NoopGrowHandler, PageBuf, PageU32Size, WasmPage,
+        AllocError, AllocationsContext, GrowHandler, Memory, MemoryInterval, NoopGrowHandler,
+        PageBuf,
     },
     message::{
         ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
         ReplyPacket, StatusCode,
     },
+    pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::{

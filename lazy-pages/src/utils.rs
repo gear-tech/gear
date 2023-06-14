@@ -20,7 +20,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::pages::{PageNumber, PagesIterInclusive};
+use gear_core::pages::{PageNumber, PagesIterInclusive};
 
 /// Call `f` for all inclusive ranges from `indexes`.
 /// For example: `indexes` = {1,2,3,5,6,7,9}, then `f` will be called
@@ -64,13 +64,13 @@ pub(crate) fn with_inclusive_ranges<P: PageNumber, E>(
 
 #[cfg(test)]
 mod tests {
-    use crate::pages::{GearPageNumber, PageDynSize, PageNumber, PagesIterInclusive};
+    use crate::pages::{GearPage, PageDynSize, PageNumber, PagesIterInclusive};
 
     #[test]
     fn test_with_inclusive_range() {
         let test = |pages: &[u32]| {
             let mut inclusive_ranges: Vec<Vec<u32>> = Vec::new();
-            let slice_to_ranges = |iter: PagesIterInclusive<GearPageNumber>| -> Result<(), ()> {
+            let slice_to_ranges = |iter: PagesIterInclusive<GearPage>| -> Result<(), ()> {
                 inclusive_ranges.push(iter.map(|p| p.raw()).collect());
                 Ok(())
             };
@@ -78,7 +78,7 @@ mod tests {
             super::with_inclusive_ranges(
                 &pages
                     .iter()
-                    .map(|p| GearPageNumber::new(*p, &10).unwrap())
+                    .map(|p| GearPage::new(*p, &10).unwrap())
                     .collect(),
                 slice_to_ranges,
             )

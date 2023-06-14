@@ -30,8 +30,8 @@ use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
     env::Ext,
-    memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
+    pages::{PageU32Size, WasmPage},
 };
 use gear_core_errors::ExtError;
 use gsys::{

@@ -33,11 +33,12 @@ use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf, PageU32Size, WasmPage},
+    memory::PageBuf,
     message::{
         Dispatch, DispatchKind, MessageWaitedType, ReplyMessage, ReplyPacket, StoredDispatch,
         StoredMessage,
     },
+    pages::{GearPage, PageU32Size, WasmPage},
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };

@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::memory::{GearPage, PageBuf, PageU32Size};
+use gear_core::{
+    memory::PageBuf,
+    pages::{GearPage, PageU32Size},
+};
 use path_clean::PathClean;
 use serde::{Deserialize, Serialize};
 use sp_core::{Decode, Encode};

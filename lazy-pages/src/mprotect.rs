@@ -18,11 +18,9 @@
 
 //! Wrappers around system memory protections.
 
-use crate::{
-    pages::{PageDynSize, PagesIterInclusive, SizeManager},
-    utils,
-};
+use crate::utils;
 use core::ops::RangeInclusive;
+use gear_core::pages::{PageDynSize, PagesIterInclusive, SizeManager};
 use std::fmt::Debug;
 
 #[derive(Debug, derive_more::Display)]

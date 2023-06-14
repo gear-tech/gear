@@ -40,10 +40,11 @@ use gear_core::{
     env::Ext,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
-    memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage},
+    memory::{AllocationsContext, Memory, PageBuf},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, WasmEntry,
     },
+    pages::{GearPage, PageU32Size, WasmPage},
     program::Program,
     reservation::GasReserver,
 };

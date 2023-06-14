@@ -69,9 +69,9 @@ impl From<u16> for GearPage {
     }
 }
 
-impl Into<u32> for GearPage {
-    fn into(self) -> u32 {
-        self.0
+impl From<GearPage> for u32 {
+    fn from(value: GearPage) -> Self {
+        value.0
     }
 }
 
@@ -87,9 +87,9 @@ impl From<u16> for WasmPage {
     }
 }
 
-impl Into<u32> for WasmPage {
-    fn into(self) -> u32 {
-        self.0
+impl From<WasmPage> for u32 {
+    fn from(value: WasmPage) -> Self {
+        value.0
     }
 }
 
@@ -281,7 +281,9 @@ impl PageU32Size for WasmPage {
 
 /// Context where dynamic size pages store their sizes
 pub trait SizeManager {
+    /// Returns non-zero size of page.
     fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32;
+    /// Returns size of page.
     fn size<P: PageDynSize>(&self) -> u32 {
         self.size_non_zero::<P>().into()
     }
@@ -289,12 +291,18 @@ pub trait SizeManager {
 
 /// Page number trait - page, which can return it number as u32.
 pub trait PageNumber: Into<u32> + Sized + Copy + Clone + PageU32Size {
+    /// Creates page from raw number.
+    ///
+    /// # Safety
+    /// This function is unsafe because it can create invalid page number.
     unsafe fn from_raw(raw: u32) -> Self;
 
+    /// Returns raw (u32) page number.
     fn raw(&self) -> u32 {
         Into::<u32>::into(*self)
     }
 
+    /// Checked subtraction.
     fn checked_sub(&self, other: Self) -> Option<Self> {
         PageNumber::raw(self)
             .checked_sub(PageNumber::raw(&other))
@@ -310,11 +318,17 @@ pub trait PageNumber: Into<u32> + Sized + Copy + Clone + PageU32Size {
     }
 }
 
+/// Page with dynamic size.
 pub trait PageDynSize: PageNumber {
+    /// Returns size number of page.
     const SIZE_NO: usize;
+
+    /// Returns size of page.
     fn size<S: SizeManager>(ctx: &S) -> u32 {
         ctx.size::<Self>()
     }
+
+    /// Creates page from raw number with specific context and checks that page number is valid.
     fn new<S: SizeManager>(raw: u32, ctx: &S) -> Option<Self> {
         let page_size = <Self as PageDynSize>::size(ctx);
         let page_begin = raw.checked_mul(page_size)?;
@@ -325,13 +339,19 @@ pub trait PageDynSize: PageNumber {
 
         Some(unsafe { Self::from_raw(raw) })
     }
+
+    /// Returns offset of page.
     fn offset<S: SizeManager>(&self, ctx: &S) -> u32 {
         PageNumber::raw(self) * <Self as PageDynSize>::size(ctx)
     }
+
+    /// Returns offset of end of page.
     fn end_offset<S: SizeManager>(&self, ctx: &S) -> u32 {
         let size = <Self as PageDynSize>::size(ctx);
         PageNumber::raw(self) * size + (size - 1)
     }
+
+    /// Creates page from offset.
     fn from_offset<S: SizeManager>(ctx: &S, offset: u32) -> Self {
         unsafe { Self::from_raw(offset / <Self as PageDynSize>::size(ctx)) }
     }

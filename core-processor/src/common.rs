@@ -32,10 +32,11 @@ use gear_backend_common::{
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf, WasmPage},
+    memory::PageBuf,
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
+    pages::{GearPage, WasmPage},
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };

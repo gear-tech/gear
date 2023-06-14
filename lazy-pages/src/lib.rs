@@ -30,7 +30,7 @@
 
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
 use gear_backend_common::lazy_pages::{GlobalsAccessConfig, Status};
-use gear_core::pages::{PageSizeNo, WasmPage};
+use gear_core::pages::{PageNumber, PageSizeNo, WasmPage};
 use sp_std::vec::Vec;
 use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
 

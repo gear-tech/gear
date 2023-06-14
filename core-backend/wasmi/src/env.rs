@@ -34,8 +34,9 @@ use gear_backend_common::{
 use gear_core::{
     env::Ext,
     gas::GasLeft,
-    memory::{HostPointer, PageU32Size, WasmPage},
+    memory::HostPointer,
     message::{DispatchKind, WasmEntry},
+    pages::{PageU32Size, WasmPage},
 };
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME};
 use wasmi::{
