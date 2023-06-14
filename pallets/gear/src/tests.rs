@@ -701,6 +701,45 @@ fn reply_deposit_gstd_async() {
     });
 }
 
+// TODO (#2763): resolve panic caused by "duplicate" wake in message A
+#[test]
+#[should_panic]
+fn pseudo_duplicate_wake() {
+    use demo_constructor::{Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_msg_id, constructor) = init_constructor(Scheme::empty());
+
+        let execute = |calls: Calls| {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                constructor,
+                calls.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+            let msg_id = get_last_message_id();
+            run_to_next_block(None);
+
+            msg_id
+        };
+
+        // message wakes some message id and waits
+        let waited_msg_id = execute(Calls::builder().wake([0u8; 32]).wait());
+
+        assert_last_dequeued(1);
+        assert!(WaitlistOf::<Test>::contains(&constructor, &waited_msg_id));
+
+        // message B wakes message A
+        // message A results in waiting again
+        execute(Calls::builder().wake(<[u8; 32]>::from(waited_msg_id)));
+
+        assert_last_dequeued(2);
+        assert!(WaitlistOf::<Test>::contains(&constructor, &waited_msg_id));
+    });
+}
+
 #[test]
 fn gasfull_after_gasless() {
     init_logger();
@@ -12182,6 +12221,120 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
         assert_eq!(
             gas_info_result.unwrap_err(),
             "Calculation gas limit exceeded. Consider using custom built node."
+        );
+    });
+}
+
+#[test]
+fn reservation_manager() {
+    use demo_reservation_manager::{Action, WASM_BINARY};
+    use utils::Assertion;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("Program uploading failed");
+
+        run_to_next_block(None);
+
+        fn scenario(pid: ProgramId, payload: Action, expected: Vec<Assertion>) {
+            System::reset_events();
+
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                payload.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+
+            run_to_next_block(None);
+
+            assert_responses_to_user(USER_1, expected);
+        }
+
+        // Try unreserve 100 gas when there's no reservations.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 100 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
+        // Reserve 10_000 gas.
+        scenario(
+            pid,
+            Action::Reserve {
+                amount: 10_000,
+                duration: 100,
+            },
+            vec![Assertion::StatusCode(Some(0))],
+        );
+        // Try to unreserve 50_000 gas.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 50_000 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
+        // Try to unreserve 8_000 gas.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 8_000 },
+            vec![Assertion::StatusCode(Some(0)), Assertion::Payload(vec![])],
+        );
+        // Try to unreserve 8_000 gas again.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 8_000 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
+    });
+}
+
+#[test]
+fn check_mutable_global_exports_restriction() {
+    init_logger();
+
+    let wat_correct = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (func $init)
+            (global (;0;) (mut i32) (i32.const 65536))
+            (export "init" (func $init))
+            (export "{STACK_END_EXPORT_NAME}" (global 0))
+        )"#
+    );
+
+    let wat_incorrect = r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (func $init)
+            (global (;0;) (mut i32) (i32.const 65536))
+            (export "init" (func $init))
+            (export "global" (global 0))
+        )"#;
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(upload_program_default(
+            USER_1,
+            ProgramCodeKind::CustomInvalid(&wat_correct)
+        ));
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(wat_incorrect)),
+            Error::<Test>::ProgramConstructionFailed
         );
     });
 }

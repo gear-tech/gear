@@ -65,17 +65,14 @@ impl HostFn {
         .into()
     }
 
-    /// Build the signature of the function.
-    fn build_sig(&self) -> Signature {
-        let name = self.item.sig.ident.clone();
-        parse_quote! {
-            fn #name(store: &mut Store<HostState<E>>, forbidden: bool, memory: WasmiMemory) -> Func
-        }
-    }
-
     /// Build inputs from the function signature.
     fn build_inputs(&self) -> Vec<FnArg> {
-        let inputs = self.item.sig.inputs.iter().cloned().collect::<Vec<_>>();
+        let mut inputs = self.item.sig.inputs.iter().cloned().collect::<Vec<_>>();
+
+        if matches!(self.meta.call_type, CallType::Fallible) {
+            inputs.push(parse_quote!(err_mid_ptr: u32));
+        }
+
         if !self.meta.wgas {
             return inputs;
         }
@@ -85,6 +82,7 @@ impl HostFn {
         inputs.into_iter().for_each(|a| {
             if let FnArg::Typed(PatType { pat, .. }) = a.clone() {
                 if let Pat::Ident(ident) = pat.as_ref() {
+                    // TODO #2722
                     if !injected && (ident.ident == "value_ptr" || ident.ident == "delay") {
                         new_inputs.push(parse_quote!(gas_limit: u64));
                         injected = true;
@@ -98,57 +96,51 @@ impl HostFn {
         new_inputs
     }
 
+    /// Build the signature of the function.
+    fn build_sig(&self) -> Signature {
+        let name = self.item.sig.ident.clone();
+        let inputs = self.build_inputs();
+        let output = self.item.sig.output.clone().into_token_stream();
+
+        parse_quote! {
+            fn #name(#(#inputs),*) #output
+        }
+    }
+
     /// Build the function body.
     fn build_block(&self) -> Box<Block> {
-        let name = self.item.sig.ident.clone().to_string();
-        let cost = self.meta.runtime_costs();
+        let mut name = self.item.sig.ident.clone().to_string();
+        if self.meta.wgas {
+            name += "_wgas";
+        }
+
+        let cost = self.meta.runtime_costs.clone();
         let err_len = self.meta.err_len.clone();
         let inner_block = self.item.block.clone();
-        let mut inputs = self.build_inputs();
-        let mut skip = 1;
-        let mut output = parse_quote!(-> EmptyOutput);
+        let inputs = self.build_inputs();
 
         let run: Expr = match self.meta.call_type {
-            CallType::InFallible => {
+            CallType::Any => {
                 parse_quote! {
-                    ctx.run(#cost, |ctx| {
-                        #inner_block.map_err(Into::into)
+                    ctx.run_any(#cost, |ctx| {
+                        #inner_block
                     })
                 }
             }
             CallType::Fallible => {
-                inputs.push(parse_quote!(err_mid_ptr: u32));
                 parse_quote! {
                     ctx.run_fallible::<_, _, #err_len>(err_mid_ptr, #cost, |ctx| {
-                        #inner_block.map_err(Into::into)
-                    })
-                }
-            }
-            CallType::StateTaken => {
-                skip = 2;
-                output = self.item.sig.output.clone();
-                parse_quote! {
-                    ctx.run_state_taken(#cost, |ctx, state| {
-                        #inner_block.map_err(Into::into)
-                    })
-                }
-            }
-            CallType::FallibleStateTaken => {
-                inputs.push(parse_quote!(err_mid_ptr: u32));
-                parse_quote! {
-                    ctx.run_fallible_state_taken::<_, _, #err_len>(err_mid_ptr, #cost, |ctx, state| {
-                        #inner_block.map_err(Into::into)
+                        #inner_block
                     })
                 }
             }
         };
 
-        let inner_args = inputs.clone().into_iter().skip(skip).collect::<Vec<_>>();
         let mut log_args: Vec<Expr> = vec![parse_quote!(#name)];
         log_args.extend(
             inputs
                 .into_iter()
-                .skip(skip)
+                .skip(1)
                 .filter_map(|a| match a {
                     FnArg::Typed(PatType { pat, .. }) => match pat.as_ref() {
                         Pat::Ident(ident) => Some(Expr::Path(ExprPath {
@@ -164,18 +156,9 @@ impl HostFn {
         );
 
         parse_quote! ({
-            let func = move |
-                caller: Caller<'_, HostState<E>>,
-                #(#inner_args),*
-            | #output {
-                syscall_trace!(#(#log_args),*);
+            syscall_trace!(#(#log_args),*);
 
-                let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
-
-                #run
-            };
-
-            Func::wrap(store, func)
+            #run
         })
     }
 }
@@ -190,10 +173,8 @@ impl From<HostFn> for TokenStream {
 #[derive(Default)]
 pub enum CallType {
     #[default]
-    InFallible,
+    Any,
     Fallible,
-    StateTaken,
-    FallibleStateTaken,
 }
 
 /// Attribute meta of the host function.
@@ -208,44 +189,6 @@ pub struct HostFnMeta {
     pub err_len: Expr,
 }
 
-impl HostFnMeta {
-    /// If the host function is infallible.
-    pub fn infallible(&self) -> bool {
-        matches!(self.call_type, CallType::InFallible)
-    }
-
-    /// If the host function is fallible.
-    pub fn fallible(&self) -> bool {
-        matches!(self.call_type, CallType::Fallible)
-    }
-
-    /// If the host function requires state taken.
-    pub fn state_taken(&self) -> bool {
-        matches!(self.call_type, CallType::StateTaken)
-    }
-
-    /// Build runtime costs.
-    ///
-    /// If the host function is wgas, the runtime costs will be
-    /// appended `WGas`.
-    pub fn runtime_costs(&self) -> Expr {
-        let mut costs = self.runtime_costs.clone();
-        if self.wgas {
-            if let Expr::Path(ExprPath {
-                path: Path { segments, .. },
-                ..
-            }) = &mut costs
-            {
-                if let Some(call) = segments.last_mut() {
-                    call.ident = Ident::new(&(call.ident.to_string() + "WGas"), call.ident.span());
-                }
-            }
-        }
-
-        costs
-    }
-}
-
 impl Parse for HostFnMeta {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut call_type = Default::default();
@@ -258,8 +201,6 @@ impl Parse for HostFnMeta {
             let ident = meta.path().get_ident().expect("Missing ident");
             match ident.to_string().as_ref() {
                 "fallible" => call_type = CallType::Fallible,
-                "state_taken" => call_type = CallType::StateTaken,
-                "fallible_state_taken" => call_type = CallType::FallibleStateTaken,
                 "wgas" => wgas = true,
                 "cost" => runtime_costs = meta.require_name_value()?.value.clone(),
                 "err_len" => err_len = meta.require_name_value()?.value.clone(),

@@ -344,6 +344,7 @@ dependencies = [
  "gstd-codegen",
  "hashbrown 0.13.2",
  "hex",
+ "parity-scale-codec",
  "primitive-types",
  "scale-info",
  "static_assertions",
