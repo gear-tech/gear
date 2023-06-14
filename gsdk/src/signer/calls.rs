@@ -375,7 +375,7 @@ impl Signer {
     /// Wrapper for submit and watch with nonce.
     async fn sign_and_submit_then_watch<'a>(
         &self,
-        tx: &DynamicTxPayload<'a>,
+        tx: &DynamicPayload,
     ) -> Result<TxProgressT, SubxtError> {
         if let Some(nonce) = self.nonce {
             self.api
