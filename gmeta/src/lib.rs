@@ -264,12 +264,13 @@ pub trait Type: TypeInfo + 'static {
         TypeId::of::<Self>().eq(&TypeId::of::<()>())
     }
 
-    /// Return [`MetaType`](scale_info::MetaType) information about type.
+    /// Create [`MetaType`](scale_info::MetaType) information about type.
     fn meta_type() -> MetaType {
         MetaType::new::<Self>()
     }
 
-    /// Register type in registry.
+    /// Register type in the registry and return its identifier if it is not the
+    /// unit type.
     fn register(registry: &mut Registry) -> Option<u32> {
         (!Self::is_unit()).then(|| registry.register_type(&Self::meta_type()).id)
     }
@@ -295,9 +296,9 @@ pub trait Types {
 
 /// Type alias for incoming/outgoing message types.
 pub type InOut<I, O> = (I, O);
-/// Type alias for incoming message type.
+/// Type alias for incoming message type without any outgoing type.
 pub type In<I> = InOut<I, ()>;
-/// Type alias for outgoing message type.
+/// Type alias for outgoing message type without any incoming type.
 pub type Out<O> = InOut<(), O>;
 
 impl<I: Type, O: Type> Types for InOut<I, O> {
