@@ -388,6 +388,7 @@ wasmprinter = "0.2"                                                       # util
 whoami = "1.4.0"                                                          # gcli
 which = "4.4.0"                                                           # utils/wasm-builder
 fail = "0.5"                                                              # gear-common
+etc = "0.1.16"                                                            # gcli
 
 [profile.release]
 panic = "unwind"

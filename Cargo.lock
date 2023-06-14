@@ -2705,6 +2705,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "etc"
+version = "0.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f7935cc590ee512e8073c4fe82b85e056216324e65aed24459204e3f6d9f72e"
+
+[[package]]
 name = "event-listener"
 version = "2.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3420,6 +3426,7 @@ dependencies = [
  "demo-waiter",
  "dirs",
  "env_logger",
+ "etc",
  "gear-backend-wasmi",
  "gear-core",
  "gear-core-processor",

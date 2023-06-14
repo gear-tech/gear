@@ -20,6 +20,7 @@
 
 use crate::result::Result;
 use anyhow::anyhow;
+use etc::{Etc, FileSystem, Read, Write};
 use reqwest::Client;
 use std::process::Command;
 
@@ -62,6 +63,59 @@ pub async fn download(example: &str, path: &str) -> Result<()> {
         .args(["clone", &url, path, "--depth=1"])
         .status()
         .map_err(|e| anyhow!("Failed to download example: {}", e))?;
+
+    let repo = Etc::new(path)?;
+    repo.rm(".git")?;
+
+    // Init new git repo.
+    Command::new("git")
+        .args(["init", path])
+        .status()
+        .map_err(|e| anyhow!("Failed to init git: {}", e))?;
+
+    // Find all manifests
+    let mut manifests = Vec::new();
+    repo.find_all("Cargo.toml", &mut manifests)?;
+
+    // Update each manifest
+    for manifest in manifests {
+        let manifest = Etc::new(manifest)?;
+        let mut toml = String::from_utf8_lossy(
+            &manifest
+                .read()
+                .map_err(|_| anyhow!("Failed to read Cargo.toml"))?,
+        )
+        .to_string();
+
+        process_manifest(&mut toml)?;
+        manifest.write(toml.as_bytes())?;
+    }
+
+    Ok(())
+}
+
+/// Update project manifest.
+fn process_manifest(manifest: &mut String) -> Result<()> {
+    let (user, email) = {
+        let user_bytes = Command::new("git")
+            .args(["config", "--global", "--get", "user.name"])
+            .output()?
+            .stdout;
+        let user = String::from_utf8_lossy(&user_bytes);
+
+        let email_bytes = Command::new("git")
+            .args(["config", "--global", "--get", "user.email"])
+            .output()?
+            .stdout;
+        let email = String::from_utf8_lossy(&email_bytes);
+
+        (user.to_string(), email.to_string())
+    };
+
+    *manifest = manifest.replace(
+        r#"authors = ["Gear Technologies"]"#,
+        &format!("authors = [\"{} <{}>\"]", user.trim(), email.trim()),
+    );
 
     Ok(())
 }

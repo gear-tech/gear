@@ -42,6 +42,7 @@ whoami.workspace = true
 core-processor.workspace = true
 gear-backend-wasmi = { workspace = true, features = [ "std" ] }
 reqwest = { workspace = true, features = [ "json", "native-tls" ] }
+etc.workspace = true
 
 [dev-dependencies]
 rand.workspace = true
