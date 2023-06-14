@@ -104,15 +104,8 @@ impl<'a> TryFrom<&'a str> for LimitedStr<'a> {
 }
 
 impl<'a> From<String> for LimitedStr<'a> {
-    fn from(s: String) -> Self {
-        let s = if s.len() > TRIMMED_MAX_LEN {
-            let mut s = s;
-            smart_truncate(&mut s, TRIMMED_MAX_LEN);
-            s
-        } else {
-            s
-        };
-
+    fn from(mut s: String) -> Self {
+        smart_truncate(&mut s, TRIMMED_MAX_LEN);
         Self(Cow::from(s))
     }
 }
