@@ -94,6 +94,7 @@ demo-wait-timeout.workspace = true
 demo-wait-wake.workspace = true
 demo-reserve-gas.workspace = true
 demo-rwlock.workspace = true
+demo-reservation-manager.workspace = true
 demo-send-from-reservation.workspace = true
 demo-signal-entry.workspace = true
 demo-state-rollback.workspace = true

@@ -12,10 +12,10 @@ members = [
     "common",
     "common/codegen",
     "core",
+    "core-backend/codegen",
     "core-backend/common",
     "core-backend/sandbox",
     "core-backend/wasmi",
-    "core-backend/codegen",
     "core-processor",
     "core-errors",
     "examples/binaries/async",
@@ -49,6 +49,7 @@ members = [
     "examples/binaries/proxy",
     "examples/binaries/proxy-relay",
     "examples/binaries/proxy-reservation-with-gas",
+    "examples/binaries/reservation-manager",
     "examples/binaries/reserve-gas",
     "examples/binaries/rwlock",
     "examples/binaries/send-from-reservation",
@@ -173,8 +174,8 @@ gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gear-authorship = { path = "node/authorship" }
-gear-backend-common = { path = "core-backend/common" }
 gear-backend-codegen = { path = "core-backend/codegen" }
+gear-backend-common = { path = "core-backend/common" }
 gear-backend-sandbox = { path = "core-backend/sandbox", default-features = false }
 gear-backend-wasmi = { path = "core-backend/wasmi", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
@@ -366,6 +367,7 @@ demo-program-factory = { path = "examples/binaries/program-factory" }
 demo-proxy = { path = "examples/binaries/proxy", default-features = false }
 demo-proxy-relay = { path = "examples/binaries/proxy-relay" }
 demo-proxy-reservation-with-gas = { path = "examples/binaries/proxy-reservation-with-gas" }
+demo-reservation-manager = { path = "examples/binaries/reservation-manager" }
 demo-reserve-gas = { path = "examples/binaries/reserve-gas" }
 demo-rwlock = { path = "examples/binaries/rwlock" }
 demo-send-from-reservation = { path = "examples/binaries/send-from-reservation" }

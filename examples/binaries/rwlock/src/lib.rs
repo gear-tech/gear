@@ -53,7 +53,7 @@ mod wasm {
     static RW_LOCK: RwLock<u32> = RwLock::new(0);
 
     async fn ping() {
-        msg::send_bytes_for_reply(unsafe { DESTINATION }, "PING", 0)
+        msg::send_bytes_for_reply(unsafe { DESTINATION }, "PING", 0, 0)
             .expect("Failed to send message")
             .await
             .expect("Received error reply");

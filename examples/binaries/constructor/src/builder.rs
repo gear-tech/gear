@@ -1,11 +1,17 @@
 use crate::{Arg, Call};
-use alloc::{boxed::Box, string::ToString, vec::Vec};
+use alloc::{boxed::Box, string::ToString, vec, vec::Vec};
 use core::{fmt::Debug, ops::Deref};
 use parity_scale_codec::{WrapperTypeDecode, WrapperTypeEncode};
 
 #[derive(Default, Debug, Clone)]
 /// Represent builder across vector of calls to be executed with some entry point.
 pub struct Calls(Vec<Call>);
+
+impl From<Call> for Calls {
+    fn from(call: Call) -> Self {
+        Self(vec![call])
+    }
+}
 
 impl From<Vec<Call>> for Calls {
     fn from(calls: Vec<Call>) -> Self {
@@ -80,6 +86,14 @@ impl Calls {
 
     pub fn value_as_vec(self, key: impl AsRef<str>) -> Self {
         self.add_call(Call::Value).store_vec(key)
+    }
+
+    pub fn message_id(self, key: impl AsRef<str>) -> Self {
+        self.add_call(Call::MessageId).store(key)
+    }
+
+    pub fn message_id_as_vec(self, key: impl AsRef<str>) -> Self {
+        self.add_call(Call::MessageId).store_vec(key)
     }
 
     pub fn send(
@@ -240,6 +254,14 @@ impl Calls {
 
     pub fn exit(self, inheritor: impl Into<Arg<[u8; 32]>>) -> Self {
         self.add_call(Call::Exit(inheritor.into()))
+    }
+
+    pub fn wait(self) -> Self {
+        self.add_call(Call::Wait)
+    }
+
+    pub fn wake(self, message_id: impl Into<Arg<[u8; 32]>>) -> Self {
+        self.add_call(Call::Wake(message_id.into()))
     }
 
     pub fn bytes_eq(
