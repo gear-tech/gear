@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{borrow::Cow, string::String};
-use core::ops::Deref;
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,
@@ -47,34 +46,6 @@ macro_rules! assert_err {
 // Max amount of bytes allowed to be thrown as string explanation of the error.
 pub const TRIMMED_MAX_LEN: usize = 1024;
 
-/// Wrapped string to fit `core-backend::TRIMMED_MAX_LEN` amount of bytes.
-#[derive(
-    Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
-)]
-#[codec(crate = scale)]
-pub struct TrimmedString(String);
-
-impl TrimmedString {
-    pub(crate) fn new(mut string: String) -> Self {
-        smart_truncate(&mut string, TRIMMED_MAX_LEN);
-        Self(string)
-    }
-}
-
-impl<T: Into<String>> From<T> for TrimmedString {
-    fn from(other: T) -> Self {
-        Self::new(other.into())
-    }
-}
-
-impl Deref for TrimmedString {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 fn smart_truncate(s: &mut String, max_bytes: usize) {
     let mut last_byte = max_bytes;
 
@@ -89,12 +60,13 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
 
 /// Wrapped string to fit `core-backend::TRIMMED_MAX_LEN` amount of bytes.
 ///
-/// This is a version of `TrimmedString` but with a `Cow` instead of a `String`.
 /// The `Cow` is used to avoid allocating a new `String` when the `LimitedStr` is
 /// created from a `&str`.
 ///
 /// Plain `str` is not used because it can't be properly encoded/decoded via scale codec.
-#[derive(Encode, Decode, Debug, Clone, derive_more::Display)]
+#[derive(
+    TypeInfo, Encode, Decode, Debug, Clone, derive_more::Display, PartialEq, Eq, PartialOrd, Ord,
+)]
 #[codec(crate = scale)]
 pub struct LimitedStr<'a>(Cow<'a, str>);
 
@@ -131,15 +103,17 @@ impl<'a> TryFrom<&'a str> for LimitedStr<'a> {
     }
 }
 
-impl<'a> TryFrom<String> for LimitedStr<'a> {
-    type Error = &'static str;
+impl<'a> From<String> for LimitedStr<'a> {
+    fn from(s: String) -> Self {
+        let s = if s.len() > TRIMMED_MAX_LEN {
+            let mut s = s;
+            smart_truncate(&mut s, TRIMMED_MAX_LEN);
+            s
+        } else {
+            s
+        };
 
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        if s.len() > TRIMMED_MAX_LEN {
-            return Err(Self::INIT_ERROR_MSG);
-        }
-
-        Ok(Self(Cow::from(s)))
+        Self(Cow::from(s))
     }
 }
 

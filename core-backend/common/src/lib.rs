@@ -61,7 +61,7 @@ use scale_info::{
     TypeInfo,
 };
 
-pub use crate::utils::{LimitedStr, TrimmedString};
+pub use crate::utils::LimitedStr;
 pub use log;
 
 pub const PTR_SPECIAL: u32 = u32::MAX;
@@ -188,7 +188,7 @@ pub enum TrapExplanation {
     #[display(fmt = "{_0}")]
     Ext(ExtError),
     #[display(fmt = "{_0}")]
-    Panic(TrimmedString),
+    Panic(LimitedStr<'static>),
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
 }
