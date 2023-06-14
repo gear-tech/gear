@@ -81,7 +81,7 @@ fn read_write_flag_works() {
     init_with_handler::<TestHandler>(
         LazyPagesVersion::Version1,
         vec![WasmPage::size(), GearPage::size()],
-        vec![LimitedStr::try_from("").expect("too long"); 2],
+        vec![LimitedStr::from_small_str(""); 2],
         Default::default(),
     )
     .unwrap();
@@ -131,7 +131,7 @@ fn test_mprotect_pages() {
     init_with_handler::<TestHandler>(
         LazyPagesVersion::Version1,
         vec![WasmPage::size(), GearPage::size()],
-        vec![LimitedStr::try_from("").expect("too long"); 2],
+        vec![LimitedStr::from_small_str(""); 2],
         Default::default(),
     )
     .unwrap();
