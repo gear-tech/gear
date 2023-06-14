@@ -56,13 +56,8 @@ mod wasm {
                 Action::SendMessageFromReservation { gas_amount } => {
                     let reservation = RESERVATIONS.try_take_reservation(gas_amount);
                     if let Some(reservation) = reservation {
-                        msg::send_bytes_from_reservation(
-                            reservation.into_id(),
-                            msg::source(),
-                            vec![],
-                            0,
-                        )
-                        .expect("Failed to send message from reservation");
+                        msg::send_bytes_from_reservation(reservation.id(), msg::source(), [], 0)
+                            .expect("Failed to send message from reservation");
                     } else {
                         panic!("Reservation not found");
                     }

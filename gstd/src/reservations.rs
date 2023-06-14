@@ -42,6 +42,12 @@ pub struct Reservation {
     valid_until: u32,
 }
 
+impl From<Reservation> for ReservationId {
+    fn from(res: Reservation) -> Self {
+        res.id
+    }
+}
+
 impl Reservation {
     /// Reserve the `amount` of gas for further usage.
     ///
@@ -58,16 +64,16 @@ impl Reservation {
         })
     }
 
-    /// Converts this [`Reservation`] into [`ReservationId`].
-    pub fn into_id(self) -> ReservationId {
-        self.id
-    }
-
     /// Unreserve unused gas from the reservation.
     ///
     /// If successful, it returns the reserved amount of gas.
     pub fn unreserve(self) -> Result<u64> {
         self.id.unreserve()
+    }
+
+    /// `ReservationId` associated with current `Reservation`.
+    pub fn id(&self) -> ReservationId {
+        self.id
     }
 
     /// Amount of gas stored inside this `Reservation`.
@@ -78,12 +84,6 @@ impl Reservation {
     /// Returns block number when this `Reservation` expires.
     pub fn valid_until(&self) -> u32 {
         self.valid_until
-    }
-}
-
-impl From<Reservation> for ReservationId {
-    fn from(res: Reservation) -> Self {
-        res.id
     }
 }
 
@@ -122,14 +122,14 @@ impl From<Reservation> for ReservationId {
 ///     let reservation = unsafe { RESERVATIONS.try_take_reservation(100_000) };
 ///     if let Some(reservation) = reservation {
 ///         msg::send_bytes_from_reservation(
-///             reservation.into_id(),
+///             reservation.id(),
 ///             msg::source(),
-///             b"send_bytes_from_reservation",
+///             "send_bytes_from_reservation",
 ///             0,
 ///         )
 ///         .expect("Failed to send message from reservation");
 ///     } else {
-///         msg::send_bytes(msg::source(), b"send_bytes", 0).expect("Failed to send message");
+///         msg::send_bytes(msg::source(), "send_bytes", 0).expect("Failed to send message");
 ///     }
 /// }
 /// ```
@@ -334,7 +334,7 @@ mod tests {
         assert_eq!(reservations.count_valid(), 1);
 
         let reservation = reservations.try_take_reservation(10_000);
-        assert_eq!(reservation.map(|res| res.into_id().is_valid()), Some(true));
+        assert_eq!(reservation.map(|res| res.id().is_valid()), Some(true));
 
         Ok(())
     }
@@ -352,10 +352,10 @@ mod tests {
 
         let reservation = reservations.try_take_reservation(10_000);
         // The shortest possible living reservation taken.
-        assert_eq!(reservation.map(|res| res.into_id().valid_until), Some(10));
+        assert_eq!(reservation.map(|res| res.id().valid_until), Some(10));
 
         let reservation = reservations.try_take_reservation(10_000);
-        assert_eq!(reservation.map(|res| res.into_id().valid_until), Some(15));
+        assert_eq!(reservation.map(|res| res.id().valid_until), Some(15));
 
         assert_eq!(reservations.count_valid(), 0);
 
