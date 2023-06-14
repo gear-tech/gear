@@ -41,13 +41,11 @@ pub(crate) fn with_inclusive_ranges<P: PageNumber, E>(
     // `pages` is a BTreeSet, which is ordered, so all panics are unreachable.
 
     for &page in pages_iter {
-        let after_end = end
-            .raw()
+        let after_end = PageNumber::raw(&end)
             .checked_add(1)
             .unwrap_or_else(|| unreachable!("`end` must be smaller than page, so inc must be ok"));
-        if after_end != page.raw() {
-            let iter = start
-                .iter_end_inclusive(end)
+        if after_end != PageNumber::raw(&page) {
+            let iter = PageNumber::iter_end_inclusive(&start, end)
                 .unwrap_or_else(|| unreachable!("`end` must be bigger or equal to start"));
             f(iter)?;
             start = page;
@@ -55,8 +53,7 @@ pub(crate) fn with_inclusive_ranges<P: PageNumber, E>(
         end = page;
     }
 
-    let iter = start
-        .iter_end_inclusive(end)
+    let iter = PageNumber::iter_end_inclusive(&start, end)
         .unwrap_or_else(|| unreachable!("`end` must be bigger or equal than `start`"));
 
     f(iter)
@@ -64,7 +61,7 @@ pub(crate) fn with_inclusive_ranges<P: PageNumber, E>(
 
 #[cfg(test)]
 mod tests {
-    use crate::pages::{GearPage, PageDynSize, PageNumber, PagesIterInclusive};
+    use gear_core::pages::{GearPage, PageDynSize, PageNumber, PagesIterInclusive};
 
     #[test]
     fn test_with_inclusive_range() {

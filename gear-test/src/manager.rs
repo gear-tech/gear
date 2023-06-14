@@ -21,8 +21,9 @@ use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf, PageU32Size, WasmPage},
+    memory::PageBuf,
     message::{Dispatch, DispatchKind, GasLimit, MessageWaitedType, StoredDispatch, StoredMessage},
+    pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::SimpleSignalError;

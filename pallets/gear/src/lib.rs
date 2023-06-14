@@ -75,8 +75,9 @@ use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf},
+    memory::PageBuf,
     message::*,
+    pages::GearPage,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
 use primitive_types::H256;

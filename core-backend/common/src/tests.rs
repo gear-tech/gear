@@ -5,10 +5,7 @@ use crate::{
 };
 
 use core::{fmt::Debug, marker::PhantomData};
-use gear_core::{
-    gas::GasLeft,
-    memory::{Memory, WASM_PAGE_SIZE},
-};
+use gear_core::{gas::GasLeft, memory::Memory, pages::WASM_PAGE_SIZE};
 use scale_info::scale::{self, Decode, Encode, MaxEncodedLen};
 
 const GAS_LEFT: GasLeft = GasLeft {
@@ -205,7 +202,7 @@ fn test_read_decoded_with_invalid_encoded_data() {
     memory_access_manager.register_read_decoded::<InvalidDecode>(0);
 
     let memory = &mut MockMemory::new(1);
-    let encoded = alloc::vec![7u8; gear_core::memory::WASM_PAGE_SIZE];
+    let encoded = alloc::vec![7u8; gear_core::pages::WASM_PAGE_SIZE];
     memory.write(0, &encoded).unwrap();
 
     let result = memory_access_manager.read_decoded::<MockMemory, InvalidDecode>(

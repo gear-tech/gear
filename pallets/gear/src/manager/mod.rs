@@ -68,8 +68,8 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::WasmPage,
     message::{DispatchKind, SignalMessage, StatusCode},
+    pages::WasmPage,
     reservation::GasReservationSlot,
 };
 use gear_core_errors::SimpleSignalError;

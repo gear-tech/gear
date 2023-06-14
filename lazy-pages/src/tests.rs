@@ -23,7 +23,7 @@ use crate::{
     signal::ExceptionInfo,
     LazyPagesVersion, UserSignalHandler,
 };
-use gear_core::memory::{GearPage, PageU32Size, WasmPage};
+use gear_core::pages::{GearPage, PageU32Size, WasmPage};
 use region::Protection;
 
 fn handler_tester<F: FnOnce()>(f: F) {

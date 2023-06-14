@@ -36,8 +36,9 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf, PageU32Size},
+    memory::PageBuf,
     message::{Dispatch, MessageWaitedType, StoredDispatch},
+    pages::{GearPage, PageU32Size},
     reservation::GasReserver,
 };
 use gear_core_errors::SimpleSignalError;
@@ -424,7 +425,7 @@ where
     fn update_allocations(
         &mut self,
         program_id: ProgramId,
-        allocations: BTreeSet<gear_core::memory::WasmPage>,
+        allocations: BTreeSet<gear_core::pages::WasmPage>,
     ) {
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             let removed_pages = p.allocations.difference(&allocations);

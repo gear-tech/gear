@@ -32,7 +32,8 @@ use gear_common::Origin;
 use gear_core::{
     gas::GasLeft,
     ids::ProgramId,
-    memory::{GearPage, HostPointer, Memory, MemoryInterval, PageU32Size, WasmPage},
+    memory::{HostPointer, Memory, MemoryInterval},
+    pages::{GearPage, PageU32Size, WasmPage},
 };
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext, LazyPagesRuntimeContext};
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};

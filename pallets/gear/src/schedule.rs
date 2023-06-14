@@ -31,8 +31,8 @@ use frame_support::{
 use gear_core::{
     code,
     costs::HostFnWeights as CoreHostFnWeights,
-    memory::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
     message,
+    pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};

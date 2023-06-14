@@ -65,7 +65,7 @@ use gear_backend_common::TrapExplanation;
 use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageU32Size, WasmPage},
+    pages::{PageU32Size, WasmPage},
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
@@ -2908,7 +2908,7 @@ fn memory_access_cases() {
 #[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
-    use gear_core::memory::{GearPage, PageU32Size};
+    use gear_core::pages::{GearPage, PageU32Size};
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 

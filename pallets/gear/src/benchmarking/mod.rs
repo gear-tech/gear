@@ -81,8 +81,9 @@ use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, GearPage, PageBuf, PageU32Size, WasmPage},
+    memory::{AllocationsContext, PageBuf},
     message::{ContextSettings, DispatchKind, MessageContext},
+    pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
 use gear_wasm_instrument::{

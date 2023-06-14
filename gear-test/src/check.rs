@@ -34,8 +34,9 @@ use gear_backend_common::Environment;
 use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{GearPage, PageBuf, PageU32Size, WasmPage},
+    memory::PageBuf,
     message::*,
+    pages::{GearPage, PageU32Size, WasmPage},
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;

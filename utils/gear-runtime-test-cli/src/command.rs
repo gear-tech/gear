@@ -27,8 +27,8 @@ use frame_support::traits::ReservableCurrency;
 use gear_common::{storage::*, GasPrice, GasTree, Origin as _, ProgramStorage};
 use gear_core::{
     ids::{CodeId, ProgramId},
-    memory::PageU32Size,
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
+    pages::PageU32Size,
 };
 use gear_core_processor::common::ExecutableActorData;
 use gear_test::{
