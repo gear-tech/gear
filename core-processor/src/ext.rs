@@ -768,7 +768,7 @@ impl EnvExt for Ext {
         // and it won't affect gas allowance counter because we don't make any actual calculations
         // TODO: uncomment when unreserving in current message features is discussed
         /*if !self.context.gas_counter.increase(amount) {
-            return Err(ExecutionError::TooManyGasAdded.into());
+            return Err(some_charge_error.into());
         }*/
 
         Ok(amount)

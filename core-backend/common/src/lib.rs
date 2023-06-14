@@ -48,7 +48,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, IncorrectAllocationDataError, Memory, MemoryInterval, PageBuf, WasmPage},
+    memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
         PayloadSizeError, WasmEntry,
@@ -122,7 +122,6 @@ impl From<ChargeError> for TerminationReason {
             ChargeError::GasLimitExceeded => {
                 ActorTerminationReason::Trap(TrapExplanation::GasLimitExceeded).into()
             }
-            ChargeError::TooManyGasAdded => SystemTerminationReason::TooManyGasAdded.into(),
             ChargeError::GasAllowanceExceeded => {
                 ActorTerminationReason::GasAllowanceExceeded.into()
             }
@@ -154,11 +153,13 @@ pub enum ActorTerminationReason {
     Trap(TrapExplanation),
 }
 
+/// Non-actor related termination reason.
+///
+/// ### NOTICE:
+/// It's currently unused, but is left as a stub, until
+/// further massive errors refactoring is done.
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
-pub enum SystemTerminationReason {
-    #[display(fmt = "Too many gas refunded")]
-    TooManyGasAdded,
-}
+pub struct SystemTerminationReason;
 
 #[derive(
     Decode,

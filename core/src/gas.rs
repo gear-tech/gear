@@ -276,9 +276,6 @@ pub enum ChargeError {
     /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
-    /// An error occurs in attempt to refund more gas than burned one.
-    #[display(fmt = "Too many gas refunded")]
-    TooManyGasAdded,
     /// Gas allowance exceeded
     #[display(fmt = "Gas allowance exceeded")]
     GasAllowanceExceeded,
