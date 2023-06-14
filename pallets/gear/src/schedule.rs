@@ -337,6 +337,12 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `free`.
     pub free: Weight,
 
+    /// Weight of calling `grow`.
+    pub grow: Weight,
+
+    /// Weight of calling `grow` per page.
+    pub grow_per_page: Weight,
+
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: Weight,
 
@@ -850,6 +856,8 @@ impl<T: Config> HostFnWeights<T> {
             alloc: self.alloc.ref_time(),
             alloc_per_page: self.alloc_per_page.ref_time(),
             free: self.free.ref_time(),
+            grow: self.grow.ref_time(),
+            grow_per_page: self.grow_per_page.ref_time(),
             gr_reserve_gas: self.gr_reserve_gas.ref_time(),
             gr_unreserve_gas: self.gr_unreserve_gas.ref_time(),
             gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
@@ -969,6 +977,8 @@ impl<T: Config> Default for HostFnWeights<T> {
             alloc: to_weight!(cost_batched!(alloc)),
             alloc_per_page: to_weight!(cost_batched!(alloc_per_page)),
             free: to_weight!(cost_batched!(free)),
+            grow: to_weight!(cost_batched!(grow)),
+            grow_per_page: to_weight!(cost_batched!(grow_per_page)),
             gr_reserve_gas: to_weight!(cost!(gr_reserve_gas)),
             gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),

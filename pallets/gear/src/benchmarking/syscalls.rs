@@ -178,6 +178,27 @@ where
         Self::prepare_handle(module, 0)
     }
 
+    pub fn grow(repetitions: u32, pages: u32) -> Result<Exec<T>, &'static str> {
+        let mut instructions = vec![
+            Instruction::I32Const(pages as i32),
+            Instruction::GrowMemory(0),
+            Instruction::I32Const(i32::MAX),
+        ];
+
+        unreachable_condition(&mut instructions, Instruction::I32Eq); // if grow returns i32::MAX then it's error
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(1)),
+            handle_body: Some(body::repeated(
+                repetitions * API_BENCHMARK_BATCH_SIZE,
+                &instructions,
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
     pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
         assert!(r <= max_pages::<T>() as u32);
 

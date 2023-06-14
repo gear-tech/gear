@@ -629,7 +629,7 @@ benchmarks! {
 
     // For now it's nearly a constant for any non-zero amount of pages.
     alloc_per_page {
-        let p in 1..MAX_PAGES;
+        let p in 1 .. MAX_PAGES;
         let mut res = None;
         let exec = Benches::<T>::alloc(1, p)?;
     }: {
@@ -643,6 +643,30 @@ benchmarks! {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = Benches::<T>::free(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    grow {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+
+        let mut res = None;
+        let exec = Benches::<T>::grow(r, 1)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    grow_per_page {
+        let p in 0 .. MAX_PAGES;
+
+        let mut res = None;
+        let exec = Benches::<T>::grow(1, p)?;
     }: {
         res.replace(run_process(exec));
     }

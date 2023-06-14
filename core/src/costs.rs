@@ -97,6 +97,12 @@ pub struct HostFnWeights {
     /// Weight of calling `alloc`.
     pub free: u64,
 
+    /// Weight of calling `grow`.
+    pub grow: u64,
+
+    /// Weight per page by `grow`.
+    pub grow_per_page: u64,
+
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: u64,
 
@@ -326,6 +332,8 @@ pub enum RuntimeCosts {
     Alloc(u32),
     /// Weight of calling `free`.
     Free,
+    /// Weight of calling `grow` per amount of pages.
+    Grow(u32),
     /// Weight of calling `gr_reserve_gas`.
     ReserveGas,
     /// Weight of calling `gr_unreserve_gas`.
@@ -465,8 +473,12 @@ impl RuntimeCosts {
 
         let weight = match *self {
             Null => 0,
-            Alloc(pages) => cost_with_weight_per_page(s.alloc, s.alloc_per_page, pages),
+            Alloc(pages) => {
+                cost_with_weight_per_page(s.alloc, s.alloc_per_page, pages)
+                    - cost_with_weight_per_page(s.grow, s.grow_per_page, pages)
+            }
             Free => s.free,
+            Grow(pages) => cost_with_weight_per_page(s.grow, s.grow_per_page, pages),
             ReserveGas => s.gr_reserve_gas,
             UnreserveGas => s.gr_unreserve_gas,
             SystemReserveGas => s.gr_system_reserve_gas,
