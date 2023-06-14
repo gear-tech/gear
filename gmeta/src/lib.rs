@@ -23,30 +23,31 @@
 //! The metadata informs the user about the contract's interface and allows them
 //! to interact with it using custom types on web applications UI.
 //!
-//! To generate a metadata output file `contract_name.meta.txt` for a contract,
-//! you need:
+//! To generate a metadata output file for a contract, you need:
 //!
 //! - Add `gmeta` crate to your `Cargo.toml` file.
 //! - Define an empty struct that will identify the contract metadata.
 //! - Implement the [`Metadata`] trait for this struct by defining the
 //!   associated types of the trait.
-//! - Call [`gear_wasm_builder::build_with_metadata`](https://docs.gear.rs/gear_wasm_builder/fn.build_with_metadata.html)
-//!   function instead of [`gear_wasm_builder::build`](https://docs.gear.rs/gear_wasm_builder/fn.build.html)
+//! - **Option 1**: Call [`gear_wasm_builder::build_with_metadata`](https://docs.gear.rs/gear_wasm_builder/fn.build_with_metadata.html)
 //!   function in `build.rs` file.
+//! - **Option 2**: Convert metadata to hex string using [`MetadataRepr::hex`]
+//!   function and write it to the text file.
 //!
-//! # Example
+//! # Examples
 //!
-//! In this example we will create a simple ping-pong contract.
+//! In this example we will create a simple ping-pong contract. Let's define
+//! message types and metadata in a separate `ping-io` crate to be able to use
+//! it in both smart contract and `build.rs` files.
 //!
 //! We will define message types for `handle()` and `state()` functions.
+//!
+//! - `ping-io` crate:
 //!
 //! ```
 //! #[no_std]
 //! use gmeta::{InOut, Metadata};
-//! use gstd::{msg, prelude::*, ActorId};
-//!
-//! // Counter that will be incremented on each `Ping` message.
-//! static mut COUNTER: i32 = 0;
+//! use gstd::prelude::*;
 //!
 //! // Message type for `handle()` function.
 //! #[derive(Encode, Decode, TypeInfo)]
@@ -75,7 +76,27 @@
 //!     // We return a counter value (`i32`) in the `state()` function in this contract.
 //!     type State = i32;
 //! }
+//! ```
 //!
+//! - `ping` smart contract crate:
+//!
+//! ```
+//! #[no_std]
+//! use gmeta::{InOut, Metadata};
+//! use gstd::{msg, prelude::*};
+//! # const IGNORE: &'static str = stringify! {
+//! use ping_io::PingPong;
+//! # };
+//!
+//! // Counter that will be incremented on each `Ping` message.
+//! static mut COUNTER: i32 = 0;
+//!
+//! # #[derive(Encode, Decode, TypeInfo)]
+//! # pub enum PingPong {
+//! #     Ping,
+//! #     Pong,
+//! # }
+//! #
 //! #[no_mangle]
 //! extern "C" fn handle() {
 //!     // Load incoming message of `PingPong` type.
@@ -94,12 +115,13 @@
 //! }
 //! ```
 //!
-//! `build.rs` file:
+//! - `build.rs` file:
 //!
 //! ```no_run
 //! # const IGNORE: &'static str = stringify! {
-//! use ping::ContractMetadata;
+//! use ping_io::ContractMetadata;
 //! # };
+//! #
 //! # pub struct ContractMetadata;
 //! # impl gmeta::Metadata for ContractMetadata {
 //! #     type Init = ();
@@ -112,6 +134,67 @@
 //!
 //! fn main() {
 //!     gear_wasm_builder::build_with_metadata::<ContractMetadata>();
+//! }
+//! ```
+//!
+//! You can also generate metadata manually and write it to the file without
+//! using `build.rs`:
+//!
+//! ```
+//! use gmeta::Metadata;
+//! # const IGNORE: &'static str = stringify! {
+//! use ping_io::ContractMetadata;
+//! # };
+//! use std::fs;
+//!
+//! # #[derive(gstd::Encode, gstd::Decode, gstd::TypeInfo)]
+//! # pub enum PingPong {
+//! #     Ping,
+//! #     Pong,
+//! # }
+//! #
+//! # pub struct ContractMetadata;
+//! # impl gmeta::Metadata for ContractMetadata {
+//! #     type Init = ();
+//! #     type Handle = (PingPong, PingPong);
+//! #     type Others = ();
+//! #     type Reply = ();
+//! #     type Signal = ();
+//! #     type State = i32;
+//! # }
+//! #
+//! let metadata_hex = ContractMetadata::repr().hex();
+//! assert_eq!(metadata_hex.len(), 140);
+//! fs::write("ping.meta.txt", metadata_hex).expect("Unable to write");
+//! ```
+//!
+//! You can parse generated metadata file using `gear-js` API in JavaScript:
+//!
+//! ```javascript
+//! import { getProgramMetadata } from '@gear-js/api';
+//! import { readFileSync } from 'fs';
+//!
+//! const metadataHex = readFileSync('ping.meta.txt', 'utf-8');
+//! const metadata = getProgramMetadata('0x' + metadataHex);
+//!
+//! console.log('Registry:', metadata.regTypes);
+//! console.log('Types:', metadata.types);
+//! ```
+//!
+//! This will print the following:
+//!
+//! ```text
+//! Registry: Map(2) {
+//!   0 => { name: 'RustOutPingPong', def: '{"_enum":["Ping","Pong"]}' },
+//!   1 => { name: 'i32', def: null }
+//! }
+//! Types: {
+//!   init: { input: null, output: null },
+//!   handle: { input: 0, output: 0 },
+//!   reply: { input: null, output: null },
+//!   others: { input: null, output: null },
+//!   signal: null,
+//!   state: 1
 //! }
 //! ```
 
