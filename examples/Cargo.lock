@@ -26,17 +26,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
-name = "async-recursion"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e97ce7de6cf12de5d7226c73f5ba9811622f4db3a5b91b55c53e987e5f91cba"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.16",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -110,21 +99,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-async"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-async-init"
-version = "0.1.0"
-dependencies = [
- "futures",
- "gstd",
-]
-
-[[package]]
 name = "demo-async-multisig"
 version = "0.1.0"
 dependencies = [
@@ -133,14 +107,6 @@ dependencies = [
  "light_sr25519",
  "parity-scale-codec",
  "scale-info",
-]
-
-[[package]]
-name = "demo-async-recursion"
-version = "0.1.0"
-dependencies = [
- "async-recursion",
- "gstd",
 ]
 
 [[package]]
@@ -170,29 +136,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-collector"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-futures-unordered"
-version = "0.1.0"
-dependencies = [
- "futures",
- "gstd",
- "hex",
-]
-
-[[package]]
-name = "demo-incomplete-async-payloads"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-loop"
 version = "0.1.0"
 dependencies = [
@@ -200,43 +143,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-minimal"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-mutex"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
 name = "demo-panicker"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-piggy-bank"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-ping"
-version = "0.1.0"
-dependencies = [
- "galloc",
- "gcore",
-]
-
-[[package]]
-name = "demo-ping-gas"
 version = "0.1.0"
 dependencies = [
  "gstd",
@@ -251,42 +158,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-program-id"
-version = "0.1.0"
-dependencies = [
- "gstd",
-]
-
-[[package]]
-name = "demo-rwlock"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "hex",
-]
-
-[[package]]
-name = "demo-rwlock-write"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "hex",
-]
-
-[[package]]
 name = "demo-status-code"
 version = "0.1.0"
 dependencies = [
  "gstd",
-]
-
-[[package]]
-name = "demo-sync-duplicate"
-version = "0.1.0"
-dependencies = [
- "gcore",
- "gstd",
- "hex",
 ]
 
 [[package]]
@@ -397,17 +272,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fff74096e71ed47f8e023204cfd0aa1289cd54ae5430a9523be060cdb849964"
 
 [[package]]
-name = "futures-macro"
-version = "0.3.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89ca545a94061b6365f2c7355b4b32bd20df3ff95f02da9329b34ccc3bd6ee72"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.16",
-]
-
-[[package]]
 name = "futures-sink"
 version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -426,7 +290,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26b01e40b772d54cf6c6d721c1d1abd0647a0106a12ecaa1c186273392a69533"
 dependencies = [
  "futures-core",
- "futures-macro",
  "futures-sink",
  "futures-task",
  "pin-project-lite",
@@ -481,6 +344,7 @@ dependencies = [
  "gstd-codegen",
  "hashbrown 0.13.2",
  "hex",
+ "parity-scale-codec",
  "primitive-types",
  "scale-info",
  "static_assertions",
@@ -498,15 +362,6 @@ dependencies = [
 [[package]]
 name = "gsys"
 version = "0.1.0"
-
-[[package]]
-name = "guestbook"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
 
 [[package]]
 name = "hashbrown"
@@ -826,18 +681,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "token-vendor"
-version = "0.1.0"
-dependencies = [
- "bs58",
- "gstd",
- "hex",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
-]
-
-[[package]]
 name = "toml_datetime"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -913,16 +756,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae8970b36c66498d8ff1d66685dc86b91b29db0c7739899012f63a63814b4b28"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "workshop-example"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "hex",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]

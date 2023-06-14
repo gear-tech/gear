@@ -639,16 +639,12 @@ pub mod pallet {
                 block_number.saturating_add(RentFreePeriodOf::<T>::get()),
             );
 
-            // # Safety
-            //
-            // This is unreachable since the `message_id` is new generated
-            // with `Self::next_message_id`.
-            GasHandlerOf::<T>::create(
+            Self::create(
                 who.clone(),
                 message_id,
-                packet.gas_limit().expect("Can't fail"),
-            )
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                packet.gas_limit().expect("Infallible"),
+                false,
+            );
 
             let message = InitMessage::from_packet(message_id, packet);
             let dispatch = message
@@ -1110,7 +1106,7 @@ pub mod pallet {
             code
         }
 
-        pub(crate) fn check_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
+        pub(crate) fn try_new_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
             let schedule = T::Schedule::get();
 
             ensure!(
@@ -1219,14 +1215,11 @@ pub mod pallet {
                 },
             };
 
-            // # Safety
-            //
-            // This is unreachable since the `message_id` is new generated
-            // with `Self::next_message_id`.
-            let _ = GasHandlerOf::<T>::create(
+            Self::create(
                 who.clone(),
                 message_id,
-                packet.gas_limit().expect("Can't fail"),
+                packet.gas_limit().expect("Infallible"),
+                false,
             );
 
             let message = InitMessage::from_packet(message_id, packet);
@@ -1292,7 +1285,8 @@ pub mod pallet {
         pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let code_id = Self::set_code_with_metadata(Self::check_code(code)?, who.into_origin())?;
+            let code_id =
+                Self::set_code_with_metadata(Self::try_new_code(code)?, who.into_origin())?;
 
             // TODO: replace this temporary (`None`) value
             // for expiration block number with properly
@@ -1359,7 +1353,7 @@ pub mod pallet {
 
             Self::check_gas_limit_and_value(gas_limit, value)?;
 
-            let code_and_id = Self::check_code(code)?;
+            let code_and_id = Self::try_new_code(code)?;
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
             let packet = Self::init_packet(
                 who.clone(),
@@ -1491,12 +1485,7 @@ pub mod pallet {
                 CurrencyOf::<T>::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
 
-                // # Safety
-                //
-                // This is unreachable since the `message_id` is new generated
-                // with `Self::next_message_id`.
-                GasHandlerOf::<T>::create(who.clone(), message.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                Self::create(who.clone(), message.id(), gas_limit, false);
 
                 let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
 
@@ -1552,14 +1541,12 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
-            let payload = payload
-                .try_into()
-                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
-
             // Validating origin.
             let origin = ensure_signed(origin)?;
 
-            Self::check_gas_limit_and_value(gas_limit, value)?;
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
 
             // Reason for reading from mailbox.
             let reason = UserMessageReadRuntimeReason::MessageReplied.into_reason();
@@ -1568,11 +1555,22 @@ pub mod pallet {
             let mailboxed = Self::read_message(origin.clone(), reply_to_id, reason)
                 .ok_or(Error::<T>::MessageNotFound)?;
 
+            Self::check_gas_limit_and_value(gas_limit, value)?;
+
             // Checking that program, origin replies to, is not terminated.
             ensure!(
                 Self::is_active(mailboxed.source()),
                 Error::<T>::InactiveProgram
             );
+
+            let reply_id = MessageId::generate_reply(mailboxed.id());
+
+            // Set zero gas limit if reply deposit exists.
+            let gas_limit = if GasHandlerOf::<T>::exists_and_deposit(reply_id) {
+                0
+            } else {
+                gas_limit
+            };
 
             // Converting applied gas limit into value to reserve.
             let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
@@ -1586,18 +1584,11 @@ pub mod pallet {
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
-                MessageId::generate_reply(mailboxed.id()),
+                reply_id,
                 ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into()),
             );
 
-            // Creating `GasNode` for the reply.
-            //
-            // # Safety
-            //
-            //  The error is unreachable since the `message_id` is new generated
-            //  from the checked `original_message`."
-            GasHandlerOf::<T>::create(origin.clone(), message.id(), gas_limit)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            Self::create(origin.clone(), message.id(), gas_limit, true);
 
             // Converting reply message into appropriate type for queueing.
             let dispatch = message.into_stored_dispatch(
@@ -1652,14 +1643,7 @@ pub mod pallet {
                 // Creating reply message.
                 let message = ReplyMessage::auto(mailboxed.id());
 
-                // Creating `GasNode` for the reply.
-                //
-                // # Safety
-                //
-                //  The error is unreachable since the `message_id` is new generated
-                //  from the checked `original_message`."
-                GasHandlerOf::<T>::create(origin.clone(), message.id(), 0)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                Self::create(origin.clone(), message.id(), 0, true);
 
                 // Converting reply message into appropriate type for queueing.
                 let dispatch = message.into_stored_dispatch(

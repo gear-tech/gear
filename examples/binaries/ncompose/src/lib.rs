@@ -123,7 +123,7 @@ mod wasm {
         }
 
         async fn call(&self, input: Vec<u8>) -> Result<Vec<u8>, &'static str> {
-            let reply_bytes = msg::send_bytes_for_reply(self.handle, &input[..], 0)
+            let reply_bytes = msg::send_bytes_for_reply(self.handle, &input[..], 0, 0)
                 .expect("Error sending message")
                 .await
                 .map_err(|_| "Error in async message processing")?;

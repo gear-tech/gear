@@ -8,8 +8,10 @@
 use anyhow::{anyhow, Result};
 use args::{parse_cli_params, LoadParams, Params};
 use batch_pool::BatchPool;
+use gsdk::config::GearConfig;
 use names::Generator;
 use rand::rngs::SmallRng;
+use tokio::sync::broadcast::Sender;
 
 mod args;
 mod batch_pool;
@@ -31,7 +33,20 @@ async fn run(params: Params) -> Result<()> {
     }
 }
 
+async fn listen_events(tx: Sender<subxt::events::Events<GearConfig>>, node: String) -> Result<()> {
+    let api = gsdk::Api::new(Some(&node)).await?;
+    let mut event_listener = api.finalized_blocks().await?;
+
+    loop {
+        while let Some(events) = event_listener.next_events().await {
+            tx.send(events?)?;
+        }
+    }
+}
+
 async fn load_node(params: LoadParams) -> Result<()> {
+    let (tx, rx) = tokio::sync::broadcast::channel(16);
+    tokio::spawn(listen_events(tx, params.node.clone()));
     let mut name_gen = Generator::default();
     let run_name = name_gen
         .next()
@@ -46,5 +61,5 @@ async fn load_node(params: LoadParams) -> Result<()> {
         env!("CARGO_PKG_VERSION"),
     );
 
-    BatchPool::<SmallRng>::run(params).await
+    BatchPool::<SmallRng>::run(params, rx).await
 }
