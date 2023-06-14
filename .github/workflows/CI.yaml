@@ -69,7 +69,6 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
-          tar -xf /cache/check_cache_${{ github.base_ref }}.tar -C /
           tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
 
       - name: "Check formatting: Gear"
@@ -152,7 +151,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
-          { tar -xf /cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; }
+          tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
@@ -513,7 +512,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
-          { tar -xf /cache/build_win_cross_cache_${{ github.base_ref }}.tar -C /; tar -xf /cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /; }
+          tar -xf /cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
