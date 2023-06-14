@@ -19,10 +19,6 @@
 To install `gcli` via <kbd>cargo</kbd>
 
 ```sh
-# Install openssl and pkg-config ( if you are working on linux )
-$ sudo apt install -y libssl-dev pkg-config
-
-# Install `gcli`
 $ cargo install --git https://github.com/gear-tech/gear gcli
 ```
 
