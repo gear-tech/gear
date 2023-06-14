@@ -55,7 +55,7 @@ where
             // Remove lock after waking.
             async_runtime::locks().remove(msg_id, waiting_reply_to);
 
-            if status_code != 0 {
+            if status_code.to_le_bytes()[0] != 0 {
                 return Poll::Ready(Err(ContractError::StatusCode(status_code)));
             }
 
@@ -92,7 +92,7 @@ where
 /// async fn main() {
 ///     # let dest = ActorId::zero();
 ///     let future: CodecMessageFuture<Reply> =
-///         msg::send_bytes_for_reply_as(dest, b"PING", 0).expect("Unable to send");
+///         msg::send_bytes_for_reply_as(dest, b"PING", 0, 0).expect("Unable to send");
 ///     let reply: Reply = future.await.expect("Unable to get a reply");
 ///     let field: String = reply.field;
 /// }
@@ -147,7 +147,7 @@ impl_futures!(
 /// async fn main() {
 ///     # let code_id = CodeId::new([0; 32]);
 ///     let future: CodecCreateProgramFuture<InitReply> =
-///         prog::create_program_for_reply_as(code_id, b"salt", b"PING", 0)
+///         prog::create_program_for_reply_as(code_id, b"salt", b"PING", 0, 0)
 ///             .expect("Unable to create a program");
 ///     let (prog_id, reply): (ActorId, InitReply) = future.await.expect("Unable to get a reply");
 ///     let field: String = reply.field;
@@ -207,7 +207,7 @@ impl_futures!(
 /// async fn main() {
 ///     # let dest = ActorId::zero();
 ///     let future: MessageFuture =
-///         msg::send_bytes_for_reply(dest, b"PING", 0).expect("Unable to send");
+///         msg::send_bytes_for_reply(dest, b"PING", 0, 0).expect("Unable to send");
 ///     let reply: Vec<u8> = future.await.expect("Unable to get a reply");
 /// }
 ///
@@ -255,7 +255,7 @@ impl_futures!(
 /// async fn main() {
 ///     # let code_id = CodeId::new([0; 32]);
 ///     let future: CreateProgramFuture =
-///         prog::create_program_for_reply(code_id, b"salt", b"PING", 0)
+///         prog::create_program_for_reply(code_id, b"salt", b"PING", 0, 0)
 ///             .expect("Unable to create a program");
 ///     let (prog_id, reply): (ActorId, Vec<u8>) = future.await.expect("Unable to get a reply");
 /// }

@@ -919,7 +919,7 @@ impl JournalHandler for ExtManager {
         } else {
             let message = dispatch.into_stored().into_parts().1;
 
-            let message = match message.status_code() {
+            let message = match message.status_code().map(|code| code.to_le_bytes()[0]) {
                 Some(0) | None => message,
                 _ => message
                     .with_string_payload::<ActorExecutionErrorReason>()

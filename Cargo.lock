@@ -1776,6 +1776,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-async-custom-entry"
 version = "0.1.0"
 dependencies = [
@@ -1783,6 +1792,25 @@ dependencies = [
  "gstd",
  "gtest",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-async-init"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-async-recursion"
+version = "0.1.0"
+dependencies = [
+ "async-recursion",
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
@@ -1903,12 +1931,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-futures-unordered"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-gas-burned"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
+]
+
+[[package]]
+name = "demo-incomplete-async-payloads"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -2033,6 +2080,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-piggy-bank"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-ping"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
@@ -2074,12 +2137,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-reservation-manager"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-reserve-gas"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-rwlock"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
 ]
 
@@ -2104,6 +2186,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-state-rollback"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-sync-duplicate"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-syscall-error"
 version = "0.1.0"
 dependencies = [
@@ -2112,6 +2210,14 @@ dependencies = [
  "gsys",
  "gtest",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-vec"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
 ]
 
 [[package]]
@@ -3415,7 +3521,7 @@ dependencies = [
 
 [[package]]
 name = "gcli"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "base64 0.21.2",
@@ -3558,10 +3664,13 @@ dependencies = [
 name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
+ "blake2-rfc",
  "derive_more",
+ "gear-backend-codegen",
  "gear-core",
  "gear-core-errors",
  "gear-wasm-instrument",
+ "gsys",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -3572,7 +3681,6 @@ dependencies = [
 name = "gear-backend-sandbox"
 version = "0.1.0"
 dependencies = [
- "blake2-rfc",
  "derive_more",
  "gear-backend-common",
  "gear-core",
@@ -3588,14 +3696,11 @@ dependencies = [
 name = "gear-backend-wasmi"
 version = "0.1.0"
 dependencies = [
- "blake2-rfc",
  "derive_more",
- "gear-backend-codegen",
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
  "gear-wasm-instrument",
- "gsys",
  "log",
  "parity-scale-codec",
  "wasmi 0.14.0",
@@ -3627,7 +3732,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "clap 4.3.2",
  "frame-benchmarking",
@@ -3781,7 +3886,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -3793,6 +3898,7 @@ dependencies = [
  "gear-call-gen",
  "gear-core",
  "gear-utils",
+ "gsdk",
  "hex",
  "names 0.14.0",
  "once_cell",
@@ -3800,6 +3906,7 @@ dependencies = [
  "primitive-types",
  "rand 0.8.5",
  "reqwest",
+ "subxt",
  "thiserror",
  "tokio",
  "tracing",
@@ -4175,6 +4282,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-weight-diff"
+version = "1.0.0"
+dependencies = [
+ "clap 4.3.2",
+ "frame-support",
+ "gear-runtime",
+ "indexmap",
+ "pallet-gear",
+ "serde",
+ "serde_json",
+ "tabled",
+ "vara-runtime",
+]
+
+[[package]]
 name = "generate-bags"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary#34efda72d128b336f3afd72d70098deccd79c6c2"
@@ -4356,7 +4478,6 @@ name = "gsdk"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-recursion",
  "base64 0.21.2",
  "demo-messager",
  "demo-new-meta",
@@ -4418,6 +4539,7 @@ dependencies = [
  "gstd-codegen",
  "hashbrown 0.13.2",
  "hex",
+ "parity-scale-codec",
  "primitive-types",
  "scale-info",
  "static_assertions",
@@ -4444,6 +4566,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "colored",
+ "demo-futures-unordered",
+ "demo-piggy-bank",
  "derive_more",
  "env_logger",
  "gear-backend-common",
@@ -7005,7 +7129,10 @@ name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
  "blake2-rfc",
+ "demo-async",
  "demo-async-custom-entry",
+ "demo-async-init",
+ "demo-async-recursion",
  "demo-async-signal-entry",
  "demo-async-tester",
  "demo-backend-error",
@@ -7017,20 +7144,27 @@ dependencies = [
  "demo-constructor",
  "demo-delayed-sender",
  "demo-distributor",
+ "demo-futures-unordered",
  "demo-gas-burned",
+ "demo-incomplete-async-payloads",
  "demo-init-fail-sender",
  "demo-init-wait",
  "demo-init-wait-reply-exit",
  "demo-mul-by-const",
  "demo-new-meta",
  "demo-out-of-memory",
+ "demo-ping",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-reservation-with-gas",
+ "demo-reservation-manager",
  "demo-reserve-gas",
+ "demo-rwlock",
  "demo-send-from-reservation",
  "demo-signal-entry",
+ "demo-state-rollback",
+ "demo-sync-duplicate",
  "demo-wait-timeout",
  "demo-wait-wake",
  "demo-waiter",
@@ -7089,6 +7223,7 @@ dependencies = [
 name = "pallet-gear-debug"
 version = "2.0.0"
 dependencies = [
+ "demo-vec",
  "env_logger",
  "frame-benchmarking",
  "frame-support",

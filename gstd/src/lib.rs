@@ -99,7 +99,7 @@
 //!
 //!     let mut requests: Vec<_> = unsafe { APPROVERS }
 //!         .iter()
-//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0))
+//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0, 0))
 //!         .collect::<Result<_, _>>()
 //!         .unwrap();
 //!
@@ -123,7 +123,7 @@
 //!
 //!     let requests: Vec<_> = unsafe { APPROVERS }
 //!         .iter()
-//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0))
+//!         .map(|addr| msg::send_bytes_for_reply(*addr, b"", 0, 0))
 //!         .collect::<Result<_, _>>()
 //!         .unwrap();
 //!
@@ -157,16 +157,16 @@ mod macros;
 pub mod msg;
 pub mod prelude;
 pub mod prog;
+mod reservations;
 pub mod util;
 
 pub use async_runtime::{handle_signal, message_loop, record_reply};
 pub use common::{errors, primitives::*};
 pub use config::Config;
-pub use gstd_codegen::{async_init, async_main};
-
-pub use prelude::*;
-
 pub use gcore::ext;
+pub use gstd_codegen::{async_init, async_main};
+pub use prelude::*;
+pub use reservations::*;
 
 use core::mem::size_of;
 use static_assertions::const_assert;
