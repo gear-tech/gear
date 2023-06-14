@@ -2143,6 +2143,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-reservation-manager"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-reserve-gas"
 version = "0.1.0"
 dependencies = [
@@ -3502,7 +3512,7 @@ dependencies = [
 
 [[package]]
 name = "gcli"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "base64 0.21.2",
@@ -3643,10 +3653,13 @@ dependencies = [
 name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
+ "blake2-rfc",
  "derive_more",
+ "gear-backend-codegen",
  "gear-core",
  "gear-core-errors",
  "gear-wasm-instrument",
+ "gsys",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -3657,7 +3670,6 @@ dependencies = [
 name = "gear-backend-sandbox"
 version = "0.1.0"
 dependencies = [
- "blake2-rfc",
  "derive_more",
  "gear-backend-common",
  "gear-core",
@@ -3673,14 +3685,11 @@ dependencies = [
 name = "gear-backend-wasmi"
 version = "0.1.0"
 dependencies = [
- "blake2-rfc",
  "derive_more",
- "gear-backend-codegen",
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
  "gear-wasm-instrument",
- "gsys",
  "log",
  "parity-scale-codec",
  "wasmi 0.14.0",
@@ -3712,7 +3721,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "clap 4.3.2",
  "frame-benchmarking",
@@ -3866,7 +3875,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "0.1.6"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -3878,6 +3887,7 @@ dependencies = [
  "gear-call-gen",
  "gear-core",
  "gear-utils",
+ "gsdk",
  "hex",
  "names 0.14.0",
  "once_cell",
@@ -3885,6 +3895,7 @@ dependencies = [
  "primitive-types",
  "rand 0.8.5",
  "reqwest",
+ "subxt",
  "thiserror",
  "tokio",
  "tracing",
@@ -4263,6 +4274,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-weight-diff"
+version = "1.0.0"
+dependencies = [
+ "clap 4.3.2",
+ "frame-support",
+ "gear-runtime",
+ "indexmap",
+ "pallet-gear",
+ "serde",
+ "serde_json",
+ "tabled",
+ "vara-runtime",
+]
+
+[[package]]
 name = "generate-bags"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary#34efda72d128b336f3afd72d70098deccd79c6c2"
@@ -4444,7 +4470,6 @@ name = "gsdk"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-recursion",
  "base64 0.21.2",
  "demo-messager",
  "demo-new-meta",
@@ -4506,6 +4531,7 @@ dependencies = [
  "gstd-codegen",
  "hashbrown 0.13.2",
  "hex",
+ "parity-scale-codec",
  "primitive-types",
  "scale-info",
  "static_assertions",
@@ -7055,6 +7081,7 @@ dependencies = [
  "demo-proxy",
  "demo-proxy-relay",
  "demo-proxy-reservation-with-gas",
+ "demo-reservation-manager",
  "demo-reserve-gas",
  "demo-rwlock",
  "demo-send-from-reservation",

@@ -78,7 +78,7 @@ const READERS_LIMIT: ReadersCount = 32;
 ///             *val += 1;
 ///         }
 ///         b"ping&get" => {
-///             let _ = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0)
+///             let _ = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0, 0)
 ///                 .expect("Unable to send bytes")
 ///                 .await
 ///                 .expect("Error in async message processing");
@@ -87,14 +87,14 @@ const READERS_LIMIT: ReadersCount = 32;
 ///         b"inc&ping" => {
 ///             let mut val = RWLOCK.write().await;
 ///             *val += 1;
-///             let _ = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0)
+///             let _ = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0, 0)
 ///                 .expect("Unable to send bytes")
 ///                 .await
 ///                 .expect("Error in async message processing");
 ///         }
 ///         b"get&ping" => {
 ///             let val = RWLOCK.read().await;
-///             let _ = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0)
+///             let _ = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0, 0)
 ///                 .expect("Unable to send bytes")
 ///                 .await
 ///                 .expect("Error in async message processing");

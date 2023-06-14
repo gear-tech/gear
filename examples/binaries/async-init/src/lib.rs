@@ -89,7 +89,7 @@ mod wasm {
         let mut requests = arguments
             .iter()
             .map(|&addr| {
-                msg::send_bytes_for_reply(addr, "PING", 0).expect("Failed to send message")
+                msg::send_bytes_for_reply(addr, "PING", 0, 0).expect("Failed to send message")
             })
             .collect::<Vec<_>>();
 
@@ -119,7 +119,7 @@ mod wasm {
 
         let requests = unsafe { ARGUMENTS.iter() }
             .map(|&addr| {
-                msg::send_bytes_for_reply(addr, "PING", 0).expect("Failed to send message")
+                msg::send_bytes_for_reply(addr, "PING", 0, 0).expect("Failed to send message")
             })
             .collect::<Vec<_>>();
 

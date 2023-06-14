@@ -52,7 +52,6 @@ use core_processor::{common::ActorExecutionErrorReason, ActorPrepareMemoryError}
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
-use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 use frame_support::{
     assert_err, assert_noop, assert_ok,
     codec::{Decode, Encode},
@@ -114,7 +113,10 @@ fn auto_reply_sent() {
                 {
                     message
                         .details()
-                        .and_then(|d| d.to_reply_details().map(|d| d.status_code() == 0))
+                        .and_then(|d| {
+                            d.to_reply_details()
+                                .map(|d| d.status_code().to_le_bytes()[0] == 0)
+                        })
                         .unwrap_or(false)
                 }
                 _ => false,
@@ -640,6 +642,101 @@ fn reply_deposit_to_user_out_of_rent() {
         assert_total_dequeued(3);
         assert!(!MailboxOf::<Test>::is_empty(&checker));
         assert_balance(USER_2, user_2_balance, 0u128);
+    });
+}
+
+#[test]
+fn reply_deposit_gstd_async() {
+    use demo_waiting_proxy::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            (USER_2.into_origin().as_fixed_bytes(), 1_000_000_000u64).encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let program_id = get_last_program_id();
+
+        let hello = b"Hello!";
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            hello.to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        let handle_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(program_id));
+
+        let mail = get_last_mail(USER_2);
+        assert_eq!(mail.payload(), hello);
+
+        let hello_reply = b"U2";
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_2),
+            mail.id(),
+            hello_reply.to_vec(),
+            0,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert_succeed(handle_id);
+
+        let reply = maybe_any_last_message().expect("Should be");
+        assert_eq!(
+            reply.reply().expect("Should be").into_parts(),
+            (handle_id, 0)
+        );
+        assert_eq!(reply.payload(), hello_reply);
+    });
+}
+
+// TODO (#2763): resolve panic caused by "duplicate" wake in message A
+#[test]
+#[should_panic]
+fn pseudo_duplicate_wake() {
+    use demo_constructor::{Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_msg_id, constructor) = init_constructor(Scheme::empty());
+
+        let execute = |calls: Calls| {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                constructor,
+                calls.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+            let msg_id = get_last_message_id();
+            run_to_next_block(None);
+
+            msg_id
+        };
+
+        // message wakes some message id and waits
+        let waited_msg_id = execute(Calls::builder().wake([0u8; 32]).wait());
+
+        assert_last_dequeued(1);
+        assert!(WaitlistOf::<Test>::contains(&constructor, &waited_msg_id));
+
+        // message B wakes message A
+        // message A results in waiting again
+        execute(Calls::builder().wake(<[u8; 32]>::from(waited_msg_id)));
+
+        assert_last_dequeued(2);
+        assert!(WaitlistOf::<Test>::contains(&constructor, &waited_msg_id));
     });
 }
 
@@ -7640,6 +7737,8 @@ fn delayed_wake() {
 
 #[test]
 fn cascading_messages_with_value_do_not_overcharge() {
+    use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
+
     init_logger();
     new_test_ext().execute_with(|| {
         let contract_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract");
@@ -7658,7 +7757,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             RuntimeOrigin::signed(USER_1),
             WAITING_PROXY_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
-            <[u8; 32]>::from(contract_id).encode(),
+            (<[u8; 32]>::from(contract_id), 0u64).encode(),
             5_000_000_000,
             0,
         ));
@@ -10853,7 +10952,9 @@ mod utils {
         System::events().into_iter().for_each(|e| {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 if let Some(details) = message.reply() {
-                    if details.reply_to() == message_id && details.status_code() != 0 {
+                    if details.reply_to() == message_id
+                        && details.status_code().to_le_bytes()[0] != 0
+                    {
                         actual_error = Some((
                             String::from_utf8(message.payload().to_vec())
                                 .expect("Unable to decode string from error reply"),
@@ -12120,6 +12221,120 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
         assert_eq!(
             gas_info_result.unwrap_err(),
             "Calculation gas limit exceeded. Consider using custom built node."
+        );
+    });
+}
+
+#[test]
+fn reservation_manager() {
+    use demo_reservation_manager::{Action, WASM_BINARY};
+    use utils::Assertion;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("Program uploading failed");
+
+        run_to_next_block(None);
+
+        fn scenario(pid: ProgramId, payload: Action, expected: Vec<Assertion>) {
+            System::reset_events();
+
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                payload.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+
+            run_to_next_block(None);
+
+            assert_responses_to_user(USER_1, expected);
+        }
+
+        // Try unreserve 100 gas when there's no reservations.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 100 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
+        // Reserve 10_000 gas.
+        scenario(
+            pid,
+            Action::Reserve {
+                amount: 10_000,
+                duration: 100,
+            },
+            vec![Assertion::StatusCode(Some(0))],
+        );
+        // Try to unreserve 50_000 gas.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 50_000 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
+        // Try to unreserve 8_000 gas.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 8_000 },
+            vec![Assertion::StatusCode(Some(0)), Assertion::Payload(vec![])],
+        );
+        // Try to unreserve 8_000 gas again.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 8_000 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
+    });
+}
+
+#[test]
+fn check_mutable_global_exports_restriction() {
+    init_logger();
+
+    let wat_correct = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (func $init)
+            (global (;0;) (mut i32) (i32.const 65536))
+            (export "init" (func $init))
+            (export "{STACK_END_EXPORT_NAME}" (global 0))
+        )"#
+    );
+
+    let wat_incorrect = r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (func $init)
+            (global (;0;) (mut i32) (i32.const 65536))
+            (export "init" (func $init))
+            (export "global" (global 0))
+        )"#;
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(upload_program_default(
+            USER_1,
+            ProgramCodeKind::CustomInvalid(&wat_correct)
+        ));
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(wat_incorrect)),
+            Error::<Test>::ProgramConstructionFailed
         );
     });
 }

@@ -72,7 +72,7 @@ mod wasm {
                 Dest::Ping => (unsafe { DEMO_PING }, b"PING".to_vec()),
             };
 
-            msg::send_bytes_for_reply(destination, payload, 0).expect("Failed to send message")
+            msg::send_bytes_for_reply(destination, payload, 0, 0).expect("Failed to send message")
         };
 
         match command {
