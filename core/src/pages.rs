@@ -387,7 +387,6 @@ impl PageDynSize for GearPage {
     const SIZE_NO: usize = PageSizeNo::GearSizeNo as usize;
 }
 
-#[cfg(test)]
 impl SizeManager for u32 {
     fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
         NonZeroU32::new(*self).expect("Size cannot be zero")

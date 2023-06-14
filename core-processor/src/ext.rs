@@ -43,7 +43,7 @@ use gear_core::{
         ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
         ReplyPacket, StatusCode,
     },
-    pages::{GearPage, PageError, PageU32Size, WasmPage},
+    pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::{
@@ -1200,7 +1200,7 @@ mod tests {
 
     mod property_tests {
         use super::*;
-        use gear_core::memory::{HostPointer, PageError};
+        use gear_core::{memory::HostPointer, pages::PageError};
         use proptest::{
             arbitrary::any,
             collection::size_range,
