@@ -227,23 +227,23 @@ pub struct TypesRepr {
     pub output: Option<u32>,
 }
 
-/// Metadata representation.
+/// Metadata internal representation.
 #[derive(Encode, Debug, Decode, Eq, PartialEq)]
 #[codec(crate = scale)]
 pub struct MetadataRepr {
-    /// Init types representation.
+    /// Internal representation for [`Metadata::Init`] type.
     pub init: TypesRepr,
-    /// Handle types representation.
+    /// Internal representation for [`Metadata::Handle`] type.
     pub handle: TypesRepr,
-    /// Reply types representation.
+    /// Internal representation for [`Metadata::Reply`] type.
     pub reply: TypesRepr,
-    /// Async main types representation.
+    /// Internal representation for [`Metadata::Others`] type.
     pub others: TypesRepr,
-    /// Signal output type representation.
+    /// Internal representation for [`Metadata::Signal`] type.
     pub signal: Option<u32>,
-    /// State type representation.
+    /// Internal representation for [`Metadata::State`] type.
     pub state: Option<u32>,
-    /// Registry.
+    /// Encoded registry of types.
     pub registry: Vec<u8>,
 }
 
@@ -264,7 +264,7 @@ pub trait Type: TypeInfo + 'static {
         TypeId::of::<Self>().eq(&TypeId::of::<()>())
     }
 
-    /// Create [`MetaType`](scale_info::MetaType) information about type.
+    /// Create [`MetaType`] information about type.
     fn meta_type() -> MetaType {
         MetaType::new::<Self>()
     }
