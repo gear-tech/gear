@@ -192,7 +192,7 @@ where
 
     io.merge(Gear::new(client.clone()).into_rpc())?;
 
-    io.merge(RuntimeInfoApi::<C, Block, B>::new(client.clone()).into_rpc())?;
+    io.merge(RuntimeInfoApi::<C, Block, B>::new(client).into_rpc())?;
 
     Ok(io)
 }

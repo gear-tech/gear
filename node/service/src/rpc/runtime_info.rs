@@ -30,8 +30,12 @@ use std::{marker::PhantomData, sync::Arc};
 
 #[rpc(server)]
 pub(crate) trait RuntimeInfo<BlockHash> {
-    #[method(name = "gear_wasmRuntimeVersion")]
-    fn wasm_runtime_version(&self, at: Option<BlockHash>) -> RpcResult<String>;
+    // Returns the version of the WASM blob in storage.
+    // The format of the version is `x.y.z-commit_hash`, where the `x.y.z` is the version
+    // of the runtime crate, and the `commit_hash` is the hash of the commit the runtime crate
+    // was built from.
+    #[method(name = "runtime_wasmBlobVersion")]
+    fn wasm_blob_version(&self, at: Option<BlockHash>) -> RpcResult<String>;
 }
 
 pub(crate) struct RuntimeInfoApi<C, Block, Backend> {
@@ -57,38 +61,36 @@ where
     Block: BlockT,
     Backend: sc_client_api::Backend<Block> + Send + Sync + 'static,
 {
-    fn wasm_runtime_version(&self, at: Option<Block::Hash>) -> RpcResult<String> {
+    fn wasm_blob_version(&self, at: Option<Block::Hash>) -> RpcResult<String> {
         let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        let wasm_runtime_data = self
+        let wasm_blob_data = self
             .client
             .storage(
                 at,
                 &sp_storage::StorageKey(sp_core::storage::well_known_keys::CODE.into()),
             )
             .map_err(map_err_into_rpc_err)?;
-        let Some(wasm_runtime_data) = wasm_runtime_data else { return Ok("Not available".into()); };
+        let Some(wasm_blob_data) = wasm_blob_data else { return Err(rpc_err("Unable to find WASM blob in storage", None)); };
 
-        let wasm_runtime_blob = RuntimeBlob::uncompress_if_needed(&wasm_runtime_data.0)
-            .map_err(map_err_into_rpc_err)?;
+        let wasm_runtime_blob =
+            RuntimeBlob::uncompress_if_needed(&wasm_blob_data.0).map_err(map_err_into_rpc_err)?;
 
-        let wasm_runtime_version =
-            wasm_runtime_blob.custom_section_contents("wasm_runtime_version");
-        let Some(wasm_runtime_version) = wasm_runtime_version else { return Ok("Not available".into()); };
-        let wasm_runtime_version =
-            String::from_utf8(wasm_runtime_version.into()).map_err(map_err_into_rpc_err)?;
+        let wasm_blob_version = wasm_runtime_blob.custom_section_contents("wasm_blob_version");
+        let Some(wasm_blob_version) = wasm_blob_version else { return Err(rpc_err("Unable to find WASM blob version in WASM blob", None)); };
+        let wasm_blob_version =
+            String::from_utf8(wasm_blob_version.into()).map_err(map_err_into_rpc_err)?;
 
-        Ok(wasm_runtime_version)
+        Ok(wasm_blob_version)
     }
 }
 
 fn map_err_into_rpc_err(err: impl std::fmt::Debug) -> RpcError {
+    rpc_err("Runtime info error", Some(format!("{err:?}")))
+}
+
+fn rpc_err(message: &str, data: Option<String>) -> RpcError {
     use jsonrpsee::types::error::{CallError, ErrorObject};
 
-    CallError::Custom(ErrorObject::owned(
-        9000,
-        "Runtime info error",
-        Some(format!("{err:?}")),
-    ))
-    .into()
+    CallError::Custom(ErrorObject::owned(9000, message, data)).into()
 }
