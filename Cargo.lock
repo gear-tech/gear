@@ -4461,7 +4461,6 @@ name = "gsdk"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-recursion",
  "base64 0.21.2",
  "demo-messager",
  "demo-new-meta",
