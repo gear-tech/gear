@@ -27,12 +27,15 @@ pub fn method(self_: &mut dyn FunctionContext, memory_idx: u32, size: u32) -> u3
         trace("memory_grow", caller);
 
         let data_ptr: *const _ = caller.data();
-        let mut m = unsafe { &mut SANDBOX_STORE }
-            .get(data_ptr as u64)
-            .memory(memory_idx)
-            .expect("Failed to grow memory: cannot get backend memory");
+        method_result = SANDBOXES.with(|sandboxes| {
+            let mut memory = sandboxes
+                .borrow_mut()
+                .get(data_ptr as u64)
+                .memory(memory_idx)
+                .expect("Failed to grow memory: cannot get backend memory");
 
-        method_result = m.memory_grow(size).expect("Failed to grow memory");
+            memory.memory_grow(size).expect("Failed to grow memory")
+        });
     });
 
     method_result

@@ -32,24 +32,24 @@ pub fn method(
     sp_wasm_interface::with_caller_mut(self_, |caller| {
         trace("memory_set", caller);
 
+        let Ok(buffer) = read_memory(&caller, val_ptr, val_len) else {
+            method_result = sandbox_env::env::ERR_OUT_OF_BOUNDS;
+            return;
+        };
+
         let data_ptr: *const _ = caller.data();
-        let sandboxed_memory = unsafe { &mut SANDBOX_STORE }
-            .get(data_ptr as u64)
-            .memory(memory_idx)
-            .expect("memory_set: not found");
+        method_result = SANDBOXES.with(|sandboxes| {
+            let sandboxed_memory = sandboxes
+                .borrow_mut()
+                .get(data_ptr as u64)
+                .memory(memory_idx)
+                .expect("memory_set: not found");
 
-        let buffer = match read_memory(&caller, val_ptr, val_len) {
-            Err(_) => {
-                method_result = sandbox_env::env::ERR_OUT_OF_BOUNDS;
-                return;
+            match sandboxed_memory.write_from(Pointer::new(offset), &buffer) {
+                Ok(_) => sandbox_env::env::ERR_OK,
+                Err(_) => sandbox_env::env::ERR_OUT_OF_BOUNDS,
             }
-            Ok(buffer) => buffer,
-        };
-
-        method_result = match sandboxed_memory.write_from(Pointer::new(offset), &buffer) {
-            Ok(_) => sandbox_env::env::ERR_OK,
-            Err(_) => sandbox_env::env::ERR_OUT_OF_BOUNDS,
-        };
+        });
     });
 
     method_result

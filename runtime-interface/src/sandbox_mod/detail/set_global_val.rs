@@ -27,13 +27,16 @@ pub fn method(self_: &mut dyn FunctionContext, instance_idx: u32, name: &str, va
         log::trace!("set_global_val, instance_idx={instance_idx}");
 
         let data_ptr: *const _ = caller.data();
-        let instance = unsafe { &mut SANDBOX_STORE }
-            .get(data_ptr as u64)
-            .instance(instance_idx)
-            .map_err(|e| e.to_string())
-            .expect("Failed to set global in sandbox");
+        let result = SANDBOXES.with(|sandboxes| {
+            let instance = sandboxes
+                .borrow_mut()
+                .get(data_ptr as u64)
+                .instance(instance_idx)
+                .map_err(|e| e.to_string())
+                .expect("Failed to set global in sandbox");
 
-        let result = instance.set_global_val(name, value);
+            instance.set_global_val(name, value)
+        });
 
         log::trace!("set_global_val, name={name}, value={value:?}, result={result:?}",);
 

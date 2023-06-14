@@ -25,12 +25,15 @@ pub fn method(self_: &mut dyn FunctionContext, instance_idx: u32, name: &str) ->
         trace("get_global_val", caller);
 
         let data_ptr: *const _ = caller.data();
-        method_result = unsafe { &mut SANDBOX_STORE }
-            .get(data_ptr as u64)
-            .instance(instance_idx)
-            .map(|i| i.get_global_val(name))
-            .map_err(|e| e.to_string())
-            .expect("Failed to get global from sandbox");
+        method_result = SANDBOXES.with(|sandboxes| {
+            sandboxes
+                .borrow_mut()
+                .get(data_ptr as u64)
+                .instance(instance_idx)
+                .map(|i| i.get_global_val(name))
+                .map_err(|e| e.to_string())
+                .expect("Failed to get global from sandbox")
+        });
     });
 
     method_result

@@ -27,12 +27,15 @@ pub fn method(self_: &mut dyn FunctionContext, memory_idx: u32) -> u32 {
         trace("memory_size", caller);
 
         let data_ptr: *const _ = caller.data();
-        let mut m = unsafe { &mut SANDBOX_STORE }
-            .get(data_ptr as u64)
-            .memory(memory_idx)
-            .expect("Failed to get memory size: cannot get backend memory");
+        method_result = SANDBOXES.with(|sandboxes| {
+            let mut memory = sandboxes
+                .borrow_mut()
+                .get(data_ptr as u64)
+                .memory(memory_idx)
+                .expect("Failed to get memory size: cannot get backend memory");
 
-        method_result = m.memory_size();
+            memory.memory_size()
+        });
     });
 
     method_result

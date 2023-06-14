@@ -33,10 +33,13 @@ pub fn method(
         trace("memory_get", caller);
 
         let data_ptr: *const _ = caller.data();
-        let sandboxed_memory = unsafe { &mut SANDBOX_STORE }
-            .get(data_ptr as u64)
-            .memory(memory_idx)
-            .expect("sandboxed memory not found");
+        let sandboxed_memory = SANDBOXES.with(|sandboxes| {
+            sandboxes
+                .borrow_mut()
+                .get(data_ptr as u64)
+                .memory(memory_idx)
+                .expect("sandboxed memory not found")
+        });
 
         let len = buf_len as usize;
 

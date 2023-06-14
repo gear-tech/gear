@@ -25,14 +25,17 @@ pub fn method(self_: &mut dyn FunctionContext, instance_id: u32) -> HostPointer 
         trace("get_instance_ptr", caller);
 
         let data_ptr: *const _ = caller.data();
-        let instance = unsafe { &mut SANDBOX_STORE }
-            .get(data_ptr as u64)
-            .instance(instance_id)
-            .expect("Failed to get sandboxed instance");
+        method_result = SANDBOXES.with(|sandboxes| {
+            let instance = sandboxes
+                .borrow_mut()
+                .get(data_ptr as u64)
+                .instance(instance_id)
+                .expect("Failed to get sandboxed instance");
 
-        method_result = instance.as_ref().get_ref()
-            as *const gear_sandbox_host::sandbox::SandboxInstance
-            as HostPointer;
+            instance.as_ref().get_ref()
+                as *const gear_sandbox_host::sandbox::SandboxInstance
+                as HostPointer
+        });
     });
 
     method_result

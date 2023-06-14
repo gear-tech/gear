@@ -42,17 +42,20 @@ pub fn method(
             .collect::<Vec<_>>();
 
         let data_ptr: *const _ = caller.data();
-        let store_data_key = data_ptr as u64;
-        let store = unsafe { &mut SANDBOX_STORE };
-        let instance = store
-            .get(store_data_key)
-            .instance(instance_idx)
-            .expect("backend instance not found");
+        let (instance, dispatch_thunk) = SANDBOXES.with(|sandboxes| {
+            let mut store_ref = sandboxes
+                .borrow_mut();
+            let store = store_ref
+                .get(data_ptr as u64);
 
-        let dispatch_thunk = store
-            .get(store_data_key)
-            .dispatch_thunk(instance_idx)
-            .expect("dispatch_thunk not found");
+            let instance = store.instance(instance_idx).expect("backend instance not found");
+
+            let dispatch_thunk = store
+                .dispatch_thunk(instance_idx)
+                .expect("dispatch_thunk not found");
+
+            (instance, dispatch_thunk)
+        });
 
         let mut sandbox_context = SandboxContext {
             caller,

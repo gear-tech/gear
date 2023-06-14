@@ -23,7 +23,6 @@ derive_more.workspace = true
 static_assertions.workspace = true
 region = { workspace = true, optional = true }
 gear-sandbox-host = { workspace = true, optional = true }
-once_cell = { version = "1.17.1", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["memoryapi"] }
@@ -40,6 +39,5 @@ std = [
 	"gear-lazy-pages",
 	"region",
 	"gear-sandbox-host",
-	"once_cell",
 ]
 host-sandbox = ["gear-sandbox-host?/host-sandbox"]

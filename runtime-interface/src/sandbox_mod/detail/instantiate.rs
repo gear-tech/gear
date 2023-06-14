@@ -45,31 +45,38 @@ pub fn method(
                 .expect("dispatch_thunk_idx should point to actual func")
         };
 
-        let store = unsafe { &mut SANDBOX_STORE };
-
         let data_ptr: *const _ = caller.data();
         let store_data_key = data_ptr as u64;
-        let guest_env =
-            match sandbox_env::GuestEnvironment::decode(store.get(store_data_key), raw_env_def) {
-                Ok(guest_env) => guest_env,
-                Err(_) => {
-                    method_result = sandbox_env::env::ERR_MODULE;
-                    return;
-                }
-            };
+        let guest_env = SANDBOXES.with(|sandboxes| {
+            let mut store_ref = sandboxes
+                .borrow_mut();
+            let store = store_ref
+                .get(store_data_key);
+
+            sandbox_env::GuestEnvironment::decode(store, raw_env_def)
+        });
+        let Ok(guest_env) = guest_env else {
+            method_result = sandbox_env::env::ERR_MODULE;
+            return;
+        };
 
         // Catch any potential panics so that we can properly restore the sandbox store
         // which we've destructively borrowed.
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            store.get(store_data_key).instantiate(
-                wasm_code,
-                guest_env,
-                &mut SandboxContext {
-                    caller,
-                    dispatch_thunk,
-                    state: state_ptr.into(),
-                },
-            )
+            SANDBOXES.with(|sandboxes| {
+                sandboxes
+                    .borrow_mut()
+                    .get(data_ptr as u64)
+                    .instantiate(
+                        wasm_code,
+                        guest_env,
+                        &mut SandboxContext {
+                            caller,
+                            dispatch_thunk,
+                            state: state_ptr.into(),
+                        },
+                    )
+            })
         }));
 
         let result = match result {
@@ -78,7 +85,14 @@ pub fn method(
         };
 
         let instance_idx_or_err_code = match result {
-            Ok(instance) => instance.register(store.get(store_data_key), dispatch_thunk),
+            Ok(instance) => SANDBOXES.with(|sandboxes| {
+                let mut store_ref = sandboxes
+                    .borrow_mut();
+                let store = store_ref
+                    .get(store_data_key);
+
+                instance.register(store, dispatch_thunk)
+            }),
             Err(sandbox_env::InstantiationError::StartTrapped) => sandbox_env::env::ERR_EXECUTION,
             Err(_) => sandbox_env::env::ERR_MODULE,
         };

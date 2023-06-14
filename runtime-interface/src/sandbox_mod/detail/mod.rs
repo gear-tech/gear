@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::cell::RefCell;
+
 use codec::{Decode, Encode};
 use gear_sandbox_host::sandbox as sandbox_env;
-use once_cell::unsync::Lazy;
 use sp_wasm_interface::{
     util,
     wasmtime::{AsContext, AsContextMut, Func, Val},
@@ -87,17 +88,14 @@ impl Store {
     }
 }
 
-static mut SANDBOX_STORE: Lazy<Store> = Lazy::new(Store::new);
+thread_local! {
+    static SANDBOXES: RefCell<Store> = RefCell::new(Store::new());
+}
 
 pub fn init() {
-    use std::sync::Once;
-
-    static INIT: Once = Once::new();
-
-    INIT.call_once(|| {
-        let storage = unsafe { &mut SANDBOX_STORE };
-        let _ = storage.get(0);
-    });
+    SANDBOXES.with(|sandboxes| {
+        let _store = sandboxes.borrow_mut().get(0);
+    })
 }
 
 struct SandboxContext<'a, 'b> {

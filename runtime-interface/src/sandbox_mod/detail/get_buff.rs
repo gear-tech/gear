@@ -27,12 +27,15 @@ pub fn method(self_: &mut dyn FunctionContext, memory_idx: u32) -> HostPointer {
         trace("get_buff", caller);
 
         let data_ptr: *const _ = caller.data();
-        let mut m = unsafe { &mut SANDBOX_STORE }
-            .get(data_ptr as u64)
-            .memory(memory_idx)
-            .expect("Failed to get memory buffer pointer: cannot get backend memory");
+        method_result = SANDBOXES.with(|sandboxes| {
+            let mut memory = sandboxes
+                .borrow_mut()
+                .get(data_ptr as u64)
+                .memory(memory_idx)
+                .expect("Failed to get memory buffer pointer: cannot get backend memory");
 
-        method_result = m.get_buff() as HostPointer;
+            memory.get_buff() as HostPointer
+        });
     });
 
     method_result

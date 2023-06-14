@@ -3990,7 +3990,6 @@ dependencies = [
  "gear-sandbox-host",
  "libc",
  "log",
- "once_cell",
  "parity-scale-codec",
  "region",
  "sp-allocator",

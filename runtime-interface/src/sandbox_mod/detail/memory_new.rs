@@ -25,11 +25,14 @@ pub fn method(self_: &mut dyn FunctionContext, initial: u32, maximum: u32) -> u3
         trace("memory_new", caller);
 
         let data_ptr: *const _ = caller.data();
-        method_result = unsafe { &mut SANDBOX_STORE }
-            .get(data_ptr as u64)
-            .new_memory(initial, maximum)
-            .map_err(|e| e.to_string())
-            .expect("Failed to create new memory with sandbox");
+        method_result = SANDBOXES.with(|sandboxes| {
+            sandboxes
+                .borrow_mut()
+                .get(data_ptr as u64)
+                .new_memory(initial, maximum)
+                .map_err(|e| e.to_string())
+                .expect("Failed to create new memory with sandbox")
+        });
     });
 
     method_result

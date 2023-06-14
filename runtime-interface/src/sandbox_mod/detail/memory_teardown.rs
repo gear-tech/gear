@@ -23,9 +23,12 @@ pub fn method(self_: &mut dyn FunctionContext, memory_idx: u32) {
         trace("memory_teardown", caller);
 
         let data_ptr: *const _ = caller.data();
-        unsafe { &mut SANDBOX_STORE }
-            .get(data_ptr as u64)
-            .memory_teardown(memory_idx)
-            .expect("Failed to teardown sandbox memory")
+        SANDBOXES.with(|sandboxes| {
+            sandboxes
+                .borrow_mut()
+                .get(data_ptr as u64)
+                .memory_teardown(memory_idx)
+                .expect("Failed to teardown sandbox memory")
+        });
     });
 }
