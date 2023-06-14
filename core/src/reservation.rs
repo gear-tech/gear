@@ -32,7 +32,7 @@ use scale_info::{
 /// Controls gas reservations states.
 #[derive(Debug, Clone)]
 pub struct GasReserver {
-    /// Message id withing which reservations are created
+    /// Message id within which reservations are created
     /// by the current instance of [`GasReserver`].
     message_id: MessageId,
     /// Nonce used to generate [`ReservationId`]s.
@@ -44,7 +44,7 @@ pub struct GasReserver {
     nonce: u64,
     /// Gas reservations states.
     states: GasReservationStates,
-    /// Maximum allowed reservations to be stored in `states`
+    /// Maximum allowed reservations to be stored in `states`.
     ///
     /// This field is used not only to control `states` during
     /// one execution, but also during several execution using
@@ -111,7 +111,7 @@ impl GasReserver {
 
     /// Reserves gas.
     ///
-    /// Creates a new reservation and returns it's id.
+    /// Creates a new reservation and returns its id.
     ///
     /// Returns an error if maximum limit of reservations is reached.
     pub fn reserve(
@@ -201,7 +201,7 @@ impl GasReserver {
         &self.states
     }
 
-    /// Convert current gas reserver into gas reservation map.
+    /// Converts current gas reserver into gas reservation map.
     pub fn into_map<F>(
         self,
         current_block_height: u32,
