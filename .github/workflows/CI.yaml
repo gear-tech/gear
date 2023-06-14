@@ -69,8 +69,8 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
-          tar -xf /root/cache/check_cache_${{ github.base_ref }}.tar -C /
-          tar -xf /root/cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
+          tar -xf /cache/check_cache_${{ github.base_ref }}.tar -C /
+          tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
@@ -95,7 +95,7 @@ jobs:
         continue-on-error: true
         run: |
           tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
+          mv /tmp/*.tar /cache/
 
   build:
     # needs: spec_version
@@ -152,7 +152,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
-          { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; }
+          { tar -xf /cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; }
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
@@ -283,7 +283,7 @@ jobs:
         continue-on-error: true
         run: |
           tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
+          mv /tmp/*.tar /cache/
 
       - name: Prepare artifacts
         if: github.event_name == 'push'
@@ -513,7 +513,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
-          { tar -xf /root/cache/build_win_cross_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /; }
+          { tar -xf /cache/build_win_cross_cache_${{ github.base_ref }}.tar -C /; tar -xf /cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /; }
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
@@ -566,7 +566,7 @@ jobs:
         continue-on-error: true
         run: |
           tar -cf /tmp/build_win_cross_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
+          mv /tmp/*.tar /cache/
 
   build-macos-x86:
     if: ${{ always() && (github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E2-forcemacos')) }}
