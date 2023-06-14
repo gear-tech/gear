@@ -71,7 +71,7 @@ fn smart_truncate(s: &mut String, max_bytes: usize) {
 pub struct LimitedStr<'a>(Cow<'a, str>);
 
 impl<'a> LimitedStr<'a> {
-    const INIT_ERROR_MSG: &'static str = concat!(
+    const INIT_ERROR_MSG: &str = concat!(
         "String must be less than ",
         stringify!(TRIMMED_MAX_LEN),
         " bytes."
