@@ -277,9 +277,8 @@ extern "C" fn metahash() {{
             )?;
         }
 
-        let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
         smart_fs::write(
-            wasm_binary_rs,
+            self.out_dir.join("wasm_binary.rs"),
             format!(
                 r#"#[allow(unused)]
                        pub const WASM_BINARY: &[u8] = include_bytes!("{}");
@@ -289,9 +288,8 @@ extern "C" fn metahash() {{
                 Self::get_exports(&meta_wasm_path)?,
             ),
         )
-        .context("unable to write `wasm_binary.rs`")?;
-
-        Ok(())
+        .context("unable to write `wasm_binary.rs`")
+        .map_err(Into::into)
     }
 
     pub fn postprocess_opt(
@@ -306,9 +304,11 @@ extern "C" fn metahash() {{
             .wasm_target_dir
             .join([file_base_name, ".wasm"].concat());
 
+        // Copy original file to `self.wasm_target_dir`
         smart_fs::copy_if_newer(original_wasm_path, &original_copy_wasm_path)
             .context("unable to copy WASM file")?;
 
+        // Optimize wasm using and `wasm-opt` and our optimizations.
         if smart_fs::check_if_newer(original_wasm_path, &opt_wasm_path)? {
             let path = optimize::optimize_wasm(
                 original_copy_wasm_path.clone(),
@@ -337,17 +337,17 @@ extern "C" fn metahash() {{
             fs::write(opt_wasm_path.clone(), optimizer.optimize(OptType::Opt)?)?;
         }
 
-        let wasm_binary_path = self.original_dir.join(".binpath");
-        let mut relative_path_to_wasm =
-            pathdiff::diff_paths(&original_copy_wasm_path, &self.original_dir)
-                .expect("Unable to calculate relative path");
-        relative_path_to_wasm.set_extension(""); // Remove extension
+        // Create path string in `.binpath` file.
+        let relative_path_to_wasm = pathdiff::diff_paths(&self.wasm_target_dir, &self.original_dir)
+            .expect("Unable to calculate relative path")
+            .join(file_base_name);
         smart_fs::write(
-            wasm_binary_path,
+            self.original_dir.join(".binpath"),
             format!("{}", relative_path_to_wasm.display()),
         )
         .context("unable to write `.binpath`")?;
 
+        // Create `wasm_binary.rs`
         let metadata = self
             .project_type
             .metadata()
@@ -358,10 +358,8 @@ extern "C" fn metahash() {{
                 )
             })
             .unwrap_or_default();
-
-        let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
         smart_fs::write(
-            wasm_binary_rs,
+            self.out_dir.join("wasm_binary.rs"),
             format!(
                 r#"#[allow(unused)]
                        pub const WASM_BINARY: &[u8] = include_bytes!("{}");
