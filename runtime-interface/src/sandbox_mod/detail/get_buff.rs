@@ -30,7 +30,7 @@ pub fn method(self_: &mut dyn FunctionContext, memory_idx: u32) -> HostPointer {
         method_result = SANDBOXES.with(|sandboxes| {
             let mut memory = sandboxes
                 .borrow_mut()
-                .get(data_ptr as u64)
+                .get(data_ptr as usize)
                 .memory(memory_idx)
                 .expect("Failed to get memory buffer pointer: cannot get backend memory");
 

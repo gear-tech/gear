@@ -28,7 +28,7 @@ pub fn method(self_: &mut dyn FunctionContext, initial: u32, maximum: u32) -> u3
         method_result = SANDBOXES.with(|sandboxes| {
             sandboxes
                 .borrow_mut()
-                .get(data_ptr as u64)
+                .get(data_ptr as usize)
                 .new_memory(initial, maximum)
                 .map_err(|e| e.to_string())
                 .expect("Failed to create new memory with sandbox")

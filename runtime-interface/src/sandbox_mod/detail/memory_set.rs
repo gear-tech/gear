@@ -41,7 +41,7 @@ pub fn method(
         method_result = SANDBOXES.with(|sandboxes| {
             let sandboxed_memory = sandboxes
                 .borrow_mut()
-                .get(data_ptr as u64)
+                .get(data_ptr as usize)
                 .memory(memory_idx)
                 .expect("memory_set: not found");
 

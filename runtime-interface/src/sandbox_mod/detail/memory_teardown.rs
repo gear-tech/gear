@@ -26,7 +26,7 @@ pub fn method(self_: &mut dyn FunctionContext, memory_idx: u32) {
         SANDBOXES.with(|sandboxes| {
             sandboxes
                 .borrow_mut()
-                .get(data_ptr as u64)
+                .get(data_ptr as usize)
                 .memory_teardown(memory_idx)
                 .expect("Failed to teardown sandbox memory")
         });

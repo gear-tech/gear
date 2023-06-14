@@ -66,7 +66,7 @@ mod get_instance_ptr;
 pub use get_instance_ptr::method as get_instance_ptr;
 
 struct Store {
-    store_data_key: u64,
+    store_data_key: usize,
     store: sandbox_env::Store<Func>,
 }
 
@@ -78,7 +78,7 @@ impl Store {
         }
     }
 
-    pub fn get(&mut self, store_data_key: u64) -> &mut sandbox_env::Store<Func> {
+    pub fn get(&mut self, store_data_key: usize) -> &mut sandbox_env::Store<Func> {
         if self.store_data_key != store_data_key {
             self.store_data_key = store_data_key;
             self.store.clear();
@@ -174,8 +174,8 @@ fn trace(func: &str, caller: &Caller<'_, StoreData>) {
 
     log::trace!(
         "{func}; data_ptr = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
-        data_ptr as u64,
-        caller_ptr as u64,
+        data_ptr as usize,
+        caller_ptr as usize,
         thread_id,
     );
 }

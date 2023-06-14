@@ -43,12 +43,12 @@ pub fn method(
 
         let data_ptr: *const _ = caller.data();
         let (instance, dispatch_thunk) = SANDBOXES.with(|sandboxes| {
-            let mut store_ref = sandboxes
-                .borrow_mut();
-            let store = store_ref
-                .get(data_ptr as u64);
+            let mut store_ref = sandboxes.borrow_mut();
+            let store = store_ref.get(data_ptr as usize);
 
-            let instance = store.instance(instance_idx).expect("backend instance not found");
+            let instance = store
+                .instance(instance_idx)
+                .expect("backend instance not found");
 
             let dispatch_thunk = store
                 .dispatch_thunk(instance_idx)

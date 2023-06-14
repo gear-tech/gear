@@ -46,12 +46,10 @@ pub fn method(
         };
 
         let data_ptr: *const _ = caller.data();
-        let store_data_key = data_ptr as u64;
+        let store_data_key = data_ptr as usize;
         let guest_env = SANDBOXES.with(|sandboxes| {
-            let mut store_ref = sandboxes
-                .borrow_mut();
-            let store = store_ref
-                .get(store_data_key);
+            let mut store_ref = sandboxes.borrow_mut();
+            let store = store_ref.get(store_data_key);
 
             sandbox_env::GuestEnvironment::decode(store, raw_env_def)
         });
@@ -64,18 +62,15 @@ pub fn method(
         // which we've destructively borrowed.
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             SANDBOXES.with(|sandboxes| {
-                sandboxes
-                    .borrow_mut()
-                    .get(data_ptr as u64)
-                    .instantiate(
-                        wasm_code,
-                        guest_env,
-                        &mut SandboxContext {
-                            caller,
-                            dispatch_thunk,
-                            state: state_ptr.into(),
-                        },
-                    )
+                sandboxes.borrow_mut().get(store_data_key).instantiate(
+                    wasm_code,
+                    guest_env,
+                    &mut SandboxContext {
+                        caller,
+                        dispatch_thunk,
+                        state: state_ptr.into(),
+                    },
+                )
             })
         }));
 
@@ -86,10 +81,8 @@ pub fn method(
 
         let instance_idx_or_err_code = match result {
             Ok(instance) => SANDBOXES.with(|sandboxes| {
-                let mut store_ref = sandboxes
-                    .borrow_mut();
-                let store = store_ref
-                    .get(store_data_key);
+                let mut store_ref = sandboxes.borrow_mut();
+                let store = store_ref.get(store_data_key);
 
                 instance.register(store, dispatch_thunk)
             }),

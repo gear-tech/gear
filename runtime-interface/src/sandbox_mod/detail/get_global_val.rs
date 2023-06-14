@@ -28,7 +28,7 @@ pub fn method(self_: &mut dyn FunctionContext, instance_idx: u32, name: &str) ->
         method_result = SANDBOXES.with(|sandboxes| {
             sandboxes
                 .borrow_mut()
-                .get(data_ptr as u64)
+                .get(data_ptr as usize)
                 .instance(instance_idx)
                 .map(|i| i.get_global_val(name))
                 .map_err(|e| e.to_string())

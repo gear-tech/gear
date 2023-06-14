@@ -30,7 +30,7 @@ pub fn method(self_: &mut dyn FunctionContext, memory_idx: u32, size: u32) -> u3
         method_result = SANDBOXES.with(|sandboxes| {
             let mut memory = sandboxes
                 .borrow_mut()
-                .get(data_ptr as u64)
+                .get(data_ptr as usize)
                 .memory(memory_idx)
                 .expect("Failed to grow memory: cannot get backend memory");
 
