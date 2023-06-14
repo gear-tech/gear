@@ -17,11 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::Error,
-    init_with_handler, mprotect,
-    pages::{GearPageNumber, PageDynSize},
-    signal::ExceptionInfo,
-    LazyPagesVersion, UserSignalHandler,
+    common::Error, init_with_handler, mprotect, signal::ExceptionInfo, LazyPagesVersion,
+    UserSignalHandler,
 };
 use gear_core::pages::{GearPage, PageU32Size, WasmPage};
 use region::Protection;
