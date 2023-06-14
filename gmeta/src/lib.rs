@@ -1,9 +1,27 @@
+// This file is part of Gear.
+
+// Copyright (C) 2022-2023 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! Crate for providing metadata for smart contracts.
 //!
 //! Metadata is used to describe the interface of a smart contract. For example,
 //! it can be used when uploading a contract using <https://idea.gear-tech.io>.
 //! The metadata informs the user about the contract's interface and allows them
-//! to interact with it using custom types.
+//! to interact with it using custom types on web applications UI.
 //!
 //! To generate a metadata output file `contract_name.meta.txt` for a contract,
 //! you need:
@@ -210,24 +228,24 @@ impl Types for () {
 }
 
 impl MetadataRepr {
-    /// Encode metadata representation into bytes.
+    /// Encode metadata into bytes using codec.
     pub fn bytes(&self) -> Vec<u8> {
         self.encode()
     }
 
-    /// Decode metadata representation from hex.
+    /// Decode metadata from hex.
     pub fn from_hex<T: AsRef<[u8]>>(data: T) -> Result<Self, MetadataParseError> {
         let data = hex::decode(data)?;
         let this = Self::decode(&mut data.as_ref())?;
         Ok(this)
     }
 
-    /// Encode metadata representation into hex string.
+    /// Encode metadata into hex string.
     pub fn hex(&self) -> String {
         hex::encode(self.bytes())
     }
 
-    /// Calculate BLAKE2b hash of metadata representation.
+    /// Calculate BLAKE2b hash of metadata bytes.
     pub fn hash(&self) -> [u8; 32] {
         let mut arr = [0; 32];
 
@@ -237,8 +255,7 @@ impl MetadataRepr {
         arr
     }
 
-    /// Calculate BLAKE2b hash of metadata representation and encode it into hex
-    /// string.
+    /// Calculate BLAKE2b hash of metadata and encode it into hex string.
     pub fn hash_hex(&self) -> String {
         hex::encode(self.hash())
     }
@@ -271,15 +288,6 @@ pub trait Metadata {
     /// Handle message type.
     ///
     /// Describes incoming/outgoing types for the `handle()` function.
-    ///
-    /// - Use unit tuple `()` if neither incoming nor outgoing messages are
-    ///   expected in the `handle()` function.
-    /// - Use [`In`] type alias if only incoming message is expected in the
-    ///   `handle()` function.
-    /// - Use [`Out`] type alias if only outgoing message is expected in the
-    ///   `handle()` function.
-    /// - Use [`InOut`] type alias if both incoming and outgoing messages are
-    ///   expected in the `handle()` function.
     type Handle: Types;
     /// Reply message type.
     ///
@@ -289,26 +297,15 @@ pub trait Metadata {
     ///
     /// Describes incoming/outgoing types for the `main()` function in case of
     /// asynchronous interaction.
-    ///
-    /// - Use unit tuple `()` if neither incoming nor outgoing messages are
-    ///   expected in the `main()` function.
-    /// - Use [`In`] type alias if only incoming message is expected in the
-    ///   `main()` function.
-    /// - Use [`Out`] type alias if only outgoing message is expected in the
-    ///   `main()` function.
-    /// - Use [`InOut`] type alias if both incoming and outgoing messages are
-    ///   expected in the `main()` function.
     type Others: Types;
     /// Signal message type.
     ///
-    /// - Use unit tuple `()` if neither incoming nor outgoing messages are
-    ///   expected in the `handle_signal()` function.
-    /// - Use [`Out`] type alias if only outgoing message is expected in the
-    ///   `handle_signal()` function.
+    /// Describes only the outgoing type from the program while processing the
+    /// system signal.
     type Signal: Type;
-    /// State message type.
+    /// State type.
     ///
-    /// Describes the type for the queried state returned by the state()
+    /// Describes the type for the queried state returned by the `state()`
     /// function.
     ///
     /// Use the type that you pass to the `msg::reply` function in the `state()`
