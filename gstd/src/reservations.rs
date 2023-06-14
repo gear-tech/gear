@@ -30,7 +30,7 @@ use crate::exec;
 use tests::exec_mock as exec;
 
 #[cfg(not(test))]
-use super::primitives::ReservationId;
+use crate::ReservationId;
 #[cfg(test)]
 use tests::ReservationIdMock as ReservationId;
 

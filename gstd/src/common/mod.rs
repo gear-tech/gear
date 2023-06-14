@@ -21,4 +21,3 @@
 pub mod errors;
 mod handlers;
 pub mod primitives;
-pub mod reservations;
