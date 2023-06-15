@@ -47,7 +47,8 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{
-    ExecutionError, ExtError, MemoryError, MessageError, ReservationError, WaitError,
+    ExecutionError, ExtError as ExtErrorCore, MemoryError, MessageError, ReservationError,
+    WaitError,
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -134,7 +135,7 @@ pub trait ProcessorExternalities {
 pub enum ExtError {
     /// Basic error
     #[display(fmt = "{_0}")]
-    Core(ExtError),
+    Core(ExtErrorCore),
     /// An error occurs in attempt to call forbidden sys-call.
     #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
@@ -145,31 +146,31 @@ pub enum ExtError {
 
 impl From<MessageError> for ExtError {
     fn from(err: MessageError) -> Self {
-        Self::Core(ExtError::Message(err))
+        Self::Core(ExtErrorCore::Message(err))
     }
 }
 
 impl From<MemoryError> for ExtError {
     fn from(err: MemoryError) -> Self {
-        Self::Core(ExtError::Memory(err))
+        Self::Core(ExtErrorCore::Memory(err))
     }
 }
 
 impl From<WaitError> for ExtError {
     fn from(err: WaitError) -> Self {
-        Self::Core(ExtError::Wait(err))
+        Self::Core(ExtErrorCore::Wait(err))
     }
 }
 
 impl From<ReservationError> for ExtError {
     fn from(err: ReservationError) -> Self {
-        Self::Core(ExtError::Reservation(err))
+        Self::Core(ExtErrorCore::Reservation(err))
     }
 }
 
 impl From<ExecutionError> for ExtError {
     fn from(err: ExecutionError) -> Self {
-        Self::Core(ExtError::Execution(err))
+        Self::Core(ExtErrorCore::Execution(err))
     }
 }
 

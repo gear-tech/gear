@@ -186,7 +186,9 @@ where
     }
 }
 
-impl<Ext: BackendExternalities> From<EnvBuilder<Ext>> for EnvironmentDefinitionBuilder<Runtime<Ext>> {
+impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
+    for EnvironmentDefinitionBuilder<Runtime<Ext>>
+{
     fn from(builder: EnvBuilder<Ext>) -> Self {
         builder.env_def_builder
     }
