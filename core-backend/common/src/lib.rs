@@ -389,10 +389,10 @@ pub trait BackendState {
 /// Backend termination aims to return to the caller gear wasm program
 /// execution outcome, which is the state of externalities, memory and
 /// termination reason.
-pub trait BackendTermination<E: BackendExternalities, EnvMem: Sized>: Sized {
+pub trait BackendTermination<Ext: BackendExternalities, EnvMem: Sized>: Sized {
     /// Transforms [`Self`] into tuple of externalities, memory and
     /// termination reason returned after the execution.
-    fn into_parts(self) -> (E, EnvMem, TerminationReason);
+    fn into_parts(self) -> (Ext, EnvMem, TerminationReason);
 
     /// Terminates backend work after execution.
     ///
@@ -414,7 +414,7 @@ pub trait BackendTermination<E: BackendExternalities, EnvMem: Sized>: Sized {
         res: Result<T, WasmCallErr>,
         gas: i64,
         allowance: i64,
-    ) -> (E, EnvMem, TerminationReason) {
+    ) -> (Ext, EnvMem, TerminationReason) {
         log::trace!("Execution result = {res:?}");
 
         let (mut ext, memory, termination_reason) = self.into_parts();

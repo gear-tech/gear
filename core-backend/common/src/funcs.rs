@@ -44,16 +44,16 @@ use gsys::{
 };
 use parity_scale_codec::Encode;
 
-pub struct FuncsHandler<E: Externalities + 'static, R> {
-    _phantom: PhantomData<(E, R)>,
+pub struct FuncsHandler<Ext: Externalities + 'static, Runtime> {
+    _phantom: PhantomData<(Ext, Runtime)>,
 }
 
-impl<E, R> FuncsHandler<E, R>
+impl<Ext, R> FuncsHandler<Ext, R>
 where
-    E: BackendExternalities + 'static,
-    E::Error: BackendExternalitiesError,
-    E::AllocError: BackendAllocExternalitiesError<ExtError = E::Error>,
-    R: Runtime<E> + MemoryOwner + MemoryAccessRecorder + BackendState,
+    Ext: BackendExternalities + 'static,
+    Ext::Error: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
+    R: Runtime<Ext>,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,
     /// because it may contain registered read.
