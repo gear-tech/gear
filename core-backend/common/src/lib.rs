@@ -377,14 +377,34 @@ pub trait BackendState {
     }
 }
 
+/// A trait for termination of the gear sys-calls execution backend.
+///
+/// Backend termination aims to return to the caller gear wasm program
+/// execution outcome, which is the state of externalities, memory and
+/// termination reason.
 pub trait BackendTermination<E: BackendExt, M: Sized>: Sized {
-    /// Into parts
+    /// Transforms [`Self`] into tuple of externalities, memory and
+    /// termination reason returned after the execution.
     fn into_parts(self) -> (E, M, TerminationReason);
 
-    /// Terminate backend work after execution
-    fn terminate<T: Debug, Err: Debug>(
+    /// Terminates backend work after execution.
+    ///
+    /// The function handles `res`, which is the result of gear wasm
+    /// program entry point invocation, and the termination reason.
+    ///
+    /// If the `res` is `Ok`, then execution considered successful
+    /// and the termination reason will have the corresponding value.
+    ///
+    /// If the `res` is `Err`, then execution is considered to end
+    /// with an error and the actual termination reason, which stores
+    /// more precise information about the error, is returned.
+    ///
+    /// There's a case, when `res` is `Err`, but termination reason has
+    /// a value for the successful ending of the execution. This is the
+    /// case of calling `unreachable` panic in the program.
+    fn terminate<T: Debug, WasmCallErr: Debug>(
         self,
-        res: Result<T, Err>,
+        res: Result<T, WasmCallErr>,
         gas: i64,
         allowance: i64,
     ) -> (E, M, TerminationReason) {
