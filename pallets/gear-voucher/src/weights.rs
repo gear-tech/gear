@@ -54,14 +54,16 @@ pub trait WeightInfo {
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	fn issue() -> Weight {
-		(Weight::from_parts(18_000_000, 0))
-			.saturating_add(T::DbWeight::get().reads(2_u64))
-			.saturating_add(T::DbWeight::get().writes(2_u64))
+		Weight::from_parts(44_271_000, 6196)
+            .saturating_add(T::DbWeight::get().reads(2_u64))
+            .saturating_add(T::DbWeight::get().writes(2_u64))
 	}
 }
 
 impl WeightInfo for () {
     fn issue() -> Weight {
-        Weight::zero().saturating_add(RocksDbWeight::get().writes(1_u64))
+        Weight::from_parts(44_271_000, 6196)
+            .saturating_add(RocksDbWeight::get().reads(2_u64))
+            .saturating_add(RocksDbWeight::get().writes(2_u64))
     }
 }

@@ -849,7 +849,7 @@ impl pallet_gear_voucher::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type PalletId = VoucherPalletId;
-    type WeightInfo = pallet_gear_voucher::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
