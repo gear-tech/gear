@@ -477,7 +477,7 @@ fn tokens_locking_works() {
                     10_000_000_000,
                     10 * UNITS,
                 ),
-                pallet_gear::Error::<Runtime>::InsufficientBalanceForReserve
+                pallet_gear::Error::<Runtime>::InsufficientBalance
             );
 
             // Locked funds can't be transferred to a program as a message `value`
@@ -503,7 +503,7 @@ fn tokens_locking_works() {
                     10_000_000_000,
                     11 * UNITS,
                 ),
-                pallet_gear::Error::<Runtime>::InsufficientBalanceForReserve
+                pallet_gear::Error::<Runtime>::InsufficientBalance
             );
         });
 }
