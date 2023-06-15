@@ -495,7 +495,6 @@ benchmarks! {
     resume_session_init {
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
@@ -521,7 +520,6 @@ benchmarks! {
         let c in 0 .. 16 * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
@@ -557,8 +555,7 @@ benchmarks! {
     resume_session_commit {
         let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
         let caller = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(0.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
