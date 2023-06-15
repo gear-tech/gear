@@ -201,7 +201,7 @@ pub mod pallet {
             Self::DuplicateItem
         }
 
-        fn item_not_found() -> Self {
+        fn program_not_found() -> Self {
             Self::ProgramNotFound
         }
 
@@ -373,6 +373,7 @@ pub mod pallet {
         type InternalError = Error<T>;
         type Error = DispatchError;
         type BlockNumber = T::BlockNumber;
+        type AccountId = T::AccountId;
 
         type ProgramMap = ProgramStorageWrap<T>;
         type MemoryPageMap = MemoryPageStorageWrap<T>;
@@ -387,7 +388,6 @@ pub mod pallet {
         type PausedProgramMap = PausedProgramStorageWrap<T>;
         type CodeStorage = Self;
         type NonceStorage = ResumeSessionsNonceWrap<T>;
-        type AccountId = <T as frame_system::Config>::AccountId;
         type ResumeSessions = ResumeSessionsWrap<T>;
         type SessionMemoryPages = SessionMemoryPagesWrap<T>;
     }

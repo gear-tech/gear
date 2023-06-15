@@ -5914,7 +5914,7 @@ fn resume_session_init_works() {
             Default::default(),
         ));
 
-        let (session_id, session_end_block, resume_program_id, _) = get_started_session();
+        let (session_id, session_end_block, resume_program_id, _) = get_last_session();
         assert_eq!(resume_program_id, program_id);
         assert_eq!(
             session_end_block,
@@ -5934,6 +5934,9 @@ fn resume_session_init_works() {
             Default::default(),
         ));
 
+        let (session_id_2, ..) = get_last_session();
+        assert_ne!(session_id, session_id_2);
+
         // user is able to start several resume sessions
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_2),
@@ -5941,6 +5944,10 @@ fn resume_session_init_works() {
             Default::default(),
             Default::default(),
         ));
+
+        let (session_id_3, ..) = get_last_session();
+        assert_ne!(session_id, session_id_3);
+        assert_ne!(session_id_2, session_id_3);
 
         System::set_block_number(session_end_block - 1);
         Gear::set_block_number(session_end_block - 1);
@@ -6011,7 +6018,7 @@ fn resume_session_push_works() {
             Default::default(),
         ));
 
-        let (session_id, session_end_block, ..) = get_started_session();
+        let (session_id, session_end_block, ..) = get_last_session();
 
         // another user may not append memory pages to the session
         assert_err!(
@@ -6122,7 +6129,7 @@ fn resume_program_works() {
             CodeId::from_origin(program.code_hash),
         ));
 
-        let (session_id, session_end_block, ..) = get_started_session();
+        let (session_id, session_end_block, ..) = get_last_session();
 
         // start another session
         assert_ok!(Gear::resume_session_init(
@@ -6132,7 +6139,7 @@ fn resume_program_works() {
             CodeId::from_origin(program.code_hash),
         ));
 
-        let (session_id_2, session_end_block_2, ..) = get_started_session();
+        let (session_id_2, session_end_block_2, ..) = get_last_session();
         assert_ne!(session_id, session_id_2);
 
         assert_ok!(Gear::resume_session_push(
@@ -11570,7 +11577,7 @@ mod utils {
     }
 
     #[track_caller]
-    pub(super) fn get_started_session() -> (
+    pub(super) fn get_last_session() -> (
         SessionId,
         BlockNumberFor<Test>,
         ProgramId,

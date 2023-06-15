@@ -28,7 +28,7 @@ pub trait Error {
     fn duplicate_item() -> Self;
 
     /// Program is not found in the storage.
-    fn item_not_found() -> Self;
+    fn program_not_found() -> Self;
 
     /// Program is not an instance of ActiveProgram.
     fn not_active_program() -> Self;
@@ -59,6 +59,7 @@ pub trait ProgramStorage {
     type InternalError: Error;
     type Error: From<Self::InternalError> + Debug;
     type BlockNumber: Copy + Saturating;
+    type AccountId: Eq + PartialEq;
 
     type ProgramMap: MapStorage<Key = ProgramId, Value = Program<Self::BlockNumber>>;
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;
@@ -120,7 +121,7 @@ pub trait ProgramStorage {
         F: FnOnce(&mut Program<Self::BlockNumber>, Self::BlockNumber) -> ReturnType,
     {
         let mut program =
-            Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
+            Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::program_not_found())?;
         let bn = match program {
             Program::Active(ref p) => p.expiration_block,
             _ => return Err(Self::InternalError::not_active_program().into()),

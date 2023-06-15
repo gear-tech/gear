@@ -96,7 +96,6 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     type PausedProgramMap: MapStorage<Key = ProgramId, Value = (Self::BlockNumber, H256)>;
     type CodeStorage: super::CodeStorage;
     type NonceStorage: ValueStorage<Value = SessionId>;
-    type AccountId: Eq + PartialEq;
     type ResumeSessions: MapStorage<
         Key = SessionId,
         Value = ResumeSession<Self::AccountId, Self::BlockNumber>,
@@ -126,7 +125,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     ) -> Result<GasReservationMap, Self::Error> {
         let (mut program, memory_pages) = Self::ProgramMap::mutate(program_id, |maybe| {
             let Some(program) = maybe.take() else {
-                return Err(Self::InternalError::item_not_found().into());
+                return Err(Self::InternalError::program_not_found().into());
             };
 
             let Program::Active(program) = program else {
@@ -172,7 +171,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         code_hash: CodeId,
     ) -> Result<SessionId, Self::Error> {
         if !Self::paused_program_exists(&program_id) {
-            return Err(Self::InternalError::item_not_found().into());
+            return Err(Self::InternalError::program_not_found().into());
         }
 
         let session_id = Self::NonceStorage::mutate(|nonce| {
@@ -273,8 +272,9 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 return Err(Self::InternalError::resume_session_failed().into());
             }
 
-            let code = Self::CodeStorage::get_code(session.code_hash)
-                .expect("code existence checked before");
+            let code = Self::CodeStorage::get_code(session.code_hash).unwrap_or_else(|| {
+                unreachable!("Code storage corrupted: item existence checked before")
+            });
             let Item {
                 data: (allocations, _, memory_pages),
                 remaining_pages,
@@ -328,7 +328,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
 
                 Ok(())
             }
-            None => Err(Self::InternalError::item_not_found().into()),
+            None => Err(Self::InternalError::program_not_found().into()),
         })
     }
 }
