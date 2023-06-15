@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_backend_common::{BackendExt, BackendState, BackendTermination, TerminationReason};
+use gear_backend_common::{BackendExternalities, BackendState, BackendTermination, TerminationReason};
 use gear_core_errors::ExtError;
 
 pub(crate) type HostState<E> = Option<State<E>>;
@@ -28,7 +28,7 @@ pub(crate) struct State<E> {
     pub termination_reason: TerminationReason,
 }
 
-impl<E: BackendExt> BackendTermination<E, ()> for State<E> {
+impl<E: BackendExternalities> BackendTermination<E, ()> for State<E> {
     fn into_parts(self) -> (E, (), TerminationReason) {
         let State {
             ext,

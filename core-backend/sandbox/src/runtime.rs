@@ -27,7 +27,7 @@ use gear_backend_common::{
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::Runtime as CommonRuntime,
-    BackendExt, BackendState, BackendTermination, TerminationReason,
+    BackendExternalities, BackendState, BackendTermination, TerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
 use gear_core_errors::ExtError;
@@ -51,7 +51,7 @@ pub(crate) struct Runtime<E> {
     pub memory_manager: MemoryAccessManager<E>,
 }
 
-impl<E: BackendExt> CommonRuntime<E> for Runtime<E> {
+impl<E: BackendExternalities> CommonRuntime<E> for Runtime<E> {
     type Error = HostError;
 
     fn ext_mut(&mut self) -> &mut E {
@@ -114,7 +114,7 @@ impl<E: BackendExt> CommonRuntime<E> for Runtime<E> {
     }
 }
 
-impl<E: BackendExt> Runtime<E> {
+impl<E: BackendExternalities> Runtime<E> {
     // Cleans `memory_manager`, updates ext counters based on globals.
     fn prepare_run(&mut self) {
         self.memory_manager = Default::default();
@@ -180,7 +180,7 @@ impl<E: BackendExt> Runtime<E> {
     }
 }
 
-impl<E: BackendExt> MemoryAccessRecorder for Runtime<E> {
+impl<E: BackendExternalities> MemoryAccessRecorder for Runtime<E> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.memory_manager.register_read(ptr, size)
     }
@@ -205,7 +205,7 @@ impl<E: BackendExt> MemoryAccessRecorder for Runtime<E> {
     }
 }
 
-impl<E: BackendExt> MemoryOwner for Runtime<E> {
+impl<E: BackendExternalities> MemoryOwner for Runtime<E> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.with_memory(move |manager, memory, gas_left| manager.read(memory, read, gas_left))
     }
@@ -250,7 +250,7 @@ impl<E> BackendState for Runtime<E> {
     }
 }
 
-impl<E: BackendExt> BackendTermination<E, MemoryWrap> for Runtime<E> {
+impl<E: BackendExternalities> BackendTermination<E, MemoryWrap> for Runtime<E> {
     fn into_parts(self) -> (E, MemoryWrap, TerminationReason) {
         let Self {
             ext,

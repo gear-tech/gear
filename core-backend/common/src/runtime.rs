@@ -20,12 +20,12 @@
 
 use crate::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner, WasmMemoryWrite},
-    BackendExt, BackendState, TerminationReason,
+    BackendExternalities, BackendState, TerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
 use gear_core_errors::ExtError;
 
-pub trait Runtime<E: BackendExt>: MemoryOwner + MemoryAccessRecorder + BackendState {
+pub trait Runtime<E: BackendExternalities>: MemoryOwner + MemoryAccessRecorder + BackendState {
     type Error;
 
     fn unreachable_error() -> Self::Error;

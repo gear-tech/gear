@@ -27,7 +27,7 @@ use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     funcs::FuncsHandler,
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessMod},
-    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
+    ActorTerminationReason, BackendAllocExtError, BackendExternalities, BackendExtError, BackendReport,
     BackendTermination, Environment, EnvironmentError, EnvironmentExecutionResult,
 };
 use gear_core::{
@@ -143,7 +143,7 @@ pub enum SandboxEnvironmentSystemError {
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment<E, EntryPoint = DispatchKind>
 where
-    E: BackendExt,
+    E: BackendExternalities,
     EntryPoint: WasmEntryPoint,
 {
     instance: Instance<Runtime<E>>,
@@ -154,7 +154,7 @@ where
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<E: BackendExt> {
+struct EnvBuilder<E: BackendExternalities> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
     forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
@@ -162,7 +162,7 @@ struct EnvBuilder<E: BackendExt> {
 
 impl<E> EnvBuilder<E>
 where
-    E: BackendExt + 'static,
+    E: BackendExternalities + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
 {
@@ -185,7 +185,7 @@ where
     }
 }
 
-impl<E: BackendExt> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
+impl<E: BackendExternalities> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
     fn from(builder: EnvBuilder<E>) -> Self {
         builder.env_def_builder
     }
@@ -193,7 +193,7 @@ impl<E: BackendExt> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime
 
 impl<E, EntryPoint> SandboxEnvironment<E, EntryPoint>
 where
-    E: BackendExt + 'static,
+    E: BackendExternalities + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
     EntryPoint: WasmEntryPoint,
@@ -263,7 +263,7 @@ where
 
 impl<E, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<E, EntryPoint>
 where
-    E: BackendExt + 'static,
+    E: BackendExternalities + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
     EntryPoint: WasmEntryPoint,

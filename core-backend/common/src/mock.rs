@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::ProcessAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
+    memory::ProcessAccessError, BackendAllocExtError, BackendExternalities, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
@@ -243,7 +243,7 @@ impl Externalities for MockExt {
     }
 }
 
-impl BackendExt for MockExt {
+impl BackendExternalities for MockExt {
     fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         Ok(ExtInfo {
             gas_amount: GasCounter::new(0).to_amount(),

@@ -21,7 +21,7 @@
 use crate::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
     runtime::Runtime,
-    syscall_trace, ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError,
+    syscall_trace, ActorTerminationReason, BackendAllocExtError, BackendExternalities, BackendExtError,
     BackendState, MessageWaitedType, TerminationReason, TrapExplanation, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
@@ -49,7 +49,7 @@ pub struct FuncsHandler<E: Externalities + 'static, R> {
 
 impl<E, R> FuncsHandler<E, R>
 where
-    E: BackendExt + 'static,
+    E: BackendExternalities + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
     R: Runtime<E> + MemoryOwner + MemoryAccessRecorder + BackendState,

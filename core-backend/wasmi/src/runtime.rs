@@ -27,7 +27,7 @@ use gear_backend_common::{
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::Runtime,
-    ActorTerminationReason, BackendExt, BackendState, TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendExternalities, BackendState, TerminationReason, TrapExplanation,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
 use gear_core_errors::ExtError;
@@ -61,7 +61,7 @@ pub(crate) struct CallerWrap<'a, E> {
     pub memory: WasmiMemory,
 }
 
-impl<'a, E: BackendExt + 'static> Runtime<E> for CallerWrap<'a, E> {
+impl<'a, E: BackendExternalities + 'static> Runtime<E> for CallerWrap<'a, E> {
     type Error = Trap;
 
     fn ext_mut(&mut self) -> &mut E {
@@ -138,7 +138,7 @@ impl<'a, E: BackendExt + 'static> Runtime<E> for CallerWrap<'a, E> {
     }
 }
 
-impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
+impl<'a, E: BackendExternalities + 'static> CallerWrap<'a, E> {
     #[track_caller]
     pub fn prepare(
         caller: Caller<'a, HostState<E>>,
@@ -288,7 +288,7 @@ impl<E> BackendState for CallerWrap<'_, E> {
     }
 }
 
-impl<'a, E: BackendExt + 'static> MemoryOwner for CallerWrap<'a, E> {
+impl<'a, E: BackendExternalities + 'static> MemoryOwner for CallerWrap<'a, E> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.with_memory(|manager, memory, gas_left| manager.read(memory, read, gas_left))
     }

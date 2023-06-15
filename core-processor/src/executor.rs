@@ -32,7 +32,7 @@ use alloc::{
 };
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
-    ActorTerminationReason, BackendExt, BackendExtError, BackendReport, Environment,
+    ActorTerminationReason, BackendExternalities, BackendExtError, BackendReport, Environment,
     EnvironmentError, TerminationReason, TrapExplanation,
 };
 use gear_core::{
@@ -258,7 +258,7 @@ pub fn execute_wasm<E>(
 ) -> Result<DispatchResult, ExecutionError>
 where
     E: Environment,
-    E::Ext: ProcessorExternalities + BackendExt + 'static,
+    E::Ext: ProcessorExternalities + BackendExternalities + 'static,
     <E::Ext as Externalities>::Error: BackendExtError,
 {
     let WasmExecutionContext {
@@ -473,7 +473,7 @@ pub fn execute_for_reply<E, EP>(
 ) -> Result<Vec<u8>, String>
 where
     E: Environment<EP>,
-    E::Ext: ProcessorExternalities + BackendExt + 'static,
+    E::Ext: ProcessorExternalities + BackendExternalities + 'static,
     <E::Ext as Externalities>::Error: BackendExtError,
     EP: WasmEntryPoint,
 {

@@ -28,7 +28,7 @@ use crate::{
     precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
-use gear_backend_common::{BackendExt, BackendExtError, Environment, SystemReservationContext};
+use gear_backend_common::{BackendExternalities, BackendExtError, Environment, SystemReservationContext};
 use gear_core::{
     env::Externalities,
     ids::{MessageId, ProgramId},
@@ -47,7 +47,7 @@ pub fn process<E>(
 ) -> Result<Vec<JournalNote>, SystemExecutionError>
 where
     E: Environment,
-    E::Ext: ProcessorExternalities + BackendExt + 'static,
+    E::Ext: ProcessorExternalities + BackendExternalities + 'static,
     <E::Ext as Externalities>::Error: BackendExtError,
 {
     use crate::precharge::SuccessfulDispatchResultKind::*;

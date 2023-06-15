@@ -24,7 +24,7 @@ use alloc::{
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
-    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
+    ActorTerminationReason, BackendAllocExtError, BackendExternalities, BackendExtError, ExtInfo,
     SystemReservationContext, TerminationReason, TrapExplanation,
 };
 use gear_core::{
@@ -245,7 +245,7 @@ impl ProcessorExternalities for Ext {
     }
 }
 
-impl BackendExt for Ext {
+impl BackendExternalities for Ext {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {

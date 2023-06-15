@@ -18,7 +18,7 @@
 
 //! Work with WASM program memory in backends.
 
-use crate::BackendExt;
+use crate::BackendExternalities;
 use alloc::vec::Vec;
 use core::{
     fmt::Debug,
@@ -198,7 +198,7 @@ impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
     }
 }
 
-impl<E: BackendExt> MemoryAccessManager<E> {
+impl<E: BackendExternalities> MemoryAccessManager<E> {
     /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
     pub(crate) fn pre_process_memory_accesses(
         &mut self,

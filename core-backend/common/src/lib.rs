@@ -233,7 +233,7 @@ pub struct ExtInfo {
     pub context_store: ContextStore,
 }
 
-pub trait BackendExt: Externalities + CountersOwner {
+pub trait BackendExternalities: Externalities + CountersOwner {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     fn gas_amount(&self) -> GasAmount;
@@ -298,7 +298,7 @@ pub trait Environment<EntryPoint = DispatchKind>: Sized
 where
     EntryPoint: WasmEntryPoint,
 {
-    type Ext: BackendExt + 'static;
+    type Ext: BackendExternalities + 'static;
 
     /// Memory type for current environment.
     type Memory: Memory;
@@ -382,7 +382,7 @@ pub trait BackendState {
 /// Backend termination aims to return to the caller gear wasm program
 /// execution outcome, which is the state of externalities, memory and
 /// termination reason.
-pub trait BackendTermination<E: BackendExt, M: Sized>: Sized {
+pub trait BackendTermination<E: BackendExternalities, M: Sized>: Sized {
     /// Transforms [`Self`] into tuple of externalities, memory and
     /// termination reason returned after the execution.
     fn into_parts(self) -> (E, M, TerminationReason);

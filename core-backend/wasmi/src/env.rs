@@ -27,7 +27,7 @@ use alloc::{collections::BTreeSet, format, string::ToString};
 use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
-    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
+    ActorTerminationReason, BackendAllocExtError, BackendExternalities, BackendExtError, BackendReport,
     BackendTermination, Environment, EnvironmentError, EnvironmentExecutionResult, LimitedStr,
 };
 use gear_core::{
@@ -123,7 +123,7 @@ impl<E: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
 
 impl<E, EntryPoint> Environment<EntryPoint> for WasmiEnvironment<E, EntryPoint>
 where
-    E: BackendExt + 'static,
+    E: BackendExternalities + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
     EntryPoint: WasmEntryPoint,
