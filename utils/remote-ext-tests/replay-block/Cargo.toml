@@ -7,9 +7,11 @@ license.workspace = true
 
 [dependencies]
 # Internal
-vara-runtime.workspace = true
+vara-runtime = { workspace = true, optional = true }
+gear-runtime = { workspace = true, optional = true }
+gear-runtime-interface = { workspace = true, optional = true }
 runtime-primitives.workspace = true
-service = { workspace = true, features = ["vara-native"] }
+service = { workspace = true, optional = true }
 
 # Substrate Primitives
 sp-core.workspace = true
@@ -37,7 +39,7 @@ log.workspace = true
 tokio = { workspace = true, features = ["macros"] }
 
 [features]
-default = ["std"]
+default = ["std", "always-wasm"]
 std = [
     "codec/std",
     "log/std",
@@ -52,4 +54,15 @@ std = [
     "sp-externalities/std",
     "sc-executor/std",
     "frame-system/std",
+]
+always-wasm = [
+    "gear-runtime-interface/std",
+]
+vara-native = [
+    "service/vara-native",
+    "vara-runtime",
+]
+gear-native = [
+    "service/gear-native",
+    "gear-runtime",
 ]

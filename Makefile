@@ -69,7 +69,15 @@ vara-release:
 
 .PHONY: remote-ext-tests
 remote-ext-tests:
-	@ ./scripts/gear.sh build remote-ext-tests
+	@ ./scripts/gear.sh build remote-ext-tests --release
+
+.PHONY: remote-ext-tests-vara-native
+remote-ext-tests-vara-native:
+	@ ./scripts/gear.sh build remote-ext-tests --release --no-default-features --features=vara-native
+
+.PHONY: remote-ext-tests-gear-native
+remote-ext-tests-gear-native:
+	@ ./scripts/gear.sh build remote-ext-tests --release --no-default-features --features=gear-native
 
 # Check section
 .PHONY: check

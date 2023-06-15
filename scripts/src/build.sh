@@ -44,7 +44,7 @@ wasm_proc_build() {
 }
 
 remote_ext_tests_build() {
-  cargo build -p remote-ext-tests-replay-block --release "$@"
+  cargo build -p remote-ext-tests-replay-block "$@"
 }
 
 # $1 = TARGET DIR

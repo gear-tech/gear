@@ -128,7 +128,7 @@ case "$COMMAND" in
 
       remote-ext-tests)
         header "Building remote-ext-tests CLI"
-        remote_ext_tests_build; ;;
+        remote_ext_tests_build "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"

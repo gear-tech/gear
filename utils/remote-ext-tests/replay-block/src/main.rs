@@ -20,20 +20,29 @@
 
 use clap::Parser;
 use codec::Encode;
+use runtime_primitives::Block;
+#[cfg(feature = "always-wasm")]
+use sc_executor::sp_wasm_interface::ExtendedHostFunctions;
+#[cfg(all(not(feature = "always-wasm"), feature = "gear-native"))]
+use service::GearExecutorDispatch;
+#[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]
 use service::VaraExecutorDispatch;
 use sp_runtime::{
     generic::SignedBlock,
     traits::{Block as BlockT, Header as HeaderT},
 };
+use sp_state_machine::ExecutionStrategy;
 use std::fmt::Debug;
 use substrate_rpc_client::{ws_client, ChainApi};
 use util::*;
-use vara_runtime::{Block, Runtime};
 
 pub(crate) const LOG_TARGET: &str = "remote-ext::cli";
 
 mod parse;
 mod util;
+
+const VARA_SS58_PREFIX: u8 = 137;
+const GEAR_SS58_PREFIX: u8 = 42;
 
 #[derive(Clone, Debug, Parser)]
 struct Opt {
@@ -81,13 +90,23 @@ async fn main() -> sc_cli::Result<()> {
         options.at
     );
 
-    sp_core::crypto::set_default_ss58_version(
-        <Runtime as frame_system::Config>::SS58Prefix::get()
-            .try_into()
-            .unwrap(),
-    );
+    let ss58_prefix = match options.uri.contains("vara") {
+        true => VARA_SS58_PREFIX,
+        false => GEAR_SS58_PREFIX,
+    };
+    sp_core::crypto::set_default_ss58_version(ss58_prefix.try_into().unwrap());
 
+    #[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]
     let executor = build_executor::<VaraExecutorDispatch>();
+    #[cfg(all(not(feature = "always-wasm"), feature = "gear-native"))]
+    let executor = build_executor::<GearExecutorDispatch>();
+    #[cfg(feature = "always-wasm")]
+    let executor = build_executor::<
+        ExtendedHostFunctions<
+            sp_io::SubstrateHostFunctions,
+            gear_runtime_interface::gear_ri::HostFunctions,
+        >,
+    >();
 
     let ext = build_externalities::<Block>(options.clone()).await?;
 
@@ -118,12 +137,18 @@ async fn main() -> sc_cli::Result<()> {
     // for now, hardcoded for the sake of simplicity. We might customize them one day.
     let payload = block.encode();
 
-    let _ = state_machine_call::<VaraExecutorDispatch>(
+    #[cfg(not(feature = "always-wasm"))]
+    let strategy = ExecutionStrategy::NativeElseWasm;
+    #[cfg(feature = "always-wasm")]
+    let strategy = ExecutionStrategy::AlwaysWasm;
+
+    let _ = state_machine_call(
         &ext,
         &executor,
         "Core_execute_block",
         &payload,
         full_extensions(),
+        strategy,
     )?;
 
     log::info!(target: LOG_TARGET, "Done",);

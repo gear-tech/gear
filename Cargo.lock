@@ -8870,9 +8870,11 @@ dependencies = [
 name = "remote-ext-tests-replay-block"
 version = "1.0.0"
 dependencies = [
- "clap 4.3.0",
+ "clap 4.3.2",
  "frame-remote-externalities",
  "frame-system",
+ "gear-runtime",
+ "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
  "log",

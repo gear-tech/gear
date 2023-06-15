@@ -23,7 +23,11 @@ use crate::{Opt, LOG_TARGET};
 use frame_remote_externalities::{
     Builder, Mode, OnlineConfig, RemoteExternalities, TestExternalities,
 };
-use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch, WasmExecutor};
+#[cfg(feature = "always-wasm")]
+use sc_executor::sp_wasm_interface::HostFunctions;
+use sc_executor::WasmExecutor;
+#[cfg(not(feature = "always-wasm"))]
+use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sp_core::{
     offchain::{
         testing::{TestOffchainExt, TestTransactionPoolExt},
@@ -31,7 +35,7 @@ use sp_core::{
     },
     storage::well_known_keys,
     testing::TaskExecutor,
-    traits::{CallContext, TaskExecutorExt},
+    traits::{CallContext, CodeExecutor, TaskExecutorExt},
     twox_128,
 };
 use sp_externalities::Extensions;
@@ -47,6 +51,7 @@ use sp_state_machine::{
 use std::{fmt::Debug, str::FromStr, sync::Arc};
 use substrate_rpc_client::{ChainApi, WsClient};
 
+#[cfg(not(feature = "always-wasm"))]
 pub(crate) fn build_executor<D: NativeExecutionDispatch>() -> NativeElseWasmExecutor<D> {
     let heap_pages = Some(2048);
     let max_runtime_instances = 8;
@@ -59,6 +64,21 @@ pub(crate) fn build_executor<D: NativeExecutionDispatch>() -> NativeElseWasmExec
         None,
         runtime_cache_size,
     ))
+}
+
+#[cfg(feature = "always-wasm")]
+pub(crate) fn build_executor<H: HostFunctions>() -> WasmExecutor<H> {
+    let heap_pages = Some(2048);
+    let max_runtime_instances = 8;
+    let runtime_cache_size = 2;
+
+    WasmExecutor::new(
+        sc_executor::WasmExecutionMethod::Interpreted,
+        heap_pages,
+        max_runtime_instances,
+        None,
+        runtime_cache_size,
+    )
 }
 
 pub(crate) fn hash_of<Block: BlockT>(hash_str: &str) -> sc_cli::Result<Block::Hash>
@@ -142,14 +162,15 @@ pub(crate) fn rpc_err_handler(error: impl Debug) -> &'static str {
     "rpc error."
 }
 
-/// Execute the given `method` and `data` on top of `ext`, returning the results (encoded) and the
-/// state `changes`.
-pub(crate) fn state_machine_call<D: NativeExecutionDispatch + 'static>(
+/// Execute the given `method` and `data` on top of `ext` using the `executor` and `strategy`.
+/// Returning the results (encoded) and the state `changes`.
+pub(crate) fn state_machine_call<Executor: CodeExecutor>(
     ext: &TestExternalities,
-    executor: &NativeElseWasmExecutor<D>,
+    executor: &Executor,
     method: &'static str,
     data: &[u8],
     extensions: Extensions,
+    strategy: ExecutionStrategy,
 ) -> sc_cli::Result<(OverlayedChanges, Vec<u8>)> {
     let mut changes = Default::default();
     let encoded_results = StateMachine::new(
@@ -163,7 +184,7 @@ pub(crate) fn state_machine_call<D: NativeExecutionDispatch + 'static>(
         TaskExecutor::new(),
         CallContext::Offchain,
     )
-    .execute(ExecutionStrategy::NativeElseWasm)
+    .execute(strategy)
     .map_err(|e| format!("failed to execute '{}': {}", method, e))
     .map_err::<sc_cli::Error, _>(Into::into)?;
 

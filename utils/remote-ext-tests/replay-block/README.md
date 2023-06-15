@@ -50,6 +50,9 @@ Other than that it's a good tool.
         gear try-runtime --chain=vara --runtime vara_runtime.compact.compressed.wasm execute-block live --uri wss://archive-rpc.vara-network.io:443 --at "$HASH"
         ```
 
+    *Note:* The `--at` parameter provides the hash of the block which determines the current state of the blockchain. Then the following block is fethced and applied to this state. Therefore if we want to replay extrinsics from the block `N` we must provide the hash of the block `N-1` as the height.
+
+
 * Execute block against a local snapshot
 
     * Download snapshot at block `$HASH` (if omitted, the state at the latest finalized block is downloaded)
@@ -120,3 +123,37 @@ In order to use the native runtime build make sure the node is built with the Ru
 
         remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443 --at "$HASH"
         ```
+
+    The same consideration with regard to the chain height block applies here: if we want to replay the block `N`, the provided height must correspond to the previous block.
+
+<br/>
+
+### Native vs. WASM execution of a block
+
+The `remote-ext-tests-replay-block` CLI tools provides means to enable execution of a downloaded block both against the on-chain WASM Runtime as well as the native local Runtime, provided the version of the latter matches the on-chain Runtime version. This can be useful for debugging.
+
+The `wasm-only` version which runs the downloaded Runtime is lighter-weight (the executable is about 40% smaller as it doesn't include the `vara`- or `gear-runtime` as a dependency), and it works with both Gear testnet and the Vara chain (provided the user supplies the correct WebSocker connection uri).
+This is the default way of building the tool:    
+```bash
+./scripts/gear.sh build remote-ext-tests --release
+```
+or simply
+    
+```bash
+make remote-ext-tests
+```
+
+In order to enable native runtime, use one of the following:
+```bash
+make remote-ext-tests-vara-native
+make remote-ext-tests-gear-native
+```
+
+or
+
+```bash
+./scripts/gear.sh build remote-ext-tests --release --no-default-features --features=vara-native
+./scripts/gear.sh build remote-ext-tests --release --no-default-features --features=gear-native
+```
+
+The `--uri` parameter must match the native runtime you've built the tool with, while the Runtime version should be the same as the on-chain one. If it does not, the Wasm executor will be used as a fallback.
