@@ -29,6 +29,14 @@ pub struct InputArgs {
     pub signatories: Vec<ActorId>,
 }
 
+// NOTE: this macro has been deprecated, see
+// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
+gstd::metadata! {
+    title: "demo async multisig",
+    init:
+        input: InputArgs,
+}
+
 #[no_mangle]
 extern "C" fn init() {
     let args: InputArgs = msg::load().expect("Failed to decode `InputArgs`");

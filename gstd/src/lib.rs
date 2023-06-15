@@ -118,7 +118,6 @@
 //!     _ = future::select_all(requests).await;
 //!     msg::reply(b"PONG", 0).expect("Unable to reply");
 //! }
-//!
 //! # fn main() {}
 //! ```
 

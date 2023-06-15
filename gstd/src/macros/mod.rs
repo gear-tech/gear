@@ -19,3 +19,4 @@
 mod bail;
 mod debug;
 mod export;
+mod metadata;

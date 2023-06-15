@@ -75,7 +75,6 @@ use super::access::AccessQueue;
 ///         }
 ///     }
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct Mutex<T> {
@@ -182,7 +181,6 @@ unsafe impl<T> Sync for Mutex<T> {}
 ///     let value: i32 = *guard;
 ///     assert_eq!(value, 42);
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct MutexLockFuture<'a, T> {

@@ -96,7 +96,6 @@ where
 ///     let reply: Reply = future.await.expect("Unable to get a reply");
 ///     let field: String = reply.field;
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct CodecMessageFuture<T> {
@@ -152,7 +151,6 @@ impl_futures!(
 ///     let (prog_id, reply): (ActorId, InitReply) = future.await.expect("Unable to get a reply");
 ///     let field: String = reply.field;
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct CodecCreateProgramFuture<T> {
@@ -210,7 +208,6 @@ impl_futures!(
 ///         msg::send_bytes_for_reply(dest, b"PING", 0, 0).expect("Unable to send");
 ///     let reply: Vec<u8> = future.await.expect("Unable to get a reply");
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct MessageFuture {
@@ -259,7 +256,6 @@ impl_futures!(
 ///             .expect("Unable to create a program");
 ///     let (prog_id, reply): (ActorId, Vec<u8>) = future.await.expect("Unable to get a reply");
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct CreateProgramFuture {
