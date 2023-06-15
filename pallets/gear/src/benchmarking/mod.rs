@@ -650,30 +650,6 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    grow {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-
-        let mut res = None;
-        let exec = Benches::<T>::grow(r, 1)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
-    grow_per_page {
-        let p in 0 .. MAX_PAGES;
-
-        let mut res = None;
-        let exec = Benches::<T>::grow(1, p)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
     gr_reserve_gas {
         let r in 0 .. T::ReservationsLimit::get() as u32;
         let mut res = None;
@@ -1502,6 +1478,18 @@ benchmarks! {
         let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_host_func_write_after_read((p as u16).into())?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    mem_grow {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+
+        let mut res = None;
+        let exec = Benches::<T>::mem_grow(r, 1)?;
     }: {
         res.replace(run_process(exec));
     }

@@ -53,8 +53,6 @@ pub trait WeightInfo {
     fn alloc(r: u32, ) -> Weight;
     fn alloc_per_page(p: u32, ) -> Weight;
     fn free(r: u32, ) -> Weight;
-    fn grow(r: u32, ) -> Weight;
-    fn grow_per_page(p: u32, ) -> Weight;
     fn gr_reserve_gas(r: u32, ) -> Weight;
     fn gr_unreserve_gas(r: u32, ) -> Weight;
     fn gr_system_reserve_gas(r: u32, ) -> Weight;
@@ -128,6 +126,7 @@ pub trait WeightInfo {
     fn lazy_pages_host_func_read(p: u32, ) -> Weight;
     fn lazy_pages_host_func_write(p: u32, ) -> Weight;
     fn lazy_pages_host_func_write_after_read(p: u32, ) -> Weight;
+    fn mem_grow(r: u32, ) -> Weight;
     fn instr_i64load(r: u32, ) -> Weight;
     fn instr_i32load(r: u32, ) -> Weight;
     fn instr_i64store(r: u32, ) -> Weight;
@@ -416,7 +415,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 372_314
             .saturating_add(Weight::from_parts(150_482_259, 0).saturating_mul(r.into()))
     }
-    fn grow(r: u32, ) -> Weight {
+    fn mem_grow(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -424,15 +423,6 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(280_113_340, 0)
             // Standard Error: 372_314
             .saturating_add(Weight::from_parts(150_482_259, 0).saturating_mul(r.into()))
-    }
-    fn grow_per_page(p: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 246_044_000 picoseconds.
-        Weight::from_parts(280_113_340, 0)
-            // Standard Error: 372_314
-            .saturating_add(Weight::from_parts(150_482_259, 0).saturating_mul(p.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
@@ -2252,7 +2242,7 @@ impl WeightInfo for () {
             // Standard Error: 372_314
             .saturating_add(Weight::from_parts(150_482_259, 0).saturating_mul(r.into()))
     }
-    fn grow(r: u32, ) -> Weight {
+    fn mem_grow(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
@@ -2260,15 +2250,6 @@ impl WeightInfo for () {
         Weight::from_parts(280_113_340, 0)
             // Standard Error: 372_314
             .saturating_add(Weight::from_parts(150_482_259, 0).saturating_mul(r.into()))
-    }
-    fn grow_per_page(p: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 246_044_000 picoseconds.
-        Weight::from_parts(280_113_340, 0)
-            // Standard Error: 372_314
-            .saturating_add(Weight::from_parts(150_482_259, 0).saturating_mul(p.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {

@@ -337,12 +337,6 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `free`.
     pub free: Weight,
 
-    /// Weight of calling `grow`.
-    pub grow: Weight,
-
-    /// Weight of calling `grow` per page.
-    pub grow_per_page: Weight,
-
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: Weight,
 
@@ -856,8 +850,6 @@ impl<T: Config> HostFnWeights<T> {
             alloc: self.alloc.ref_time(),
             alloc_per_page: self.alloc_per_page.ref_time(),
             free: self.free.ref_time(),
-            grow: self.grow.ref_time(),
-            grow_per_page: self.grow_per_page.ref_time(),
             gr_reserve_gas: self.gr_reserve_gas.ref_time(),
             gr_unreserve_gas: self.gr_unreserve_gas.ref_time(),
             gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
@@ -974,11 +966,11 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
             gr_reply_push_input_per_byte: to_weight!(cost_byte!(gr_reply_push_input_per_kb)),
 
-            alloc: to_weight!(cost_batched!(alloc)),
+            // Alloc benchmark causes grow memory calls so we subtract it here as grow is charged separately.
+            alloc: to_weight!(cost_batched!(alloc))
+                .saturating_sub(to_weight!(cost_batched!(mem_grow))),
             alloc_per_page: to_weight!(cost_batched!(alloc_per_page)),
             free: to_weight!(cost_batched!(free)),
-            grow: to_weight!(cost_batched!(grow)),
-            grow_per_page: to_weight!(cost_batched!(grow_per_page)),
             gr_reserve_gas: to_weight!(cost!(gr_reserve_gas)),
             gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
@@ -1091,7 +1083,7 @@ impl<T: Config> Default for MemoryWeights<T> {
                 .saturating_add(T::DbWeight::get().writes(1).ref_time())),
             // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
             static_page: Weight::from_parts(100, 0),
-            mem_grow: Weight::from_parts(100, 0),
+            mem_grow: to_weight!(cost_batched!(mem_grow)),
             // TODO: make it non-zero for para-chains (issue #2225)
             parachain_read_heuristic: Weight::zero(),
             _phantom: PhantomData,
