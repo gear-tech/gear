@@ -45,7 +45,7 @@ use super::access::AccessQueue;
 /// the `PONG` reply from program B and unlocks the mutex.
 ///
 /// ```
-/// use gstd::{lock::Mutex, msg, prelude::*, ActorId};
+/// use gstd::{lock::Mutex, msg, ActorId};
 ///
 /// static mut DEST: ActorId = ActorId::zero();
 /// static MUTEX: Mutex<()> = Mutex::new(());

@@ -343,7 +343,7 @@ pub fn send_input_with_gas_delayed<Range: RangeBounds<usize>>(
 ///
 ///     // Receiver id is collected from bytes from 0 to 31
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
-///     msg::send(ActorId::new(id), payload, 0);
+///     msg::send(ActorId::new(id), payload, 0).expect("Unable to send");
 /// }
 /// ```
 ///
@@ -408,7 +408,7 @@ pub fn send_with_gas_delayed<E: Encode>(
 /// Send a message to the sender's address:
 ///
 /// ```
-/// use gstd::{exec, msg, prelude::*, ReservationId};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[derive(Encode)]
 /// #[codec(crate = gstd::codec)]

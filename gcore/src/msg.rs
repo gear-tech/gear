@@ -366,6 +366,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
 /// ```
 /// use gcore::{exec, msg};
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
 ///     msg::reply_push(b"Hello,").expect("Unable to push");
 ///     msg::reply_push(b" world!").expect("Unable to push");
@@ -608,7 +609,7 @@ pub fn send_input_delayed(
 /// extern "C" fn handle() {
 ///     // Receiver id is collected from bytes from 0 to 31
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
-///     msg::send(ActorId(id), b"HELLO", 42);
+///     msg::send(ActorId(id), b"HELLO", 42).expect("Unable to send");
 /// }
 /// ```
 ///
@@ -880,7 +881,8 @@ pub fn send_delayed(
 /// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
-///     msg::send_with_gas(ActorId(id), b"HELLO", 5_000_000, 42);
+///     msg::send_with_gas(ActorId(id), b"HELLO", 5_000_000, 42)
+///         .expect("Unable to send");
 /// }
 /// ```
 ///

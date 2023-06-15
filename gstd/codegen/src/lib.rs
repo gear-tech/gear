@@ -205,18 +205,18 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// Simple async handle function:
 ///
 /// ```
+/// # #![no_main]
 /// #[gstd::async_main]
 /// async fn main() {
 ///     gstd::debug!("Hello world!");
 /// }
-///
-/// # fn main() {}
 /// ```
 ///
 /// Use `handle_reply` and `handle_signal` parameters to specify corresponding handlers.
 /// Note that custom reply and signal handlers derive their default behavior.
 ///
 /// ```
+/// # #![no_main]
 /// #[gstd::async_main(handle_reply = my_handle_reply)]
 /// async fn main() {
 ///     // ...
@@ -225,8 +225,6 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// fn my_handle_reply() {
 ///     // ...
 /// }
-///
-/// # fn main() {}
 /// ```
 #[proc_macro_attribute]
 pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {

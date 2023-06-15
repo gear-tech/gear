@@ -319,14 +319,16 @@ impl TryFrom<&[u8]> for CodeId {
 ///
 /// static mut RESERVED: Option<ReservationId> = None;
 ///
+/// #[no_mangle]
 /// extern "C" fn init() {
 ///     let reservation_id = ReservationId::reserve(50_000_000, 7).expect("Unable to reserve");
 ///     unsafe { RESERVED = Some(reservation_id) };
 /// }
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let reservation_id = unsafe { RESERVED.take().expect("Empty `RESERVED`") };
-///     reservation_id.unreserve();
+///     reservation_id.unreserve().expect("Unable to unreserve");
 /// }
 /// ```
 #[derive(Clone, Copy, Debug, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]

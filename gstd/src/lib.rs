@@ -26,18 +26,18 @@
 //!
 //! `gstd` crate provides many advanced tools for a developer, such as
 //! asynchronous programming primitives, arbitrary types encoding/decoding,
-//! providing metadata about input/output types, convenient instruments for
-//! creating programs from programs, etc.
+//! providing convenient instruments for creating programs from programs, etc.
 //!
 //! # Examples
 //!
-//! Decode input payload using a custom type and provide metadata for the front
-//! application:
+//! Decode input payload using a custom type:
 //!
 //! ```
+//! # const _: &'static str = stringify! {
 //! #![no_std]
+//! # };
 //!
-//! use gstd::{metadata, msg, prelude::*};
+//! use gstd::{msg, prelude::*};
 //!
 //! #[derive(Decode, Encode, TypeInfo)]
 //! #[codec(crate = gstd::codec)]
@@ -47,13 +47,6 @@
 //!     answer: u8,
 //! }
 //!
-//! metadata! {
-//!     title: "App",
-//!     handle:
-//!         input: Payload,
-//!         output: u8,
-//! }
-//!
 //! #[no_mangle]
 //! extern "C" fn handle() {
 //!     let payload: Payload = msg::load().expect("Unable to decode payload");
@@ -61,8 +54,6 @@
 //!         msg::reply(payload.answer, 0).expect("Unable to reply");
 //!     }
 //! }
-//!
-//! # fn main() {}
 //! ```
 //!
 //! Asynchronous program example.
@@ -74,6 +65,9 @@
 //! `PONG`.
 //!
 //! ```
+//! # const _: &'static str = stringify! {
+//! #![no_std]
+//! # };
 //! use futures::future;
 //! use gstd::{msg, prelude::*, ActorId};
 //!
@@ -84,12 +78,6 @@
 //! #[scale_info(crate = gstd::scale_info)]
 //! pub struct Input {
 //!     pub approvers: [ActorId; 3],
-//! }
-//!
-//! gstd::metadata! {
-//!     title: "Async demo",
-//!     init:
-//!         input: Input,
 //! }
 //!
 //! #[gstd::async_init]
@@ -143,6 +131,7 @@
 #![cfg_attr(target_arch = "wasm32", feature(panic_oom_payload))]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
 extern crate alloc;
 #[cfg(target_arch = "wasm32")]
