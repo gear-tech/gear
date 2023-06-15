@@ -455,20 +455,20 @@ impl<'a> Program<'a> {
     ///
     /// # Examples
     ///
-    /// Read state with no arguments passed to wasm.
-    /// ```
+    /// Read state bytes with no arguments passed to wasm.
+    /// ```ignore
     /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Option::<()>::None)?;
     /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, read_state_wasm_args!())?;
     /// ```
     ///
-    /// Read state with one arguments passed to wasm.
-    /// ```
+    /// Read state bytes with one arguments passed to wasm.
+    /// ```ignore
     /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some(ARG_1))?;
     /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, read_state_wasm_args!(ARG_1))?;
     /// ```
     ///
-    /// Read state with multiple arguments passed to wasm.
-    /// ```
+    /// Read state bytes with multiple arguments passed to wasm.
+    /// ```ignore
     /// let _ = program.read_state_bytes_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2)))?;
     /// let _ = program.read_state_bytes_using_wasm(
     ///     "fn_name",
@@ -504,19 +504,19 @@ impl<'a> Program<'a> {
     /// # Examples
     ///
     /// Read state with no arguments passed to wasm.
-    /// ```
+    /// ```ignore
     /// let _ = program.read_state_using_wasm("fn_name", WASM, Option::<()>::None)?;
     /// let _ = program.read_state_using_wasm("fn_name", WASM, read_state_wasm_args!())?;
     /// ```
     ///
     /// Read state with one arguments passed to wasm.
-    /// ```
+    /// ```ignore
     /// let _ = program.read_state_using_wasm("fn_name", WASM, Some(ARG_1))?;
     /// let _ = program.read_state_using_wasm("fn_name", WASM, read_state_wasm_args!(ARG_1))?;
     /// ```
     ///
     /// Read state with multiple arguments passed to wasm.
-    /// ```
+    /// ```ignore
     /// let _ = program.read_state_using_wasm("fn_name", WASM, Some((ARG_1, ARG_2)))?;
     /// let _ = program.read_state_using_wasm("fn_name", WASM, read_state_wasm_args!(ARG_1, ARG_2))?;
     /// ```
