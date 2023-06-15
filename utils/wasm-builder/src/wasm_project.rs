@@ -420,6 +420,35 @@ pub const WASM_EXPORTS: &[&str] = &{:?};
         println!("cargo:rerun-if-changed={}", stamp_file_path.display());
         Ok(())
     }
+
+    /// Provide a dummy WASM binary if there doesn't exist one.
+    pub fn provide_dummy_wasm_binary_if_not_exist(&self) {
+        let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
+        if wasm_binary_rs.exists() {
+            return;
+        }
+
+        let content = if !self.project_type.is_metawasm() {
+            r#"#[allow(unused)]
+    pub const WASM_BINARY: &[u8] = &[];
+    #[allow(unused)]
+    pub const WASM_BINARY_OPT: &[u8] = &[];
+    #[allow(unused)] pub const WASM_METADATA: &[u8] = &[];
+    "#
+        } else {
+            r#"#[allow(unused)]
+    pub const WASM_BINARY: &[u8] = &[];
+    #[allow(unused)]
+    pub const WASM_EXPORTS: &[&str] = &[];
+    "#
+        };
+        fs::write(wasm_binary_rs.as_path(), content).unwrap_or_else(|_| {
+            panic!(
+                "Writing `{}` should not fail!",
+                display_path(wasm_binary_rs)
+            )
+        });
+    }
 }
 
 // Windows has path like `path\to\somewhere` which is incorrect for `include_*` Rust's macros
