@@ -267,21 +267,21 @@ where
 }
 
 #[derive(Debug, derive_more::Display)]
-pub enum EnvironmentExecutionError<Env: Display, PrepareMemoryError: Display> {
+pub enum EnvironmentError<EnvSystemError: Display, PrepareMemoryError: Display> {
     #[display(fmt = "Actor backend error: {_1}")]
     Actor(GasAmount, String),
     #[display(fmt = "System backend error: {_0}")]
-    System(Env),
+    System(EnvSystemError),
     #[display(fmt = "Prepare error: {_1}")]
     PrepareMemory(GasAmount, PrepareMemoryError),
 }
 
-impl<Env: Display, PrepareMemoryError: Display> EnvironmentExecutionError<Env, PrepareMemoryError> {
-    pub fn from_infallible(err: EnvironmentExecutionError<Env, Infallible>) -> Self {
+impl<Env: Display, PrepareMemoryError: Display> EnvironmentError<Env, PrepareMemoryError> {
+    pub fn from_infallible(err: EnvironmentError<Env, Infallible>) -> Self {
         match err {
-            EnvironmentExecutionError::System(err) => Self::System(err),
-            EnvironmentExecutionError::PrepareMemory(_, err) => match err {},
-            EnvironmentExecutionError::Actor(gas_amount, s) => Self::Actor(gas_amount, s),
+            EnvironmentError::System(err) => Self::System(err),
+            EnvironmentError::PrepareMemory(_, err) => match err {},
+            EnvironmentError::Actor(gas_amount, s) => Self::Actor(gas_amount, s),
         }
     }
 }
@@ -291,7 +291,7 @@ type EnvironmentBackendReport<Env, EntryPoint> =
 
 pub type EnvironmentExecutionResult<PrepareMemoryError, Env, EntryPoint> = Result<
     EnvironmentBackendReport<Env, EntryPoint>,
-    EnvironmentExecutionError<<Env as Environment<EntryPoint>>::Error, PrepareMemoryError>,
+    EnvironmentError<<Env as Environment<EntryPoint>>::SystemError, PrepareMemoryError>,
 >;
 
 pub trait Environment<EntryPoint = DispatchKind>: Sized
@@ -304,7 +304,7 @@ where
     type Memory: Memory;
 
     /// An error issues in environment.
-    type Error: Debug + Display;
+    type SystemError: Debug + Display;
 
     /// 1) Instantiates wasm binary.
     /// 2) Creates wasm memory
@@ -316,7 +316,7 @@ where
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>>;
+    ) -> Result<Self, EnvironmentError<Self::SystemError, Infallible>>;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<PrepareMemory, PrepareMemoryError>(
@@ -324,7 +324,11 @@ where
         prepare_memory: PrepareMemory,
     ) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
     where
-        PrepareMemory: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), PrepareMemoryError>,
+        PrepareMemory: FnOnce(
+            &mut Self::Memory,
+            Option<u32>,
+            GlobalsAccessConfig,
+        ) -> Result<(), PrepareMemoryError>,
         PrepareMemoryError: Display;
 }
 

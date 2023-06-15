@@ -28,7 +28,7 @@ use gear_backend_common::{
     funcs::FuncsHandler,
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessMod},
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
-    BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
+    BackendTermination, Environment, EnvironmentError, EnvironmentExecutionResult,
 };
 use gear_core::{
     gas::GasLeft,
@@ -129,7 +129,7 @@ macro_rules! wrap_common_func {
 }
 
 #[derive(Debug, derive_more::Display)]
-pub enum SandboxEnvironmentError {
+pub enum SandboxEnvironmentSystemError {
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(sp_sandbox::Error),
     #[display(fmt = "Globals are not supported")]
@@ -270,7 +270,7 @@ where
 {
     type Ext = E;
     type Memory = MemoryWrap;
-    type Error = SandboxEnvironmentError;
+    type SystemError = SandboxEnvironmentSystemError;
 
     fn new(
         ext: Self::Ext,
@@ -278,9 +278,9 @@ where
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>> {
-        use EnvironmentExecutionError::*;
-        use SandboxEnvironmentError::*;
+    ) -> Result<Self, EnvironmentError<Self::SystemError, Infallible>> {
+        use EnvironmentError::*;
+        use SandboxEnvironmentSystemError::*;
 
         let entry_forbidden = entry_point
             .try_into_kind()
@@ -339,13 +339,20 @@ where
         }
     }
 
-    fn execute<PrepareMemory, PrepareMemoryError>(self, prepare_memory: PrepareMemory) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
+    fn execute<PrepareMemory, PrepareMemoryError>(
+        self,
+        prepare_memory: PrepareMemory,
+    ) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
     where
-        PrepareMemory: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), PrepareMemoryError>,
+        PrepareMemory: FnOnce(
+            &mut Self::Memory,
+            Option<u32>,
+            GlobalsAccessConfig,
+        ) -> Result<(), PrepareMemoryError>,
         PrepareMemoryError: Display,
     {
-        use EnvironmentExecutionError::*;
-        use SandboxEnvironmentError::*;
+        use EnvironmentError::*;
+        use SandboxEnvironmentSystemError::*;
 
         let Self {
             mut instance,

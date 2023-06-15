@@ -28,8 +28,7 @@ use core::{any::Any, convert::Infallible, fmt::Display};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor},
     ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
-    BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
-    LimitedStr,
+    BackendTermination, Environment, EnvironmentError, EnvironmentExecutionResult, LimitedStr,
 };
 use gear_core::{
     env::Ext,
@@ -43,7 +42,7 @@ use wasmi::{
 };
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum WasmiEnvironmentError {
+pub enum WasmiEnvironmentSystemError {
     #[from]
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(wasmi::errors::MemoryError),
@@ -131,7 +130,7 @@ where
 {
     type Ext = E;
     type Memory = MemoryWrap<E>;
-    type Error = WasmiEnvironmentError;
+    type SystemError = WasmiEnvironmentSystemError;
 
     fn new(
         ext: Self::Ext,
@@ -139,9 +138,9 @@ where
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>> {
-        use EnvironmentExecutionError::*;
-        use WasmiEnvironmentError::*;
+    ) -> Result<Self, EnvironmentError<Self::SystemError, Infallible>> {
+        use EnvironmentError::*;
+        use WasmiEnvironmentSystemError::*;
 
         let engine = Engine::default();
         let mut store: Store<HostState<E>> = Store::new(&engine, None);
@@ -208,11 +207,15 @@ where
         prepare_memory: PrepareMemory,
     ) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
     where
-        PrepareMemory: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), PrepareMemoryError>,
+        PrepareMemory: FnOnce(
+            &mut Self::Memory,
+            Option<u32>,
+            GlobalsAccessConfig,
+        ) -> Result<(), PrepareMemoryError>,
         PrepareMemoryError: Display,
     {
-        use EnvironmentExecutionError::*;
-        use WasmiEnvironmentError::*;
+        use EnvironmentError::*;
+        use WasmiEnvironmentSystemError::*;
 
         let Self {
             instance,

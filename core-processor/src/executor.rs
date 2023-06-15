@@ -33,7 +33,7 @@ use alloc::{
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     ActorTerminationReason, BackendExt, BackendExtError, BackendReport, Environment,
-    EnvironmentExecutionError, TerminationReason, TrapExplanation,
+    EnvironmentError, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     code::InstrumentedCode,
@@ -339,7 +339,7 @@ where
             program.code().exports().clone(),
             memory_size,
         )
-        .map_err(EnvironmentExecutionError::from_infallible)?;
+        .map_err(EnvironmentError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<E::Ext, E::Memory>(
                 memory,
@@ -385,24 +385,21 @@ where
 
             (termination, memory, ext)
         }
-        Err(EnvironmentExecutionError::System(e)) => {
+        Err(EnvironmentError::System(e)) => {
             return Err(ExecutionError::System(SystemExecutionError::Environment(
                 e.to_string(),
             )))
         }
-        Err(EnvironmentExecutionError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
+        Err(EnvironmentError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
                 reason: ActorExecutionErrorReason::PrepareMemory(e),
             }))
         }
-        Err(EnvironmentExecutionError::PrepareMemory(
-            _gas_amount,
-            PrepareMemoryError::System(e),
-        )) => {
+        Err(EnvironmentError::PrepareMemory(_gas_amount, PrepareMemoryError::System(e))) => {
             return Err(ExecutionError::System(e.into()));
         }
-        Err(EnvironmentExecutionError::Actor(gas_amount, err)) => {
+        Err(EnvironmentError::Actor(gas_amount, err)) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
                 reason: ActorExecutionErrorReason::Environment(err.into()),
@@ -559,7 +556,7 @@ where
             program.code().exports().clone(),
             memory_size,
         )
-        .map_err(EnvironmentExecutionError::from_infallible)?;
+        .map_err(EnvironmentError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<E::Ext, E::Memory>(
                 memory,
