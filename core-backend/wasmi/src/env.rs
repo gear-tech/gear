@@ -35,7 +35,7 @@ use gear_core::{
     env::Ext,
     gas::GasLeft,
     memory::{HostPointer, PageU32Size, WasmPage},
-    message::{DispatchKind, WasmEntry},
+    message::{DispatchKind, WasmEntryPoint},
 };
 use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME};
 use wasmi::{
@@ -68,16 +68,16 @@ macro_rules! gas_amount {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct WasmiEnvironment<E, EP = DispatchKind>
+pub struct WasmiEnvironment<E, EntryPoint = DispatchKind>
 where
     E: Ext,
-    EP: WasmEntry,
+    EntryPoint: WasmEntryPoint,
 {
     instance: Instance,
     store: Store<HostState<E>>,
     memory: Memory,
     entries: BTreeSet<DispatchKind>,
-    entry_point: EP,
+    entry_point: EntryPoint,
 }
 
 struct GlobalsAccessProvider<E: Ext> {
@@ -122,12 +122,12 @@ impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
     }
 }
 
-impl<E, EP> Environment<EP> for WasmiEnvironment<E, EP>
+impl<E, EntryPoint> Environment<EntryPoint> for WasmiEnvironment<E, EntryPoint>
 where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
-    EP: WasmEntry,
+    EntryPoint: WasmEntryPoint,
 {
     type Ext = E;
     type Memory = MemoryWrap<E>;
@@ -136,7 +136,7 @@ where
     fn new(
         ext: Self::Ext,
         binary: &[u8],
-        entry_point: EP,
+        entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
     ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>> {
@@ -203,7 +203,10 @@ where
         })
     }
 
-    fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
+    fn execute<F, T>(
+        self,
+        pre_execution_handler: F,
+    ) -> EnvironmentExecutionResult<T, Self, EntryPoint>
     where
         F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), T>,
         T: Display,

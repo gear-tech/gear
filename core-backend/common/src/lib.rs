@@ -51,7 +51,7 @@ use gear_core::{
     memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType,
-        PayloadSizeError, WasmEntry,
+        PayloadSizeError, WasmEntryPoint,
     },
     reservation::GasReserver,
 };
@@ -286,17 +286,17 @@ impl<Env: Display, PrepMem: Display> EnvironmentExecutionError<Env, PrepMem> {
     }
 }
 
-type EnvironmentBackendReport<Env, EP> =
-    BackendReport<<Env as Environment<EP>>::Memory, <Env as Environment<EP>>::Ext>;
+type EnvironmentBackendReport<Env, EntryPoint> =
+    BackendReport<<Env as Environment<EntryPoint>>::Memory, <Env as Environment<EntryPoint>>::Ext>;
 
-pub type EnvironmentExecutionResult<T, Env, EP> = Result<
-    EnvironmentBackendReport<Env, EP>,
-    EnvironmentExecutionError<<Env as Environment<EP>>::Error, T>,
+pub type EnvironmentExecutionResult<T, Env, EntryPoint> = Result<
+    EnvironmentBackendReport<Env, EntryPoint>,
+    EnvironmentExecutionError<<Env as Environment<EntryPoint>>::Error, T>,
 >;
 
-pub trait Environment<EP = DispatchKind>: Sized
+pub trait Environment<EntryPoint = DispatchKind>: Sized
 where
-    EP: WasmEntry,
+    EntryPoint: WasmEntryPoint,
 {
     type Ext: BackendExt + 'static;
 
@@ -313,13 +313,16 @@ where
     fn new(
         ext: Self::Ext,
         binary: &[u8],
-        entry_point: EP,
+        entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
     ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>>;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
-    fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
+    fn execute<F, T>(
+        self,
+        pre_execution_handler: F,
+    ) -> EnvironmentExecutionResult<T, Self, EntryPoint>
     where
         F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), T>,
         T: Display;

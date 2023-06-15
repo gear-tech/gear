@@ -33,7 +33,7 @@ use gear_backend_common::{
 use gear_core::{
     gas::GasLeft,
     memory::{PageU32Size, WasmPage},
-    message::{DispatchKind, WasmEntry},
+    message::{DispatchKind, WasmEntryPoint},
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
@@ -144,7 +144,7 @@ pub enum SandboxEnvironmentError {
 pub struct SandboxEnvironment<E, EP = DispatchKind>
 where
     E: BackendExt,
-    EP: WasmEntry,
+    EP: WasmEntryPoint,
 {
     instance: Instance<Runtime<E>>,
     runtime: Runtime<E>,
@@ -196,7 +196,7 @@ where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
-    EP: WasmEntry,
+    EP: WasmEntryPoint,
 {
     #[rustfmt::skip]
     fn bind_funcs(builder: &mut EnvBuilder<E>) {
@@ -266,7 +266,7 @@ where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
-    EP: WasmEntry,
+    EP: WasmEntryPoint,
 {
     type Ext = E;
     type Memory = MemoryWrap;

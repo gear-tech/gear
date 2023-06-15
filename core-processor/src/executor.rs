@@ -42,7 +42,8 @@ use gear_core::{
     ids::ProgramId,
     memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage},
     message::{
-        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, WasmEntry,
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
+        WasmEntryPoint,
     },
     program::Program,
     reservation::GasReserver,
@@ -477,7 +478,7 @@ where
     E: Environment<EP>,
     E::Ext: ProcessorExt + BackendExt + 'static,
     <E::Ext as Ext>::Error: BackendExtError,
-    EP: WasmEntry,
+    EP: WasmEntryPoint,
 {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
     let mut pages_initial_data: BTreeMap<GearPage, PageBuf> =
