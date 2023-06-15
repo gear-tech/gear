@@ -6887,6 +6887,7 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-sudo",
  "pallet-timestamp",
+ "pallet-vesting",
  "parity-scale-codec",
  "scale-info",
  "serde",

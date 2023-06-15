@@ -805,6 +805,7 @@ impl pallet_gear_messenger::Config for Runtime {
 impl pallet_airdrop::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_airdrop::weights::AirdropWeight<Runtime>;
+    type VestingSchedule = Vesting;
 }
 
 pub struct ExtraFeeFilter;
