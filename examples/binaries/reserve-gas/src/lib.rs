@@ -39,6 +39,7 @@ pub enum InitAction {
     Normal(Vec<(u64, u32)>),
     Wait,
     CheckArgs { mailbox_threshold: u64 },
+    FreshReserveUnreserve,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -49,6 +50,7 @@ pub enum HandleAction {
     AddReservationToList(GasAmount, BlockCount),
     ConsumeReservationsFromList,
     RunInifitely,
+    SendFromReservationAndUnreserve,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -157,6 +159,22 @@ mod wasm {
                     )))
                 );
             }
+            InitAction::FreshReserveUnreserve => {
+                let id = ReservationId::reserve(10_000, 10).unwrap();
+                gstd::msg::send_from_reservation(
+                    id.clone(),
+                    msg::source(),
+                    b"fresh_reserve_unreserve",
+                    0,
+                )
+                .unwrap();
+                assert_eq!(
+                    id.unreserve(),
+                    Err(ContractError::Ext(ExtError::Reservation(
+                        ReservationError::InvalidReservationId
+                    )))
+                );
+            }
         }
     }
 
@@ -204,6 +222,22 @@ mod wasm {
                 loop {
                     let _msg_source = msg::source();
                 }
+            }
+            HandleAction::SendFromReservationAndUnreserve => {
+                let id = unsafe { RESERVATION_ID.take().unwrap() };
+                gstd::msg::send_from_reservation(
+                    id.clone(),
+                    msg::source(),
+                    b"existing_reserve_unreserve",
+                    0,
+                )
+                .unwrap();
+                assert_eq!(
+                    id.unreserve(),
+                    Err(ContractError::Ext(ExtError::Reservation(
+                        ReservationError::InvalidReservationId
+                    )))
+                );
             }
         }
     }
