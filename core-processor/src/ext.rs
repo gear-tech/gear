@@ -24,8 +24,9 @@ use alloc::{
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
-    ActorTerminationReason, BackendAllocExtError, BackendExternalities, BackendExtError, ExtInfo,
-    SystemReservationContext, TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
+    BackendExternalitiesError, ExtInfo, SystemReservationContext, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
@@ -172,7 +173,7 @@ impl From<ExecutionError> for ExtError {
     }
 }
 
-impl BackendExtError for ExtError {
+impl BackendExternalitiesError for ExtError {
     fn into_termination_reason(self) -> TerminationReason {
         match self {
             ExtError::Core(err) => ActorTerminationReason::Trap(TrapExplanation::Ext(err)).into(),
@@ -195,7 +196,7 @@ pub enum ExtAllocError {
     Alloc(AllocError),
 }
 
-impl BackendAllocExtError for ExtAllocError {
+impl BackendAllocExternalitiesError for ExtAllocError {
     type ExtError = ExtError;
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self> {

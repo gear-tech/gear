@@ -21,8 +21,9 @@
 use crate::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
     runtime::Runtime,
-    syscall_trace, ActorTerminationReason, BackendAllocExtError, BackendExternalities, BackendExtError,
-    BackendState, MessageWaitedType, TerminationReason, TrapExplanation, PTR_SPECIAL,
+    syscall_trace, ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
+    BackendExternalitiesError, BackendState, MessageWaitedType, TerminationReason, TrapExplanation,
+    PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
@@ -50,8 +51,8 @@ pub struct FuncsHandler<E: Externalities + 'static, R> {
 impl<E, R> FuncsHandler<E, R>
 where
     E: BackendExternalities + 'static,
-    E::Error: BackendExtError,
-    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
+    E::Error: BackendExternalitiesError,
+    E::AllocError: BackendAllocExternalitiesError<ExtError = E::Error>,
     R: Runtime<E> + MemoryOwner + MemoryAccessRecorder + BackendState,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,

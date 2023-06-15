@@ -27,8 +27,9 @@ use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     funcs::FuncsHandler,
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessMod},
-    ActorTerminationReason, BackendAllocExtError, BackendExternalities, BackendExtError, BackendReport,
-    BackendTermination, Environment, EnvironmentError, EnvironmentExecutionResult,
+    ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
+    BackendExternalitiesError, BackendReport, BackendTermination, Environment, EnvironmentError,
+    EnvironmentExecutionResult,
 };
 use gear_core::{
     gas::GasLeft,
@@ -163,8 +164,8 @@ struct EnvBuilder<E: BackendExternalities> {
 impl<E> EnvBuilder<E>
 where
     E: BackendExternalities + 'static,
-    E::Error: BackendExtError,
-    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
+    E::Error: BackendExternalitiesError,
+    E::AllocError: BackendAllocExternalitiesError<ExtError = E::Error>,
 {
     fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>) {
         if self.forbidden_funcs.contains(&name) {
@@ -194,8 +195,8 @@ impl<E: BackendExternalities> From<EnvBuilder<E>> for EnvironmentDefinitionBuild
 impl<E, EntryPoint> SandboxEnvironment<E, EntryPoint>
 where
     E: BackendExternalities + 'static,
-    E::Error: BackendExtError,
-    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
+    E::Error: BackendExternalitiesError,
+    E::AllocError: BackendAllocExternalitiesError<ExtError = E::Error>,
     EntryPoint: WasmEntryPoint,
 {
     #[rustfmt::skip]
@@ -264,8 +265,8 @@ where
 impl<E, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<E, EntryPoint>
 where
     E: BackendExternalities + 'static,
-    E::Error: BackendExtError,
-    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
+    E::Error: BackendExternalitiesError,
+    E::AllocError: BackendAllocExternalitiesError<ExtError = E::Error>,
     EntryPoint: WasmEntryPoint,
 {
     type Ext = E;

@@ -129,7 +129,7 @@ impl From<ChargeError> for TerminationReason {
     }
 }
 
-impl<E: BackendExtError> From<E> for TerminationReason {
+impl<E: BackendExternalitiesError> From<E> for TerminationReason {
     fn from(err: E) -> Self {
         err.into_termination_reason()
     }
@@ -246,13 +246,13 @@ pub trait BackendExternalities: Externalities + CountersOwner {
     ) -> Result<(), ProcessAccessError>;
 }
 
-pub trait BackendExtError: Clone + Sized {
+pub trait BackendExternalitiesError: Clone + Sized {
     fn into_termination_reason(self) -> TerminationReason;
 }
 
 // TODO: consider to remove this trait and use Result<Result<Page, AllocError>, GasError> instead #2571
-pub trait BackendAllocExtError: Sized {
-    type ExtError: BackendExtError;
+pub trait BackendAllocExternalitiesError: Sized {
+    type ExtError: BackendExternalitiesError;
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self>;
 }
@@ -363,7 +363,7 @@ pub trait BackendState {
     }
 
     /// Process alloc function result
-    fn process_alloc_func_result<T: Sized, E: BackendAllocExtError>(
+    fn process_alloc_func_result<T: Sized, E: BackendAllocExternalitiesError>(
         &mut self,
         res: Result<T, E>,
     ) -> Result<Result<T, E>, TerminationReason> {
