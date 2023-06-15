@@ -20,7 +20,7 @@ jobs:
         run: echo "tag=ghcr.io/gear-tech/node:0.1.0-`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_OUTPUT
 
   docker:
-    runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
+    runs-on: [self-hosted, epyc-4, k8s-runner]
     needs: tag-image
     steps:
       - name: Checkout repo
