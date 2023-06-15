@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{collections::BTreeSet, vec::Vec};
-use core_processor::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
+use core_processor::{Ext, ExtAllocError, ProcessorContext, ExtError, ProcessorExt};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
@@ -153,8 +153,8 @@ impl CountersOwner for LazyPagesExt {
 }
 
 impl EnvExt for LazyPagesExt {
-    type Error = ProcessorError;
-    type AllocError = ProcessorAllocError;
+    type Error = ExtError;
+    type AllocError = ExtAllocError;
 
     fn alloc(
         &mut self,
