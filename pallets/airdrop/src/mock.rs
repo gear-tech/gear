@@ -207,6 +207,7 @@ impl pallet_airdrop::Config for Test {
 }
 
 pub type AirdropCall = pallet_airdrop::Call<Test>;
+pub type AirdropError = pallet_airdrop::Error<Test>;
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {

@@ -23,6 +23,7 @@ use frame_support::{
     traits::{Currency, ExistenceRequirement, VestingSchedule},
 };
 pub use pallet::*;
+use sp_runtime::traits::{Convert, Saturating};
 pub use weights::WeightInfo;
 
 pub mod weights;
@@ -37,6 +38,10 @@ mod mock;
 mod tests;
 
 pub(crate) type BalanceOf<T> = <<T as pallet_gear::Config>::Currency as Currency<
+    <T as frame_system::Config>::AccountId,
+>>::Balance;
+
+pub(crate) type VestingBalanceOf<T> = <<T as pallet_vesting::Config>::Currency as Currency<
     <T as frame_system::Config>::AccountId,
 >>::Balance;
 
@@ -60,7 +65,11 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
 
         /// To modify/remove vesting schedule
-        type VestingSchedule: VestingSchedule<Self::AccountId>;
+        type VestingSchedule: VestingSchedule<
+            Self::AccountId,
+            Currency = <Self as pallet_vesting::Config>::Currency,
+            Moment = Self::BlockNumber,
+        >;
     }
 
     #[pallet::pallet]
@@ -77,6 +86,13 @@ pub mod pallet {
             who: T::AccountId,
             schedule_index: u32,
         },
+    }
+
+    /// Error for the airdrop pallet.
+    #[pallet::error]
+    pub enum Error<T> {
+        /// Amount to being transferred is bigger than vested.
+        AmountBigger,
     }
 
     #[pallet::call]
@@ -130,33 +146,65 @@ pub mod pallet {
         /// - `VestingScheduleRemoved{ who, schedule_index }`
         #[pallet::call_index(1)]
         #[pallet::weight(<T as Config>::WeightInfo::transfer())]
-        pub fn remove_vesting_and_transfer(
+        pub fn transfer_vested(
             origin: OriginFor<T>,
             source: T::AccountId,
             dest: T::AccountId,
             schedule_index: u32,
+            amount: Option<VestingBalanceOf<T>>,
         ) -> DispatchResultWithPostInfo {
             ensure_root(origin)?;
 
-            if let Some(vesting) = pallet_vesting::Pallet::<T>::vesting(&source) {
-                let schedule = *vesting
-                    .get(schedule_index as usize)
-                    .ok_or(pallet_vesting::Error::<T>::ScheduleIndexOutOfBounds)?;
+            let schedules = pallet_vesting::Pallet::<T>::vesting(&source)
+                .ok_or(pallet_vesting::Error::<T>::NotVesting)?;
 
-                T::VestingSchedule::remove_vesting_schedule(&source, schedule_index)?;
+            let schedule = schedules
+                .get(schedule_index as usize)
+                .ok_or(pallet_vesting::Error::<T>::ScheduleIndexOutOfBounds)?;
 
-                Self::deposit_event(Event::VestingScheduleRemoved {
-                    who: source.clone(),
-                    schedule_index,
-                });
+            T::VestingSchedule::remove_vesting_schedule(&source, schedule_index)?;
 
-                <<T as pallet_vesting::Config>::Currency as Currency<_>>::transfer(
+            Self::deposit_event(Event::VestingScheduleRemoved {
+                who: source.clone(),
+                schedule_index,
+            });
+
+            let amount = if let Some(amount) = amount {
+                ensure!(amount <= schedule.locked(), Error::<T>::AmountBigger);
+                let end_amount = schedule.locked().saturating_sub(amount);
+                let end_block = schedule.ending_block_as_balance::<T::BlockNumberToBalance>();
+                let start_block = T::BlockNumberToBalance::convert(schedule.starting_block());
+                let per_block = end_amount / end_block.saturating_sub(start_block);
+
+                T::VestingSchedule::can_add_vesting_schedule(
                     &source,
-                    &dest,
-                    schedule.locked(),
-                    ExistenceRequirement::AllowDeath,
+                    end_amount,
+                    per_block, // new_schedule.starting_block(),
+                    schedule.starting_block(),
                 )?;
-            }
+                let res = T::VestingSchedule::add_vesting_schedule(
+                    &source,
+                    end_amount,
+                    per_block, // new_schedule.starting_block(),
+                    schedule.starting_block(),
+                );
+
+                debug_assert!(
+                    res.is_ok(),
+                    "Failed to add a schedule when we had to succeed."
+                );
+
+                amount
+            } else {
+                schedule.locked()
+            };
+
+            <<T as pallet_vesting::Config>::Currency as Currency<_>>::transfer(
+                &source,
+                &dest,
+                amount,
+                ExistenceRequirement::AllowDeath,
+            )?;
 
             // This extrinsic is not chargeable
             Ok(Pays::No.into())

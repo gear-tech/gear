@@ -18,10 +18,12 @@
 
 use super::*;
 use crate::mock::{
-    new_test_ext, Airdrop, AirdropCall, Balances, RuntimeCall, RuntimeOrigin, Sudo, ALICE, BOB,
-    ROOT,
+    new_test_ext, Airdrop, AirdropCall, AirdropError, Balances, RuntimeCall, RuntimeOrigin, Sudo,
+    Test, Vesting, ALICE, BOB, ROOT,
 };
-use frame_support::{assert_noop, assert_ok};
+use frame_support::{assert_err, assert_noop, assert_ok};
+use frame_system::Config;
+use pallet_vesting::VestingInfo;
 
 #[test]
 fn test_setup_works() {
@@ -45,17 +47,75 @@ fn sudo_call_works() {
         assert_eq!(Balances::total_issuance(), 200_000_000);
 
         assert_eq!(Balances::locks(BOB).len(), 1);
-        let call = Box::new(RuntimeCall::Airdrop(
-            AirdropCall::remove_vesting_and_transfer {
-                source: BOB,
-                dest: ALICE,
-                schedule_index: 0,
-            },
-        ));
+        let call = Box::new(RuntimeCall::Airdrop(AirdropCall::transfer_vested {
+            source: BOB,
+            dest: ALICE,
+            schedule_index: 0,
+            amount: None,
+        }));
         assert_ok!(Sudo::sudo(RuntimeOrigin::signed(ROOT), call));
         assert_eq!(Balances::total_balance(&BOB), 0);
         assert_eq!(Balances::locks(BOB), vec![]);
         assert_eq!(Balances::total_balance(&ALICE), 110_000_000);
+        assert_eq!(Balances::total_issuance(), 200_000_000);
+    });
+}
+#[test]
+fn vesting_transfer_works() {
+    new_test_ext().execute_with(|| {
+        assert_eq!(Balances::locks(BOB).len(), 1);
+        assert_eq!(
+            Vesting::vesting(&BOB).unwrap().first().unwrap(),
+            &VestingInfo::<VestingBalanceOf<Test>, <Test as Config>::BlockNumber>::new(
+                100_000_000,
+                100_000,
+                100,
+            )
+        );
+        assert_eq!(Balances::total_balance(&ALICE), 0);
+        assert_eq!(Balances::total_balance(&BOB), 100_000_000);
+        assert_eq!(Balances::total_balance(&ROOT), 100_000_000);
+        assert_eq!(Balances::total_issuance(), 200_000_000);
+
+        // Amount can't be bigger than locked funds
+        assert_err!(
+            Airdrop::transfer_vested(RuntimeOrigin::root(), BOB, ALICE, 0, Some(200_000_000)),
+            AirdropError::AmountBigger
+        );
+
+        // Transfer part of vested funds to ALICE
+        assert_ok!(Airdrop::transfer_vested(
+            RuntimeOrigin::root(),
+            BOB,
+            ALICE,
+            0,
+            Some(10_000_000)
+        ));
+
+        // Check that BOB have the same vesting schedule reduced by unlocked funds
+        assert_eq!(
+            Vesting::vesting(&BOB).unwrap().first().unwrap(),
+            &VestingInfo::<VestingBalanceOf<Test>, <Test as Config>::BlockNumber>::new(
+                90_000_000, 90_000, 100,
+            )
+        );
+        assert_eq!(Balances::total_balance(&BOB), 90_000_000);
+        assert_eq!(Balances::free_balance(&ALICE), 10_000_000);
+        assert_eq!(Balances::total_issuance(), 200_000_000);
+
+        // Transfer all of vested funds to ALICE
+        assert_ok!(Airdrop::transfer_vested(
+            RuntimeOrigin::root(),
+            BOB,
+            ALICE,
+            0,
+            None
+        ));
+
+        // Check that BOB have no vesting and ALICE have all the unlocked funds.
+        assert_eq!(Vesting::vesting(&BOB), None);
+        assert_eq!(Balances::total_balance(&BOB), 0);
+        assert_eq!(Balances::free_balance(&ALICE), 100_000_000);
         assert_eq!(Balances::total_issuance(), 200_000_000);
     });
 }
@@ -68,7 +128,7 @@ fn signed_extrinsic_fails() {
             DispatchError::BadOrigin,
         );
         assert_noop!(
-            Airdrop::remove_vesting_and_transfer(RuntimeOrigin::signed(ROOT), BOB, ALICE, 0),
+            Airdrop::transfer_vested(RuntimeOrigin::signed(ROOT), BOB, ALICE, 0, None),
             DispatchError::BadOrigin,
         );
     });
