@@ -423,7 +423,7 @@ pub mod pallet {
     pub enum Error<T> {
         /// Message wasn't found in the mailbox.
         MessageNotFound,
-        /// Not enough balance to reserve.
+        /// Not enough balance to execute an action.
         ///
         /// Usually occurs when the gas_limit specified is such that the origin account can't afford the message.
         InsufficientBalance,
