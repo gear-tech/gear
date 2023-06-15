@@ -267,16 +267,16 @@ where
 }
 
 #[derive(Debug, derive_more::Display)]
-pub enum EnvironmentExecutionError<Env: Display, PrepMem: Display> {
+pub enum EnvironmentExecutionError<Env: Display, PrepareMemoryError: Display> {
     #[display(fmt = "Actor backend error: {_1}")]
     Actor(GasAmount, String),
     #[display(fmt = "System backend error: {_0}")]
     System(Env),
     #[display(fmt = "Prepare error: {_1}")]
-    PrepareMemory(GasAmount, PrepMem),
+    PrepareMemory(GasAmount, PrepareMemoryError),
 }
 
-impl<Env: Display, PrepMem: Display> EnvironmentExecutionError<Env, PrepMem> {
+impl<Env: Display, PrepareMemoryError: Display> EnvironmentExecutionError<Env, PrepareMemoryError> {
     pub fn from_infallible(err: EnvironmentExecutionError<Env, Infallible>) -> Self {
         match err {
             EnvironmentExecutionError::System(err) => Self::System(err),
@@ -289,9 +289,9 @@ impl<Env: Display, PrepMem: Display> EnvironmentExecutionError<Env, PrepMem> {
 type EnvironmentBackendReport<Env, EntryPoint> =
     BackendReport<<Env as Environment<EntryPoint>>::Memory, <Env as Environment<EntryPoint>>::Ext>;
 
-pub type EnvironmentExecutionResult<T, Env, EntryPoint> = Result<
+pub type EnvironmentExecutionResult<PrepareMemoryError, Env, EntryPoint> = Result<
     EnvironmentBackendReport<Env, EntryPoint>,
-    EnvironmentExecutionError<<Env as Environment<EntryPoint>>::Error, T>,
+    EnvironmentExecutionError<<Env as Environment<EntryPoint>>::Error, PrepareMemoryError>,
 >;
 
 pub trait Environment<EntryPoint = DispatchKind>: Sized
@@ -308,7 +308,7 @@ where
 
     /// 1) Instantiates wasm binary.
     /// 2) Creates wasm memory
-    /// 3) Runs `pre_execution_handler` to fill the memory before running instance.
+    /// 3) Runs `prepare_memory` to fill the memory before running instance.
     /// 4) Instantiate external funcs for wasm module.
     fn new(
         ext: Self::Ext,
@@ -319,13 +319,13 @@ where
     ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>>;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
-    fn execute<F, T>(
+    fn execute<PrepareMemory, PrepareMemoryError>(
         self,
-        pre_execution_handler: F,
-    ) -> EnvironmentExecutionResult<T, Self, EntryPoint>
+        prepare_memory: PrepareMemory,
+    ) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
     where
-        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), T>,
-        T: Display;
+        PrepareMemory: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), PrepareMemoryError>,
+        PrepareMemoryError: Display;
 }
 
 pub trait BackendState {

@@ -141,15 +141,15 @@ pub enum SandboxEnvironmentError {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct SandboxEnvironment<E, EP = DispatchKind>
+pub struct SandboxEnvironment<E, EntryPoint = DispatchKind>
 where
     E: BackendExt,
-    EP: WasmEntryPoint,
+    EntryPoint: WasmEntryPoint,
 {
     instance: Instance<Runtime<E>>,
     runtime: Runtime<E>,
     entries: BTreeSet<DispatchKind>,
-    entry_point: EP,
+    entry_point: EntryPoint,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
@@ -191,12 +191,12 @@ impl<E: BackendExt> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime
     }
 }
 
-impl<E, EP> SandboxEnvironment<E, EP>
+impl<E, EntryPoint> SandboxEnvironment<E, EntryPoint>
 where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
-    EP: WasmEntryPoint,
+    EntryPoint: WasmEntryPoint,
 {
     #[rustfmt::skip]
     fn bind_funcs(builder: &mut EnvBuilder<E>) {
@@ -261,12 +261,12 @@ where
     }
 }
 
-impl<E, EP> Environment<EP> for SandboxEnvironment<E, EP>
+impl<E, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<E, EntryPoint>
 where
     E: BackendExt + 'static,
     E::Error: BackendExtError,
     E::AllocError: BackendAllocExtError<ExtError = E::Error>,
-    EP: WasmEntryPoint,
+    EntryPoint: WasmEntryPoint,
 {
     type Ext = E;
     type Memory = MemoryWrap;
@@ -275,7 +275,7 @@ where
     fn new(
         ext: Self::Ext,
         binary: &[u8],
-        entry_point: EP,
+        entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
     ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>> {
@@ -339,10 +339,10 @@ where
         }
     }
 
-    fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
+    fn execute<PrepareMemory, PrepareMemoryError>(self, prepare_memory: PrepareMemory) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
     where
-        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), T>,
-        T: Display,
+        PrepareMemory: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), PrepareMemoryError>,
+        PrepareMemoryError: Display,
     {
         use EnvironmentExecutionError::*;
         use SandboxEnvironmentError::*;
@@ -384,7 +384,7 @@ where
             unreachable!("We cannot use sandbox backend in std environment currently");
         };
 
-        match pre_execution_handler(&mut runtime.memory, stack_end, globals_config) {
+        match prepare_memory(&mut runtime.memory, stack_end, globals_config) {
             Ok(_) => (),
             Err(e) => {
                 return Err(PrepareMemory(runtime.ext.gas_amount(), e));

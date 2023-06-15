@@ -203,13 +203,13 @@ where
         })
     }
 
-    fn execute<F, T>(
+    fn execute<PrepareMemory, PrepareMemoryError>(
         self,
-        pre_execution_handler: F,
-    ) -> EnvironmentExecutionResult<T, Self, EntryPoint>
+        prepare_memory: PrepareMemory,
+    ) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
     where
-        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), T>,
-        T: Display,
+        PrepareMemory: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), PrepareMemoryError>,
+        PrepareMemoryError: Display,
     {
         use EnvironmentExecutionError::*;
         use WasmiEnvironmentError::*;
@@ -274,7 +274,7 @@ where
         };
 
         let mut memory_wrap = MemoryWrap::new(memory, store);
-        pre_execution_handler(&mut memory_wrap, stack_end, globals_config).map_err(|e| {
+        prepare_memory(&mut memory_wrap, stack_end, globals_config).map_err(|e| {
             let store = &memory_wrap.store;
             PrepareMemory(gas_amount!(store), e)
         })?;
