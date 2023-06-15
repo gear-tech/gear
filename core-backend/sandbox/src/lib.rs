@@ -23,7 +23,6 @@
 extern crate alloc;
 
 pub mod env;
-pub mod funcs;
 pub mod memory;
 pub mod runtime;
 

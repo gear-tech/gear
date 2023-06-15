@@ -10,17 +10,17 @@ use gclient::{Error as GClientError, EventProcessor, GearApi, Result as GClientR
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{MessageId, ProgramId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
+use gsdk::metadata::{gear::Event as GearEvent, Event};
 use primitive_types::H256;
 pub use report::CrashAlert;
-use report::{BatchRunReport, Report};
+use report::{BatchRunReport, MailboxReport, Report};
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
     time::Duration,
 };
+use tokio::sync::broadcast::Receiver;
 use tracing::instrument;
-
-use self::report::MailboxReport;
 
 mod api;
 mod context;
@@ -49,20 +49,23 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         }
     }
 
-    pub async fn run(params: LoadParams) -> Result<()> {
+    pub async fn run(
+        params: LoadParams,
+        rx: Receiver<subxt::events::Events<gsdk::config::GearConfig>>,
+    ) -> Result<()> {
         let api = GearApiFacade::try_new(params.node, params.user).await?;
         let mut batch_pool = Self::new(api.clone(), params.batch_size, params.workers);
 
         let run_pool_task = batch_pool.run_pool_loop(params.loader_seed, params.code_seed_type);
-        let inspect_crash_task = inspect_crash_events(api.clone().into_gear_api());
+        let inspect_crash_task = tokio::spawn(inspect_crash_events(rx));
         let renew_balance_task =
-            create_renew_balance_task(api.into_gear_api(), params.root).await?;
+            tokio::spawn(create_renew_balance_task(api.into_gear_api(), params.root).await?);
 
         // TODO 1876 separately spawned tasks
         let run_result = tokio::select! {
             r = run_pool_task => r,
-            r = inspect_crash_task => r,
-            r = renew_balance_task => r,
+            r = inspect_crash_task => r?,
+            r = renew_balance_task => r?,
         };
 
         if let Err(ref e) = run_result {
@@ -291,17 +294,25 @@ async fn process_events(
     })
 }
 
-async fn inspect_crash_events(api: GearApi) -> Result<()> {
-    let mut event_listener = api.subscribe().await?;
+async fn inspect_crash_events(
+    mut rx: Receiver<subxt::events::Events<gsdk::config::GearConfig>>,
+) -> Result<()> {
     // Error means either event is not found and can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    let crash_block_hash = event_listener.queue_processing_reverted().await?;
+    while let Ok(events) = rx.recv().await {
+        let bh = events.block_hash();
+        for event in events.iter() {
+            let event = event?.as_root_event::<gsdk::metadata::Event>()?;
+            if matches!(event, Event::Gear(GearEvent::QueueProcessingReverted)) {
+                let crash_err = CrashAlert::MsgProcessingStopped;
+                tracing::info!("{crash_err} at block hash {bh:?}");
+                return Err(crash_err.into());
+            }
+        }
+    }
 
-    let crash_err = CrashAlert::MsgProcessingStopped;
-    tracing::info!("{crash_err} at block hash {crash_block_hash:?}");
-
-    Err(crash_err.into())
+    Ok(())
 }
 
 async fn create_renew_balance_task(
@@ -319,11 +330,11 @@ async fn create_renew_balance_task(
     let duration_millis = root_api.expected_block_time()? * 100;
 
     tracing::info!(
-        "Renewing balances every {} seconds, user target balance is {}, authority target balance is {}",
-        duration_millis / 1000,
-        user_target_balance,
-        root_target_balance
-    );
+                "Renewing balances every {} seconds, user target balance is {}, authority target balance is {}",
+                duration_millis / 1000,
+                user_target_balance,
+                root_target_balance
+            );
 
     // Every `duration_millis` milliseconds updates authority and user (batch sender) balances
     // to target values.
@@ -337,30 +348,36 @@ async fn create_renew_balance_task(
             };
             tracing::debug!("User balance demand {user_balance_demand}");
 
-            // Calling `set_balance` for `user` is potentially dangerous, because getting actual
-            // reserved balance is a complicated task, as reserved balance is changed by another
-            // task, which loads the node.
-            //
-            // Reserved balance mustn't be changed as it can cause runtime panics within reserving
-            // or unreserving funds logic.
-            root_api
-                .set_balance(
-                    root_address.clone(),
-                    root_target_balance + user_balance_demand,
-                    0,
-                )
-                .await
-                .map_err(|e| {
-                    tracing::debug!("Failed to set balance of the root address: {e}");
-                    e
-                })?;
-            root_api
-                .transfer(ProgramId::from(user_address.as_ref()), user_balance_demand)
-                .await
-                .map_err(|e| {
-                    tracing::debug!("Failed to transfer to user address: {e}");
-                    e
-                })?;
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    // Calling `set_balance` for `user` is potentially dangerous, because getting actual
+                    // reserved balance is a complicated task, as reserved balance is changed by another
+                    // task, which loads the node.
+                    //
+                    // Reserved balance mustn't be changed as it can cause runtime panics within reserving
+                    // or unreserving funds logic.
+                    root_api
+                        .set_balance(
+                            root_address.clone(),
+                            root_target_balance + user_balance_demand,
+                            0,
+                        )
+                        .await
+                        .map_err(|e| {
+                            tracing::debug!("Failed to set balance of the root address: {e}");
+                            e
+                        })?;
+                    root_api
+                        .transfer(ProgramId::from(user_address.as_ref()), user_balance_demand)
+                        .await
+                        .map_err(|e| {
+                            tracing::debug!("Failed to transfer to user address: {e}");
+                            e
+                        })?;
+
+                    Ok::<(), anyhow::Error>(())
+                })
+            })?;
 
             tracing::debug!("Successfully renewed balances!");
         }
