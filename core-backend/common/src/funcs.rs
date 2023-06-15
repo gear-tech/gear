@@ -31,7 +31,7 @@ use gear_backend_codegen::host;
 use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
-    env::Ext,
+    env::Externalities,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
@@ -43,9 +43,8 @@ use gsys::{
 };
 use parity_scale_codec::Encode;
 
-pub struct FuncsHandler<E: Ext + 'static, R> {
-    _phantom_ext: PhantomData<E>,
-    _phantom_runtime: PhantomData<R>,
+pub struct FuncsHandler<E: Externalities + 'static, R> {
+    _phantom: PhantomData<(E, R)>,
 }
 
 impl<E, R> FuncsHandler<E, R>

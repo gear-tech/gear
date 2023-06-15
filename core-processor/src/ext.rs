@@ -29,7 +29,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
-    env::Ext as EnvExt,
+    env::Externalities,
     gas::{
         ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
         GasLeft, Token, ValueCounter,
@@ -175,9 +175,7 @@ impl From<ExecutionError> for ExtError {
 impl BackendExtError for ExtError {
     fn into_termination_reason(self) -> TerminationReason {
         match self {
-            ExtError::Core(err) => {
-                ActorTerminationReason::Trap(TrapExplanation::Ext(err)).into()
-            }
+            ExtError::Core(err) => ActorTerminationReason::Trap(TrapExplanation::Ext(err)).into(),
             ExtError::ForbiddenFunction => {
                 ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into()
             }
@@ -485,7 +483,7 @@ impl CountersOwner for Ext {
     }
 }
 
-impl EnvExt for Ext {
+impl Externalities for Ext {
     type Error = ExtError;
     type AllocError = ExtAllocError;
 
@@ -1258,7 +1256,7 @@ mod tests {
         }
 
         #[track_caller]
-        fn assert_alloc_error(err: <Ext as EnvExt>::AllocError) {
+        fn assert_alloc_error(err: <Ext as Externalities>::AllocError) {
             match err {
                 ExtAllocError::Alloc(
                     AllocError::IncorrectAllocationData(_) | AllocError::ProgramAllocOutOfBounds,
@@ -1268,7 +1266,7 @@ mod tests {
         }
 
         #[track_caller]
-        fn assert_free_error(err: <Ext as EnvExt>::AllocError) {
+        fn assert_free_error(err: <Ext as Externalities>::AllocError) {
             match err {
                 ExtAllocError::Alloc(AllocError::InvalidFree(_)) => {}
                 err => Err(err).unwrap(),

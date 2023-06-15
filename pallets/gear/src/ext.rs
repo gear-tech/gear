@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{collections::BTreeSet, vec::Vec};
-use core_processor::{Ext, ExtAllocError, ProcessorContext, ExtError, ProcessorExt};
+use core_processor::{Ext, ExtAllocError, ExtError, ProcessorContext, ProcessorExt};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
@@ -25,7 +25,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     costs::RuntimeCosts,
-    env::Ext as EnvExt,
+    env::Externalities,
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GearPage, GrowHandler, Memory, MemoryInterval, PageU32Size, WasmPage},
@@ -152,7 +152,7 @@ impl CountersOwner for LazyPagesExt {
     }
 }
 
-impl EnvExt for LazyPagesExt {
+impl Externalities for LazyPagesExt {
     type Error = ExtError;
     type AllocError = ExtAllocError;
 

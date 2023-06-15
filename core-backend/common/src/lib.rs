@@ -45,7 +45,7 @@ use core::{
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
-    env::Ext as EnvExt,
+    env::Externalities,
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
@@ -233,7 +233,7 @@ pub struct ExtInfo {
     pub context_store: ContextStore,
 }
 
-pub trait BackendExt: EnvExt + CountersOwner {
+pub trait BackendExt: Externalities + CountersOwner {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     fn gas_amount(&self) -> GasAmount;
@@ -259,7 +259,7 @@ pub trait BackendAllocExtError: Sized {
 
 pub struct BackendReport<MemWrap, Ext>
 where
-    Ext: EnvExt,
+    Ext: Externalities,
 {
     pub termination_reason: TerminationReason,
     pub memory_wrap: MemWrap,

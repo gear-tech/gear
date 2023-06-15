@@ -20,18 +20,18 @@
 
 use crate::state::HostState;
 use gear_core::{
-    env::Ext,
+    env::Externalities,
     memory::{HostPointer, Memory, PageU32Size, WasmPage},
 };
 use gear_core_errors::MemoryError;
 use wasmi::{core::memory_units::Pages, Memory as WasmiMemory, Store, StoreContextMut};
 
-pub(crate) struct MemoryWrapRef<'a, E: Ext + 'static> {
+pub(crate) struct MemoryWrapRef<'a, E: Externalities + 'static> {
     pub memory: WasmiMemory,
     pub store: StoreContextMut<'a, HostState<E>>,
 }
 
-impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
+impl<'a, E: Externalities + 'static> Memory for MemoryWrapRef<'a, E> {
     type GrowError = wasmi::errors::MemoryError;
 
     fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
@@ -63,12 +63,12 @@ impl<'a, E: Ext + 'static> Memory for MemoryWrapRef<'a, E> {
 }
 
 /// Wrapper for [`wasmi::Memory`].
-pub struct MemoryWrap<E: Ext + 'static> {
+pub struct MemoryWrap<E: Externalities + 'static> {
     pub(crate) memory: WasmiMemory,
     pub(crate) store: Store<HostState<E>>,
 }
 
-impl<E: Ext + 'static> MemoryWrap<E> {
+impl<E: Externalities + 'static> MemoryWrap<E> {
     /// Wrap [`wasmi::Memory`] for Memory trait.
     pub(crate) fn new(memory: WasmiMemory, store: Store<HostState<E>>) -> Self {
         MemoryWrap { memory, store }
@@ -79,7 +79,7 @@ impl<E: Ext + 'static> MemoryWrap<E> {
 }
 
 /// Memory interface for the allocator.
-impl<E: Ext + 'static> Memory for MemoryWrap<E> {
+impl<E: Externalities + 'static> Memory for MemoryWrap<E> {
     type GrowError = wasmi::errors::MemoryError;
 
     fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {

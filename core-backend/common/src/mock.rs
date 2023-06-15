@@ -24,7 +24,7 @@ use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
-    env::Ext,
+    env::Externalities,
     gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval, PageU32Size, WasmPage, WASM_PAGE_SIZE},
@@ -87,7 +87,7 @@ impl CountersOwner for MockExt {
     fn set_gas_left(&mut self, _gas_left: GasLeft) {}
 }
 
-impl Ext for MockExt {
+impl Externalities for MockExt {
     type Error = Error;
     type AllocError = Error;
 

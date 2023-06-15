@@ -31,7 +31,7 @@ use gear_backend_common::{
     BackendTermination, Environment, EnvironmentError, EnvironmentExecutionResult, LimitedStr,
 };
 use gear_core::{
-    env::Ext,
+    env::Externalities,
     gas::GasLeft,
     memory::{HostPointer, PageU32Size, WasmPage},
     message::{DispatchKind, WasmEntryPoint},
@@ -69,7 +69,7 @@ macro_rules! gas_amount {
 /// Environment to run one module at a time providing Ext.
 pub struct WasmiEnvironment<E, EntryPoint = DispatchKind>
 where
-    E: Ext,
+    E: Externalities,
     EntryPoint: WasmEntryPoint,
 {
     instance: Instance,
@@ -79,12 +79,12 @@ where
     entry_point: EntryPoint,
 }
 
-struct GlobalsAccessProvider<E: Ext> {
+struct GlobalsAccessProvider<E: Externalities> {
     instance: Instance,
     store: Option<Store<HostState<E>>>,
 }
 
-impl<E: Ext> GlobalsAccessProvider<E> {
+impl<E: Externalities> GlobalsAccessProvider<E> {
     fn get_global(&self, name: &str) -> Option<Global> {
         let store = self.store.as_ref()?;
         self.instance
@@ -93,7 +93,7 @@ impl<E: Ext> GlobalsAccessProvider<E> {
     }
 }
 
-impl<E: Ext + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
+impl<E: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
     fn get_i64(&self, name: LimitedStr) -> Result<i64, GlobalsAccessError> {
         self.get_global(name.as_str())
             .and_then(|global| {

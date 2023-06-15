@@ -37,7 +37,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     code::InstrumentedCode,
-    env::Ext,
+    env::Externalities,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage},
@@ -259,7 +259,7 @@ pub fn execute_wasm<E>(
 where
     E: Environment,
     E::Ext: ProcessorExt + BackendExt + 'static,
-    <E::Ext as Ext>::Error: BackendExtError,
+    <E::Ext as Externalities>::Error: BackendExtError,
 {
     let WasmExecutionContext {
         gas_counter,
@@ -474,7 +474,7 @@ pub fn execute_for_reply<E, EP>(
 where
     E: Environment<EP>,
     E::Ext: ProcessorExt + BackendExt + 'static,
-    <E::Ext as Ext>::Error: BackendExtError,
+    <E::Ext as Externalities>::Error: BackendExtError,
     EP: WasmEntryPoint,
 {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
