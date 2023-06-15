@@ -65,7 +65,7 @@ fn vesting_transfer_works() {
     new_test_ext().execute_with(|| {
         assert_eq!(Balances::locks(BOB).len(), 1);
         assert_eq!(
-            Vesting::vesting(&BOB).unwrap().first().unwrap(),
+            Vesting::vesting(BOB).unwrap().first().unwrap(),
             &VestingInfo::<VestingBalanceOf<Test>, <Test as Config>::BlockNumber>::new(
                 100_000_000,
                 100_000,
@@ -94,13 +94,13 @@ fn vesting_transfer_works() {
 
         // Check that BOB have the same vesting schedule reduced by unlocked funds
         assert_eq!(
-            Vesting::vesting(&BOB).unwrap().first().unwrap(),
+            Vesting::vesting(BOB).unwrap().first().unwrap(),
             &VestingInfo::<VestingBalanceOf<Test>, <Test as Config>::BlockNumber>::new(
                 90_000_000, 90_000, 100,
             )
         );
         assert_eq!(Balances::total_balance(&BOB), 90_000_000);
-        assert_eq!(Balances::free_balance(&ALICE), 10_000_000);
+        assert_eq!(Balances::free_balance(ALICE), 10_000_000);
         assert_eq!(Balances::total_issuance(), 200_000_000);
 
         // Transfer all of vested funds to ALICE
@@ -113,9 +113,9 @@ fn vesting_transfer_works() {
         ));
 
         // Check that BOB have no vesting and ALICE have all the unlocked funds.
-        assert_eq!(Vesting::vesting(&BOB), None);
+        assert_eq!(Vesting::vesting(BOB), None);
         assert_eq!(Balances::total_balance(&BOB), 0);
-        assert_eq!(Balances::free_balance(&ALICE), 100_000_000);
+        assert_eq!(Balances::free_balance(ALICE), 100_000_000);
         assert_eq!(Balances::total_issuance(), 200_000_000);
     });
 }
