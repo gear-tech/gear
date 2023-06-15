@@ -310,7 +310,10 @@ where
     /// Memory type for current environment.
     type Memory: Memory;
 
-    /// An error issues in environment.
+    /// That's an error which originally comes from the primary
+    /// wasm execution environment (set by wasmi or sandbox).
+    /// So it's not the error of the `Self` itself, it's a kind
+    /// of wrapper over the underlying executor error.
     type SystemError: Debug + Display;
 
     /// 1) Instantiates wasm binary.

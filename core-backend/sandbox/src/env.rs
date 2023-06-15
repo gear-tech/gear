@@ -130,7 +130,7 @@ macro_rules! wrap_common_func {
 }
 
 #[derive(Debug, derive_more::Display)]
-pub enum SandboxEnvironmentSystemError {
+pub enum SandboxEnvironmentError {
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(sp_sandbox::Error),
     #[display(fmt = "Globals are not supported")]
@@ -273,7 +273,7 @@ where
 {
     type Ext = EnvExt;
     type Memory = MemoryWrap;
-    type SystemError = SandboxEnvironmentSystemError;
+    type SystemError = SandboxEnvironmentError;
 
     fn new(
         ext: Self::Ext,
@@ -283,7 +283,7 @@ where
         mem_size: WasmPage,
     ) -> Result<Self, EnvironmentError<Self::SystemError, Infallible>> {
         use EnvironmentError::*;
-        use SandboxEnvironmentSystemError::*;
+        use SandboxEnvironmentError::*;
 
         let entry_forbidden = entry_point
             .try_into_kind()
@@ -355,7 +355,7 @@ where
         PrepareMemoryError: Display,
     {
         use EnvironmentError::*;
-        use SandboxEnvironmentSystemError::*;
+        use SandboxEnvironmentError::*;
 
         let Self {
             mut instance,

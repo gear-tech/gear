@@ -43,7 +43,7 @@ use wasmi::{
 };
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum WasmiEnvironmentSystemError {
+pub enum WasmiEnvironmentError {
     #[from]
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(wasmi::errors::MemoryError),
@@ -131,7 +131,7 @@ where
 {
     type Ext = EnvExt;
     type Memory = MemoryWrap<EnvExt>;
-    type SystemError = WasmiEnvironmentSystemError;
+    type SystemError = WasmiEnvironmentError;
 
     fn new(
         ext: Self::Ext,
@@ -141,7 +141,7 @@ where
         mem_size: WasmPage,
     ) -> Result<Self, EnvironmentError<Self::SystemError, Infallible>> {
         use EnvironmentError::*;
-        use WasmiEnvironmentSystemError::*;
+        use WasmiEnvironmentError::*;
 
         let engine = Engine::default();
         let mut store: Store<HostState<EnvExt>> = Store::new(&engine, None);
@@ -216,7 +216,7 @@ where
         PrepareMemoryError: Display,
     {
         use EnvironmentError::*;
-        use WasmiEnvironmentSystemError::*;
+        use WasmiEnvironmentError::*;
 
         let Self {
             instance,
