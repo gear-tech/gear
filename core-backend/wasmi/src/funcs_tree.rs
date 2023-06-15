@@ -43,7 +43,7 @@ impl FunctionBuilder {
 macro_rules! wrap_common_func_internal_ret {
     ($func:path, $($arg_name:ident),*) => {
         |store: &mut Store<_>, forbidden, memory| {
-            let func = move |caller: Caller<'_, HostState<E>>, $($arg_name,)*| -> Result<(_, ), Trap>
+            let func = move |caller: Caller<'_, HostState<Ext>>, $($arg_name,)*| -> Result<(_, ), Trap>
             {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
                 $func(&mut ctx, $($arg_name,)*).map(|ret| (ret,))
@@ -56,7 +56,7 @@ macro_rules! wrap_common_func_internal_ret {
 macro_rules! wrap_common_func_internal_no_ret {
     ($func:path, $($arg_name:ident),*) => {
         |store: &mut Store<_>, forbidden, memory| {
-            let func = move |caller: Caller<'_, HostState<E>>, $($arg_name,)*| -> Result<(), Trap>
+            let func = move |caller: Caller<'_, HostState<Ext>>, $($arg_name,)*| -> Result<(), Trap>
             {
                 let mut ctx = CallerWrap::prepare(caller, forbidden, memory)?;
                 $func(&mut ctx, $($arg_name,)*)
@@ -89,15 +89,15 @@ macro_rules! wrap_common_func {
     ($func:path, (8) -> (1)) => { wrap_common_func_internal_ret!($func, a, b, c, d, e, f, g, h)};
 }
 
-pub(crate) fn build<E>(
-    store: &mut Store<HostState<E>>,
+pub(crate) fn build<Ext>(
+    store: &mut Store<HostState<Ext>>,
     memory: Memory,
     forbidden_funcs: BTreeSet<SysCallName>,
 ) -> BTreeMap<SysCallName, Func>
 where
-    E: BackendExternalities + 'static,
-    E::Error: BackendExternalitiesError,
-    E::AllocError: BackendAllocExternalitiesError<ExtError = E::Error>,
+    Ext: BackendExternalities + 'static,
+    Ext::Error: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
 {
     let f = FunctionBuilder(forbidden_funcs);
 

@@ -21,17 +21,17 @@ use gear_backend_common::{
 };
 use gear_core_errors::ExtError;
 
-pub(crate) type HostState<E> = Option<State<E>>;
+pub(crate) type HostState<Ext> = Option<State<Ext>>;
 
 /// It's supposed that `E` implements [BackendExt]
-pub(crate) struct State<E> {
-    pub ext: E,
+pub(crate) struct State<Ext> {
+    pub ext: Ext,
     pub fallible_syscall_error: Option<ExtError>,
     pub termination_reason: TerminationReason,
 }
 
-impl<E: BackendExternalities> BackendTermination<E, ()> for State<E> {
-    fn into_parts(self) -> (E, (), TerminationReason) {
+impl<Ext: BackendExternalities> BackendTermination<Ext, ()> for State<Ext> {
+    fn into_parts(self) -> (Ext, (), TerminationReason) {
         let State {
             ext,
             termination_reason,
@@ -41,7 +41,7 @@ impl<E: BackendExternalities> BackendTermination<E, ()> for State<E> {
     }
 }
 
-impl<E> BackendState for State<E> {
+impl<Ext> BackendState for State<Ext> {
     fn set_termination_reason(&mut self, reason: TerminationReason) {
         self.termination_reason = reason;
     }

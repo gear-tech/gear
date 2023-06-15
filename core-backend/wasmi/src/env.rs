@@ -68,24 +68,24 @@ macro_rules! gas_amount {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct WasmiEnvironment<E, EntryPoint = DispatchKind>
+pub struct WasmiEnvironment<Ext, EntryPoint = DispatchKind>
 where
-    E: Externalities,
+    Ext: Externalities,
     EntryPoint: WasmEntryPoint,
 {
     instance: Instance,
-    store: Store<HostState<E>>,
+    store: Store<HostState<Ext>>,
     memory: Memory,
     entries: BTreeSet<DispatchKind>,
     entry_point: EntryPoint,
 }
 
-struct GlobalsAccessProvider<E: Externalities> {
+struct GlobalsAccessProvider<Ext: Externalities> {
     instance: Instance,
-    store: Option<Store<HostState<E>>>,
+    store: Option<Store<HostState<Ext>>>,
 }
 
-impl<E: Externalities> GlobalsAccessProvider<E> {
+impl<Ext: Externalities> GlobalsAccessProvider<Ext> {
     fn get_global(&self, name: &str) -> Option<Global> {
         let store = self.store.as_ref()?;
         self.instance
@@ -94,7 +94,7 @@ impl<E: Externalities> GlobalsAccessProvider<E> {
     }
 }
 
-impl<E: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
+impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
     fn get_i64(&self, name: LimitedStr) -> Result<i64, GlobalsAccessError> {
         self.get_global(name.as_str())
             .and_then(|global| {
@@ -122,15 +122,15 @@ impl<E: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<E> {
     }
 }
 
-impl<E, EntryPoint> Environment<EntryPoint> for WasmiEnvironment<E, EntryPoint>
+impl<EnvExt, EntryPoint> Environment<EntryPoint> for WasmiEnvironment<EnvExt, EntryPoint>
 where
-    E: BackendExternalities + 'static,
-    E::Error: BackendExternalitiesError,
-    E::AllocError: BackendAllocExternalitiesError<ExtError = E::Error>,
+    EnvExt: BackendExternalities + 'static,
+    EnvExt::Error: BackendExternalitiesError,
+    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::Error>,
     EntryPoint: WasmEntryPoint,
 {
-    type Ext = E;
-    type Memory = MemoryWrap<E>;
+    type Ext = EnvExt;
+    type Memory = MemoryWrap<EnvExt>;
     type SystemError = WasmiEnvironmentSystemError;
 
     fn new(
@@ -144,9 +144,9 @@ where
         use WasmiEnvironmentSystemError::*;
 
         let engine = Engine::default();
-        let mut store: Store<HostState<E>> = Store::new(&engine, None);
+        let mut store: Store<HostState<EnvExt>> = Store::new(&engine, None);
 
-        let mut linker: Linker<HostState<E>> = Linker::new();
+        let mut linker: Linker<HostState<EnvExt>> = Linker::new();
 
         let memory_type = MemoryType::new(mem_size.raw(), None);
         let memory =
@@ -302,7 +302,7 @@ where
 
             let store_option = &mut globals_provider_dyn_ref
                 .as_any_mut()
-                .downcast_mut::<GlobalsAccessProvider<E>>()
+                .downcast_mut::<GlobalsAccessProvider<EnvExt>>()
                 // Provider is `GlobalsAccessProvider`, so panic is impossible.
                 .unwrap_or_else(|| unreachable!("Provider must be `GlobalsAccessProvider`"))
                 .store;
