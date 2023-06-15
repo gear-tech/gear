@@ -41,7 +41,7 @@ tokio = { workspace = true, features = [ "full" ] }
 whoami.workspace = true
 core-processor.workspace = true
 gear-backend-wasmi = { workspace = true, features = [ "std" ] }
-reqwest = { workspace = true, features = [ "json", "default-tls" ] }
+reqwest = { workspace = true, default-features = false, features = [ "json", "rustls-tls" ] }
 etc.workspace = true
 
 [dev-dependencies]
