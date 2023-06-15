@@ -180,13 +180,13 @@ pub mod pallet {
                 T::VestingSchedule::can_add_vesting_schedule(
                     &source,
                     end_amount,
-                    per_block, // new_schedule.starting_block(),
+                    per_block,
                     schedule.starting_block(),
                 )?;
                 let res = T::VestingSchedule::add_vesting_schedule(
                     &source,
                     end_amount,
-                    per_block, // new_schedule.starting_block(),
+                    per_block,
                     schedule.starting_block(),
                 );
 
