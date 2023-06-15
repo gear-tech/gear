@@ -414,6 +414,7 @@ impl Signer {
             let status = status?;
             self.log_status(&status);
             match status {
+                Future | Ready | Broadcast(_) | InBlock(_) => (),
                 Finalized(b) => {
                     log::info!(
                         "Successfully submitted call {}::{} {} at {}!",

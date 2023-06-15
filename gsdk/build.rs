@@ -14,8 +14,8 @@ const GENERATED_API_PATH: &str = "src/metadata/generated.rs";
 const ENV_RUNTIME_WASM: &str = "RUNTIME_WASM";
 
 fn main() {
-    println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=../api-gen/src/main.rs");
+    // println!("cargo:rerun-if-changed=build.rs");
+    // println!("cargo:rerun-if-changed=../api-gen/src/main.rs");
     println!("cargo:rerun-if-env-changed={}", GSDK_API_GEN);
 
     // This build script should only work when building gsdk as the primary package,
