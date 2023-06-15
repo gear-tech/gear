@@ -58,12 +58,6 @@ mod wasm {
 
     static mut RELAY_CALL: Option<RelayCall> = None;
 
-    gstd::metadata! {
-        title: "tests-proxy-relay",
-        handle:
-            input: RelayCall,
-    }
-
     fn resend_push(resend_pushes: &[ResendPushData]) {
         for data in resend_pushes {
             let msg_handle = MessageHandle::init().expect("Failed to obtain new message handle");

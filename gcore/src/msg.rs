@@ -881,8 +881,7 @@ pub fn send_delayed(
 /// #[no_mangle]
 /// extern "C" fn handle() {
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
-///     msg::send_with_gas(ActorId(id), b"HELLO", 5_000_000, 42)
-///         .expect("Unable to send");
+///     msg::send_with_gas(ActorId(id), b"HELLO", 5_000_000, 42).expect("Unable to send");
 /// }
 /// ```
 ///

@@ -24,14 +24,6 @@ pub struct InputArgs {
     pub signatory: ActorId,
 }
 
-// NOTE: this macro has been deprecated, see
-// https://github.com/gear-tech/gear/tree/master/examples/binaries/new-meta
-gstd::metadata! {
-    title: "demo async sign",
-    init:
-        input: InputArgs,
-}
-
 #[no_mangle]
 extern "C" fn init() {
     let args: InputArgs = msg::load().expect("Failed to decode `InputArgs`");
