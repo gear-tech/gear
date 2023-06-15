@@ -454,6 +454,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// ```
 /// use gstd::{msg, ReservationId};
 ///
+/// #[no_mangle]
 /// extern "C" fn handle() {
 ///     msg::reply_push(b"Hello,").expect("Unable to push");
 ///     msg::reply_push(b" world!").expect("Unable to push");
@@ -610,7 +611,7 @@ pub fn reply_push_input<Range: RangeBounds<usize>>(range: Range) -> Result<()> {
 /// extern "C" fn handle() {
 ///     // Receiver id is collected from bytes from 0 to 31
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
-///     msg::send_bytes(ActorId::new(id), b"HELLO", 42);
+///     msg::send_bytes(ActorId::new(id), b"HELLO", 42).expect("Unable to send");
 /// }
 /// ```
 ///
@@ -651,7 +652,8 @@ pub fn send_bytes_delayed<T: AsRef<[u8]>>(
 /// extern "C" fn handle() {
 ///     // Receiver id is collected from bytes from 0 to 31
 ///     let id: [u8; 32] = core::array::from_fn(|i| i as u8);
-///     msg::send_bytes_with_gas(ActorId::new(id), b"HELLO", 5_000_000, 42);
+///     msg::send_bytes_with_gas(ActorId::new(id), b"HELLO", 5_000_000, 42)
+///         .expect("Unable to send");
 /// }
 /// ```
 ///

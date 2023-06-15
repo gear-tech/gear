@@ -209,7 +209,6 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// async fn main() {
 ///     gstd::debug!("Hello world!");
 /// }
-///
 /// # fn main() {}
 /// ```
 ///
@@ -225,7 +224,6 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// fn my_handle_reply() {
 ///     // ...
 /// }
-///
 /// # fn main() {}
 /// ```
 #[proc_macro_attribute]

@@ -53,7 +53,7 @@ const READERS_LIMIT: ReadersCount = 32;
 /// case of the `inc` command.
 ///
 /// ```
-/// use gstd::{lock::RwLock, msg, prelude::*, ActorId};
+/// use gstd::{lock::RwLock, msg, ActorId};
 ///
 /// static mut DEST: ActorId = ActorId::zero();
 /// static RWLOCK: RwLock<u32> = RwLock::new(0);
@@ -106,7 +106,6 @@ const READERS_LIMIT: ReadersCount = 32;
 ///         }
 ///     }
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct RwLock<T> {
@@ -271,7 +270,6 @@ impl<'a, T> AsMut<T> for RwLockWriteGuard<'a, T> {
 ///     let value: i32 = *guard;
 ///     assert_eq!(value, 42);
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct RwLockReadFuture<'a, T> {
@@ -298,7 +296,6 @@ pub struct RwLockReadFuture<'a, T> {
 ///     *guard = 84;
 ///     assert_eq!(*guard, 42);
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct RwLockWriteFuture<'a, T> {
