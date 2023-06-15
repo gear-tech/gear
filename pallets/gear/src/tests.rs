@@ -9681,6 +9681,69 @@ fn gas_reservations_check_params() {
 }
 
 #[test]
+fn gas_reservations_fresh_reserve_unreserve() {
+    use demo_reserve_gas::InitAction;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitAction::FreshReserveUnreserve.encode(),
+            10_000_000_000,
+            0,
+        ));
+        let mid = get_last_message_id();
+
+        run_to_block(2, None);
+
+        assert_succeed(mid);
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload(), b"fresh_reserve_unreserve");
+    });
+}
+
+#[test]
+fn gas_reservations_existing_reserve_unreserve() {
+    use demo_reserve_gas::{HandleAction, InitAction};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitAction::Normal(vec![]).encode(),
+            10_000_000_000,
+            0,
+        ));
+        let mid = get_last_message_id();
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_succeed(mid);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::SendFromReservationAndUnreserve.encode(),
+            10_000_000_000,
+            0
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        assert_succeed(mid);
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload(), b"existing_reserve_unreserve");
+    });
+}
+
+#[test]
 fn custom_async_entrypoint_works() {
     use demo_async_custom_entry::WASM_BINARY;
 
