@@ -143,10 +143,6 @@ impl CountersOwner for LazyPagesExt {
         self.inner.charge_gas_if_enough(amount)
     }
 
-    fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError> {
-        self.inner.refund_gas(amount)
-    }
-
     fn gas_left(&self) -> GasLeft {
         self.inner.gas_left()
     }
