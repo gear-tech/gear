@@ -105,7 +105,7 @@ pub struct ProcessorContext {
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
-pub trait ProcessorExt {
+pub trait ProcessorExternalities {
     /// Whether this extension works with lazy pages.
     const LAZY_PAGES_ENABLED: bool;
 
@@ -216,7 +216,7 @@ pub struct Ext {
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
-impl ProcessorExt for Ext {
+impl ProcessorExternalities for Ext {
     const LAZY_PAGES_ENABLED: bool = false;
 
     fn new(context: ProcessorContext) -> Self {

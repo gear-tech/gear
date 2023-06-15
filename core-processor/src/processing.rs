@@ -24,7 +24,7 @@ use crate::{
     configs::{BlockConfig, ExecutionSettings},
     context::*,
     executor,
-    ext::ProcessorExt,
+    ext::ProcessorExternalities,
     precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
@@ -47,7 +47,7 @@ pub fn process<E>(
 ) -> Result<Vec<JournalNote>, SystemExecutionError>
 where
     E: Environment,
-    E::Ext: ProcessorExt + BackendExt + 'static,
+    E::Ext: ProcessorExternalities + BackendExt + 'static,
     <E::Ext as Externalities>::Error: BackendExtError,
 {
     use crate::precharge::SuccessfulDispatchResultKind::*;
