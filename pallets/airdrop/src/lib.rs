@@ -140,7 +140,8 @@ pub mod pallet {
         /// Parameters:
         /// - `source`: the account with vesting running,
         /// - `dest`: the beneficiary account,
-        /// - `schedule_index`: the index of VestingInfo for source account.
+        /// - `schedule_index`: the index of `VestingInfo` for source account.
+        /// - `amount`: the amount to be unlocked and transfered from `VestingInfo`.
         ///
         /// Emits the following events:
         /// - `VestingScheduleRemoved{ who, schedule_index }`
