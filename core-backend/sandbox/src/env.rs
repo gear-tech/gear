@@ -142,32 +142,32 @@ pub enum SandboxEnvironmentSystemError {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct SandboxEnvironment<E, EntryPoint = DispatchKind>
+pub struct SandboxEnvironment<Ext, EntryPoint = DispatchKind>
 where
-    E: BackendExternalities,
+    Ext: BackendExternalities,
     EntryPoint: WasmEntryPoint,
 {
-    instance: Instance<Runtime<E>>,
-    runtime: Runtime<E>,
+    instance: Instance<Runtime<Ext>>,
+    runtime: Runtime<Ext>,
     entries: BTreeSet<DispatchKind>,
     entry_point: EntryPoint,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<E: BackendExternalities> {
-    env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
+struct EnvBuilder<Ext: BackendExternalities> {
+    env_def_builder: EnvironmentDefinitionBuilder<Runtime<Ext>>,
     forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
 }
 
-impl<E> EnvBuilder<E>
+impl<Ext> EnvBuilder<Ext>
 where
-    E: BackendExternalities + 'static,
-    E::Error: BackendExternalitiesError,
-    E::AllocError: BackendAllocExternalitiesError<ExtError = E::Error>,
+    Ext: BackendExternalities + 'static,
+    Ext::Error: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
 {
-    fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>) {
+    fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<Ext>>) {
         if self.forbidden_funcs.contains(&name) {
             self.env_def_builder.add_host_func(
                 "env",
@@ -186,21 +186,21 @@ where
     }
 }
 
-impl<E: BackendExternalities> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
-    fn from(builder: EnvBuilder<E>) -> Self {
+impl<Ext: BackendExternalities> From<EnvBuilder<Ext>> for EnvironmentDefinitionBuilder<Runtime<Ext>> {
+    fn from(builder: EnvBuilder<Ext>) -> Self {
         builder.env_def_builder
     }
 }
 
-impl<E, EntryPoint> SandboxEnvironment<E, EntryPoint>
+impl<Ext, EntryPoint> SandboxEnvironment<Ext, EntryPoint>
 where
-    E: BackendExternalities + 'static,
-    E::Error: BackendExternalitiesError,
-    E::AllocError: BackendAllocExternalitiesError<ExtError = E::Error>,
+    Ext: BackendExternalities + 'static,
+    Ext::Error: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
     EntryPoint: WasmEntryPoint,
 {
     #[rustfmt::skip]
-    fn bind_funcs(builder: &mut EnvBuilder<E>) {
+    fn bind_funcs(builder: &mut EnvBuilder<Ext>) {
         builder.add_func(BlockHeight, wrap_common_func!(FuncsHandler::block_height, (1) -> ()));
         builder.add_func(BlockTimestamp,wrap_common_func!(FuncsHandler::block_timestamp, (1) -> ()));
         builder.add_func(CreateProgram, wrap_common_func!(FuncsHandler::create_program, (7) -> ()));
@@ -262,14 +262,14 @@ where
     }
 }
 
-impl<E, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<E, EntryPoint>
+impl<EnvExt, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<EnvExt, EntryPoint>
 where
-    E: BackendExternalities + 'static,
-    E::Error: BackendExternalitiesError,
-    E::AllocError: BackendAllocExternalitiesError<ExtError = E::Error>,
+    EnvExt: BackendExternalities + 'static,
+    EnvExt::Error: BackendExternalitiesError,
+    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::Error>,
     EntryPoint: WasmEntryPoint,
 {
-    type Ext = E;
+    type Ext = EnvExt;
     type Memory = MemoryWrap;
     type SystemError = SandboxEnvironmentSystemError;
 
@@ -289,7 +289,7 @@ where
             .map(DispatchKind::forbidden_funcs)
             .unwrap_or_default();
 
-        let mut builder = EnvBuilder::<E> {
+        let mut builder = EnvBuilder::<EnvExt> {
             env_def_builder: EnvironmentDefinitionBuilder::new(),
             forbidden_funcs: ext
                 .forbidden_funcs()
