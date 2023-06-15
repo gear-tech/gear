@@ -66,7 +66,7 @@ pub type BlockCount = u32;
 mod wasm {
     use super::*;
     use gstd::{
-        errors::{ContractError, ExtError, ReservationError},
+        errors::{Error, ExtError, ReservationError},
         exec, msg,
         prelude::*,
         MessageId, ReservationId,
@@ -126,35 +126,35 @@ mod wasm {
             InitAction::CheckArgs { mailbox_threshold } => {
                 assert_eq!(
                     ReservationId::reserve(0, 10),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::ReservationBelowMailboxThreshold
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(50_000, 0),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::ZeroReservationDuration
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(mailbox_threshold - 1, 1),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::ReservationBelowMailboxThreshold
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(mailbox_threshold, u32::MAX),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::InsufficientGasForReservation
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(u64::MAX, 1),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::InsufficientGasForReservation
                     )))
                 );
@@ -170,7 +170,7 @@ mod wasm {
                 .unwrap();
                 assert_eq!(
                     id.unreserve(),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::InvalidReservationId
                     )))
                 );
@@ -234,7 +234,7 @@ mod wasm {
                 .unwrap();
                 assert_eq!(
                     id.unreserve(),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::InvalidReservationId
                     )))
                 );

@@ -18,7 +18,7 @@
 
 use crate::{
     config::WaitType,
-    errors::{ContractError, Result},
+    errors::{Error, Result},
     exec, BTreeMap, Config, MessageId,
 };
 use core::cmp::Ordering;
@@ -44,7 +44,7 @@ impl Lock {
     /// Wait for
     pub fn exactly(b: u32) -> Result<Self> {
         if b == 0 {
-            return Err(ContractError::EmptyWaitDuration);
+            return Err(Error::EmptyWaitDuration);
         }
 
         Ok(Self {
@@ -56,7 +56,7 @@ impl Lock {
     /// Wait up to
     pub fn up_to(b: u32) -> Result<Self> {
         if b == 0 {
-            return Err(ContractError::EmptyWaitDuration);
+            return Err(Error::EmptyWaitDuration);
         }
 
         Ok(Self {
