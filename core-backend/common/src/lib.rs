@@ -233,6 +233,7 @@ pub struct ExtInfo {
     pub context_store: ContextStore,
 }
 
+/// Extended externalities that can manage gas counters.
 pub trait BackendExternalities: Externalities + CountersOwner {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
@@ -246,23 +247,27 @@ pub trait BackendExternalities: Externalities + CountersOwner {
     ) -> Result<(), ProcessAccessError>;
 }
 
+/// A trait for conversion of the externalities API error to `TerminationReason`.
 pub trait BackendExternalitiesError: Clone + Sized {
     fn into_termination_reason(self) -> TerminationReason;
 }
 
 // TODO: consider to remove this trait and use Result<Result<Page, AllocError>, GasError> instead #2571
+/// A trait for conversion of the externalities memory management error to api error.
+///
+/// If the conversion fails, then `Self` is returned in the `Err` variant.
 pub trait BackendAllocExternalitiesError: Sized {
     type ExtError: BackendExternalitiesError;
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self>;
 }
 
-pub struct BackendReport<MemWrap, Ext>
+pub struct BackendReport<EnvMem, Ext>
 where
     Ext: Externalities,
 {
     pub termination_reason: TerminationReason,
-    pub memory_wrap: MemWrap,
+    pub memory_wrap: EnvMem,
     pub ext: Ext,
 }
 
@@ -276,8 +281,10 @@ pub enum EnvironmentError<EnvSystemError: Display, PrepareMemoryError: Display> 
     PrepareMemory(GasAmount, PrepareMemoryError),
 }
 
-impl<Env: Display, PrepareMemoryError: Display> EnvironmentError<Env, PrepareMemoryError> {
-    pub fn from_infallible(err: EnvironmentError<Env, Infallible>) -> Self {
+impl<EnvSystemError: Display, PrepareMemoryError: Display>
+    EnvironmentError<EnvSystemError, PrepareMemoryError>
+{
+    pub fn from_infallible(err: EnvironmentError<EnvSystemError, Infallible>) -> Self {
         match err {
             EnvironmentError::System(err) => Self::System(err),
             EnvironmentError::PrepareMemory(_, err) => match err {},
@@ -363,10 +370,10 @@ pub trait BackendState {
     }
 
     /// Process alloc function result
-    fn process_alloc_func_result<T: Sized, E: BackendAllocExternalitiesError>(
+    fn process_alloc_func_result<T: Sized, ExtAllocError: BackendAllocExternalitiesError>(
         &mut self,
-        res: Result<T, E>,
-    ) -> Result<Result<T, E>, TerminationReason> {
+        res: Result<T, ExtAllocError>,
+    ) -> Result<Result<T, ExtAllocError>, TerminationReason> {
         match res {
             Ok(t) => Ok(Ok(t)),
             Err(err) => match err.into_backend_error() {
@@ -382,10 +389,10 @@ pub trait BackendState {
 /// Backend termination aims to return to the caller gear wasm program
 /// execution outcome, which is the state of externalities, memory and
 /// termination reason.
-pub trait BackendTermination<E: BackendExternalities, M: Sized>: Sized {
+pub trait BackendTermination<E: BackendExternalities, EnvMem: Sized>: Sized {
     /// Transforms [`Self`] into tuple of externalities, memory and
     /// termination reason returned after the execution.
-    fn into_parts(self) -> (E, M, TerminationReason);
+    fn into_parts(self) -> (E, EnvMem, TerminationReason);
 
     /// Terminates backend work after execution.
     ///
@@ -407,7 +414,7 @@ pub trait BackendTermination<E: BackendExternalities, M: Sized>: Sized {
         res: Result<T, WasmCallErr>,
         gas: i64,
         allowance: i64,
-    ) -> (E, M, TerminationReason) {
+    ) -> (E, EnvMem, TerminationReason) {
         log::trace!("Execution result = {res:?}");
 
         let (mut ext, memory, termination_reason) = self.into_parts();
