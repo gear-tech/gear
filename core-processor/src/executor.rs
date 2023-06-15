@@ -133,8 +133,8 @@ fn lazy_pages_check_initial_data(
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
-fn prepare_memory<ProcessorExt: ProcessorExternalities, M: Memory>(
-    mem: &mut M,
+fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
+    mem: &mut EnvMem,
     program_id: ProgramId,
     pages_data: &mut BTreeMap<GearPage, PageBuf>,
     static_pages: WasmPage,
