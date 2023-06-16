@@ -151,11 +151,34 @@ parameter_types! {
     pub const BlockGasLimit: u64 = MAX_BLOCK;
     pub const OutgoingLimit: u32 = 1024;
     pub ReserveThreshold: BlockNumber = 1;
-    pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
+}
+
+static SCHEDULE: spin::Mutex<Option<Schedule<Test>>> = spin::Mutex::new(None);
+
+#[derive(Debug)]
+pub struct DynamicSchedule;
+
+impl DynamicSchedule {
+    pub fn mutate<F>(f: F)
+    where
+        F: FnOnce(&mut Schedule<Test>),
+    {
+        f(SCHEDULE.lock().as_mut().unwrap())
+    }
+
+    pub fn get() -> Schedule<Test> {
+        SCHEDULE.lock().get_or_insert_with(Default::default).clone()
+    }
+}
+
+impl Get<Schedule<Test>> for DynamicSchedule {
+    fn get() -> Schedule<Test> {
+        Self::get()
+    }
 }
 
 impl pallet_gear::Config for Test {
@@ -164,7 +187,7 @@ impl pallet_gear::Config for Test {
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
-    type Schedule = GearSchedule;
+    type Schedule = DynamicSchedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type CodeStorage = GearProgram;

@@ -414,6 +414,7 @@ wasmprinter = "0.2"                                                       # util
 whoami = "1.4.0"                                                          # gcli
 fail = "0.5"                                                              # gear-common
 etc = "0.1.16"                                                            # gcli
+spin = "0.9.8"                                                            # pallets/gear
 
 [profile.release]
 panic = "unwind"

@@ -27,6 +27,7 @@ use crate::{
         run_to_next_block,
         Balances,
         BlockNumber,
+        DynamicSchedule,
         Gear,
         // Randomness,
         RuntimeEvent as MockRuntimeEvent,
@@ -8810,6 +8811,56 @@ fn invalid_memory_page_count_rejected() {
             Error::<Test>::ProgramConstructionFailed
         );
     });
+}
+
+#[test]
+fn test_reinstrumentation() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code_id = CodeId::generate(&ProgramCodeKind::Default.to_bytes());
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Default).unwrap();
+
+        run_to_block(2, None);
+
+        // check old version
+        DynamicSchedule::mutate(|schedule| {
+            let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+            assert_eq!(
+                code.instruction_weights_version(),
+                schedule.instruction_weights.version
+            );
+
+            schedule.instruction_weights.version = 0xdeadbeef;
+        });
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            10_000_000_000,
+            0
+        ));
+
+        run_to_block(3, None);
+
+        // check new version
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        assert_eq!(code.instruction_weights_version(), 0xdeadbeef);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            10_000_000_000,
+            0
+        ));
+
+        run_to_block(4, None);
+
+        // check new version stands still
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        assert_eq!(code.instruction_weights_version(), 0xdeadbeef);
+    })
 }
 
 #[test]
