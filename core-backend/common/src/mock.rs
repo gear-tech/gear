@@ -166,7 +166,7 @@ impl Ext for MockExt {
     fn debug(&self, _data: &str) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn read(&mut self, _at: u32, _len: u32) -> Result<&[u8], Self::Error> {
+    fn read_inner(&mut self, _at: u32, _len: u32) -> Result<&[u8], Self::Error> {
         Ok(&[])
     }
     fn size(&self) -> Result<usize, Self::Error> {

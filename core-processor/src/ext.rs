@@ -714,7 +714,7 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error> {
+    fn read_inner(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error> {
         // Verify read is correct
         let end = at
             .checked_add(len)

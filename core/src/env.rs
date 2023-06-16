@@ -19,9 +19,10 @@
 //! Environment for running a module.
 
 use crate::{
+    buffer::LimitedVec,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPage},
-    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
+    message::{HandlePacket, InitPacket, Payload, ReplyPacket, StatusCode},
 };
 use alloc::collections::BTreeSet;
 use core::fmt::{Debug, Display};
@@ -174,8 +175,35 @@ pub trait Ext {
     /// This should be no-op in release builds.
     fn debug(&self, data: &str) -> Result<(), Self::Error>;
 
+    fn read_with_owned<HandleError, H>(
+        &mut self,
+        at: u32,
+        len: u32,
+        mut handle_payload_read: H,
+    ) -> Result<(), Result<HandleError, Self::Error>>
+    where
+        Self: PayloadOwner<Payload = Payload>,
+        H: FnMut(&[u8]) -> Result<(), HandleError>,
+    {
+        let actual_payload = core::mem::take(self.payload_mut());
+        let payload_slice = match self.read_inner(at, len, &actual_payload) {
+            Ok(buf) => buf,
+            Err(err) => {
+                self.set_payload(actual_payload);
+                return Err(Err(err));
+            }
+        };
+
+        handle_payload_read(payload_slice).map_err(|err| {
+            self.set_payload(payload);
+            Ok(err)
+        })?;
+
+        Ok()
+    }
+
     /// Access currently handled message payload.
-    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error>;
+    fn read_inner(&mut self, at: u32, len: u32, payload: &Payload) -> Result<&[u8], Self::Error>;
 
     /// Size of currently handled message payload.
     fn size(&self) -> Result<usize, Self::Error>;
@@ -226,4 +254,11 @@ pub trait Ext {
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName>;
+}
+
+pub trait PayloadOwner {
+    type Payload;
+
+    fn payload_mut(&mut self) -> &mut Self::Payload;
+    fn set_payload(&mut self, payload: Self::Payload);
 }

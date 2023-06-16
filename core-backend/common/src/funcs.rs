@@ -176,7 +176,7 @@ where
 
     #[host(fallible, cost = RuntimeCosts::Read, err_len = LengthBytes)]
     pub fn read(ctx: &mut R, at: u32, len: u32, buffer_ptr: u32) -> Result<(), R::Error> {
-        let buffer = ctx.ext_mut().read(at, len)?.to_vec();
+        let buffer = ctx.ext_mut().read_inner(at, len)?.to_vec();
 
         let write_buffer = ctx.register_write(buffer_ptr, len);
         ctx.write(write_buffer, &buffer).map_err(Into::into)
