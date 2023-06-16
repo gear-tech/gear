@@ -26,5 +26,5 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[cfg(not(feature = "std"))]
+// #[cfg(not(feature = "std"))]
 pub mod contract;

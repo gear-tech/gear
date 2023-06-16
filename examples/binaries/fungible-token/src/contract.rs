@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::ops::Range;
 use ft_io::*;
 use gmeta::Metadata;
 use gstd::{debug, errors::Result as GstdResult, exec, msg, prelude::*, ActorId, MessageId};
@@ -42,6 +43,17 @@ struct FungibleToken {
 static mut FUNGIBLE_TOKEN: Option<FungibleToken> = None;
 
 impl FungibleToken {
+    /// Executed on receiving `fungible-token-messages::MintInput`.
+    fn test_set(&mut self, user_ids: Range<u64>, amount: u128) {
+        let len = user_ids.end - user_ids.start;
+        self.total_supply += amount * len as u128;
+        for user_id in user_ids {
+            let mut arr = [0u8; 32];
+            arr[0..8].copy_from_slice(&user_id.to_le_bytes()[..]);
+            self.balances.insert(arr.into(), amount);
+        }
+    }
+
     /// Executed on receiving `fungible-token-messages::MintInput`.
     fn mint(&mut self, amount: u128) {
         self.balances
@@ -216,6 +228,7 @@ extern "C" fn handle() {
             let balance = ft.balances.get(&account).unwrap_or(&0);
             msg::reply(FTEvent::Balance(*balance), 0).unwrap();
         }
+        FTAction::TestSet(user_ids, amount) => ft.test_set(user_ids, amount),
     }
 }
 
@@ -226,6 +239,7 @@ extern "C" fn init() {
         name: config.name,
         symbol: config.symbol,
         decimals: config.decimals,
+        balances: HashMap::with_capacity(config.initial_capacity.unwrap_or(0) as usize),
         ..Default::default()
     };
     unsafe { FUNGIBLE_TOKEN = Some(ft) };
