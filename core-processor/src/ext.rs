@@ -623,7 +623,7 @@ impl Externalities for Ext {
             .details()
             .and_then(|d| d.to_reply_details())
             .map(|d| d.into_reply_to())
-            .ok_or_else(|| MessageError::NoReplyContext.into())
+            .ok_or_else(|| ExecutionError::NoReplyContext.into())
     }
 
     fn signal_from(&self) -> Result<MessageId, Self::Error> {
@@ -633,7 +633,7 @@ impl Externalities for Ext {
             .details()
             .and_then(|d| d.to_signal_details())
             .map(|d| d.from())
-            .ok_or_else(|| MessageError::NoSignalContext.into())
+            .ok_or_else(|| ExecutionError::NoSignalContext.into())
     }
 
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::Error> {
@@ -655,7 +655,7 @@ impl Externalities for Ext {
             .current()
             .details()
             .map(|d| d.status_code())
-            .ok_or_else(|| MessageError::NoStatusCodeContext.into())
+            .ok_or_else(|| ExecutionError::NoStatusCodeContext.into())
     }
 
     fn message_id(&self) -> Result<MessageId, Self::Error> {
@@ -718,11 +718,11 @@ impl Externalities for Ext {
         // Verify read is correct
         let end = at
             .checked_add(len)
-            .ok_or(MessageError::TooBigReadLen { at, len })?;
+            .ok_or(ExecutionError::TooBigReadLen { at, len })?;
         self.charge_gas_runtime_if_enough(RuntimeCosts::ReadPerByte(len))?;
         let msg = self.context.message_context.current().payload();
         if end as usize > msg.len() {
-            return Err(MessageError::ReadWrongRange {
+            return Err(ExecutionError::ReadWrongRange {
                 start: at,
                 end,
                 msg_len: msg.len() as u32,

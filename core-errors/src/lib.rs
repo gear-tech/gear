@@ -45,28 +45,6 @@ pub enum MessageError {
     #[display(fmt = "Max message size exceed")]
     MaxMessageSizeExceed = 0,
 
-    /// Overflow in 'gr_read'
-    #[display(fmt = "Length is overflowed ({at} + {len}) to read payload")]
-    TooBigReadLen {
-        /// Range starts at
-        at: u32,
-        /// Range length
-        len: u32,
-    } = 1,
-
-    /// Cannot take data in payload range
-    #[display(
-        fmt = "Cannot take data in payload range [{start}; {end}) from message with size {msg_len}"
-    )]
-    ReadWrongRange {
-        /// Range starts at
-        start: u32,
-        /// Range ends at
-        end: u32,
-        /// Message length
-        msg_len: u32,
-    } = 2,
-
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).
@@ -136,25 +114,10 @@ pub enum MessageError {
         value_left: u128,
     } = 12,
 
-    /// The error occurs when functions related to reply context, used without it.
-    #[display(fmt = "Not running in reply context")]
-    NoReplyContext = 13,
-
-    /// The error occurs when functions related to signal context, used without it.
-    #[display(fmt = "Not running in signal context")]
-    NoSignalContext = 14,
-
-    /// The error occurs when functions related to status code, used without required context.
-    #[display(fmt = "No status code in reply/signal context")]
-    NoStatusCodeContext = 15,
-
+    // TODO: remove after delay refactoring is done
     /// An error occurs in attempt to charge gas for dispatch stash hold.
     #[display(fmt = "Not enough gas to hold dispatch message")]
     InsufficientGasForDelayedSending = 16,
-
-    /// An error occurs in attempt to send or push reply while reply function is banned.
-    #[display(fmt = "Reply sending is only allowed in `init` and `handle` functions")]
-    IncorrectEntryForReply = 17,
 }
 
 /// Error using waiting syscalls.
@@ -171,6 +134,7 @@ pub enum WaitError {
     #[display(fmt = "Provided incorrect argument for wait (zero case)")]
     InvalidArgument = 1,
     /// An error occurs in attempt to wait after reply sent.
+    #[display(fmt = "`wait()` is not allowed after reply sent")]
     WaitAfterReply = 2,
 }
 
@@ -195,6 +159,7 @@ pub enum MemoryError {
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
 #[non_exhaustive]
 #[repr(u8)]
+// TODO: refactor after multiple reservations are done
 pub enum ReservationError {
     /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
     #[display(fmt = "Invalid reservation ID")]
@@ -251,6 +216,44 @@ pub enum ExecutionError {
         fmt = "Reply deposit could be only created for init or handle message sent within the execution"
     )]
     IncorrectMessageForReplyDeposit = 4,
+
+    /// Overflow in 'gr_read'
+    #[display(fmt = "Length is overflowed ({at} + {len}) to read payload")]
+    TooBigReadLen {
+        /// Range starts at
+        at: u32,
+        /// Range length
+        len: u32,
+    } = 6,
+
+    /// Cannot take data in payload range
+    #[display(
+        fmt = "Cannot take data in payload range [{start}; {end}) from message with size {msg_len}"
+    )]
+    ReadWrongRange {
+        /// Range starts at
+        start: u32,
+        /// Range ends at
+        end: u32,
+        /// Message length
+        msg_len: u32,
+    } = 7,
+
+    /// The error occurs when functions related to reply context, used without it.
+    #[display(fmt = "Not running in reply context")]
+    NoReplyContext = 8,
+
+    /// The error occurs when functions related to signal context, used without it.
+    #[display(fmt = "Not running in signal context")]
+    NoSignalContext = 9,
+
+    /// The error occurs when functions related to status code, used without required context.
+    #[display(fmt = "No status code in reply/signal context")]
+    NoStatusCodeContext = 10,
+
+    /// An error occurs in attempt to send or push reply while reply function is banned.
+    #[display(fmt = "Reply sending is only allowed in `init` and `handle` functions")]
+    IncorrectEntryForReply = 11,
 }
 
 /// An error occurred in API.
