@@ -24,7 +24,7 @@ use etc::{Etc, FileSystem, Read, Write};
 use reqwest::Client;
 use std::{env, process::Command};
 
-const GITHUB_TOKEN: &str = "GITHUB_AUTH_TOKEN";
+const GITHUB_TOKEN: &str = "GITHUB_TOKEN";
 
 /// see https://docs.github.com/en/rest/repos/repos
 const GEAR_DAPPS_GH_API: &str = "https://api.github.com/orgs/gear-dapps/repos";
