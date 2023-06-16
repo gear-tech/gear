@@ -24,13 +24,15 @@ use crate::{
     configs::{BlockConfig, ExecutionSettings},
     context::*,
     executor,
-    ext::ProcessorExt,
+    ext::ProcessorExternalities,
     precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
-use gear_backend_common::{BackendExt, BackendExtError, Environment, SystemReservationContext};
+use gear_backend_common::{
+    BackendExternalities, BackendExternalitiesError, Environment, SystemReservationContext,
+};
 use gear_core::{
-    env::Ext,
+    env::Externalities,
     ids::{MessageId, ProgramId},
     memory::{GearPage, PageBuf},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
@@ -47,8 +49,8 @@ pub fn process<E>(
 ) -> Result<Vec<JournalNote>, SystemExecutionError>
 where
     E: Environment,
-    E::Ext: ProcessorExt + BackendExt + 'static,
-    <E::Ext as Ext>::Error: BackendExtError,
+    E::Ext: ProcessorExternalities + BackendExternalities + 'static,
+    <E::Ext as Externalities>::Error: BackendExternalitiesError,
 {
     use crate::precharge::SuccessfulDispatchResultKind::*;
 

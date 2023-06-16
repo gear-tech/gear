@@ -73,7 +73,7 @@ use common::{
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
-    ProcessExecutionContext, ProcessorContext, ProcessorExt,
+    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::{
