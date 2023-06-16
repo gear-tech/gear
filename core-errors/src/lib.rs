@@ -171,6 +171,27 @@ pub enum ReservationError {
     ReservationBelowMailboxThreshold = 5,
 }
 
+/// Program rent error.
+#[allow(clippy::unnecessary_cast)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
+#[non_exhaustive]
+#[repr(u8)]
+pub enum ProgramRentError {
+    /// The error occurs when program's balance is less than rent it tries to pay.
+    #[display(fmt = "Existing value {value_left} is not enough to pay rent {rent}")]
+    NotEnoughValueForRent {
+        /// Rent value.
+        rent: u128,
+        /// Amount of available value.
+        value_left: u128,
+    } = 0,
+
+    /// The error occurs when program's paid block count is maximum.
+    #[display(fmt = "Rent block count limit has been reached")]
+    MaximumBlockCountPaid = 1,
+}
+
 /// Execution error.
 #[allow(clippy::unnecessary_cast)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::Display)]
@@ -185,19 +206,6 @@ pub enum ExecutionError {
     /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
     #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
     InvalidDebugString = 1,
-
-    /// The error occurs when program's balance is less than rent it tries to pay.
-    #[display(fmt = "Existing value {value_left} is not enough to pay rent {rent}")]
-    NotEnoughValueForRent {
-        /// Rent value.
-        rent: u128,
-        /// Amount of available value.
-        value_left: u128,
-    } = 2,
-
-    /// The error occurs when program's paid block count is maximum.
-    #[display(fmt = "Rent block count limit has been reached")]
-    MaximumBlockCountPaid = 3,
 
     /// The error occurs when program tries to create reply deposit for message
     /// that already been created within the execution.
@@ -285,9 +293,13 @@ pub enum ExtError {
     #[display(fmt = "Reservation error: {_0}")]
     Reservation(ReservationError) = 5,
 
+    /// Program rent error.
+    #[display(fmt = "Program rent error: {_0}")]
+    ProgramRent(ProgramRentError) = 6,
+
     /// Execution error.
     #[display(fmt = "Execution error: {_0}")]
-    Execution(ExecutionError) = 6,
+    Execution(ExecutionError) = 7,
 }
 
 #[cfg(feature = "codec")]

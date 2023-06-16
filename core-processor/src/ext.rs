@@ -47,8 +47,8 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{
-    ExecutionError, ExtError as ExtErrorCore, MemoryError, MessageError, ReservationError,
-    WaitError,
+    ExecutionError, ExtError as ExtErrorCore, MemoryError, MessageError, ProgramRentError,
+    ReservationError, WaitError,
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -165,6 +165,12 @@ impl From<WaitError> for ExtError {
 impl From<ReservationError> for ExtError {
     fn from(err: ReservationError) -> Self {
         Self::Core(ExtErrorCore::Reservation(err))
+    }
+}
+
+impl From<ProgramRentError> for ExtError {
+    fn from(err: ProgramRentError) -> Self {
+        Self::Core(ExtErrorCore::ProgramRent(err))
     }
 }
 
@@ -681,7 +687,7 @@ impl Externalities for Ext {
 
         let (paid_blocks, blocks_to_pay) = match old_paid_blocks.overflowing_add(block_count) {
             (count, false) => (count, block_count),
-            (_, true) => return Err(ExecutionError::MaximumBlockCountPaid.into()),
+            (_, true) => return Err(ProgramRentError::MaximumBlockCountPaid.into()),
         };
 
         if blocks_to_pay == 0 {
@@ -694,7 +700,7 @@ impl Externalities for Ext {
                 self.context.program_rents.insert(program_id, paid_blocks);
             }
             ChargeResult::NotEnough => {
-                return Err(ExecutionError::NotEnoughValueForRent {
+                return Err(ProgramRentError::NotEnoughValueForRent {
                     rent,
                     value_left: self.context.value_counter.left(),
                 }
