@@ -714,7 +714,7 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
+    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error> {
         // Verify read is correct
         let end = at
             .checked_add(len)
@@ -730,7 +730,7 @@ impl EnvExt for Ext {
             .into());
         }
 
-        Ok((&msg[at as usize..end as usize], self.gas_left()))
+        Ok(&msg[at as usize..end as usize])
     }
 
     fn size(&self) -> Result<usize, Self::Error> {

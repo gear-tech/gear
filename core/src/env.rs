@@ -19,7 +19,6 @@
 //! Environment for running a module.
 
 use crate::{
-    gas::GasLeft,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
@@ -175,9 +174,8 @@ pub trait Ext {
     /// This should be no-op in release builds.
     fn debug(&self, data: &str) -> Result<(), Self::Error>;
 
-    // TODO: remove GasLeft from result #2380
     /// Access currently handled message payload.
-    fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error>;
+    fn read(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error>;
 
     /// Size of currently handled message payload.
     fn size(&self) -> Result<usize, Self::Error>;

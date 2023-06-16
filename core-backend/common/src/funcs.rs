@@ -176,14 +176,10 @@ where
 
     #[host(fallible, cost = RuntimeCosts::Read, err_len = LengthBytes)]
     pub fn read(ctx: &mut R, at: u32, len: u32, buffer_ptr: u32) -> Result<(), R::Error> {
-        let (buffer, mut gas_left) = ctx.ext_mut().read(at, len)?;
-        let buffer = buffer.to_vec();
+        let buffer = ctx.ext_mut().read(at, len)?.to_vec();
 
         let write_buffer = ctx.register_write(buffer_ptr, len);
-        ctx.memory_manager_write(write_buffer, &buffer, &mut gas_left)?;
-
-        ctx.ext_mut().set_gas_left(gas_left);
-        Ok(())
+        ctx.write(write_buffer, &buffer).map_err(Into::into)
     }
 
     #[host(cost = RuntimeCosts::Size)]
