@@ -527,7 +527,7 @@ impl ExtManager {
 
             args.encode()
         } else {
-            if func_input != None {
+            if func_input.is_some() {
                 return Err(TestError::WrongArguments);
             }
 
