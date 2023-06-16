@@ -114,6 +114,18 @@ pub enum MessageError {
     /// An error occurs in attempt to charge gas for dispatch stash hold.
     #[display(fmt = "Not enough gas to hold dispatch message")]
     InsufficientGasForDelayedSending = 16,
+
+    /// The error occurs when program tries to create reply deposit for message
+    /// that already been created within the execution.
+    #[display(fmt = "Reply deposit already exists for given message")]
+    DuplicateReplyDeposit = 17,
+
+    /// The error occurs when program tries to create reply deposit for message
+    /// that wasn't sent within the execution or for reply.
+    #[display(
+        fmt = "Reply deposit could be only created for init or handle message sent within the execution"
+    )]
+    IncorrectMessageForReplyDeposit = 18,
 }
 
 /// Error using waiting syscalls.
@@ -206,18 +218,6 @@ pub enum ExecutionError {
     /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
     #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
     InvalidDebugString = 1,
-
-    /// The error occurs when program tries to create reply deposit for message
-    /// that already been created within the execution.
-    #[display(fmt = "Reply deposit already exists for given message")]
-    DuplicateReplyDeposit = 4,
-
-    /// The error occurs when program tries to create reply deposit for message
-    /// that wasn't sent within the execution or for reply.
-    #[display(
-        fmt = "Reply deposit could be only created for init or handle message sent within the execution"
-    )]
-    IncorrectMessageForReplyDeposit = 5,
 
     /// Overflow in 'gr_read'
     #[display(fmt = "Length is overflowed ({at} + {len}) to read payload")]
