@@ -2,7 +2,7 @@ use crate::SmallRng;
 use anyhow::{anyhow, Result};
 use futures::Future;
 use futures_timer::Delay;
-use gclient::{Event, EventProcessor, GearApi, GearEvent, WSAddress};
+use gclient::{Event, GearApi, GearEvent, WSAddress};
 use gear_call_gen::GearProgGenConfig;
 use gear_core::ids::{MessageId, ProgramId};
 use reqwest::Client;
@@ -102,27 +102,25 @@ pub async fn stop_node(monitor_url: String) -> Result<()> {
     Ok(())
 }
 
-pub async fn capture_mailbox_messages<T: EventProcessor>(
+pub async fn capture_mailbox_messages(
     api: &GearApi,
-    event_source: &mut T,
+    event_source: &mut [gsdk::metadata::Event],
 ) -> Result<BTreeSet<MessageId>> {
     let to = ProgramId::from(api.account_id().as_ref());
     // Mailbox message expiration threshold block number: current(last) block number + 20.
     let bn_threshold = api.last_block_number().await? + 20;
-    let mailbox_messages = event_source
-        .proc_many(
-            |event| match event {
-                Event::Gear(GearEvent::UserMessageSent {
-                    message,
-                    expiration: Some(exp_bn),
-                }) if exp_bn >= bn_threshold && message.destination == to.into() => {
-                    Some(message.id.into())
-                }
-                _ => None,
-            },
-            |mailbox_data| (mailbox_data, true),
-        )
-        .await?;
+    let mailbox_messages: Vec<_> = event_source
+        .iter()
+        .filter_map(|event| match event {
+            Event::Gear(GearEvent::UserMessageSent {
+                message,
+                expiration: Some(exp_bn),
+            }) if exp_bn >= &bn_threshold && message.destination == to.into() => {
+                Some(message.id.into())
+            }
+            _ => None,
+        })
+        .collect();
 
     let mut ret = BTreeSet::new();
 

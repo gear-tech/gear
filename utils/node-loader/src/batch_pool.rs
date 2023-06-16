@@ -17,9 +17,11 @@ use report::{BatchRunReport, MailboxReport, Report};
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
-    time::Duration,
 };
-use tokio::sync::broadcast::Receiver;
+use tokio::{
+    sync::broadcast::Receiver,
+    time::{sleep, timeout, Duration},
+};
 use tracing::instrument;
 
 mod api;
@@ -54,6 +56,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 
     pub async fn run(params: LoadParams, rx: EventsReciever) -> Result<()> {
         let api = GearApiFacade::try_new(params.node, params.user).await?;
+
         let mut batch_pool = Self::new(
             api.clone(),
             params.batch_size,
@@ -66,7 +69,6 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         let renew_balance_task =
             tokio::spawn(create_renew_balance_task(api.into_gear_api(), params.root).await?);
 
-        // TODO 1876 separately spawned tasks
         let run_result = tokio::select! {
             r = run_pool_task => r,
             r = inspect_crash_task => r?,
@@ -105,7 +107,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             let api = self.api.clone();
             let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
 
-            batches.push(run_batch(api, batch_with_seed));
+            batches.push(run_batch(api, batch_with_seed, self.rx.resubscribe()));
         }
 
         while let Some(report_res) = batches.next().await {
@@ -114,7 +116,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             let api = self.api.clone();
             let batch_with_seed = batch_gen.generate(self.tasks_context.clone());
 
-            batches.push(run_batch(api, batch_with_seed));
+            batches.push(run_batch(api, batch_with_seed, self.rx.resubscribe()));
         }
 
         unreachable!()
@@ -126,9 +128,13 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 }
 
 #[instrument(skip_all, fields(seed = batch.seed, batch_type = batch.batch_str()))]
-async fn run_batch(api: GearApiFacade, batch: BatchWithSeed) -> Result<BatchRunReport> {
+async fn run_batch(
+    api: GearApiFacade,
+    batch: BatchWithSeed,
+    rx: EventsReciever,
+) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
-    match run_batch_impl(api, batch).await {
+    match run_batch_impl(api, batch, rx).await {
         Ok(report) => Ok(BatchRunReport::new(seed, report)),
         Err(err) => {
             // Propagate crash error or return report
@@ -146,7 +152,11 @@ async fn run_batch(api: GearApiFacade, batch: BatchWithSeed) -> Result<BatchRunR
 }
 
 #[instrument(skip_all)]
-async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> {
+async fn run_batch_impl(
+    mut api: GearApiFacade,
+    batch: Batch,
+    rx: EventsReciever,
+) -> Result<Report> {
     // Order of the results of each extrinsic execution in the batch
     // is the same as in the input set of calls in the batch.
     // See: https://paritytech.github.io/substrate/master/src/pallet_utility/lib.rs.html#452-468
@@ -154,7 +164,7 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> 
         Batch::UploadProgram(args) => {
             let (extrinsic_results, block_hash) = api.upload_program_batch(args).await?;
             let messages = process_ex_results(extrinsic_results);
-            process_events(api.into_gear_api(), messages, block_hash).await
+            process_events(api.into_gear_api(), messages, block_hash, rx).await
         }
         Batch::UploadCode(args) => {
             let (extrinsic_results, _) = api.upload_code_batch(args).await?;
@@ -176,19 +186,19 @@ async fn run_batch_impl(mut api: GearApiFacade, batch: Batch) -> Result<Report> 
         Batch::SendMessage(args) => {
             let (extrinsic_results, block_hash) = api.send_message_batch(args).await?;
             let messages = process_ex_results(extrinsic_results);
-            process_events(api.into_gear_api(), messages, block_hash).await
+            process_events(api.into_gear_api(), messages, block_hash, rx).await
         }
         Batch::CreateProgram(args) => {
             let (extrinsic_results, block_hash) = api.create_program_batch(args).await?;
             let messages = process_ex_results(extrinsic_results);
-            process_events(api.into_gear_api(), messages, block_hash).await
+            process_events(api.into_gear_api(), messages, block_hash, rx).await
         }
         Batch::SendReply(args) => {
             let removed_from_mailbox = args.clone().into_iter().map(|SendReplyArgs((mid, ..))| mid);
 
             let (extrinsic_results, block_hash) = api.send_reply_batch(args).await?;
             let messages = process_ex_results(extrinsic_results);
-            process_events(api.into_gear_api(), messages, block_hash)
+            process_events(api.into_gear_api(), messages, block_hash, rx)
                 .await
                 .map(|mut report| {
                     report.mailbox_data.append_removed(removed_from_mailbox);
@@ -243,8 +253,8 @@ async fn process_events(
     api: GearApi,
     mut messages: BTreeMap<MessageId, (ProgramId, usize)>,
     block_hash: H256,
+    mut rx: EventsReciever,
 ) -> Result<Report> {
-    let now = gear_utils::now_millis();
     // States what amount of blocks we should wait for taking all the events about successful `messages` execution
     let wait_for_events_blocks = 10;
     // Multiply on five to be 100% sure if no events occurred, then node is crashed
@@ -252,37 +262,55 @@ async fn process_events(
 
     let mut mailbox_added = BTreeSet::new();
 
-    let results = tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current().block_on(async {
-            let results = loop {
-                let r = match api.events_since(block_hash, wait_for_events_blocks).await {
-                    Ok(mut v) => {
-                        // `gclient::EventProcessor` implementation on `IntoIterator` implementor clones `self` without mutating
-                        // it, although `proc` and `proc_many` take mutable reference on `self`.
-                        let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &mut v)
-                            .await
-                            .expect("always valid by definition");
-                        mailbox_added.append(&mut mailbox_from_events);
+    let results = loop {
+        let mut events = rx.recv().await?;
+        while events.block_hash() != block_hash {
+            sleep(Duration::new(0, 500)).await;
+            events = rx.recv().await?;
+        }
 
-                        v.err_or_succeed_batch(messages.keys().copied()).await
-                    }
-                    Err(e) => Err(e),
-                };
-
-                if (gear_utils::now_millis() - now) as usize > wait_for_events_millisec {
+        let r = {
+            let mut v = Vec::new();
+            let mut current_bh = events.block_hash();
+            let mut i = 0;
+            while i < wait_for_events_blocks {
+                if events.block_hash() != current_bh {
+                    current_bh = events.block_hash();
+                    i += 1;
+                }
+                for event in events.iter() {
+                    let event = event?.as_root_event::<gsdk::metadata::Event>()?;
+                    v.push(event);
+                }
+                sleep(Duration::new(0, 500)).await;
+                events = timeout(
+                    Duration::from_millis(wait_for_events_millisec as u64),
+                    rx.recv(),
+                )
+                .await
+                .map_err(|_| {
                     tracing::debug!("Timeout is reached while waiting for events");
-                    return Err(anyhow!(utils::EVENTS_TIMEOUT_ERR_STR));
-                }
+                    anyhow!(utils::EVENTS_TIMEOUT_ERR_STR)
+                })??;
+            }
 
-                if matches!(r, Err(GClientError::EventNotFoundInIterator)) {
-                    continue;
-                } else {
-                    break r;
-                }
-            };
-            Ok(results)
-        })?
-    });
+            let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &mut v)
+                .await
+                .expect("always valid by definition");
+            mailbox_added.append(&mut mailbox_from_events);
+
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current()
+                    .block_on(async { v.err_or_succeed_batch(messages.keys().copied()).await })
+            })
+        };
+
+        if matches!(r, Err(GClientError::EventNotFoundInIterator)) {
+            continue;
+        } else {
+            break r;
+        }
+    };
 
     let mut program_ids = BTreeSet::new();
 
@@ -308,7 +336,7 @@ async fn inspect_crash_events(mut rx: EventsReciever) -> Result<()> {
     // Error means either event is not found and can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    while let Ok(events) = rx.recv().await {
+    while let Ok(events) = timeout(Duration::from_secs(30), rx.recv()).await? {
         let bh = events.block_hash();
         for event in events.iter() {
             let event = event?.as_root_event::<gsdk::metadata::Event>()?;
@@ -348,7 +376,7 @@ async fn create_renew_balance_task(
     // to target values.
     Ok(async move {
         loop {
-            tokio::time::sleep(Duration::from_millis(duration_millis)).await;
+            sleep(Duration::new(0, duration_millis as u32)).await;
 
             let user_balance_demand = {
                 let current = root_api.free_balance(&user_address).await?;
