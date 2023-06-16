@@ -135,12 +135,12 @@ pub enum MessageError {
 #[non_exhaustive]
 #[repr(u8)]
 pub enum WaitError {
-    /// An error occurs in attempt to wait duration greater than could be paid.
-    #[display(fmt = "Provided incorrect argument for wait (zero case)")]
-    InvalidArgument = 1,
+    /// An error occurs in attempt to wait for or wait up to zero blocks.
+    #[display(fmt = "Waiting duration cannot be zero")]
+    ZeroDuration = 0,
     /// An error occurs in attempt to wait after reply sent.
     #[display(fmt = "`wait()` is not allowed after reply sent")]
-    WaitAfterReply = 2,
+    WaitAfterReply = 1,
 }
 
 /// Memory error.

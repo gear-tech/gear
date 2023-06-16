@@ -4733,7 +4733,7 @@ fn test_different_waits_fail() {
         assert_failed(
             wait_for_arg,
             ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::InvalidArgument,
+                WaitError::ZeroDuration,
             ))),
         );
 
@@ -4770,7 +4770,7 @@ fn test_different_waits_fail() {
         assert_failed(
             wait_up_to_arg,
             ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::InvalidArgument,
+                WaitError::ZeroDuration,
             ))),
         );
     });

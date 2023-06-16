@@ -835,7 +835,7 @@ impl Externalities for Ext {
         }
 
         if duration == 0 {
-            return Err(WaitError::InvalidArgument.into());
+            return Err(WaitError::ZeroDuration.into());
         }
 
         let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
@@ -856,7 +856,7 @@ impl Externalities for Ext {
         }
 
         if duration == 0 {
-            return Err(WaitError::InvalidArgument.into());
+            return Err(WaitError::ZeroDuration.into());
         }
 
         let reserve = u64::from(self.context.reserve_for.saturating_add(1))
