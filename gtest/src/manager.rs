@@ -521,11 +521,15 @@ impl ExtManager {
                     .expect("Entry not found in mapping"),
             );
 
-            assert_eq!(func_input, Some(provided_type));
+            if func_input != Some(provided_type) {
+                return Err(TestError::WrongArguments);
+            }
 
             args.encode()
         } else {
-            assert_eq!(func_input, None);
+            if func_input != None {
+                return Err(TestError::WrongArguments);
+            }
 
             vec![]
         };

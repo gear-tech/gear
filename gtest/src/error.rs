@@ -93,4 +93,8 @@ pub enum TestError {
     #[from(ignore)]
     #[display(fmt = "Reading of program metadata failed: `{_0}`")]
     ReadMetadataError(String),
+
+    /// Wrong arguments are passed.
+    #[display(fmt = "Wrong arguments are passed")]
+    WrongArguments,
 }
