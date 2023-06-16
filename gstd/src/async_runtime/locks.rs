@@ -177,9 +177,9 @@ impl LocksMap {
     }
 
     /// Remove message lock.
-    pub fn remove(&mut self, message_id: MessageId, waiting_reply_to: MessageId) -> Option<Lock> {
+    pub fn remove(&mut self, message_id: MessageId, waiting_reply_to: MessageId) {
         let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        locks.remove(&LockContext::ReplyTo(waiting_reply_to))
+        locks.remove(&LockContext::ReplyTo(waiting_reply_to));
     }
 
     /// Inserts a lock for putting a message into sleep.
