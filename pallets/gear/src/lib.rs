@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "512")]
+#![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "1024")]
 
 extern crate alloc;
 
@@ -51,9 +51,9 @@ pub use weights::WeightInfo;
 
 use alloc::{format, string::String};
 use common::{
-    self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
-    CodeStorage, GasPrice, GasProvider, GasTree, Origin, PausedProgramStorage, Program,
-    ProgramState, ProgramStorage, QueueRunner,
+    self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
+    storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasPrice, GasProvider, GasTree, Origin,
+    PausedProgramStorage, Program, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -75,7 +75,7 @@ use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{GearPage, PageBuf},
+    memory::{GearPage, PageBuf, WasmPage},
     message::*,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
@@ -131,6 +131,8 @@ pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
 pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
 pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
+pub type ResumeMinimalPeriodOf<T> = <T as Config>::ProgramResumeMinimalRentPeriod;
+pub type ResumeSessionDurationOf<T> = <T as Config>::ProgramResumeSessionDuration;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -183,7 +185,9 @@ pub mod pallet {
         frame_system::Config + pallet_authorship::Config + pallet_timestamp::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+        type RuntimeEvent: From<Event<Self>>
+            + TryInto<Event<Self>>
+            + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
         /// The generator used to supply randomness to contracts through `seal_random`
         type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
@@ -211,7 +215,11 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
-        type ProgramStorage: PausedProgramStorage<BlockNumber = Self::BlockNumber>;
+        type ProgramStorage: PausedProgramStorage<
+            BlockNumber = Self::BlockNumber,
+            Error = DispatchError,
+            AccountId = Self::AccountId,
+        >;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -269,11 +277,15 @@ pub mod pallet {
 
         /// The minimal amount of blocks to resume.
         #[pallet::constant]
-        type ProgramRentMinimalResumePeriod: Get<BlockNumberFor<Self>>;
+        type ProgramResumeMinimalRentPeriod: Get<BlockNumberFor<Self>>;
 
         /// The program rent cost per block.
         #[pallet::constant]
         type ProgramRentCostPerBlock: Get<BalanceOf<Self>>;
+
+        /// The amount of blocks for processing resume session.
+        #[pallet::constant]
+        type ProgramResumeSessionDuration: Get<BlockNumberFor<Self>>;
     }
 
     #[pallet::pallet]
@@ -392,6 +404,18 @@ pub mod pallet {
 
         /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
         QueueProcessingReverted,
+
+        /// Program resume session has been started.
+        ProgramResumeSessionStarted {
+            /// Id of the session.
+            session_id: SessionId,
+            /// Owner of the session.
+            account_id: T::AccountId,
+            /// Id of the program affected.
+            program_id: ProgramId,
+            /// Block number when the session will be removed if not finished.
+            session_end_block: T::BlockNumber,
+        },
     }
 
     // Gear pallet error.
@@ -399,10 +423,10 @@ pub mod pallet {
     pub enum Error<T> {
         /// Message wasn't found in the mailbox.
         MessageNotFound,
-        /// Not enough balance to reserve.
+        /// Not enough balance to execute an action.
         ///
         /// Usually occurs when the gas_limit specified is such that the origin account can't afford the message.
-        InsufficientBalanceForReserve,
+        InsufficientBalance,
         /// Gas limit too high.
         ///
         /// Occurs when an extrinsic's declared `gas_limit` is greater than a block's maximum gas limit.
@@ -438,8 +462,8 @@ pub mod pallet {
         MessagesStorageCorrupted,
         /// Message queue processing is disabled.
         MessageQueueProcessingDisabled,
-        /// Program with the specified id is not found.
-        ProgramNotFound,
+        /// Block count doesn't cover MinimalResumePeriod.
+        ResumePeriodLessThanMinimal,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -592,7 +616,7 @@ pub mod pallet {
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             CurrencyOf::<T>::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
 
             let origin = who.clone().into_origin();
 
@@ -1163,7 +1187,7 @@ pub mod pallet {
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             <T as Config>::Currency::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
 
             Ok(packet)
         }
@@ -1456,13 +1480,13 @@ pub mod pallet {
                 // That's because destination can fail to be initialized, while this dispatch message is next
                 // in the queue.
                 CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
-                    .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
+                    .map_err(|_| Error::<T>::InsufficientBalance)?;
 
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 CurrencyOf::<T>::reserve(&who, gas_limit_reserve)
-                    .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
+                    .map_err(|_| Error::<T>::InsufficientBalance)?;
 
                 Self::create(who.clone(), message.id(), gas_limit, false);
 
@@ -1487,7 +1511,7 @@ pub mod pallet {
                     value.unique_saturated_into(),
                     ExistenceRequirement::AllowDeath,
                 )
-                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
 
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
@@ -1559,7 +1583,7 @@ pub mod pallet {
             // Note, that message is not guaranteed to be successfully executed,
             // that's why value is not immediately transferred.
             CurrencyOf::<T>::reserve(&origin, gas_limit_reserve + value)
-                .map_err(|_| Error::<T>::InsufficientBalanceForReserve)?;
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
@@ -1715,15 +1739,135 @@ pub mod pallet {
                 program_id,
                 |program| -> Result<(), Error<T>> {
                     Self::pay_program_rent_impl(program_id, program, &who, block_count)
-                        .map_err(|_| Error::<T>::InsufficientBalanceForReserve)
+                        .map_err(|_| Error::<T>::InsufficientBalance)
                 },
-            )
-            .map_err(|e| {
-                log::debug!(
-                    "Failed to update an expiration block of an active program {program_id}: {e:?}"
-                );
-                Error::<T>::ProgramNotFound
-            })??;
+            )??;
+
+            Ok(().into())
+        }
+
+        /// Starts a resume session of the previously paused program.
+        ///
+        /// The origin must be Signed.
+        ///
+        /// Parameters:
+        /// - `program_id`: id of the program to resume.
+        /// - `allocations`: memory allocations of program prior to stop.
+        /// - `code_hash`: id of the program binary code.
+        #[pallet::call_index(9)]
+        #[pallet::weight(<T as Config>::WeightInfo::resume_session_init())]
+        pub fn resume_session_init(
+            origin: OriginFor<T>,
+            program_id: ProgramId,
+            allocations: BTreeSet<WasmPage>,
+            code_hash: CodeId,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            let session_end_block =
+                Self::block_number().saturating_add(ResumeSessionDurationOf::<T>::get());
+            let session_id = ProgramStorageOf::<T>::resume_session_init(
+                who.clone(),
+                session_end_block,
+                program_id,
+                allocations,
+                code_hash,
+            )?;
+
+            let task = ScheduledTask::RemoveResumeSession(session_id);
+            TaskPoolOf::<T>::add(session_end_block, task)
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+            Self::deposit_event(Event::ProgramResumeSessionStarted {
+                session_id,
+                account_id: who,
+                program_id,
+                session_end_block,
+            });
+
+            Ok(().into())
+        }
+
+        /// Appends memory pages to the resume session.
+        ///
+        /// The origin must be Signed and should be the owner of the session.
+        ///
+        /// Parameters:
+        /// - `session_id`: id of the resume session.
+        /// - `memory_pages`: program memory (or its part) before it was paused.
+        #[pallet::call_index(10)]
+        #[pallet::weight(<T as Config>::WeightInfo::resume_session_push(memory_pages.len() as u32))]
+        pub fn resume_session_push(
+            origin: OriginFor<T>,
+            session_id: SessionId,
+            memory_pages: Vec<(GearPage, PageBuf)>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            ProgramStorageOf::<T>::resume_session_push(session_id, who, memory_pages)?;
+
+            Ok(().into())
+        }
+
+        /// Finishes the program resume session.
+        ///
+        /// The origin must be Signed and should be the owner of the session.
+        ///
+        /// Parameters:
+        /// - `session_id`: id of the resume session.
+        /// - `block_count`: the specified period of rent.
+        #[pallet::call_index(11)]
+        #[pallet::weight(DbWeightOf::<T>::get().reads(1) + <T as Config>::WeightInfo::resume_session_commit(ProgramStorageOf::<T>::resume_session_page_count(session_id).unwrap_or(0)))]
+        pub fn resume_session_commit(
+            origin: OriginFor<T>,
+            session_id: SessionId,
+            block_count: BlockNumberFor<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            ensure!(
+                block_count >= ResumeMinimalPeriodOf::<T>::get(),
+                Error::<T>::ResumePeriodLessThanMinimal
+            );
+
+            let rent_fee = Self::rent_fee_for(block_count);
+            ensure!(
+                CurrencyOf::<T>::free_balance(&who) >= rent_fee,
+                Error::<T>::InsufficientBalance
+            );
+
+            let result = ProgramStorageOf::<T>::resume_session_commit(
+                session_id,
+                who.clone(),
+                Self::block_number().saturating_add(block_count),
+            )?;
+
+            let task = ScheduledTask::RemoveResumeSession(session_id);
+            TaskPoolOf::<T>::delete(result.end_block, task)
+                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+            let block_author = Authorship::<T>::author()
+                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
+            if let Some((program_id, expiration_block)) = result.info {
+                let task = ScheduledTask::PauseProgram(program_id);
+                TaskPoolOf::<T>::add(expiration_block, task)
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+                CurrencyOf::<T>::transfer(
+                    &who,
+                    &block_author,
+                    rent_fee,
+                    ExistenceRequirement::AllowDeath,
+                )
+                .unwrap_or_else(|e| unreachable!("Failed to transfer rent: {:?}", e));
+
+                Self::deposit_event(Event::ProgramChanged {
+                    id: program_id,
+                    change: ProgramChangeKind::Active {
+                        expiration: expiration_block,
+                    },
+                });
+            }
 
             Ok(().into())
         }

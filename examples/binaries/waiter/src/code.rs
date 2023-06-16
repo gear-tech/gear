@@ -1,7 +1,7 @@
 use crate::{Command, SleepForWaitType, WaitSubcommand};
 use futures::future;
 
-use gstd::{errors::ContractError, exec, format, msg, MessageId};
+use gstd::{errors::Error, exec, format, msg, MessageId};
 
 fn process_wait_subcommand(subcommand: WaitSubcommand) {
     match subcommand {

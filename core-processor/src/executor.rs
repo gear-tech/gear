@@ -22,7 +22,7 @@ use crate::{
         ExecutionError, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings},
-    ext::{ProcessorContext, ProcessorExt},
+    ext::{ProcessorContext, ProcessorExternalities},
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -32,17 +32,18 @@ use alloc::{
 };
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
-    ActorTerminationReason, BackendExt, BackendExtError, BackendReport, Environment,
-    EnvironmentExecutionError, TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendExternalities, BackendExternalitiesError, BackendReport,
+    Environment, EnvironmentError, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     code::InstrumentedCode,
-    env::Ext,
+    env::Externalities,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage},
     message::{
-        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, WasmEntry,
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
+        WasmEntryPoint,
     },
     program::Program,
     reservation::GasReserver,
@@ -132,8 +133,8 @@ fn lazy_pages_check_initial_data(
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
-fn prepare_memory<A: ProcessorExt, M: Memory>(
-    mem: &mut M,
+fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
+    mem: &mut EnvMem,
     program_id: ProgramId,
     pages_data: &mut BTreeMap<GearPage, PageBuf>,
     static_pages: WasmPage,
@@ -165,10 +166,10 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
             .map_err(|err| SystemPrepareMemoryError::InitialDataWriteFailed(*page, err))?;
     }
 
-    if A::LAZY_PAGES_ENABLED {
+    if ProcessorExt::LAZY_PAGES_ENABLED {
         lazy_pages_check_initial_data(pages_data)?;
 
-        A::lazy_pages_init_for_program(
+        ProcessorExt::lazy_pages_init_for_program(
             mem,
             program_id,
             stack_end,
@@ -206,12 +207,12 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
 }
 
 /// Returns pages and their new data, which must be updated or uploaded to storage.
-fn get_pages_to_be_updated<A: ProcessorExt>(
+fn get_pages_to_be_updated<ProcessorExt: ProcessorExternalities>(
     old_pages_data: BTreeMap<GearPage, PageBuf>,
     new_pages_data: BTreeMap<GearPage, PageBuf>,
     static_pages: WasmPage,
 ) -> BTreeMap<GearPage, PageBuf> {
-    if A::LAZY_PAGES_ENABLED {
+    if ProcessorExt::LAZY_PAGES_ENABLED {
         // In lazy pages mode we update some page data in storage,
         // when it has been write accessed, so no need to compare old and new page data.
         new_pages_data.keys().for_each(|page| {
@@ -257,8 +258,8 @@ pub fn execute_wasm<E>(
 ) -> Result<DispatchResult, ExecutionError>
 where
     E: Environment,
-    E::Ext: ProcessorExt + BackendExt + 'static,
-    <E::Ext as Ext>::Error: BackendExtError,
+    E::Ext: ProcessorExternalities + BackendExternalities + 'static,
+    <E::Ext as Externalities>::Error: BackendExternalitiesError,
 {
     let WasmExecutionContext {
         gas_counter,
@@ -338,7 +339,7 @@ where
             program.code().exports().clone(),
             memory_size,
         )
-        .map_err(EnvironmentExecutionError::from_infallible)?;
+        .map_err(EnvironmentError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<E::Ext, E::Memory>(
                 memory,
@@ -384,24 +385,21 @@ where
 
             (termination, memory, ext)
         }
-        Err(EnvironmentExecutionError::System(e)) => {
+        Err(EnvironmentError::System(e)) => {
             return Err(ExecutionError::System(SystemExecutionError::Environment(
                 e.to_string(),
             )))
         }
-        Err(EnvironmentExecutionError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
+        Err(EnvironmentError::PrepareMemory(gas_amount, PrepareMemoryError::Actor(e))) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
                 reason: ActorExecutionErrorReason::PrepareMemory(e),
             }))
         }
-        Err(EnvironmentExecutionError::PrepareMemory(
-            _gas_amount,
-            PrepareMemoryError::System(e),
-        )) => {
+        Err(EnvironmentError::PrepareMemory(_gas_amount, PrepareMemoryError::System(e))) => {
             return Err(ExecutionError::System(e.into()));
         }
-        Err(EnvironmentExecutionError::Actor(gas_amount, err)) => {
+        Err(EnvironmentError::Actor(gas_amount, err)) => {
             return Err(ExecutionError::Actor(ActorExecutionError {
                 gas_amount,
                 reason: ActorExecutionErrorReason::Environment(err.into()),
@@ -475,9 +473,9 @@ pub fn execute_for_reply<E, EP>(
 ) -> Result<Vec<u8>, String>
 where
     E: Environment<EP>,
-    E::Ext: ProcessorExt + BackendExt + 'static,
-    <E::Ext as Ext>::Error: BackendExtError,
-    EP: WasmEntry,
+    E::Ext: ProcessorExternalities + BackendExternalities + 'static,
+    <E::Ext as Externalities>::Error: BackendExternalitiesError,
+    EP: WasmEntryPoint,
 {
     let program = Program::new(program_id.unwrap_or_default(), instrumented_code);
     let mut pages_initial_data: BTreeMap<GearPage, PageBuf> =
@@ -558,7 +556,7 @@ where
             program.code().exports().clone(),
             memory_size,
         )
-        .map_err(EnvironmentExecutionError::from_infallible)?;
+        .map_err(EnvironmentError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<E::Ext, E::Memory>(
                 memory,
@@ -630,7 +628,7 @@ mod tests {
     struct TestExt;
     struct LazyTestExt;
 
-    impl ProcessorExt for TestExt {
+    impl ProcessorExternalities for TestExt {
         const LAZY_PAGES_ENABLED: bool = false;
         fn new(_context: ProcessorContext) -> Self {
             Self
@@ -651,7 +649,7 @@ mod tests {
         }
     }
 
-    impl ProcessorExt for LazyTestExt {
+    impl ProcessorExternalities for LazyTestExt {
         const LAZY_PAGES_ENABLED: bool = true;
 
         fn new(_context: ProcessorContext) -> Self {

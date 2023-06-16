@@ -17,32 +17,32 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `new`
-use crate::{result::Result, template::Template};
+use crate::{result::Result, template};
 use clap::Parser;
 
 /// Create a new gear program
 #[derive(Debug, Parser)]
 pub struct New {
-    /// Create gear program from templates
-    pub template: Option<String>,
+    /// Create gear program from templates.
+    #[arg(short, long, default_value = "app")]
+    pub template: String,
+
+    /// Create gear program in specified path.
+    pub path: Option<String>,
 }
 
 impl New {
     /// run command new
     pub async fn exec(&self) -> Result<()> {
-        let tm = Template::new()?;
-        let templates = tm.ls();
+        let templates = template::list().await?;
 
-        if let Some(template) = &self.template {
-            if templates.contains(template) {
-                tm.cp(template, template)?;
-            } else {
-                tm.cp("ping", template)?;
-            }
-
-            println!("Successfully created {template}!");
+        let template = &self.template;
+        if templates.contains(template) {
+            let path = self.path.as_deref().unwrap_or(template);
+            template::download(template, path).await?;
+            println!("Successfully created {path}!");
         } else {
-            println!("Available templates: {:#?}", templates);
+            println!("Template not found, available templates: {:#?}", templates);
         }
 
         Ok(())

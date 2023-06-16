@@ -26,6 +26,7 @@ use common::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, ProgramChangeKind, RuntimeReason,
         SystemReason, UserMessageReadSystemReason,
     },
+    paused_program_storage::SessionId,
     scheduler::*,
     storage::*,
     Origin, PausedProgramStorage, Program, ProgramStorage,
@@ -303,5 +304,11 @@ where
 
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {
         let _slot = Self::remove_gas_reservation_impl(program_id, reservation_id);
+    }
+
+    fn remove_resume_session(&mut self, session_id: SessionId) {
+        log::debug!("Execute task to remove resume session with session_id = {session_id}");
+        ProgramStorageOf::<T>::remove_resume_session(session_id)
+            .unwrap_or_else(|e| unreachable!("ProgramStorage corrupted! {:?}", e));
     }
 }
