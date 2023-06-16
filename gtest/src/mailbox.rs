@@ -111,9 +111,7 @@ impl<'a> MessageReplier<'a> {
             raw_payload.as_ref().to_vec().try_into().unwrap(),
             None,
             value,
-            self.log
-                .status_code()
-                .map(|status_code| ReplyDetails::new(self.log.id(), status_code).into()),
+            Some(ReplyDetails::new(self.log.id(), 0).into()),
         );
 
         self.manager

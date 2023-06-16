@@ -53,7 +53,6 @@ use core_processor::{common::ActorExecutionErrorReason, ActorPrepareMemoryError}
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
-use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 use frame_support::{
     assert_err, assert_noop, assert_ok,
     codec::{Decode, Encode},
@@ -115,7 +114,10 @@ fn auto_reply_sent() {
                 {
                     message
                         .details()
-                        .and_then(|d| d.to_reply_details().map(|d| d.status_code() == 0))
+                        .and_then(|d| {
+                            d.to_reply_details()
+                                .map(|d| d.status_code().to_le_bytes()[0] == 0)
+                        })
                         .unwrap_or(false)
                 }
                 _ => false,
@@ -641,6 +643,101 @@ fn reply_deposit_to_user_out_of_rent() {
         assert_total_dequeued(3);
         assert!(!MailboxOf::<Test>::is_empty(&checker));
         assert_balance(USER_2, user_2_balance, 0u128);
+    });
+}
+
+#[test]
+fn reply_deposit_gstd_async() {
+    use demo_waiting_proxy::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            (USER_2.into_origin().as_fixed_bytes(), 1_000_000_000u64).encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        let program_id = get_last_program_id();
+
+        let hello = b"Hello!";
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            hello.to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        let handle_id = get_last_message_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_active(program_id));
+
+        let mail = get_last_mail(USER_2);
+        assert_eq!(mail.payload(), hello);
+
+        let hello_reply = b"U2";
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_2),
+            mail.id(),
+            hello_reply.to_vec(),
+            0,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert_succeed(handle_id);
+
+        let reply = maybe_any_last_message().expect("Should be");
+        assert_eq!(
+            reply.reply().expect("Should be").into_parts(),
+            (handle_id, 0)
+        );
+        assert_eq!(reply.payload(), hello_reply);
+    });
+}
+
+// TODO (#2763): resolve panic caused by "duplicate" wake in message A
+#[test]
+#[should_panic]
+fn pseudo_duplicate_wake() {
+    use demo_constructor::{Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_msg_id, constructor) = init_constructor(Scheme::empty());
+
+        let execute = |calls: Calls| {
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                constructor,
+                calls.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+            let msg_id = get_last_message_id();
+            run_to_next_block(None);
+
+            msg_id
+        };
+
+        // message wakes some message id and waits
+        let waited_msg_id = execute(Calls::builder().wake([0u8; 32]).wait());
+
+        assert_last_dequeued(1);
+        assert!(WaitlistOf::<Test>::contains(&constructor, &waited_msg_id));
+
+        // message B wakes message A
+        // message A results in waiting again
+        execute(Calls::builder().wake(<[u8; 32]>::from(waited_msg_id)));
+
+        assert_last_dequeued(2);
+        assert!(WaitlistOf::<Test>::contains(&constructor, &waited_msg_id));
     });
 }
 
@@ -7641,6 +7738,8 @@ fn delayed_wake() {
 
 #[test]
 fn cascading_messages_with_value_do_not_overcharge() {
+    use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
+
     init_logger();
     new_test_ext().execute_with(|| {
         let contract_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract");
@@ -7659,7 +7758,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             RuntimeOrigin::signed(USER_1),
             WAITING_PROXY_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
-            <[u8; 32]>::from(contract_id).encode(),
+            (<[u8; 32]>::from(contract_id), 0u64).encode(),
             5_000_000_000,
             0,
         ));
@@ -10089,6 +10188,7 @@ fn signal_on_uninitialized_program() {
     use demo_async_signal_entry::{InitAction, WASM_BINARY};
 
     init_logger();
+
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
@@ -10182,6 +10282,574 @@ fn missing_block_tasks_handled() {
     });
 }
 
+#[test]
+fn async_does_not_duplicate_sync() {
+    use demo_ping::WASM_BINARY as PING_BINARY;
+    use demo_sync_duplicate::WASM_BINARY as SYNC_DUPLICATE_BINARY;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            SYNC_DUPLICATE_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let sync = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            sync,
+            b"async".to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let mail = maybe_any_last_message().expect("Element should be");
+        assert_eq!(mail.destination().into_origin(), USER_1.into_origin());
+        assert_eq!(mail.payload(), 1i32.to_le_bytes());
+    })
+}
+
+#[test]
+fn state_rollback() {
+    use demo_state_rollback::WASM_BINARY;
+
+    init_logger();
+
+    let init = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let rollback = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(rollback));
+
+        System::reset_events();
+
+        rollback
+    };
+
+    let panic_bytes = b"panic".to_vec();
+    let leave_bytes = b"leave".to_vec();
+
+    // state-rollback
+    new_test_ext().execute_with(|| {
+        let program = init();
+
+        let to_send = vec![0.encode(), panic_bytes, 1.encode()];
+        send_payloads(USER_1, program, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::Payload(None::<Vec<u8>>.encode()),
+            Assertion::Payload(Some(0.encode()).encode()),
+            Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            )),
+            Assertion::Payload(Some(0.encode()).encode()),
+            Assertion::Payload(Some(1.encode()).encode()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // state-saving
+    new_test_ext().execute_with(|| {
+        let program = init();
+
+        let to_send = vec![0.encode(), leave_bytes.clone(), 1.encode()];
+        send_payloads(USER_1, program, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::Payload(None::<Vec<u8>>.encode()),
+            Assertion::Payload(Some(0.encode()).encode()),
+            Assertion::Payload(Some(0.encode()).encode()),
+            Assertion::Payload(Some(leave_bytes.clone()).encode()),
+            Assertion::Payload(Some(leave_bytes).encode()),
+            Assertion::Payload(Some(1.encode()).encode()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    })
+}
+
+#[test]
+fn incomplete_async_payloads_kept() {
+    use demo_incomplete_async_payloads::{Command, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let incomplete = get_last_program_id();
+
+        run_to_next_block(None);
+
+        System::reset_events();
+
+        let to_send = [
+            Command::Handle,
+            Command::Reply,
+            Command::HandleStore,
+            Command::ReplyStore,
+        ]
+        .iter()
+        .map(Encode::encode)
+        .collect();
+        send_payloads(USER_1, incomplete, to_send);
+        run_to_next_block(None);
+
+        // Empty payloads are auto-replies.
+        // TODO: assert status codes for them after #2739.
+        let to_assert = [
+            "",
+            "OK PING",
+            "OK REPLY",
+            "",
+            "STORED COMMON",
+            "STORED REPLY",
+        ]
+        .iter()
+        .map(|s| Assertion::Payload(s.as_bytes().to_vec()))
+        .collect::<Vec<_>>();
+        assert_responses_to_user(USER_1, to_assert);
+    })
+}
+
+#[test]
+fn rw_lock_works() {
+    use demo_ping::WASM_BINARY as PING_BINARY;
+    use demo_rwlock::{Command, WASM_BINARY};
+
+    init_logger();
+
+    // TODO: assert auto replies after #2739.
+    let upload = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let prog_id = get_last_program_id();
+
+        run_to_next_block(None);
+        System::reset_events();
+
+        prog_id
+    };
+
+    // RwLock wide
+    new_test_ext().execute_with(|| {
+        let rwlock = upload();
+
+        let to_send = [
+            Command::Get,
+            Command::Inc,
+            Command::Get,
+            Command::PingGet,
+            Command::IncPing,
+        ]
+        .iter()
+        .map(Encode::encode)
+        .collect();
+        send_payloads(USER_1, rwlock, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::Payload(0u32.encode()),
+            Assertion::Payload(vec![]),
+            Assertion::Payload(1u32.encode()),
+            Assertion::Payload(vec![]),
+            Assertion::Payload(2u32.encode()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // RwLock read while writing
+    new_test_ext().execute_with(|| {
+        let rwlock = upload();
+
+        let to_send = [Command::IncPing, Command::Get]
+            .iter()
+            .map(Encode::encode)
+            .collect();
+        send_payloads(USER_1, rwlock, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::Payload(vec![]),
+            Assertion::Payload(1u32.encode()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // RwLock write while reading
+    new_test_ext().execute_with(|| {
+        let rwlock = upload();
+
+        let to_send = [Command::GetPing, Command::Get, Command::Inc]
+            .iter()
+            .map(Encode::encode)
+            .collect();
+        send_payloads(USER_1, rwlock, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::Payload(0i32.encode()),
+            Assertion::Payload(0i32.encode()),
+            Assertion::Payload(vec![]),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // RwLock deadlock
+    new_test_ext().execute_with(|| {
+        let rwlock = upload();
+
+        let to_send = [
+            Default::default(), // None-Command
+            Command::Get.encode(),
+        ]
+        .into_iter()
+        .collect();
+        send_payloads(USER_1, rwlock, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // RwLock check readers
+    new_test_ext().execute_with(|| {
+        let rwlock = upload();
+
+        let to_send = vec![Command::CheckReaders.encode()];
+        send_payloads(USER_1, rwlock, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![Assertion::Payload(0i32.encode())];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+}
+
+#[test]
+fn async_works() {
+    use demo_async::{Command, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
+
+    init_logger();
+
+    let upload = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let prog_id = get_last_program_id();
+
+        run_to_next_block(None);
+        System::reset_events();
+
+        prog_id
+    };
+
+    // Common async scenario
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+
+        let to_send = vec![Command::Common.encode()];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![Assertion::Payload(ids[0].encode())];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // Mutex scenario
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+
+        let to_send = vec![Command::Mutex.encode(); 2];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let to_assert = (0..4)
+            .map(|i| Assertion::Payload(ids[i / 2].encode()))
+            .collect();
+        assert_responses_to_user(USER_1, to_assert);
+    });
+}
+
+#[test]
+fn futures_unordered() {
+    use demo_async::WASM_BINARY as DEMO_ASYNC_BINARY;
+    use demo_futures_unordered::{Command, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
+
+    init_logger();
+
+    let upload = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            DEMO_ASYNC_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let demo_async = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            (demo_async, ping).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let prog_id = get_last_program_id();
+
+        run_to_next_block(None);
+        System::reset_events();
+
+        prog_id
+    };
+
+    // FuturesUnordered
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+
+        let to_send = vec![Command::Unordered.encode()];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::Payload(b"PONG".to_vec()),
+            Assertion::Payload(MessageId::generate_outgoing(ids[0], 0).encode()),
+            Assertion::Payload(ids[0].encode()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // Select
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+
+        let to_send = vec![Command::Select.encode()];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let to_assert = vec![
+            Assertion::Payload(b"PONG".to_vec()),
+            Assertion::Payload(ids[0].encode()),
+        ];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+
+    // Join
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+
+        let to_send = vec![Command::Join.encode()];
+        let ids = send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let mut res = MessageId::generate_outgoing(ids[0], 0).encode();
+        res.append(&mut b"PONG".to_vec());
+
+        let to_assert = vec![Assertion::Payload(res), Assertion::Payload(ids[0].encode())];
+        assert_responses_to_user(USER_1, to_assert);
+    });
+}
+
+#[test]
+fn async_recursion() {
+    use demo_async_recursion::WASM_BINARY;
+    use demo_ping::WASM_BINARY as PING_BINARY;
+
+    init_logger();
+
+    let upload = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping.encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let prog_id = get_last_program_id();
+
+        run_to_next_block(None);
+        System::reset_events();
+
+        prog_id
+    };
+
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+        let arg = 100i32;
+
+        let to_send = vec![arg.encode()];
+        send_payloads(USER_1, demo, to_send);
+        run_to_next_block(None);
+
+        let mut to_assert = (1..=arg)
+            .rev()
+            .filter_map(|i| (i % 4 == 0).then(|| Assertion::Payload(i.encode())))
+            .collect::<Vec<_>>();
+        // TODO: assert auto reply after #2739.
+        to_assert.insert(to_assert.len() - 1, Assertion::Payload(vec![]));
+        assert_responses_to_user(USER_1, to_assert);
+    });
+}
+
+#[test]
+fn async_init() {
+    use demo_async_init::{InputArgs, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
+
+    init_logger();
+
+    let upload = || {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        let ping = get_last_program_id();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InputArgs::from_two(ping, ping).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        ));
+
+        get_last_program_id()
+    };
+
+    new_test_ext().execute_with(|| {
+        let demo = upload();
+        send_payloads(USER_1, demo, vec![b"PING".to_vec()]);
+        run_to_next_block(None);
+
+        // TODO: assert auto replies after #2739.
+        assert_responses_to_user(
+            USER_1,
+            vec![Assertion::Payload(vec![]), Assertion::Payload(2u8.encode())],
+        );
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -10190,7 +10858,7 @@ mod utils {
     };
     use crate::{
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
-        BalanceOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
+        BalanceOf, BlockGasLimitOf, GasInfo, HandleKind, ProgramStorageOf, SentOf,
     };
     use common::{
         event::*,
@@ -10549,7 +11217,9 @@ mod utils {
         System::events().into_iter().for_each(|e| {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 if let Some(details) = message.reply() {
-                    if details.reply_to() == message_id && details.status_code() != 0 {
+                    if details.reply_to() == message_id
+                        && details.status_code().to_le_bytes()[0] != 0
+                    {
                         actual_error = Some((
                             String::from_utf8(message.payload().to_vec())
                                 .expect("Unable to decode string from error reply"),
@@ -10946,6 +11616,56 @@ mod utils {
 
     pub(super) fn waiting_init_messages(pid: ProgramId) -> Vec<MessageId> {
         ProgramStorageOf::<Test>::waiting_init_get_messages(pid)
+    }
+
+    #[track_caller]
+    pub(super) fn send_payloads(
+        user_id: AccountId,
+        program_id: ProgramId,
+        payloads: Vec<Vec<u8>>,
+    ) -> Vec<MessageId> {
+        payloads
+            .into_iter()
+            .map(|payload| {
+                assert_ok!(Gear::send_message(
+                    RuntimeOrigin::signed(user_id),
+                    program_id,
+                    payload,
+                    BlockGasLimitOf::<Test>::get(),
+                    0,
+                ));
+
+                get_last_message_id()
+            })
+            .collect()
+    }
+
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub(super) enum Assertion {
+        Payload(Vec<u8>),
+        StatusCode(Option<i32>),
+    }
+
+    #[track_caller]
+    pub(super) fn assert_responses_to_user(user_id: AccountId, assertions: Vec<Assertion>) {
+        let mut res = vec![];
+
+        System::events().iter().for_each(|e| {
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = &e.event {
+                if message.destination() == user_id.into() {
+                    match assertions[res.len()] {
+                        Assertion::Payload(_) => {
+                            res.push(Assertion::Payload(message.payload().to_vec()))
+                        }
+                        Assertion::StatusCode(_) => {
+                            res.push(Assertion::StatusCode(message.status_code()))
+                        }
+                    }
+                }
+            }
+        });
+
+        assert_eq!(res, assertions);
     }
 }
 
@@ -11766,6 +12486,120 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
         assert_eq!(
             gas_info_result.unwrap_err(),
             "Calculation gas limit exceeded. Consider using custom built node."
+        );
+    });
+}
+
+#[test]
+fn reservation_manager() {
+    use demo_reservation_manager::{Action, WASM_BINARY};
+    use utils::Assertion;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("Program uploading failed");
+
+        run_to_next_block(None);
+
+        fn scenario(pid: ProgramId, payload: Action, expected: Vec<Assertion>) {
+            System::reset_events();
+
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                payload.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+            ));
+
+            run_to_next_block(None);
+
+            assert_responses_to_user(USER_1, expected);
+        }
+
+        // Try unreserve 100 gas when there's no reservations.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 100 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
+        // Reserve 10_000 gas.
+        scenario(
+            pid,
+            Action::Reserve {
+                amount: 10_000,
+                duration: 100,
+            },
+            vec![Assertion::StatusCode(Some(0))],
+        );
+        // Try to unreserve 50_000 gas.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 50_000 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
+        // Try to unreserve 8_000 gas.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 8_000 },
+            vec![Assertion::StatusCode(Some(0)), Assertion::Payload(vec![])],
+        );
+        // Try to unreserve 8_000 gas again.
+        scenario(
+            pid,
+            Action::SendMessageFromReservation { gas_amount: 8_000 },
+            vec![Assertion::StatusCode(Some(
+                SimpleReplyError::Execution(SimpleExecutionError::Panic).into_status_code(),
+            ))],
+        );
+    });
+}
+
+#[test]
+fn check_mutable_global_exports_restriction() {
+    init_logger();
+
+    let wat_correct = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (func $init)
+            (global (;0;) (mut i32) (i32.const 65536))
+            (export "init" (func $init))
+            (export "{STACK_END_EXPORT_NAME}" (global 0))
+        )"#
+    );
+
+    let wat_incorrect = r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (func $init)
+            (global (;0;) (mut i32) (i32.const 65536))
+            (export "init" (func $init))
+            (export "global" (global 0))
+        )"#;
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(upload_program_default(
+            USER_1,
+            ProgramCodeKind::CustomInvalid(&wat_correct)
+        ));
+        assert_noop!(
+            upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(wat_incorrect)),
+            Error::<Test>::ProgramConstructionFailed
         );
     });
 }

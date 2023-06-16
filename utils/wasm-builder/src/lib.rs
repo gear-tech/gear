@@ -18,7 +18,6 @@
 
 use crate::{cargo_command::CargoCommand, cargo_toolchain::Toolchain, wasm_project::WasmProject};
 use anyhow::Result;
-use filetime::{set_file_mtime, FileTime};
 use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
 use std::{env, path::Path, process};
@@ -32,8 +31,6 @@ pub mod optimize;
 mod smart_fs;
 mod stack_end;
 mod wasm_project;
-
-pub use stack_end::insert_stack_end_export;
 
 pub const TARGET: &str = env!("TARGET");
 
@@ -107,9 +104,7 @@ impl WasmBuilder {
         self.cargo.set_features(&self.enabled_features()?);
 
         self.cargo.run()?;
-        self.wasm_project.postprocess()?;
-
-        self.force_build_script_rebuild_on_next_run()
+        self.wasm_project.postprocess()
     }
 
     fn manifest_path(&self) -> Result<String> {
@@ -162,13 +157,6 @@ impl WasmBuilder {
             );
         }
         Ok(matched_features)
-    }
-
-    /// Force cargo to rebuild the build script next time it is invoked (e.g. when a feature is added or removed).
-    fn force_build_script_rebuild_on_next_run(&self) -> Result<()> {
-        let build_rs_path = Path::new(&self.manifest_path()?).join("build.rs");
-        set_file_mtime(build_rs_path, FileTime::now())?;
-        Ok(())
     }
 }
 

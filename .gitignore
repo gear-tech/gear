@@ -6,3 +6,4 @@ target-no-lazy/
 .DS_Store
 .idea
 .log
+*.meta.txt

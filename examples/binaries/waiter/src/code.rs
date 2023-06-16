@@ -18,28 +18,28 @@ async fn main() {
     match cmd {
         Command::Wait(subcommand) => process_wait_subcommand(subcommand),
         Command::SendFor(to, duration) => {
-            msg::send_bytes_for_reply(to, [], 0)
+            msg::send_bytes_for_reply(to, [], 0, 0)
                 .expect("send message failed")
                 .exactly(Some(duration))
                 .expect("Invalid wait duration.")
                 .await;
         }
         Command::SendUpTo(to, duration) => {
-            msg::send_bytes_for_reply(to, [], 0)
+            msg::send_bytes_for_reply(to, [], 0, 0)
                 .expect("send message failed")
                 .up_to(Some(duration))
                 .expect("Invalid wait duration.")
                 .await;
         }
         Command::SendUpToWait(to, duration) => {
-            msg::send_bytes_for_reply(to, [], 0)
+            msg::send_bytes_for_reply(to, [], 0, 0)
                 .expect("send message failed")
                 .up_to(Some(duration))
                 .expect("Invalid wait duration.")
                 .await;
 
             // after waking, wait again.
-            msg::send_bytes_for_reply(to, [], 0)
+            msg::send_bytes_for_reply(to, [], 0, 0)
                 .expect("send message failed")
                 .await;
         }

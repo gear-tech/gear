@@ -14,36 +14,36 @@ async fn main() {
 
     match kind {
         Kind::Send => {
-            msg::send_for_reply(msg::source(), kind, 0)
+            msg::send_for_reply(msg::source(), kind, 0, 0)
                 .expect("send message failed")
                 .await
         }
         Kind::SendWithGas(gas) => {
-            msg::send_with_gas_for_reply(msg::source(), kind, gas, 0)
+            msg::send_with_gas_for_reply(msg::source(), kind, gas, 0, 0)
                 .expect("send message failed")
                 .await
         }
         Kind::SendBytes => {
-            msg::send_bytes_for_reply(msg::source(), &encoded_kind, 0)
+            msg::send_bytes_for_reply(msg::source(), &encoded_kind, 0, 0)
                 .expect("send message failed")
                 .await
         }
         Kind::SendBytesWithGas(gas) => {
-            msg::send_bytes_with_gas_for_reply(msg::source(), &encoded_kind, gas, 0)
+            msg::send_bytes_with_gas_for_reply(msg::source(), &encoded_kind, gas, 0, 0)
                 .expect("send message failed")
                 .await
         }
         Kind::SendCommit => {
             let handle = MessageHandle::init().expect("init message failed");
             handle.push(&encoded_kind).expect("push payload failed");
-            handle.commit_for_reply(msg::source(), 0)
+            handle.commit_for_reply(msg::source(), 0, 0)
                 .expect("send message failed")
                 .await
         }
         Kind::SendCommitWithGas(gas) => {
             let handle = MessageHandle::init().expect("init message failed");
             handle.push(&encoded_kind).expect("push payload failed");
-            handle.commit_with_gas_for_reply(msg::source(), gas, 0)
+            handle.commit_with_gas_for_reply(msg::source(), gas, 0, 0)
                 .expect("send message failed")
                 .await
         }
