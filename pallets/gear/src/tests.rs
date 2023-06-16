@@ -8560,7 +8560,7 @@ fn async_sleep_for() {
                     BlockGasLimitOf::<Test>::get(),
                     0,
                 )
-                .expect(&format!("Failed to send command {:?} to Waiter", command));
+                .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
                 let msg_id = get_last_message_id();
                 let msg_block_number = System::block_number() + 1;
                 run_to_next_block(None);
