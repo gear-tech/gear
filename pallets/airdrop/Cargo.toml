@@ -28,6 +28,7 @@ frame-benchmarking = { workspace = true, optional = true }
 sp-runtime.workspace = true
 sp-std.workspace = true
 pallet-balances.workspace = true
+pallet-vesting.workspace = true
 
 [dev-dependencies]
 serde.workspace = true
@@ -55,6 +56,7 @@ std = [
 	"scale-info/std",
 	"sp-std/std",
 	"pallet-balances/std",
+	"pallet-vesting/std",
 	"pallet-gear/std",
 ]
 runtime-benchmarks = [

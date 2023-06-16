@@ -2,7 +2,7 @@ use crate::Command;
 
 use codec::Encode;
 use futures::future;
-use gstd::{errors::ContractError, exec, msg, MessageId};
+use gstd::{errors::Error, exec, msg, MessageId};
 
 static mut TIMEOUT_MESSAGE_ID: Option<MessageId> = None;
 
