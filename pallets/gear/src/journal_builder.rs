@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Config, ExecutionEnvironment, ExtManager, GasAllowanceOf, GasBalanceOf, Pallet};
+use alloc::vec::Vec;
 use common::{storage::Limiter, CodeStorage, Origin};
 use core_processor::{
     common::{ExecutableActorData, JournalNote, PrechargedDispatch},
@@ -122,6 +123,8 @@ where
             if code.instruction_weights_version() == schedule.instruction_weights.version {
                 (code, ContextChargedForInstrumentation::from(context))
             } else {
+                log::debug!("Re-instrumenting code for program '{:?}'", program_id);
+
                 let context = core_processor::precharge_for_instrumentation(
                     block_config,
                     context,
