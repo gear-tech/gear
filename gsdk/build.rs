@@ -14,14 +14,11 @@ const GENERATED_API_PATH: &str = "src/metadata/generated.rs";
 const ENV_RUNTIME_WASM: &str = "RUNTIME_WASM";
 
 fn main() {
-    // println!("cargo:rerun-if-changed=build.rs");
-    // println!("cargo:rerun-if-changed=../api-gen/src/main.rs");
     println!("cargo:rerun-if-env-changed={}", GSDK_API_GEN);
 
-    // This build script should only work when building gsdk as the primary package,
-    // and the environment variable GSDK_API_GEN should be set to 1.
-    if option_env!("CARGO_PRIMARY_PACKAGE") != Some("1") || env::var(GSDK_API_GEN) != Ok("1".into())
-    {
+    // This build script should only work when building gsdk
+    // with GSDK_API_GEN=1
+    if env::var(GSDK_API_GEN) != Ok("1".into()) {
         return;
     }
 
@@ -85,8 +82,6 @@ fn format(stream: &[u8]) -> String {
         .to_string()
         .replace(":: subxt", "::subxt")
         .replace(" :: ", "::")
-    // .replace("::subxt::utils::MultiAddress", "sp_runtime::MultiAddress")
-    // .replace("::subxt::utils::AccountId32", "sp_runtime::AccountId32")
 }
 
 // Get the path of the compiled package.

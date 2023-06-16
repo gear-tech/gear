@@ -126,11 +126,21 @@ fn generate_runtime_types(metadata: Metadata) -> TokenStream {
     );
 
     let crate_path = Default::default();
+    let mut derives = DerivesRegistry::new();
+    derives.extend_for_all(
+        [
+            parse_quote!(Debug),
+            parse_quote!(crate::gp::Encode),
+            parse_quote!(crate::gp::Decode),
+            parse_quote!(crate::gp::DecodeAsType),
+        ],
+        [],
+    );
 
     generator
         .generate_runtime_types(
             runtime_types_mod,
-            DerivesRegistry::with_default_derives(&crate_path),
+            derives,
             TypeSubstitutes::with_default_substitutes(&crate_path),
             crate_path,
             true,

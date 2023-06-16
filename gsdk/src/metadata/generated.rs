@@ -30,44 +30,23 @@ pub mod runtime_types {
             pub mod bounded_vec {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct BoundedVec<_0>(pub ::std::vec::Vec<_0>);
             }
             pub mod weak_bounded_vec {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct WeakBoundedVec<_0>(pub ::std::vec::Vec<_0>);
             }
         }
         pub mod finality_grandpa {
             use super::runtime_types;
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Equivocation<_0, _1, _2> {
                 pub round_number: ::core::primitive::u64,
                 pub identity: _0,
@@ -75,29 +54,15 @@ pub mod runtime_types {
                 pub second: (_1, _2),
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Precommit<_0, _1> {
                 pub target_hash: _0,
                 pub target_number: _1,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Prevote<_0, _1> {
                 pub target_hash: _0,
                 pub target_number: _1,
@@ -108,15 +73,8 @@ pub mod runtime_types {
             pub mod dispatch {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum DispatchClass {
                     #[codec(index = 0)]
                     Normal,
@@ -126,30 +84,16 @@ pub mod runtime_types {
                     Mandatory,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct DispatchInfo {
                     pub weight: runtime_types::sp_weights::weight_v2::Weight,
                     pub class: runtime_types::frame_support::dispatch::DispatchClass,
                     pub pays_fee: runtime_types::frame_support::dispatch::Pays,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum Pays {
                     #[codec(index = 0)]
                     Yes,
@@ -157,45 +101,24 @@ pub mod runtime_types {
                     No,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct PerDispatchClass<_0> {
                     pub normal: _0,
                     pub operational: _0,
                     pub mandatory: _0,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct PostDispatchInfo {
                     pub actual_weight:
                         ::core::option::Option<runtime_types::sp_weights::weight_v2::Weight>,
                     pub pays_fee: runtime_types::frame_support::dispatch::Pays,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum RawOrigin<_0> {
                     #[codec(index = 0)]
                     Root,
@@ -210,15 +133,11 @@ pub mod runtime_types {
                 pub mod misc {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct WrapperOpaque<_0>(
                         #[codec(compact)] pub ::core::primitive::u32,
                         pub _0,
@@ -227,15 +146,11 @@ pub mod runtime_types {
                 pub mod preimages {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub enum Bounded<_0> {
                         #[codec(index = 0)]
                         Legacy {
@@ -258,15 +173,11 @@ pub mod runtime_types {
                 pub mod schedule {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub enum DispatchTime<_0> {
                         #[codec(index = 0)]
                         At(_0),
@@ -279,15 +190,11 @@ pub mod runtime_types {
                     pub mod misc {
                         use super::runtime_types;
                         #[derive(
-                            ::subxt::ext::codec::Decode,
-                            ::subxt::ext::codec::Encode,
-                            ::subxt::ext::scale_decode::DecodeAsType,
-                            ::subxt::ext::scale_encode::EncodeAsType,
                             Debug,
+                            crate::gp::Decode,
+                            crate::gp::DecodeAsType,
+                            crate::gp::Encode,
                         )]
-                        # [codec (crate = ::subxt::ext::codec)]
-                        #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                        #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                         pub enum BalanceStatus {
                             #[codec(index = 0)]
                             Free,
@@ -298,15 +205,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct PalletId(pub [::core::primitive::u8; 8usize]);
         }
         pub mod frame_system {
@@ -316,129 +216,87 @@ pub mod runtime_types {
                 pub mod check_genesis {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct CheckGenesis;
                 }
                 pub mod check_mortality {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct CheckMortality(pub runtime_types::sp_runtime::generic::era::Era);
                 }
                 pub mod check_non_zero_sender {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct CheckNonZeroSender;
                 }
                 pub mod check_nonce {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct CheckNonce(#[codec(compact)] pub ::core::primitive::u32);
                 }
                 pub mod check_spec_version {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct CheckSpecVersion;
                 }
                 pub mod check_tx_version {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct CheckTxVersion;
                 }
                 pub mod check_weight {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct CheckWeight;
                 }
             }
             pub mod limits {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct BlockLength {
                     pub max: runtime_types::frame_support::dispatch::PerDispatchClass<
                         ::core::primitive::u32,
                     >,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct BlockWeights {
                     pub base_block: runtime_types::sp_weights::weight_v2::Weight,
                     pub max_block: runtime_types::sp_weights::weight_v2::Weight,
@@ -447,15 +305,8 @@ pub mod runtime_types {
                     >,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct WeightsPerClass {
                     pub base_extrinsic: runtime_types::sp_weights::weight_v2::Weight,
                     pub max_extrinsic:
@@ -469,15 +320,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -536,15 +380,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Error for the System pallet"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -571,15 +408,8 @@ pub mod runtime_types {
                     CallFiltered,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Event for the System pallet."]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -615,15 +445,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct AccountInfo<_0, _1> {
                 pub nonce: _0,
                 pub consumers: _0,
@@ -632,45 +455,24 @@ pub mod runtime_types {
                 pub data: _1,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct EventRecord<_0, _1> {
                 pub phase: runtime_types::frame_system::Phase,
                 pub event: _0,
                 pub topics: ::std::vec::Vec<_1>,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct LastRuntimeUpgradeInfo {
                 #[codec(compact)]
                 pub spec_version: ::core::primitive::u32,
                 pub spec_name: ::std::string::String,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum Phase {
                 #[codec(index = 0)]
                 ApplyExtrinsic(::core::primitive::u32),
@@ -685,15 +487,8 @@ pub mod runtime_types {
             pub mod event {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum CodeChangeKind<_0> {
                     #[codec(index = 0)]
                     Active {
@@ -705,15 +500,8 @@ pub mod runtime_types {
                     Reinstrumented,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum DispatchStatus {
                     #[codec(index = 0)]
                     Success,
@@ -723,15 +511,8 @@ pub mod runtime_types {
                     NotExecuted,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum MessageEntry {
                     #[codec(index = 0)]
                     Init,
@@ -743,15 +524,8 @@ pub mod runtime_types {
                     Signal,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum MessageWaitedRuntimeReason {
                     #[codec(index = 0)]
                     WaitCalled,
@@ -763,43 +537,22 @@ pub mod runtime_types {
                     WaitUpToCalledFull,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum MessageWaitedSystemReason {
                     #[codec(index = 0)]
                     ProgramIsNotInitialized,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum MessageWokenRuntimeReason {
                     #[codec(index = 0)]
                     WakeCalled,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum MessageWokenSystemReason {
                     #[codec(index = 0)]
                     ProgramGotInitialized,
@@ -809,15 +562,8 @@ pub mod runtime_types {
                     OutOfRent,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum ProgramChangeKind<_0> {
                     #[codec(index = 0)]
                     Active { expiration: _0 },
@@ -833,15 +579,8 @@ pub mod runtime_types {
                     ProgramSet { expiration: _0 },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum Reason<_0, _1> {
                     #[codec(index = 0)]
                     Runtime(_0),
@@ -849,15 +588,8 @@ pub mod runtime_types {
                     System(_1),
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum UserMessageReadRuntimeReason {
                     #[codec(index = 0)]
                     MessageReplied,
@@ -865,15 +597,8 @@ pub mod runtime_types {
                     MessageClaimed,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum UserMessageReadSystemReason {
                     #[codec(index = 0)]
                     OutOfRent,
@@ -884,29 +609,21 @@ pub mod runtime_types {
                 pub mod node {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct ChildrenRefs {
                         pub spec_refs: ::core::primitive::u32,
                         pub unspec_refs: ::core::primitive::u32,
                     }
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub enum GasNode<_0, _1, _2> {
                         #[codec(index = 0)]
                         External {
@@ -949,15 +666,11 @@ pub mod runtime_types {
                         },
                     }
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub enum GasNodeId<_0, _1> {
                         #[codec(index = 0)]
                         Node(_0),
@@ -965,16 +678,26 @@ pub mod runtime_types {
                         Reservation(_1),
                     }
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct NodeLock<_0>(pub [_0; 4usize]);
+                }
+            }
+            pub mod paused_program_storage {
+                use super::runtime_types;
+                #[derive(
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                )]
+                pub struct ResumeSession<_0, _1> {
+                    pub page_count: _1,
+                    pub user: _0,
+                    pub program_id: runtime_types::gear_core::ids::ProgramId,
+                    pub allocations: ::std::vec::Vec<runtime_types::gear_core::memory::WasmPage>,
+                    pub code_hash: runtime_types::gear_core::ids::CodeId,
+                    pub end_block: _1,
                 }
             }
             pub mod scheduler {
@@ -982,15 +705,11 @@ pub mod runtime_types {
                 pub mod task {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub enum ScheduledTask<_0> {
                         #[codec(index = 0)]
                         PauseProgram(runtime_types::gear_core::ids::ProgramId),
@@ -1022,6 +741,8 @@ pub mod runtime_types {
                             runtime_types::gear_core::ids::ProgramId,
                             runtime_types::gear_core::ids::ReservationId,
                         ),
+                        #[codec(index = 9)]
+                        RemoveResumeSession(::core::primitive::u128),
                     }
                 }
             }
@@ -1032,15 +753,11 @@ pub mod runtime_types {
                     pub mod dequeue {
                         use super::runtime_types;
                         #[derive(
-                            ::subxt::ext::codec::Decode,
-                            ::subxt::ext::codec::Encode,
-                            ::subxt::ext::scale_decode::DecodeAsType,
-                            ::subxt::ext::scale_encode::EncodeAsType,
                             Debug,
+                            crate::gp::Decode,
+                            crate::gp::DecodeAsType,
+                            crate::gp::Encode,
                         )]
-                        # [codec (crate = ::subxt::ext::codec)]
-                        #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                        #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                         pub struct LinkedNode<_0, _1> {
                             pub next: ::core::option::Option<_0>,
                             pub value: _1,
@@ -1050,15 +767,11 @@ pub mod runtime_types {
                 pub mod primitives {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct Interval<_0> {
                         pub start: _0,
                         pub finish: _0,
@@ -1066,15 +779,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct ActiveProgram<_0> {
                 pub allocations: ::std::vec::Vec<runtime_types::gear_core::memory::WasmPage>,
                 pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::memory::GearPage>,
@@ -1089,30 +795,16 @@ pub mod runtime_types {
                 pub expiration_block: _0,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct CodeMetadata {
                 pub author: ::subxt::utils::H256,
                 #[codec(compact)]
                 pub block_number: ::core::primitive::u32,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum Program<_0> {
                 #[codec(index = 0)]
                 Active(runtime_types::gear_common::ActiveProgram<_0>),
@@ -1122,15 +814,8 @@ pub mod runtime_types {
                 Terminated(runtime_types::gear_core::ids::ProgramId),
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum ProgramState {
                 #[codec(index = 0)]
                 Uninitialized {
@@ -1145,15 +830,8 @@ pub mod runtime_types {
             pub mod buffer {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct LimitedVec<_0, _1>(
                     pub ::std::vec::Vec<_0>,
                     #[codec(skip)] pub ::core::marker::PhantomData<_1>,
@@ -1162,15 +840,8 @@ pub mod runtime_types {
             pub mod code {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct InstrumentedCode {
                     pub code: ::std::vec::Vec<::core::primitive::u8>,
                     pub original_code_len: ::core::primitive::u32,
@@ -1182,88 +853,45 @@ pub mod runtime_types {
             pub mod ids {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct CodeId(pub [::core::primitive::u8; 32usize]);
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct MessageId(pub [::core::primitive::u8; 32usize]);
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct ProgramId(pub [::core::primitive::u8; 32usize]);
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct ReservationId(pub [::core::primitive::u8; 32usize]);
             }
             pub mod memory {
                 use super::runtime_types;
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
                     Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct GearPage(pub ::core::primitive::u32);
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct PageBuf(
                     pub runtime_types::gear_core::buffer::LimitedVec<::core::primitive::u8, ()>,
                 );
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
                     Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct WasmPage(pub ::core::primitive::u32);
             }
             pub mod message {
@@ -1271,15 +899,11 @@ pub mod runtime_types {
                 pub mod common {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub enum MessageDetails {
                         #[codec(index = 0)]
                         Reply(runtime_types::gear_core::message::common::ReplyDetails),
@@ -1287,29 +911,21 @@ pub mod runtime_types {
                         Signal(runtime_types::gear_core::message::common::SignalDetails),
                     }
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct ReplyDetails {
                         pub reply_to: runtime_types::gear_core::ids::MessageId,
                         pub status_code: ::core::primitive::i32,
                     }
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct SignalDetails {
                         pub from: runtime_types::gear_core::ids::MessageId,
                         pub status_code: ::core::primitive::i32,
@@ -1318,15 +934,11 @@ pub mod runtime_types {
                 pub mod context {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct ContextStore {
                         pub outgoing: ::subxt::utils::KeyedVec<
                             ::core::primitive::u32,
@@ -1353,15 +965,11 @@ pub mod runtime_types {
                 pub mod stored {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct StoredDispatch {
                         pub kind: runtime_types::gear_core::message::DispatchKind,
                         pub message: runtime_types::gear_core::message::stored::StoredMessage,
@@ -1370,15 +978,11 @@ pub mod runtime_types {
                         >,
                     }
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct StoredMessage {
                         pub id: runtime_types::gear_core::ids::MessageId,
                         pub source: runtime_types::gear_core::ids::ProgramId,
@@ -1395,15 +999,8 @@ pub mod runtime_types {
                     }
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum DispatchKind {
                     #[codec(index = 0)]
                     Init,
@@ -1415,29 +1012,15 @@ pub mod runtime_types {
                     Signal,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct PayloadSizeError;
             }
             pub mod reservation {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct GasReservationSlot {
                     pub amount: ::core::primitive::u64,
                     pub start: ::core::primitive::u32,
@@ -1450,15 +1033,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1478,23 +1054,49 @@ pub mod runtime_types {
                         dest: ::subxt::utils::AccountId32,
                         amount: ::core::primitive::u128,
                     },
+                    #[codec(index = 1)]
+                    #[doc = "Remove vesting for `source` account and transfer tokens to `dest` account."]
+                    #[doc = ""]
+                    #[doc = "The origin must be the root."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `source`: the account with vesting running,"]
+                    #[doc = "- `dest`: the beneficiary account,"]
+                    #[doc = "- `schedule_index`: the index of `VestingInfo` for source account."]
+                    #[doc = "- `amount`: the amount to be unlocked and transfered from `VestingInfo`."]
+                    #[doc = ""]
+                    #[doc = "Emits the following events:"]
+                    #[doc = "- `VestingScheduleRemoved{ who, schedule_index }`"]
+                    transfer_vested {
+                        source: ::subxt::utils::AccountId32,
+                        dest: ::subxt::utils::AccountId32,
+                        schedule_index: ::core::primitive::u32,
+                        amount: ::core::option::Option<::core::primitive::u128>,
+                    },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
+                #[doc = "Error for the airdrop pallet."]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    #[doc = "Amount to being transferred is bigger than vested."]
+                    AmountBigger,
+                }
+                #[derive(
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                )]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
                     TokensDeposited {
                         account: ::subxt::utils::AccountId32,
                         amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 1)]
+                    VestingScheduleRemoved {
+                        who: ::subxt::utils::AccountId32,
+                        schedule_index: ::core::primitive::u32,
                     },
                 }
             }
@@ -1504,15 +1106,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1563,15 +1158,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -1594,29 +1182,15 @@ pub mod runtime_types {
             pub mod list {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Bag {
                     pub head: ::core::option::Option<::subxt::utils::AccountId32>,
                     pub tail: ::core::option::Option<::subxt::utils::AccountId32>,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum ListError {
                     #[codec(index = 0)]
                     Duplicate,
@@ -1628,15 +1202,8 @@ pub mod runtime_types {
                     NodeNotFound,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Node {
                     pub id: ::subxt::utils::AccountId32,
                     pub prev: ::core::option::Option<::subxt::utils::AccountId32>,
@@ -1648,15 +1215,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1687,15 +1247,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -1703,15 +1256,8 @@ pub mod runtime_types {
                     List(runtime_types::pallet_bags_list::list::ListError),
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -1735,15 +1281,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -1845,15 +1384,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -1882,15 +1414,8 @@ pub mod runtime_types {
                     TooManyReserves,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -1963,15 +1488,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct AccountData<_0> {
                 pub free: _0,
                 pub reserved: _0,
@@ -1979,30 +1497,16 @@ pub mod runtime_types {
                 pub fee_frozen: _0,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct BalanceLock<_0> {
                 pub id: [::core::primitive::u8; 8usize],
                 pub amount: _0,
                 pub reasons: runtime_types::pallet_balances::Reasons,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum Reasons {
                 #[codec(index = 0)]
                 Fee,
@@ -2012,15 +1516,8 @@ pub mod runtime_types {
                 All,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct ReserveData<_0, _1> {
                 pub id: _0,
                 pub amount: _1,
@@ -2031,15 +1528,8 @@ pub mod runtime_types {
             pub mod conviction {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum Conviction {
                     #[codec(index = 0)]
                     None,
@@ -2060,15 +1550,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -2206,15 +1689,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -2256,15 +1732,8 @@ pub mod runtime_types {
                     BadClass,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -2278,29 +1747,15 @@ pub mod runtime_types {
             pub mod types {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Delegations<_0> {
                     pub votes: _0,
                     pub capital: _0,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Tally<_0> {
                     pub ayes: _0,
                     pub nays: _0,
@@ -2310,15 +1765,8 @@ pub mod runtime_types {
             pub mod vote {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum AccountVote<_0> {
                     #[codec(index = 0)]
                     Standard {
@@ -2331,15 +1779,8 @@ pub mod runtime_types {
                     SplitAbstain { aye: _0, nay: _0, abstain: _0 },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Casting<_0, _1, _2> {
                     pub votes: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
                         _1,
@@ -2352,15 +1793,8 @@ pub mod runtime_types {
                     pub __subxt_unused_type_params: ::core::marker::PhantomData<_2>,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Delegating<_0, _1, _2> {
                     pub balance: _0,
                     pub target: _1,
@@ -2370,38 +1804,20 @@ pub mod runtime_types {
                     pub prior: runtime_types::pallet_conviction_voting::vote::PriorLock<_2, _0>,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct PriorLock<_0, _1>(pub _0, pub _1);
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
                     Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Vote(pub ::core::primitive::u8);
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum Voting<_0, _1, _2, _3> {
                     #[codec(index = 0)]
                     Casting(runtime_types::pallet_conviction_voting::vote::Casting<_0, _2, _2>),
@@ -2418,15 +1834,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -2589,24 +1998,58 @@ pub mod runtime_types {
                         program_id: runtime_types::gear_core::ids::ProgramId,
                         block_count: ::core::primitive::u32,
                     },
+                    #[codec(index = 9)]
+                    #[doc = "Starts a resume session of the previously paused program."]
+                    #[doc = ""]
+                    #[doc = "The origin must be Signed."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `program_id`: id of the program to resume."]
+                    #[doc = "- `allocations`: memory allocations of program prior to stop."]
+                    #[doc = "- `code_hash`: id of the program binary code."]
+                    resume_session_init {
+                        program_id: runtime_types::gear_core::ids::ProgramId,
+                        allocations: ::std::vec::Vec<runtime_types::gear_core::memory::WasmPage>,
+                        code_hash: runtime_types::gear_core::ids::CodeId,
+                    },
+                    #[codec(index = 10)]
+                    #[doc = "Appends memory pages to the resume session."]
+                    #[doc = ""]
+                    #[doc = "The origin must be Signed and should be the owner of the session."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `session_id`: id of the resume session."]
+                    #[doc = "- `memory_pages`: program memory (or its part) before it was paused."]
+                    resume_session_push {
+                        session_id: ::core::primitive::u128,
+                        memory_pages: ::std::vec::Vec<(
+                            runtime_types::gear_core::memory::GearPage,
+                            runtime_types::gear_core::memory::PageBuf,
+                        )>,
+                    },
+                    #[codec(index = 11)]
+                    #[doc = "Finishes the program resume session."]
+                    #[doc = ""]
+                    #[doc = "The origin must be Signed and should be the owner of the session."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `session_id`: id of the resume session."]
+                    #[doc = "- `block_count`: the specified period of rent."]
+                    resume_session_commit {
+                        session_id: ::core::primitive::u128,
+                        block_count: ::core::primitive::u32,
+                    },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
                     #[doc = "Message wasn't found in the mailbox."]
                     MessageNotFound,
                     #[codec(index = 1)]
-                    #[doc = "Not enough balance to reserve."]
+                    #[doc = "Not enough balance to execute an action."]
                     #[doc = ""]
                     #[doc = "Usually occurs when the gas_limit specified is such that the origin account can't afford the message."]
                     InsufficientBalance,
@@ -2657,19 +2100,12 @@ pub mod runtime_types {
                     #[doc = "Message queue processing is disabled."]
                     MessageQueueProcessingDisabled,
                     #[codec(index = 13)]
-                    #[doc = "Program with the specified id is not found."]
-                    ProgramNotFound,
+                    #[doc = "Block count doesn't cover MinimalResumePeriod."]
+                    ResumePeriodLessThanMinimal,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -2754,20 +2190,21 @@ pub mod runtime_types {
                     #[codec(index = 8)]
                     #[doc = "The pseudo-inherent extrinsic that runs queue processing rolled back or not executed."]
                     QueueProcessingReverted,
+                    #[codec(index = 9)]
+                    #[doc = "Program resume session has been started."]
+                    ProgramResumeSessionStarted {
+                        session_id: ::core::primitive::u128,
+                        account_id: ::subxt::utils::AccountId32,
+                        program_id: runtime_types::gear_core::ids::ProgramId,
+                        session_end_block: ::core::primitive::u32,
+                    },
                 }
             }
             pub mod schedule {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct HostFnWeights {
                     pub alloc: runtime_types::sp_weights::weight_v2::Weight,
                     pub free: runtime_types::sp_weights::weight_v2::Weight,
@@ -2844,15 +2281,8 @@ pub mod runtime_types {
                         runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct InstructionWeights {
                     pub version: ::core::primitive::u32,
                     pub i64const: ::core::primitive::u32,
@@ -2944,15 +2374,8 @@ pub mod runtime_types {
                     pub i32rotr: ::core::primitive::u32,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Limits {
                     pub stack_height: ::core::option::Option<::core::primitive::u32>,
                     pub globals: ::core::primitive::u32,
@@ -2967,15 +2390,8 @@ pub mod runtime_types {
                     pub code_len: ::core::primitive::u32,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct MemoryWeights {
                     pub lazy_pages_signal_read: runtime_types::sp_weights::weight_v2::Weight,
                     pub lazy_pages_signal_write: runtime_types::sp_weights::weight_v2::Weight,
@@ -2992,15 +2408,8 @@ pub mod runtime_types {
                     pub parachain_read_heuristic: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Schedule {
                     pub limits: runtime_types::pallet_gear::schedule::Limits,
                     pub instruction_weights:
@@ -3021,15 +2430,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3047,15 +2449,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct DebugData {
                     pub dispatch_queue:
                         ::std::vec::Vec<runtime_types::gear_core::message::stored::StoredDispatch>,
@@ -3063,27 +2458,13 @@ pub mod runtime_types {
                         ::std::vec::Vec<runtime_types::pallet_gear_debug::pallet::ProgramDetails>,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {}
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -3093,29 +2474,15 @@ pub mod runtime_types {
                     DebugDataSnapshot(runtime_types::pallet_gear_debug::pallet::DebugData),
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct ProgramDetails {
                     pub id: runtime_types::gear_core::ids::ProgramId,
                     pub state: runtime_types::pallet_gear_debug::pallet::ProgramState,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct ProgramInfo {
                     pub static_pages: runtime_types::gear_core::memory::WasmPage,
                     pub persistent_pages: ::subxt::utils::KeyedVec<
@@ -3125,15 +2492,8 @@ pub mod runtime_types {
                     pub code_hash: ::subxt::utils::H256,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum ProgramState {
                     #[codec(index = 0)]
                     Active(runtime_types::pallet_gear_debug::pallet::ProgramInfo),
@@ -3147,15 +2507,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3214,15 +2567,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3273,15 +2619,8 @@ pub mod runtime_types {
         pub mod pallet_gear_payment {
             use super::runtime_types;
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct CustomChargeTransactionPayment<_0>(
                 pub runtime_types::pallet_transaction_payment::ChargeTransactionPayment,
                 #[codec(skip)] pub ::core::marker::PhantomData<_0>,
@@ -3292,15 +2631,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3311,6 +2643,16 @@ pub mod runtime_types {
                     NotActiveProgram,
                     #[codec(index = 3)]
                     CannotFindDataForPage,
+                    #[codec(index = 4)]
+                    ResumeSessionNotFound,
+                    #[codec(index = 5)]
+                    NotSessionOwner,
+                    #[codec(index = 6)]
+                    ResumeSessionFailed,
+                    #[codec(index = 7)]
+                    ProgramCodeNotFound,
+                    #[codec(index = 8)]
+                    DuplicateResumeSession,
                 }
             }
         }
@@ -3319,15 +2661,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3344,29 +2679,15 @@ pub mod runtime_types {
             pub mod extension {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct StakingBlackList;
             }
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3383,15 +2704,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Error for the staking rewards pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3402,15 +2716,8 @@ pub mod runtime_types {
                     FailureToWithdrawFromPool,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -3430,15 +2737,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3493,15 +2793,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3529,15 +2822,8 @@ pub mod runtime_types {
                     DuplicateOffenceReport,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -3557,15 +2843,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct StoredPendingChange<_0> {
                 pub scheduled_at: _0,
                 pub delay: _0,
@@ -3577,15 +2856,8 @@ pub mod runtime_types {
                 pub forced: ::core::option::Option<_0>,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum StoredState<_0> {
                 #[codec(index = 0)]
                 Live,
@@ -3602,15 +2874,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Identity pallet declaration."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -3878,15 +3143,8 @@ pub mod runtime_types {
                     quit_sub,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -3945,15 +3203,8 @@ pub mod runtime_types {
                     JudgementPaymentFailed,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4022,29 +3273,18 @@ pub mod runtime_types {
                 use super::runtime_types;
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
                     Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct BitFlags<_0>(
                     pub ::core::primitive::u64,
                     #[codec(skip)] pub ::core::marker::PhantomData<_0>,
                 );
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum Data {
                     #[codec(index = 0)]
                     None,
@@ -4124,15 +3364,8 @@ pub mod runtime_types {
                     ShaThree256([::core::primitive::u8; 32usize]),
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum IdentityField {
                     #[codec(index = 1)]
                     Display,
@@ -4152,15 +3385,8 @@ pub mod runtime_types {
                     Twitter,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct IdentityInfo {
                     pub additional: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
                         runtime_types::pallet_identity::types::Data,
@@ -4176,15 +3402,8 @@ pub mod runtime_types {
                     pub twitter: runtime_types::pallet_identity::types::Data,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum Judgement<_0> {
                     #[codec(index = 0)]
                     Unknown,
@@ -4202,15 +3421,8 @@ pub mod runtime_types {
                     Erroneous,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct RegistrarInfo<_0, _1> {
                     pub account: _1,
                     pub fee: _0,
@@ -4219,15 +3431,8 @@ pub mod runtime_types {
                     >,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Registration<_0> {
                     pub judgements: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
                         ::core::primitive::u32,
@@ -4243,15 +3448,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -4267,15 +3465,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -4286,15 +3477,8 @@ pub mod runtime_types {
                     DuplicatedHeartbeat,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4323,39 +3507,24 @@ pub mod runtime_types {
                 pub mod app_sr25519 {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct Public(pub runtime_types::sp_core::sr25519::Public);
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct Signature(pub runtime_types::sp_core::sr25519::Signature);
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct BoundedOpaqueNetworkState {
                 pub peer_id: runtime_types::bounded_collections::weak_bounded_vec::WeakBoundedVec<
                     ::core::primitive::u8,
@@ -4368,15 +3537,8 @@ pub mod runtime_types {
                     >,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Heartbeat<_0> {
                 pub block_number: _0,
                 pub network_state: runtime_types::sp_core::offchain::OpaqueNetworkState,
@@ -4390,15 +3552,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -4538,15 +3693,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -4593,15 +3741,8 @@ pub mod runtime_types {
                     AlreadyStored,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4643,15 +3784,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Multisig<_0, _1, _2> {
                 pub when: runtime_types::pallet_multisig::Timepoint<_0>,
                 pub deposit: _1,
@@ -4659,15 +3793,8 @@ pub mod runtime_types {
                 pub approvals: runtime_types::bounded_collections::bounded_vec::BoundedVec<_2>,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Timepoint<_0> {
                 pub height: _0,
                 pub index: _0,
@@ -4678,15 +3805,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -4718,15 +3838,8 @@ pub mod runtime_types {
                     unrequest_preimage { hash: ::subxt::utils::H256 },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -4749,15 +3862,8 @@ pub mod runtime_types {
                     NotRequested,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -4772,15 +3878,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum RequestStatus<_0, _1> {
                 #[codec(index = 0)]
                 Unrequested {
@@ -4800,15 +3899,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -4984,15 +4076,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -5021,15 +4106,8 @@ pub mod runtime_types {
                     NoSelfProxy,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -5073,30 +4151,16 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Announcement<_0, _1, _2> {
                 pub real: _0,
                 pub call_hash: _1,
                 pub height: _2,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct ProxyDefinition<_0, _1, _2> {
                 pub delegate: _0,
                 pub proxy_type: _1,
@@ -5108,15 +4172,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -5196,15 +4253,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -5236,15 +4286,8 @@ pub mod runtime_types {
                     NoPermission,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -5275,43 +4318,25 @@ pub mod runtime_types {
             }
             #[derive(
                 ::subxt::ext::codec::CompactAs,
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
                 Debug,
+                crate::gp::Decode,
+                crate::gp::DecodeAsType,
+                crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct MemberRecord {
                 pub rank: ::core::primitive::u16,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Tally {
                 pub bare_ayes: ::core::primitive::u32,
                 pub ayes: ::core::primitive::u32,
                 pub nays: ::core::primitive::u32,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum VoteRecord {
                 #[codec(index = 0)]
                 Aye(::core::primitive::u32),
@@ -5324,15 +4349,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -5431,15 +4449,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call2 {
                     #[codec(index = 0)]
@@ -5538,15 +4549,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -5590,15 +4594,8 @@ pub mod runtime_types {
                     PreimageNotExist,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error2 {
                     #[codec(index = 0)]
@@ -5642,15 +4639,8 @@ pub mod runtime_types {
                     PreimageNotExist,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -5762,15 +4752,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event2 {
                     #[codec(index = 0)]
@@ -5873,15 +4856,8 @@ pub mod runtime_types {
             pub mod types {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum Curve {
                     #[codec(index = 0)]
                     LinearDecreasing {
@@ -5904,43 +4880,22 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct DecidingStatus<_0> {
                     pub since: _0,
                     pub confirming: ::core::option::Option<_0>,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Deposit<_0, _1> {
                     pub who: _0,
                     pub amount: _1,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum ReferendumInfo<_0, _1, _2, _3, _4, _5, _6, _7> {
                     #[codec(index = 0)]
                     Ongoing(
@@ -5999,15 +4954,8 @@ pub mod runtime_types {
                     Killed(_2),
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct ReferendumStatus<_0, _1, _2, _3, _4, _5, _6, _7> {
                     pub track: _0,
                     pub origin: _1,
@@ -6026,15 +4974,8 @@ pub mod runtime_types {
                     pub alarm: ::core::option::Option<(_2, _7)>,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct TrackInfo<_0, _1> {
                     pub name: ::std::string::String,
                     pub max_deciding: _1,
@@ -6053,15 +4994,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -6123,15 +5057,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -6151,15 +5078,8 @@ pub mod runtime_types {
                     Named,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Events type."]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -6203,15 +5123,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Scheduled<_0, _1, _2, _3, _4> {
                 pub maybe_id: ::core::option::Option<_0>,
                 pub priority: ::core::primitive::u8,
@@ -6227,15 +5140,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -6268,15 +5174,8 @@ pub mod runtime_types {
                     purge_keys,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Error for the session pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -6296,15 +5195,8 @@ pub mod runtime_types {
                     NoAccount,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -6323,15 +5215,11 @@ pub mod runtime_types {
                 pub mod pallet {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                     pub enum Call {
                         #[codec(index = 0)]
@@ -6744,15 +5632,11 @@ pub mod runtime_types {
                         },
                     }
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub enum ConfigOp<_0> {
                         #[codec(index = 0)]
                         Noop,
@@ -6762,15 +5646,11 @@ pub mod runtime_types {
                         Remove,
                     }
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                     pub enum Error {
                         #[codec(index = 0)]
@@ -6854,15 +5734,11 @@ pub mod runtime_types {
                         BoundNotMet,
                     }
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                     pub enum Event {
                         #[codec(index = 0)]
@@ -6959,15 +5835,8 @@ pub mod runtime_types {
             pub mod slashing {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct SlashingSpans {
                     pub span_index: ::core::primitive::u32,
                     pub last_start: ::core::primitive::u32,
@@ -6975,58 +5844,30 @@ pub mod runtime_types {
                     pub prior: ::std::vec::Vec<::core::primitive::u32>,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct SpanRecord<_0> {
                     pub slashed: _0,
                     pub paid_out: _0,
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct ActiveEraInfo {
                 pub index: ::core::primitive::u32,
                 pub start: ::core::option::Option<::core::primitive::u64>,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct EraRewardPoints<_0> {
                 pub total: ::core::primitive::u32,
                 pub individual: ::subxt::utils::KeyedVec<_0, ::core::primitive::u32>,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Exposure<_0, _1> {
                 #[codec(compact)]
                 pub total: _1,
@@ -7036,15 +5877,8 @@ pub mod runtime_types {
                     ::std::vec::Vec<runtime_types::pallet_staking::IndividualExposure<_0, _1>>,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum Forcing {
                 #[codec(index = 0)]
                 NotForcing,
@@ -7056,30 +5890,16 @@ pub mod runtime_types {
                 ForceAlways,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct IndividualExposure<_0, _1> {
                 pub who: _0,
                 #[codec(compact)]
                 pub value: _1,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Nominations {
                 pub targets: runtime_types::bounded_collections::bounded_vec::BoundedVec<
                     ::subxt::utils::AccountId32,
@@ -7088,15 +5908,8 @@ pub mod runtime_types {
                 pub suppressed: ::core::primitive::bool,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum RewardDestination<_0> {
                 #[codec(index = 0)]
                 Staked,
@@ -7110,15 +5923,8 @@ pub mod runtime_types {
                 None,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct StakingLedger {
                 pub stash: ::subxt::utils::AccountId32,
                 #[codec(compact)]
@@ -7133,15 +5939,8 @@ pub mod runtime_types {
                 >,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct UnappliedSlash<_0, _1> {
                 pub validator: _0,
                 pub own: _1,
@@ -7150,15 +5949,8 @@ pub mod runtime_types {
                 pub payout: _1,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct UnlockChunk<_0> {
                 #[codec(compact)]
                 pub value: _0,
@@ -7166,15 +5958,8 @@ pub mod runtime_types {
                 pub era: ::core::primitive::u32,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct ValidatorPrefs {
                 #[codec(compact)]
                 pub commission: runtime_types::sp_arithmetic::per_things::Perbill,
@@ -7186,15 +5971,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -7245,15 +6023,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Error for the Sudo pallet"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -7261,15 +6032,8 @@ pub mod runtime_types {
                     RequireSudo,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -7297,15 +6061,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -7336,15 +6093,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -7358,26 +6108,12 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct ChargeTransactionPayment(#[codec(compact)] pub ::core::primitive::u128);
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum Releases {
                 #[codec(index = 0)]
                 V1Ancient,
@@ -7390,15 +6126,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -7470,15 +6199,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Error for the treasury pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -7499,15 +6221,8 @@ pub mod runtime_types {
                     ProposalNotApproved,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -7562,15 +6277,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Proposal<_0, _1> {
                 pub proposer: _0,
                 pub value: _1,
@@ -7583,15 +6291,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -7692,15 +6393,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -7708,15 +6402,8 @@ pub mod runtime_types {
                     TooManyCalls,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -7754,15 +6441,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -7863,15 +6543,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Error for the vesting pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -7892,15 +6565,8 @@ pub mod runtime_types {
                     InvalidScheduleParams,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -7920,15 +6586,8 @@ pub mod runtime_types {
             pub mod vesting_info {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct VestingInfo<_0, _1> {
                     pub locked: _0,
                     pub per_block: _0,
@@ -7936,15 +6595,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum Releases {
                 #[codec(index = 0)]
                 V0,
@@ -7957,15 +6609,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -7984,15 +6629,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -8012,15 +6650,8 @@ pub mod runtime_types {
                     CallAlreadyWhitelisted,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -8045,90 +6676,56 @@ pub mod runtime_types {
             pub mod fixed_point {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct FixedI64(pub ::core::primitive::i64);
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
                     Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct FixedU128(pub ::core::primitive::u128);
             }
             pub mod per_things {
                 use super::runtime_types;
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
                     Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Perbill(pub ::core::primitive::u32);
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
                     Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Percent(pub ::core::primitive::u8);
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
                     Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Permill(pub ::core::primitive::u32);
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
                     Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Perquintill(pub ::core::primitive::u64);
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum ArithmeticError {
                 #[codec(index = 0)]
                 Underflow,
@@ -8143,15 +6740,8 @@ pub mod runtime_types {
             pub mod app {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Public(pub runtime_types::sp_core::sr25519::Public);
             }
         }
@@ -8160,29 +6750,15 @@ pub mod runtime_types {
             pub mod app {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Public(pub runtime_types::sp_core::sr25519::Public);
             }
             pub mod digests {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum NextConfigDescriptor {
                     #[codec(index = 1)]
                     V1 {
@@ -8191,15 +6767,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum PreDigest {
                     #[codec(index = 1)]
                     Primary(runtime_types::sp_consensus_babe::digests::PrimaryPreDigest),
@@ -8211,15 +6780,8 @@ pub mod runtime_types {
                     SecondaryVRF(runtime_types::sp_consensus_babe::digests::SecondaryVRFPreDigest),
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct PrimaryPreDigest {
                     pub authority_index: ::core::primitive::u32,
                     pub slot: runtime_types::sp_consensus_slots::Slot,
@@ -8227,29 +6789,15 @@ pub mod runtime_types {
                     pub vrf_proof: [::core::primitive::u8; 64usize],
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct SecondaryPlainPreDigest {
                     pub authority_index: ::core::primitive::u32,
                     pub slot: runtime_types::sp_consensus_slots::Slot,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct SecondaryVRFPreDigest {
                     pub authority_index: ::core::primitive::u32,
                     pub slot: runtime_types::sp_consensus_slots::Slot,
@@ -8258,15 +6806,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum AllowedSlots {
                 #[codec(index = 0)]
                 PrimarySlots,
@@ -8276,15 +6817,8 @@ pub mod runtime_types {
                 PrimaryAndSecondaryVRFSlots,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct BabeEpochConfiguration {
                 pub c: (::core::primitive::u64, ::core::primitive::u64),
                 pub allowed_slots: runtime_types::sp_consensus_babe::AllowedSlots,
@@ -8295,38 +6829,17 @@ pub mod runtime_types {
             pub mod app {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Public(pub runtime_types::sp_core::ed25519::Public);
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Signature(pub runtime_types::sp_core::ed25519::Signature);
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum Equivocation<_0, _1> {
                 #[codec(index = 0)]
                 Prevote(
@@ -8346,15 +6859,8 @@ pub mod runtime_types {
                 ),
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct EquivocationProof<_0, _1> {
                 pub set_id: ::core::primitive::u64,
                 pub equivocation: runtime_types::sp_consensus_grandpa::Equivocation<_0, _1>,
@@ -8363,15 +6869,8 @@ pub mod runtime_types {
         pub mod sp_consensus_slots {
             use super::runtime_types;
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct EquivocationProof<_0, _1> {
                 pub offender: _1,
                 pub slot: runtime_types::sp_consensus_slots::Slot,
@@ -8380,15 +6879,11 @@ pub mod runtime_types {
             }
             #[derive(
                 ::subxt::ext::codec::CompactAs,
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
                 Debug,
+                crate::gp::Decode,
+                crate::gp::DecodeAsType,
+                crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Slot(pub ::core::primitive::u64);
         }
         pub mod sp_core {
@@ -8396,79 +6891,37 @@ pub mod runtime_types {
             pub mod crypto {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct KeyTypeId(pub [::core::primitive::u8; 4usize]);
             }
             pub mod ecdsa {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Signature(pub [::core::primitive::u8; 65usize]);
             }
             pub mod ed25519 {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Public(pub [::core::primitive::u8; 32usize]);
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Signature(pub [::core::primitive::u8; 64usize]);
             }
             pub mod offchain {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct OpaqueMultiaddr(pub ::std::vec::Vec<::core::primitive::u8>);
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct OpaqueNetworkState {
                     pub peer_id: runtime_types::sp_core::OpaquePeerId,
                     pub external_addresses:
@@ -8478,49 +6931,21 @@ pub mod runtime_types {
             pub mod sr25519 {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Public(pub [::core::primitive::u8; 32usize]);
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Signature(pub [::core::primitive::u8; 64usize]);
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct OpaquePeerId(pub ::std::vec::Vec<::core::primitive::u8>);
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum Void {}
         }
         pub mod sp_runtime {
@@ -8530,29 +6955,21 @@ pub mod runtime_types {
                 pub mod digest {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct Digest {
                         pub logs:
                             ::std::vec::Vec<runtime_types::sp_runtime::generic::digest::DigestItem>,
                     }
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub enum DigestItem {
                         #[codec(index = 6)]
                         PreRuntime(
@@ -8578,15 +6995,11 @@ pub mod runtime_types {
                 pub mod era {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub enum Era {
                         #[codec(index = 0)]
                         Immortal,
@@ -9105,15 +7518,11 @@ pub mod runtime_types {
                 pub mod header {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct Header<_0, _1> {
                         pub parent_hash: ::subxt::utils::H256,
                         #[codec(compact)]
@@ -9128,15 +7537,11 @@ pub mod runtime_types {
                 pub mod unchecked_extrinsic {
                     use super::runtime_types;
                     #[derive(
-                        ::subxt::ext::codec::Decode,
-                        ::subxt::ext::codec::Encode,
-                        ::subxt::ext::scale_decode::DecodeAsType,
-                        ::subxt::ext::scale_encode::EncodeAsType,
                         Debug,
+                        crate::gp::Decode,
+                        crate::gp::DecodeAsType,
+                        crate::gp::Encode,
                     )]
-                    # [codec (crate = ::subxt::ext::codec)]
-                    #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                    #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                     pub struct UncheckedExtrinsic<_0, _1, _2, _3>(
                         pub ::std::vec::Vec<::core::primitive::u8>,
                         #[codec(skip)] pub ::core::marker::PhantomData<(_1, _0, _2, _3)>,
@@ -9146,27 +7551,13 @@ pub mod runtime_types {
             pub mod traits {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct BlakeTwo256;
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum DispatchError {
                 #[codec(index = 0)]
                 Other,
@@ -9196,43 +7587,22 @@ pub mod runtime_types {
                 Unavailable,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct DispatchErrorWithPostInfo<_0> {
                 pub post_info: _0,
                 pub error: runtime_types::sp_runtime::DispatchError,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct ModuleError {
                 pub index: ::core::primitive::u8,
                 pub error: [::core::primitive::u8; 4usize],
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum MultiSignature {
                 #[codec(index = 0)]
                 Ed25519(runtime_types::sp_core::ed25519::Signature),
@@ -9242,15 +7612,8 @@ pub mod runtime_types {
                 Ecdsa(runtime_types::sp_core::ecdsa::Signature),
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum TokenError {
                 #[codec(index = 0)]
                 NoFunds,
@@ -9268,15 +7631,8 @@ pub mod runtime_types {
                 Unsupported,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum TransactionalError {
                 #[codec(index = 0)]
                 LimitReached,
@@ -9287,15 +7643,8 @@ pub mod runtime_types {
         pub mod sp_session {
             use super::runtime_types;
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct MembershipProof {
                 pub session: ::core::primitive::u32,
                 pub trie_nodes: ::std::vec::Vec<::std::vec::Vec<::core::primitive::u8>>,
@@ -9305,15 +7654,8 @@ pub mod runtime_types {
         pub mod sp_version {
             use super::runtime_types;
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct RuntimeVersion {
                 pub spec_name: ::std::string::String,
                 pub impl_name: ::std::string::String,
@@ -9331,15 +7673,8 @@ pub mod runtime_types {
             pub mod weight_v2 {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct Weight {
                     #[codec(compact)]
                     pub ref_time: ::core::primitive::u64,
@@ -9348,15 +7683,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct RuntimeDbWeight {
                 pub read: ::core::primitive::u64,
                 pub write: ::core::primitive::u64,
@@ -9367,15 +7695,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
@@ -9406,15 +7727,8 @@ pub mod runtime_types {
                     },
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
@@ -9431,15 +7745,8 @@ pub mod runtime_types {
                     BadOrigin,
                 }
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
@@ -9456,15 +7763,8 @@ pub mod runtime_types {
             pub mod extensions {
                 use super::runtime_types;
                 #[derive(
-                    ::subxt::ext::codec::Decode,
-                    ::subxt::ext::codec::Encode,
-                    ::subxt::ext::scale_decode::DecodeAsType,
-                    ::subxt::ext::scale_encode::EncodeAsType,
-                    Debug,
+                    Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
-                # [codec (crate = ::subxt::ext::codec)]
-                #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub struct DisableValueTransfers;
             }
             pub mod governance {
@@ -9474,15 +7774,11 @@ pub mod runtime_types {
                     pub mod pallet_custom_origins {
                         use super::runtime_types;
                         #[derive(
-                            ::subxt::ext::codec::Decode,
-                            ::subxt::ext::codec::Encode,
-                            ::subxt::ext::scale_decode::DecodeAsType,
-                            ::subxt::ext::scale_encode::EncodeAsType,
                             Debug,
+                            crate::gp::Decode,
+                            crate::gp::DecodeAsType,
+                            crate::gp::Encode,
                         )]
-                        # [codec (crate = ::subxt::ext::codec)]
-                        #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-                        #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                         pub enum Origin {
                             #[codec(index = 0)]
                             StakingAdmin,
@@ -9539,15 +7835,8 @@ pub mod runtime_types {
                 }
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum OriginCaller {
                 #[codec(index = 0)]
                 system(
@@ -9561,15 +7850,8 @@ pub mod runtime_types {
                 Void(runtime_types::sp_core::Void),
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum ProxyType {
                 #[codec(index = 0)]
                 Any,
@@ -9585,26 +7867,12 @@ pub mod runtime_types {
                 CancelProxy,
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct Runtime;
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum RuntimeCall {
                 #[codec(index = 0)]
                 System(runtime_types::frame_system::pallet::Call),
@@ -9664,15 +7932,8 @@ pub mod runtime_types {
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub enum RuntimeEvent {
                 #[codec(index = 0)]
                 System(runtime_types::frame_system::pallet::Event),
@@ -9730,15 +7991,8 @@ pub mod runtime_types {
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
             #[derive(
-                ::subxt::ext::codec::Decode,
-                ::subxt::ext::codec::Encode,
-                ::subxt::ext::scale_decode::DecodeAsType,
-                ::subxt::ext::scale_encode::EncodeAsType,
-                Debug,
+                Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
             )]
-            # [codec (crate = ::subxt::ext::codec)]
-            #[decode_as_type(crate_path = "::subxt::ext::scale_decode")]
-            #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
             pub struct SessionKeys {
                 pub babe: runtime_types::sp_consensus_babe::app::Public,
                 pub grandpa: runtime_types::sp_consensus_grandpa::app::Public,
