@@ -63,8 +63,6 @@ impl Api {
     }
 
     /// Parse transaction fee from InBlockEvents
-    ///
-    /// FIXME: Generate the impl of `RootEvent` for `Event`
     pub fn capture_weight_info(details: &EventDetails<GearConfig>) -> Result<()> {
         let event: Event = details.as_root_event::<Event>()?;
 

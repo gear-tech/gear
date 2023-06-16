@@ -48,7 +48,7 @@ use subxt::{
     dynamic::Value,
     metadata::EncodeWithMetadata,
     storage::StorageAddress,
-    tx::{DynamicPayload, TxPayload, TxProgress},
+    tx::{DynamicPayload, TxProgress},
     utils::Static,
     Error as SubxtError, OnlineClient,
 };
@@ -397,16 +397,7 @@ impl Signer {
 
         let before = self.balance().await?;
         let mut process = self.sign_and_submit_then_watch(&tx).await?;
-
-        // FIXME:
-        //
-        // subxt 0.29.0 hides ex details again.
-        //
-        // Get extrinsic details.
-        let (pallet, name) = tx
-            .validation_details()
-            .map(|d| (d.pallet_name.to_string(), d.call_name.to_string()))
-            .unwrap_or_else(|| ("Unknown".to_string(), "Unknown".to_string()));
+        let (pallet, name) = (tx.pallet_name(), tx.call_name());
 
         log::info!("Submitted extrinsic {}::{}", pallet, name);
 

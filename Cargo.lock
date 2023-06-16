@@ -4499,8 +4499,8 @@ dependencies = [
  "sc-executor",
  "sc-executor-common",
  "sp-io",
- "subxt-codegen",
- "subxt-metadata",
+ "subxt-codegen 0.29.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "subxt-metadata 0.29.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 2.0.18",
 ]
 
@@ -11778,8 +11778,7 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 [[package]]
 name = "subxt"
 version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31a734d66fa935fbda56ba6a71d7e969f424c8c5608d416ba8499d71d8cbfc1f"
+source = "git+https://github.com/paritytech/subxt.git?rev=f8b1b2bf945518e75a7f4d81df0c33d8537c0872#f8b1b2bf945518e75a7f4d81df0c33d8537c0872"
 dependencies = [
  "base58",
  "blake2",
@@ -11801,7 +11800,7 @@ dependencies = [
  "serde_json",
  "sp-core-hashing 9.0.0",
  "subxt-macro",
- "subxt-metadata",
+ "subxt-metadata 0.29.0 (git+https://github.com/paritytech/subxt.git?rev=f8b1b2bf945518e75a7f4d81df0c33d8537c0872)",
  "thiserror",
  "tracing",
 ]
@@ -11820,7 +11819,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scale-info",
- "subxt-metadata",
+ "subxt-metadata 0.29.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 2.0.18",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "subxt-codegen"
+version = "0.29.0"
+source = "git+https://github.com/paritytech/subxt.git?rev=f8b1b2bf945518e75a7f4d81df0c33d8537c0872#f8b1b2bf945518e75a7f4d81df0c33d8537c0872"
+dependencies = [
+ "frame-metadata",
+ "heck",
+ "hex",
+ "jsonrpsee",
+ "parity-scale-codec",
+ "proc-macro2",
+ "quote",
+ "scale-info",
+ "subxt-metadata 0.29.0 (git+https://github.com/paritytech/subxt.git?rev=f8b1b2bf945518e75a7f4d81df0c33d8537c0872)",
  "syn 2.0.18",
  "thiserror",
  "tokio",
@@ -11829,12 +11847,11 @@ dependencies = [
 [[package]]
 name = "subxt-macro"
 version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e544e41e1c84b616632cd2f86862342868f62e11e4cd9062a9e3dbf5fc871f64"
+source = "git+https://github.com/paritytech/subxt.git?rev=f8b1b2bf945518e75a7f4d81df0c33d8537c0872#f8b1b2bf945518e75a7f4d81df0c33d8537c0872"
 dependencies = [
  "darling 0.20.1",
  "proc-macro-error",
- "subxt-codegen",
+ "subxt-codegen 0.29.0 (git+https://github.com/paritytech/subxt.git?rev=f8b1b2bf945518e75a7f4d81df0c33d8537c0872)",
  "syn 2.0.18",
 ]
 
@@ -11843,6 +11860,18 @@ name = "subxt-metadata"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a01ce5044c81db3404d38c56f1e69d72eff72c54e5913c9bba4c0b58d376031f"
+dependencies = [
+ "frame-metadata",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core-hashing 9.0.0",
+ "thiserror",
+]
+
+[[package]]
+name = "subxt-metadata"
+version = "0.29.0"
+source = "git+https://github.com/paritytech/subxt.git?rev=f8b1b2bf945518e75a7f4d81df0c33d8537c0872#f8b1b2bf945518e75a7f4d81df0c33d8537c0872"
 dependencies = [
  "frame-metadata",
  "parity-scale-codec",
