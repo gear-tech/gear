@@ -266,7 +266,15 @@ async fn process_events(
         let mut events = rx.recv().await?;
         while events.block_hash() != block_hash {
             sleep(Duration::new(0, 500)).await;
-            events = rx.recv().await?;
+            events = timeout(
+                Duration::from_millis(wait_for_events_millisec as u64),
+                rx.recv(),
+            )
+            .await
+            .map_err(|_| {
+                tracing::debug!("Timeout is reached while waiting for events");
+                anyhow!(utils::EVENTS_TIMEOUT_ERR_STR)
+            })??;
         }
 
         let r = {
@@ -282,7 +290,7 @@ async fn process_events(
                     let event = event?.as_root_event::<gsdk::metadata::Event>()?;
                     v.push(event);
                 }
-                sleep(Duration::new(0, 500)).await;
+                sleep(Duration::new(0, 100)).await;
                 events = timeout(
                     Duration::from_millis(wait_for_events_millisec as u64),
                     rx.recv(),
