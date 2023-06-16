@@ -74,8 +74,6 @@ pub struct ProcessorContext {
     pub page_costs: PageCosts,
     /// Account existential deposit
     pub existential_deposit: u128,
-    /// Communication origin
-    pub origin: ProgramId,
     /// Current program id
     pub program_id: ProgramId,
     /// Map of code hashes to program ids of future programs, which are planned to be
@@ -510,10 +508,6 @@ impl EnvExt for Ext {
 
     fn block_timestamp(&self) -> Result<u64, Self::Error> {
         Ok(self.context.block_info.timestamp)
-    }
-
-    fn origin(&self) -> Result<gear_core::ids::ProgramId, Self::Error> {
-        Ok(self.context.origin)
     }
 
     fn send_init(&mut self) -> Result<u32, Self::Error> {
@@ -1043,7 +1037,6 @@ mod tests {
                 max_pages: 512.into(),
                 page_costs: PageCosts::new_for_tests(),
                 existential_deposit: 0,
-                origin: Default::default(),
                 program_id: Default::default(),
                 program_candidates_data: Default::default(),
                 program_rents: Default::default(),
