@@ -47,8 +47,7 @@ jobs:
       - name: "Cache: Unpack"
         continue-on-error: true
         run: |
-          tar -xf /root/cache/check_cache_${{ github.ref_name }}.tar -C /
-          tar -xf /root/cache/check_cargo_registry_${{ github.ref_name }}.tar -C /
+          tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked --features=runtime-test,runtime-benchmarks,lazy-pages
@@ -145,8 +144,3 @@ jobs:
           file: ./target/action-extrinsic-weights.json
           ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: "Cache: collected data"
-        run: |
-          mv ./target/pallet-tests.json /root/cache/
-          mv ./target/runtime-tests.json /root/cache/
