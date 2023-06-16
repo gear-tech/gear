@@ -66,7 +66,7 @@ jobs:
           sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && !contains(github.event.head_commit.message, '[skip-cache]') }}
+        if: ${{ github.event_name == 'pull_request' && !contains(github.event.head_commit.message, '[no-cache]') }}
         continue-on-error: true
         run: |
           tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -148,7 +148,7 @@ jobs:
           ./rust-covfix --version
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request'  && !contains(github.event.head_commit.message, '[skip-cache]' }}
+        if: ${{ github.event_name == 'pull_request'  && !contains(github.event.head_commit.message, '[no-cache]' }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -509,7 +509,7 @@ jobs:
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' }} && !contains(github.event.head_commit.message, '[skip-cache]') }}
+        if: ${{ github.event_name == 'pull_request' }} && !contains(github.event.head_commit.message, '[no-cache]') }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /
