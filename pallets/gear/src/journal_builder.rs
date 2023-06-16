@@ -1,0 +1,161 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2023 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use crate::{Config, ExecutionEnvironment, ExtManager, GasAllowanceOf, GasBalanceOf, Pallet};
+use common::{storage::Limiter, CodeStorage, Origin};
+use core_processor::{
+    common::{ExecutableActorData, JournalNote, PrechargedDispatch},
+    configs::BlockConfig,
+    ContextChargedForInstrumentation,
+};
+use frame_support::traits::{Get, Randomness};
+use gear_core::{ids::ProgramId, message::StoredDispatch};
+use parity_scale_codec::Encode;
+use sp_runtime::traits::UniqueSaturatedInto;
+
+pub(crate) struct JournalBuilder<'a, T: Config, F> {
+    pub block_config: &'a BlockConfig,
+    pub lazy_pages_enabled: bool,
+    pub ext_manager: &'a mut ExtManager<T>,
+    pub gas_limit: GasBalanceOf<T>,
+    pub dispatch: StoredDispatch,
+    pub balance: u128,
+    pub external: T::AccountId,
+    pub get_actor_data: F,
+}
+
+#[derive(Debug)]
+pub(crate) enum JournalBuilderError {
+    NoMemoryPages,
+}
+
+impl<'a, T, F> JournalBuilder<'a, T, F>
+where
+    T: Config,
+    T::AccountId: Origin,
+    F: FnOnce(
+        PrechargedDispatch,
+    ) -> Result<(PrechargedDispatch, Option<ExecutableActorData>), Vec<JournalNote>>,
+{
+    pub(crate) fn build(self) -> Result<Vec<JournalNote>, JournalBuilderError> {
+        // now it's semantically correct
+        match self.build_inner() {
+            Ok(err) => Err(err),
+            Err(journal) => Ok(journal),
+        }
+    }
+
+    fn build_inner(self) -> Result<JournalBuilderError, Vec<JournalNote>> {
+        let Self {
+            block_config,
+            lazy_pages_enabled,
+            ext_manager,
+            gas_limit,
+            dispatch,
+            balance,
+            external,
+            get_actor_data,
+        } = self;
+
+        let program_id = dispatch.destination();
+        let dispatch_id = dispatch.id();
+
+        // To start executing a message resources of a destination program should be
+        // fetched from the storage.
+        // The first step is to get program data so charge gas for the operation.
+        let precharged_dispatch = core_processor::precharge_for_program(
+            block_config,
+            GasAllowanceOf::<T>::get(),
+            dispatch.into_incoming(gas_limit),
+            program_id,
+        )?;
+
+        let (precharged_dispatch, actor_data) = get_actor_data(precharged_dispatch)?;
+
+        // The second step is to load instrumented binary code of the program but
+        // first its correct length should be obtained.
+        let context = core_processor::precharge_for_code_length(
+            block_config,
+            precharged_dispatch,
+            program_id,
+            actor_data,
+        )?;
+
+        // Load correct code length value.
+        let code_id = context.actor_data().code_id;
+        let code_len_bytes = T::CodeStorage::get_code_len(code_id).unwrap_or_else(|| {
+            unreachable!(
+                "Program '{:?}' exists so do code len '{:?}'",
+                program_id, code_id
+            )
+        });
+
+        // Adjust gas counters for fetching instrumented binary code.
+        let context = core_processor::precharge_for_code(block_config, context, code_len_bytes)?;
+
+        // Load instrumented binary code from storage.
+        let code = T::CodeStorage::get_code(code_id).unwrap_or_else(|| {
+            unreachable!(
+                "Program '{:?}' exists so do code '{:?}'",
+                program_id, code_id
+            )
+        });
+
+        // Reinstrument the code if necessary.
+        let schedule = T::Schedule::get();
+        let (code, context) =
+            if code.instruction_weights_version() == schedule.instruction_weights.version {
+                (code, ContextChargedForInstrumentation::from(context))
+            } else {
+                let context = core_processor::precharge_for_instrumentation(
+                    block_config,
+                    context,
+                    code.original_code_len(),
+                )?;
+
+                (Pallet::<T>::reinstrument_code(code_id, &schedule), context)
+            };
+
+        // The last one thing is to load program memory. Adjust gas counters for memory pages.
+        let context = core_processor::precharge_for_memory(block_config, context)?;
+
+        // Load program memory pages.
+        let memory_pages = match Pallet::<T>::get_and_track_memory_pages(
+            ext_manager,
+            program_id,
+            &context.actor_data().pages_with_data,
+            lazy_pages_enabled,
+        ) {
+            None => return Ok(JournalBuilderError::NoMemoryPages),
+            Some(m) => m,
+        };
+
+        let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
+        let origin = ProgramId::from_origin(external.into_origin());
+
+        let journal = core_processor::process::<ExecutionEnvironment>(
+            block_config,
+            (context, code, balance, origin).into(),
+            (random.encode(), bn.unique_saturated_into()),
+            memory_pages,
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
+
+        Err(journal)
+    }
+}

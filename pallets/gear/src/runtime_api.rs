@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::journal_builder::JournalBuilder;
 use common::ActiveProgram;
 use core::convert::TryFrom;
 use gear_core::memory::WasmPage;
@@ -48,7 +49,7 @@ where
             T::GasPrice::gas_price(initial_gas) + value.unique_saturated_into();
         CurrencyOf::<T>::deposit_creating(&account, max_balance.saturating_sub(balance));
 
-        let who = frame_support::dispatch::RawOrigin::Signed(account);
+        let who = frame_support::dispatch::RawOrigin::Signed(account.clone());
         let value: BalanceOf<T> = value.unique_saturated_into();
 
         QueueOf::<T>::clear();
@@ -148,118 +149,17 @@ where
 
             let skip_if_allowed = success_reply && gas_limit == 0;
 
-            // todo #1987 : consider to make more common for use in process_queue too
-            let build_journal = || {
-                let program_id = queued_dispatch.destination();
-                let precharged_dispatch = match core_processor::precharge_for_program(
-                    &block_config,
-                    GasAllowanceOf::<T>::get(),
-                    queued_dispatch.into_incoming(gas_limit),
-                    actor_id,
-                ) {
-                    Ok(d) => d,
-                    Err(journal) => {
-                        return journal;
-                    }
-                };
-
-                let balance = actor.balance;
-
-                let context = match core_processor::precharge_for_code_length(
-                    &block_config,
-                    precharged_dispatch,
-                    program_id,
-                    actor.executable_data,
-                ) {
-                    Ok(c) => c,
-                    Err(journal) => {
-                        return journal;
-                    }
-                };
-
-                let code_id = context.actor_data().code_id;
-                let code_len_bytes = match T::CodeStorage::get_code_len(code_id) {
-                    None => {
-                        unreachable!(
-                            "Program '{:?}' exists so do code len '{:?}'",
-                            program_id, code_id
-                        );
-                    }
-                    Some(c) => c,
-                };
-
-                let context = match core_processor::precharge_for_code(
-                    &block_config,
-                    context,
-                    code_len_bytes,
-                ) {
-                    Ok(c) => c,
-                    Err(journal) => {
-                        return journal;
-                    }
-                };
-
-                let code = match T::CodeStorage::get_code(code_id) {
-                    None => {
-                        unreachable!(
-                            "Program '{:?}' exists so do code '{:?}'",
-                            program_id, code_id
-                        );
-                    }
-                    Some(c) => c,
-                };
-
-                let schedule = T::Schedule::get();
-                let (code, context) = match code.instruction_weights_version()
-                    == schedule.instruction_weights.version
-                {
-                    true => (code, ContextChargedForInstrumentation::from(context)),
-                    false => {
-                        let context = match core_processor::precharge_for_instrumentation(
-                            &block_config,
-                            context,
-                            code.original_code_len(),
-                        ) {
-                            Ok(c) => c,
-                            Err(journal) => {
-                                return journal;
-                            }
-                        };
-
-                        (Self::reinstrument_code(code_id, &schedule), context)
-                    }
-                };
-
-                let context = match core_processor::precharge_for_memory(&block_config, context) {
-                    Ok(c) => c,
-                    Err(journal) => {
-                        return journal;
-                    }
-                };
-
-                let memory_pages = match Self::get_and_track_memory_pages(
-                    &mut ext_manager,
-                    program_id,
-                    &context.actor_data().pages_with_data,
-                    lazy_pages_enabled,
-                ) {
-                    None => unreachable!(),
-                    Some(m) => m,
-                };
-
-                let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-                let origin = ProgramId::from_origin(source);
-
-                core_processor::process::<ExecutionEnvironment>(
-                    &block_config,
-                    (context, code, balance, origin).into(),
-                    (random.encode(), bn.unique_saturated_into()),
-                    memory_pages,
-                )
-                .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
+            let builder = JournalBuilder {
+                block_config: &block_config,
+                lazy_pages_enabled,
+                ext_manager: &mut ext_manager,
+                gas_limit,
+                dispatch: queued_dispatch,
+                balance: actor.balance,
+                external: account.clone(),
+                get_actor_data: |dispatch| Ok((dispatch, actor.executable_data)),
             };
-
-            let journal = build_journal();
+            let journal = builder.build().unwrap_or_else(|e| unreachable!("{e:?}"));
 
             let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 

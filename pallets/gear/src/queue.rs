@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::journal_builder::{JournalBuilder, JournalBuilderError};
+use core_processor::common::PrechargedDispatch;
 
 pub(crate) enum ActorResult {
     Continue,
@@ -86,34 +88,19 @@ where
             let dispatch_id = dispatch.id();
             let dispatch_reply = dispatch.reply().is_some();
 
-            // To start executing a message resources of a destination program should be
-            // fetched from the storage.
-            // The first step is to get program data so charge gas for the operation.
-            let precharged_dispatch = match core_processor::precharge_for_program(
-                &block_config,
-                GasAllowanceOf::<T>::get(),
-                dispatch.into_incoming(gas_limit),
-                program_id,
-            ) {
-                Ok(d) => d,
-                Err(journal) => {
-                    core_processor::handle_journal(journal, &mut ext_manager);
+            let balance = CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
+                program_id.into_origin(),
+            ));
 
-                    continue;
-                }
-            };
-
-            // At this point gas counters should be changed accordingly so fetch the program data.
-            let active_actor_data =
+            let get_actor_data = |precharged_dispatch: PrechargedDispatch| {
+                // At this point gas counters should be changed accordingly so fetch the program data.
                 match Self::get_active_actor_data(program_id, dispatch_id, dispatch_reply) {
-                    ActorResult::Data(d) => d,
+                    ActorResult::Data(data) => Ok((precharged_dispatch, data)),
                     ActorResult::Continue => {
                         let (dispatch, journal) = precharged_dispatch.into_dispatch_and_note();
                         let (kind, message, context) = dispatch.into();
                         let dispatch =
                             StoredDispatch::new(kind, message.into_stored(program_id), context);
-
-                        core_processor::handle_journal(journal, &mut ext_manager);
 
                         // Adding id in on-init wake list.
                         ProgramStorageOf::<T>::waiting_init_append_message_id(
@@ -127,117 +114,27 @@ where
                             MessageWaitedSystemReason::ProgramIsNotInitialized.into_reason(),
                         );
 
-                        continue;
+                        Err(journal)
                     }
-                };
-
-            // The second step is to load instrumented binary code of the program but
-            // first its correct length should be obtained.
-            let context = match core_processor::precharge_for_code_length(
-                &block_config,
-                precharged_dispatch,
-                program_id,
-                active_actor_data,
-            ) {
-                Ok(c) => c,
-                Err(journal) => {
-                    core_processor::handle_journal(journal, &mut ext_manager);
-                    continue;
                 }
             };
 
-            // Load correct code length value.
-            let code_id = context.actor_data().code_id;
-            let code_len_bytes = match T::CodeStorage::get_code_len(code_id) {
-                None => {
-                    unreachable!(
-                        "Program '{:?}' exists so do code len '{:?}'",
-                        program_id, code_id
-                    );
-                }
-                Some(c) => c,
-            };
-
-            // Adjust gas counters for fetching instrumented binary code.
-            let context =
-                match core_processor::precharge_for_code(&block_config, context, code_len_bytes) {
-                    Ok(c) => c,
-                    Err(journal) => {
-                        core_processor::handle_journal(journal, &mut ext_manager);
-                        continue;
-                    }
-                };
-
-            // Load instrumented binary code from storage.
-            let code = match T::CodeStorage::get_code(code_id) {
-                None => {
-                    unreachable!(
-                        "Program '{:?}' exists so do code '{:?}'",
-                        program_id, code_id
-                    );
-                }
-                Some(c) => c,
-            };
-
-            // Reinstrument the code if necessary.
-            let schedule = T::Schedule::get();
-            let (code, context) =
-                match code.instruction_weights_version() == schedule.instruction_weights.version {
-                    true => (code, ContextChargedForInstrumentation::from(context)),
-                    false => {
-                        let context = match core_processor::precharge_for_instrumentation(
-                            &block_config,
-                            context,
-                            code.original_code_len(),
-                        ) {
-                            Ok(c) => c,
-                            Err(journal) => {
-                                core_processor::handle_journal(journal, &mut ext_manager);
-                                continue;
-                            }
-                        };
-
-                        (Self::reinstrument_code(code_id, &schedule), context)
-                    }
-                };
-
-            // The last one thing is to load program memory. Adjust gas counters for memory pages.
-            let context = match core_processor::precharge_for_memory(&block_config, context) {
-                Ok(c) => c,
-                Err(journal) => {
-                    core_processor::handle_journal(journal, &mut ext_manager);
-                    continue;
-                }
-            };
-
-            // Load program memory pages.
-            let memory_pages = match Self::get_and_track_memory_pages(
-                &mut ext_manager,
-                program_id,
-                &context.actor_data().pages_with_data,
+            let builder = JournalBuilder {
+                block_config: &block_config,
                 lazy_pages_enabled,
-            ) {
-                None => continue,
-                Some(m) => m,
+                ext_manager: &mut ext_manager,
+                gas_limit,
+                dispatch,
+                balance: balance.unique_saturated_into(),
+                external,
+                get_actor_data,
             };
-
-            let balance = CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
-                program_id.into_origin(),
-            ))
-            .unique_saturated_into();
-
-            let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-            let origin = ProgramId::from_origin(external.into_origin());
-
-            let journal = core_processor::process::<ExecutionEnvironment>(
-                &block_config,
-                (context, code, balance, origin).into(),
-                (random.encode(), bn.unique_saturated_into()),
-                memory_pages,
-            )
-            .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
-
-            core_processor::handle_journal(journal, &mut ext_manager);
+            match builder.build() {
+                Ok(journal) => {
+                    core_processor::handle_journal(journal, &mut ext_manager);
+                }
+                Err(JournalBuilderError::NoMemoryPages) => continue,
+            }
         }
 
         let post_data: QueuePostProcessingData = ext_manager.into();
