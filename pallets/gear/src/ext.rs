@@ -17,15 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{collections::BTreeSet, vec::Vec};
-use core_processor::{Ext, ProcessorAllocError, ProcessorContext, ProcessorError, ProcessorExt};
+use core_processor::{Ext, ExtAllocError, ExtError, ProcessorContext, ProcessorExternalities};
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
-    BackendExt, ExtInfo,
+    BackendExternalities, ExtInfo,
 };
 use gear_core::{
     costs::RuntimeCosts,
-    env::Ext as EnvExt,
+    env::Externalities,
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GearPage, GrowHandler, Memory, MemoryInterval, PageU32Size, WasmPage},
@@ -40,7 +40,7 @@ pub struct LazyPagesExt {
     inner: Ext,
 }
 
-impl BackendExt for LazyPagesExt {
+impl BackendExternalities for LazyPagesExt {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
@@ -69,7 +69,7 @@ impl BackendExt for LazyPagesExt {
     }
 }
 
-impl ProcessorExt for LazyPagesExt {
+impl ProcessorExternalities for LazyPagesExt {
     const LAZY_PAGES_ENABLED: bool = true;
 
     fn new(context: ProcessorContext) -> Self {
@@ -152,9 +152,9 @@ impl CountersOwner for LazyPagesExt {
     }
 }
 
-impl EnvExt for LazyPagesExt {
-    type Error = ProcessorError;
-    type AllocError = ProcessorAllocError;
+impl Externalities for LazyPagesExt {
+    type Error = ExtError;
+    type AllocError = ExtAllocError;
 
     fn alloc(
         &mut self,
