@@ -149,13 +149,16 @@ fn generate_runtime_types(metadata: Metadata) -> TokenStream {
 }
 
 fn generate_impls(metadata: &Metadata) -> TokenStream {
-    let root_event_if_arms = metadata.pallets().filter_map(|p| {
-        let variant_name_str = &p.name();
+    let mut root_event_if_arms = Vec::new();
+    let mut exports = Vec::new();
+
+    for p in metadata.pallets() {
+        let variant_name_str = p.name();
         let variant_name = format_ident!("{}", variant_name_str);
         let mod_name = format_ident!("{}", variant_name_str.to_string().to_snake_case());
 
-        p.event_ty_id().map(|_| {
-            quote! {
+        if let Some(_) = p.event_ty_id() {
+            let ia = quote! {
                 if pallet_name == #variant_name_str {
                     return Ok(Event::#variant_name(crate::metadata::#mod_name::Event::decode_with_metadata(
                         &mut &*pallet_bytes,
@@ -163,9 +166,45 @@ fn generate_impls(metadata: &Metadata) -> TokenStream {
                         metadata
                     )?));
                 }
-            }
-        })
-    });
+            };
+            root_event_if_arms.push(ia);
+
+            let export = {
+                let pallet_name = variant_name_str.to_snake_case();
+                let pallet = format_ident!(
+                    "{}",
+                    match pallet_name.as_str() {
+                        "system" => "frame_system".into(),
+                        "validator_set" => "substrate_validator_set".into(),
+                        "fellowship_collective" => "pallet_ranked_collective".into(),
+                        "fellowship_referenda" => "pallet_referenda".into(),
+                        "staking_rewards" => "pallet_gear_staking_rewards".into(),
+                        _ => "pallet_".to_string() + &pallet_name,
+                    }
+                );
+
+                let export = match pallet_name.as_str() {
+                    "staking" => quote! {
+                        pub use super::runtime_types::#pallet::pallet::pallet::Event;
+                    },
+                    "fellowship_referenda" => quote! {
+                        pub use super::runtime_types::#pallet::pallet::Event2 as Event;
+                    },
+                    _ => quote! {
+                        pub use super::runtime_types::#pallet::pallet::Event;
+                    },
+                };
+
+                let name = format_ident!("{}", pallet_name);
+                quote! {
+                    pub mod #name {
+                        #export
+                    }
+                }
+            };
+            exports.push(export);
+        }
+    }
 
     quote! {
         pub mod impls {
@@ -187,6 +226,12 @@ fn generate_impls(metadata: &Metadata) -> TokenStream {
                     ).into())
                 }
             }
+        }
+
+        pub mod exports {
+            use crate::metadata::runtime_types;
+
+            #( #exports )*
         }
     }
 }
