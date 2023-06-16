@@ -261,6 +261,7 @@ extern "C" fn metahash() {{
         Ok(())
     }
 
+    /// Generate output wasm meta file and wasm binary informational file.
     pub fn postprocess_meta(
         &self,
         original_wasm_path: &PathBuf,
@@ -292,17 +293,16 @@ extern "C" fn metahash() {{
         .map_err(Into::into)
     }
 
+    /// Generates output optimized wasm file, `.binpath` file for our tests system
+    /// and wasm binaries informational file.
+    /// Makes a copy of original wasm file in `self.wasm_target_dir`.
     pub fn postprocess_opt(
         &self,
         original_wasm_path: &PathBuf,
         file_base_name: &String,
     ) -> Result<()> {
-        let opt_wasm_path = self
-            .wasm_target_dir
-            .join([file_base_name, ".opt.wasm"].concat());
-        let original_copy_wasm_path = self
-            .wasm_target_dir
-            .join([file_base_name, ".wasm"].concat());
+        let [original_copy_wasm_path, opt_wasm_path] = [".wasm", ".opt.wasm"]
+            .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
 
         // Copy original file to `self.wasm_target_dir`
         smart_fs::copy_if_newer(original_wasm_path, &original_copy_wasm_path)
