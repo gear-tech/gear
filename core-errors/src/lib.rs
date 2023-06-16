@@ -49,29 +49,29 @@ pub enum MessageError {
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).
     #[display(fmt = "Message limit exceeded")]
-    OutgoingMessagesAmountLimitExceeded = 3,
+    OutgoingMessagesAmountLimitExceeded = 1,
 
     /// The error occurs in case of attempt to send more than one replies.
     #[display(fmt = "Duplicate reply message")]
-    DuplicateReply = 4,
+    DuplicateReply = 2,
 
     /// The error occurs in attempt to get the same message from the waitlist
     /// again (which is waked already).
     #[display(fmt = "Duplicate waking message")]
-    DuplicateWaking = 5,
+    DuplicateWaking = 3,
 
     /// An attempt to commit or push a payload into an already formed message.
     #[display(fmt = "An attempt to commit or push a payload into an already formed message")]
-    LateAccess = 6,
+    LateAccess = 4,
 
     /// The error occurs in case of not valid identifier specified.
     #[display(fmt = "Message with given handle is not found")]
-    OutOfBounds = 7,
+    OutOfBounds = 5,
 
     /// The error occurs in attempt to initialize the same program twice within
     /// a single execution.
     #[display(fmt = "Duplicated program initialization message")]
-    DuplicateInit = 8,
+    DuplicateInit = 6,
 
     /// Everything less than existential deposit but greater than 0 is not considered as available balance and not saved in DB.
     /// Value between 0 and existential deposit cannot be sent in message.
@@ -83,7 +83,7 @@ pub enum MessageError {
         message_value: u128,
         /// Minimal amount of funds on a balance that can be considered and added in DB.
         existential_deposit: u128,
-    } = 10,
+    } = 7,
 
     /// Everything less than mailbox threshold but greater than 0 is not considered as available gas limit and
     /// not inserted in mailbox.
@@ -97,7 +97,7 @@ pub enum MessageError {
         message_gas_limit: u64,
         /// Minimal amount of gas limit on a message that can be inserted in mailbox.
         mailbox_threshold: u64,
-    } = 11,
+    } = 8,
 
     /// The error occurs when program's balance is less than value in message it tries to send.
     #[display(
@@ -108,24 +108,24 @@ pub enum MessageError {
         message_value: u128,
         /// Amount of available value.
         value_left: u128,
-    } = 12,
+    } = 9,
 
     // TODO: remove after delay refactoring is done
     /// An error occurs in attempt to charge gas for dispatch stash hold.
     #[display(fmt = "Not enough gas to hold dispatch message")]
-    InsufficientGasForDelayedSending = 16,
+    InsufficientGasForDelayedSending = 10,
 
     /// The error occurs when program tries to create reply deposit for message
     /// that already been created within the execution.
     #[display(fmt = "Reply deposit already exists for given message")]
-    DuplicateReplyDeposit = 17,
+    DuplicateReplyDeposit = 11,
 
     /// The error occurs when program tries to create reply deposit for message
     /// that wasn't sent within the execution or for reply.
     #[display(
         fmt = "Reply deposit could be only created for init or handle message sent within the execution"
     )]
-    IncorrectMessageForReplyDeposit = 18,
+    IncorrectMessageForReplyDeposit = 12,
 }
 
 /// Error using waiting syscalls.
