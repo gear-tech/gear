@@ -52,7 +52,7 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
         WakeMessage(_, _) => 0,
         SendDispatch(_) => 0,
         SendUserMessage { .. } => 0,
-        RemoveGasReservation(_, _) => 0,
+        RemoveGasReservation(_, _) => <T as Config>::WeightInfo::tasks_remove_gas_reservation().ref_time(),
         RemoveResumeSession(_) => <T as Config>::WeightInfo::tasks_remove_resume_session().ref_time(),
     }
 }
@@ -334,7 +334,7 @@ where
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) -> Gas {
         let _slot = Self::remove_gas_reservation_impl(program_id, reservation_id);
 
-        0
+        <T as Config>::WeightInfo::tasks_remove_gas_reservation().ref_time()
     }
 
     fn remove_resume_session(&mut self, session_id: SessionId) -> Gas {

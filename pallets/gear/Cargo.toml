@@ -57,6 +57,7 @@ rand_pcg = { workspace = true, optional = true }
 sp-consensus-slots = { workspace = true, optional = true }
 test-syscalls = { workspace = true, optional = true }
 demo-proxy = { workspace = true, optional = true }
+demo-reserve-gas = { workspace = true, optional = true }
 
 [dev-dependencies]
 wabt.workspace = true
@@ -147,6 +148,7 @@ std = [
 	"sp-consensus-babe/std",
 	"test-syscalls?/std",
 	"demo-proxy?/std",
+	"demo-reserve-gas?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -163,6 +165,7 @@ runtime-benchmarks = [
 	"test-syscalls/wasm-wrapper",
 	"demo-proxy/wasm-wrapper",
 	"gsys",
+	"demo-reserve-gas/wasm-wrapper",
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]

@@ -365,7 +365,7 @@ demo-proxy = { path = "examples/binaries/proxy", default-features = false }
 demo-proxy-relay = { path = "examples/binaries/proxy-relay" }
 demo-proxy-reservation-with-gas = { path = "examples/binaries/proxy-reservation-with-gas" }
 demo-reservation-manager = { path = "examples/binaries/reservation-manager" }
-demo-reserve-gas = { path = "examples/binaries/reserve-gas" }
+demo-reserve-gas = { path = "examples/binaries/reserve-gas", default-features = false }
 demo-rwlock = { path = "examples/binaries/rwlock" }
 demo-send-from-reservation = { path = "examples/binaries/send-from-reservation" }
 demo-signal-entry = { path = "examples/binaries/signal-entry" }

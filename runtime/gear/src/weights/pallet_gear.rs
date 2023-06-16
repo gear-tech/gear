@@ -216,6 +216,7 @@ pub trait WeightInfo {
     fn instr_i64rotr(r: u32, ) -> Weight;
     fn instr_i32rotr(r: u32, ) -> Weight;
     fn tasks_remove_resume_session() -> Weight;
+    fn tasks_remove_gas_reservation() -> Weight;
     fn allocation_cost() -> Weight;
     fn grow_cost() -> Weight;
     fn initial_cost() -> Weight;
@@ -2076,6 +2077,15 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(1_u64))
             .saturating_add(T::DbWeight::get().writes(2_u64))
     }
+    fn tasks_remove_gas_reservation() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `714`
+        //  Estimated: `16349`
+        // Minimum execution time: 19_000_000 picoseconds.
+        Weight::from_parts(21_000_000, 16349)
+            .saturating_add(T::DbWeight::get().reads(5_u64))
+            .saturating_add(T::DbWeight::get().writes(4_u64))
+    }
 }
 
 // For backwards compatibility and tests
@@ -3929,5 +3939,14 @@ impl WeightInfo for () {
         Weight::from_parts(3_000_000, 4169)
             .saturating_add(RocksDbWeight::get().reads(1_u64))
             .saturating_add(RocksDbWeight::get().writes(2_u64))
+    }
+    fn tasks_remove_gas_reservation() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `714`
+        //  Estimated: `16349`
+        // Minimum execution time: 19_000_000 picoseconds.
+        Weight::from_parts(21_000_000, 16349)
+            .saturating_add(RocksDbWeight::get().reads(5_u64))
+            .saturating_add(RocksDbWeight::get().writes(4_u64))
     }
 }

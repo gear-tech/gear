@@ -23,12 +23,12 @@ extern crate alloc;
 use alloc::vec::Vec;
 use parity_scale_codec::{Decode, Encode};
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 pub const RESERVATION_AMOUNT: u64 = 50_000_000;
@@ -62,7 +62,7 @@ pub enum ReplyAction {
 pub type GasAmount = u64;
 pub type BlockCount = u32;
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     use super::*;
     use gstd::{

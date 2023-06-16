@@ -2752,6 +2752,39 @@ benchmarks! {
     verify {
     }
 
+    tasks_remove_gas_reservation {
+        use demo_reserve_gas::{InitAction, WASM_BINARY};
+
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+
+        init_block::<T>(None);
+
+        let salt = vec![];
+        let program_id = ProgramId::generate(CodeId::generate(WASM_BINARY), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(),
+            WASM_BINARY.to_vec(),
+            salt,
+            InitAction::Normal(vec![(50_000, 100),])
+                .encode(),
+            10_000_000_000, 0u32.into()).expect("submit program failed");
+
+        Gear::<T>::process_queue(Default::default());
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
+            .expect("program should exist")
+            .try_into()
+            .expect("program should be active");
+
+        let reservation_id = program.gas_reservation_map.first_key_value().map(|(k, _v)| *k).unwrap();
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_gas_reservation(program_id, reservation_id);
+    }
+    verify {
+    }
+
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently
     // configured `Schedule` during benchmark development.
     // It can be outputted using the following command:
