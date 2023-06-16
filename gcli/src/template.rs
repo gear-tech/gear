@@ -22,7 +22,9 @@ use crate::result::Result;
 use anyhow::anyhow;
 use etc::{Etc, FileSystem, Read, Write};
 use reqwest::Client;
-use std::process::Command;
+use std::{env, process::Command};
+
+const GITHUB_TOKEN: &str = "GITHUB_AUTH_TOKEN";
 
 /// see https://docs.github.com/en/rest/repos/repos
 const GEAR_DAPPS_GH_API: &str = "https://api.github.com/orgs/gear-dapps/repos";
@@ -36,16 +38,22 @@ struct Repo {
 
 /// List all examples.
 pub async fn list() -> Result<Vec<String>> {
-    let r = Client::builder()
+    let mut rb = Client::builder()
         .user_agent("gcli")
         .build()
         .map_err(|e| anyhow!("Failed to build http client: {}", e))?
-        .get(GEAR_DAPPS_GH_API)
+        .get(GEAR_DAPPS_GH_API);
+
+    if let Some(tk) = env::var(GITHUB_TOKEN).ok() {
+        rb = rb.header("Authorization:", format!("Bearer {}", tk));
+    }
+
+    let resp = rb
         .send()
         .await
         .map_err(|e| anyhow!("Failed to get examples: {}", e))?;
 
-    let repos = r
+    let repos = resp
         .json::<Vec<Repo>>()
         .await
         .map_err(|e| anyhow!("Failed to deserialize example list: {}", e))?
