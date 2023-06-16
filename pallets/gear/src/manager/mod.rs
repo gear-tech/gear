@@ -47,9 +47,11 @@
 
 mod journal;
 mod task;
+mod task_gas_allowance;
 
 pub use journal::*;
 pub use task::*;
+pub use task_gas_allowance::TaskGasAllowance;
 
 use crate::{Config, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf};
 use common::{

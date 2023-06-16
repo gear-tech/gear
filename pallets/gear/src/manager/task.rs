@@ -44,7 +44,7 @@ impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    fn pause_program(&mut self, program_id: ProgramId) {
+    fn pause_program(&mut self, program_id: ProgramId) -> Gas {
         log::debug!("pause_program; id = {:?}", program_id);
 
         let program = ProgramStorageOf::<T>::get_program(program_id)
@@ -70,7 +70,7 @@ where
                 change: ProgramChangeKind::Paused,
             });
 
-            return;
+            return 0;
         };
 
         // terminate uninitialized program
@@ -142,13 +142,15 @@ where
         }
 
         Pallet::<T>::deposit_event(event);
+
+        0
     }
 
-    fn remove_code(&mut self, _code_id: CodeId) {
-        todo!("#646");
+    fn remove_code(&mut self, _code_id: CodeId) -> Gas {
+        todo!("#646")
     }
 
-    fn remove_from_mailbox(&mut self, user_id: T::AccountId, message_id: MessageId) {
+    fn remove_from_mailbox(&mut self, user_id: T::AccountId, message_id: MessageId) -> Gas {
         // Read reason.
         let reason = UserMessageReadSystemReason::OutOfRent.into_reason();
 
@@ -188,9 +190,11 @@ where
         // Queueing dispatch.
         QueueOf::<T>::queue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+
+        0
     }
 
-    fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) {
+    fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas {
         // Wake reason.
         let reason = MessageWokenSystemReason::OutOfRent.into_reason();
 
@@ -259,13 +263,15 @@ where
 
         // Consuming gas handler for waitlisted message.
         Pallet::<T>::consume_and_retrieve(waitlisted.id());
+
+        0
     }
 
-    fn remove_paused_program(&mut self, _program_id: ProgramId) {
-        todo!("#646");
+    fn remove_paused_program(&mut self, _program_id: ProgramId) -> Gas {
+        todo!("#646")
     }
 
-    fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) {
+    fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas {
         if let Some(dispatch) = Pallet::<T>::wake_dispatch(
             program_id,
             message_id,
@@ -274,9 +280,11 @@ where
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
+
+        0
     }
 
-    fn send_dispatch(&mut self, stashed_message_id: MessageId) {
+    fn send_dispatch(&mut self, stashed_message_id: MessageId) -> Gas {
         // No validation required. If program doesn't exist, then NotExecuted appears.
 
         let (dispatch, hold_interval) = DispatchStashOf::<T>::take(stashed_message_id)
@@ -287,9 +295,11 @@ where
 
         QueueOf::<T>::queue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+
+        0
     }
 
-    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) {
+    fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) -> Gas {
         // TODO: validate here destination and send error reply, if required.
         // Atm despite the fact that program may exist, message goes into mailbox / event.
         let (message, hold_interval) = DispatchStashOf::<T>::take(stashed_message_id)
@@ -300,15 +310,21 @@ where
         Pallet::<T>::charge_for_hold(message.id(), hold_interval, StorageType::DispatchStash);
 
         Pallet::<T>::send_user_message_after_delay(message, to_mailbox);
+
+        0
     }
 
-    fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) {
+    fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) -> Gas {
         let _slot = Self::remove_gas_reservation_impl(program_id, reservation_id);
+
+        0
     }
 
-    fn remove_resume_session(&mut self, session_id: SessionId) {
+    fn remove_resume_session(&mut self, session_id: SessionId) -> Gas {
         log::debug!("Execute task to remove resume session with session_id = {session_id}");
         ProgramStorageOf::<T>::remove_resume_session(session_id)
             .unwrap_or_else(|e| unreachable!("ProgramStorage corrupted! {:?}", e));
+
+        0
     }
 }

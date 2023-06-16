@@ -949,22 +949,22 @@ pub mod pallet {
                     // Decreasing gas allowance due to DB deletion.
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
 
-                    // Processing task.
-                    //
-                    // NOTE: Gas allowance decrease should be implemented
-                    // inside `TaskHandler` trait and/or inside other
-                    // generic types, which interact with storage.
-                    task.process_with(ext_manager);
+                    let mut task_gas_allowance = manager::TaskGasAllowance::<T>::new();
+                    let task_gas = task.clone().process_with(&mut task_gas_allowance);
 
                     // Checking gas allowance.
                     //
                     // Making sure we have gas to remove next task
                     // or update the first block of incomplete tasks.
-                    if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
+                    if GasAllowanceOf::<T>::get().saturating_sub(task_gas) <= DbWeightOf::<T>::get().writes(2).ref_time() {
                         stopped_at = Some(bn);
                         log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
                     }
+
+                    // Processing task and update allowance of gas.
+                    let task_gas = task.process_with(ext_manager);
+                    GasAllowanceOf::<T>::decrease(task_gas);
                 }
 
                 // Stopping iteration over blocks if no resources left.
