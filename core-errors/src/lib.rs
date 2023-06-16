@@ -226,7 +226,7 @@ pub enum ExecutionError {
         at: u32,
         /// Range length
         len: u32,
-    } = 6,
+    } = 2,
 
     /// Cannot take data in payload range
     #[display(
@@ -239,23 +239,23 @@ pub enum ExecutionError {
         end: u32,
         /// Message length
         msg_len: u32,
-    } = 7,
+    } = 3,
 
     /// The error occurs when functions related to reply context, used without it.
     #[display(fmt = "Not running in reply context")]
-    NoReplyContext = 8,
+    NoReplyContext = 4,
 
     /// The error occurs when functions related to signal context, used without it.
     #[display(fmt = "Not running in signal context")]
-    NoSignalContext = 9,
+    NoSignalContext = 5,
 
     /// The error occurs when functions related to status code, used without required context.
     #[display(fmt = "No status code in reply/signal context")]
-    NoStatusCodeContext = 10,
+    NoStatusCodeContext = 6,
 
     /// An error occurs in attempt to send or push reply while reply function is banned.
     #[display(fmt = "Reply sending is only allowed in `init` and `handle` functions")]
-    IncorrectEntryForReply = 11,
+    IncorrectEntryForReply = 7,
 }
 
 /// An error occurred in API.
