@@ -949,8 +949,7 @@ pub mod pallet {
                     // Decreasing gas allowance due to DB deletion.
                     GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
 
-                    let mut task_gas_allowance = manager::TaskGasAllowance::<T>::new();
-                    let task_gas = task.clone().process_with(&mut task_gas_allowance);
+                    let task_gas = manager::get_maximum_task_gas::<T>(&task);
 
                     // Checking gas allowance.
                     //

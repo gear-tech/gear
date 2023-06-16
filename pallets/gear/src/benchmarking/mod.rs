@@ -68,7 +68,7 @@ use common::{
     paused_program_storage::SessionId,
     storage::{Counter, *},
     ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, PausedProgramStorage,
-    ProgramStorage, ReservableTree,
+    ProgramStorage, ReservableTree, scheduler::TaskHandler,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -240,6 +240,17 @@ where
     .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
 
+#[track_caller]
+fn get_last_session_id_if_any<T: Config>() -> Option<SessionId> {
+    let event_record = SystemPallet::<T>::events().pop().unwrap();
+    let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
+    let event: Result<Event<T>, _> = event.try_into();
+    match event {
+        Ok(Event::ProgramResumeSessionStarted { session_id, .. }) => Some(session_id),
+        _ => None,
+    }
+}
+
 fn resume_session_prepare<T: Config>(
     c: u32,
     program_id: ProgramId,
@@ -260,14 +271,6 @@ where
     )
     .expect("failed to start resume session");
 
-    let event_record = SystemPallet::<T>::events().pop().unwrap();
-    let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
-    let event: Result<Event<T>, _> = event.try_into();
-    let session_id = match event {
-        Ok(Event::ProgramResumeSessionStarted { session_id, .. }) => session_id,
-        _ => unreachable!(),
-    };
-
     let memory_pages = {
         let mut pages = Vec::with_capacity(c as usize);
         for i in 0..c {
@@ -277,7 +280,7 @@ where
         pages
     };
 
-    (session_id, memory_pages)
+    (get_last_session_id_if_any::<T>().unwrap(), memory_pages)
 }
 
 /// An instantiated and deployed program.
@@ -2719,6 +2722,34 @@ benchmarks! {
         ));
     }: {
         sbox.invoke();
+    }
+
+    tasks_remove_resume_session {
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let salt = vec![];
+        let program_id = ProgramId::generate(CodeId::generate(&code), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into()).expect("submit program failed");
+
+        init_block::<T>(None);
+
+        ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
+
+        Gear::<T>::resume_session_init(
+            RawOrigin::Signed(caller).into(),
+            program_id,
+            Default::default(),
+            CodeId::default(),
+        )
+        .expect("failed to start resume session");
+
+        let session_id = get_last_session_id_if_any::<T>().unwrap();
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_resume_session(session_id);
+    }
+    verify {
     }
 
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently

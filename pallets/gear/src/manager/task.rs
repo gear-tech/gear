@@ -18,7 +18,7 @@
 
 use crate::{
     manager::ExtManager, Config, CurrencyOf, DispatchStashOf, Event, Pallet, ProgramStorageOf,
-    QueueOf, WaitlistOf,
+    QueueOf, WaitlistOf, weights::WeightInfo,
 };
 use alloc::string::ToString;
 use common::{
@@ -39,6 +39,23 @@ use gear_core::{
 };
 use gear_core_errors::{SimpleReplyError, SimpleSignalError};
 use sp_runtime::traits::Zero;
+
+pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Gas {
+    use ScheduledTask::*;
+
+    match task {
+        PauseProgram(_) => 0,
+        RemoveCode(_) => todo!("#646"),
+        RemoveFromMailbox(_, _) => 0,
+        RemoveFromWaitlist(_, _) => 0,
+        RemovePausedProgram(_) => todo!("#646"),
+        WakeMessage(_, _) => 0,
+        SendDispatch(_) => 0,
+        SendUserMessage { .. } => 0,
+        RemoveGasReservation(_, _) => 0,
+        RemoveResumeSession(_) => <T as Config>::WeightInfo::tasks_remove_resume_session().ref_time(),
+    }
+}
 
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
@@ -325,6 +342,6 @@ where
         ProgramStorageOf::<T>::remove_resume_session(session_id)
             .unwrap_or_else(|e| unreachable!("ProgramStorage corrupted! {:?}", e));
 
-        0
+        <T as Config>::WeightInfo::tasks_remove_resume_session().ref_time()
     }
 }

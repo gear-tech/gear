@@ -215,6 +215,7 @@ pub trait WeightInfo {
     fn instr_i32rotl(r: u32, ) -> Weight;
     fn instr_i64rotr(r: u32, ) -> Weight;
     fn instr_i32rotr(r: u32, ) -> Weight;
+    fn tasks_remove_resume_session() -> Weight;
     fn allocation_cost() -> Weight;
     fn grow_cost() -> Weight;
     fn initial_cost() -> Weight;
@@ -2066,6 +2067,15 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             // Standard Error: 6_162
             .saturating_add(Weight::from_parts(509_221, 0).saturating_mul(r.into()))
     }
+    fn tasks_remove_resume_session() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `352`
+        //  Estimated: `4169`
+        // Minimum execution time: 3_000_000 picoseconds.
+        Weight::from_parts(3_000_000, 4169)
+            .saturating_add(T::DbWeight::get().reads(1_u64))
+            .saturating_add(T::DbWeight::get().writes(2_u64))
+    }
 }
 
 // For backwards compatibility and tests
@@ -3910,5 +3920,14 @@ impl WeightInfo for () {
         Weight::from_parts(2_256_000, 0)
             // Standard Error: 6_162
             .saturating_add(Weight::from_parts(509_221, 0).saturating_mul(r.into()))
+    }
+    fn tasks_remove_resume_session() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `352`
+        //  Estimated: `4169`
+        // Minimum execution time: 3_000_000 picoseconds.
+        Weight::from_parts(3_000_000, 4169)
+            .saturating_add(RocksDbWeight::get().reads(1_u64))
+            .saturating_add(RocksDbWeight::get().writes(2_u64))
     }
 }
