@@ -171,16 +171,16 @@ pub enum ReservationError {
     InvalidReservationId = 0,
     /// An error occurs in attempt to reserve more times than allowed.
     #[display(fmt = "Reservation limit has reached")]
-    ReservationsLimitReached = 2,
+    ReservationsLimitReached = 1,
     /// An error occurs in attempt to create reservation for 0 blocks.
     #[display(fmt = "Reservation duration cannot be zero")]
-    ZeroReservationDuration = 3,
+    ZeroReservationDuration = 2,
     /// An error occurs in attempt to reserve zero gas.
     #[display(fmt = "Reservation amount cannot be zero")]
-    ZeroReservationAmount = 4,
+    ZeroReservationAmount = 3,
     /// An error occurs in attempt to reserve gas less than mailbox threshold.
     #[display(fmt = "Reservation amount cannot be below mailbox threshold")]
-    ReservationBelowMailboxThreshold = 5,
+    ReservationBelowMailboxThreshold = 4,
 }
 
 /// Program rent error.
