@@ -157,7 +157,7 @@ fn generate_impls(metadata: &Metadata) -> TokenStream {
         let variant_name = format_ident!("{}", variant_name_str);
         let mod_name = format_ident!("{}", variant_name_str.to_string().to_snake_case());
 
-        if let Some(_) = p.event_ty_id() {
+        if p.event_ty_id().is_some() {
             let ia = quote! {
                 if pallet_name == #variant_name_str {
                     return Ok(Event::#variant_name(crate::metadata::#mod_name::Event::decode_with_metadata(
