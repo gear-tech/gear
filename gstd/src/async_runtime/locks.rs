@@ -132,9 +132,15 @@ impl Default for LockType {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum LockContext {
+    ReplyTo(MessageId),
+    Sleep(u32),
+}
+
 /// DoubleMap for wait locks.
 #[derive(Default, Debug)]
-pub struct LocksMap(HashMap<MessageId, BTreeMap<MessageId, Lock>>);
+pub struct LocksMap(HashMap<MessageId, BTreeMap<LockContext, Lock>>);
 
 impl LocksMap {
     /// Trigger waiting for the message.
@@ -147,7 +153,7 @@ impl LocksMap {
             // (this key should be `waiting_reply_to` in general )
             //
             // # TODO: refactor it better (#1737)
-            map.insert(message_id, Default::default());
+            map.insert(LockContext::ReplyTo(message_id), Default::default());
         }
 
         // For `deadline <= now`, we are checking them in `crate::msg::async::poll`.
@@ -167,13 +173,34 @@ impl LocksMap {
     /// Lock message.
     pub fn lock(&mut self, message_id: MessageId, waiting_reply_to: MessageId, lock: Lock) {
         let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        locks.insert(waiting_reply_to, lock);
+        locks.insert(LockContext::ReplyTo(waiting_reply_to), lock);
     }
 
     /// Remove message lock.
-    pub fn remove(&mut self, message_id: MessageId, waiting_reply_to: MessageId) {
+    pub fn remove(&mut self, message_id: MessageId, waiting_reply_to: MessageId) -> Option<Lock> {
         let locks = self.0.entry(message_id).or_insert_with(Default::default);
-        locks.remove(&waiting_reply_to);
+        locks.remove(&LockContext::ReplyTo(waiting_reply_to))
+    }
+
+    /// Inserts a lock for putting a message into sleep.
+    pub fn insert_sleep(&mut self, message_id: MessageId, until_block: u32) {
+        let locks = self.0.entry(message_id).or_insert_with(Default::default);
+        let current_block = exec::block_height();
+        if current_block < until_block {
+            locks.insert(
+                LockContext::Sleep(until_block),
+                Lock::exactly(until_block - current_block)
+                    .expect("Never fails with block count > 0"),
+            );
+        } else {
+            locks.remove(&LockContext::Sleep(until_block));
+        }
+    }
+
+    /// Removes a sleep lock.
+    pub fn remove_sleep(&mut self, message_id: MessageId, until_block: u32) {
+        let locks = self.0.entry(message_id).or_insert_with(Default::default);
+        locks.remove(&LockContext::Sleep(until_block));
     }
 
     pub fn remove_message_entry(&mut self, message_id: MessageId) {
@@ -191,8 +218,10 @@ impl LocksMap {
         message_id: MessageId,
         waiting_reply_to: MessageId,
     ) -> Option<(u32, u32)> {
-        self.0
-            .get(&message_id)
-            .and_then(|locks| locks.get(&waiting_reply_to).and_then(|l| l.timeout()))
+        self.0.get(&message_id).and_then(|locks| {
+            locks
+                .get(&LockContext::ReplyTo(waiting_reply_to))
+                .and_then(|l| l.timeout())
+        })
     }
 }

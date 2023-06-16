@@ -32,15 +32,15 @@ use gcore::exec;
 /// mentioning that the program state gets persisted inside the call, and the
 /// execution resumes with potentially different state.
 pub fn sleep_for(block_count: u32) -> impl Future<Output = ()> {
-    MessageDelayFuture::new(msg::id(), exec::block_height().saturating_add(block_count))
+    MessageSleepFuture::new(msg::id(), exec::block_height().saturating_add(block_count))
 }
 
-struct MessageDelayFuture {
+struct MessageSleepFuture {
     msg_id: MessageId,
     till_block_number: u32,
 }
 
-impl MessageDelayFuture {
+impl MessageSleepFuture {
     fn new(msg_id: MessageId, till_block_number: u32) -> Self {
         Self {
             msg_id,
@@ -49,22 +49,17 @@ impl MessageDelayFuture {
     }
 }
 
-impl Future for MessageDelayFuture {
+impl Future for MessageSleepFuture {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let current_block_number = exec::block_height();
 
-        async_runtime::locks().remove(self.msg_id, self.msg_id);
         if current_block_number < self.till_block_number {
-            async_runtime::locks().lock(
-                self.msg_id,
-                self.msg_id,
-                async_runtime::Lock::exactly(self.till_block_number - current_block_number)
-                    .expect("Unreachable: never fails with block count > 0"),
-            );
+            async_runtime::locks().insert_sleep(self.msg_id, self.till_block_number);
             Poll::Pending
         } else {
+            async_runtime::locks().remove_sleep(self.msg_id, self.till_block_number);
             Poll::Ready(())
         }
     }

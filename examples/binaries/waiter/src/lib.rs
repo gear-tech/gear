@@ -18,7 +18,7 @@
 #![no_std]
 
 use codec::{Decode, Encode};
-use gstd::ActorId;
+use gstd::{ActorId, Vec};
 
 #[cfg(feature = "std")]
 mod code {
@@ -50,6 +50,12 @@ pub enum WaitSubcommand {
 }
 
 #[derive(Debug, Encode, Decode)]
+pub enum SleepForWaitType {
+    All,
+    Any,
+}
+
+#[derive(Debug, Encode, Decode)]
 pub enum Command {
     Wait(WaitSubcommand),
     SendFor(ActorId, u32),
@@ -57,6 +63,6 @@ pub enum Command {
     SendUpToWait(ActorId, u32),
     SendAndWaitFor(u32, ActorId),
     ReplyAndWait(WaitSubcommand),
-    SleepFor(u32),
+    SleepFor(Vec<u32>, SleepForWaitType),
     WakeUp([u8; 32]),
 }

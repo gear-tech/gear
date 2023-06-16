@@ -325,5 +325,9 @@ pub fn run_to_block_maybe_with_queue(
 }
 
 pub fn run_to_next_block(remaining_weight: Option<u64>) {
-    run_to_block(System::block_number() + 1, remaining_weight);
+    run_for_blocks(1, remaining_weight)
+}
+
+pub fn run_for_blocks(block_count: BlockNumber, remaining_weight: Option<u64>) {
+    run_to_block(System::block_number() + block_count, remaining_weight);
 }

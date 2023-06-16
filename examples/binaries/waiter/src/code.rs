@@ -1,4 +1,5 @@
-use crate::{Command, WaitSubcommand};
+use crate::{Command, SleepForWaitType, WaitSubcommand};
+use futures::future;
 
 use gstd::{errors::ContractError, exec, format, msg, MessageId};
 
@@ -51,14 +52,23 @@ async fn main() {
 
             process_wait_subcommand(subcommand);
         }
-        Command::SleepFor(duration) => {
+        Command::SleepFor(durations, wait_type) => {
             msg::send(
                 msg::source(),
                 format!("Before the sleep at block: {}", exec::block_height()),
                 0,
             )
             .expect("Failed to send before the sleep");
-            exec::sleep_for(duration).await;
+            let sleep_futures = durations.iter().map(|duration| exec::sleep_for(*duration));
+            match wait_type {
+                SleepForWaitType::All => {
+                    future::join_all(sleep_futures).await;
+                }
+                SleepForWaitType::Any => {
+                    future::select_all(sleep_futures).await;
+                }
+                _ => unreachable!(),
+            }
             msg::send(
                 msg::source(),
                 format!("After the sleep at block: {}", exec::block_height()),
