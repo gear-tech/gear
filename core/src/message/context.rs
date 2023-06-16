@@ -22,6 +22,7 @@ use crate::{
         Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket, Payload,
         ReplyMessage, ReplyPacket,
     },
+    reservation::GasReserver,
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -188,16 +189,19 @@ pub struct ContextStore {
 }
 
 impl ContextStore {
-    /// Set reservation nonce.
-    pub fn set_reservation_nonce(&mut self, nonce: u64) {
-        self.reservation_nonce = nonce;
+    /// Returns stored within message context reservation nonce.
+    ///
+    /// Will be non zero, if any reservations were created during
+    /// previous execution of the message. TODO [sab]: type guarantee?
+    pub fn reservation_nonce(&self) -> u64 {
+        self.reservation_nonce
     }
 
-    /// Fetch incremented nonce.
-    pub fn fetch_inc_reservation_nonce(&mut self) -> u64 {
-        let nonce = self.reservation_nonce;
-        self.reservation_nonce = nonce.saturating_add(1);
-        nonce
+    /// Set reservation nonce from gas reserver.
+    ///
+    /// Gas reserver has actual nonce state during/after execution.
+    pub fn set_reservation_nonce(&mut self, gas_reserver: &GasReserver) {
+        self.reservation_nonce = gas_reserver.nonce();
     }
 
     /// Set system reservation.

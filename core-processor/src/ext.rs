@@ -985,7 +985,7 @@ impl Ext {
             previous_reservation: context_store.system_reservation(),
         };
 
-        context_store.set_reservation_nonce(gas_reserver.nonce());
+        context_store.set_reservation_nonce(&gas_reserver);
         if let Some(reservation) = system_reservation {
             context_store.add_system_reservation(reservation);
         }
@@ -1012,7 +1012,7 @@ impl Ext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_core::message::ContextSettings;
+    use gear_core::message::{ContextSettings, IncomingDispatch};
 
     struct ProcessorContextBuilder(ProcessorContext);
 
@@ -1022,8 +1022,7 @@ mod tests {
                 gas_counter: GasCounter::new(0),
                 gas_allowance_counter: GasAllowanceCounter::new(0),
                 gas_reserver: GasReserver::new(
-                    Default::default(),
-                    Default::default(),
+                    &<IncomingDispatch as Default>::default(),
                     Default::default(),
                     Default::default(),
                 ),

@@ -28,7 +28,7 @@ use gear_core::{
     gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval, PageU32Size, WasmPage, WASM_PAGE_SIZE},
-    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
+    message::{HandlePacket, IncomingDispatch, InitPacket, ReplyPacket, StatusCode},
     reservation::GasReserver,
 };
 use gear_core_errors::MemoryError;
@@ -247,7 +247,11 @@ impl BackendExt for MockExt {
     fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         Ok(ExtInfo {
             gas_amount: GasCounter::new(0).to_amount(),
-            gas_reserver: GasReserver::new(Default::default(), 0, Default::default(), 1024),
+            gas_reserver: GasReserver::new(
+                &<IncomingDispatch as Default>::default(),
+                Default::default(),
+                1024,
+            ),
             system_reservation_context: SystemReservationContext::default(),
             allocations: Default::default(),
             pages_data: Default::default(),

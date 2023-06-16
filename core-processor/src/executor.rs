@@ -498,12 +498,7 @@ where
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
-        gas_reserver: GasReserver::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ),
+        gas_reserver: GasReserver::new(&Default::default(), Default::default(), Default::default()),
         value_counter: ValueCounter::new(Default::default()),
         allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
         message_context: MessageContext::new(

@@ -18,7 +18,10 @@
 
 //! Gas reservation structures.
 
-use crate::ids::{MessageId, ReservationId};
+use crate::{
+    ids::{MessageId, ReservationId},
+    message::IncomingDispatch,
+};
 use alloc::collections::BTreeMap;
 use gear_core_errors::ReservationError;
 use hashbrown::HashMap;
@@ -39,8 +42,8 @@ pub struct GasReserver {
     ///
     /// It's really important that if gas reserver is created
     /// several times with the same `message_id`, value of this
-    /// field is re-used.
-    // TODO #2773
+    /// field is re-used. This property is guaranteed by instantiating
+    /// gas reserver from the [`IncomingDispatch`].
     nonce: u64,
     /// Gas reservations states.
     states: GasReservationStates,
@@ -60,11 +63,16 @@ impl GasReserver {
     /// `map`, which is a [`BTreeMap`] of [`GasReservationSlot`]s,
     /// will be converted to the [`HashMap`] of [`GasReservationState`]s.
     pub fn new(
-        message_id: MessageId,
-        nonce: u64,
+        incoming_dispatch: &IncomingDispatch,
         map: GasReservationMap,
         max_reservations: u64,
     ) -> Self {
+        let message_id = incoming_dispatch.id();
+        let nonce = incoming_dispatch
+            .context()
+            .as_ref()
+            .map(|c| c.reservation_nonce())
+            .unwrap_or(0);
         Self {
             message_id,
             nonce,
@@ -322,7 +330,8 @@ mod tests {
     const MAX_RESERVATIONS: u64 = 256;
 
     fn new_reserver() -> GasReserver {
-        GasReserver::new(Default::default(), 0, Default::default(), MAX_RESERVATIONS)
+        let d = IncomingDispatch::default();
+        GasReserver::new(&d, Default::default(), MAX_RESERVATIONS)
     }
 
     #[test]
@@ -392,7 +401,7 @@ mod tests {
             },
         );
 
-        let mut reserver = GasReserver::new(Default::default(), 0, map, 256);
+        let mut reserver = GasReserver::new(&Default::default(), map, 256);
         reserver.unreserve(id).unwrap();
 
         assert_eq!(
@@ -426,7 +435,7 @@ mod tests {
             },
         );
 
-        let mut reserver = GasReserver::new(Default::default(), 0, map, 256);
+        let mut reserver = GasReserver::new(&Default::default(), map, 256);
         reserver.mark_used(id).unwrap();
         assert_eq!(
             reserver.unreserve(id),
