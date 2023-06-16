@@ -66,6 +66,7 @@ jobs:
           sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
+        needs: check_skip_flags
         if: ${{ github.event_name == 'pull_request' && !contains(needs.check_skip_flags.outputs.head-commit-message, '[skip-cache]') }}
         continue-on-error: true
         run: |
@@ -148,6 +149,7 @@ jobs:
           ./rust-covfix --version
 
       - name: "Cache: Unpack"
+        needs: check_skip_flags
         if: ${{ github.event_name == 'pull_request' && !contains(needs.check_skip_flags.outputs.head-commit-message, '[skip-cache]') }}
         continue-on-error: true
         run: |
