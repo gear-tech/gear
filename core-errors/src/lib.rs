@@ -73,10 +73,6 @@ pub enum MessageError {
     #[display(fmt = "Duplicated program initialization message")]
     DuplicateInit = 8,
 
-    /// An error occurs in attempt to send a message with more gas than available after previous message.
-    #[display(fmt = "Not enough gas to send in message")]
-    NotEnoughGas = 9,
-
     /// Everything less than existential deposit but greater than 0 is not considered as available balance and not saved in DB.
     /// Value between 0 and existential deposit cannot be sent in message.
     #[display(
@@ -128,9 +124,6 @@ pub enum MessageError {
 #[repr(u8)]
 pub enum WaitError {
     /// An error occurs in attempt to wait duration greater than could be paid.
-    #[display(fmt = "Not enough gas to cover holding in waitlist")]
-    NotEnoughGas = 0,
-    /// An error occurs in attempt to wait duration greater than could be paid.
     #[display(fmt = "Provided incorrect argument for wait (zero case)")]
     InvalidArgument = 1,
     /// An error occurs in attempt to wait after reply sent.
@@ -164,9 +157,6 @@ pub enum ReservationError {
     /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
     #[display(fmt = "Invalid reservation ID")]
     InvalidReservationId = 0,
-    /// An error occurs in attempt to reserve more gas than available.
-    #[display(fmt = "Insufficient gas for reservation")]
-    InsufficientGasForReservation = 1,
     /// An error occurs in attempt to reserve more times than allowed.
     #[display(fmt = "Reservation limit has reached")]
     ReservationsLimitReached = 2,
@@ -188,9 +178,13 @@ pub enum ReservationError {
 #[non_exhaustive]
 #[repr(u8)]
 pub enum ExecutionError {
+    /// An error occurs in attempt to wait duration greater than could be paid.
+    #[display(fmt = "Not enough gas to cover holding in waitlist")]
+    NotEnoughGas = 0,
+
     /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
     #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
-    InvalidDebugString = 0,
+    InvalidDebugString = 1,
 
     /// The error occurs when program's balance is less than rent it tries to pay.
     #[display(fmt = "Existing value {value_left} is not enough to pay rent {rent}")]
@@ -199,23 +193,23 @@ pub enum ExecutionError {
         rent: u128,
         /// Amount of available value.
         value_left: u128,
-    } = 1,
+    } = 2,
 
     /// The error occurs when program's paid block count is maximum.
     #[display(fmt = "Rent block count limit has been reached")]
-    MaximumBlockCountPaid = 2,
+    MaximumBlockCountPaid = 3,
 
     /// The error occurs when program tries to create reply deposit for message
     /// that already been created within the execution.
     #[display(fmt = "Reply deposit already exists for given message")]
-    DuplicateReplyDeposit = 3,
+    DuplicateReplyDeposit = 4,
 
     /// The error occurs when program tries to create reply deposit for message
     /// that wasn't sent within the execution or for reply.
     #[display(
         fmt = "Reply deposit could be only created for init or handle message sent within the execution"
     )]
-    IncorrectMessageForReplyDeposit = 4,
+    IncorrectMessageForReplyDeposit = 5,
 
     /// Overflow in 'gr_read'
     #[display(fmt = "Length is overflowed ({at} + {len}) to read payload")]

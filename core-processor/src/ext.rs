@@ -307,7 +307,7 @@ impl Ext {
 
     fn reduce_gas(&mut self, gas_limit: GasLimit) -> Result<(), ExtError> {
         if self.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
-            Err(MessageError::NotEnoughGas.into())
+            Err(ExecutionError::NotEnoughGas.into())
         } else {
             Ok(())
         }
@@ -752,7 +752,7 @@ impl Externalities for Ext {
             .saturating_mul(self.context.reservation);
         let reduce_amount = amount.saturating_add(reserve);
         if self.context.gas_counter.reduce(reduce_amount) == ChargeResult::NotEnough {
-            return Err(ReservationError::InsufficientGasForReservation.into());
+            return Err(ExecutionError::NotEnoughGas.into());
         }
 
         let id = self.context.gas_reserver.reserve(amount, duration)?;
@@ -781,7 +781,7 @@ impl Externalities for Ext {
         }
 
         if self.context.gas_counter.reduce(amount) == ChargeResult::NotEnough {
-            return Err(ReservationError::InsufficientGasForReservation.into());
+            return Err(ExecutionError::NotEnoughGas.into());
         }
 
         let reservation = &mut self.context.system_reservation;
@@ -815,7 +815,7 @@ impl Externalities for Ext {
             .saturating_mul(self.context.waitlist_cost);
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
-            return Err(WaitError::NotEnoughGas.into());
+            return Err(ExecutionError::NotEnoughGas.into());
         }
 
         Ok(())
@@ -836,7 +836,7 @@ impl Externalities for Ext {
             .saturating_mul(self.context.waitlist_cost);
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
-            return Err(WaitError::NotEnoughGas.into());
+            return Err(ExecutionError::NotEnoughGas.into());
         }
 
         Ok(())
@@ -857,7 +857,7 @@ impl Externalities for Ext {
             .saturating_mul(self.context.waitlist_cost);
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
-            return Err(WaitError::NotEnoughGas.into());
+            return Err(ExecutionError::NotEnoughGas.into());
         }
 
         let reserve_full = u64::from(self.context.reserve_for.saturating_add(duration))
