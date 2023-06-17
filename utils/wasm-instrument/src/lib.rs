@@ -204,20 +204,20 @@ pub fn inject<R: Rules>(
     ];
 
     // determine cost for successful execution
-    let mut scopes = 0isize;
+    let mut block_of_code = false;
 
     let cost_blocks = match elements
         .iter()
         .filter(|instruction| match instruction {
             Instruction::If(_) => {
-                scopes += 1;
-                scopes == 1
+                block_of_code = true;
+                true
             }
             Instruction::End => {
-                scopes -= 1;
+                block_of_code = false;
                 false
             }
-            _ => scopes == 0,
+            _ => !block_of_code,
         })
         .try_fold(0u64, |cost, instruction| {
             rules
