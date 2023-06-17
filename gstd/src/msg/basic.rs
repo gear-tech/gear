@@ -23,7 +23,7 @@ use crate::{
     prelude::{convert::AsRef, ops::RangeBounds, vec, Vec},
     ActorId, MessageId, ReservationId,
 };
-use gear_core_errors::ReplyCode;
+use gear_core_errors::{ReplyCode, SignalCode};
 use gstd_codegen::wait_for_reply;
 use scale_info::scale::{Decode, Output};
 
@@ -286,8 +286,7 @@ pub fn reply_code() -> Result<ReplyCode> {
 ///     let signal_code = msg::signal_code().expect("Unable to get signal code");
 /// }
 /// ```
-// TODO (breathx)
-pub fn signal_code() -> Result<u32> {
+pub fn signal_code() -> Result<Option<SignalCode>> {
     gcore::msg::signal_code().map_err(Into::into)
 }
 
@@ -600,7 +599,7 @@ pub fn signal_from() -> Result<MessageId> {
 /// # See also
 ///
 /// - [`MessageHandle::push_input`] function allows using the input buffer as a
-///   payload source for an outcoming message.
+///   payload source for an outgoing message.
 pub fn reply_push_input<Range: RangeBounds<usize>>(range: Range) -> Result<()> {
     let (offset, len) = utils::decay_range(range);
 

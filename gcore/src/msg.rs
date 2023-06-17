@@ -44,10 +44,10 @@ use crate::{
     errors::{Result, SyscallError},
     ActorId, MessageHandle, MessageId, ReservationId,
 };
-use gear_core_errors::{ExtError, ReplyCode};
+use gear_core_errors::{ExtError, ReplyCode, SignalCode};
 use gsys::{
     HashWithValue, LengthWithHandle, LengthWithHash, LengthWithReplyCode, LengthWithSignalCode,
-    SignalCode, TwoHashesWithValue,
+    TwoHashesWithValue,
 };
 
 const PTR_SPECIAL: *const u128 = u32::MAX as *const u128;
@@ -99,13 +99,13 @@ pub fn reply_code() -> Result<ReplyCode> {
 ///     let signal_code = msg::signal_code().expect("Unable to get signal code");
 /// }
 /// ```
-pub fn signal_code() -> Result<SignalCode> {
+pub fn signal_code() -> Result<Option<SignalCode>> {
     let mut res: LengthWithSignalCode = Default::default();
 
     unsafe { gsys::gr_signal_code(res.as_mut_ptr()) }
     SyscallError(res.length).into_result()?;
 
-    Ok(res.code)
+    Ok(SignalCode::from_u32(res.code))
 }
 
 /// Get an identifier of the message that is currently being processed.
