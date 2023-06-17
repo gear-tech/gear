@@ -290,6 +290,12 @@ pub trait SizeManager {
     }
 }
 
+impl SizeManager for u32 {
+    fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
+        NonZeroU32::new(*self).expect("Size cannot be zero")
+    }
+}
+
 //TODO: THIS IS COMING FROM LAZY PAGES, REMOVE THIS COMMENT
 /// Page number trait - page, which can return it number as u32.
 pub trait PageNumber: Into<u32> + Sized + Copy + Clone + PageU32Size {
@@ -317,6 +323,18 @@ pub trait PageNumber: Into<u32> + Sized + Copy + Clone + PageU32Size {
             page: Some(*self),
             end,
         })
+    }
+}
+
+impl PageNumber for WasmPage {
+    unsafe fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+}
+
+impl PageNumber for GearPage {
+    unsafe fn from_raw(raw: u32) -> Self {
+        Self(raw)
     }
 }
 
@@ -371,30 +389,12 @@ pub enum PageSizeNo {
     Amount = 2,
 }
 
-impl PageNumber for WasmPage {
-    unsafe fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-}
-
 impl PageDynSize for WasmPage {
     const SIZE_NO: usize = PageSizeNo::WasmSizeNo as usize;
 }
 
-impl PageNumber for GearPage {
-    unsafe fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-}
-
 impl PageDynSize for GearPage {
     const SIZE_NO: usize = PageSizeNo::GearSizeNo as usize;
-}
-
-impl SizeManager for u32 {
-    fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
-        NonZeroU32::new(*self).expect("Size cannot be zero")
-    }
 }
 
 /// U32 size pages iterator, to iterate continuously from one page to another.
