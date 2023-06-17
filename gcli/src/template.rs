@@ -45,7 +45,7 @@ pub async fn list() -> Result<Vec<String>> {
         .get(GEAR_DAPPS_GH_API);
 
     if let Some(tk) = env::var(GITHUB_TOKEN).ok() {
-        rb = rb.header("Authorization:", format!("Bearer {}", tk));
+        rb = rb.bearer_auth(tk);
     }
 
     let resp = rb
