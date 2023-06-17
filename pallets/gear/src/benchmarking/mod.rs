@@ -57,7 +57,7 @@ use crate::{
     manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BalanceOf, BenchmarkStorage,
     Call, Config, Event, ExecutionEnvironment, Ext as Externalities, GasHandlerOf, MailboxOf,
     Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf,
-    Schedule,
+    Schedule, TaskPoolOf,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -68,7 +68,7 @@ use common::{
     paused_program_storage::SessionId,
     storage::{Counter, *},
     ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, PausedProgramStorage,
-    ProgramStorage, ReservableTree, scheduler::TaskHandler,
+    ProgramStorage, ReservableTree, scheduler::{TaskHandler, ScheduledTask},
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -240,9 +240,8 @@ where
     .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
 
-#[track_caller]
 fn get_last_session_id_if_any<T: Config>() -> Option<SessionId> {
-    let event_record = SystemPallet::<T>::events().pop().unwrap();
+    let event_record = SystemPallet::<T>::events().pop()?;
     let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
     let event: Result<Event<T>, _> = event.try_into();
     match event {
@@ -281,6 +280,37 @@ where
     };
 
     (get_last_session_id_if_any::<T>().unwrap(), memory_pages)
+}
+
+fn tasks_send_user_message_prepare<T: Config>() -> (MessageId, bool)
+where
+    T::AccountId: Origin,
+ {
+    use demo_delayed_sender::WASM_BINARY;
+
+    let caller = benchmarking::account("caller", 0, 0);
+    <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+
+    init_block::<T>(None);
+
+    let delay = 1u32;
+    let salt = vec![];
+    Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(),
+        WASM_BINARY.to_vec(),
+        salt,
+        delay.encode(),
+        100_000_000_000, 0u32.into()).expect("submit program failed");
+
+    Gear::<T>::process_queue(Default::default());
+
+    let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into()).next().unwrap();
+    match task {
+        ScheduledTask::SendUserMessage {
+            message_id,
+            to_mailbox,
+        } => (message_id, to_mailbox),
+        _ => unreachable!(),
+    }
 }
 
 /// An instantiated and deployed program.
@@ -2749,8 +2779,6 @@ benchmarks! {
     }: {
         ext_manager.remove_resume_session(session_id);
     }
-    verify {
-    }
 
     tasks_remove_gas_reservation {
         use demo_reserve_gas::{InitAction, WASM_BINARY};
@@ -2782,7 +2810,22 @@ benchmarks! {
     }: {
         ext_manager.remove_gas_reservation(program_id, reservation_id);
     }
-    verify {
+
+    tasks_send_user_message_to_mailbox {
+        let (message_id, to_mailbox) = tasks_send_user_message_prepare::<T>();
+        assert!(to_mailbox);
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_user_message(message_id, true);
+    }
+
+    tasks_send_user_message {
+        let (message_id, to_mailbox) = tasks_send_user_message_prepare::<T>();
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_user_message(message_id, false);
     }
 
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently

@@ -217,6 +217,8 @@ pub trait WeightInfo {
     fn instr_i32rotr(r: u32, ) -> Weight;
     fn tasks_remove_resume_session() -> Weight;
     fn tasks_remove_gas_reservation() -> Weight;
+    fn tasks_send_user_message_to_mailbox() -> Weight;
+    fn tasks_send_user_message() -> Weight;
     fn allocation_cost() -> Weight;
     fn grow_cost() -> Weight;
     fn initial_cost() -> Weight;
@@ -2086,6 +2088,24 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(5_u64))
             .saturating_add(T::DbWeight::get().writes(4_u64))
     }
+    fn tasks_send_user_message_to_mailbox() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `734`
+        //  Estimated: `21234`
+        // Minimum execution time: 18_000_000 picoseconds.
+        Weight::from_parts(19_000_000, 21234)
+            .saturating_add(T::DbWeight::get().reads(6_u64))
+            .saturating_add(T::DbWeight::get().writes(5_u64))
+    }
+    fn tasks_send_user_message() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `617`
+        //  Estimated: `25736`
+        // Minimum execution time: 20_000_000 picoseconds.
+        Weight::from_parts(21_000_000, 25736)
+            .saturating_add(T::DbWeight::get().reads(9_u64))
+            .saturating_add(T::DbWeight::get().writes(8_u64))
+    }
 }
 
 // For backwards compatibility and tests
@@ -3948,5 +3968,23 @@ impl WeightInfo for () {
         Weight::from_parts(21_000_000, 16349)
             .saturating_add(RocksDbWeight::get().reads(5_u64))
             .saturating_add(RocksDbWeight::get().writes(4_u64))
+    }
+    fn tasks_send_user_message_to_mailbox() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `734`
+        //  Estimated: `21234`
+        // Minimum execution time: 18_000_000 picoseconds.
+        Weight::from_parts(19_000_000, 21234)
+            .saturating_add(RocksDbWeight::get().reads(6_u64))
+            .saturating_add(RocksDbWeight::get().writes(5_u64))
+    }
+    fn tasks_send_user_message() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `617`
+        //  Estimated: `25736`
+        // Minimum execution time: 20_000_000 picoseconds.
+        Weight::from_parts(21_000_000, 25736)
+            .saturating_add(RocksDbWeight::get().reads(9_u64))
+            .saturating_add(RocksDbWeight::get().writes(8_u64))
     }
 }

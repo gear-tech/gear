@@ -58,6 +58,7 @@ sp-consensus-slots = { workspace = true, optional = true }
 test-syscalls = { workspace = true, optional = true }
 demo-proxy = { workspace = true, optional = true }
 demo-reserve-gas = { workspace = true, optional = true }
+demo-delayed-sender = { workspace = true, optional = true }
 
 [dev-dependencies]
 wabt.workspace = true
@@ -149,6 +150,7 @@ std = [
 	"test-syscalls?/std",
 	"demo-proxy?/std",
 	"demo-reserve-gas?/std",
+	"demo-delayed-sender?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -166,6 +168,7 @@ runtime-benchmarks = [
 	"demo-proxy/wasm-wrapper",
 	"gsys",
 	"demo-reserve-gas/wasm-wrapper",
+	"demo-delayed-sender/wasm-wrapper",
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]

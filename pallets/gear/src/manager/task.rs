@@ -51,7 +51,10 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
         RemovePausedProgram(_) => todo!("#646"),
         WakeMessage(_, _) => 0,
         SendDispatch(_) => 0,
-        SendUserMessage { .. } => 0,
+        SendUserMessage { .. } => {
+            core::cmp::max(<T as Config>::WeightInfo::tasks_send_user_message_to_mailbox().ref_time(),
+            <T as Config>::WeightInfo::tasks_send_user_message().ref_time(),)
+        }
         RemoveGasReservation(_, _) => <T as Config>::WeightInfo::tasks_remove_gas_reservation().ref_time(),
         RemoveResumeSession(_) => <T as Config>::WeightInfo::tasks_remove_resume_session().ref_time(),
     }
@@ -328,7 +331,10 @@ where
 
         Pallet::<T>::send_user_message_after_delay(message, to_mailbox);
 
-        0
+        match to_mailbox {
+            true => <T as Config>::WeightInfo::tasks_send_user_message_to_mailbox(),
+            false => <T as Config>::WeightInfo::tasks_send_user_message(),
+        }.ref_time()
     }
 
     fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) -> Gas {
