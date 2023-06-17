@@ -147,7 +147,7 @@ mod wasm {
         }
 
         fn reply_code(self) -> Option<Vec<u8>> {
-            unimplemented!()(!matches!(self, Self::ReplyCode)).then(|| unreachable!());
+            (!matches!(self, Self::ReplyCode)).then(|| unreachable!());
 
             Some(
                 msg::reply_code()

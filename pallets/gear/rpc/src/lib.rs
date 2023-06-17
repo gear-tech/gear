@@ -87,7 +87,6 @@ pub trait GearApi<BlockHash, ResponseType> {
         &self,
         source: H256,
         message_id: H256,
-        status_code: i32,
         payload: Bytes,
         value: u128,
         allow_other_panics: bool,
@@ -282,8 +281,6 @@ where
         &self,
         source: H256,
         message_id: H256,
-        // TODO (breathx)
-        _status_code: i32,
         payload: Bytes,
         value: u128,
         allow_other_panics: bool,
