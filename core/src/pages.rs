@@ -279,6 +279,7 @@ impl PageU32Size for WasmPage {
     }
 }
 
+//TODO: THIS IS COMING FROM LAZY PAGES, REMOVE THIS COMMENT
 /// Context where dynamic size pages store their sizes
 pub trait SizeManager {
     /// Returns non-zero size of page.
@@ -289,6 +290,7 @@ pub trait SizeManager {
     }
 }
 
+//TODO: THIS IS COMING FROM LAZY PAGES, REMOVE THIS COMMENT
 /// Page number trait - page, which can return it number as u32.
 pub trait PageNumber: Into<u32> + Sized + Copy + Clone + PageU32Size {
     /// Creates page from raw number.
@@ -318,6 +320,7 @@ pub trait PageNumber: Into<u32> + Sized + Copy + Clone + PageU32Size {
     }
 }
 
+//TODO: THIS IS COMING FROM LAZY PAGES, REMOVE THIS COMMENT
 /// Page with dynamic size.
 pub trait PageDynSize: PageNumber {
     /// Returns size number of page.
@@ -329,6 +332,7 @@ pub trait PageDynSize: PageNumber {
     }
 
     /// Creates page from raw number with specific context and checks that page number is valid.
+    /// Returns None if page number is invalid.
     fn new<S: SizeManager>(raw: u32, ctx: &S) -> Option<Self> {
         let page_size = <Self as PageDynSize>::size(ctx);
         let page_begin = raw.checked_mul(page_size)?;
@@ -416,24 +420,6 @@ impl<P: PageU32Size> Iterator for PagesIter<P> {
     }
 }
 
-impl<P: PageU32Size> PagesIterInclusive<P> {
-    /// Returns current page.
-    pub fn current(&self) -> Option<P> {
-        self.page
-    }
-    /// Returns the end page.
-    pub fn end(&self) -> P {
-        self.end
-    }
-    /// Returns another page type iter, which pages intersect with `self` pages.
-    pub fn convert<P1: PageU32Size>(&self) -> PagesIterInclusive<P1> {
-        PagesIterInclusive::<P1> {
-            page: self.page.map(|p| p.to_page()),
-            end: self.end.to_last_page(),
-        }
-    }
-}
-
 /// U32 size pages iterator, to iterate continuously from one page to another, including the last one.
 #[derive(Debug, Clone)]
 pub struct PagesIterInclusive<P: PageU32Size> {
@@ -459,5 +445,23 @@ impl<P: PageU32Size> Iterator for PagesIterInclusive<P> {
             ),
         }
         Some(page)
+    }
+}
+
+impl<P: PageU32Size> PagesIterInclusive<P> {
+    /// Returns current page.
+    pub fn current(&self) -> Option<P> {
+        self.page
+    }
+    /// Returns the end page.
+    pub fn end(&self) -> P {
+        self.end
+    }
+    /// Returns another page type iter, which pages intersect with `self` pages.
+    pub fn convert<P1: PageU32Size>(&self) -> PagesIterInclusive<P1> {
+        PagesIterInclusive::<P1> {
+            page: self.page.map(|p| p.to_page()),
+            end: self.end.to_last_page(),
+        }
     }
 }
