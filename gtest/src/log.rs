@@ -22,7 +22,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Payload, StoredMessage},
 };
-use gear_core_errors::ReplyCode;
+use gear_core_errors::{ErrorReason, ReplyCode};
 use std::{convert::TryInto, fmt::Debug};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -130,10 +130,16 @@ impl Log {
         Default::default()
     }
 
-    pub fn error_builder(reply_code: ReplyCode) -> Self {
+    pub fn error_builder(error_reason: ErrorReason) -> Self {
         let mut log = Self::builder();
-        log.reply_code = Some(reply_code);
-        log.payload = Some(Default::default());
+        log.reply_code = Some(error_reason.into());
+        log.payload = Some(
+            error_reason
+                .to_string()
+                .into_bytes()
+                .try_into()
+                .expect("Infallible"),
+        );
 
         log
     }
@@ -212,10 +218,9 @@ impl<T: Codec + Debug> PartialEq<Log> for DecodedCoreLog<T> {
 
 impl PartialEq<CoreLog> for Log {
     fn eq(&self, other: &CoreLog) -> bool {
-        if let Some(reply_code) = other.reply_code {
-            if Some(reply_code) != self.reply_code {
-                return false;
-            }
+        // Asserting the field if only reply code specified for `Log`.
+        if self.reply_code.is_some() && self.reply_code != other.reply_code {
+            return false;
         }
 
         if let Some(source) = self.source {

@@ -41,7 +41,7 @@ use gear_core::{
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::{ReplyCode, SignalCode, SimpleExecutionError};
+use gear_core_errors::{ErrorReason, ReplyCode, SignalCode, SimpleExecutionError};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
@@ -725,16 +725,14 @@ impl ExtManager {
                 }
 
                 if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
-                    let code = SimpleExecutionError::UserspacePanic;
-                    // TODO (breathx).
-                    // let err_payload = expl
-                    //     .as_bytes()
-                    //     .to_vec()
-                    //     .try_into()
-                    //     .unwrap_or_else(|_| unreachable!("Error message is too large"));
-                    let err_payload = Default::default();
+                    let err = ErrorReason::Execution(SimpleExecutionError::UserspacePanic);
+                    let err_payload = expl
+                        .as_bytes()
+                        .to_vec()
+                        .try_into()
+                        .unwrap_or_else(|_| unreachable!("Error message is too large"));
 
-                    let reply_message = ReplyMessage::system(message_id, err_payload, code);
+                    let reply_message = ReplyMessage::system(message_id, err_payload, err);
 
                     self.send_dispatch(
                         message_id,
