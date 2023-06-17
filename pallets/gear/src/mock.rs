@@ -33,7 +33,10 @@ use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
     Perbill,
 };
-use sp_std::convert::{TryFrom, TryInto};
+use sp_std::{
+    convert::{TryFrom, TryInto},
+    sync::Mutex,
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -157,7 +160,7 @@ parameter_types! {
     pub ResumeSessionDuration: BlockNumber = 1_000;
 }
 
-static SCHEDULE: spin::Mutex<Option<Schedule<Test>>> = spin::Mutex::new(None);
+static SCHEDULE: Mutex<Option<Schedule<Test>>> = Mutex::new(None);
 
 #[derive(Debug)]
 pub struct DynamicSchedule;
@@ -167,11 +170,15 @@ impl DynamicSchedule {
     where
         F: FnOnce(&mut Schedule<Test>),
     {
-        f(SCHEDULE.lock().as_mut().unwrap())
+        f(SCHEDULE.lock().unwrap().as_mut().unwrap())
     }
 
     pub fn get() -> Schedule<Test> {
-        SCHEDULE.lock().get_or_insert_with(Default::default).clone()
+        SCHEDULE
+            .lock()
+            .unwrap()
+            .get_or_insert_with(Default::default)
+            .clone()
     }
 }
 
