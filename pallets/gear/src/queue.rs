@@ -45,14 +45,6 @@ where
     ) -> Result<(PrechargedDispatch, Option<ExecutableActorData>), PrechargedDispatch>,
 {
     pub(crate) fn execute(self) -> Result<Vec<JournalNote>, QueueStepError> {
-        // now it's semantically correct
-        match self.execute_inner() {
-            Ok(err) => Err(err),
-            Err(journal) => Ok(journal),
-        }
-    }
-
-    fn execute_inner(self) -> Result<QueueStepError, Vec<JournalNote>> {
         let Self {
             block_config,
             lazy_pages_enabled,
@@ -70,26 +62,30 @@ where
         // To start executing a message resources of a destination program should be
         // fetched from the storage.
         // The first step is to get program data so charge gas for the operation.
-        let precharged_dispatch = core_processor::precharge_for_program(
+        let precharged_dispatch = match core_processor::precharge_for_program(
             block_config,
             GasAllowanceOf::<T>::get(),
             dispatch.into_incoming(gas_limit),
             program_id,
-        )?;
-
-        let (precharged_dispatch, actor_data) = match get_actor_data(precharged_dispatch) {
-            Ok(res) => res,
-            Err(journal) => return Ok(QueueStepError::ActorData(journal)),
+        ) {
+            Ok(dispatch) => dispatch,
+            Err(journal) => return Ok(journal),
         };
+
+        let (precharged_dispatch, actor_data) =
+            get_actor_data(precharged_dispatch).map_err(QueueStepError::ActorData)?;
 
         // The second step is to load instrumented binary code of the program but
         // first its correct length should be obtained.
-        let context = core_processor::precharge_for_code_length(
+        let context = match core_processor::precharge_for_code_length(
             block_config,
             precharged_dispatch,
             program_id,
             actor_data,
-        )?;
+        ) {
+            Ok(context) => context,
+            Err(journal) => return Ok(journal),
+        };
 
         // Load correct code length value.
         let code_id = context.actor_data().code_id;
@@ -101,7 +97,11 @@ where
         });
 
         // Adjust gas counters for fetching instrumented binary code.
-        let context = core_processor::precharge_for_code(block_config, context, code_len_bytes)?;
+        let context =
+            match core_processor::precharge_for_code(block_config, context, code_len_bytes) {
+                Ok(context) => context,
+                Err(journal) => return Ok(journal),
+            };
 
         // Load instrumented binary code from storage.
         let code = T::CodeStorage::get_code(code_id).unwrap_or_else(|| {
@@ -119,28 +119,32 @@ where
             } else {
                 log::debug!("Re-instrumenting code for program '{:?}'", program_id);
 
-                let context = core_processor::precharge_for_instrumentation(
+                let context = match core_processor::precharge_for_instrumentation(
                     block_config,
                     context,
                     code.original_code_len(),
-                )?;
+                ) {
+                    Ok(context) => context,
+                    Err(journal) => return Ok(journal),
+                };
 
                 (Pallet::<T>::reinstrument_code(code_id, &schedule), context)
             };
 
         // The last one thing is to load program memory. Adjust gas counters for memory pages.
-        let context = core_processor::precharge_for_memory(block_config, context)?;
+        let context = match core_processor::precharge_for_memory(block_config, context) {
+            Ok(context) => context,
+            Err(journal) => return Ok(journal),
+        };
 
         // Load program memory pages.
-        let memory_pages = match Pallet::<T>::get_and_track_memory_pages(
+        let memory_pages = Pallet::<T>::get_and_track_memory_pages(
             ext_manager,
             program_id,
             &context.actor_data().pages_with_data,
             lazy_pages_enabled,
-        ) {
-            None => return Ok(QueueStepError::NoMemoryPages),
-            Some(m) => m,
-        };
+        )
+        .ok_or(QueueStepError::NoMemoryPages)?;
 
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
         let origin = ProgramId::from_origin(external.into_origin());
@@ -153,7 +157,7 @@ where
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e));
 
-        Err(journal)
+        Ok(journal)
     }
 }
 
