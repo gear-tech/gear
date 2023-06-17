@@ -45,7 +45,7 @@ jobs:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request'}}
+        if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
@@ -67,7 +67,7 @@ jobs:
           sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.head-commit-message, '[skip-cache]') }}
+        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
         continue-on-error: true
         run: |
           tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -150,7 +150,7 @@ jobs:
           ./rust-covfix --version
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.head-commit-message, '[skip-cache]') }}
+        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -512,7 +512,7 @@ jobs:
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.head-commit-message, '[skip-cache]') }}
+        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -695,12 +695,12 @@ jobs:
     name: check commit message
     runs-on: ubuntu-latest
     outputs:
-      head-commit-message: ${{ steps.get_head_commit_message.outputs.headCommitMsg }}
+      commit-message: ${{ steps.commit_message.outputs.commitMsg }}
     steps:
       - name: Get repo
         uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Print head git commit message
-        id: get_head_commit_message
-        run: echo "::set-output name=headCommitMsg::$(git show -s --format=%s)"
+        id: commit_message
+        run: echo "commitMsg=$(git show -s --format=%s)" >> $GITHUB_OUTPUT
