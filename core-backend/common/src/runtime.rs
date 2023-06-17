@@ -20,19 +20,21 @@
 
 use crate::{
     memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner, WasmMemoryWrite},
-    BackendExt, BackendState, TerminationReason,
+    BackendExternalities, BackendState, TerminationReason,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
 use gear_core_errors::ExtError;
 
-pub trait Runtime<E: BackendExt>: MemoryOwner + MemoryAccessRecorder + BackendState {
+pub trait Runtime<Ext: BackendExternalities>:
+    MemoryOwner + MemoryAccessRecorder + BackendState
+{
     type Error;
 
     fn unreachable_error() -> Self::Error;
 
     fn fallible_syscall_error(&self) -> Option<&ExtError>;
 
-    fn ext_mut(&mut self) -> &mut E;
+    fn ext_mut(&mut self) -> &mut Ext;
 
     fn run_any<T, F>(&mut self, cost: RuntimeCosts, f: F) -> Result<T, Self::Error>
     where
@@ -48,7 +50,7 @@ pub trait Runtime<E: BackendExt>: MemoryOwner + MemoryAccessRecorder + BackendSt
         F: FnOnce(&mut Self) -> Result<T, TerminationReason>,
         R: From<Result<T, u32>> + Sized;
 
-    fn alloc(&mut self, pages: u32) -> Result<WasmPage, E::AllocError>;
+    fn alloc(&mut self, pages: u32) -> Result<WasmPage, Ext::AllocError>;
 
     fn memory_manager_write(
         &mut self,
