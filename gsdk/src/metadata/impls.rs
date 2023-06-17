@@ -15,6 +15,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use super::{
     gear_runtime::{RuntimeCall, RuntimeEvent},
     runtime_types::{
@@ -81,13 +82,15 @@ impl From<generated_ids::ReservationId> for ids::ReservationId {
 
 impl From<generated_message::common::ReplyDetails> for message::ReplyDetails {
     fn from(other: generated_message::common::ReplyDetails) -> Self {
-        message::ReplyDetails::new(other.reply_to.into(), other.status_code)
+        // TODO (breathx)
+        message::ReplyDetails::new(other.reply_to.into(), Default::default())
     }
 }
 
 impl From<generated_message::common::SignalDetails> for message::SignalDetails {
     fn from(other: generated_message::common::SignalDetails) -> Self {
-        message::SignalDetails::new(other.from.into(), other.status_code)
+        // TODO (breathx)
+        message::SignalDetails::new(other.from.into(), Default::default())
     }
 }
 

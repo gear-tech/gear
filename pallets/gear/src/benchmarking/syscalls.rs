@@ -40,6 +40,7 @@ use gear_core::{
     message::{Message, Value},
     reservation::GasReservationSlot,
 };
+use gear_core_errors::*;
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
@@ -982,7 +983,7 @@ where
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Reply(msg_id, 0),
+            HandleKind::Reply(msg_id, ReplyCode::Success(SuccessReason::Manual)),
             vec![],
             Default::default(),
         )
@@ -1195,7 +1196,7 @@ where
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Reply(msg_id, 0),
+            HandleKind::Reply(msg_id, ReplyCode::Success(SuccessReason::Manual)),
             vec![],
             Default::default(),
         )

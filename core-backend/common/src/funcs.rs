@@ -38,8 +38,7 @@ use gear_core::{
 use gear_core_errors::ExtError;
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberAndValue,
-    LengthWithCode, LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithTwoHashes,
-    TwoHashesWithValue,
+    LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
 };
 use parity_scale_codec::Encode;
 
@@ -202,10 +201,17 @@ where
         Err(ActorTerminationReason::Exit(inheritor_id).into())
     }
 
-    #[host(fallible, cost = RuntimeCosts::StatusCode, err_len = LengthWithCode)]
-    pub fn status_code(ctx: &mut R) -> Result<(), R::Error> {
-        ctx.ext_mut().status_code().map_err(Into::into)
-    }
+    // // TODO (breathx): change costs and output.
+    // #[host(fallible, cost = RuntimeCosts::StatusCode, err_len = LengthWithCode)]
+    // pub fn reply_code(ctx: &mut R) -> Result<(), R::Error> {
+    //     ctx.ext_mut().reply_code().map_err(Into::into)
+    // }
+
+    // // TODO (breathx): change costs and output.
+    // #[host(fallible, cost = RuntimeCosts::StatusCode, err_len = LengthWithCode)]
+    // pub fn signal_code(ctx: &mut R) -> Result<(), R::Error> {
+    //     ctx.ext_mut().signal_code().map_err(Into::into)
+    // }
 
     #[host(cost = RuntimeCosts::Alloc)]
     pub fn alloc(ctx: &mut R, pages: u32) -> Result<u32, R::Error> {

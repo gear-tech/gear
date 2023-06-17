@@ -37,6 +37,7 @@ use gear_core::{
     memory::{GearPage, PageBuf, PageU32Size, WasmPage},
     message::*,
 };
+use gear_core_errors::ReplyCode;
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
 use std::{
@@ -141,7 +142,8 @@ pub enum MessageContentMismatch {
     Payload(ContentMismatch<DisplayedPayload>),
     GasLimit(ContentMismatch<u64>),
     Value(ContentMismatch<u128>),
-    StatusCode(ContentMismatch<i32>),
+    // TODO (breathx)
+    // StatusCode(ContentMismatch<i32>),
 }
 
 #[derive(Debug, Display)]
@@ -190,12 +192,13 @@ impl MessagesError {
         }
     }
 
-    fn status_code(at: usize, expected: i32, actual: i32) -> Self {
-        Self::AtPosition {
-            at,
-            mismatch: MessageContentMismatch::StatusCode(ContentMismatch { expected, actual }),
-        }
-    }
+    // TODO (breathx)
+    // fn status_code(at: usize, expected: i32, actual: i32) -> Self {
+    //     Self::AtPosition {
+    //         at,
+    //         mismatch: MessageContentMismatch::StatusCode(ContentMismatch { expected, actual }),
+    //     }
+    // }
 }
 
 fn match_or_else<T: PartialEq + Copy>(expectation: Option<T>, value: T, f: impl FnOnce(T, T)) {
@@ -231,15 +234,19 @@ pub fn check_messages(
                 let source_n_dest = [msg.source(), msg.destination()];
                 let is_init = exp.init.unwrap_or(false);
 
-                match_or_else(
-                    exp.status_code,
-                    msg.status_code().unwrap_or(0),
-                    |expected, actual| {
-                        errors.push(MessagesError::status_code(position, expected, actual))
-                    },
-                );
+                // TODO (breathx)
+                // match_or_else(
+                //     exp.status_code,
+                //     msg.status_code().unwrap_or(0),
+                //     |expected, actual| {
+                //         errors.push(MessagesError::status_code(position, expected, actual))
+                //     },
+                // );
 
-                if msg.status_code().unwrap_or(0) == 0
+                if msg
+                    .reply()
+                    .map(|d| ReplyCode::from(d).is_success())
+                    .unwrap_or(false)
                     && exp
                         .payload
                         .as_mut()

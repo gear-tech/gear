@@ -129,6 +129,7 @@ pub enum ErrorReason {
     Execution(ExecutionError) = 0,
     InactiveProgram = 1,
     FailedToCreateProgram = 2,
+    RemovedFromWaitlist = 3,
     //
     #[default]
     Unsupported = 255,
@@ -153,7 +154,10 @@ impl ErrorReason {
             Self::Execution(error) => {
                 bytes[1..].copy_from_slice(&error.to_bytes());
             }
-            Self::InactiveProgram | Self::FailedToCreateProgram | Self::Unsupported => {}
+            Self::InactiveProgram
+            | Self::FailedToCreateProgram
+            | Self::RemovedFromWaitlist
+            | Self::Unsupported => {}
         }
 
         bytes

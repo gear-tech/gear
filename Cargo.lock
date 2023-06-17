@@ -7294,6 +7294,7 @@ version = "2.0.0"
 dependencies = [
  "gear-common",
  "gear-core",
+ "gear-core-errors",
  "jsonrpsee",
  "pallet-gear-rpc-runtime-api",
  "sp-api",

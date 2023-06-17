@@ -209,7 +209,8 @@ where
         builder.add_func(OomPanic, wrap_common_func!(FuncsHandler::oom_panic, () -> ()));
         builder.add_func(Error, wrap_common_func!(FuncsHandler::error, (2) -> ()));
         builder.add_func(Exit, wrap_common_func!(FuncsHandler::exit, (1) -> ()));
-        builder.add_func(StatusCode, wrap_common_func!(FuncsHandler::status_code, (1) -> ()));
+        // TODO (breathx) change func
+        builder.add_func(StatusCode, wrap_common_func!(FuncsHandler::exit, (1) -> ()));
         builder.add_func(ReserveGas, wrap_common_func!(FuncsHandler::reserve_gas, (3) -> ()));
         builder.add_func(ReplyDeposit, wrap_common_func!(FuncsHandler::reply_deposit, (3) -> ()));
         builder.add_func(UnreserveGas, wrap_common_func!(FuncsHandler::unreserve_gas, (2) -> ()));

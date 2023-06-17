@@ -15,6 +15,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! TODO: clean this file after #2668
 #![allow(dead_code, unused_imports, non_camel_case_types)]
 #![allow(clippy::all)]

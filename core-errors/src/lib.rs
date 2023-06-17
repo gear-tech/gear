@@ -32,7 +32,7 @@ use scale_info::{
     TypeInfo,
 };
 
-pub use simple::*;
+pub use simple::{ExecutionError as SimpleExecutionError, *};
 
 /// Error using messages.
 #[allow(clippy::unnecessary_cast)]
