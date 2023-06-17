@@ -143,14 +143,16 @@ mod wasm {
             Some(msg::source().encode())
         }
 
+        // TODO (breathx)
         fn status_code(self) -> Option<Vec<u8>> {
-            (!matches!(self, Self::StatusCode)).then(|| unreachable!());
+            unimplemented!()
+            // (!matches!(self, Self::StatusCode)).then(|| unreachable!());
 
-            Some(
-                msg::status_code()
-                    .expect("Failed to get status code")
-                    .encode(),
-            )
+            // Some(
+            //     msg::status_code()
+            //         .expect("Failed to get status code")
+            //         .encode(),
+            // )
         }
 
         fn panic(self) -> ! {

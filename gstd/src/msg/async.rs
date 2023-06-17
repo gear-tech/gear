@@ -51,12 +51,12 @@ where
             "Somebody created a future with the MessageId that never ended in static replies!"
         ),
         ReplyPoll::Pending => Poll::Pending,
-        ReplyPoll::Some((actual_reply, status_code)) => {
+        ReplyPoll::Some((actual_reply, reply_code)) => {
             // Remove lock after waking.
             async_runtime::locks().remove(msg_id, waiting_reply_to);
 
-            if status_code.to_le_bytes()[0] != 0 {
-                return Poll::Ready(Err(ContractError::StatusCode(status_code)));
+            if !reply_code.is_success() {
+                return Poll::Ready(Err(ContractError::ReplyCode(reply_code)));
             }
 
             Poll::Ready(f(actual_reply))

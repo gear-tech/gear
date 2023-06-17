@@ -38,8 +38,8 @@ pub enum ContractError {
     Convert(&'static str),
     /// Decoding error.
     Decode(scale_info::scale::Error),
-    /// Status code returned by another program.
-    StatusCode(i32),
+    /// Reply code returned by another program.
+    ReplyCode(ReplyCode),
     /// API error (see [`ExtError`] for details).
     Ext(ExtError),
     /// This error occurs when providing zero duration to waiting functions
@@ -67,7 +67,8 @@ impl fmt::Display for ContractError {
             }
             ContractError::Convert(e) => write!(f, "Conversion error: {e:?}"),
             ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
-            ContractError::StatusCode(e) => write!(f, "Reply returned exit code {e}"),
+            // TODO (breathx)
+            ContractError::ReplyCode(e) => write!(f, "Reply returned exit code {e:?}"),
             ContractError::Ext(e) => write!(f, "API error: {e}"),
             ContractError::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
             ContractError::ZeroSystemReservationAmount => {
