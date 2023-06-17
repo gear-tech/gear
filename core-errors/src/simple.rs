@@ -1,20 +1,20 @@
-// // Copyright (C) 2023 Gear Technologies Inc.
-// // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-// //
-// // This program is free software: you can redistribute it and/or modify
-// // it under the terms of the GNU General Public License as published by
-// // the Free Software Foundation, either version 3 of the License, or
-// // (at your option) any later version.
-// //
-// // This program is distributed in the hope that it will be useful,
-// // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// // GNU General Public License for more details.
-// //
-// // You should have received a copy of the GNU General Public License
-// // along with this program. If not, see <https://www.gnu.org/licenses/>.
+// Copyright (C) 2023 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// //! Simple errors being used for status codes
+//! Simple errors being used for status codes
 
 #[cfg(feature = "codec")]
 use scale_info::{
@@ -23,19 +23,24 @@ use scale_info::{
 };
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
+)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Enum representing reply code with reason of its creation.
 pub enum ReplyCode {
     /// Success reply.
+    #[display(fmt = "Success reply sent due to {_0}")]
     Success(SuccessReason) = 0,
 
     /// Error reply.
+    #[display(fmt = "Error reply sent due to {_0}")]
     Error(ErrorReason) = 1,
 
     /// Unsupported code.
     /// Variant exists for backward compatibility.
     #[default]
+    #[display(fmt = "<unsupported reply code>")]
     Unsupported = 255,
 }
 
@@ -109,19 +114,24 @@ impl ReplyCode {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
+)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Reason of success reply creation.
 pub enum SuccessReason {
     /// Success reply was created by system automatically.
+    #[display(fmt = "automatic sending")]
     Auto = 0,
 
     /// Success reply was created by actor manually.
+    #[display(fmt = "manual sending")]
     Manual = 1,
 
     /// Unsupported reason of success reply.
     /// Variant exists for backward compatibility.
     #[default]
+    #[display(fmt = "<unsupported reason>")]
     Unsupported = 255,
 }
 
@@ -140,25 +150,32 @@ impl SuccessReason {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
+)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Reason of error reply creation.
 pub enum ErrorReason {
     /// Error reply was created due to underlying execution error.
+    #[display(fmt = "execution error ({_0})")]
     Execution(SimpleExecutionError) = 0,
 
     /// Error reply was created due to errors in program creation.
+    #[display(fmt = "fail in program creation ({_0})")]
     FailedToCreateProgram(SimpleProgramCreationError) = 1,
 
     /// Destination actor become inactive program and can't process the message.
+    #[display(fmt = "inactivity of destination program")]
     InactiveProgram = 2,
 
     /// Message has died in Waitlist as out of rent one.
+    #[display(fmt = "removal from waitlist")]
     RemovedFromWaitlist = 3,
 
     /// Unsupported reason of error reply.
     /// Variant exists for backward compatibility.
     #[default]
+    #[display(fmt = "<unsupported reason>")]
     Unsupported = 255,
 }
 
@@ -206,28 +223,36 @@ impl ErrorReason {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
+)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Simplified error occurred during execution.
 pub enum SimpleExecutionError {
     /// Message ran out of gas while executing.
+    #[display(fmt = "Message ran out of gas")]
     RanOutOfGas = 0,
 
     /// Program has reached memory limit while executing.
+    #[display(fmt = "Program reached memory limit")]
     MemoryOverflow = 1,
 
     /// Execution failed with backend error that couldn't been caught.
+    #[display(fmt = "Message ran into uncatchable error")]
     BackendError = 2,
 
     /// Execution failed with userspace panic.
+    #[display(fmt = "Message panicked")]
     UserspacePanic = 3,
 
     /// Execution failed with `unreachable` instruction call.
+    #[display(fmt = "Program called WASM `unreachable` instruction")]
     UnreachableInstruction = 4,
 
     /// Unsupported reason of execution error.
     /// Variant exists for backward compatibility.
     #[default]
+    #[display(fmt = "<unsupported error>")]
     Unsupported = 255,
 }
 
@@ -249,19 +274,25 @@ impl SimpleExecutionError {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
+)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Simplified error occurred during program creation.
 pub enum SimpleProgramCreationError {
     /// Given code id for program creation doesn't exist.
+    #[display(fmt = "Given `CodeId` doesn't exist")]
     CodeNotExists = 0,
 
-    /// Resulting program id for program creation already exists.
-    ProgramIdAlreadyExists = 1,
-
+    // -----
+    // TODO: consider should such error appear or not #2821.
+    // /// Resulting program id for program creation already exists.
+    // ProgramIdAlreadyExists = 1,
+    // -----
     /// Unsupported reason of program creation error.
     /// Variant exists for backward compatibility.
     #[default]
+    #[display(fmt = "<unsupported error>")]
     Unsupported = 255,
 }
 
@@ -273,21 +304,26 @@ impl SimpleProgramCreationError {
     fn from_bytes(bytes: [u8; 2]) -> Self {
         match bytes[0] {
             b if Self::CodeNotExists as u8 == b => Self::CodeNotExists,
-            b if Self::ProgramIdAlreadyExists as u8 == b => Self::ProgramIdAlreadyExists,
+            // TODO: #2821
+            // b if Self::ProgramIdAlreadyExists as u8 == b => Self::ProgramIdAlreadyExists,
             _ => Self::Unsupported,
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
+)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Enum representing signal code and reason of its creation.
 pub enum SignalCode {
     /// Signal was sent due to some execution errors.
+    #[display(fmt = "Signal message sent due to execution error ({_0})")]
     Execution(SimpleExecutionError),
 
     /// Signal was sent due to removal from waitlist as out of rent.
     #[default]
+    #[display(fmt = "Signal message sent due to removal from waitlist")]
     RemovedFromWaitlist,
 }
 
