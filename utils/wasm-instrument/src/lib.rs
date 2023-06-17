@@ -200,10 +200,11 @@ pub fn inject<R: Rules>(
         Instruction::I64Sub,
         Instruction::SetGlobal(allowance_index),
         // }
+        Instruction::End,
     ];
 
     // determine cost for successful execution
-    let mut scopes = 0usize;
+    let mut scopes = 0isize;
 
     let cost_blocks = match elements
         .iter()
@@ -260,6 +261,7 @@ pub fn inject<R: Rules>(
             .with_param(ValueType::I32)
             .build()
             .body()
+            .with_locals(vec![elements::Local::new(1, ValueType::I64)])
             .with_instructions(elements::Instructions::new(elements))
             .build()
             .build(),
