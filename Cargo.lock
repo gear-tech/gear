@@ -7258,6 +7258,7 @@ dependencies = [
  "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-gear-scheduler",
+ "pallet-gear-voucher",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",

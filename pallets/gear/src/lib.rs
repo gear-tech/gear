@@ -1900,7 +1900,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
-        #[pallet::call_index(9)]
+        #[pallet::call_index(12)]
         #[pallet::weight(<T as Config>::WeightInfo::send_message_with_voucher(payload.len() as u32))]
         pub fn send_message_with_voucher(
             origin: OriginFor<T>,
@@ -1946,6 +1946,7 @@ pub mod pallet {
             // We want to charge the expenses on the voucher issued for the tx sender
             // First we reserve enough funds on the account to pay for `gas_limit`.
             // Note: this time around the cost of gas is covered by the voucher.
+            // Currency will be reserved on the voucher's account as a result of this call.
             let voucher_id =
                 VoucherOf::<T>::redeem_with_id(who.clone(), destination, gas_limit_reserve)
                     .map_err(|_| {
@@ -1977,6 +1978,112 @@ pub mod pallet {
             });
 
             QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+
+            Ok(().into())
+        }
+
+        /// Sends the reply to a message in `Mailbox` using pre-allocated funds.
+        ///
+        /// Removes message by given `MessageId` from callers `Mailbox`:
+        /// rent funds become free, associated with the message value
+        /// transfers from message sender to extrinsic caller.
+        ///
+        /// Generates reply on removed message with given parameters
+        /// and pushes it in `MessageQueue`.
+        ///
+        /// NOTE: source of the message in mailbox must be a program.
+        #[pallet::call_index(13)]
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
+        pub fn send_reply_with_voucher(
+            origin: OriginFor<T>,
+            reply_to_id: MessageId,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            // Validating origin.
+            let origin = ensure_signed(origin)?;
+
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+
+            // Reason for reading from mailbox.
+            let reason = UserMessageReadRuntimeReason::MessageReplied.into_reason();
+
+            // Reading message, if found, or failing extrinsic.
+            let mailboxed = Self::read_message(origin.clone(), reply_to_id, reason)
+                .ok_or(Error::<T>::MessageNotFound)?;
+
+            Self::check_gas_limit_and_value(gas_limit, value)?;
+
+            let destination = mailboxed.source();
+
+            // Checking that program, origin replies to, is not terminated.
+            ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
+
+            // Reserving funds for sending `value`. The funds are reserved on the
+            // account of the reply sender.
+            //
+            // Note, that message is not guaranteed to be successfully executed,
+            // that's why value is not immediately transferred.
+            CurrencyOf::<T>::reserve(&origin, value)
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
+
+            let reply_id = MessageId::generate_reply(mailboxed.id());
+
+            // Set zero gas limit if reply deposit exists.
+            let gas_limit = if GasHandlerOf::<T>::exists_and_deposit(reply_id) {
+                0
+            } else {
+                gas_limit
+            };
+
+            // Converting applied gas limit into value to reserve.
+            let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
+
+            // Redeeming voucher to pay for gas.
+            // Currency will be reserved on the voucher's account as a result of this call.
+            let voucher_id =
+                VoucherOf::<T>::redeem_with_id(origin.clone(), destination, gas_limit_reserve)
+                    .map_err(|_| {
+                        log::debug!(
+                            "Failed to redeem voucher for user {:?} and program {:?}",
+                            origin,
+                            destination,
+                        );
+                        Error::<T>::FailureRedeemingVoucher
+                    })?;
+
+            // Creating reply message.
+            let message = ReplyMessage::from_packet(
+                reply_id,
+                ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into()),
+            );
+
+            Self::create(voucher_id, message.id(), gas_limit, true);
+
+            // Converting reply message into appropriate type for queueing.
+            let dispatch = message.into_stored_dispatch(
+                ProgramId::from_origin(origin.clone().into_origin()),
+                destination,
+                mailboxed.id(),
+            );
+
+            // Pre-generating appropriate event to avoid dispatch cloning.
+            let event = Event::MessageQueued {
+                id: dispatch.id(),
+                source: origin,
+                destination: dispatch.destination(),
+                entry: MessageEntry::Reply(mailboxed.id()),
+            };
+
+            // Queueing dispatch.
+            QueueOf::<T>::queue(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+
+            // Depositing pre-generated event.
+            Self::deposit_event(event);
 
             Ok(().into())
         }

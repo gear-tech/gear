@@ -77,11 +77,11 @@ impl<T: Config> sp_std::fmt::Debug for CustomChargeTransactionPayment<T> {
 }
 
 pub trait DelegateFee<C, A> {
-    fn delegate_account(call: &C, who: &A) -> Option<A>;
+    fn delegate_fee(call: &C, who: &A) -> Option<A>;
 }
 
 impl<C, A> DelegateFee<C, A> for () {
-    fn delegate_account(_call: &C, _who: &A) -> Option<A> {
+    fn delegate_fee(_call: &C, _who: &A) -> Option<A> {
         None
     }
 }
@@ -197,7 +197,7 @@ where
     ) -> Cow<'a, <T as frame_system::Config>::AccountId> {
         // Check if the extrinsic being called allows to charge fee payment to another account.
         // The only such call at the moment is `Gear::send_message_with_voucher`.
-        if let Some(acc) = T::DelegateFee::delegate_account(call, who) {
+        if let Some(acc) = T::DelegateFee::delegate_fee(call, who) {
             Cow::Owned(acc)
         } else {
             Cow::Borrowed(who)
