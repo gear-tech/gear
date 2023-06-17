@@ -8814,7 +8814,7 @@ fn invalid_memory_page_count_rejected() {
 }
 
 #[test]
-fn test_reinstrumentation() {
+fn test_reinstrumentation_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code_id = CodeId::generate(&ProgramCodeKind::Default.to_bytes());
@@ -8823,7 +8823,7 @@ fn test_reinstrumentation() {
         run_to_block(2, None);
 
         // check old version
-        DynamicSchedule::mutate(|schedule| {
+        let _reset_guard = DynamicSchedule::mutate(|schedule| {
             let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
             assert_eq!(
                 code.instruction_weights_version(),

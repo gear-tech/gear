@@ -34,8 +34,8 @@ use sp_runtime::{
     Perbill,
 };
 use sp_std::{
+    cell::RefCell,
     convert::{TryFrom, TryInto},
-    sync::Mutex,
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -160,31 +160,45 @@ parameter_types! {
     pub ResumeSessionDuration: BlockNumber = 1_000;
 }
 
-static SCHEDULE: Mutex<Option<Schedule<Test>>> = Mutex::new(None);
+thread_local! {
+    static SCHEDULE: RefCell<Option<Schedule<Test>>> = RefCell::new(None);
+}
 
 #[derive(Debug)]
 pub struct DynamicSchedule;
 
 impl DynamicSchedule {
-    pub fn mutate<F>(f: F)
+    pub fn mutate<F>(f: F) -> DynamicScheduleReset
     where
         F: FnOnce(&mut Schedule<Test>),
     {
-        f(SCHEDULE.lock().unwrap().as_mut().unwrap())
+        SCHEDULE.with(|schedule| f(schedule.borrow_mut().as_mut().unwrap()));
+        DynamicScheduleReset(())
     }
 
     pub fn get() -> Schedule<Test> {
-        SCHEDULE
-            .lock()
-            .unwrap()
-            .get_or_insert_with(Default::default)
-            .clone()
+        SCHEDULE.with(|schedule| {
+            schedule
+                .borrow_mut()
+                .get_or_insert_with(Default::default)
+                .clone()
+        })
     }
 }
 
 impl Get<Schedule<Test>> for DynamicSchedule {
     fn get() -> Schedule<Test> {
         Self::get()
+    }
+}
+
+pub struct DynamicScheduleReset(());
+
+impl Drop for DynamicScheduleReset {
+    fn drop(&mut self) {
+        SCHEDULE.with(|schedule| {
+            *schedule.borrow_mut() = Some(Default::default());
+        })
     }
 }
 
