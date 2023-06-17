@@ -37,17 +37,7 @@ where
             T::DebugInfo::remap_id();
         }
 
-        #[cfg(feature = "lazy-pages")]
-        let lazy_pages_enabled = {
-            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                unreachable!("By some reasons we cannot run lazy-pages on this machine");
-            }
-            true
-        };
-
-        #[cfg(not(feature = "lazy-pages"))]
-        let lazy_pages_enabled = false;
+        let lazy_pages_enabled = Self::enable_lazy_pages();
 
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue()

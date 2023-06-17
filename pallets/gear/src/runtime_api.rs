@@ -95,17 +95,7 @@ where
         let mut block_config = Self::block_config();
         block_config.forbidden_funcs = [SysCallName::GasAvailable].into();
 
-        #[cfg(feature = "lazy-pages")]
-        let lazy_pages_enabled = {
-            let prefix = ProgramStorageOf::<T>::pages_final_prefix();
-            if !lazy_pages::try_to_enable_lazy_pages(prefix) {
-                unreachable!("By some reasons we cannot run lazy-pages on this machine");
-            }
-            true
-        };
-
-        #[cfg(not(feature = "lazy-pages"))]
-        let lazy_pages_enabled = false;
+        let lazy_pages_enabled = Self::enable_lazy_pages();
 
         let mut min_limit = 0;
         let mut reserved = 0;
