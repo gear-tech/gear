@@ -208,9 +208,9 @@ async fn stress_test() -> Result<()> {
 async fn stress_transfer() -> Result<()> {
     let mut rng = rand::thread_rng();
 
-    // let api = GearApi::dev_from_path(GEAR_PATH).await?;
-    // Or to use custom node use this code in comment:
-    let api = GearApi::dev().await?.with("//Alice")?;
+    let api = GearApi::dev_from_path(GEAR_PATH).await?;
+    // Use this code in comment for custom node run:
+    // let api = GearApi::dev().await?.with("//Alice")?;
 
     // Subscribing for events.
     let mut listener = api.subscribe().await?;
