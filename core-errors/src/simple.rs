@@ -16,9 +16,6 @@
 
 // //! Simple errors being used for status codes
 
-#![allow(missing_docs)]
-#![allow(clippy::unnecessary_cast)]
-
 #[cfg(feature = "codec")]
 use scale_info::{
     scale::{self, Decode, Encode},
@@ -27,11 +24,17 @@ use scale_info::{
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
+/// Enum representing reply code with reason of its creation.
 pub enum ReplyCode {
+    /// Success reply.
     Success(SuccessReason) = 0,
+
+    /// Error reply.
     Error(ErrorReason) = 1,
-    //
+
+    /// Unsupported code.
+    /// Variant exists for backward compatibility.
     #[default]
     Unsupported = 255,
 }
@@ -49,13 +52,16 @@ impl From<ErrorReason> for ReplyCode {
 }
 
 impl ReplyCode {
-    pub fn to_bytes(self) -> [u8; 4] {
+    fn discriminant(&self) -> u8 {
         // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)` `union`
         // between `repr(C)` structs, each of which has the `u8` discriminant as its first
         // field, so we can read the discriminant without offsetting the pointer.
-        let first = unsafe { *<*const _>::from(&self).cast::<u8>() };
+        unsafe { *<*const _>::from(&self).cast::<u8>() }
+    }
 
-        let mut bytes = [first, 0, 0, 0];
+    /// Converts `ReplyCode` to 4 bytes array.
+    pub fn to_bytes(self) -> [u8; 4] {
+        let mut bytes = [self.discriminant(), 0, 0, 0];
 
         match self {
             Self::Success(reason) => bytes[1..].copy_from_slice(&reason.to_bytes()),
@@ -66,13 +72,14 @@ impl ReplyCode {
         bytes
     }
 
+    /// Parses 4 bytes array to `ReplyCode`.
     pub fn from_bytes(bytes: [u8; 4]) -> Self {
         match bytes[0] {
-            0 => {
+            b if Self::Success(Default::default()).discriminant() == b => {
                 let reason_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::Success(SuccessReason::from_bytes(reason_bytes))
             }
-            1 => {
+            b if Self::Error(Default::default()).discriminant() == b => {
                 let reason_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::Error(ErrorReason::from_bytes(reason_bytes))
             }
@@ -80,18 +87,22 @@ impl ReplyCode {
         }
     }
 
+    /// Constructs `ReplyCode::Error(_)` variant from underlying reason.
     pub fn error(reason: impl Into<ErrorReason>) -> Self {
         Self::Error(reason.into())
     }
 
+    /// Returns bool, defining if `ReplyCode` represents success reply.
     pub fn is_success(&self) -> bool {
         matches!(self, Self::Success(_))
     }
 
+    /// Returns bool, defining if `ReplyCode` represents error reply.
     pub fn is_error(&self) -> bool {
         matches!(self, Self::Error(_))
     }
 
+    /// Returns bool, defining if `ReplyCode` represents unsupported reason.
     pub fn is_unsupported(&self) -> bool {
         matches!(self, Self::Unsupported)
     }
@@ -99,11 +110,17 @@ impl ReplyCode {
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
+/// Reason of success reply creation.
 pub enum SuccessReason {
+    /// Success reply was created by system automatically.
     Auto = 0,
+
+    /// Success reply was created by actor manually.
     Manual = 1,
-    //
+
+    /// Unsupported reason of success reply.
+    /// Variant exists for backward compatibility.
     #[default]
     Unsupported = 255,
 }
@@ -115,8 +132,8 @@ impl SuccessReason {
 
     fn from_bytes(bytes: [u8; 3]) -> Self {
         match bytes[0] {
-            0 => Self::Auto,
-            1 => Self::Manual,
+            b if Self::Auto as u8 == b => Self::Auto,
+            b if Self::Manual as u8 == b => Self::Manual,
             _ => Self::Unsupported,
         }
     }
@@ -124,40 +141,48 @@ impl SuccessReason {
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
+/// Reason of error reply creation.
 pub enum ErrorReason {
-    Execution(ExecutionError) = 0,
-    InactiveProgram = 1,
-    FailedToCreateProgram = 2,
+    /// Error reply was created due to underlying execution error.
+    Execution(SimpleExecutionError) = 0,
+
+    /// Error reply was created due to errors in program creation.
+    FailedToCreateProgram(SimpleProgramCreationError) = 1,
+
+    /// Destination actor become inactive program and can't process the message.
+    InactiveProgram = 2,
+
+    /// Message has died in Waitlist as out of rent one.
     RemovedFromWaitlist = 3,
-    //
+
+    /// Unsupported reason of error reply.
+    /// Variant exists for backward compatibility.
     #[default]
     Unsupported = 255,
 }
 
-impl From<ExecutionError> for ErrorReason {
-    fn from(error: ExecutionError) -> Self {
+impl From<SimpleExecutionError> for ErrorReason {
+    fn from(error: SimpleExecutionError) -> Self {
         Self::Execution(error)
     }
 }
 
 impl ErrorReason {
-    fn to_bytes(self) -> [u8; 3] {
+    fn discriminant(&self) -> u8 {
         // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)` `union`
         // between `repr(C)` structs, each of which has the `u8` discriminant as its first
         // field, so we can read the discriminant without offsetting the pointer.
-        let first = unsafe { *<*const _>::from(&self).cast::<u8>() };
+        unsafe { *<*const _>::from(&self).cast::<u8>() }
+    }
 
-        let mut bytes = [first, 0, 0];
+    fn to_bytes(self) -> [u8; 3] {
+        let mut bytes = [self.discriminant(), 0, 0];
 
         match self {
-            Self::Execution(error) => {
-                bytes[1..].copy_from_slice(&error.to_bytes());
-            }
-            Self::InactiveProgram
-            | Self::FailedToCreateProgram
-            | Self::RemovedFromWaitlist
-            | Self::Unsupported => {}
+            Self::Execution(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
+            Self::FailedToCreateProgram(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
+            Self::InactiveProgram | Self::RemovedFromWaitlist | Self::Unsupported => {}
         }
 
         bytes
@@ -165,12 +190,16 @@ impl ErrorReason {
 
     fn from_bytes(bytes: [u8; 3]) -> Self {
         match bytes[0] {
-            0 => {
+            b if Self::Execution(Default::default()).discriminant() == b => {
                 let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
-                Self::Execution(ExecutionError::from_bytes(err_bytes))
+                Self::Execution(SimpleExecutionError::from_bytes(err_bytes))
             }
-            1 => Self::InactiveProgram,
-            2 => Self::FailedToCreateProgram,
+            b if Self::FailedToCreateProgram(Default::default()).discriminant() == b => {
+                let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
+                Self::FailedToCreateProgram(SimpleProgramCreationError::from_bytes(err_bytes))
+            }
+            b if Self::InactiveProgram.discriminant() == b => Self::InactiveProgram,
+            b if Self::RemovedFromWaitlist.discriminant() == b => Self::RemovedFromWaitlist,
             _ => Self::Unsupported,
         }
     }
@@ -178,30 +207,42 @@ impl ErrorReason {
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
-pub enum ExecutionError {
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
+/// Simplified error occurred during execution.
+pub enum SimpleExecutionError {
+    /// Message ran out of gas while executing.
     RanOutOfGas = 0,
+
+    /// Program has reached memory limit while executing.
     MemoryOverflow = 1,
+
+    /// Execution failed with backend error that couldn't been caught.
     BackendError = 2,
+
+    /// Execution failed with userspace panic.
     UserspacePanic = 3,
+
+    /// Execution failed with `unreachable` instruction call.
     UnreachableInstruction = 4,
-    //
+
+    /// Unsupported reason of execution error.
+    /// Variant exists for backward compatibility.
     #[default]
     Unsupported = 255,
 }
 
-impl ExecutionError {
+impl SimpleExecutionError {
     fn to_bytes(self) -> [u8; 2] {
         [self as u8, 0]
     }
 
     fn from_bytes(bytes: [u8; 2]) -> Self {
         match bytes[0] {
-            0 => Self::RanOutOfGas,
-            1 => Self::MemoryOverflow,
-            2 => Self::BackendError,
-            3 => Self::UserspacePanic,
-            4 => Self::UnreachableInstruction,
+            b if Self::RanOutOfGas as u8 == b => Self::RanOutOfGas,
+            b if Self::MemoryOverflow as u8 == b => Self::MemoryOverflow,
+            b if Self::BackendError as u8 == b => Self::BackendError,
+            b if Self::UserspacePanic as u8 == b => Self::UserspacePanic,
+            b if Self::UnreachableInstruction as u8 == b => Self::UnreachableInstruction,
             _ => Self::Unsupported,
         }
     }
@@ -209,17 +250,54 @@ impl ExecutionError {
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
+/// Simplified error occurred during program creation.
+pub enum SimpleProgramCreationError {
+    /// Given code id for program creation doesn't exist.
+    CodeNotExists = 0,
+
+    /// Resulting program id for program creation already exists.
+    ProgramIdAlreadyExists = 1,
+
+    /// Unsupported reason of program creation error.
+    /// Variant exists for backward compatibility.
+    #[default]
+    Unsupported = 255,
+}
+
+impl SimpleProgramCreationError {
+    fn to_bytes(self) -> [u8; 2] {
+        [self as u8, 0]
+    }
+
+    fn from_bytes(bytes: [u8; 2]) -> Self {
+        match bytes[0] {
+            b if Self::CodeNotExists as u8 == b => Self::CodeNotExists,
+            b if Self::ProgramIdAlreadyExists as u8 == b => Self::ProgramIdAlreadyExists,
+            _ => Self::Unsupported,
+        }
+    }
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
+/// Enum representing signal code and reason of its creation.
 pub enum SignalCode {
-    Execution(ExecutionError),
+    /// Signal was sent due to some execution errors.
+    Execution(SimpleExecutionError),
+
+    /// Signal was sent due to removal from waitlist as out of rent.
     RemovedFromWaitlist,
-    //
+
+    /// Unsupported reason of signal message.
+    /// Variant exists for backward compatibility.
     #[default]
     Unsupported,
 }
 
-impl From<ExecutionError> for SignalCode {
-    fn from(error: ExecutionError) -> Self {
+impl From<SimpleExecutionError> for SignalCode {
+    fn from(error: SimpleExecutionError) -> Self {
         Self::Execution(error)
     }
 }
