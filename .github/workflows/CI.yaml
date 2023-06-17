@@ -188,6 +188,8 @@ jobs:
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --features pallet-gear-debug/lazy-pages --release --locked
 
       - name: "Test: `gcli`"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/gear.sh test gcli --release --locked --retries 3
 
       - name: "Test: JS metadata"
