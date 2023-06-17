@@ -28,7 +28,6 @@ mod benchmarking;
 mod ext;
 
 mod internal;
-mod journal_builder;
 mod queue;
 mod runtime_api;
 mod schedule;

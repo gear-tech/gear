@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::journal_builder::JournalBuilder;
+use crate::queue::QueueStep;
 use common::ActiveProgram;
 use core::convert::TryFrom;
 use gear_core::memory::WasmPage;
@@ -139,7 +139,7 @@ where
 
             let skip_if_allowed = success_reply && gas_limit == 0;
 
-            let builder = JournalBuilder {
+            let step = QueueStep {
                 block_config: &block_config,
                 lazy_pages_enabled,
                 ext_manager: &mut ext_manager,
@@ -149,7 +149,7 @@ where
                 external: account.clone(),
                 get_actor_data: |dispatch| Ok((dispatch, actor.executable_data)),
             };
-            let journal = builder.build().unwrap_or_else(|e| unreachable!("{e:?}"));
+            let journal = step.execute().unwrap_or_else(|e| unreachable!("{e:?}"));
 
             let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 
