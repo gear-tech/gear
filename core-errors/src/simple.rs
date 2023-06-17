@@ -26,12 +26,13 @@ use scale_info::{
 };
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
 pub enum ReplyCode {
     Success(SuccessReason) = 0,
     Error(ErrorReason) = 1,
     //
+    #[default]
     Unsupported = 255,
 }
 
@@ -97,12 +98,13 @@ impl ReplyCode {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
 pub enum SuccessReason {
     Auto = 0,
     Manual = 1,
     //
+    #[default]
     Unsupported = 255,
 }
 
@@ -121,13 +123,14 @@ impl SuccessReason {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
 pub enum ErrorReason {
     Execution(ExecutionError) = 0,
     InactiveProgram = 1,
     FailedToCreateProgram = 2,
     //
+    #[default]
     Unsupported = 255,
 }
 
@@ -170,7 +173,7 @@ impl ErrorReason {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
 pub enum ExecutionError {
     RanOutOfGas = 0,
@@ -179,6 +182,7 @@ pub enum ExecutionError {
     UserspacePanic = 3,
     UnreachableInstruction = 4,
     //
+    #[default]
     Unsupported = 255,
 }
 
@@ -200,11 +204,14 @@ impl ExecutionError {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale))]
 pub enum SignalCode {
     Execution(ExecutionError),
     RemovedFromWaitlist,
+    //
+    #[default]
+    Unsupported,
 }
 
 impl From<ExecutionError> for SignalCode {

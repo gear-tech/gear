@@ -20,7 +20,7 @@ use crate::{
     ids::{MessageId, ProgramId},
     message::{
         common::MessageDetails, ContextStore, DispatchKind, GasLimit, IncomingDispatch,
-        IncomingMessage, Payload, ReplyDetails, StatusCode, Value,
+        IncomingMessage, Payload, ReplyDetails, Value,
     },
 };
 use alloc::string::ToString;
@@ -115,11 +115,6 @@ impl StoredMessage {
     /// Message reply.
     pub fn reply(&self) -> Option<ReplyDetails> {
         self.details.and_then(|d| d.to_reply_details())
-    }
-
-    /// Status code of the message, if reply.
-    pub fn status_code(&self) -> Option<StatusCode> {
-        self.details.map(|d| d.status_code())
     }
 
     #[allow(clippy::result_large_err)]

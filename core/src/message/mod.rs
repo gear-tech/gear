@@ -82,9 +82,6 @@ pub type GasLimit = u64;
 /// Value type for message.
 pub type Value = u128;
 
-/// Status code type for message replies.
-pub type StatusCode = i32;
-
 /// Salt type for init message.
 pub type Salt = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
 

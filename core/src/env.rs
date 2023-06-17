@@ -22,10 +22,11 @@ use crate::{
     gas::GasLeft,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPage},
-    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
+    message::{HandlePacket, InitPacket, ReplyPacket},
 };
 use alloc::collections::BTreeSet;
 use core::fmt::{Debug, Display};
+use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{Decode, Encode};
 
@@ -154,8 +155,11 @@ pub trait Ext {
     /// Get the source of the message currently being handled.
     fn source(&self) -> Result<ProgramId, Self::Error>;
 
-    /// Get the status code of the message being processed.
-    fn status_code(&self) -> Result<StatusCode, Self::Error>;
+    /// Get the reply code if the message being processed.
+    fn reply_code(&self) -> Result<ReplyCode, Self::Error>;
+
+    /// Get the signal code if the message being processed.
+    fn signal_code(&self) -> Result<SignalCode, Self::Error>;
 
     /// Get the id of the message currently being handled.
     fn message_id(&self) -> Result<MessageId, Self::Error>;
