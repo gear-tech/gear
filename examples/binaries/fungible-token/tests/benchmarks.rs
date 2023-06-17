@@ -265,7 +265,9 @@ async fn stress_transfer() -> Result<()> {
         .into_iter()
         .find(|(_, status)| !status.succeed())
     {
-        panic!("{msg_id:?} ended with error status: {status:?}, may be need to decrease `step_size`");
+        panic!(
+            "{msg_id:?} ended with error status: {status:?}, may be need to decrease `step_size`"
+        );
     };
 
     // Estimate gas for one transfer action
