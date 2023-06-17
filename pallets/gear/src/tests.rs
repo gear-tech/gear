@@ -4623,8 +4623,8 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_gas,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::NotEnoughGas,
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Execution(
+                ExecutionError::NotEnoughGas,
             ))),
         );
 
@@ -4659,8 +4659,8 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_gas,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::NotEnoughGas,
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Execution(
+                ExecutionError::NotEnoughGas,
             ))),
         );
 
@@ -4695,8 +4695,8 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_gas,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::NotEnoughGas,
+            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Execution(
+                ExecutionError::NotEnoughGas,
             ))),
         );
 
@@ -6535,10 +6535,12 @@ fn pay_program_rent_syscall_works() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValueForRent {
-                    rent: program_value,
-                    value_left: balance_before
-                }))
+                TrapExplanation::Ext(ExtError::ProgramRent(
+                    ProgramRentError::NotEnoughValueForRent {
+                        rent: program_value,
+                        value_left: balance_before
+                    }
+                ))
             )
         } else {
             String::from("no info")
@@ -6583,7 +6585,9 @@ fn pay_program_rent_syscall_works() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                TrapExplanation::Ext(ExtError::Execution(ExecutionError::MaximumBlockCountPaid))
+                TrapExplanation::Ext(ExtError::ProgramRent(
+                    ProgramRentError::MaximumBlockCountPaid
+                ))
             )
         } else {
             String::from("no info")
