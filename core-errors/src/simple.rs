@@ -17,6 +17,9 @@
 //! Simple errors being used for status codes
 
 #[cfg(feature = "codec")]
+use enum_iterator::Sequence;
+
+#[cfg(feature = "codec")]
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,
@@ -26,7 +29,7 @@ use scale_info::{
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Enum representing reply code with reason of its creation.
 pub enum ReplyCode {
     /// Success reply.
@@ -117,7 +120,7 @@ impl ReplyCode {
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Reason of success reply creation.
 pub enum SuccessReason {
     /// Success reply was created by system automatically.
@@ -153,7 +156,7 @@ impl SuccessReason {
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Reason of error reply creation.
 pub enum ErrorReason {
     /// Error reply was created due to underlying execution error.
@@ -226,7 +229,7 @@ impl ErrorReason {
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Simplified error occurred during execution.
 pub enum SimpleExecutionError {
     /// Message ran out of gas while executing.
@@ -277,7 +280,7 @@ impl SimpleExecutionError {
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Simplified error occurred during program creation.
 pub enum SimpleProgramCreationError {
     /// Given code id for program creation doesn't exist.
@@ -314,7 +317,7 @@ impl SimpleProgramCreationError {
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Enum representing signal code and reason of its creation.
 pub enum SignalCode {
     /// Signal was sent due to some execution errors.
