@@ -192,6 +192,7 @@ impl Get<Schedule<Test>> for DynamicSchedule {
     }
 }
 
+#[must_use]
 pub struct DynamicScheduleReset(());
 
 impl Drop for DynamicScheduleReset {
