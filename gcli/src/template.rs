@@ -44,7 +44,7 @@ pub async fn list() -> Result<Vec<String>> {
         .map_err(|e| anyhow!("Failed to build http client: {}", e))?
         .get(GEAR_DAPPS_GH_API);
 
-    if let Some(tk) = env::var(GITHUB_TOKEN).ok() {
+    if let Ok(tk) = env::var(GITHUB_TOKEN) {
         rb = rb.bearer_auth(tk);
     }
 
