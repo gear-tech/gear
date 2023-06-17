@@ -35,10 +35,11 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::ExtError;
+use gear_core_errors::{ExtError, ReplyCode};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberAndValue,
-    LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithTwoHashes, TwoHashesWithValue,
+    LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithReplyCode, LengthWithSignalCode,
+    LengthWithTwoHashes, TwoHashesWithValue,
 };
 use parity_scale_codec::Encode;
 
@@ -201,17 +202,23 @@ where
         Err(ActorTerminationReason::Exit(inheritor_id).into())
     }
 
-    // // TODO (breathx): change costs and output.
-    // #[host(fallible, cost = RuntimeCosts::StatusCode, err_len = LengthWithCode)]
-    // pub fn reply_code(ctx: &mut R) -> Result<(), R::Error> {
-    //     ctx.ext_mut().reply_code().map_err(Into::into)
-    // }
+    #[host(fallible, cost = RuntimeCosts::ReplyCode, err_len = LengthWithReplyCode)]
+    pub fn reply_code(ctx: &mut R) -> Result<(), R::Error> {
+        ctx.ext_mut()
+            .reply_code()
+            .map(ReplyCode::to_bytes)
+            .map_err(Into::into)
+    }
 
-    // // TODO (breathx): change costs and output.
-    // #[host(fallible, cost = RuntimeCosts::StatusCode, err_len = LengthWithCode)]
-    // pub fn signal_code(ctx: &mut R) -> Result<(), R::Error> {
-    //     ctx.ext_mut().signal_code().map_err(Into::into)
-    // }
+    // TODO (breathx): change cost.
+    #[host(fallible, cost = RuntimeCosts::ReplyCode, err_len = LengthWithSignalCode)]
+    pub fn signal_code(ctx: &mut R) -> Result<(), R::Error> {
+        // TODO (breathx): change code.
+        ctx.ext_mut()
+            .signal_code()
+            .map(|_code| 1u32)
+            .map_err(Into::into)
+    }
 
     #[host(cost = RuntimeCosts::Alloc)]
     pub fn alloc(ctx: &mut R, pages: u32) -> Result<u32, R::Error> {

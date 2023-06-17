@@ -70,7 +70,8 @@ where
             SysCallName::ReplyDeposit => check_gr_reply_deposit::<T>(),
             SysCallName::Read => {/* checked in all the calls internally */},
             SysCallName::Size => check_gr_size::<T>(),
-            SysCallName::StatusCode => {/* checked in reply_to */},
+            SysCallName::ReplyCode => {/* TODO (breathx) */},
+            SysCallName::SignalCode => {/* TODO (breathx) */},
             SysCallName::MessageId => check_gr_message_id::<T>(),
             SysCallName::ProgramId => check_gr_program_id::<T>(),
             SysCallName::Source => check_gr_source::<T>(),
@@ -686,7 +687,7 @@ where
     });
 }
 
-// Tests `gr_reply_to` and  `gr_status_code`
+// Tests `gr_reply_to` and  `gr_reply_code`
 fn check_reply_details<T>()
 where
     T: Config,
@@ -724,7 +725,7 @@ where
     });
 }
 
-// Tests `gr_signal_from` and `gr_status_code`
+// Tests `gr_signal_from` and `gr_reply_code`
 fn check_signal_details<T>()
 where
     T: Config,

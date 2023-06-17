@@ -1167,13 +1167,13 @@ where
         Self::prepare_handle_with_const_payload(module)
     }
 
-    pub fn gr_status_code(r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn gr_reply_code(r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         let res_offset = COMMON_OFFSET;
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::StatusCode],
+            imported_functions: vec![SysCallName::ReplyCode],
             reply_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
         };
