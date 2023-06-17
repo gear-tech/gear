@@ -405,14 +405,14 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
     /// The range of component `p` is `[0, 2097152]`.
     fn send_reply_with_voucher(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
-        //  Measured:  `954`
-        //  Estimated: `41065`
-        // Minimum execution time: 80_508_000 picoseconds.
-        Weight::from_parts(73_414_404, 41065)
+        //  Measured:  `1153`
+        //  Estimated: `46405`
+        // Minimum execution time: 136_904_000 picoseconds.
+        Weight::from_parts(122_442_770, 46405)
             // Standard Error: 1
-            .saturating_add(Weight::from_parts(1_227, 0).saturating_mul(p.into()))
-            .saturating_add(T::DbWeight::get().reads(13_u64))
-            .saturating_add(T::DbWeight::get().writes(10_u64))
+            .saturating_add(Weight::from_parts(1_232, 0).saturating_mul(p.into()))
+            .saturating_add(T::DbWeight::get().reads(14_u64))
+            .saturating_add(T::DbWeight::get().writes(11_u64))
     }
     /// The range of component `q` is `[1, 512]`.
     fn initial_allocation(q: u32, ) -> Weight {
@@ -2274,14 +2274,14 @@ impl WeightInfo for () {
     /// The range of component `p` is `[0, 2097152]`.
     fn send_reply_with_voucher(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
-        //  Measured:  `954`
-        //  Estimated: `41065`
-        // Minimum execution time: 80_508_000 picoseconds.
-        Weight::from_parts(73_414_404, 41065)
+        //  Measured:  `1153`
+        //  Estimated: `46405`
+        // Minimum execution time: 136_904_000 picoseconds.
+        Weight::from_parts(122_442_770, 46405)
             // Standard Error: 1
-            .saturating_add(Weight::from_parts(1_227, 0).saturating_mul(p.into()))
-            .saturating_add(RocksDbWeight::get().reads(13_u64))
-            .saturating_add(RocksDbWeight::get().writes(10_u64))
+            .saturating_add(Weight::from_parts(1_232, 0).saturating_mul(p.into()))
+            .saturating_add(RocksDbWeight::get().reads(14_u64))
+            .saturating_add(RocksDbWeight::get().writes(11_u64))
     }
     /// The range of component `q` is `[1, 512]`.
     fn initial_allocation(q: u32, ) -> Weight {
