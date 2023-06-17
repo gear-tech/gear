@@ -67,8 +67,7 @@ impl fmt::Display for Error {
             }
             Error::Convert(e) => write!(f, "Conversion error: {e:?}"),
             Error::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
-            // TODO (breathx)
-            Error::ReplyCode(e) => write!(f, "Reply returned exit code {e:?}"),
+            Error::ReplyCode(e) => write!(f, "Reply came with non success reply code {e:?}"),
             Error::Ext(e) => write!(f, "API error: {e}"),
             Error::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
             Error::ZeroSystemReservationAmount => {
