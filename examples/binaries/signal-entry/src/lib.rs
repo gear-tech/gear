@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use gstd::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
 mod code {
@@ -46,211 +46,205 @@ pub enum HandleAction {
     ForbiddenCallInSignal([u8; 32]),
 }
 
-// TODO (breathx)
 #[cfg(not(feature = "std"))]
 mod wasm {
-    extern crate gstd;
+    use super::*;
+    use gstd::{
+        errors::{ExtError, ReservationError, SignalCode, SimpleExecutionError},
+        exec, msg,
+        prelude::*,
+        ActorId, MessageId,
+    };
+
+    static mut INITIATOR: ActorId = ActorId::zero();
+    static mut HANDLE_MSG: Option<MessageId> = None;
+    static mut DO_PANIC: bool = false;
+    static mut DO_EXIT: bool = false;
+    static mut HANDLE_SIGNAL_STATE: HandleSignalState = HandleSignalState::Normal;
+
+    enum HandleSignalState {
+        Normal,
+        Panic,
+        ForbiddenCall([u8; 32]),
+    }
 
     #[no_mangle]
-    extern "C" fn init() {}
-    // use super::*;
-    // use gstd::{
-    //     errors::{
-    //         ExtError, ReservationError, SimpleExecutionError,
-    //     },
-    //     exec, msg,
-    //     prelude::*,
-    //     ActorId, MessageId,
-    // };
+    extern "C" fn init() {
+        unsafe { INITIATOR = msg::source() };
+    }
 
-    // static mut INITIATOR: ActorId = ActorId::zero();
-    // static mut HANDLE_MSG: Option<MessageId> = None;
-    // static mut DO_PANIC: bool = false;
-    // static mut DO_EXIT: bool = false;
-    // static mut HANDLE_SIGNAL_STATE: HandleSignalState = HandleSignalState::Normal;
+    #[no_mangle]
+    extern "C" fn handle() {
+        unsafe { HANDLE_MSG = Some(msg::id()) };
+        let do_panic = unsafe { &mut DO_PANIC };
 
-    // enum HandleSignalState {
-    //     Normal,
-    //     Panic,
-    //     ForbiddenCall([u8; 32]),
-    // }
+        let action: HandleAction = msg::load().unwrap();
+        match action {
+            HandleAction::Simple => {
+                // must be unreserved as unused
+                exec::system_reserve_gas(100).unwrap();
+            }
+            HandleAction::Wait => {
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+                // used to found message id in test
+                msg::send(msg::source(), 0, 0).unwrap();
+                exec::wait();
+            }
+            HandleAction::WaitAndPanic => {
+                if *do_panic {
+                    panic!();
+                }
 
-    // #[no_mangle]
-    // extern "C" fn init() {
-    //     unsafe { INITIATOR = msg::source() };
-    // }
+                *do_panic = !*do_panic;
 
-    // #[no_mangle]
-    // extern "C" fn handle() {
-    //     unsafe { HANDLE_MSG = Some(msg::id()) };
-    //     let do_panic = unsafe { &mut DO_PANIC };
+                exec::system_reserve_gas(200).unwrap();
+                // used to found message id in test
+                msg::send(msg::source(), 0, 0).unwrap();
+                exec::wait();
+            }
+            HandleAction::WaitAndReserveWithPanic => {
+                if *do_panic {
+                    exec::system_reserve_gas(1_000_000_000).unwrap();
+                    panic!();
+                }
 
-    //     let action: HandleAction = msg::load().unwrap();
-    //     match action {
-    //         HandleAction::Simple => {
-    //             // must be unreserved as unused
-    //             exec::system_reserve_gas(100).unwrap();
-    //         }
-    //         HandleAction::Wait => {
-    //             exec::system_reserve_gas(1_000_000_000).unwrap();
-    //             // used to found message id in test
-    //             msg::send(msg::source(), 0, 0).unwrap();
-    //             exec::wait();
-    //         }
-    //         HandleAction::WaitAndPanic => {
-    //             if *do_panic {
-    //                 panic!();
-    //             }
+                *do_panic = !*do_panic;
 
-    //             *do_panic = !*do_panic;
+                exec::system_reserve_gas(2_000_000_000).unwrap();
+                // used to found message id in test
+                msg::send(msg::source(), 0, 0).unwrap();
+                exec::wait();
+            }
+            HandleAction::WaitAndExit => {
+                if unsafe { DO_EXIT } {
+                    msg::send_bytes(msg::source(), b"wait_and_exit", 0).unwrap();
+                    exec::exit(msg::source());
+                }
 
-    //             exec::system_reserve_gas(200).unwrap();
-    //             // used to found message id in test
-    //             msg::send(msg::source(), 0, 0).unwrap();
-    //             exec::wait();
-    //         }
-    //         HandleAction::WaitAndReserveWithPanic => {
-    //             if *do_panic {
-    //                 exec::system_reserve_gas(1_000_000_000).unwrap();
-    //                 panic!();
-    //             }
+                unsafe { DO_EXIT = !DO_EXIT };
 
-    //             *do_panic = !*do_panic;
+                exec::system_reserve_gas(900).unwrap();
+                // used to found message id in test
+                msg::send(msg::source(), 0, 0).unwrap();
+                exec::wait();
+            }
+            HandleAction::Panic => {
+                exec::system_reserve_gas(5_000_000_000).unwrap();
+                panic!();
+            }
+            HandleAction::WaitWithReserveAmountAndPanic(gas_amount) => {
+                if *do_panic {
+                    panic!();
+                }
 
-    //             exec::system_reserve_gas(2_000_000_000).unwrap();
-    //             // used to found message id in test
-    //             msg::send(msg::source(), 0, 0).unwrap();
-    //             exec::wait();
-    //         }
-    //         HandleAction::WaitAndExit => {
-    //             if unsafe { DO_EXIT } {
-    //                 msg::send_bytes(msg::source(), b"wait_and_exit", 0).unwrap();
-    //                 exec::exit(msg::source());
-    //             }
+                *do_panic = !*do_panic;
 
-    //             unsafe { DO_EXIT = !DO_EXIT };
+                exec::system_reserve_gas(gas_amount).unwrap();
+                // used to found message id in test
+                msg::send(msg::source(), 0, 0).unwrap();
+                exec::wait();
+            }
+            HandleAction::Exit => {
+                exec::system_reserve_gas(4_000_000_000).unwrap();
+                msg::reply_bytes(b"exit", 0).unwrap();
+                exec::exit(msg::source());
+            }
+            HandleAction::Accumulate => {
+                exec::system_reserve_gas(1000).unwrap();
+                exec::system_reserve_gas(234).unwrap();
+                exec::wait();
+            }
+            HandleAction::OutOfGas => {
+                exec::system_reserve_gas(5_000_000_000).unwrap();
+                // used to found message id in test
+                msg::send(msg::source(), 0, 0).unwrap();
+                #[allow(clippy::empty_loop)]
+                loop {}
+            }
+            HandleAction::AcrossWaits => {
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+                // used to found message id in test
+                // we use send instead of reply to avoid duplicated reply error.
+                msg::send(msg::source(), 0, 0).unwrap();
+                exec::wait();
+            }
+            HandleAction::PanicInSignal => {
+                unsafe { HANDLE_SIGNAL_STATE = HandleSignalState::Panic };
+                exec::system_reserve_gas(5_000_000_000).unwrap();
+                exec::wait();
+            }
+            HandleAction::ZeroReserve => {
+                let res = exec::system_reserve_gas(0);
+                assert_eq!(
+                    res,
+                    Err(ExtError::Reservation(
+                        ReservationError::ZeroReservationAmount
+                    ))
+                );
+            }
+            HandleAction::ForbiddenCallInSignal(user) => {
+                unsafe { HANDLE_SIGNAL_STATE = HandleSignalState::ForbiddenCall(user) };
+                exec::system_reserve_gas(1_000_000_000).unwrap();
+                exec::wait();
+            }
+        }
+    }
 
-    //             exec::system_reserve_gas(900).unwrap();
-    //             // used to found message id in test
-    //             msg::send(msg::source(), 0, 0).unwrap();
-    //             exec::wait();
-    //         }
-    //         HandleAction::Panic => {
-    //             exec::system_reserve_gas(5_000_000_000).unwrap();
-    //             panic!();
-    //         }
-    //         HandleAction::WaitWithReserveAmountAndPanic(gas_amount) => {
-    //             if *do_panic {
-    //                 panic!();
-    //             }
+    #[no_mangle]
+    extern "C" fn handle_signal() {
+        match unsafe { &HANDLE_SIGNAL_STATE } {
+            HandleSignalState::Normal => {
+                msg::send(unsafe { INITIATOR }, b"handle_signal", 0).unwrap();
+                let signal_code = msg::signal_code()
+                    .expect("Incorrect call")
+                    .expect("Unsupported code");
+                assert!(matches!(
+                    signal_code,
+                    SignalCode::Execution(
+                        SimpleExecutionError::UserspacePanic | SimpleExecutionError::RanOutOfGas
+                    )
+                ));
 
-    //             *do_panic = !*do_panic;
+                if let Some(handle_msg) = unsafe { HANDLE_MSG } {
+                    assert_eq!(msg::signal_from(), Ok(handle_msg));
+                }
 
-    //             exec::system_reserve_gas(gas_amount).unwrap();
-    //             // used to found message id in test
-    //             msg::send(msg::source(), 0, 0).unwrap();
-    //             exec::wait();
-    //         }
-    //         HandleAction::Exit => {
-    //             exec::system_reserve_gas(4_000_000_000).unwrap();
-    //             msg::reply_bytes(b"exit", 0).unwrap();
-    //             exec::exit(msg::source());
-    //         }
-    //         HandleAction::Accumulate => {
-    //             exec::system_reserve_gas(1000).unwrap();
-    //             exec::system_reserve_gas(234).unwrap();
-    //             exec::wait();
-    //         }
-    //         HandleAction::OutOfGas => {
-    //             exec::system_reserve_gas(5_000_000_000).unwrap();
-    //             // used to found message id in test
-    //             msg::send(msg::source(), 0, 0).unwrap();
-    //             loop {}
-    //         }
-    //         HandleAction::AcrossWaits => {
-    //             exec::system_reserve_gas(1_000_000_000).unwrap();
-    //             // used to found message id in test
-    //             // we use send instead of reply to avoid duplicated reply error.
-    //             msg::send(msg::source(), 0, 0).unwrap();
-    //             exec::wait();
-    //         }
-    //         HandleAction::PanicInSignal => {
-    //             unsafe { HANDLE_SIGNAL_STATE = HandleSignalState::Panic };
-    //             exec::system_reserve_gas(5_000_000_000).unwrap();
-    //             exec::wait();
-    //         }
-    //         HandleAction::ZeroReserve => {
-    //             let res = exec::system_reserve_gas(0);
-    //             assert_eq!(
-    //                 res,
-    //                 Err(ExtError::Reservation(
-    //                     ReservationError::ZeroReservationAmount
-    //                 ))
-    //             );
-    //         }
-    //         HandleAction::ForbiddenCallInSignal(user) => {
-    //             unsafe { HANDLE_SIGNAL_STATE = HandleSignalState::ForbiddenCall(user) };
-    //             exec::system_reserve_gas(1_000_000_000).unwrap();
-    //             exec::wait();
-    //         }
-    //     }
-    // }
+                // TODO: check gas limit (#1796)
+                // assert_eq!(msg::gas_limit(), 5_000_000_000);
+            }
+            HandleSignalState::Panic => {
+                // to be sure state rolls back so this message won't appear in mailbox in test
+                msg::send(unsafe { INITIATOR }, b"handle_signal_panic", 0).unwrap();
+                panic!();
+            }
+            HandleSignalState::ForbiddenCall(user) => {
+                msg::send_bytes((*user).into(), b"handle_signal_forbidden_call", 0).unwrap();
+                let _ = msg::source();
+            }
+        }
+    }
 
-    // #[no_mangle]
-    // extern "C" fn handle_signal() {
-    //     match unsafe { &HANDLE_SIGNAL_STATE } {
-    //         HandleSignalState::Normal => {
-    //             msg::send(unsafe { INITIATOR }, b"handle_signal", 0).unwrap();
-    //             let status_code = msg::status_code().unwrap();
-    //             let err = SimpleSignalError::from_status_code(status_code).expect("Known error");
-    //             assert!(matches!(
-    //                 err,
-    //                 SimpleSignalError::Execution(SimpleExecutionError::Panic)
-    //                     | SimpleSignalError::Execution(SimpleExecutionError::GasLimitExceeded)
-    //             ));
-
-    //             if let Some(handle_msg) = unsafe { HANDLE_MSG } {
-    //                 assert_eq!(msg::signal_from(), Ok(handle_msg));
-    //             }
-
-    //             // TODO: check gas limit (#1796)
-    //             // assert_eq!(msg::gas_limit(), 5_000_000_000);
-    //         }
-    //         HandleSignalState::Panic => {
-    //             // to be sure state rolls back so this message won't appear in mailbox in test
-    //             msg::send(unsafe { INITIATOR }, b"handle_signal_panic", 0).unwrap();
-    //             panic!();
-    //         }
-    //         HandleSignalState::ForbiddenCall(user) => {
-    //             msg::send_bytes((*user).into(), b"handle_signal_forbidden_call", 0).unwrap();
-    //             let _ = msg::source();
-    //         }
-    //     }
-    // }
-
-    // #[no_mangle]
-    // extern "C" fn handle_reply() {
-    //     let handle_msg = unsafe { HANDLE_MSG.unwrap() };
-    //     exec::wake(handle_msg).unwrap();
-    // }
+    #[no_mangle]
+    extern "C" fn handle_reply() {
+        let handle_msg = unsafe { HANDLE_MSG.unwrap() };
+        exec::wake(handle_msg).unwrap();
+    }
 }
 
-// TODO (breathx)
-// #[cfg(test)]
-// mod tests {
-//     extern crate std;
+#[cfg(test)]
+mod tests {
+    use gstd::errors::{SignalCode, SimpleExecutionError};
+    use gtest::{Program, System};
 
-//     use gstd::errors::{SimpleExecutionError, SimpleSignalError};
-//     use gtest::{Program, System};
+    #[test]
+    fn signal_can_be_sent() {
+        let system = System::new();
+        system.init_logger();
 
-//     #[test]
-//     fn signal_can_be_sent() {
-//         let system = System::new();
-//         system.init_logger();
+        let program = Program::current(&system);
 
-//         let program = Program::current(&system);
-
-//         let res = program.send_signal(0, SimpleSignalError::Execution(SimpleExecutionError::Panic));
-//         assert!(!res.main_failed());
-//     }
-// }
+        let signal_code: SignalCode = SimpleExecutionError::UserspacePanic.into();
+        let res = program.send_signal(0, signal_code);
+        assert!(!res.main_failed());
+    }
+}
