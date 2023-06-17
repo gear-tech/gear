@@ -112,6 +112,7 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
 
     /// Returns ref to the internal data.
     pub fn get(&self) -> &[T] {
+        // todo [sab] inner"
         &self.0
     }
 

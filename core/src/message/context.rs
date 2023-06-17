@@ -528,6 +528,10 @@ impl MessageContext {
         &self.current
     }
 
+    pub fn payload_mut(&mut self) -> &mut Payload {
+        self.current.payload_mut()
+    }
+
     /// Current program's id.
     pub fn program_id(&self) -> ProgramId {
         self.outcome.program_id

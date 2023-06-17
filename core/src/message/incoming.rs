@@ -39,7 +39,7 @@ pub struct IncomingMessage {
     /// Message source.
     source: ProgramId,
     /// Message payload.
-    payload: Payload,
+    payload: Payload, // todo [sab] Takeable payload
     /// Message gas limit. Required here.
     gas_limit: GasLimit,
     /// Message value.
@@ -92,7 +92,12 @@ impl IncomingMessage {
 
     /// Message payload reference.
     pub fn payload(&self) -> &[u8] {
+        // payload_raw
         self.payload.get()
+    }
+
+    pub fn payload_mut(&mut self) -> &mut Payload {
+        &mut self.payload
     }
 
     /// Message gas limit.

@@ -21,6 +21,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
+use core::mem;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
@@ -30,7 +31,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
-    env::Externalities,
+    env::{Either, Externalities, PayloadSliceHolder},
     gas::{
         ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
         GasLeft, Token, ValueCounter,
@@ -41,7 +42,7 @@ use gear_core::{
         NoopGrowHandler, PageBuf, PageU32Size, WasmPage,
     },
     message::{
-        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
+        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, Payload,
         ReplyPacket, StatusCode,
     },
     reservation::GasReserver,
@@ -143,6 +144,18 @@ pub enum ExtError {
     #[display(fmt = "Charge error: {_0}")]
     Charge(ChargeError),
 }
+
+// impl<R> From<ExtError> for Either<ExtError, R> {
+//     fn from(err: ExtError) -> Self {
+//         Self::Left(err)
+//     }
+// }
+
+// impl<R> From<R> for Either<ExtError, R> {
+//     fn from(err: R) -> Self {
+//         Either::Right(err)
+//     }
+// }
 
 impl From<MessageError> for ExtError {
     fn from(err: MessageError) -> Self {
@@ -714,23 +727,26 @@ impl Externalities for Ext {
         Ok(())
     }
 
-    fn read_inner(&mut self, at: u32, len: u32) -> Result<&[u8], Self::Error> {
-        // Verify read is correct
+    fn hold_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error> {
         let end = at
             .checked_add(len)
             .ok_or(MessageError::TooBigReadLen { at, len })?;
         self.charge_gas_runtime_if_enough(RuntimeCosts::ReadPerByte(len))?;
-        let msg = self.context.message_context.current().payload();
-        if end as usize > msg.len() {
-            return Err(MessageError::ReadWrongRange {
-                start: at,
-                end,
-                msg_len: msg.len() as u32,
-            }
-            .into());
-        }
+        PayloadSliceHolder::try_new((at, end), &mut self.context.message_context).map_err(
+            |msg_len| {
+                MessageError::ReadWrongRange {
+                    start: at,
+                    end,
+                    msg_len: msg_len as u32,
+                }
+                .into()
+            },
+        )
+    }
 
-        Ok(&msg[at as usize..end as usize])
+    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) {
+        // todo [sab] check that it's the same payload_holder you once created from msg_ctx
+        payload_holder.release_back(&mut self.context.message_context);
     }
 
     fn size(&self) -> Result<usize, Self::Error> {

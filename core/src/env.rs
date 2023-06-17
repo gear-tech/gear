@@ -22,22 +22,71 @@ use crate::{
     buffer::LimitedVec,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPage},
-    message::{HandlePacket, InitPacket, Payload, ReplyPacket, StatusCode},
+    message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket, StatusCode},
 };
 use alloc::collections::BTreeSet;
-use core::fmt::{Debug, Display};
+use core::{
+    fmt::{Debug, Display},
+    mem,
+    ops::Deref,
+};
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{Decode, Encode};
 
-/// Page access rights.
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Copy)]
-pub enum PageAction {
-    /// Can be read.
-    Read,
-    /// Can be written.
-    Write,
-    /// No access.
-    None,
+pub enum Either<L, R> {
+    Left(L),
+    Right(R),
+}
+
+pub struct PayloadSliceHolder {
+    // todo [sab] add message id to check whether the same message context has come
+    payload: Payload,
+    range: (usize, usize),
+}
+
+impl PayloadSliceHolder {
+    pub fn try_new((start, end): (u32, u32), msg_ctx: &mut MessageContext) -> Result<Self, usize> {
+        // TODO [sab] what if make a var with payload_mut?
+        let len = msg_ctx.payload_mut().get().len();
+        if end as usize > len {
+            return Err(len);
+        }
+
+        Ok(Self {
+            payload: mem::take(msg_ctx.payload_mut()),
+            range: (start as usize, end as usize),
+        })
+    }
+
+    pub fn release_back(&mut self, msg_ctx: &mut MessageContext) {
+        mem::swap(msg_ctx.payload_mut(), &mut self.payload);
+    }
+
+    pub fn release_with_job<JobErr, Job>(mut self, mut job: Job) -> Result<(), JobErr>
+    where
+        Job: FnMut(PayloadToSlice<'_>) -> Result<(), JobErr>,
+    {
+        let (start, end) = self.range;
+        let held_range = PayloadToSlice(&mut self);
+        job(held_range)
+    }
+
+    fn in_range(&self) -> &[u8] {
+        let (start, end) = self.range;
+        &self.payload.get()[start..end]
+    }
+}
+
+pub struct PayloadToSlice<'a>(&'a mut PayloadSliceHolder);
+
+impl<'a> PayloadToSlice<'a> {
+    pub fn to_slice(&self) -> &[u8] {
+        self.0.in_range()
+    }
+
+    pub fn into_holder(self) -> &'a mut PayloadSliceHolder {
+        self.0
+    }
 }
 
 /// External api and data for managing memory and messages,
@@ -94,7 +143,6 @@ pub trait Externalities {
         self.send_commit(handle, msg, delay)
     }
 
-    /// Push the incoming message buffer into message payload by handle.
     fn send_push_input(&mut self, handle: u32, offset: u32, len: u32) -> Result<(), Self::Error>;
 
     /// Complete message and send it to another program using gas from reservation.
@@ -177,35 +225,10 @@ pub trait Externalities {
     /// This should be no-op in release builds.
     fn debug(&self, data: &str) -> Result<(), Self::Error>;
 
-    fn read_with_owned<HandleError, H>(
-        &mut self,
-        at: u32,
-        len: u32,
-        mut handle_payload_read: H,
-    ) -> Result<(), Result<HandleError, Self::Error>>
-    where
-        Self: PayloadOwner<Payload = Payload>,
-        H: FnMut(&[u8]) -> Result<(), HandleError>,
-    {
-        let actual_payload = core::mem::take(self.payload_mut());
-        let payload_slice = match self.read_inner(at, len, &actual_payload) {
-            Ok(buf) => buf,
-            Err(err) => {
-                self.set_payload(actual_payload);
-                return Err(Err(err));
-            }
-        };
+    // todo [sab] #[must_use]
+    fn hold_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error>;
 
-        handle_payload_read(payload_slice).map_err(|err| {
-            self.set_payload(payload);
-            Ok(err)
-        })?;
-
-        Ok()
-    }
-
-    /// Access currently handled message payload.
-    fn read_inner(&mut self, at: u32, len: u32, payload: &Payload) -> Result<&[u8], Self::Error>;
+    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder);
 
     /// Size of currently handled message payload.
     fn size(&self) -> Result<usize, Self::Error>;
@@ -256,11 +279,4 @@ pub trait Externalities {
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName>;
-}
-
-pub trait PayloadOwner {
-    type Payload;
-
-    fn payload_mut(&mut self) -> &mut Self::Payload;
-    fn set_payload(&mut self, payload: Self::Payload);
 }

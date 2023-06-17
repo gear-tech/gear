@@ -174,10 +174,17 @@ where
 
     #[host(fallible, cost = RuntimeCosts::Read, err_len = LengthBytes)]
     pub fn read(ctx: &mut R, at: u32, len: u32, buffer_ptr: u32) -> Result<(), R::Error> {
-        let buffer = ctx.ext_mut().read_inner(at, len)?.to_vec();
+        let payload_holder = ctx.ext_mut().hold_payload(at, len)?;
+        payload_holder
+            .release_with_job(|payload_in_range| {
+                let write_buffer = ctx.register_write(buffer_ptr, len);
+                let res = ctx.write(write_buffer, payload_in_range.to_slice());
+                ctx.ext_mut()
+                    .reclaim_payload(payload_in_range.into_holder());
 
-        let write_buffer = ctx.register_write(buffer_ptr, len);
-        ctx.write(write_buffer, &buffer).map_err(Into::into)
+                res
+            })
+            .map_err(Into::into)
     }
 
     #[host(cost = RuntimeCosts::Size)]
