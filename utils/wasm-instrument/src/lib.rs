@@ -227,12 +227,17 @@ pub fn inject<R: Rules>(
         None => return Err(mbuilder.build()),
     };
 
+    let cost_push_arg = match rules.instruction_cost(&Instruction::I32Const(0)) {
+        Some(c) => c as u64,
+        None => return Err(mbuilder.build()),
+    };
+
     let cost_call = match rules.instruction_cost(&Instruction::Call(0)) {
         Some(c) => c as u64,
         None => return Err(mbuilder.build()),
     };
 
-    let cost = cost_call + cost_blocks;
+    let cost = cost_push_arg + cost_call + cost_blocks;
     // the cost is added to gas_to_charge which cannot
     // exceed u32::MAX value. This check ensures
     // there is no u64 overflow.

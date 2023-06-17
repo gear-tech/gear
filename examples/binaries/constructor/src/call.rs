@@ -36,6 +36,9 @@ pub enum Call {
     IfElse(Arg<bool>, Box<Self>, Box<Self>),
     Load,
     LoadBytes,
+    Wait,
+    Wake(Arg<[u8; 32]>),
+    MessageId,
 }
 
 #[cfg(not(feature = "std"))]
@@ -254,6 +257,28 @@ mod wasm {
             Some(msg::load_bytes().expect("Failed to load bytes"))
         }
 
+        fn wait(self) -> ! {
+            (!matches!(self, Self::Wait)).then(|| unreachable!());
+
+            exec::wait()
+        }
+
+        fn wake(self) -> Option<Vec<u8>> {
+            let Self::Wake(message_id) = self else { unreachable!() };
+
+            let message_id = message_id.value().into();
+
+            exec::wake(message_id).expect("Failed to wake message");
+
+            None
+        }
+
+        fn message_id(self) -> Option<Vec<u8>> {
+            (!matches!(self, Self::MessageId)).then(|| unreachable!());
+
+            Some(msg::id().encode())
+        }
+
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
             debug!("\t[CONSTRUCTOR] >> Processing {:?}", self);
             let call = self.clone();
@@ -277,6 +302,9 @@ mod wasm {
                 Call::Value => self.value(),
                 Call::Load => self.load(),
                 Call::LoadBytes => self.load_bytes(),
+                Call::Wait => self.wait(),
+                Call::Wake(..) => self.wake(),
+                Call::MessageId => self.message_id(),
             };
 
             (call, value)

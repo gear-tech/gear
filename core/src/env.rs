@@ -41,11 +41,13 @@ pub enum PageAction {
     None,
 }
 
-/// External api for managing memory, messages, and gas-counting.
-pub trait Ext {
-    /// An error issued in api
+/// External api and data for managing memory and messages,
+/// use by an executing program to trigger state transition
+/// in runtime.
+pub trait Externalities {
+    /// An error issued in api.
     type Error;
-    /// An error issued during allocation
+    /// An error issued during allocation.
     type AllocError: Display;
 
     /// Allocate number of pages.

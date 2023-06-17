@@ -117,7 +117,7 @@ pub enum DispatchKind {
 }
 
 /// Trait defining type could be used as entry point for a wasm module.
-pub trait WasmEntry: Sized {
+pub trait WasmEntryPoint: Sized {
     /// Converting self into entry point name.
     fn as_entry(&self) -> &str;
 
@@ -126,11 +126,11 @@ pub trait WasmEntry: Sized {
 
     /// Tries to convert self into `DispatchKind`.
     fn try_into_kind(&self) -> Option<DispatchKind> {
-        <DispatchKind as WasmEntry>::try_from_entry(self.as_entry())
+        <DispatchKind as WasmEntryPoint>::try_from_entry(self.as_entry())
     }
 }
 
-impl WasmEntry for String {
+impl WasmEntryPoint for String {
     fn as_entry(&self) -> &str {
         self
     }
@@ -140,7 +140,7 @@ impl WasmEntry for String {
     }
 }
 
-impl WasmEntry for DispatchKind {
+impl WasmEntryPoint for DispatchKind {
     fn as_entry(&self) -> &str {
         match self {
             Self::Init => "init",

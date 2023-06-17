@@ -18,7 +18,7 @@
 
 use crate::{
     async_runtime::{self, signals, Lock, ReplyPoll},
-    errors::{ContractError, Result},
+    errors::{Error, Result},
     msg::macros::impl_futures,
     prelude::{convert::AsRef, Vec},
     ActorId, Config, MessageId,
@@ -43,7 +43,7 @@ where
         // Remove lock after timeout.
         async_runtime::locks().remove(msg_id, waiting_reply_to);
 
-        return Poll::Ready(Err(ContractError::Timeout(expected, now)));
+        return Poll::Ready(Err(Error::Timeout(expected, now)));
     }
 
     match signals().poll(waiting_reply_to, cx) {
@@ -56,7 +56,7 @@ where
             async_runtime::locks().remove(msg_id, waiting_reply_to);
 
             if !reply_code.is_success() {
-                return Poll::Ready(Err(ContractError::ReplyCode(reply_code)));
+                return Poll::Ready(Err(Error::ReplyCode(reply_code)));
             }
 
             Poll::Ready(f(actual_reply))
@@ -96,7 +96,6 @@ where
 ///     let reply: Reply = future.await.expect("Unable to get a reply");
 ///     let field: String = reply.field;
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct CodecMessageFuture<T> {
@@ -117,7 +116,7 @@ impl_futures!(
     D,
     |fut, cx| => {
         poll(fut.waiting_reply_to, cx, |reply| {
-            D::decode(&mut reply.as_ref()).map_err(ContractError::Decode)
+            D::decode(&mut reply.as_ref()).map_err(Error::Decode)
         })
     }
 );
@@ -152,7 +151,6 @@ impl_futures!(
 ///     let (prog_id, reply): (ActorId, InitReply) = future.await.expect("Unable to get a reply");
 ///     let field: String = reply.field;
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct CodecCreateProgramFuture<T> {
@@ -177,7 +175,7 @@ impl_futures!(
         poll(fut.waiting_reply_to, cx, |reply| {
             D::decode(&mut reply.as_ref())
                 .map(|payload| (fut.program_id, payload))
-                .map_err(ContractError::Decode)
+                .map_err(Error::Decode)
         })
     }
 );
@@ -210,7 +208,6 @@ impl_futures!(
 ///         msg::send_bytes_for_reply(dest, b"PING", 0, 0).expect("Unable to send");
 ///     let reply: Vec<u8> = future.await.expect("Unable to get a reply");
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct MessageFuture {
@@ -259,7 +256,6 @@ impl_futures!(
 ///             .expect("Unable to create a program");
 ///     let (prog_id, reply): (ActorId, Vec<u8>) = future.await.expect("Unable to get a reply");
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct CreateProgramFuture {

@@ -18,7 +18,7 @@
 
 //! Type definitions and helpers for error handling.
 //!
-//! Enumerates possible errors in smart contracts `ContractError`.
+//! Enumerates possible errors in smart contracts `Error`.
 //! Errors related to conversion, decoding, message status code, other internal
 //! errors.
 
@@ -26,12 +26,12 @@ use core::fmt;
 
 pub use gcore::errors::*;
 
-/// `Result` type with a predefined error type ([`ContractError`]).
-pub type Result<T, E = ContractError> = core::result::Result<T, E>;
+/// `Result` type with a predefined error type ([`Error`]).
+pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// Common error type returned by API functions from other modules.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ContractError {
+pub enum Error {
     /// Timeout reached while expecting for reply.
     Timeout(u32, u32),
     /// Conversion error.
@@ -52,48 +52,48 @@ pub enum ContractError {
     ZeroSystemReservationAmount,
 }
 
-impl ContractError {
-    /// Check whether an error is [`ContractError::Timeout`].
+impl Error {
+    /// Check whether an error is [`Error::Timeout`].
     pub fn timed_out(&self) -> bool {
-        matches!(self, ContractError::Timeout(..))
+        matches!(self, Error::Timeout(..))
     }
 }
 
-impl fmt::Display for ContractError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ContractError::Timeout(expected, now) => {
+            Error::Timeout(expected, now) => {
                 write!(f, "Wait lock timeout at {expected}, now is {now}")
             }
-            ContractError::Convert(e) => write!(f, "Conversion error: {e:?}"),
-            ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
+            Error::Convert(e) => write!(f, "Conversion error: {e:?}"),
+            Error::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
             // TODO (breathx)
-            ContractError::ReplyCode(e) => write!(f, "Reply returned exit code {e:?}"),
-            ContractError::Ext(e) => write!(f, "API error: {e}"),
-            ContractError::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
-            ContractError::ZeroSystemReservationAmount => {
+            Error::ReplyCode(e) => write!(f, "Reply returned exit code {e:?}"),
+            Error::Ext(e) => write!(f, "API error: {e}"),
+            Error::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
+            Error::ZeroSystemReservationAmount => {
                 write!(f, "System reservation amount can not be zero in config.")
             }
         }
     }
 }
 
-impl From<ExtError> for ContractError {
+impl From<ExtError> for Error {
     fn from(err: ExtError) -> Self {
         Self::Ext(err)
     }
 }
 
-pub(crate) trait IntoContractResult<T> {
-    fn into_contract_result(self) -> Result<T>;
+pub(crate) trait IntoResult<T> {
+    fn into_result(self) -> Result<T>;
 }
 
-impl<T, E, V> IntoContractResult<V> for core::result::Result<T, E>
+impl<T, E, V> IntoResult<V> for core::result::Result<T, E>
 where
     T: Into<V>,
-    E: Into<ContractError>,
+    E: Into<Error>,
 {
-    fn into_contract_result(self) -> Result<V> {
+    fn into_result(self) -> Result<V> {
         self.map(Into::into).map_err(Into::into)
     }
 }

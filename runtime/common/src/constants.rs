@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use runtime_primitives::BlockNumber;
+
 /// Vara SS58 Prefix
 pub const VARA_SS58PREFIX: u8 = 137;
 
@@ -24,3 +26,9 @@ pub const VARA_DECIMAL: u8 = 12;
 
 /// Vara Token Symbol
 pub const VARA_TOKEN_SYMBOL: &str = "VARA";
+
+/// The minimal amount of blocks to resume represented as a factor of weeks.
+pub const RENT_RESUME_WEEK_FACTOR: BlockNumber = 4;
+
+/// The amount of blocks for processing resume session represented as a factor of hours.
+pub const RESUME_SESSION_DURATION_HOUR_FACTOR: BlockNumber = 1;
