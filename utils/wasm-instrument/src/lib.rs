@@ -149,18 +149,18 @@ pub fn inject<R: Rules>(
             .build(),
     );
 
-    // TODO: #1706
     let mut elements = vec![
         // check if there is enough gas
         Instruction::GetGlobal(gas_index),
-        // calculate gas_to_charge + cost_for_func
+        // total_gas_to_charge = gas_to_charge + cost_for_func
         // {
         Instruction::GetLocal(0),
         Instruction::I64ExtendUI32,
         Instruction::I64Const(i64::MAX),
         Instruction::I64Add,
+        Instruction::TeeLocal(1),
         // }
-        // if gas < (gas_to_charge + cost_for_func)
+        // if gas < total_gas_to_charge
         Instruction::I64LtU,
         Instruction::If(elements::BlockType::NoResult),
         Instruction::Call(out_of_gas_index),
@@ -168,28 +168,22 @@ pub fn inject<R: Rules>(
         Instruction::End,
         // update gas
         Instruction::GetGlobal(gas_index),
-        // calculate gas_to_charge + cost_for_func
+        // total_gas_to_charge
         // {
-        Instruction::GetLocal(0),
-        Instruction::I64ExtendUI32,
-        Instruction::I64Const(i64::MAX),
-        Instruction::I64Add,
+        Instruction::GetLocal(1),
         // }
-        // gas -= (gas_to_charge + cost_for_func)
+        // gas -= total_gas_to_charge
         // {
         Instruction::I64Sub,
         Instruction::SetGlobal(gas_index),
         // }
         // check if there is enough gas allowance
         Instruction::GetGlobal(allowance_index),
-        // calculate gas_to_charge + cost_for_func
+        // total_gas_to_charge
         // {
-        Instruction::GetLocal(0),
-        Instruction::I64ExtendUI32,
-        Instruction::I64Const(i64::MAX),
-        Instruction::I64Add,
+        Instruction::GetLocal(1),
         // }
-        // if allowance < (gas_to_charge + cost_for_func)
+        // if allowance < total_gas_to_charge
         Instruction::I64LtU,
         Instruction::If(elements::BlockType::NoResult),
         Instruction::Call(out_of_allowance_index),
@@ -197,33 +191,39 @@ pub fn inject<R: Rules>(
         Instruction::End,
         // update gas allowance
         Instruction::GetGlobal(allowance_index),
-        // calculate gas_to_charge + cost_for_func
+        // total_gas_to_charge
         // {
-        Instruction::GetLocal(0),
-        Instruction::I64ExtendUI32,
-        Instruction::I64Const(i64::MAX),
-        Instruction::I64Add,
+        Instruction::GetLocal(1),
         // }
-        // allowance -= (gas_to_charge + cost_for_func)
+        // allowance -= total_gas_to_charge
         // {
         Instruction::I64Sub,
         Instruction::SetGlobal(allowance_index),
         // }
-        Instruction::End,
     ];
 
     // determine cost for successful execution
+    let mut scopes = 0usize;
+
     let cost_blocks = match elements
         .iter()
-        .take(7)
-        // block with update instructions
-        .chain(elements.iter().skip(10).take(7))
+        .filter(|instruction| match instruction {
+            Instruction::If(_) => {
+                scopes += 1;
+                scopes == 1
+            }
+            Instruction::End => {
+                scopes -= 1;
+                false
+            }
+            _ => scopes == 0,
+        })
         .try_fold(0u64, |cost, instruction| {
             rules
                 .instruction_cost(instruction)
                 .and_then(|c| cost.checked_add(c.into()))
         }) {
-        Some(c) => 2 * c,
+        Some(c) => c,
         None => return Err(mbuilder.build()),
     };
 
