@@ -33,6 +33,7 @@ pub(crate) struct QueueStep<'a, T: Config, F> {
 #[derive(Debug)]
 pub(crate) enum QueueStepError {
     NoMemoryPages,
+    ActorData(PrechargedDispatch),
 }
 
 impl<'a, T, F> QueueStep<'a, T, F>
@@ -41,7 +42,7 @@ where
     T::AccountId: Origin,
     F: FnOnce(
         PrechargedDispatch,
-    ) -> Result<(PrechargedDispatch, Option<ExecutableActorData>), Vec<JournalNote>>,
+    ) -> Result<(PrechargedDispatch, Option<ExecutableActorData>), PrechargedDispatch>,
 {
     pub(crate) fn execute(self) -> Result<Vec<JournalNote>, QueueStepError> {
         // now it's semantically correct
@@ -76,7 +77,10 @@ where
             program_id,
         )?;
 
-        let (precharged_dispatch, actor_data) = get_actor_data(precharged_dispatch)?;
+        let (precharged_dispatch, actor_data) = match get_actor_data(precharged_dispatch) {
+            Ok(res) => res,
+            Err(journal) => return Ok(QueueStepError::ActorData(journal)),
+        };
 
         // The second step is to load instrumented binary code of the program but
         // first its correct length should be obtained.
@@ -219,26 +223,7 @@ where
                 // At this point gas counters should be changed accordingly so fetch the program data.
                 match Self::get_active_actor_data(program_id, dispatch_id, dispatch_reply) {
                     ActorResult::Data(data) => Ok((precharged_dispatch, data)),
-                    ActorResult::Continue => {
-                        let (dispatch, journal) = precharged_dispatch.into_dispatch_and_note();
-                        let (kind, message, context) = dispatch.into();
-                        let dispatch =
-                            StoredDispatch::new(kind, message.into_stored(program_id), context);
-
-                        // Adding id in on-init wake list.
-                        ProgramStorageOf::<T>::waiting_init_append_message_id(
-                            dispatch.destination(),
-                            dispatch.id(),
-                        );
-
-                        Self::wait_dispatch(
-                            dispatch,
-                            None,
-                            MessageWaitedSystemReason::ProgramIsNotInitialized.into_reason(),
-                        );
-
-                        Err(journal)
-                    }
+                    ActorResult::Continue => Err(precharged_dispatch),
                 }
             };
 
@@ -255,6 +240,26 @@ where
             match step.execute() {
                 Ok(journal) => {
                     core_processor::handle_journal(journal, &mut ext_manager);
+                }
+                Err(QueueStepError::ActorData(precharged_dispatch)) => {
+                    let (dispatch, journal) = precharged_dispatch.into_dispatch_and_note();
+                    let (kind, message, context) = dispatch.into();
+                    let dispatch =
+                        StoredDispatch::new(kind, message.into_stored(program_id), context);
+
+                    core_processor::handle_journal(journal, &mut ext_manager);
+
+                    // Adding id in on-init wake list.
+                    ProgramStorageOf::<T>::waiting_init_append_message_id(
+                        dispatch.destination(),
+                        dispatch.id(),
+                    );
+
+                    Self::wait_dispatch(
+                        dispatch,
+                        None,
+                        MessageWaitedSystemReason::ProgramIsNotInitialized.into_reason(),
+                    );
                 }
                 Err(QueueStepError::NoMemoryPages) => continue,
             }
