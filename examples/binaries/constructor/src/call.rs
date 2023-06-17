@@ -19,7 +19,7 @@ pub enum Call {
     Store(String),
     StoreVec(String),
     Source,
-    StatusCode,
+    ReplyCode,
     Value,
     Send(
         Arg<[u8; 32]>,
@@ -146,16 +146,14 @@ mod wasm {
             Some(msg::source().encode())
         }
 
-        // TODO (breathx)
-        fn status_code(self) -> Option<Vec<u8>> {
-            unimplemented!()
-            // (!matches!(self, Self::StatusCode)).then(|| unreachable!());
+        fn reply_code(self) -> Option<Vec<u8>> {
+            unimplemented!()(!matches!(self, Self::ReplyCode)).then(|| unreachable!());
 
-            // Some(
-            //     msg::status_code()
-            //         .expect("Failed to get status code")
-            //         .encode(),
-            // )
+            Some(
+                msg::reply_code()
+                    .expect("Failed to get reply code")
+                    .encode(),
+            )
         }
 
         fn panic(self) -> ! {
@@ -291,7 +289,7 @@ mod wasm {
                 Call::Store(..) => self.store(previous),
                 Call::StoreVec(..) => self.store_vec(previous),
                 Call::Source => self.source(),
-                Call::StatusCode => self.status_code(),
+                Call::ReplyCode => self.reply_code(),
                 Call::Panic(..) => self.panic(),
                 Call::Send(..) => self.send(),
                 Call::Reply(..) => self.reply(),
