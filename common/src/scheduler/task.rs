@@ -141,7 +141,11 @@ pub trait TaskHandler<AccountId> {
     fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) -> Gas;
 
     /// Remove gas reservation action.
-    fn remove_gas_reservation(&mut self, program_id: ProgramId, reservation_id: ReservationId) -> Gas;
+    fn remove_gas_reservation(
+        &mut self,
+        program_id: ProgramId,
+        reservation_id: ReservationId,
+    ) -> Gas;
 
     /// Remove data created by resume program session.
     fn remove_resume_session(&mut self, session_id: SessionId) -> Gas;

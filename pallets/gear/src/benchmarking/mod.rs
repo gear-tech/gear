@@ -66,9 +66,10 @@ use ::alloc::{
 use common::{
     self, benchmarking,
     paused_program_storage::SessionId,
+    scheduler::{ScheduledTask, TaskHandler},
     storage::{Counter, *},
     ActiveProgram, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin, PausedProgramStorage,
-    ProgramStorage, ReservableTree, scheduler::{TaskHandler, ScheduledTask},
+    ProgramStorage, ReservableTree,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -285,25 +286,34 @@ where
 fn tasks_send_user_message_prepare<T: Config>() -> (MessageId, bool)
 where
     T::AccountId: Origin,
- {
+{
     use demo_delayed_sender::WASM_BINARY;
 
     let caller = benchmarking::account("caller", 0, 0);
-    <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    <T as pallet::Config>::Currency::deposit_creating(
+        &caller,
+        200_000_000_000_000u128.unique_saturated_into(),
+    );
 
     init_block::<T>(None);
 
     let delay = 1u32;
     let salt = vec![];
-    Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(),
+    Gear::<T>::upload_program(
+        RawOrigin::Signed(caller.clone()).into(),
         WASM_BINARY.to_vec(),
         salt,
         delay.encode(),
-        100_000_000_000, 0u32.into()).expect("submit program failed");
+        100_000_000_000,
+        0u32.into(),
+    )
+    .expect("submit program failed");
 
     Gear::<T>::process_queue(Default::default());
 
-    let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into()).next().unwrap();
+    let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
+        .next()
+        .unwrap();
     match task {
         ScheduledTask::SendUserMessage {
             message_id,

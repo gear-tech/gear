@@ -955,7 +955,9 @@ pub mod pallet {
                     //
                     // Making sure we have gas to remove next task
                     // or update the first block of incomplete tasks.
-                    if GasAllowanceOf::<T>::get().saturating_sub(task_gas) <= DbWeightOf::<T>::get().writes(2).ref_time() {
+                    if GasAllowanceOf::<T>::get().saturating_sub(task_gas)
+                        <= DbWeightOf::<T>::get().writes(2).ref_time()
+                    {
                         stopped_at = Some(bn);
                         log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
