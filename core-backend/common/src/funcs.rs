@@ -35,7 +35,7 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::{ExtError, ReplyCode};
+use gear_core_errors::{ExtError, ReplyCode, SignalCode};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberAndValue,
     LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithReplyCode, LengthWithSignalCode,
@@ -213,10 +213,9 @@ where
     // TODO (breathx): change cost.
     #[host(fallible, cost = RuntimeCosts::ReplyCode, err_len = LengthWithSignalCode)]
     pub fn signal_code(ctx: &mut R) -> Result<(), R::Error> {
-        // TODO (breathx): change code.
         ctx.ext_mut()
             .signal_code()
-            .map(|_code| 1u32)
+            .map(SignalCode::to_u32)
             .map_err(Into::into)
     }
 

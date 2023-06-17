@@ -279,7 +279,6 @@ impl SimpleProgramCreationError {
     }
 }
 
-#[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Enum representing signal code and reason of its creation.
@@ -288,16 +287,53 @@ pub enum SignalCode {
     Execution(SimpleExecutionError),
 
     /// Signal was sent due to removal from waitlist as out of rent.
-    RemovedFromWaitlist,
-
-    /// Unsupported reason of signal message.
-    /// Variant exists for backward compatibility.
     #[default]
-    Unsupported,
+    RemovedFromWaitlist,
 }
 
 impl From<SimpleExecutionError> for SignalCode {
     fn from(error: SimpleExecutionError) -> Self {
         Self::Execution(error)
+    }
+}
+
+impl SignalCode {
+    /// Converts `SignalCode` into `u32`.
+    pub const fn to_u32(self) -> u32 {
+        match self {
+            Self::Execution(SimpleExecutionError::UserspacePanic) => 100,
+            Self::Execution(SimpleExecutionError::RanOutOfGas) => 101,
+            Self::Execution(SimpleExecutionError::BackendError) => 102,
+            Self::Execution(SimpleExecutionError::MemoryOverflow) => 103,
+            Self::Execution(SimpleExecutionError::UnreachableInstruction) => 104,
+            Self::RemovedFromWaitlist => 200,
+            // Must be unreachable.
+            Self::Execution(SimpleExecutionError::Unsupported) => u32::MAX,
+        }
+    }
+
+    /// Parses `SignalCode` from `u32` if possible.
+    pub const fn from_u32(num: u32) -> Option<Self> {
+        let res = match num {
+            v if Self::Execution(SimpleExecutionError::UserspacePanic).to_u32() == v => {
+                Self::Execution(SimpleExecutionError::UserspacePanic)
+            }
+            v if Self::Execution(SimpleExecutionError::RanOutOfGas).to_u32() == v => {
+                Self::Execution(SimpleExecutionError::RanOutOfGas)
+            }
+            v if Self::Execution(SimpleExecutionError::BackendError).to_u32() == v => {
+                Self::Execution(SimpleExecutionError::BackendError)
+            }
+            v if Self::Execution(SimpleExecutionError::MemoryOverflow).to_u32() == v => {
+                Self::Execution(SimpleExecutionError::MemoryOverflow)
+            }
+            v if Self::Execution(SimpleExecutionError::UnreachableInstruction).to_u32() == v => {
+                Self::Execution(SimpleExecutionError::UnreachableInstruction)
+            }
+            v if Self::RemovedFromWaitlist.to_u32() == v => Self::RemovedFromWaitlist,
+            _ => return None,
+        };
+
+        Some(res)
     }
 }
