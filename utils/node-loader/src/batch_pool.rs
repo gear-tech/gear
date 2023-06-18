@@ -18,10 +18,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
 };
-use tokio::{
-    sync::broadcast::Receiver,
-    time::{sleep, timeout, Duration},
-};
+use tokio::{sync::broadcast::Receiver, time::Duration};
 use tracing::instrument;
 
 mod api;
@@ -265,8 +262,8 @@ async fn process_events(
     let results = loop {
         let mut events = rx.recv().await?;
         while events.block_hash() != block_hash {
-            sleep(Duration::new(0, 500)).await;
-            events = timeout(
+            tokio::time::sleep(Duration::new(0, 500)).await;
+            events = tokio::time::timeout(
                 Duration::from_millis(wait_for_events_millisec as u64),
                 rx.recv(),
             )
@@ -290,8 +287,8 @@ async fn process_events(
                     let event = event?.as_root_event::<gsdk::metadata::Event>()?;
                     v.push(event);
                 }
-                sleep(Duration::new(0, 100)).await;
-                events = timeout(
+                tokio::time::sleep(Duration::new(0, 100)).await;
+                events = tokio::time::timeout(
                     Duration::from_millis(wait_for_events_millisec as u64),
                     rx.recv(),
                 )
@@ -344,7 +341,7 @@ async fn inspect_crash_events(mut rx: EventsReciever) -> Result<()> {
     // Error means either event is not found and can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    while let Ok(events) = timeout(Duration::from_secs(30), rx.recv()).await? {
+    while let Ok(events) = tokio::time::timeout(Duration::from_secs(30), rx.recv()).await? {
         let bh = events.block_hash();
         for event in events.iter() {
             let event = event?.as_root_event::<gsdk::metadata::Event>()?;
@@ -384,7 +381,7 @@ async fn create_renew_balance_task(
     // to target values.
     Ok(async move {
         loop {
-            sleep(Duration::new(0, duration_millis as u32)).await;
+            tokio::time::sleep(Duration::new(0, duration_millis as u32)).await;
 
             let user_balance_demand = {
                 let current = root_api.free_balance(&user_address).await?;
