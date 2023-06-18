@@ -37,18 +37,18 @@ use scale_info::{
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct StoredMessage {
     /// Message id.
-    id: MessageId,
+    pub(super) id: MessageId,
     /// Message source.
-    source: ProgramId,
+    pub(super) source: ProgramId,
     /// Message destination.
-    destination: ProgramId,
+    pub(super) destination: ProgramId,
     /// Message payload.
-    payload: Payload,
+    pub(super) payload: Payload,
     /// Message value.
     #[codec(compact)]
-    value: Value,
+    pub(super) value: Value,
     /// Message details like reply message ID, status code, etc.
-    details: Option<MessageDetails>,
+    pub(super) details: Option<MessageDetails>,
 }
 
 impl StoredMessage {

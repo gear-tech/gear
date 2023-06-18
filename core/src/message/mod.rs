@@ -32,6 +32,7 @@ mod init;
 mod reply;
 mod signal;
 mod stored;
+mod user;
 
 pub use common::{Dispatch, Message, MessageDetails, ReplyDetails, SignalDetails};
 pub use context::{
@@ -43,6 +44,7 @@ pub use init::{InitMessage, InitPacket};
 pub use reply::{ReplyMessage, ReplyPacket};
 pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
+pub use user::UserMessage;
 
 use super::buffer::LimitedVec;
 use core::fmt::Display;
