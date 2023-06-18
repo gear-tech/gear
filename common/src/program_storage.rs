@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -28,13 +28,28 @@ pub trait Error {
     fn duplicate_item() -> Self;
 
     /// Program is not found in the storage.
-    fn item_not_found() -> Self;
+    fn program_not_found() -> Self;
 
     /// Program is not an instance of ActiveProgram.
     fn not_active_program() -> Self;
 
     /// There is no data for specified `program_id` and `page`.
     fn cannot_find_page_data() -> Self;
+
+    /// Resume session is not found in the storage.
+    fn resume_session_not_found() -> Self;
+
+    /// Specified user is not an owner of the resume session.
+    fn not_session_owner() -> Self;
+
+    /// Failed to resume the program due to incorrect provided data.
+    fn resume_session_failed() -> Self;
+
+    /// Failed to find the program binary code.
+    fn program_code_not_found() -> Self;
+
+    /// Resume session with the specified id already exists in storage.
+    fn duplicate_resume_session() -> Self;
 }
 
 pub type MemoryMap = BTreeMap<GearPage, PageBuf>;
@@ -44,6 +59,7 @@ pub trait ProgramStorage {
     type InternalError: Error;
     type Error: From<Self::InternalError> + Debug;
     type BlockNumber: Copy + Saturating;
+    type AccountId: Eq + PartialEq;
 
     type ProgramMap: MapStorage<Key = ProgramId, Value = Program<Self::BlockNumber>>;
     type MemoryPageMap: DoubleMapStorage<Key1 = ProgramId, Key2 = GearPage, Value = PageBuf>;
@@ -68,40 +84,6 @@ pub trait ProgramStorage {
 
             *maybe = Some(Program::Active(program));
             Ok(())
-        })
-    }
-
-    /// Remove an active program with the given key `program_id` from the map.
-    fn remove_active_program(
-        program_id: ProgramId,
-    ) -> Result<(ActiveProgram<Self::BlockNumber>, MemoryMap), Self::Error> {
-        Self::ProgramMap::mutate(program_id, |maybe| {
-            let Some(program) = maybe.take() else {
-                return Err(Self::InternalError::item_not_found().into());
-            };
-
-            let Program::Active(program) = program else {
-                *maybe = Some(program);
-
-                return Err(Self::InternalError::not_active_program().into());
-            };
-
-            let memory_pages = match Self::get_program_data_for_pages(
-                program_id,
-                program.pages_with_data.iter(),
-            ) {
-                Ok(memory_pages) => memory_pages,
-                Err(e) => {
-                    *maybe = Some(Program::Active(program));
-
-                    return Err(e);
-                }
-            };
-
-            Self::waiting_init_remove(program_id);
-            Self::remove_program_pages(program_id);
-
-            Ok((program, memory_pages))
         })
     }
 
@@ -139,7 +121,7 @@ pub trait ProgramStorage {
         F: FnOnce(&mut Program<Self::BlockNumber>, Self::BlockNumber) -> ReturnType,
     {
         let mut program =
-            Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::item_not_found())?;
+            Self::ProgramMap::get(&program_id).ok_or(Self::InternalError::program_not_found())?;
         let bn = match program {
             Program::Active(ref p) => p.expiration_block,
             _ => return Err(Self::InternalError::not_active_program().into()),

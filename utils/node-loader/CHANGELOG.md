@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] 2023-06-12. Spawn event listener background thread and spawn batch pool tasks.
+### Changed
+- Use `tokio::spawn` to spawn batch pool tasks
+- Spawn `tokio` event listener thread and broadcast events to recievers.
+
+
 ## [0.1.6] 2023-03-16. Complete testing extrinsics set.
 ### Added
 - Whole test chain for `send_reply` and `claim_value` extrinsics.

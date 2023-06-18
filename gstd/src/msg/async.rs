@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 use crate::{
     async_runtime::{self, signals, Lock, ReplyPoll},
-    errors::{ContractError, Result},
+    errors::{Error, Result},
     msg::macros::impl_futures,
     prelude::{convert::AsRef, Vec},
     ActorId, Config, MessageId,
@@ -43,7 +43,7 @@ where
         // Remove lock after timeout.
         async_runtime::locks().remove(msg_id, waiting_reply_to);
 
-        return Poll::Ready(Err(ContractError::Timeout(expected, now)));
+        return Poll::Ready(Err(Error::Timeout(expected, now)));
     }
 
     match signals().poll(waiting_reply_to, cx) {
@@ -55,8 +55,8 @@ where
             // Remove lock after waking.
             async_runtime::locks().remove(msg_id, waiting_reply_to);
 
-            if status_code != 0 {
-                return Poll::Ready(Err(ContractError::StatusCode(status_code)));
+            if status_code.to_le_bytes()[0] != 0 {
+                return Poll::Ready(Err(Error::StatusCode(status_code)));
             }
 
             Poll::Ready(f(actual_reply))
@@ -92,11 +92,10 @@ where
 /// async fn main() {
 ///     # let dest = ActorId::zero();
 ///     let future: CodecMessageFuture<Reply> =
-///         msg::send_bytes_for_reply_as(dest, b"PING", 0).expect("Unable to send");
+///         msg::send_bytes_for_reply_as(dest, b"PING", 0, 0).expect("Unable to send");
 ///     let reply: Reply = future.await.expect("Unable to get a reply");
 ///     let field: String = reply.field;
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct CodecMessageFuture<T> {
@@ -117,7 +116,7 @@ impl_futures!(
     D,
     |fut, cx| => {
         poll(fut.waiting_reply_to, cx, |reply| {
-            D::decode(&mut reply.as_ref()).map_err(ContractError::Decode)
+            D::decode(&mut reply.as_ref()).map_err(Error::Decode)
         })
     }
 );
@@ -147,12 +146,11 @@ impl_futures!(
 /// async fn main() {
 ///     # let code_id = CodeId::new([0; 32]);
 ///     let future: CodecCreateProgramFuture<InitReply> =
-///         prog::create_program_for_reply_as(code_id, b"salt", b"PING", 0)
+///         prog::create_program_for_reply_as(code_id, b"salt", b"PING", 0, 0)
 ///             .expect("Unable to create a program");
 ///     let (prog_id, reply): (ActorId, InitReply) = future.await.expect("Unable to get a reply");
 ///     let field: String = reply.field;
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct CodecCreateProgramFuture<T> {
@@ -177,7 +175,7 @@ impl_futures!(
         poll(fut.waiting_reply_to, cx, |reply| {
             D::decode(&mut reply.as_ref())
                 .map(|payload| (fut.program_id, payload))
-                .map_err(ContractError::Decode)
+                .map_err(Error::Decode)
         })
     }
 );
@@ -207,10 +205,9 @@ impl_futures!(
 /// async fn main() {
 ///     # let dest = ActorId::zero();
 ///     let future: MessageFuture =
-///         msg::send_bytes_for_reply(dest, b"PING", 0).expect("Unable to send");
+///         msg::send_bytes_for_reply(dest, b"PING", 0, 0).expect("Unable to send");
 ///     let reply: Vec<u8> = future.await.expect("Unable to get a reply");
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct MessageFuture {
@@ -255,11 +252,10 @@ impl_futures!(
 /// async fn main() {
 ///     # let code_id = CodeId::new([0; 32]);
 ///     let future: CreateProgramFuture =
-///         prog::create_program_for_reply(code_id, b"salt", b"PING", 0)
+///         prog::create_program_for_reply(code_id, b"salt", b"PING", 0, 0)
 ///             .expect("Unable to create a program");
 ///     let (prog_id, reply): (ActorId, Vec<u8>) = future.await.expect("Unable to get a reply");
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct CreateProgramFuture {

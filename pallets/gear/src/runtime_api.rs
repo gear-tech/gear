@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -141,7 +141,7 @@ where
             let dispatch_id = queued_dispatch.id();
             let success_reply = queued_dispatch
                 .reply()
-                .map(|rd| rd.status_code() == 0)
+                .map(|rd| rd.status_code().to_le_bytes()[0] == 0)
                 .unwrap_or_default();
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -351,6 +351,14 @@ extern "C" {
         delay: BlockNumber,
         err_mid_pid: *mut LengthWithTwoHashes,
     );
+
+    /// Fallible `gr_reply_deposit` syscall.
+    ///
+    /// Arguments type:
+    /// - `message_id`: `const ptr` for message id.
+    /// - `gas`: `u64` defining gas limit to deposit.
+    /// - `err`: `mut ptr` for error length.
+    pub fn gr_reply_deposit(message_id: *const Hash, gas: Gas, err: *mut Length);
 
     /// Infallible `gr_debug` info syscall.
     ///

@@ -72,6 +72,12 @@ impl From<&'static str> for Arg<u128> {
     }
 }
 
+impl From<&'static str> for Arg<u64> {
+    fn from(key: &'static str) -> Self {
+        Self::get(key)
+    }
+}
+
 impl From<&'static str> for Arg<u32> {
     fn from(key: &'static str) -> Self {
         Self::get(key)

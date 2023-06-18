@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -42,6 +42,9 @@ pub trait WeightInfo {
     fn instantiate_module_per_kb(c: u32, ) -> Weight;
     fn claim_value() -> Weight;
     fn pay_program_rent() -> Weight;
+    fn resume_session_init() -> Weight;
+    fn resume_session_push(c: u32, ) -> Weight;
+    fn resume_session_commit(c: u32, ) -> Weight;
     fn upload_code(c: u32, ) -> Weight;
     fn create_program(s: u32, ) -> Weight;
     fn upload_program(c: u32, s: u32, ) -> Weight;
@@ -69,6 +72,7 @@ pub trait WeightInfo {
     fn gr_block_height(r: u32, ) -> Weight;
     fn gr_block_timestamp(r: u32, ) -> Weight;
     fn gr_random(n: u32, ) -> Weight;
+    fn gr_reply_deposit(r: u32, ) -> Weight;
     fn gr_send(r: u32, ) -> Weight;
     fn gr_send_per_kb(n: u32, ) -> Weight;
     fn gr_send_wgas(r: u32, ) -> Weight;
@@ -158,6 +162,11 @@ pub trait WeightInfo {
     fn instr_i32popcnt(r: u32, ) -> Weight;
     fn instr_i64eqz(r: u32, ) -> Weight;
     fn instr_i32eqz(r: u32, ) -> Weight;
+    fn instr_i32extend8s(r: u32, ) -> Weight;
+    fn instr_i32extend16s(r: u32, ) -> Weight;
+    fn instr_i64extend8s(r: u32, ) -> Weight;
+    fn instr_i64extend16s(r: u32, ) -> Weight;
+    fn instr_i64extend32s(r: u32, ) -> Weight;
     fn instr_i64extendsi32(r: u32, ) -> Weight;
     fn instr_i64extendui32(r: u32, ) -> Weight;
     fn instr_i32wrapi64(r: u32, ) -> Weight;
@@ -285,6 +294,41 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(71_195_000, 15019)
             .saturating_add(T::DbWeight::get().reads(7_u64))
             .saturating_add(T::DbWeight::get().writes(5_u64))
+    }
+    fn resume_session_init() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `602`
+        //  Estimated: `20935`
+        // Minimum execution time: 60_003_000 picoseconds.
+        Weight::from_parts(60_785_000, 20935)
+            .saturating_add(T::DbWeight::get().reads(7_u64))
+            .saturating_add(T::DbWeight::get().writes(5_u64))
+    }
+    /// The range of component `c` is `[0, 64]`.
+    fn resume_session_push(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `366`
+        //  Estimated: `7660`
+        // Minimum execution time: 11_822_000 picoseconds.
+        Weight::from_parts(11_822_000, 7660)
+            // Standard Error: 374_537
+            .saturating_add(Weight::from_parts(13_833_636, 0).saturating_mul(c.into()))
+            .saturating_add(T::DbWeight::get().reads(1_u64))
+            .saturating_add(T::DbWeight::get().writes(1_u64))
+    }
+    /// The range of component `c` is `[0, 2044]`.
+    fn resume_session_commit(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1337 + c * (16389 ±0)`
+        //  Estimated: `41107 + c * (131112 ±0)`
+        // Minimum execution time: 88_858_000 picoseconds.
+        Weight::from_parts(88_858_000, 41107)
+            // Standard Error: 3_376_184
+            .saturating_add(Weight::from_parts(66_904_226, 0).saturating_mul(c.into()))
+            .saturating_add(T::DbWeight::get().reads(11_u64))
+            .saturating_add(T::DbWeight::get().writes(9_u64))
+            .saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(c.into())))
+            .saturating_add(Weight::from_parts(0, 131112).saturating_mul(c.into()))
     }
     /// The range of component `c` is `[0, 250]`.
     fn upload_code(c: u32, ) -> Weight {
@@ -573,6 +617,16 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(109_128_309, 0)
             // Standard Error: 451_261
             .saturating_add(Weight::from_parts(292_953_148, 0).saturating_mul(n.into()))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_reply_deposit(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 82_000_000 picoseconds.
+        Weight::from_parts(154_918_188, 0)
+            // Standard Error: 618_649
+            .saturating_add(Weight::from_parts(739_860_064, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send(r: u32, ) -> Weight {
@@ -1487,6 +1541,56 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             // Standard Error: 10_885
             .saturating_add(Weight::from_parts(892_344, 0).saturating_mul(r.into()))
     }
+        /// The range of component `r` is `[0, 50]`.
+    fn instr_i32extend8s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_275_000 picoseconds.
+        Weight::from_parts(1_108_310, 0)
+            // Standard Error: 4_694
+            .saturating_add(Weight::from_parts(426_432, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_i32extend16s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_317_000 picoseconds.
+        Weight::from_parts(1_738_492, 0)
+            // Standard Error: 3_326
+            .saturating_add(Weight::from_parts(383_698, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_i64extend8s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_277_000 picoseconds.
+        Weight::from_parts(2_334_000, 0)
+            // Standard Error: 3_868
+            .saturating_add(Weight::from_parts(529_300, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_i64extend16s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_326_000 picoseconds.
+        Weight::from_parts(2_396_000, 0)
+            // Standard Error: 4_728
+            .saturating_add(Weight::from_parts(525_181, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_i64extend32s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_258_000 picoseconds.
+        Weight::from_parts(416_491, 0)
+            // Standard Error: 7_377
+            .saturating_add(Weight::from_parts(530_786, 0).saturating_mul(r.into()))
+    }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64extendsi32(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
@@ -2086,6 +2190,41 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().reads(7_u64))
             .saturating_add(RocksDbWeight::get().writes(5_u64))
     }
+    fn resume_session_init() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `602`
+        //  Estimated: `20935`
+        // Minimum execution time: 60_003_000 picoseconds.
+        Weight::from_parts(60_785_000, 20935)
+            .saturating_add(RocksDbWeight::get().reads(7_u64))
+            .saturating_add(RocksDbWeight::get().writes(5_u64))
+    }
+    /// The range of component `c` is `[0, 64]`.
+    fn resume_session_push(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `366`
+        //  Estimated: `7660`
+        // Minimum execution time: 11_822_000 picoseconds.
+        Weight::from_parts(11_822_000, 7660)
+            // Standard Error: 374_537
+            .saturating_add(Weight::from_parts(13_833_636, 0).saturating_mul(c.into()))
+            .saturating_add(RocksDbWeight::get().reads(1_u64))
+            .saturating_add(RocksDbWeight::get().writes(1_u64))
+    }
+    /// The range of component `c` is `[0, 2044]`.
+    fn resume_session_commit(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1337 + c * (16389 ±0)`
+        //  Estimated: `41107 + c * (131112 ±0)`
+        // Minimum execution time: 88_858_000 picoseconds.
+        Weight::from_parts(88_858_000, 41107)
+            // Standard Error: 3_376_184
+            .saturating_add(Weight::from_parts(66_904_226, 0).saturating_mul(c.into()))
+            .saturating_add(RocksDbWeight::get().reads(11_u64))
+            .saturating_add(RocksDbWeight::get().writes(9_u64))
+            .saturating_add(RocksDbWeight::get().writes((1_u64).saturating_mul(c.into())))
+            .saturating_add(Weight::from_parts(0, 131112).saturating_mul(c.into()))
+    }
     /// The range of component `c` is `[0, 250]`.
     fn upload_code(c: u32, ) -> Weight {
         // Proof Size summary in bytes:
@@ -2373,6 +2512,16 @@ impl WeightInfo for () {
         Weight::from_parts(109_128_309, 0)
             // Standard Error: 451_261
             .saturating_add(Weight::from_parts(292_953_148, 0).saturating_mul(n.into()))
+    }
+    /// The range of component `r` is `[0, 20]`.
+    fn gr_reply_deposit(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 82_000_000 picoseconds.
+        Weight::from_parts(154_918_188, 0)
+            // Standard Error: 618_649
+            .saturating_add(Weight::from_parts(739_860_064, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_send(r: u32, ) -> Weight {
@@ -3286,6 +3435,56 @@ impl WeightInfo for () {
         Weight::from_parts(2_229_000, 0)
             // Standard Error: 10_885
             .saturating_add(Weight::from_parts(892_344, 0).saturating_mul(r.into()))
+    }
+        /// The range of component `r` is `[0, 50]`.
+    fn instr_i32extend8s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_275_000 picoseconds.
+        Weight::from_parts(1_108_310, 0)
+            // Standard Error: 4_694
+            .saturating_add(Weight::from_parts(426_432, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_i32extend16s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_317_000 picoseconds.
+        Weight::from_parts(1_738_492, 0)
+            // Standard Error: 3_326
+            .saturating_add(Weight::from_parts(383_698, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_i64extend8s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_277_000 picoseconds.
+        Weight::from_parts(2_334_000, 0)
+            // Standard Error: 3_868
+            .saturating_add(Weight::from_parts(529_300, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_i64extend16s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_326_000 picoseconds.
+        Weight::from_parts(2_396_000, 0)
+            // Standard Error: 4_728
+            .saturating_add(Weight::from_parts(525_181, 0).saturating_mul(r.into()))
+    }
+    /// The range of component `r` is `[0, 50]`.
+    fn instr_i64extend32s(r: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 2_258_000 picoseconds.
+        Weight::from_parts(416_491, 0)
+            // Standard Error: 7_377
+            .saturating_add(Weight::from_parts(530_786, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64extendsi32(r: u32, ) -> Weight {

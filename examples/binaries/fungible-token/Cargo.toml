@@ -1,0 +1,25 @@
+[package]
+name = "demo-fungible-token"
+version = "0.1.4"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+workspace = "../../../"
+
+[dependencies]
+gstd = { workspace = true }
+hashbrown = { workspace = true }
+gmeta = { workspace = true }
+ft-io = { path = "io" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+gclient = { workspace = true }
+
+[build-dependencies]
+gear-wasm-builder = { workspace = true }
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = ["std"]

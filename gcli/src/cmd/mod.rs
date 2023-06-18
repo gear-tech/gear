@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -55,9 +55,9 @@ pub enum Command {
 }
 
 /// gear command-line tools
-///    ___     ___     _       ___  
+///    ___     ___     _       ___
 ///   / __|   / __|   | |     |_ _|
-///  | (_ |  | (__    | |__    | |  
+///  | (_ |  | (__    | |__    | |
 ///   \___|   \___|   |____|  |___|
 /// _|"""""|_|"""""|_|"""""|_|"""""|
 /// "`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'

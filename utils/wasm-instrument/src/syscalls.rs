@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -100,6 +100,7 @@ pub enum SysCallName {
     OutOfAllowance,
 
     // Miscellaneous
+    ReplyDeposit,
     Debug,
     Error,
     Random,
@@ -117,6 +118,7 @@ impl SysCallName {
             SysCallName::BlockTimestamp => "gr_block_timestamp",
             SysCallName::CreateProgram => "gr_create_program",
             SysCallName::CreateProgramWGas => "gr_create_program_wgas",
+            SysCallName::ReplyDeposit => "gr_reply_deposit",
             SysCallName::Debug => "gr_debug",
             SysCallName::Panic => "gr_panic",
             SysCallName::OomPanic => "gr_oom_panic",
@@ -236,6 +238,7 @@ impl SysCallName {
             Self::Value,
             Self::CreateProgram,
             Self::CreateProgramWGas,
+            Self::ReplyDeposit,
             Self::ReserveGas,
             Self::UnreserveGas,
             Self::Random,
@@ -300,6 +303,7 @@ impl SysCallName {
             Self::CreateProgramWGas => {
                 SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Gas, Delay, Ptr])
             }
+            Self::ReplyDeposit => SysCallSignature::gr([Ptr, Gas, Ptr]),
             Self::ReserveGas => SysCallSignature::gr([Gas, Duration, Ptr]),
             Self::UnreserveGas => SysCallSignature::gr([Ptr, Ptr]),
             Self::SystemReserveGas => SysCallSignature::gr([Gas, Ptr]),

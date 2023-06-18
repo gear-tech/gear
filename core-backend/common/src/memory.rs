@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 //! Work with WASM program memory in backends.
 
-use crate::BackendExt;
+use crate::BackendExternalities;
 use alloc::vec::Vec;
 use core::{
     fmt::Debug,
@@ -129,14 +129,14 @@ pub trait MemoryOwner {
 /// manager.write_as(write1, 111).unwrap();
 /// ```
 #[derive(Debug)]
-pub struct MemoryAccessManager<E> {
+pub struct MemoryAccessManager<Ext> {
     // Contains non-zero length intervals only.
     pub(crate) reads: Vec<MemoryInterval>,
     pub(crate) writes: Vec<MemoryInterval>,
-    pub(crate) _phantom: PhantomData<E>,
+    pub(crate) _phantom: PhantomData<Ext>,
 }
 
-impl<E> Default for MemoryAccessManager<E> {
+impl<Ext> Default for MemoryAccessManager<Ext> {
     fn default() -> Self {
         Self {
             reads: Vec::new(),
@@ -146,7 +146,7 @@ impl<E> Default for MemoryAccessManager<E> {
     }
 }
 
-impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
+impl<Ext> MemoryAccessRecorder for MemoryAccessManager<Ext> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
@@ -198,7 +198,7 @@ impl<E> MemoryAccessRecorder for MemoryAccessManager<E> {
     }
 }
 
-impl<E: BackendExt> MemoryAccessManager<E> {
+impl<Ext: BackendExternalities> MemoryAccessManager<Ext> {
     /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
     pub(crate) fn pre_process_memory_accesses(
         &mut self,
@@ -208,7 +208,7 @@ impl<E: BackendExt> MemoryAccessManager<E> {
             return Ok(());
         }
 
-        let res = E::pre_process_memory_accesses(&self.reads, &self.writes, gas_left);
+        let res = Ext::pre_process_memory_accesses(&self.reads, &self.writes, gas_left);
 
         self.reads.clear();
         self.writes.clear();

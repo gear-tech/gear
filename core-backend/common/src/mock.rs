@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,14 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    memory::ProcessAccessError, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
-    SystemReservationContext, TerminationReason,
+    memory::ProcessAccessError, BackendAllocExternalitiesError, BackendExternalities,
+    BackendExternalitiesError, ExtInfo, SystemReservationContext, TerminationReason,
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
-    env::Ext,
+    env::Externalities,
     gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval, PageU32Size, WasmPage, WASM_PAGE_SIZE},
@@ -46,13 +46,13 @@ impl fmt::Display for Error {
     }
 }
 
-impl BackendExtError for Error {
+impl BackendExternalitiesError for Error {
     fn into_termination_reason(self) -> TerminationReason {
         unimplemented!()
     }
 }
 
-impl BackendAllocExtError for Error {
+impl BackendAllocExternalitiesError for Error {
     type ExtError = Self;
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self> {
@@ -77,10 +77,6 @@ impl CountersOwner for MockExt {
         Ok(())
     }
 
-    fn refund_gas(&mut self, _amount: u64) -> Result<(), ChargeError> {
-        Ok(())
-    }
-
     fn gas_left(&self) -> GasLeft {
         GasLeft {
             gas: 0,
@@ -91,7 +87,7 @@ impl CountersOwner for MockExt {
     fn set_gas_left(&mut self, _gas_left: GasLeft) {}
 }
 
-impl Ext for MockExt {
+impl Externalities for MockExt {
     type Error = Error;
     type AllocError = Error;
 
@@ -207,6 +203,9 @@ impl Ext for MockExt {
     ) -> Result<(MessageId, ProgramId), Self::Error> {
         Ok((Default::default(), Default::default()))
     }
+    fn reply_deposit(&mut self, _message_id: MessageId, _amount: u64) -> Result<(), Self::Error> {
+        Ok(())
+    }
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.0
     }
@@ -244,7 +243,7 @@ impl Ext for MockExt {
     }
 }
 
-impl BackendExt for MockExt {
+impl BackendExternalities for MockExt {
     fn into_ext_info(self, _memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         Ok(ExtInfo {
             gas_amount: GasCounter::new(0).to_amount(),
@@ -254,6 +253,7 @@ impl BackendExt for MockExt {
             pages_data: Default::default(),
             generated_dispatches: Default::default(),
             awakening: Default::default(),
+            reply_deposits: Default::default(),
             program_candidates_data: Default::default(),
             program_rents: Default::default(),
             context_store: Default::default(),

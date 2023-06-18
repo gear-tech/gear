@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -355,6 +355,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_reserve_gas,
                     gr_unreserve_gas,
                     gr_system_reserve_gas,
+                    gr_reply_deposit,
                     gr_send,
                     gr_send_per_byte,
                     gr_send_wgas,
@@ -418,6 +419,11 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     i32popcnt,
                     i64eqz,
                     i32eqz,
+                    i32extend8s,
+                    i32extend16s,
+                    i64extend8s,
+                    i64extend16s,
+                    i64extend32s,
                     i64extendsi32,
                     i64extendui32,
                     i32wrapi64,
