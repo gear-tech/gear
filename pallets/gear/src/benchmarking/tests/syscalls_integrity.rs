@@ -32,7 +32,7 @@ use super::*;
 use crate::{Event, RentCostPerBlockOf, WaitlistOf};
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
-use gear_core_errors::{ExtError, MessageError};
+use gear_core_errors::{ExtError, MessageError, ReplyCode, SuccessReason};
 use gear_wasm_instrument::syscalls::SysCallName;
 use pallet_timestamp::Pallet as TimestampPallet;
 use parity_scale_codec::Decode;
@@ -70,8 +70,8 @@ where
             SysCallName::ReplyDeposit => check_gr_reply_deposit::<T>(),
             SysCallName::Read => {/* checked in all the calls internally */},
             SysCallName::Size => check_gr_size::<T>(),
-            SysCallName::ReplyCode => {/* TODO (breathx) */},
-            SysCallName::SignalCode => {/* TODO (breathx) */},
+            SysCallName::ReplyCode => {/* checked in reply_to */},
+            SysCallName::SignalCode => {/* checked in signal_from */},
             SysCallName::MessageId => check_gr_message_id::<T>(),
             SysCallName::ProgramId => check_gr_program_id::<T>(),
             SysCallName::Source => check_gr_source::<T>(),
@@ -687,7 +687,7 @@ where
     });
 }
 
-// Tests `gr_reply_to` and  `gr_reply_code`
+// Tests `gr_reply_to` and `gr_reply_code`
 fn check_reply_details<T>()
 where
     T: Config,
@@ -698,12 +698,14 @@ where
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
 
+        let reply_code = ReplyCode::Success(SuccessReason::Manual).to_bytes();
+
         // trigger sending message to default_sender's mailbox
         Gear::<T>::send_message(
             RawOrigin::Signed(default_sender.clone()).into(),
             tester_pid,
             // random params in ReplyDetails, because they aren't checked
-            vec![Kind::ReplyDetails([255u8; 32], 0)].encode(),
+            vec![Kind::ReplyDetails([255u8; 32], reply_code)].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
         )
@@ -718,14 +720,15 @@ where
 
         assert_eq!(reply_to.id(), expected_mid, "mailbox check failed");
 
-        let mp = MessageParamsBuilder::new(Kind::ReplyDetails(expected_mid.into(), 0).encode())
-            .with_reply_id(reply_to.id());
+        let mp =
+            MessageParamsBuilder::new(Kind::ReplyDetails(expected_mid.into(), reply_code).encode())
+                .with_reply_id(reply_to.id());
 
         (TestCall::send_reply(mp), None::<DefaultPostCheck>)
     });
 }
 
-// Tests `gr_signal_from` and `gr_reply_code`
+// Tests `gr_signal_from` and `gr_signal_code`
 fn check_signal_details<T>()
 where
     T: Config,
