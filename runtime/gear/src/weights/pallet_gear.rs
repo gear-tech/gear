@@ -458,10 +458,10 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 90_844_000 picoseconds.
-        Weight::from_parts(97_770_098, 0)
-            // Standard Error: 39_571
-            .saturating_add(Weight::from_parts(28_037_146, 0).saturating_mul(r.into()))
+        // Minimum execution time: 1_604_000 picoseconds.
+        Weight::from_parts(2_156_834, 0)
+            // Standard Error: 9_659
+            .saturating_add(Weight::from_parts(22_062_890, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
@@ -2321,10 +2321,10 @@ impl WeightInfo for () {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 90_844_000 picoseconds.
-        Weight::from_parts(97_770_098, 0)
-            // Standard Error: 39_571
-            .saturating_add(Weight::from_parts(28_037_146, 0).saturating_mul(r.into()))
+        // Minimum execution time: 1_604_000 picoseconds.
+        Weight::from_parts(2_156_834, 0)
+            // Standard Error: 9_659
+            .saturating_add(Weight::from_parts(22_062_890, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
