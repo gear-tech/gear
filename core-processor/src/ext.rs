@@ -732,7 +732,6 @@ impl Externalities for Ext {
     }
 
     fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) -> ReclaimBoundResult {
-        // todo [sab] check that it's the same payload_holder you once created from msg_ctx
         ReclaimBoundResult::from((&mut self.context.message_context, payload_holder))
     }
 

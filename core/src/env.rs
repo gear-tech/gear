@@ -48,7 +48,6 @@ use gear_wasm_instrument::syscalls::SysCallName;
 /// For more usage info read [`Self::release_with_job`] docs.
 
 pub struct PayloadSliceHolder {
-    // todo [sab] add message id to check whether the same message context has come
     /// Held payload
     payload: Payload,
     /// Range values indicating slice bounds.

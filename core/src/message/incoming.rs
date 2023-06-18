@@ -39,7 +39,7 @@ pub struct IncomingMessage {
     /// Message source.
     source: ProgramId,
     /// Message payload.
-    payload: Payload, // todo [sab] Takeable payload
+    payload: Payload,
     /// Message gas limit. Required here.
     gas_limit: GasLimit,
     /// Message value.
