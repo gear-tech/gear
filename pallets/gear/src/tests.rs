@@ -114,7 +114,7 @@ fn auto_reply_sent() {
                 {
                     message
                         .reply_code()
-                        .map(|code| code.is_success())
+                        .map(|code| code == ReplyCode::Success(SuccessReason::Auto))
                         .unwrap_or(false)
                 }
                 _ => false,
@@ -241,7 +241,9 @@ fn auto_reply_out_of_rent_waitlist() {
                         expiration: None,
                     }) = &r.event
                     {
-                        (message.destination().into_origin() == USER_1.into_origin()).then_some(())
+                        (message.destination().into_origin() == USER_1.into_origin()
+                            && message.reply_code() == Some(SuccessReason::Auto.into()))
+                        .then_some(())
                     } else {
                         None
                     }
@@ -8066,6 +8068,10 @@ fn delayed_sending() {
         let auto_reply = maybe_last_message(USER_1).expect("Should be");
         assert!(auto_reply.is_reply());
         assert!(auto_reply.payload().is_empty());
+        assert_eq!(
+            auto_reply.reply_code().expect("Should be"),
+            ReplyCode::Success(SuccessReason::Auto)
+        );
 
         System::reset_events();
 
@@ -10653,18 +10659,20 @@ fn incomplete_async_payloads_kept() {
         send_payloads(USER_1, incomplete, to_send);
         run_to_next_block(None);
 
-        // Empty payloads are auto-replies.
-        // TODO: assert status codes for them after #2739.
+        // "None" are auto-replies.
         let to_assert = [
-            "",
-            "OK PING",
-            "OK REPLY",
-            "",
-            "STORED COMMON",
-            "STORED REPLY",
+            None,
+            Some("OK PING"),
+            Some("OK REPLY"),
+            None,
+            Some("STORED COMMON"),
+            Some("STORED REPLY"),
         ]
         .iter()
-        .map(|s| Assertion::Payload(s.as_bytes().to_vec()))
+        .map(|v| {
+            v.map(|s| Assertion::Payload(s.as_bytes().to_vec()))
+                .unwrap_or_else(|| Assertion::ReplyCode(SuccessReason::Auto.into()))
+        })
         .collect::<Vec<_>>();
         assert_responses_to_user(USER_1, to_assert);
     })
@@ -10677,7 +10685,6 @@ fn rw_lock_works() {
 
     init_logger();
 
-    // TODO: assert auto replies after #2739.
     let upload = || {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
@@ -10726,9 +10733,9 @@ fn rw_lock_works() {
 
         let to_assert = vec![
             Assertion::Payload(0u32.encode()),
-            Assertion::Payload(vec![]),
+            Assertion::ReplyCode(SuccessReason::Auto.into()),
             Assertion::Payload(1u32.encode()),
-            Assertion::Payload(vec![]),
+            Assertion::ReplyCode(SuccessReason::Auto.into()),
             Assertion::Payload(2u32.encode()),
         ];
         assert_responses_to_user(USER_1, to_assert);
@@ -10746,7 +10753,7 @@ fn rw_lock_works() {
         run_to_next_block(None);
 
         let to_assert = vec![
-            Assertion::Payload(vec![]),
+            Assertion::ReplyCode(SuccessReason::Auto.into()),
             Assertion::Payload(1u32.encode()),
         ];
         assert_responses_to_user(USER_1, to_assert);
@@ -10766,7 +10773,7 @@ fn rw_lock_works() {
         let to_assert = vec![
             Assertion::Payload(0i32.encode()),
             Assertion::Payload(0i32.encode()),
-            Assertion::Payload(vec![]),
+            Assertion::ReplyCode(SuccessReason::Auto.into()),
         ];
         assert_responses_to_user(USER_1, to_assert);
     });
@@ -11007,8 +11014,10 @@ fn async_recursion() {
             .rev()
             .filter_map(|i| (i % 4 == 0).then(|| Assertion::Payload(i.encode())))
             .collect::<Vec<_>>();
-        // TODO: assert auto reply after #2739.
-        to_assert.insert(to_assert.len() - 1, Assertion::Payload(vec![]));
+        to_assert.insert(
+            to_assert.len() - 1,
+            Assertion::ReplyCode(SuccessReason::Auto.into()),
+        );
         assert_responses_to_user(USER_1, to_assert);
     });
 }
@@ -11049,10 +11058,12 @@ fn async_init() {
         send_payloads(USER_1, demo, vec![b"PING".to_vec()]);
         run_to_next_block(None);
 
-        // TODO: assert auto replies after #2739.
         assert_responses_to_user(
             USER_1,
-            vec![Assertion::Payload(vec![]), Assertion::Payload(2u8.encode())],
+            vec![
+                Assertion::ReplyCode(SuccessReason::Auto.into()),
+                Assertion::Payload(2u8.encode()),
+            ],
         );
     });
 }
@@ -12797,7 +12808,9 @@ fn reservation_manager() {
             pid,
             Action::SendMessageFromReservation { gas_amount: 8_000 },
             vec![
+                // auto reply
                 Assertion::ReplyCode(SuccessReason::Auto.into()),
+                // message with empty payload. not reply!
                 Assertion::Payload(vec![]),
             ],
         );
