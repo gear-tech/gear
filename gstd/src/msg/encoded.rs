@@ -62,37 +62,21 @@ pub fn load<D: Decode>() -> Result<D> {
     D::decode(&mut super::load_bytes()?.as_ref()).map_err(Error::Decode)
 }
 
-/// +_+_+
-pub fn with_loaded<D: Decode, R>(mut f: impl FnMut(Result<D>) -> R) -> R {
-    #[cfg(feature = "stack_buffer")]
-    {
-        let wrapper = |read_result: Result<&mut [u8]>| -> R {
-            let arg = match read_result.map(|buffer| {
-                let mut buffer: &[u8] = buffer;
-                D::decode(&mut buffer).map_err(Error::Decode)
-            }) {
-                Err(err) => Err(err),
-                Ok(Err(err)) => Err(err),
-                Ok(Ok(res)) => Ok(res),
-            };
-            f(arg)
+/// Reads current message payload to buffer on program stack, .
+/// +_+_+ ??
+pub fn with_loaded_on_stack<D: Decode, R>(mut f: impl FnMut(Result<D>) -> R) -> R {
+    let wrapper = |read_result: Result<&mut [u8]>| -> R {
+        let arg = match read_result.map(|buffer| {
+            let mut buffer: &[u8] = buffer;
+            D::decode(&mut buffer).map_err(Error::Decode)
+        }) {
+            Err(err) => Err(err),
+            Ok(Err(err)) => Err(err),
+            Ok(Ok(res)) => Ok(res),
         };
-        super::basic::with_read_bytes(wrapper)
-    }
-
-    #[cfg(not(feature = "stack_buffer"))]
-    {
-        f(load())
-    }
-}
-
-/// +_+_+
-pub fn with_loaded_optimized<D: Decode, R>(f: impl FnMut(Result<D>) -> R) -> R {
-    #[cfg(feature = "stack_buffer")]
-    return with_loaded(f);
-
-    #[cfg(not(feature = "stack_buffer"))]
-    return with_loaded(f);
+        f(arg)
+    };
+    super::basic::with_read_bytes(wrapper)
 }
 
 /// Send a new message as a reply to the message being
@@ -148,12 +132,12 @@ pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
 
 /// +_+_+
 pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Result<MessageId> {
-    struct ConstSizeOutput<'a> {
+    struct ExternalBufferOutput<'a> {
         buffer: &'a mut [u8],
         offset: usize,
     }
 
-    impl<'a> Output for ConstSizeOutput<'a> {
+    impl<'a> Output for ExternalBufferOutput<'a> {
         fn write(&mut self, bytes: &[u8]) {
             let err_log = "Unexpected encoding behavior: too large input bytes size";
             let end_offset = self.offset.checked_add(bytes.len()).expect(err_log);
@@ -165,10 +149,10 @@ pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Res
         }
     }
 
-    gcore::with_byte_buffer(E::max_encoded_len(), |buffer| {
-        let mut output = ConstSizeOutput { buffer, offset: 0 };
+    gcore::stack_buffer::with_byte_buffer(E::max_encoded_len(), |buffer| {
+        let mut output = ExternalBufferOutput { buffer, offset: 0 };
         payload.encode_to(&mut output);
-        let ConstSizeOutput { buffer, offset } = output;
+        let ExternalBufferOutput { buffer, offset } = output;
         super::reply_bytes(&buffer[..offset], value)
     })
 }

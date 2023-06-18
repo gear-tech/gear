@@ -42,7 +42,7 @@
 
 use crate::{
     errors::{Result, SyscallError},
-    ActorId, MessageHandle, MessageId, ReservationId,
+    stack_buffer, ActorId, MessageHandle, MessageId, ReservationId,
 };
 use gear_core_errors::ExtError;
 use gsys::{HashWithValue, LengthWithCode, LengthWithHandle, LengthWithHash, TwoHashesWithValue};
@@ -141,9 +141,9 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
 }
 
 /// +_+_+
-pub fn with_read<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
+pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
     let size = size();
-    crate::with_byte_buffer(size, |buffer| {
+    stack_buffer::with_byte_buffer(size, |buffer| {
         let mut len = 0u32;
 
         if size > 0 {

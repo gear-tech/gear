@@ -203,7 +203,7 @@ fn reply(payload: impl Encode) -> GstdResult<MessageId> {
     msg::reply(payload, 0)
 }
 
-#[gstd::message_loaded]
+#[gstd::message_loaded_on_stack]
 fn handle(action: Result<FTAction>) {
     let action: FTAction = action.expect("Could not load Action");
     let ft: &mut FungibleToken = unsafe { FUNGIBLE_TOKEN.get_or_insert(Default::default()) };
@@ -231,9 +231,9 @@ fn handle(action: Result<FTAction>) {
     }
 }
 
-#[no_mangle]
-extern "C" fn init() {
-    let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
+#[gstd::message_loaded_on_stack]
+fn init(config: Result<InitConfig>) {
+    let config: InitConfig = config.expect("Unable to decode InitConfig");
     let ft = FungibleToken {
         name: config.name,
         symbol: config.symbol,

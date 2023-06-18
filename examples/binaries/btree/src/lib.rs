@@ -56,11 +56,11 @@ mod wasm {
 
     static mut STATE: Option<BTreeMap<u32, u32>> = None;
 
-    #[gstd::message_loaded]
+    #[gstd::message_loaded_on_stack]
     fn handle(load_res: Result<Reply>) {
         let reply = load_res.map(process).unwrap_or_else(|e| {
-                debug!("Error processing request: {:?}", e);
-                Reply::Error
+            debug!("Error processing request: {:?}", e);
+            Reply::Error
         });
         msg::reply(reply, 0).unwrap();
     }

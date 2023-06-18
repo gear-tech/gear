@@ -574,8 +574,12 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
 }
 
 #[proc_macro_attribute]
-pub fn message_loaded(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn message_loaded_on_stack(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(item as ItemFn);
+
+    if !ast.attrs.is_empty() {
+        panic!("Cannot work with other attributes");
+    }
 
     // Check return type
     match &ast.sig.output {
@@ -598,7 +602,7 @@ pub fn message_loaded(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let gen = quote! {
         #[no_mangle]
         extern "C" fn #fn_name() {
-            gstd::msg::with_loaded_optimized(|#arg_name| #block);
+            gstd::msg::with_loaded_on_stack(|#arg_name| #block);
         }
     };
 
@@ -606,8 +610,12 @@ pub fn message_loaded(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn message_read(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn message_read_on_stack(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(item as ItemFn);
+
+    if ast.attrs.is_empty() {
+        panic!("Cannot work with other attributes");
+    }
 
     // Check return type
     match &ast.sig.output {
@@ -630,7 +638,7 @@ pub fn message_read(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let gen = quote! {
         #[no_mangle]
         extern "C" fn #fn_name() {
-            gstd::msg::with_loaded_optimized(|#arg_name| #block);
+            gstd::msg::with_read_on_stack(|#arg_name| #block);
         }
     };
 

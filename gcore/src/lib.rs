@@ -63,15 +63,11 @@
 
 extern crate alloc;
 
-#[cfg(feature = "stack_buffer")]
-mod stack_buffer;
-#[cfg(feature = "stack_buffer")]
-pub use stack_buffer::with_stack_buffer;
-
 pub mod errors;
 pub mod exec;
 pub mod msg;
 pub mod prog;
+pub mod stack_buffer;
 
 mod general;
 pub use general::*;

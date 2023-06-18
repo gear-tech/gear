@@ -236,18 +236,3 @@ impl CodeId {
         &self.0
     }
 }
-
-/// +_+_+
-pub fn with_byte_buffer<F, R>(size: usize, f: F) -> R
-where
-    F: FnOnce(&mut [u8]) -> R,
-{
-    #[cfg(feature = "stack_buffer")]
-    return crate::stack_buffer::with_byte_buffer(size, f);
-
-    #[cfg(not(feature = "stack_buffer"))]
-    {
-        let mut buffer = vec![0u8; size];
-        f(&mut buffer)
-    }
-}

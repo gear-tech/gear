@@ -40,6 +40,7 @@ use crate::{
     prelude::{convert::TryFrom, String},
 };
 use primitive_types::H256;
+use scale::MaxEncodedLen;
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,
