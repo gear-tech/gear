@@ -96,6 +96,7 @@ impl IncomingMessage {
         self.payload.get()
     }
 
+    /// Mutable reference to message payload.
     pub fn payload_mut(&mut self) -> &mut Payload {
         &mut self.payload
     }

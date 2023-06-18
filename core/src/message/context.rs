@@ -528,6 +528,7 @@ impl MessageContext {
         &self.current
     }
 
+    /// Mutable reference to currently processed incoming message.
     pub fn payload_mut(&mut self) -> &mut Payload {
         self.current.payload_mut()
     }

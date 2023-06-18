@@ -30,7 +30,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
-    env::{Externalities, PayloadSliceHolder, ReclaimResult},
+    env::{Externalities, PayloadSliceHolder, ReclaimBoundResult},
     gas::{
         ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
         GasLeft, Token, ValueCounter,
@@ -714,7 +714,7 @@ impl Externalities for Ext {
         Ok(())
     }
 
-    fn hold_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error> {
+    fn lend_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error> {
         let end = at
             .checked_add(len)
             .ok_or(MessageError::TooBigReadLen { at, len })?;
@@ -731,9 +731,9 @@ impl Externalities for Ext {
         )
     }
 
-    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) -> ReclaimResult {
+    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) -> ReclaimBoundResult {
         // todo [sab] check that it's the same payload_holder you once created from msg_ctx
-        ReclaimResult::from((&mut self.context.message_context, payload_holder))
+        ReclaimBoundResult::from((&mut self.context.message_context, payload_holder))
     }
 
     fn size(&self) -> Result<usize, Self::Error> {

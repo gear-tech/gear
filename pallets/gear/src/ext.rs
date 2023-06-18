@@ -25,7 +25,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     costs::RuntimeCosts,
-    env::{Externalities, PayloadSliceHolder, ReclaimResult},
+    env::{Externalities, PayloadSliceHolder, ReclaimBoundResult},
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GearPage, GrowHandler, Memory, MemoryInterval, PageU32Size, WasmPage},
@@ -331,11 +331,11 @@ impl Externalities for LazyPagesExt {
         &self.inner.context.forbidden_funcs
     }
 
-    fn hold_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error> {
-        self.inner.hold_payload(at, len)
+    fn lend_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error> {
+        self.inner.lend_payload(at, len)
     }
 
-    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) -> ReclaimResult {
+    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) -> ReclaimBoundResult {
         self.inner.reclaim_payload(payload_holder)
     }
 }

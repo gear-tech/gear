@@ -174,9 +174,9 @@ where
 
     #[host(fallible, cost = RuntimeCosts::Read, err_len = LengthBytes)]
     pub fn read(ctx: &mut R, at: u32, len: u32, buffer_ptr: u32) -> Result<(), R::Error> {
-        let payload_holder = ctx.ext_mut().hold_payload(at, len)?;
+        let payload_holder = ctx.ext_mut().lend_payload(at, len)?;
         payload_holder
-            .release_with_job::<MemoryAccessError, _>(|payload_to_slice| {
+            .use_with_job::<MemoryAccessError, _>(|payload_to_slice| {
                 let write_buffer = ctx.register_write(buffer_ptr, len);
                 let write_res = ctx.write(write_buffer, payload_to_slice.to_slice());
                 let reclaim_res = ctx
