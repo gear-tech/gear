@@ -30,7 +30,7 @@ use gear_backend_codegen::host;
 use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
-    env::{Externalities, ReleaseBoundResult},
+    env::{Externalities, UsePayloadHolderBoundResult},
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
@@ -183,7 +183,7 @@ where
                     .ext_mut()
                     .reclaim_payload(payload_to_slice.into_holder());
 
-                ReleaseBoundResult::from((reclaim_res, write_res))
+                UsePayloadHolderBoundResult::from((reclaim_res, write_res))
             })
             .into_inner()
             .map_err(Into::into)

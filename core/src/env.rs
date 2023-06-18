@@ -88,17 +88,17 @@ impl PayloadSliceHolder {
     ///
     /// Type docs explain how safe access is designed with [`PayloadToSlice`].
     ///
-    /// We ensure that the payload is released back by returning the [`ReleaseBoundResult`]
+    /// We ensure that the payload is released back by returning the [`UsePayloadHolderBoundResult`]
     /// from the `job`. This type can actually be instantiated only from tuple of two:
     /// [`ReclaimBoundResult`] and some result with err variant type to be `JobErr`.
     /// The first is returned from [`Externalities::reclaim_payload`], so it means that
     /// that payload was reclaimed by the original owner. The other result stores actual
     /// error of the `Job` as it could have called fallible actions inside it. So,
-    /// [`ReleaseBoundResult`] gives an opportunity to store the actual result of the job,
+    /// [`UsePayloadHolderBoundResult`] gives an opportunity to store the actual result of the job,
     /// but also gives guarantee that payload was reclaimed.
-    pub fn use_with_job<JobErr, Job>(mut self, mut job: Job) -> ReleaseBoundResult<JobErr>
+    pub fn use_with_job<JobErr, Job>(mut self, mut job: Job) -> UsePayloadHolderBoundResult<JobErr>
     where
-        Job: FnMut(PayloadToSlice<'_>) -> ReleaseBoundResult<JobErr>,
+        Job: FnMut(PayloadToSlice<'_>) -> UsePayloadHolderBoundResult<JobErr>,
     {
         let held_range = PayloadToSlice(&mut self);
         job(held_range)
@@ -136,20 +136,22 @@ impl<'a> PayloadToSlice<'a> {
 /// that payload value was reclaimed by the owner. Also it stores the error
 /// of the `job`, which gives opportunity to handle the actual job's runtime
 /// error, but not bound wrappers.
-pub struct ReleaseBoundResult<JobError> {
+pub struct UsePayloadHolderBoundResult<JobError> {
     job_result: Result<(), JobError>,
 }
 
-impl<JobErr> ReleaseBoundResult<JobErr> {
+impl<JobErr> UsePayloadHolderBoundResult<JobErr> {
     /// Convert into inner job of the [`PayloadSliceHolder::use_with_job`] result.
     pub fn into_inner(self) -> Result<(), JobErr> {
         self.job_result
     }
 }
 
-impl<JobErr> From<(ReclaimBoundResult, Result<(), JobErr>)> for ReleaseBoundResult<JobErr> {
+impl<JobErr> From<(ReclaimBoundResult, Result<(), JobErr>)>
+    for UsePayloadHolderBoundResult<JobErr>
+{
     fn from((_token, job_result): (ReclaimBoundResult, Result<(), JobErr>)) -> Self {
-        ReleaseBoundResult { job_result }
+        UsePayloadHolderBoundResult { job_result }
     }
 }
 
@@ -315,7 +317,7 @@ pub trait Externalities {
     /// means, that the payload value in the currently executed message will become
     /// "de-allocated" or just zeroed. To prevent from the risk of payload being
     /// not "returned" back to the message a [`Externalities::reclaim_payload`] is
-    /// introduced. For more info, read docs to [`PayloadSliceHolder`], [`ReleaseBoundResult`],
+    /// introduced. For more info, read docs to [`PayloadSliceHolder`], [`UsePayloadHolderBoundResult`],
     /// [`ReclaimBoundResult`], [`PayloadToSlice`] types and their methods.
     fn lend_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error>;
 
