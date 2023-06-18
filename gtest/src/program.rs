@@ -31,7 +31,6 @@ use gear_core::{
     program::Program as CoreProgram,
 };
 use gear_core_errors::SimpleSignalError;
-use gear_wasm_builder::optimize::{OptType, Optimizer};
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
 use std::{
@@ -269,23 +268,9 @@ impl<'a> Program<'a> {
             "Cannot load `.meta.wasm` file without `.opt.wasm` one. \
             Use Program::from_opt_and_meta() instead"
         );
-        let is_opt = filename.ends_with(".opt.wasm");
 
-        let opt_code = if !is_opt {
-            let mut optimizer = Optimizer::new(path).expect("Failed to create optimizer");
-
-            // Ignore result, because it's not important.
-            _ = optimizer.insert_stack_end_export();
-
-            optimizer.strip_custom_sections();
-            optimizer
-                .optimize(OptType::Opt)
-                .expect("Failed to produce optimized binary")
-        } else {
-            fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
-        };
-
-        Self::from_opt_and_meta_code_with_id(system, id, opt_code, None)
+        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
+        Self::from_opt_and_meta_code_with_id(system, id, code, None)
     }
 
     pub fn from_opt_and_meta<P: AsRef<Path>>(
