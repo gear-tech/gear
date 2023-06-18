@@ -85,6 +85,7 @@ fn populate_wl_from(
     (mid, pid)
 }
 
+#[track_caller]
 fn task_and_wl_message_exist(
     mid: impl Into<MessageId>,
     pid: impl Into<ProgramId>,
@@ -96,9 +97,7 @@ fn task_and_wl_message_exist(
     let ts = TaskPoolOf::<Test>::contains(&bn, &ScheduledTask::RemoveFromWaitlist(pid, mid));
     let wl = WaitlistOf::<Test>::contains(&pid, &mid);
 
-    if ts != wl {
-        panic!("Logic invalidated");
-    }
+    assert_eq!(ts, wl, "Logic invalidated");
 
     ts
 }
@@ -200,10 +199,10 @@ fn gear_handles_tasks() {
 
         // Check if task and message got processed in block `bn`.
         run_to_block(bn, Some(u64::MAX));
-        // Read of the first block of incomplete tasks and write for removal of task.
+        // Read of the first block of incomplete tasks, read of the first task and write for removal of task.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
-            u64::MAX - db_r_w(1, 1).ref_time()
+            u64::MAX - db_r_w(2, 1).ref_time()
         );
 
         // Storages checking.
@@ -312,7 +311,7 @@ fn gear_handles_outdated_tasks() {
 
         // Check if task and message got processed before start of block `bn`.
         // But due to the low gas allowance, we may process the only first task.
-        run_to_block(bn, Some(db_r_w(1, 2).ref_time() + 1));
+        run_to_block(bn, Some(db_r_w(2, 2).ref_time() + 1));
         // Read of the first block of incomplete tasks, write to it afterwards + single task processing.
         assert_eq!(GasAllowanceOf::<Test>::get(), 1);
 
@@ -340,10 +339,10 @@ fn gear_handles_outdated_tasks() {
 
         // Check if missed task and message got processed in block `bn`.
         run_to_block(bn + 1, Some(u64::MAX));
-        // Delete of the first block of incomplete tasks + single task processing.
+        // Delete of the first block of incomplete tasks + single DB read (task) + single task processing.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
-            u64::MAX - db_r_w(0, 2).ref_time()
+            u64::MAX - db_r_w(1, 2).ref_time()
         );
 
         let cost2 = wl_cost_for(bn + 1 - initial_block);

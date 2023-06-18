@@ -134,6 +134,9 @@ pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
 pub type ResumeMinimalPeriodOf<T> = <T as Config>::ProgramResumeMinimalRentPeriod;
 pub type ResumeSessionDurationOf<T> = <T as Config>::ProgramResumeSessionDuration;
 
+// Estimated count of tasks in the single block to process.
+const MAX_TASK_COUNT: usize = 1_000;
+
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
@@ -929,43 +932,58 @@ pub mod pallet {
                 ..=current_bn.saturated_into())
                 .map(|block| block.saturated_into::<BlockNumberFor<T>>());
             for bn in missing_blocks {
-                // Tasks drain iterator.
-                let tasks = TaskPoolOf::<T>::drain_prefix_keys(bn);
-
                 // Checking gas allowance.
                 //
-                // Making sure we have gas to remove next task
+                // Making sure we have gas to read next task
                 // or update the first block of incomplete tasks.
-                if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().writes(2).ref_time() {
+                if GasAllowanceOf::<T>::get() <= DbWeightOf::<T>::get().reads_writes(1, 1).ref_time() {
                     stopped_at = Some(bn);
                     log::debug!("Stopping processing tasks at: {stopped_at:?}");
                     break;
                 }
 
+                let tasks = TaskPoolOf::<T>::iter_prefix_keys(bn);
+                let mut tasks_to_delete = Vec::with_capacity(MAX_TASK_COUNT);
+
                 // Iterating over tasks, scheduled on `bn`.
                 for task in tasks {
-                    log::debug!("Processing task: {:?}", task);
+                    // Decreasing gas allowance due to read from DB.
+                    GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().reads(1).ref_time());
 
-                    // Decreasing gas allowance due to DB deletion.
-                    GasAllowanceOf::<T>::decrease(DbWeightOf::<T>::get().writes(1).ref_time());
-
-                    let task_gas = manager::get_maximum_task_gas::<T>(&task);
+                    // gas required to process task and to remove it from DB.
+                    let task_gas = manager::get_maximum_task_gas::<T>(&task)
+                        .saturating_add(DbWeightOf::<T>::get().writes(1).ref_time());
+                    log::debug!("Processing task: {:?}, gas = {task_gas}", task);
 
                     // Checking gas allowance.
                     //
-                    // Making sure we have gas to remove next task
-                    // or update the first block of incomplete tasks.
+                    // Making sure we have gas to update the first block of incomplete tasks.
                     if GasAllowanceOf::<T>::get().saturating_sub(task_gas)
-                        <= DbWeightOf::<T>::get().writes(2).ref_time()
+                        <= DbWeightOf::<T>::get().writes(1).ref_time()
                     {
                         stopped_at = Some(bn);
-                        log::debug!("Stopping processing tasks at: {stopped_at:?}");
+                        log::debug!("Not enough gas to process task at: {stopped_at:?}");
                         break;
                     }
 
                     // Processing task and update allowance of gas.
+                    tasks_to_delete.push((bn, task.clone()));
                     let task_gas = task.process_with(ext_manager);
                     GasAllowanceOf::<T>::decrease(task_gas);
+
+                    // Check that there is enough gas allowance to read next task, update the first block of incomplete tasks and remove already processed tasks.
+                    if GasAllowanceOf::<T>::get()
+                        <= DbWeightOf::<T>::get().reads_writes(1, 1 + tasks_to_delete.len() as u64).ref_time()
+                    {
+                        stopped_at = Some(bn);
+                        log::debug!("Stopping processing tasks at (read next): {stopped_at:?}");
+                        break;
+                    }
+                }
+
+                for (bn, task) in tasks_to_delete {
+                    log::debug!("Remove task: {:?}", task);
+                    let _ = TaskPoolOf::<T>::delete(bn, task);
                 }
 
                 // Stopping iteration over blocks if no resources left.
