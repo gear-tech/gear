@@ -30,7 +30,7 @@ use gear_backend_codegen::host;
 use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
-    env::Externalities,
+    env::{Externalities, ReleaseBoundResult},
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
@@ -176,14 +176,16 @@ where
     pub fn read(ctx: &mut R, at: u32, len: u32, buffer_ptr: u32) -> Result<(), R::Error> {
         let payload_holder = ctx.ext_mut().hold_payload(at, len)?;
         payload_holder
-            .release_with_job(|payload_in_range| {
+            .release_with_job::<MemoryAccessError, _>(|payload_to_slice| {
                 let write_buffer = ctx.register_write(buffer_ptr, len);
-                let res = ctx.write(write_buffer, payload_in_range.to_slice());
-                ctx.ext_mut()
-                    .reclaim_payload(payload_in_range.into_holder());
+                let write_res = ctx.write(write_buffer, payload_to_slice.to_slice());
+                let reclaim_res = ctx
+                    .ext_mut()
+                    .reclaim_payload(payload_to_slice.into_holder());
 
-                res
+                ReleaseBoundResult::from((reclaim_res, write_res))
             })
+            .into_inner()
             .map_err(Into::into)
     }
 

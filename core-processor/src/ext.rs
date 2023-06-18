@@ -31,7 +31,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
-    env::{Either, Externalities, PayloadSliceHolder},
+    env::{Either, Externalities, PayloadSliceHolder, ReclaimResult},
     gas::{
         ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
         GasLeft, Token, ValueCounter,
@@ -744,9 +744,9 @@ impl Externalities for Ext {
         )
     }
 
-    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) {
+    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) -> ReclaimResult {
         // todo [sab] check that it's the same payload_holder you once created from msg_ctx
-        payload_holder.release_back(&mut self.context.message_context);
+        ReclaimResult::from((&mut self.context.message_context, payload_holder))
     }
 
     fn size(&self) -> Result<usize, Self::Error> {

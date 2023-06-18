@@ -44,6 +44,32 @@ pub struct PayloadSliceHolder {
     range: (usize, usize),
 }
 
+pub struct ReleaseBoundResult<JobError> {
+    job_result: Result<(), JobError>,
+}
+
+impl<JobErr> ReleaseBoundResult<JobErr> {
+    pub fn into_inner(self) -> Result<(), JobErr> {
+        self.job_result
+    }
+}
+
+impl<JobErr> From<(ReclaimResult, Result<(), JobErr>)> for ReleaseBoundResult<JobErr> {
+    fn from((_token, job_result): (ReclaimResult, Result<(), JobErr>)) -> Self {
+        ReleaseBoundResult { job_result }
+    }
+}
+
+pub struct ReclaimResult(());
+
+impl From<(&mut MessageContext, &mut PayloadSliceHolder)> for ReclaimResult {
+    fn from((msg_ctx, payload_holder): (&mut MessageContext, &mut PayloadSliceHolder)) -> Self {
+        payload_holder.release_back(msg_ctx);
+
+        ReclaimResult(())
+    }
+}
+
 impl PayloadSliceHolder {
     pub fn try_new((start, end): (u32, u32), msg_ctx: &mut MessageContext) -> Result<Self, usize> {
         // TODO [sab] what if make a var with payload_mut?
@@ -62,9 +88,9 @@ impl PayloadSliceHolder {
         mem::swap(msg_ctx.payload_mut(), &mut self.payload);
     }
 
-    pub fn release_with_job<JobErr, Job>(mut self, mut job: Job) -> Result<(), JobErr>
+    pub fn release_with_job<JobErr, Job>(mut self, mut job: Job) -> ReleaseBoundResult<JobErr>
     where
-        Job: FnMut(PayloadToSlice<'_>) -> Result<(), JobErr>,
+        Job: FnMut(PayloadToSlice<'_>) -> ReleaseBoundResult<JobErr>,
     {
         let (start, end) = self.range;
         let held_range = PayloadToSlice(&mut self);
@@ -228,7 +254,7 @@ pub trait Externalities {
     // todo [sab] #[must_use]
     fn hold_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error>;
 
-    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder);
+    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) -> ReclaimResult;
 
     /// Size of currently handled message payload.
     fn size(&self) -> Result<usize, Self::Error>;

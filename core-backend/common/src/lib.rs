@@ -45,7 +45,7 @@ use core::{
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
-    env::{Either, Externalities},
+    env::{Either, Externalities, ReleaseBoundResult},
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
