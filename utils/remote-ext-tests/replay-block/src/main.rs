@@ -29,7 +29,7 @@ use service::GearExecutorDispatch;
 use service::VaraExecutorDispatch;
 use sp_runtime::{
     generic::SignedBlock,
-    traits::{Block as BlockT, Header as HeaderT},
+    traits::{Block as BlockT, Header as HeaderT, One},
 };
 use sp_state_machine::ExecutionStrategy;
 use std::fmt::Debug;
@@ -44,6 +44,15 @@ mod util;
 const VARA_SS58_PREFIX: u8 = 137;
 const GEAR_SS58_PREFIX: u8 = 42;
 
+pub(crate) type HashFor<B> = <B as BlockT>::Hash;
+pub(crate) type NumberFor<B> = <<B as BlockT>::Header as HeaderT>::Number;
+
+#[derive(Clone, Debug)]
+pub(crate) enum BlockHashOrNumber<B: BlockT> {
+    Hash(HashFor<B>),
+    Number(NumberFor<B>),
+}
+
 #[derive(Clone, Debug, Parser)]
 struct Opt {
     /// The RPC url.
@@ -55,13 +64,14 @@ struct Opt {
 	)]
     uri: String,
 
-    /// The block hash to fetch the state at. If omitted, then the latest finalized head is used.
+    /// The block hash or number we want to replay. If omitted, the latest finalized block is used.
+    /// The blockchain state at previous block with respect to this parameter will be scraped.
     #[arg(
 		short,
 		long,
-		value_parser = parse::hash,
+		value_parser = parse::block,
 	)]
-    at: Option<String>,
+    block: Option<BlockHashOrNumber<Block>>,
 
     /// Pallet(s) to scrape. Comma-separated multiple items are also accepted.
     /// If empty, entire chain state will be scraped.
@@ -83,19 +93,71 @@ async fn main() -> sc_cli::Result<()> {
 
     sp_tracing::try_init_simple();
 
-    log::info!(
-        target: LOG_TARGET,
-        "Fetching state from {:?} at {:?}",
-        options.uri,
-        options.at
-    );
-
     let ss58_prefix = match options.uri.contains("vara") {
         true => VARA_SS58_PREFIX,
         false => GEAR_SS58_PREFIX,
     };
     sp_core::crypto::set_default_ss58_version(ss58_prefix.try_into().unwrap());
 
+    // Initialize the RPC client.
+    // get the block number associated with this block.
+    let block_ws_uri = options.uri.clone();
+    let rpc = ws_client(&block_ws_uri).await?;
+
+    let block_hash_or_num = match options.block {
+        Some(b) => b,
+        None => {
+            let height = ChainApi::<
+                (),
+                <Block as BlockT>::Hash,
+                <Block as BlockT>::Header,
+                SignedBlock<Block>,
+            >::finalized_head(&rpc)
+            .await
+            .map_err(rpc_err_handler)?;
+
+            log::info!(
+                target: LOG_TARGET,
+                "Block is not provided, setting it to the latest finalized head: {:?}",
+                height
+            );
+
+            BlockHashOrNumber::Hash(height)
+        }
+    };
+
+    let (current_number, current_hash) = match block_hash_or_num {
+        BlockHashOrNumber::Number(n) => (n, block_number_to_hash::<Block>(&rpc, n).await?),
+        BlockHashOrNumber::Hash(hash) => (block_hash_to_number::<Block>(&rpc, hash).await?, hash),
+    };
+
+    // Get the state at the height corresponging to previous block.
+    let previous_hash =
+        block_number_to_hash::<Block>(&rpc, current_number.saturating_sub(One::one())).await?;
+    log::info!(
+        target: LOG_TARGET,
+        "Fetching state from {:?} at {:?}",
+        options.uri,
+        previous_hash,
+    );
+    let ext = build_externalities::<Block>(
+        options.uri,
+        Some(previous_hash),
+        options.pallet,
+        options.child_tree,
+    )
+    .await?;
+
+    log::info!(target: LOG_TARGET, "Fetching block {:?} ", current_hash);
+    let block = fetch_block::<Block>(&rpc, current_hash).await?;
+
+    // A digest item gets added when the runtime is processing the block, so we need to pop
+    // the last one to be consistent with what a gossiped block would contain.
+    let (mut header, extrinsics) = block.deconstruct();
+    header.digest_mut().pop();
+    let block = Block::new(header, extrinsics);
+
+    // Create executor, suitable for usage in conjunction with the preferred execution strategy.
     #[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]
     let executor = build_executor::<VaraExecutorDispatch>();
     #[cfg(all(not(feature = "always-wasm"), feature = "gear-native"))]
@@ -107,32 +169,6 @@ async fn main() -> sc_cli::Result<()> {
             gear_runtime_interface::gear_ri::HostFunctions,
         >,
     >();
-
-    let ext = build_externalities::<Block>(options.clone()).await?;
-
-    // get the block number associated with this block.
-    let block_ws_uri = options.uri;
-    let rpc = ws_client(&block_ws_uri).await?;
-    let next_hash = next_hash_of::<Block>(&rpc, ext.block_hash).await?;
-
-    log::info!(target: LOG_TARGET, "fetching next block: {:?} ", next_hash);
-
-    let block = ChainApi::<
-        (),
-        <Block as BlockT>::Hash,
-        <Block as BlockT>::Header,
-        SignedBlock<Block>,
-    >::block(&rpc, Some(next_hash))
-    .await
-    .map_err(rpc_err_handler)?
-    .expect("header exists, block should also exist; qed")
-    .block;
-
-    // A digest item gets added when the runtime is processing the block, so we need to pop
-    // the last one to be consistent with what a gossiped block would contain.
-    let (mut header, extrinsics) = block.deconstruct();
-    header.digest_mut().pop();
-    let block = Block::new(header, extrinsics);
 
     // for now, hardcoded for the sake of simplicity. We might customize them one day.
     let payload = block.encode();
@@ -155,3 +191,10 @@ async fn main() -> sc_cli::Result<()> {
 
     Ok(())
 }
+
+// fn main() -> sc_cli::Result<()> {
+//     let options = Opt::parse();
+//     println!("Option {:?}", options);
+
+//     Ok(())
+// }

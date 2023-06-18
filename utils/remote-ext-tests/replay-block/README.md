@@ -100,13 +100,15 @@ The `remote-ext-tests-replay-block` CLI hides away the complexity of the generic
 
 Only live chain state (via remote externalities) is currently supported.
 
+Another difference from the `try-runtime` API is that in `remote-ext-tests-replay-block` CLI the block (hash or number) provided as the `--block` argument is the one whose extrinsics we want to apply. It means the blockchain state we scrape from the live chain would correspond to the previous block with respect to the one provided. If the `--block` argument is omitted the last finalized block from the live chain is used.
+
 <br/>
 
 ### Usage examples
 
 In order to use the native runtime build make sure the node is built with the Runtime spec version that matches the one currently uploaded on chain.
 
-* Execute block on Vara live chain
+* Replay a block on Vara live chain
 
     * current latest finalized block on Vara chain
 
@@ -116,15 +118,15 @@ In order to use the native runtime build make sure the node is built with the Ru
         remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443
         ```
 
-    * at block `$HASH`
+    * block with `$HASH` or `$BLOCK_NUM`
 
         ```bash
         export HASH=0x8dc1e32576c1ad4e28dc141769576efdbc19d0170d427b69edb2261cfc36e905
+        export BLOCK_NUM=2000000
 
-        remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443 --at "$HASH"
+        remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443 --block "$HASH"
+        remote-ext-tests-replay-block --uri wss://archive-rpc.vara-network.io:443 --block "$BLOCK_NUM"
         ```
-
-    The same consideration with regard to the chain height block applies here: if we want to replay the block `N`, the provided height must correspond to the previous block.
 
 <br/>
 

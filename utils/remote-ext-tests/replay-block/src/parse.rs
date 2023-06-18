@@ -18,7 +18,9 @@
 
 //! Utils for parsing input args
 
-pub(crate) fn hash(block_hash: &str) -> Result<String, String> {
+use crate::{Block, BlockHashOrNumber, HashFor, NumberFor};
+
+pub(crate) fn hash(block_hash: &str) -> Result<String, usize> {
     let (block_hash, offset) = if let Some(block_hash) = block_hash.strip_prefix("0x") {
         (block_hash, 2)
     } else {
@@ -26,10 +28,7 @@ pub(crate) fn hash(block_hash: &str) -> Result<String, String> {
     };
 
     if let Some(pos) = block_hash.chars().position(|c| !c.is_ascii_hexdigit()) {
-        Err(format!(
-            "Expected block hash, found illegal hex character at position: {}",
-            offset + pos,
-        ))
+        Err(offset + pos)
     } else {
         Ok(block_hash.into())
     }
@@ -41,5 +40,28 @@ pub(crate) fn url(s: &str) -> Result<String, &'static str> {
         Ok(s.to_string())
     } else {
         Err("not a valid WS(S) url: must start with 'ws://' or 'wss://'")
+    }
+}
+
+pub(crate) fn block(block_hash_or_number: &str) -> Result<BlockHashOrNumber<Block>, String> {
+    if let Ok(block_number) = block_hash_or_number.parse::<NumberFor<Block>>() {
+        Ok(BlockHashOrNumber::Number(block_number))
+    } else {
+        let block_hash = hash(block_hash_or_number).map_err(|e| {
+            format!(
+                "Expected block hash or number, found illegal hex character at position {}",
+                e,
+            )
+        })?;
+        if block_hash.len() != 64 {
+            return Err(format!(
+                "Expected block hash or number, found a hex string of length {}",
+                block_hash.len()
+            ));
+        };
+        block_hash
+            .parse::<HashFor<Block>>()
+            .map(BlockHashOrNumber::Hash)
+            .map_err(|e| format!("Failed to parse block hash: {}", e,))
     }
 }

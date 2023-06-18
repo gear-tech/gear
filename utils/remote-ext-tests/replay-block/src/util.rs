@@ -18,7 +18,7 @@
 
 //! Helper functions for creating remote externalities, executor etc.
 
-use crate::{Opt, LOG_TARGET};
+use crate::{HashFor, NumberFor, LOG_TARGET};
 
 use frame_remote_externalities::{
     Builder, Mode, OnlineConfig, RemoteExternalities, TestExternalities,
@@ -42,6 +42,7 @@ use sp_externalities::Extensions;
 use sp_keystore::{testing::KeyStore, KeystoreExt};
 use sp_rpc::{list::ListOrValue, number::NumberOrHex};
 use sp_runtime::{
+    generic::SignedBlock,
     traits::{Block as BlockT, Header as HeaderT},
     DeserializeOwned,
 };
@@ -81,6 +82,7 @@ pub(crate) fn build_executor<H: HostFunctions>() -> WasmExecutor<H> {
     )
 }
 
+#[allow(dead_code)]
 pub(crate) fn hash_of<Block: BlockT>(hash_str: &str) -> sc_cli::Result<Block::Hash>
 where
     Block::Hash: FromStr,
@@ -92,7 +94,10 @@ where
 }
 
 pub(crate) async fn build_externalities<Block: BlockT + DeserializeOwned>(
-    options: Opt,
+    uri: String,
+    at: Option<Block::Hash>,
+    pallet: Vec<String>,
+    child_tree: bool,
 ) -> sc_cli::Result<RemoteExternalities<Block>>
 where
     Block::Hash: FromStr,
@@ -100,16 +105,12 @@ where
     Block::Hash: DeserializeOwned,
     <Block::Hash as FromStr>::Err: Debug,
 {
-    let at = match options.at {
-        Some(at_str) => Some(hash_of::<Block>(&at_str)?),
-        None => None,
-    };
     let builder = Builder::<Block>::new().mode(Mode::Online(OnlineConfig {
         at,
-        transport: options.uri.to_owned().into(),
+        transport: uri.to_owned().into(),
         state_snapshot: None,
-        pallets: options.pallet.clone(),
-        child_trie: options.child_tree,
+        pallets: pallet.clone(),
+        child_trie: child_tree,
         hashed_keys: vec![
             // we always download the code
             well_known_keys::CODE.to_vec(),
@@ -125,36 +126,63 @@ where
     Ok(builder.build().await?)
 }
 
-pub(crate) async fn next_hash_of<Block: BlockT>(
+pub(crate) async fn block_hash_to_number<Block: BlockT>(
     rpc: &WsClient,
-    hash: Block::Hash,
+    hash: HashFor<Block>,
+) -> sc_cli::Result<NumberFor<Block>>
+where
+    Block: BlockT + DeserializeOwned,
+    Block::Header: DeserializeOwned,
+{
+    Ok(
+        ChainApi::<(), Block::Hash, Block::Header, ()>::header(rpc, Some(hash))
+            .await
+            .map_err(rpc_err_handler)
+            .and_then(|maybe_header| maybe_header.ok_or("header_not_found").map(|h| *h.number()))?,
+    )
+}
+
+pub(crate) async fn block_number_to_hash<Block: BlockT>(
+    rpc: &WsClient,
+    block_number: NumberFor<Block>,
 ) -> sc_cli::Result<Block::Hash>
 where
     Block: BlockT + DeserializeOwned,
     Block::Header: DeserializeOwned,
 {
-    let number = ChainApi::<(), Block::Hash, Block::Header, ()>::header(rpc, Some(hash))
+    Ok(
+        match ChainApi::<(), Block::Hash, Block::Header, ()>::block_hash(
+            rpc,
+            Some(ListOrValue::Value(NumberOrHex::Number(
+                block_number
+                    .try_into()
+                    .map_err(|_| "failed to convert number to block number")?,
+            ))),
+        )
         .await
-        .map_err(rpc_err_handler)
-        .and_then(|maybe_header| maybe_header.ok_or("header_not_found").map(|h| *h.number()))?;
-
-    let next = number + sp_runtime::traits::One::one();
-
-    let next_hash = match ChainApi::<(), Block::Hash, Block::Header, ()>::block_hash(
-        rpc,
-        Some(ListOrValue::Value(NumberOrHex::Number(
-            next.try_into()
-                .map_err(|_| "failed to convert number to block number")?,
-        ))),
+        .map_err(rpc_err_handler)?
+        {
+            ListOrValue::Value(t) => t.expect("value passed in; value comes out; qed"),
+            _ => unreachable!(),
+        },
     )
-    .await
-    .map_err(rpc_err_handler)?
-    {
-        ListOrValue::Value(t) => t.expect("value passed in; value comes out; qed"),
-        _ => unreachable!(),
-    };
+}
 
-    Ok(next_hash)
+pub(crate) async fn fetch_block<Block: BlockT>(
+    rpc: &WsClient,
+    hash: HashFor<Block>,
+) -> sc_cli::Result<Block>
+where
+    Block: BlockT + DeserializeOwned,
+    Block::Header: DeserializeOwned,
+{
+    Ok(
+        ChainApi::<(), Block::Hash, Block::Header, SignedBlock<Block>>::block(rpc, Some(hash))
+            .await
+            .map_err(rpc_err_handler)?
+            .expect("header exists, block should also exist; qed")
+            .block,
+    )
 }
 
 pub(crate) fn rpc_err_handler(error: impl Debug) -> &'static str {
