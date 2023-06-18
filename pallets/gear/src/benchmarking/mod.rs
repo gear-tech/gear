@@ -54,9 +54,12 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    manager::ExtManager, pallet, schedule::INSTR_BENCHMARK_BATCH_SIZE, BTreeMap, BalanceOf,
-    BenchmarkStorage, Call, Config, ExecutionEnvironment, Ext as Externalities, GasHandlerOf,
-    MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf, Schedule,
+    manager::ExtManager,
+    pallet,
+    schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
+    BTreeMap, BalanceOf, BenchmarkStorage, Call, Config, ExecutionEnvironment,
+    Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf,
+    QueueOf, RentFreePeriodOf, Schedule,
 };
 use ::alloc::vec;
 use common::{
@@ -77,11 +80,12 @@ use frame_support::{
 };
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_backend_common::Environment;
+use gear_backend_sandbox::memory::MemoryWrap;
 use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, GearPage, PageBuf, PageU32Size, WasmPage},
+    memory::{AllocationsContext, GearPage, Memory, PageBuf, PageU32Size, WasmPage},
     message::{ContextSettings, DispatchKind, MessageContext},
     reservation::GasReserver,
 };
@@ -99,6 +103,7 @@ use sp_runtime::{
     traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
     Digest, DigestItem, Perbill,
 };
+use sp_sandbox::{default_executor::Memory as DefaultExecutorMemory, SandboxMemory};
 use sp_std::prelude::*;
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
@@ -1487,14 +1492,11 @@ benchmarks! {
 
     mem_grow {
         let r in 0 .. API_BENCHMARK_BATCHES;
-
-        let mut res = None;
-        let exec = Benches::<T>::mem_grow(r, 1)?;
+        let mut mem = MemoryWrap::new(DefaultExecutorMemory::new(1, None).unwrap());
     }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
+        for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
+            mem.grow(WasmPage::new(1).unwrap()).unwrap();
+        }
     }
 
     // w_load = w_bench
