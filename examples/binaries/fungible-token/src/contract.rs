@@ -22,7 +22,7 @@ use gmeta::Metadata;
 use gstd::{debug, errors::Result as GstdResult, exec, msg, prelude::*, ActorId, MessageId};
 use hashbrown::HashMap;
 
-// const ZERO_ID: ActorId = ActorId::new([0u8; 32]);
+const ZERO_ID: ActorId = ActorId::new([0u8; 32]);
 
 #[derive(Debug, Clone, Default)]
 struct FungibleToken {
@@ -62,7 +62,7 @@ impl FungibleToken {
         self.total_supply += amount;
         msg::reply(
             FTEvent::Transfer {
-                from: ActorId::zero_id(),
+                from: ZERO_ID,
                 to: msg::source(),
                 amount,
             },
@@ -83,7 +83,7 @@ impl FungibleToken {
         msg::reply(
             FTEvent::Transfer {
                 from: msg::source(),
-                to: ActorId::zero_id(),
+                to: ZERO_ID,
                 amount,
             },
             0,
@@ -93,7 +93,7 @@ impl FungibleToken {
     /// Executed on receiving `fungible-token-messages::TransferInput` or `fungible-token-messages::TransferFromInput`.
     /// Transfers `amount` tokens from `sender` account to `recipient` account.
     fn transfer(&mut self, from: &ActorId, to: &ActorId, amount: u128) {
-        if from.is_zero_id() || to.is_zero_id() {
+        if from == &ZERO_ID || to == &ZERO_ID {
             panic!("Zero addresses");
         };
         if !self.can_transfer(from, amount) {
@@ -109,7 +109,6 @@ impl FungibleToken {
             .entry(*to)
             .and_modify(|balance| *balance += amount)
             .or_insert(amount);
-        // gstd::debug!("LOL");
         msg::reply_on_stack(
             FTEvent::Transfer {
                 from: *from,
@@ -123,7 +122,7 @@ impl FungibleToken {
 
     /// Executed on receiving `fungible-token-messages::ApproveInput`.
     fn approve(&mut self, to: &ActorId, amount: u128) {
-        if to.is_zero_id() {
+        if to == &ZERO_ID {
             panic!("Approve to zero address");
         }
         self.allowances
@@ -142,9 +141,9 @@ impl FungibleToken {
     }
 
     fn can_transfer(&mut self, from: &ActorId, amount: u128) -> bool {
-        if *from == msg::source()
-            || *from == exec::origin()
-            || *self.balances.get(&msg::source()).unwrap_or(&0) >= amount
+        if from == &msg::source()
+            || from == &exec::origin()
+            || self.balances.get(&msg::source()).unwrap_or(&0) >= &amount
         {
             return true;
         }
@@ -153,7 +152,7 @@ impl FungibleToken {
             .get(from)
             .and_then(|m| m.get(&msg::source()))
         {
-            if *allowed_amount >= amount {
+            if allowed_amount >= &amount {
                 self.allowances.entry(*from).and_modify(|m| {
                     m.entry(msg::source()).and_modify(|a| *a -= amount);
                 });

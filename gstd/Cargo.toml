@@ -21,5 +21,4 @@ futures = { workspace = true, features = ["alloc"] }
 static_assertions.workspace = true
 
 [features]
-optimized = ["gcore/optimized"]
 debug = ["galloc/debug", "gcore/debug"]

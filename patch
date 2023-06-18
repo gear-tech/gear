@@ -1,0 +1,1529 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 23147a4ba..c9acb328e 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3594,6 +3594,7 @@ version = "0.1.0"
+ dependencies = [
+  "galloc",
+  "gear-core-errors",
++ "gear-wasm-instrument",
+  "gsys",
+  "hex-literal 0.3.4",
+  "parity-scale-codec",
+@@ -4227,6 +4228,7 @@ dependencies = [
+  "gear-core",
+  "gear-wasm-instrument",
+  "gmeta",
++ "gsys",
+  "log",
+  "once_cell",
+  "pathdiff",
+@@ -4238,6 +4240,7 @@ dependencies = [
+  "wasm-opt",
+  "wasmi 0.14.0",
+  "wasmparser-nostd 0.100.1",
++ "wasmprinter",
+  "which",
+ ]
+ 
+diff --git a/core-processor/src/executor.rs b/core-processor/src/executor.rs
+index fcb76795b..767872208 100644
+--- a/core-processor/src/executor.rs
++++ b/core-processor/src/executor.rs
+@@ -341,6 +341,7 @@ where
+         )
+         .map_err(EnvironmentError::from_infallible)?;
+         env.execute(|memory, stack_end, globals_config| {
++            log::trace!("stack end = {stack_end:?}");
+             prepare_memory::<E::Ext, E::Memory>(
+                 memory,
+                 program_id,
+diff --git a/examples/Cargo.lock b/examples/Cargo.lock
+index 26cb4d44c..0148fb105 100644
+--- a/examples/Cargo.lock
++++ b/examples/Cargo.lock
+@@ -308,6 +308,7 @@ name = "gcore"
+ version = "0.1.0"
+ dependencies = [
+  "gear-core-errors",
++ "gear-wasm-instrument",
+  "gsys",
+  "parity-scale-codec",
+  "static_assertions",
+@@ -322,6 +323,14 @@ dependencies = [
+  "scale-info",
+ ]
+ 
++[[package]]
++name = "gear-wasm-instrument"
++version = "0.1.0"
++dependencies = [
++ "enum-iterator",
++ "wasm-instrument",
++]
++
+ [[package]]
+ name = "generic-array"
+ version = "0.14.7"
+@@ -514,6 +523,12 @@ dependencies = [
+  "syn 1.0.109",
+ ]
+ 
++[[package]]
++name = "parity-wasm"
++version = "0.45.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e1ad0aff30c1da14b1254fcb2af73e1fa9a28670e584a626f53a369d0e157304"
++
+ [[package]]
+ name = "pin-project-lite"
+ version = "0.2.9"
+@@ -727,6 +742,14 @@ version = "0.9.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+ 
++[[package]]
++name = "wasm-instrument"
++version = "0.2.1"
++source = "git+https://github.com/gear-tech/wasm-instrument.git?branch=gear-stable#756a8b92dab5a5fa841226eebbaf215812262e3b"
++dependencies = [
++ "parity-wasm",
++]
++
+ [[package]]
+ name = "winapi"
+ version = "0.3.9"
+diff --git a/examples/binaries/btree/Cargo.toml b/examples/binaries/btree/Cargo.toml
+index 764a3383e..3d4bf55d2 100644
+--- a/examples/binaries/btree/Cargo.toml
++++ b/examples/binaries/btree/Cargo.toml
+@@ -8,7 +8,7 @@ workspace = "../../../"
+ 
+ [dependencies]
+ codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false, features = ["derive"] }
+-gstd.workspace = true
++gstd = { workspace = true, features = ["optimized"] }
+ 
+ [build-dependencies]
+ gear-wasm-builder.workspace = true
+diff --git a/examples/binaries/btree/src/lib.rs b/examples/binaries/btree/src/lib.rs
+index 35a71eba9..e1607d55a 100644
+--- a/examples/binaries/btree/src/lib.rs
++++ b/examples/binaries/btree/src/lib.rs
+@@ -52,23 +52,30 @@ mod wasm {
+     use super::*;
+ 
+     use alloc::collections::BTreeMap;
+-    use gstd::{debug, msg};
++    use gstd::{debug, errors::Result, msg};
+ 
+     static mut STATE: Option<BTreeMap<u32, u32>> = None;
+ 
+-    #[no_mangle]
+-    extern "C" fn handle() {
+-        let reply = match msg::load() {
+-            Ok(request) => process(request),
+-            Err(e) => {
+-                debug!("Error processing request: {:?}", e);
+-                Reply::Error
+-            }
+-        };
+-
++    #[gstd::message_loaded]
++    fn handle(load_res: Result<Reply>) {
++        let reply = load_res.map(process).unwrap_or_else(|e| {
++            debug!("Error processing request: {:?}", e);
++            Reply::Error
++        });
+         msg::reply(reply, 0).unwrap();
+     }
+ 
++    // #[no_mangle]
++    // extern "C" fn handle() {
++    //     msg::with_loaded_optimized(|load_res| {
++    //         let reply = load_res.map(process).unwrap_or_else(|e| {
++    //             debug!("Error processing request: {:?}", e);
++    //             Reply::Error
++    //         });
++    //         msg::reply(reply, 0).unwrap();
++    //     });
++    // }
++
+     fn state() -> &'static mut BTreeMap<u32, u32> {
+         unsafe { STATE.as_mut().unwrap() }
+     }
+diff --git a/examples/binaries/fungible-token/Cargo.toml b/examples/binaries/fungible-token/Cargo.toml
+index 92b9f0173..f0c30cba1 100644
+--- a/examples/binaries/fungible-token/Cargo.toml
++++ b/examples/binaries/fungible-token/Cargo.toml
+@@ -7,7 +7,7 @@ license.workspace = true
+ workspace = "../../../"
+ 
+ [dependencies]
+-gstd = { workspace = true }
++gstd = { workspace = true , features = ["optimized"] }
+ hashbrown = { workspace = true }
+ gmeta = { workspace = true }
+ ft-io = { path = "io" }
+diff --git a/examples/binaries/fungible-token/io/src/lib.rs b/examples/binaries/fungible-token/io/src/lib.rs
+index d224c7568..db153a9f8 100644
+--- a/examples/binaries/fungible-token/io/src/lib.rs
++++ b/examples/binaries/fungible-token/io/src/lib.rs
+@@ -20,7 +20,7 @@
+ 
+ use core::ops::Range;
+ use gmeta::{In, InOut, Metadata};
+-use gstd::{prelude::*, ActorId};
++use gstd::{codec::MaxEncodedLen, prelude::*, ActorId};
+ 
+ pub struct FungibleTokenMetadata;
+ 
+@@ -63,7 +63,7 @@ pub enum FTAction {
+     BalanceOf(ActorId),
+ }
+ 
+-#[derive(Debug, Encode, Decode, TypeInfo)]
++#[derive(Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
+ #[codec(crate = gstd::codec)]
+ #[scale_info(crate = gstd::scale_info)]
+ pub enum FTEvent {
+diff --git a/examples/binaries/fungible-token/src/contract.rs b/examples/binaries/fungible-token/src/contract.rs
+index 6c63e07b4..d6f4544f2 100644
+--- a/examples/binaries/fungible-token/src/contract.rs
++++ b/examples/binaries/fungible-token/src/contract.rs
+@@ -22,7 +22,7 @@ use gmeta::Metadata;
+ use gstd::{debug, errors::Result as GstdResult, exec, msg, prelude::*, ActorId, MessageId};
+ use hashbrown::HashMap;
+ 
+-const ZERO_ID: ActorId = ActorId::new([0u8; 32]);
++// const ZERO_ID: ActorId = ActorId::new([0u8; 32]);
+ 
+ #[derive(Debug, Clone, Default)]
+ struct FungibleToken {
+@@ -53,7 +53,6 @@ impl FungibleToken {
+             self.balances.insert(arr.into(), amount);
+         }
+     }
+-
+     /// Executed on receiving `fungible-token-messages::MintInput`.
+     fn mint(&mut self, amount: u128) {
+         self.balances
+@@ -63,7 +62,7 @@ impl FungibleToken {
+         self.total_supply += amount;
+         msg::reply(
+             FTEvent::Transfer {
+-                from: ZERO_ID,
++                from: ActorId::zero_id(),
+                 to: msg::source(),
+                 amount,
+             },
+@@ -84,7 +83,7 @@ impl FungibleToken {
+         msg::reply(
+             FTEvent::Transfer {
+                 from: msg::source(),
+-                to: ZERO_ID,
++                to: ActorId::zero_id(),
+                 amount,
+             },
+             0,
+@@ -94,7 +93,7 @@ impl FungibleToken {
+     /// Executed on receiving `fungible-token-messages::TransferInput` or `fungible-token-messages::TransferFromInput`.
+     /// Transfers `amount` tokens from `sender` account to `recipient` account.
+     fn transfer(&mut self, from: &ActorId, to: &ActorId, amount: u128) {
+-        if from == &ZERO_ID || to == &ZERO_ID {
++        if from.is_zero_id() || to.is_zero_id() {
+             panic!("Zero addresses");
+         };
+         if !self.can_transfer(from, amount) {
+@@ -110,7 +109,8 @@ impl FungibleToken {
+             .entry(*to)
+             .and_modify(|balance| *balance += amount)
+             .or_insert(amount);
+-        msg::reply(
++        // gstd::debug!("LOL");
++        msg::reply_on_stack(
+             FTEvent::Transfer {
+                 from: *from,
+                 to: *to,
+@@ -123,7 +123,7 @@ impl FungibleToken {
+ 
+     /// Executed on receiving `fungible-token-messages::ApproveInput`.
+     fn approve(&mut self, to: &ActorId, amount: u128) {
+-        if to == &ZERO_ID {
++        if to.is_zero_id() {
+             panic!("Approve to zero address");
+         }
+         self.allowances
+@@ -142,9 +142,9 @@ impl FungibleToken {
+     }
+ 
+     fn can_transfer(&mut self, from: &ActorId, amount: u128) -> bool {
+-        if from == &msg::source()
+-            || from == &exec::origin()
+-            || self.balances.get(&msg::source()).unwrap_or(&0) >= &amount
++        if *from == msg::source()
++            || *from == exec::origin()
++            || *self.balances.get(&msg::source()).unwrap_or(&0) >= amount
+         {
+             return true;
+         }
+@@ -153,7 +153,7 @@ impl FungibleToken {
+             .get(from)
+             .and_then(|m| m.get(&msg::source()))
+         {
+-            if allowed_amount >= &amount {
++            if *allowed_amount >= amount {
+                 self.allowances.entry(*from).and_modify(|m| {
+                     m.entry(msg::source()).and_modify(|a| *a -= amount);
+                 });
+@@ -204,9 +204,9 @@ fn reply(payload: impl Encode) -> GstdResult<MessageId> {
+     msg::reply(payload, 0)
+ }
+ 
+-#[no_mangle]
+-extern "C" fn handle() {
+-    let action: FTAction = msg::load().expect("Could not load Action");
++#[gstd::message_loaded]
++fn handle(action: Result<FTAction>) {
++    let action: FTAction = action.expect("Could not load Action");
+     let ft: &mut FungibleToken = unsafe { FUNGIBLE_TOKEN.get_or_insert(Default::default()) };
+     match action {
+         FTAction::Mint(amount) => {
+diff --git a/gcore/Cargo.toml b/gcore/Cargo.toml
+index d45e1b914..94d7203ae 100644
+--- a/gcore/Cargo.toml
++++ b/gcore/Cargo.toml
+@@ -10,11 +10,15 @@ gsys.workspace = true
+ gear-core-errors.workspace = true
+ codec = { workspace = true, optional = true }
+ static_assertions.workspace = true
++gear-wasm-instrument.workspace = true
+ 
+ [dev-dependencies]
+ hex-literal.workspace = true
+ galloc.workspace = true
+ 
+ [features]
++optimized = ["stack_buffer", "stack_pointer_global_index_is_zero"]
++stack_buffer = ["gsys/stack_buffer"]
++stack_pointer_global_index_is_zero = ["gsys/stack_pointer_global_index_is_zero"]
+ codec = ["dep:codec", "gear-core-errors/codec"]
+ debug = []
+diff --git a/gcore/src/exec.rs b/gcore/src/exec.rs
+index b41fa3d19..018419628 100644
+--- a/gcore/src/exec.rs
++++ b/gcore/src/exec.rs
+@@ -30,6 +30,12 @@ use gsys::{
+     LengthWithHash,
+ };
+ 
++pub(crate) fn block_height_syscall_wrapper() -> u32 {
++    let mut bn = 0u32;
++    unsafe { gsys::gr_block_height(&mut bn as *mut u32) };
++    bn
++}
++
+ /// Get the current block height.
+ ///
+ /// The block height serves to identify a particular block.
+@@ -51,9 +57,17 @@ use gsys::{
+ /// }
+ /// ```
+ pub fn block_height() -> u32 {
+-    let mut bn = 0u32;
+-    unsafe { gsys::gr_block_height(&mut bn as *mut u32) };
+-    bn
++    #[cfg(feature = "stack_buffer")]
++    return crate::stack_buffer::block_height();
++
++    #[cfg(not(feature = "stack_buffer"))]
++    return block_height_syscall_wrapper();
++}
++
++pub(crate) fn block_timestamp_syscall_wrapper() -> u64 {
++    let mut timestamp = 0u64;
++    unsafe { gsys::gr_block_timestamp(&mut timestamp as *mut u64) };
++    timestamp
+ }
+ 
+ /// Get the current block timestamp.
+@@ -76,9 +90,11 @@ pub fn block_height() -> u32 {
+ /// }
+ /// ```
+ pub fn block_timestamp() -> u64 {
+-    let mut timestamp = 0u64;
+-    unsafe { gsys::gr_block_timestamp(&mut timestamp as *mut u64) };
+-    timestamp
++    #[cfg(feature = "stack_buffer")]
++    return crate::stack_buffer::block_timestamp();
++
++    #[cfg(not(feature = "stack_buffer"))]
++    return block_timestamp_syscall_wrapper();
+ }
+ 
+ /// Provide gas deposit from current message to handle reply message on given
+@@ -377,6 +393,7 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
+     SyscallError(len).into_result()
+ }
+ 
++// +_+_+ change to static variable
+ /// Return the identifier of the current program.
+ ///
+ /// # Examples
+@@ -395,6 +412,12 @@ pub fn program_id() -> ActorId {
+     program_id
+ }
+ 
++pub(crate) fn origin_syscall_wrapper() -> ActorId {
++    let mut origin = ActorId::default();
++    unsafe { gsys::gr_origin(origin.as_mut_ptr()) }
++    origin
++}
++
+ /// Return the identifier of the original user who initiated communication with
+ /// the blockchain, during which the currently processing message was created.
+ ///
+@@ -409,9 +432,11 @@ pub fn program_id() -> ActorId {
+ /// }
+ /// ```
+ pub fn origin() -> ActorId {
+-    let mut origin = ActorId::default();
+-    unsafe { gsys::gr_origin(origin.as_mut_ptr()) }
+-    origin
++    #[cfg(feature = "stack_buffer")]
++    return crate::stack_buffer::origin();
++
++    #[cfg(not(feature = "stack_buffer"))]
++    return origin_syscall_wrapper();
+ }
+ 
+ /// Pay specified rent for the program. The result contains the remainder of
+diff --git a/gcore/src/general.rs b/gcore/src/general.rs
+index 687bd7e6e..f0e4e0e5d 100644
+--- a/gcore/src/general.rs
++++ b/gcore/src/general.rs
+@@ -21,6 +21,11 @@
+ //! This module contains definitions of common structures that are used to work
+ //! with Gear API.
+ 
++use gsys::Hash;
++
++#[cfg(not(feature = "stack_buffer"))]
++use alloc::vec;
++
+ /// Message handle.
+ ///
+ /// Gear allows users and programs to interact with other users and programs via
+@@ -78,6 +83,18 @@ pub struct MessageHandle(pub(crate) u32);
+ #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
+ pub struct MessageId(pub [u8; 32]);
+ 
++impl From<Hash> for MessageId {
++    fn from(value: Hash) -> Self {
++        MessageId(value)
++    }
++}
++
++impl From<MessageId> for Hash {
++    fn from(value: MessageId) -> Self {
++        value.0
++    }
++}
++
+ impl MessageId {
+     /// Create an empty `MessageId`.
+     pub const fn zero() -> Self {
+@@ -145,6 +162,18 @@ impl From<u64> for ActorId {
+     }
+ }
+ 
++impl From<Hash> for ActorId {
++    fn from(value: Hash) -> Self {
++        ActorId(value)
++    }
++}
++
++impl From<ActorId> for Hash {
++    fn from(value: ActorId) -> Self {
++        value.0
++    }
++}
++
+ impl ActorId {
+     /// Create an empty `ActorId`.
+     pub const fn zero() -> Self {
+@@ -236,3 +265,18 @@ impl CodeId {
+         &self.0
+     }
+ }
++
++/// +_+_+
++pub fn with_byte_buffer<F, R>(size: usize, f: F) -> R
++where
++    F: FnOnce(&mut [u8]) -> R,
++{
++    #[cfg(feature = "stack_buffer")]
++    return crate::stack_buffer::with_byte_buffer(size, f);
++
++    #[cfg(not(feature = "stack_buffer"))]
++    {
++        let mut buffer = vec![0u8; size];
++        f(&mut buffer)
++    }
++}
+diff --git a/gcore/src/lib.rs b/gcore/src/lib.rs
+index cd70ad2fb..a35b478a2 100644
+--- a/gcore/src/lib.rs
++++ b/gcore/src/lib.rs
+@@ -63,6 +63,11 @@
+ 
+ extern crate alloc;
+ 
++#[cfg(feature = "stack_buffer")]
++mod stack_buffer;
++#[cfg(feature = "stack_buffer")]
++pub use stack_buffer::with_stack_buffer;
++
+ pub mod errors;
+ pub mod exec;
+ pub mod msg;
+diff --git a/gcore/src/msg.rs b/gcore/src/msg.rs
+index d9a36f223..cf09e78ec 100644
+--- a/gcore/src/msg.rs
++++ b/gcore/src/msg.rs
+@@ -57,6 +57,12 @@ fn value_ptr(value: &u128) -> *const u128 {
+     }
+ }
+ 
++pub(crate) fn status_code_syscall_wrapper() -> LengthWithCode {
++    let mut res: LengthWithCode = Default::default();
++    unsafe { gsys::gr_status_code(res.as_mut_ptr()) }
++    res
++}
++
+ /// Get the status code of the message being processed.
+ ///
+ /// This function is used in the reply handler to check whether the message was
+@@ -73,12 +79,21 @@ fn value_ptr(value: &u128) -> *const u128 {
+ /// }
+ /// ```
+ pub fn status_code() -> Result<i32> {
+-    let mut res: LengthWithCode = Default::default();
++    #[cfg(feature = "stack_buffer")]
++    let length_with_code = crate::stack_buffer::status_code();
+ 
+-    unsafe { gsys::gr_status_code(res.as_mut_ptr()) }
+-    SyscallError(res.length).into_result()?;
++    #[cfg(not(feature = "stack_buffer"))]
++    let length_with_code = status_code_syscall_wrapper();
+ 
+-    Ok(res.code)
++    SyscallError(length_with_code.length).into_result()?;
++
++    Ok(length_with_code.code)
++}
++
++pub(crate) fn message_id_syscall_wrapper() -> MessageId {
++    let mut message_id = MessageId::default();
++    unsafe { gsys::gr_message_id(message_id.as_mut_ptr()) }
++    message_id
+ }
+ 
+ /// Get an identifier of the message that is currently being processed.
+@@ -100,9 +115,11 @@ pub fn status_code() -> Result<i32> {
+ /// }
+ /// ```
+ pub fn id() -> MessageId {
+-    let mut message_id = MessageId::default();
+-    unsafe { gsys::gr_message_id(message_id.as_mut_ptr()) }
+-    message_id
++    #[cfg(feature = "stack_buffer")]
++    return crate::stack_buffer::message_id();
++
++    #[cfg(not(feature = "stack_buffer"))]
++    return message_id_syscall_wrapper();
+ }
+ 
+ // TODO: issue #1859
+@@ -140,6 +157,20 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
+     SyscallError(len).into_result()
+ }
+ 
++/// +_+_+
++pub fn with_read<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
++    let size = size();
++    crate::with_byte_buffer(size, |buffer| {
++        let mut len = 0u32;
++
++        if size > 0 {
++            unsafe { gsys::gr_read(0, size as u32, buffer.as_mut_ptr(), &mut len as *mut u32) }
++        }
++
++        f(SyscallError(len).into_result().map(|_| buffer))
++    })
++}
++
+ // TODO: issue #1859
+ /// Get a payload of the message that is currently being processed, starting
+ /// from some particular offset.
+@@ -1175,6 +1206,12 @@ pub fn send_push(handle: MessageHandle, payload: &[u8]) -> Result<()> {
+     SyscallError(len).into_result()
+ }
+ 
++pub(crate) fn size_syscall_wrapper() -> usize {
++    let mut size = 0u32;
++    unsafe { gsys::gr_size(&mut size as *mut u32) };
++    size as usize
++}
++
+ /// Get the payload size of the message that is being processed.
+ ///
+ /// This function returns the payload size of the current message that is being
+@@ -1191,9 +1228,17 @@ pub fn send_push(handle: MessageHandle, payload: &[u8]) -> Result<()> {
+ /// }
+ /// ```
+ pub fn size() -> usize {
+-    let mut size = 0u32;
+-    unsafe { gsys::gr_size(&mut size as *mut u32) };
+-    size as usize
++    #[cfg(feature = "stack_buffer")]
++    return crate::stack_buffer::size();
++
++    #[cfg(not(feature = "stack_buffer"))]
++    return size_syscall_wrapper();
++}
++
++pub(crate) fn source_syscall_wrapper() -> ActorId {
++    let mut source = ActorId::default();
++    unsafe { gsys::gr_source(source.as_mut_ptr()) }
++    source
+ }
+ 
+ /// Get the identifier of the message source (256-bit address).
+@@ -1212,9 +1257,17 @@ pub fn size() -> usize {
+ /// }
+ /// ```
+ pub fn source() -> ActorId {
+-    let mut source = ActorId::default();
+-    unsafe { gsys::gr_source(source.as_mut_ptr()) }
+-    source
++    #[cfg(feature = "stack_buffer")]
++    return crate::stack_buffer::source();
++
++    #[cfg(not(feature = "stack_buffer"))]
++    return source_syscall_wrapper();
++}
++
++pub(crate) fn value_syscall_wrapper() -> u128 {
++    let mut value = 0u128;
++    unsafe { gsys::gr_value(&mut value as *mut u128) };
++    value
+ }
+ 
+ /// Get the value associated with the message that is being processed.
+@@ -1233,7 +1286,9 @@ pub fn source() -> ActorId {
+ /// }
+ /// ```
+ pub fn value() -> u128 {
+-    let mut value = 0u128;
+-    unsafe { gsys::gr_value(&mut value as *mut u128) };
+-    value
++    #[cfg(feature = "stack_buffer")]
++    return crate::stack_buffer::value();
++
++    #[cfg(not(feature = "stack_buffer"))]
++    return value_syscall_wrapper();
+ }
+diff --git a/gcore/src/stack_buffer.rs b/gcore/src/stack_buffer.rs
+new file mode 100644
+index 000000000..4a5f9055b
+--- /dev/null
++++ b/gcore/src/stack_buffer.rs
+@@ -0,0 +1,147 @@
++use core::mem::MaybeUninit;
++
++use crate::{ActorId, MessageId};
++use alloc::vec;
++use gsys::stack_buffer::{get_stack_buffer_global, set_stack_buffer_global, StackBuffer};
++
++enum HostGetterIndex {
++    BlockHeight = 32,
++    BlockTimestamp,
++    MessageId,
++    Origin,
++    MessageSize,
++    StatusCode,
++    Source,
++    Value,
++}
++
++fn call_const_getter<T: Clone + From<K>, K: Clone + From<T>>(
++    index: HostGetterIndex,
++    get: impl FnOnce() -> T,
++    stack_buffer_field: impl FnOnce(&mut StackBuffer) -> &mut K,
++) -> T {
++    unsafe {
++        let mut flags = get_stack_buffer_global();
++        let stack_buffer_offset = (flags & (u32::MAX as u64)) as usize;
++        if stack_buffer_offset == 0 {
++            return get();
++        }
++
++        let stack_buffer = (stack_buffer_offset as *mut StackBuffer).as_mut().unwrap();
++
++        let mask = 1u64 << index as u64;
++
++        if flags & mask != 0 {
++            stack_buffer_field(stack_buffer).clone().into()
++        } else {
++            let data = get();
++            *stack_buffer_field(stack_buffer) = data.clone().into();
++            flags |= mask;
++            set_stack_buffer_global(flags);
++            data
++        }
++    }
++}
++
++#[inline(never)]
++fn with_byte_array<T, const N: usize>(size: usize, f: impl FnOnce(&mut [u8]) -> T) -> T {
++    let mut buffer = [0u8; N];
++    let sub_buffer = &mut buffer[0..size];
++    f(sub_buffer)
++}
++
++pub fn with_byte_buffer<T>(size: usize, f: impl FnOnce(&mut [u8]) -> T) -> T {
++    match size {
++        size if size <= 0x1 => with_byte_array::<_, 0x1>(size, f),
++        size if size <= 0x2 => with_byte_array::<_, 0x2>(size, f),
++        size if size <= 0x4 => with_byte_array::<_, 0x4>(size, f),
++        size if size <= 0x8 => with_byte_array::<_, 0x8>(size, f),
++        size if size <= 0x10 => with_byte_array::<_, 0x10>(size, f),
++        size if size <= 0x20 => with_byte_array::<_, 0x20>(size, f),
++        size if size <= 0x40 => with_byte_array::<_, 0x40>(size, f),
++        size if size <= 0x80 => with_byte_array::<_, 0x80>(size, f),
++        size if size <= 0x100 => with_byte_array::<_, 0x100>(size, f),
++        size if size <= 0x200 => with_byte_array::<_, 0x200>(size, f),
++        size if size <= 0x400 => with_byte_array::<_, 0x400>(size, f),
++        size if size <= 0x800 => with_byte_array::<_, 0x800>(size, f),
++        size if size <= 0x1000 => with_byte_array::<_, 0x1000>(size, f),
++        size if size <= 0x2000 => with_byte_array::<_, 0x2000>(size, f),
++        size if size <= 0x4000 => with_byte_array::<_, 0x4000>(size, f),
++        _ => f(vec![0; size].as_mut_slice()),
++    }
++}
++
++/// +_+_+
++pub fn with_stack_buffer<T>(f: impl FnOnce() -> T) -> T {
++    let uninit = MaybeUninit::<StackBuffer>::uninit();
++    let stack_buffer = unsafe { uninit.assume_init() };
++    let stack_buffer_offset = &stack_buffer as *const StackBuffer as usize;
++    let mut global = unsafe { get_stack_buffer_global() };
++    global |= stack_buffer_offset as u64;
++    unsafe { set_stack_buffer_global(global) };
++    f()
++}
++
++pub fn origin() -> ActorId {
++    call_const_getter(
++        HostGetterIndex::Origin,
++        crate::exec::origin_syscall_wrapper,
++        |stack_buffer| &mut stack_buffer.origin,
++    )
++}
++
++pub fn size() -> usize {
++    call_const_getter(
++        HostGetterIndex::MessageSize,
++        crate::msg::size_syscall_wrapper,
++        |stack_buffer| &mut stack_buffer.message_size,
++    )
++}
++
++pub fn message_id() -> MessageId {
++    call_const_getter(
++        HostGetterIndex::MessageId,
++        crate::msg::message_id_syscall_wrapper,
++        |stack_buffer| &mut stack_buffer.message_id,
++    )
++}
++
++pub fn block_height() -> u32 {
++    call_const_getter(
++        HostGetterIndex::BlockHeight,
++        crate::exec::block_height_syscall_wrapper,
++        |stack_buffer| &mut stack_buffer.block_height,
++    )
++}
++
++pub fn block_timestamp() -> u64 {
++    call_const_getter(
++        HostGetterIndex::BlockTimestamp,
++        crate::exec::block_timestamp_syscall_wrapper,
++        |stack_buffer| &mut stack_buffer.block_timestamp,
++    )
++}
++
++pub fn status_code() -> gsys::LengthWithCode {
++    call_const_getter(
++        HostGetterIndex::StatusCode,
++        crate::msg::status_code_syscall_wrapper,
++        |stack_buffer| &mut stack_buffer.status_code,
++    )
++}
++
++pub fn source() -> ActorId {
++    call_const_getter(
++        HostGetterIndex::Source,
++        crate::msg::source_syscall_wrapper,
++        |stack_buffer| &mut stack_buffer.source,
++    )
++}
++
++pub fn value() -> u128 {
++    call_const_getter(
++        HostGetterIndex::Value,
++        crate::msg::value_syscall_wrapper,
++        |stack_buffer| &mut stack_buffer.value,
++    )
++}
+diff --git a/gstd/Cargo.toml b/gstd/Cargo.toml
+index 9a53d1475..3054cb016 100644
+--- a/gstd/Cargo.toml
++++ b/gstd/Cargo.toml
+@@ -21,4 +21,7 @@ futures = { workspace = true, features = ["alloc"] }
+ static_assertions.workspace = true
+ 
+ [features]
++optimized = ["gcore/optimized", "stack_buffer"]
++stack_buffer = ["gcore/stack_buffer"]
++stack_pointer_global_index_is_zero = ["gcore/stack_pointer_global_index_is_zero"]
+ debug = ["galloc/debug", "gcore/debug"]
+diff --git a/gstd/codegen/src/lib.rs b/gstd/codegen/src/lib.rs
+index cc5e5a61c..e978957a3 100644
+--- a/gstd/codegen/src/lib.rs
++++ b/gstd/codegen/src/lib.rs
+@@ -27,8 +27,9 @@ use quote::{quote, ToTokens};
+ use std::collections::BTreeSet;
+ use syn::{
+     parse::{Parse, ParseStream},
++    parse_macro_input,
+     punctuated::Punctuated,
+-    Path, Token,
++    FnArg, ItemFn, Pat, PatType, Path, ReturnType, Token,
+ };
+ 
+ mod utils;
+@@ -572,6 +573,70 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
+     .into()
+ }
+ 
++#[proc_macro_attribute]
++pub fn message_loaded(_attr: TokenStream, item: TokenStream) -> TokenStream {
++    let ast = parse_macro_input!(item as ItemFn);
++
++    // Check return type
++    match &ast.sig.output {
++        ReturnType::Default => {}
++        _ => panic!("Return type must be `()`"),
++    }
++
++    let fn_name = &ast.sig.ident;
++    let block = &ast.block;
++
++    // Extract argument name from function
++    let arg_name = match ast.sig.inputs.first().unwrap() {
++        FnArg::Typed(PatType { pat, .. }) => match **pat {
++            Pat::Ident(ref pat_ident) => pat_ident.ident.clone(),
++            _ => panic!("Expected ident pattern type"),
++        },
++        _ => panic!("Expected typed function argument"),
++    };
++
++    let gen = quote! {
++        #[no_mangle]
++        extern "C" fn #fn_name() {
++            gstd::msg::with_loaded_optimized(|#arg_name| #block);
++        }
++    };
++
++    gen.into()
++}
++
++#[proc_macro_attribute]
++pub fn message_read(_attr: TokenStream, item: TokenStream) -> TokenStream {
++    let ast = parse_macro_input!(item as ItemFn);
++
++    // Check return type
++    match &ast.sig.output {
++        ReturnType::Default => {}
++        _ => panic!("Return type must be `()`"),
++    }
++
++    let fn_name = &ast.sig.ident;
++    let block = &ast.block;
++
++    // Extract argument name from function
++    let arg_name = match ast.sig.inputs.first().unwrap() {
++        FnArg::Typed(PatType { pat, .. }) => match **pat {
++            Pat::Ident(ref pat_ident) => pat_ident.ident.clone(),
++            _ => panic!("Expected ident pattern type"),
++        },
++        _ => panic!("Expected typed function argument"),
++    };
++
++    let gen = quote! {
++        #[no_mangle]
++        extern "C" fn #fn_name() {
++            gstd::msg::with_loaded_optimized(|#arg_name| #block);
++        }
++    };
++
++    gen.into()
++}
++
+ #[cfg(test)]
+ mod tests {
+     #[test]
+diff --git a/gstd/src/common/primitives.rs b/gstd/src/common/primitives.rs
+index abee226a9..d6eda197c 100644
+--- a/gstd/src/common/primitives.rs
++++ b/gstd/src/common/primitives.rs
+@@ -41,7 +41,7 @@ use crate::{
+ };
+ use primitive_types::H256;
+ use scale_info::{
+-    scale::{self, Decode, Encode},
++    scale::{self, Decode, Encode, MaxEncodedLen},
+     TypeInfo,
+ };
+ 
+@@ -56,7 +56,19 @@ const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
+ /// function. Also, each send function has a target `ActorId` as one of the
+ /// arguments.
+ #[derive(
+-    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
++    Clone,
++    Copy,
++    Debug,
++    Default,
++    Hash,
++    Ord,
++    PartialEq,
++    PartialOrd,
++    Eq,
++    TypeInfo,
++    Decode,
++    Encode,
++    MaxEncodedLen,
+ )]
+ #[codec(crate = scale)]
+ pub struct ActorId([u8; 32]);
+@@ -67,6 +79,26 @@ impl ActorId {
+         Self(arr)
+     }
+ 
++    /// +_+_+
++    pub fn is_zero_id(&self) -> bool {
++        // let mut sum = 0u32;
++        for i in (0..self.0.len()).step_by(4) {
++            unsafe {
++                if *(self.0.as_ptr().add(i) as *const u64) != 0 {
++                    return false;
++                }
++            }
++        }
++        true
++        // self.0.iter().for_each(|byte| sum += *byte as u32);
++        // sum == 0
++    }
++
++    /// +_+_+
++    pub const fn zero_id() -> Self {
++        ActorId([0; 32])
++    }
++
+     /// Create a new zero `ActorId`.
+     pub const fn zero() -> Self {
+         Self::new([0; 32])
+@@ -116,7 +148,6 @@ impl AsMut<[u8]> for ActorId {
+     }
+ }
+ 
+-#[cfg(feature = "debug")]
+ impl From<u64> for ActorId {
+     fn from(v: u64) -> Self {
+         let mut arr = [0u8; 32];
+diff --git a/gstd/src/lib.rs b/gstd/src/lib.rs
+index 91fe6f401..c48a83e5f 100644
+--- a/gstd/src/lib.rs
++++ b/gstd/src/lib.rs
+@@ -152,7 +152,7 @@ pub use async_runtime::{handle_signal, message_loop, record_reply};
+ pub use common::{errors, primitives::*};
+ pub use config::Config;
+ pub use gcore::ext;
+-pub use gstd_codegen::{async_init, async_main};
++pub use gstd_codegen::{async_init, async_main, message_loaded};
+ pub use prelude::*;
+ pub use reservations::*;
+ 
+diff --git a/gstd/src/msg/basic.rs b/gstd/src/msg/basic.rs
+index 14abc3fa3..444246deb 100644
+--- a/gstd/src/msg/basic.rs
++++ b/gstd/src/msg/basic.rs
+@@ -18,7 +18,7 @@
+ 
+ use crate::{
+     async_runtime::signals,
+-    errors::{IntoResult, Result},
++    errors::{Error, IntoResult, Result},
+     msg::{utils, CodecMessageFuture, MessageFuture},
+     prelude::{convert::AsRef, ops::RangeBounds, vec, Vec},
+     ActorId, MessageId, ReservationId,
+@@ -315,6 +315,11 @@ pub fn load_bytes() -> Result<Vec<u8>> {
+     Ok(result)
+ }
+ 
++/// +_+_+
++pub fn with_read_bytes<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
++    gcore::msg::with_read(|read_res| f(read_res.map_err(Error::Ext)))
++}
++
+ /// Send a new message as a reply to the message that is currently being
+ /// processed.
+ ///
+@@ -765,6 +770,10 @@ pub fn send_bytes_delayed_from_reservation<T: AsRef<[u8]>>(
+ /// }
+ /// ```
+ pub fn size() -> usize {
++    #[cfg(feature = "debug")]
++    panic!();
++
++    #[cfg(not(feature = "debug"))]
+     gcore::msg::size()
+ }
+ 
+diff --git a/gstd/src/msg/encoded.rs b/gstd/src/msg/encoded.rs
+index f50d4095b..ef55dca2d 100644
+--- a/gstd/src/msg/encoded.rs
++++ b/gstd/src/msg/encoded.rs
+@@ -28,7 +28,7 @@ use crate::{
+     ActorId, MessageId, ReservationId,
+ };
+ use gstd_codegen::wait_for_reply;
+-use scale_info::scale::{Decode, Encode};
++use scale_info::scale::{Decode, Encode, MaxEncodedLen, Output};
+ 
+ /// Get a payload of the message that is currently being processed.
+ ///
+@@ -62,6 +62,39 @@ pub fn load<D: Decode>() -> Result<D> {
+     D::decode(&mut super::load_bytes()?.as_ref()).map_err(Error::Decode)
+ }
+ 
++/// +_+_+
++pub fn with_loaded<D: Decode, R>(mut f: impl FnMut(Result<D>) -> R) -> R {
++    #[cfg(feature = "stack_buffer")]
++    {
++        let wrapper = |read_result: Result<&mut [u8]>| -> R {
++            let arg = match read_result.map(|buffer| {
++                let mut buffer: &[u8] = buffer;
++                D::decode(&mut buffer).map_err(Error::Decode)
++            }) {
++                Err(err) => Err(err),
++                Ok(Err(err)) => Err(err),
++                Ok(Ok(res)) => Ok(res),
++            };
++            f(arg)
++        };
++        super::basic::with_read_bytes(wrapper)
++    }
++
++    #[cfg(not(feature = "stack_buffer"))]
++    {
++        f(load())
++    }
++}
++
++/// +_+_+
++pub fn with_loaded_optimized<D: Decode, R>(f: impl FnMut(Result<D>) -> R) -> R {
++    #[cfg(feature = "stack_buffer")]
++    return with_loaded(f);
++
++    #[cfg(not(feature = "stack_buffer"))]
++    return with_loaded(f);
++}
++
+ /// Send a new message as a reply to the message being
+ /// processed.
+ ///
+@@ -113,6 +146,33 @@ pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
+     super::reply_bytes(payload.encode(), value)
+ }
+ 
++/// +_+_+
++pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Result<MessageId> {
++    struct ConstSizeOutput<'a> {
++        buffer: &'a mut [u8],
++        offset: usize,
++    }
++
++    impl<'a> Output for ConstSizeOutput<'a> {
++        fn write(&mut self, bytes: &[u8]) {
++            let err_log = "Unexpected encoding behavior: too large input bytes size";
++            let end_offset = self.offset.checked_add(bytes.len()).expect(err_log);
++            if end_offset > self.buffer.len() {
++                panic!("{}", err_log);
++            }
++            self.buffer[self.offset..end_offset].copy_from_slice(bytes);
++            self.offset = end_offset;
++        }
++    }
++
++    gcore::with_byte_buffer(E::max_encoded_len(), |buffer| {
++        let mut output = ConstSizeOutput { buffer, offset: 0 };
++        payload.encode_to(&mut output);
++        let ConstSizeOutput { buffer, offset } = output;
++        super::reply_bytes(&buffer[..offset], value)
++    })
++}
++
+ /// Same as [`reply`], but it spends gas from a reservation instead of
+ /// borrowing gas from the gas limit provided with the incoming message.
+ ///
+diff --git a/gsys/Cargo.toml b/gsys/Cargo.toml
+index f9051ce37..9f0535e1e 100644
+--- a/gsys/Cargo.toml
++++ b/gsys/Cargo.toml
+@@ -4,3 +4,7 @@ version = "0.1.0"
+ authors.workspace = true
+ edition.workspace = true
+ license.workspace = true
++
++[features]
++stack_buffer = []
++stack_pointer_global_index_is_zero = []
+diff --git a/gsys/src/lib.rs b/gsys/src/lib.rs
+index 9185db6a5..7882d1d27 100644
+--- a/gsys/src/lib.rs
++++ b/gsys/src/lib.rs
+@@ -22,6 +22,16 @@
+ 
+ use core::mem;
+ 
++#[cfg(feature = "stack_buffer")]
++pub mod stack_buffer;
++
++#[cfg(feature = "stack_pointer_global_index_is_zero")]
++pub const STACK_POINTER_GLOBAL_LABEL_NAME: &str = "__stack_pointer_global_index_is_zero";
++
++#[cfg(feature = "stack_pointer_global_index_is_zero")]
++#[no_mangle]
++extern "C" fn __stack_pointer_global_index_is_zero() {}
++
+ /// Represents block number type.
+ pub type BlockNumber = u32;
+ 
+@@ -82,7 +92,7 @@ impl HashWithValue {
+ 
+ /// Represents type defining concatenated status code with length. 8 bytes.
+ #[repr(C, packed)]
+-#[derive(Default)]
++#[derive(Default, Clone)]
+ pub struct LengthWithCode {
+     pub length: Length,
+     pub code: StatusCode,
+diff --git a/gsys/src/stack_buffer.rs b/gsys/src/stack_buffer.rs
+new file mode 100644
+index 000000000..4ea935808
+--- /dev/null
++++ b/gsys/src/stack_buffer.rs
+@@ -0,0 +1,23 @@
++use crate::{Hash, LengthWithCode};
++
++pub const GET_STACK_BUFFER_GLOBAL_NAME: &str = "get_stack_buffer_global";
++pub const SET_STACK_BUFFER_GLOBAL_NAME: &str = "set_stack_buffer_global";
++
++extern "C" {
++    pub fn get_stack_buffer_global() -> u64;
++    pub fn set_stack_buffer_global(i: u64);
++}
++
++#[repr(C, align(0x4000))]
++pub struct StackBuffer {
++    pub block_height: u32,
++    pub block_timestamp: u64,
++    pub message_id: Hash,
++    pub origin: Hash,
++    pub message_size: usize,
++    pub status_code: LengthWithCode,
++    pub source: Hash,
++    pub value: u128,
++}
++
++pub const STACK_BUFFER_SIZE: u32 = core::mem::size_of::<StackBuffer>() as u32;
+diff --git a/utils/wasm-builder/Cargo.toml b/utils/wasm-builder/Cargo.toml
+index 790445271..e60e83c68 100644
+--- a/utils/wasm-builder/Cargo.toml
++++ b/utils/wasm-builder/Cargo.toml
+@@ -26,6 +26,8 @@ gear-wasm-instrument.workspace = true
+ wasm-opt = { workspace = true, optional = true }
+ wasmparser.workspace = true
+ regex.workspace = true
++wasmprinter = "0.2"
++gsys = { workspace=true, features = ["stack_buffer", "stack_pointer_global_index_is_zero"] }
+ 
+ [dev-dependencies]
+ wabt.workspace = true
+diff --git a/utils/wasm-builder/src/optimize.rs b/utils/wasm-builder/src/optimize.rs
+index 88c3aed18..efdb22d7b 100644
+--- a/utils/wasm-builder/src/optimize.rs
++++ b/utils/wasm-builder/src/optimize.rs
+@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
+ use colored::Colorize;
+ use gear_core::code::Code;
+ use gear_wasm_instrument::{rules::CustomConstantCostRules, STACK_END_EXPORT_NAME};
++use gsys::stack_buffer::STACK_BUFFER_SIZE;
+ use pwasm_utils::{
+     parity_wasm,
+     parity_wasm::elements::{Internal, Module, Section, Serialize},
+@@ -55,6 +56,42 @@ impl Optimizer {
+         Ok(Self { module, file })
+     }
+ 
++    pub fn stack_optimizations(&mut self) {
++        let (stack_buffer_get_index, stack_buffer_set_index) =
++            stack_end::get_stack_buffer_export_indexes(&self.module);
++
++        let stack_buffer_size =
++            if stack_buffer_get_index.is_some() || stack_buffer_set_index.is_some() {
++                STACK_BUFFER_SIZE
++            } else {
++                0
++            };
++
++        let stack_buffer_offset =
++            match stack_end::insert_stack_end_export(&mut self.module, stack_buffer_size) {
++                Ok(stack_pointer_new_offset) => Some(stack_pointer_new_offset),
++                Err(err) => {
++                    println!("cargo:warning=Cannot insert stack end export: {}", err);
++                    None
++                }
++            };
++
++        if stack_buffer_get_index.is_some() || stack_buffer_set_index.is_some() {
++            let stack_buffer_offset = stack_buffer_offset.expect(
++                "Panic because we cannot insert stack end global,
++                but also must make stack buffer, which is not possible",
++            );
++
++            stack_end::insert_stack_buffer_global(
++                &mut self.module,
++                stack_buffer_offset,
++                stack_buffer_get_index,
++                stack_buffer_set_index,
++            )
++            .expect("By some reasons we cannot process stack buffer global");
++        }
++    }
++
+     pub fn insert_start_call_in_export_funcs(&mut self) -> Result<(), &'static str> {
+         stack_end::insert_start_call_in_export_funcs(&mut self.module)
+     }
+@@ -63,10 +100,6 @@ impl Optimizer {
+         stack_end::move_mut_globals_to_static(&mut self.module)
+     }
+ 
+-    pub fn insert_stack_end_export(&mut self) -> Result<(), &'static str> {
+-        stack_end::insert_stack_end_export(&mut self.module)
+-    }
+-
+     /// Strips all custom sections.
+     ///
+     /// Presently all custom sections are not required so they can be stripped safely.
+diff --git a/utils/wasm-builder/src/stack_end.rs b/utils/wasm-builder/src/stack_end.rs
+index 0a0490161..6ea0588a6 100644
+--- a/utils/wasm-builder/src/stack_end.rs
++++ b/utils/wasm-builder/src/stack_end.rs
+@@ -18,14 +18,17 @@
+ 
+ use crate::optimize;
+ use gear_wasm_instrument::STACK_END_EXPORT_NAME;
++use gsys::stack_buffer::{GET_STACK_BUFFER_GLOBAL_NAME, SET_STACK_BUFFER_GLOBAL_NAME};
+ use pwasm_utils::parity_wasm::{
+     builder,
+     elements::{
+-        ExportEntry, GlobalEntry, ImportCountType, Instruction, Instructions, Internal, Module,
+-        ValueType,
++        ExportEntry, External, GlobalEntry, ImportCountType, Instruction, Instructions, Internal,
++        Module, ValueType,
+     },
+ };
+ 
++const STACK_POINTER_GLOBAL_SUFFIX: &str = "__stack_pointer";
++
+ /// Insert the export with the stack end address in `module` if there is
+ /// the global '__stack_pointer'.
+ /// By default rust compilation into wasm creates global '__stack_pointer', which
+@@ -34,24 +37,26 @@ use pwasm_utils::parity_wasm::{
+ /// and skip its uploading to the storage.
+ ///
+ /// Returns error if cannot insert stack end export by some reasons.
+-pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> {
++pub fn insert_stack_end_export(module: &mut Module, sub_offset: u32) -> Result<u32, &'static str> {
+     let module_bytes = module
+         .clone()
+         .to_bytes()
+         .map_err(|_| "cannot get code from module")?;
+ 
+-    let stack_pointer_index =
+-        get_global_index(&module_bytes, |name| name.ends_with("__stack_pointer"))
+-            .ok_or("has no stack pointer global")?;
++    let stack_pointer_index = get_global_index(&module_bytes, |name| {
++        name.ends_with(STACK_POINTER_GLOBAL_SUFFIX)
++    })
++    .ok_or("cannot find stack pointer global")?;
+ 
+     let glob_section = module
+-        .global_section()
++        .global_section_mut()
+         .ok_or("Cannot find globals section")?;
+     let global = glob_section
+         .entries()
+         .iter()
+         .nth(stack_pointer_index as usize)
+-        .ok_or("there is no globals")?;
++        .ok_or("there is no globals")?
++        .clone();
+     if global.global_type().content_type() != ValueType::I32 {
+         return Err("has no i32 global 0");
+     }
+@@ -65,20 +70,143 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str>
+         return Err("second init instruction is not end");
+     }
+ 
+-    if let Instruction::I32Const(literal) = init_code[0] {
++    let stack_end_offset = if let Instruction::I32Const(literal) = init_code[0] {
+         log::debug!("stack pointer init == {:#x}", literal);
++        glob_section.entries_mut().push(global);
++        let index = glob_section.entries().len() as u32 - 1;
+         let export_section = module
+             .export_section_mut()
+             .ok_or("Cannot find export section")?;
+-        let x = export_section.entries_mut();
+-        x.push(ExportEntry::new(
++        export_section.entries_mut().push(ExportEntry::new(
+             STACK_END_EXPORT_NAME.to_string(),
+-            Internal::Global(stack_pointer_index),
++            Internal::Global(index),
+         ));
+-        Ok(())
++        literal
++    } else {
++        return Err("has unexpected instr for init");
++    };
++
++    let stack_pointer_new_offset = (stack_end_offset as u32)
++        .checked_sub(sub_offset)
++        .ok_or("sub offset is greater than stack end offset")?;
++
++    // +_+_+
++    *module
++        .global_section_mut()
++        .unwrap()
++        .entries_mut()
++        .iter_mut()
++        .nth(stack_pointer_index as usize)
++        .unwrap()
++        .init_expr_mut()
++        .code_mut()
++        .get_mut(0)
++        .unwrap() = Instruction::I32Const(stack_pointer_new_offset as i32);
++
++    Ok(stack_pointer_new_offset)
++}
++
++pub fn get_stack_buffer_export_indexes(module: &Module) -> (Option<u32>, Option<u32>) {
++    let import_entries = if let Some(import_section) = module.import_section() {
++        import_section.entries()
+     } else {
+-        Err("has unexpected instr for init")
++        return (None, None);
++    };
++
++    let mut get_stack_buffer_index = None;
++    let mut set_stack_buffer_index = None;
++    let mut index = 0;
++    for entry in import_entries.iter() {
++        log::debug!("entry: {:?}", entry);
++        match (entry.module(), entry.field()) {
++            ("env", GET_STACK_BUFFER_GLOBAL_NAME) => {
++                if let External::Function(_) = entry.external() {
++                    get_stack_buffer_index = Some(index);
++                    index += 1;
++                }
++            }
++            ("env", SET_STACK_BUFFER_GLOBAL_NAME) => {
++                if let External::Function(_) = entry.external() {
++                    set_stack_buffer_index = Some(index);
++                    index += 1;
++                }
++            }
++            _ => {
++                if let External::Function(_) = entry.external() {
++                    index += 1;
++                }
++            }
++        }
++    }
++
++    log::debug!(
++        "get_stack_buffer_index: {:?}, set_stack_buffer_index: {:?}",
++        get_stack_buffer_index,
++        set_stack_buffer_index
++    );
++
++    (get_stack_buffer_index, set_stack_buffer_index)
++}
++
++pub fn insert_stack_buffer_global(
++    module: &mut Module,
++    stack_buffer_offset: u32,
++    get_index: Option<u32>,
++    set_index: Option<u32>,
++) -> Result<(), &'static str> {
++    *module = builder::from_module(module.clone())
++        .global()
++        .mutable()
++        .init_expr(Instruction::I64Const(stack_buffer_offset as i64))
++        .value_type()
++        .i64()
++        .build()
++        .build();
++
++    let gear_flags_global_index = module
++        .global_section()
++        .ok_or("Cannot find global section, which must be.")?
++        .entries()
++        .len()
++        .checked_sub(1)
++        .ok_or("Globals section is empty, but must be at least one element.")?
++        .try_into()
++        .map_err(|_| "Globals index is too big")?;
++
++    for code in module
++        .code_section_mut()
++        .ok_or("Cannot find code section")?
++        .bodies_mut()
++    {
++        for instruction in code.code_mut().elements_mut() {
++            match instruction {
++                Instruction::Call(call_index) => {
++                    if get_index == Some(*call_index) {
++                        log::debug!(
++                            "Change `call {}` to `global.get {}`",
++                            call_index,
++                            gear_flags_global_index
++                        );
++                        *instruction = Instruction::GetGlobal(gear_flags_global_index);
++                    } else if set_index == Some(*call_index) {
++                        log::debug!(
++                            "Change `call {}` to `global.set {}`",
++                            call_index,
++                            gear_flags_global_index
++                        );
++                        *instruction = Instruction::SetGlobal(gear_flags_global_index);
++                    }
++                }
++                Instruction::CallIndirect(_, _) => {
++                    // TODO: make handling for call_indirect also.
++                    // log::trace!("lol");
++                }
++                _ => {}
++            }
++        }
+     }
++
++    Ok(())
+ }
+ 
+ /// If `_start` export function exists, then insert this function call in the beginning of
+@@ -160,10 +288,13 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
+         .iter()
+         .enumerate()
+     {
+-        if !global.global_type().is_mutable()
+-            || index == data_end_index as usize
+-            || index == stack_pointer_index as usize
+-        {
++        if !global.global_type().is_mutable() {
++            continue;
++        }
++        if index == data_end_index as usize {
++            continue;
++        }
++        if index == stack_pointer_index as usize {
+             continue;
+         }
+ 
+@@ -283,8 +414,9 @@ fn get_global_index(module_bytes: &[u8], name_predicate: impl Fn(&str) -> bool)
+             _ => None,
+         })
+         .flatten()
++        .filter_map(|res| res.ok())
+         .filter_map(|name| match name {
+-            Ok(Name::Global(m)) => Some(m),
++            Name::Global(m) => Some(m),
+             _ => None,
+         })
+         .flat_map(|naming| naming.into_iter())
+@@ -412,7 +544,7 @@ mod test {
+ 
+         let mut module =
+             elements::deserialize_buffer(binary.as_ref()).expect("failed to deserialize binary");
+-        insert_stack_end_export(&mut module).expect("insert_stack_end_export failed");
++        insert_stack_end_export(&mut module, 0).expect("insert_stack_end_export failed");
+ 
+         let gear_stack_end = module
+             .export_section()
+@@ -422,9 +554,10 @@ mod test {
+             .find(|e| e.field() == STACK_END_EXPORT_NAME)
+             .expect("export entry should exist");
+ 
++        // `2` because we insert new global in wasm, which const and equal to stack pointer start offset.
+         assert!(matches!(
+             gear_stack_end.internal(),
+-            elements::Internal::Global(1)
++            elements::Internal::Global(2)
+         ));
+     }
+ 
+diff --git a/utils/wasm-builder/src/wasm_project.rs b/utils/wasm-builder/src/wasm_project.rs
+index 9f2d4e0eb..6c3ede16b 100644
+--- a/utils/wasm-builder/src/wasm_project.rs
++++ b/utils/wasm-builder/src/wasm_project.rs
+@@ -330,9 +330,7 @@ extern "C" fn metahash() {{
+             });
+ 
+             let mut optimizer = Optimizer::new(path)?;
+-            optimizer
+-                .insert_stack_end_export()
+-                .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
++            optimizer.stack_optimizations();
+             optimizer.strip_custom_sections();
+             fs::write(opt_wasm_path.clone(), optimizer.optimize(OptType::Opt)?)?;
+         }
+diff --git a/utils/wasm-proc/src/main.rs b/utils/wasm-proc/src/main.rs
+index 87ce4a2da..06e165e25 100644
+--- a/utils/wasm-proc/src/main.rs
++++ b/utils/wasm-proc/src/main.rs
+@@ -209,9 +209,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
+ 
+         let mut optimizer = Optimizer::new(optimized_wasm_path.clone())?;
+         if insert_stack_end {
+-            optimizer.insert_stack_end_export().unwrap_or_else(|err| {
+-                log::debug!("Failed to insert stack end: {}", err);
+-            })
++            optimizer.stack_optimizations();
+         }
+         if strip_custom_sections {
+             optimizer.strip_custom_sections();

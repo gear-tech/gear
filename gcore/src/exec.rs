@@ -30,12 +30,6 @@ use gsys::{
     LengthWithHash,
 };
 
-pub(crate) fn block_height_syscall_wrapper() -> u32 {
-    let mut bn = 0u32;
-    unsafe { gsys::gr_block_height(&mut bn as *mut u32) };
-    bn
-}
-
 /// Get the current block height.
 ///
 /// The block height serves to identify a particular block.
@@ -57,17 +51,9 @@ pub(crate) fn block_height_syscall_wrapper() -> u32 {
 /// }
 /// ```
 pub fn block_height() -> u32 {
-    #[cfg(feature = "stack_buffer")]
-    return crate::stack_buffer::block_height();
-
-    #[cfg(not(feature = "stack_buffer"))]
-    return block_height_syscall_wrapper();
-}
-
-pub(crate) fn block_timestamp_syscall_wrapper() -> u64 {
-    let mut timestamp = 0u64;
-    unsafe { gsys::gr_block_timestamp(&mut timestamp as *mut u64) };
-    timestamp
+    let mut bn = 0u32;
+    unsafe { gsys::gr_block_height(&mut bn as *mut u32) };
+    bn
 }
 
 /// Get the current block timestamp.
@@ -90,11 +76,9 @@ pub(crate) fn block_timestamp_syscall_wrapper() -> u64 {
 /// }
 /// ```
 pub fn block_timestamp() -> u64 {
-    #[cfg(feature = "stack_buffer")]
-    return crate::stack_buffer::block_timestamp();
-
-    #[cfg(not(feature = "stack_buffer"))]
-    return block_timestamp_syscall_wrapper();
+    let mut timestamp = 0u64;
+    unsafe { gsys::gr_block_timestamp(&mut timestamp as *mut u64) };
+    timestamp
 }
 
 /// Provide gas deposit from current message to handle reply message on given
@@ -393,7 +377,6 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
     SyscallError(len).into_result()
 }
 
-// +_+_+ change to static variable
 /// Return the identifier of the current program.
 ///
 /// # Examples
@@ -412,12 +395,6 @@ pub fn program_id() -> ActorId {
     program_id
 }
 
-pub(crate) fn origin_syscall_wrapper() -> ActorId {
-    let mut origin = ActorId::default();
-    unsafe { gsys::gr_origin(origin.as_mut_ptr()) }
-    origin
-}
-
 /// Return the identifier of the original user who initiated communication with
 /// the blockchain, during which the currently processing message was created.
 ///
@@ -432,11 +409,9 @@ pub(crate) fn origin_syscall_wrapper() -> ActorId {
 /// }
 /// ```
 pub fn origin() -> ActorId {
-    #[cfg(feature = "stack_buffer")]
-    return crate::stack_buffer::origin();
-
-    #[cfg(not(feature = "stack_buffer"))]
-    return origin_syscall_wrapper();
+    let mut origin = ActorId::default();
+    unsafe { gsys::gr_origin(origin.as_mut_ptr()) }
+    origin
 }
 
 /// Pay specified rent for the program. The result contains the remainder of

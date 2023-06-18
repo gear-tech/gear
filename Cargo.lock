@@ -3594,7 +3594,6 @@ version = "0.1.0"
 dependencies = [
  "galloc",
  "gear-core-errors",
- "gear-wasm-instrument",
  "gsys",
  "hex-literal 0.3.4",
  "parity-scale-codec",
@@ -4228,7 +4227,6 @@ dependencies = [
  "gear-core",
  "gear-wasm-instrument",
  "gmeta",
- "gsys",
  "log",
  "once_cell",
  "pathdiff",
@@ -4240,7 +4238,6 @@ dependencies = [
  "wasm-opt",
  "wasmi 0.14.0",
  "wasmparser-nostd 0.100.1",
- "wasmprinter",
  "which",
 ]
 

@@ -209,7 +209,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut optimizer = Optimizer::new(optimized_wasm_path.clone())?;
         if insert_stack_end {
-            optimizer.stack_optimizations();
+            optimizer.insert_stack_end_export().unwrap_or_else(|err| {
+                log::debug!("Failed to insert stack end: {}", err);
+            })
         }
         if strip_custom_sections {
             optimizer.strip_custom_sections();

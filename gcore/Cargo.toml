@@ -10,14 +10,11 @@ gsys.workspace = true
 gear-core-errors.workspace = true
 codec = { workspace = true, optional = true }
 static_assertions.workspace = true
-gear-wasm-instrument.workspace = true
 
 [dev-dependencies]
 hex-literal.workspace = true
 galloc.workspace = true
 
 [features]
-optimized = ["stack_buffer"]
-stack_buffer = ["gsys/stack_buffer"]
 codec = ["dep:codec", "gear-core-errors/codec"]
 debug = []

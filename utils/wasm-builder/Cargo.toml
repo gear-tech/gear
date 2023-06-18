@@ -26,8 +26,6 @@ gear-wasm-instrument.workspace = true
 wasm-opt = { workspace = true, optional = true }
 wasmparser.workspace = true
 regex.workspace = true
-wasmprinter = "0.2"
-gsys = { workspace=true, features = ["stack_buffer"] }
 
 [dev-dependencies]
 wabt.workspace = true

@@ -59,22 +59,11 @@ mod wasm {
     #[gstd::message_loaded]
     fn handle(load_res: Result<Reply>) {
         let reply = load_res.map(process).unwrap_or_else(|e| {
-            debug!("Error processing request: {:?}", e);
-            Reply::Error
+                debug!("Error processing request: {:?}", e);
+                Reply::Error
         });
         msg::reply(reply, 0).unwrap();
     }
-
-    // #[no_mangle]
-    // extern "C" fn handle() {
-    //     msg::with_loaded_optimized(|load_res| {
-    //         let reply = load_res.map(process).unwrap_or_else(|e| {
-    //             debug!("Error processing request: {:?}", e);
-    //             Reply::Error
-    //         });
-    //         msg::reply(reply, 0).unwrap();
-    //     });
-    // }
 
     fn state() -> &'static mut BTreeMap<u32, u32> {
         unsafe { STATE.as_mut().unwrap() }
