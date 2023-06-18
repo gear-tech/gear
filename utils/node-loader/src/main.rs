@@ -7,7 +7,7 @@
 
 use anyhow::{anyhow, Result};
 use args::{parse_cli_params, LoadParams, Params};
-use batch_pool::BatchPool;
+use batch_pool::{api::GearApiFacade, BatchPool};
 use gsdk::config::GearConfig;
 use names::Generator;
 use rand::rngs::SmallRng;
@@ -61,5 +61,13 @@ async fn load_node(params: LoadParams) -> Result<()> {
         env!("CARGO_PKG_VERSION"),
     );
 
-    tokio::spawn(BatchPool::<SmallRng>::run(params, rx)).await?
+    let api = GearApiFacade::try_new(params.node.clone(), params.user.clone()).await?;
+
+    let batch_pool = BatchPool::<SmallRng>::new(
+        api.clone(),
+        params.batch_size,
+        params.workers,
+        rx.resubscribe(),
+    );
+    tokio::spawn(batch_pool.run(params, rx)).await?
 }

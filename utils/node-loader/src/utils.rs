@@ -1,10 +1,10 @@
-use crate::SmallRng;
 use anyhow::{anyhow, Result};
 use futures::Future;
 use futures_timer::Delay;
 use gclient::{Event, GearApi, GearEvent, WSAddress};
 use gear_call_gen::GearProgGenConfig;
 use gear_core::ids::{MessageId, ProgramId};
+use rand::rngs::SmallRng;
 use reqwest::Client;
 use std::{
     collections::{BTreeSet, HashMap},

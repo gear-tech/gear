@@ -21,7 +21,7 @@ use std::{
 use tokio::{sync::broadcast::Receiver, time::Duration};
 use tracing::instrument;
 
-mod api;
+pub mod api;
 mod context;
 pub mod generators;
 mod report;
@@ -40,7 +40,12 @@ pub struct BatchPool<Rng: CallGenRng> {
 }
 
 impl<Rng: CallGenRng> BatchPool<Rng> {
-    fn new(api: GearApiFacade, batch_size: usize, pool_size: usize, rx: EventsReciever) -> Self {
+    pub fn new(
+        api: GearApiFacade,
+        batch_size: usize,
+        pool_size: usize,
+        rx: EventsReciever,
+    ) -> Self {
         Self {
             api,
             pool_size,
@@ -51,20 +56,12 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         }
     }
 
-    pub async fn run(params: LoadParams, rx: EventsReciever) -> Result<()> {
-        let api = GearApiFacade::try_new(params.node, params.user).await?;
-
-        let mut batch_pool = Self::new(
-            api.clone(),
-            params.batch_size,
-            params.workers,
-            rx.resubscribe(),
-        );
-
-        let run_pool_task = batch_pool.run_pool_loop(params.loader_seed, params.code_seed_type);
+    pub async fn run(mut self, params: LoadParams, rx: EventsReciever) -> Result<()> {
+        let gear_api = self.api.clone().into_gear_api();
+        let run_pool_task = self.run_pool_loop(params.loader_seed, params.code_seed_type);
         let inspect_crash_task = tokio::spawn(inspect_crash_events(rx));
         let renew_balance_task =
-            tokio::spawn(create_renew_balance_task(api.into_gear_api(), params.root).await?);
+            tokio::spawn(create_renew_balance_task(gear_api, params.root).await?);
 
         let run_result = tokio::select! {
             r = run_pool_task => r,
