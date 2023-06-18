@@ -27,8 +27,9 @@ use quote::{quote, ToTokens};
 use std::collections::BTreeSet;
 use syn::{
     parse::{Parse, ParseStream},
+    parse_macro_input,
     punctuated::Punctuated,
-    Path, Token,
+    FnArg, ItemFn, Pat, PatType, Path, ReturnType, Token,
 };
 
 mod utils;
@@ -570,6 +571,70 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
         }
     }
     .into()
+}
+
+#[proc_macro_attribute]
+pub fn message_loaded(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(item as ItemFn);
+
+    // Check return type
+    match &ast.sig.output {
+        ReturnType::Default => {}
+        _ => panic!("Return type must be `()`"),
+    }
+
+    let fn_name = &ast.sig.ident;
+    let block = &ast.block;
+
+    // Extract argument name from function
+    let arg_name = match ast.sig.inputs.first().unwrap() {
+        FnArg::Typed(PatType { pat, .. }) => match **pat {
+            Pat::Ident(ref pat_ident) => pat_ident.ident.clone(),
+            _ => panic!("Expected ident pattern type"),
+        },
+        _ => panic!("Expected typed function argument"),
+    };
+
+    let gen = quote! {
+        #[no_mangle]
+        extern "C" fn #fn_name() {
+            gstd::msg::with_loaded_optimized(|#arg_name| #block);
+        }
+    };
+
+    gen.into()
+}
+
+#[proc_macro_attribute]
+pub fn message_read(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(item as ItemFn);
+
+    // Check return type
+    match &ast.sig.output {
+        ReturnType::Default => {}
+        _ => panic!("Return type must be `()`"),
+    }
+
+    let fn_name = &ast.sig.ident;
+    let block = &ast.block;
+
+    // Extract argument name from function
+    let arg_name = match ast.sig.inputs.first().unwrap() {
+        FnArg::Typed(PatType { pat, .. }) => match **pat {
+            Pat::Ident(ref pat_ident) => pat_ident.ident.clone(),
+            _ => panic!("Expected ident pattern type"),
+        },
+        _ => panic!("Expected typed function argument"),
+    };
+
+    let gen = quote! {
+        #[no_mangle]
+        extern "C" fn #fn_name() {
+            gstd::msg::with_loaded_optimized(|#arg_name| #block);
+        }
+    };
+
+    gen.into()
 }
 
 #[cfg(test)]

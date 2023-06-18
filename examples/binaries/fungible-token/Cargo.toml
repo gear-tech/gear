@@ -7,7 +7,7 @@ license.workspace = true
 workspace = "../../../"
 
 [dependencies]
-gstd = { workspace = true }
+gstd = { workspace = true , features = ["optimized"] }
 hashbrown = { workspace = true }
 gmeta = { workspace = true }
 ft-io = { path = "io" }

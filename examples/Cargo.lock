@@ -308,6 +308,7 @@ name = "gcore"
 version = "0.1.0"
 dependencies = [
  "gear-core-errors",
+ "gear-wasm-instrument",
  "gsys",
  "parity-scale-codec",
  "static_assertions",
@@ -320,6 +321,14 @@ dependencies = [
  "derive_more",
  "enum-iterator",
  "scale-info",
+]
+
+[[package]]
+name = "gear-wasm-instrument"
+version = "0.1.0"
+dependencies = [
+ "enum-iterator",
+ "wasm-instrument",
 ]
 
 [[package]]
@@ -513,6 +522,12 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
+
+[[package]]
+name = "parity-wasm"
+version = "0.45.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1ad0aff30c1da14b1254fcb2af73e1fa9a28670e584a626f53a369d0e157304"
 
 [[package]]
 name = "pin-project-lite"
@@ -726,6 +741,14 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "wasm-instrument"
+version = "0.2.1"
+source = "git+https://github.com/gear-tech/wasm-instrument.git?branch=gear-stable#756a8b92dab5a5fa841226eebbaf215812262e3b"
+dependencies = [
+ "parity-wasm",
+]
 
 [[package]]
 name = "winapi"

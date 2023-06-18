@@ -57,6 +57,12 @@ fn value_ptr(value: &u128) -> *const u128 {
     }
 }
 
+pub(crate) fn status_code_syscall_wrapper() -> LengthWithCode {
+    let mut res: LengthWithCode = Default::default();
+    unsafe { gsys::gr_status_code(res.as_mut_ptr()) }
+    res
+}
+
 /// Get the status code of the message being processed.
 ///
 /// This function is used in the reply handler to check whether the message was
@@ -73,12 +79,21 @@ fn value_ptr(value: &u128) -> *const u128 {
 /// }
 /// ```
 pub fn status_code() -> Result<i32> {
-    let mut res: LengthWithCode = Default::default();
+    #[cfg(feature = "stack_buffer")]
+    let length_with_code = crate::stack_buffer::status_code();
 
-    unsafe { gsys::gr_status_code(res.as_mut_ptr()) }
-    SyscallError(res.length).into_result()?;
+    #[cfg(not(feature = "stack_buffer"))]
+    let length_with_code = status_code_syscall_wrapper();
 
-    Ok(res.code)
+    SyscallError(length_with_code.length).into_result()?;
+
+    Ok(length_with_code.code)
+}
+
+pub(crate) fn message_id_syscall_wrapper() -> MessageId {
+    let mut message_id = MessageId::default();
+    unsafe { gsys::gr_message_id(message_id.as_mut_ptr()) }
+    message_id
 }
 
 /// Get an identifier of the message that is currently being processed.
@@ -100,9 +115,11 @@ pub fn status_code() -> Result<i32> {
 /// }
 /// ```
 pub fn id() -> MessageId {
-    let mut message_id = MessageId::default();
-    unsafe { gsys::gr_message_id(message_id.as_mut_ptr()) }
-    message_id
+    #[cfg(feature = "stack_buffer")]
+    return crate::stack_buffer::message_id();
+
+    #[cfg(not(feature = "stack_buffer"))]
+    return message_id_syscall_wrapper();
 }
 
 // TODO: issue #1859
@@ -138,6 +155,20 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
     }
 
     SyscallError(len).into_result()
+}
+
+/// +_+_+
+pub fn with_read<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
+    let size = size();
+    crate::with_byte_buffer(size, |buffer| {
+        let mut len = 0u32;
+
+        if size > 0 {
+            unsafe { gsys::gr_read(0, size as u32, buffer.as_mut_ptr(), &mut len as *mut u32) }
+        }
+
+        f(SyscallError(len).into_result().map(|_| buffer))
+    })
 }
 
 // TODO: issue #1859
@@ -1175,6 +1206,12 @@ pub fn send_push(handle: MessageHandle, payload: &[u8]) -> Result<()> {
     SyscallError(len).into_result()
 }
 
+pub(crate) fn size_syscall_wrapper() -> usize {
+    let mut size = 0u32;
+    unsafe { gsys::gr_size(&mut size as *mut u32) };
+    size as usize
+}
+
 /// Get the payload size of the message that is being processed.
 ///
 /// This function returns the payload size of the current message that is being
@@ -1191,9 +1228,17 @@ pub fn send_push(handle: MessageHandle, payload: &[u8]) -> Result<()> {
 /// }
 /// ```
 pub fn size() -> usize {
-    let mut size = 0u32;
-    unsafe { gsys::gr_size(&mut size as *mut u32) };
-    size as usize
+    #[cfg(feature = "stack_buffer")]
+    return crate::stack_buffer::size();
+
+    #[cfg(not(feature = "stack_buffer"))]
+    return size_syscall_wrapper();
+}
+
+pub(crate) fn source_syscall_wrapper() -> ActorId {
+    let mut source = ActorId::default();
+    unsafe { gsys::gr_source(source.as_mut_ptr()) }
+    source
 }
 
 /// Get the identifier of the message source (256-bit address).
@@ -1212,9 +1257,17 @@ pub fn size() -> usize {
 /// }
 /// ```
 pub fn source() -> ActorId {
-    let mut source = ActorId::default();
-    unsafe { gsys::gr_source(source.as_mut_ptr()) }
-    source
+    #[cfg(feature = "stack_buffer")]
+    return crate::stack_buffer::source();
+
+    #[cfg(not(feature = "stack_buffer"))]
+    return source_syscall_wrapper();
+}
+
+pub(crate) fn value_syscall_wrapper() -> u128 {
+    let mut value = 0u128;
+    unsafe { gsys::gr_value(&mut value as *mut u128) };
+    value
 }
 
 /// Get the value associated with the message that is being processed.
@@ -1233,7 +1286,9 @@ pub fn source() -> ActorId {
 /// }
 /// ```
 pub fn value() -> u128 {
-    let mut value = 0u128;
-    unsafe { gsys::gr_value(&mut value as *mut u128) };
-    value
+    #[cfg(feature = "stack_buffer")]
+    return crate::stack_buffer::value();
+
+    #[cfg(not(feature = "stack_buffer"))]
+    return value_syscall_wrapper();
 }

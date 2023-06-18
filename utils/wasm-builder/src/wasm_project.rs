@@ -330,9 +330,7 @@ extern "C" fn metahash() {{
             });
 
             let mut optimizer = Optimizer::new(path)?;
-            optimizer
-                .insert_stack_end_export()
-                .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
+            optimizer.stack_optimizations();
             optimizer.strip_custom_sections();
             fs::write(opt_wasm_path.clone(), optimizer.optimize(OptType::Opt)?)?;
         }

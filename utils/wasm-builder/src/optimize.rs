@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use gear_core::code::Code;
 use gear_wasm_instrument::{rules::CustomConstantCostRules, STACK_END_EXPORT_NAME};
+use gsys::stack_buffer::STACK_BUFFER_SIZE;
 use pwasm_utils::{
     parity_wasm,
     parity_wasm::elements::{Internal, Module, Section, Serialize},
@@ -55,16 +56,48 @@ impl Optimizer {
         Ok(Self { module, file })
     }
 
+    pub fn stack_optimizations(&mut self) {
+        let (stack_buffer_get_index, stack_buffer_set_index) =
+            stack_end::get_stack_buffer_export_indexes(&self.module);
+
+        let stack_buffer_size =
+            if stack_buffer_get_index.is_some() || stack_buffer_set_index.is_some() {
+                STACK_BUFFER_SIZE
+            } else {
+                0
+            };
+
+        let stack_buffer_offset =
+            match stack_end::insert_stack_end_export(&mut self.module, stack_buffer_size) {
+                Ok(stack_pointer_new_offset) => Some(stack_pointer_new_offset),
+                Err(err) => {
+                    println!("cargo:warning=Cannot insert stack end export: {}", err);
+                    None
+                }
+            };
+
+        if stack_buffer_get_index.is_some() || stack_buffer_set_index.is_some() {
+            let stack_buffer_offset = stack_buffer_offset.expect(
+                "Panic because we cannot insert stack end global,
+                but also must make stack buffer, which is not possible",
+            );
+
+            stack_end::insert_stack_buffer_global(
+                &mut self.module,
+                stack_buffer_offset,
+                stack_buffer_get_index,
+                stack_buffer_set_index,
+            )
+            .expect("By some reasons we cannot process stack buffer global");
+        }
+    }
+
     pub fn insert_start_call_in_export_funcs(&mut self) -> Result<(), &'static str> {
         stack_end::insert_start_call_in_export_funcs(&mut self.module)
     }
 
     pub fn move_mut_globals_to_static(&mut self) -> Result<(), &'static str> {
         stack_end::move_mut_globals_to_static(&mut self.module)
-    }
-
-    pub fn insert_stack_end_export(&mut self) -> Result<(), &'static str> {
-        stack_end::insert_stack_end_export(&mut self.module)
     }
 
     /// Strips all custom sections.

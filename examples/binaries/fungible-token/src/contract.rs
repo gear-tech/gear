@@ -22,7 +22,7 @@ use gmeta::Metadata;
 use gstd::{debug, errors::Result as GstdResult, exec, msg, prelude::*, ActorId, MessageId};
 use hashbrown::HashMap;
 
-const ZERO_ID: ActorId = ActorId::new([0u8; 32]);
+// const ZERO_ID: ActorId = ActorId::new([0u8; 32]);
 
 #[derive(Debug, Clone, Default)]
 struct FungibleToken {
@@ -53,7 +53,6 @@ impl FungibleToken {
             self.balances.insert(arr.into(), amount);
         }
     }
-
     /// Executed on receiving `fungible-token-messages::MintInput`.
     fn mint(&mut self, amount: u128) {
         self.balances
@@ -63,7 +62,7 @@ impl FungibleToken {
         self.total_supply += amount;
         msg::reply(
             FTEvent::Transfer {
-                from: ZERO_ID,
+                from: ActorId::zero_id(),
                 to: msg::source(),
                 amount,
             },
@@ -84,7 +83,7 @@ impl FungibleToken {
         msg::reply(
             FTEvent::Transfer {
                 from: msg::source(),
-                to: ZERO_ID,
+                to: ActorId::zero_id(),
                 amount,
             },
             0,
@@ -94,7 +93,7 @@ impl FungibleToken {
     /// Executed on receiving `fungible-token-messages::TransferInput` or `fungible-token-messages::TransferFromInput`.
     /// Transfers `amount` tokens from `sender` account to `recipient` account.
     fn transfer(&mut self, from: &ActorId, to: &ActorId, amount: u128) {
-        if from == &ZERO_ID || to == &ZERO_ID {
+        if from.is_zero_id() || to.is_zero_id() {
             panic!("Zero addresses");
         };
         if !self.can_transfer(from, amount) {
@@ -110,7 +109,8 @@ impl FungibleToken {
             .entry(*to)
             .and_modify(|balance| *balance += amount)
             .or_insert(amount);
-        msg::reply(
+        // gstd::debug!("LOL");
+        msg::reply_on_stack(
             FTEvent::Transfer {
                 from: *from,
                 to: *to,
@@ -123,7 +123,7 @@ impl FungibleToken {
 
     /// Executed on receiving `fungible-token-messages::ApproveInput`.
     fn approve(&mut self, to: &ActorId, amount: u128) {
-        if to == &ZERO_ID {
+        if to.is_zero_id() {
             panic!("Approve to zero address");
         }
         self.allowances
@@ -142,9 +142,9 @@ impl FungibleToken {
     }
 
     fn can_transfer(&mut self, from: &ActorId, amount: u128) -> bool {
-        if from == &msg::source()
-            || from == &exec::origin()
-            || self.balances.get(&msg::source()).unwrap_or(&0) >= &amount
+        if *from == msg::source()
+            || *from == exec::origin()
+            || *self.balances.get(&msg::source()).unwrap_or(&0) >= amount
         {
             return true;
         }
@@ -153,7 +153,7 @@ impl FungibleToken {
             .get(from)
             .and_then(|m| m.get(&msg::source()))
         {
-            if allowed_amount >= &amount {
+            if *allowed_amount >= amount {
                 self.allowances.entry(*from).and_modify(|m| {
                     m.entry(msg::source()).and_modify(|a| *a -= amount);
                 });
@@ -204,9 +204,9 @@ fn reply(payload: impl Encode) -> GstdResult<MessageId> {
     msg::reply(payload, 0)
 }
 
-#[no_mangle]
-extern "C" fn handle() {
-    let action: FTAction = msg::load().expect("Could not load Action");
+#[gstd::message_loaded]
+fn handle(action: Result<FTAction>) {
+    let action: FTAction = action.expect("Could not load Action");
     let ft: &mut FungibleToken = unsafe { FUNGIBLE_TOKEN.get_or_insert(Default::default()) };
     match action {
         FTAction::Mint(amount) => {

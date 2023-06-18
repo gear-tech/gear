@@ -18,7 +18,7 @@
 
 use crate::{
     async_runtime::signals,
-    errors::{IntoResult, Result},
+    errors::{Error, IntoResult, Result},
     msg::{utils, CodecMessageFuture, MessageFuture},
     prelude::{convert::AsRef, ops::RangeBounds, vec, Vec},
     ActorId, MessageId, ReservationId,
@@ -313,6 +313,11 @@ pub fn load_bytes() -> Result<Vec<u8>> {
     let mut result = vec![0u8; size()];
     gcore::msg::read(result.as_mut())?;
     Ok(result)
+}
+
+/// +_+_+
+pub fn with_read_bytes<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
+    gcore::msg::with_read(|read_res| f(read_res.map_err(Error::Ext)))
 }
 
 /// Send a new message as a reply to the message that is currently being
@@ -765,6 +770,10 @@ pub fn send_bytes_delayed_from_reservation<T: AsRef<[u8]>>(
 /// }
 /// ```
 pub fn size() -> usize {
+    #[cfg(feature = "debug")]
+    panic!();
+
+    #[cfg(not(feature = "debug"))]
     gcore::msg::size()
 }
 

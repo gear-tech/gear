@@ -41,7 +41,7 @@ use crate::{
 };
 use primitive_types::H256;
 use scale_info::{
-    scale::{self, Decode, Encode},
+    scale::{self, Decode, Encode, MaxEncodedLen},
     TypeInfo,
 };
 
@@ -56,7 +56,19 @@ const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 /// function. Also, each send function has a target `ActorId` as one of the
 /// arguments.
 #[derive(
-    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    TypeInfo,
+    Decode,
+    Encode,
+    MaxEncodedLen,
 )]
 #[codec(crate = scale)]
 pub struct ActorId([u8; 32]);
@@ -65,6 +77,26 @@ impl ActorId {
     /// Create a new `ActorId` from a 32-byte array.
     pub const fn new(arr: [u8; 32]) -> Self {
         Self(arr)
+    }
+
+    /// +_+_+
+    pub fn is_zero_id(&self) -> bool {
+        // let mut sum = 0u32;
+        for i in (0..self.0.len()).step_by(4) {
+            unsafe {
+                if *(self.0.as_ptr().add(i) as *const u64) != 0 {
+                    return false;
+                }
+            }
+        }
+        true
+        // self.0.iter().for_each(|byte| sum += *byte as u32);
+        // sum == 0
+    }
+
+    /// +_+_+
+    pub const fn zero_id() -> Self {
+        ActorId([0; 32])
     }
 
     /// Create a new zero `ActorId`.
@@ -116,7 +148,6 @@ impl AsMut<[u8]> for ActorId {
     }
 }
 
-#[cfg(feature = "debug")]
 impl From<u64> for ActorId {
     fn from(v: u64) -> Self {
         let mut arr = [0u8; 32];

@@ -341,6 +341,7 @@ where
         )
         .map_err(EnvironmentError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
+            log::trace!("stack end = {stack_end:?}");
             prepare_memory::<E::Ext, E::Memory>(
                 memory,
                 program_id,

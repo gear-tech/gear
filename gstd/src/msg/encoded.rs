@@ -28,7 +28,7 @@ use crate::{
     ActorId, MessageId, ReservationId,
 };
 use gstd_codegen::wait_for_reply;
-use scale_info::scale::{Decode, Encode};
+use scale_info::scale::{Decode, Encode, MaxEncodedLen, Output};
 
 /// Get a payload of the message that is currently being processed.
 ///
@@ -60,6 +60,39 @@ use scale_info::scale::{Decode, Encode};
 ///   vector.
 pub fn load<D: Decode>() -> Result<D> {
     D::decode(&mut super::load_bytes()?.as_ref()).map_err(Error::Decode)
+}
+
+/// +_+_+
+pub fn with_loaded<D: Decode, R>(mut f: impl FnMut(Result<D>) -> R) -> R {
+    #[cfg(feature = "stack_buffer")]
+    {
+        let wrapper = |read_result: Result<&mut [u8]>| -> R {
+            let arg = match read_result.map(|buffer| {
+                let mut buffer: &[u8] = buffer;
+                D::decode(&mut buffer).map_err(Error::Decode)
+            }) {
+                Err(err) => Err(err),
+                Ok(Err(err)) => Err(err),
+                Ok(Ok(res)) => Ok(res),
+            };
+            f(arg)
+        };
+        super::basic::with_read_bytes(wrapper)
+    }
+
+    #[cfg(not(feature = "stack_buffer"))]
+    {
+        f(load())
+    }
+}
+
+/// +_+_+
+pub fn with_loaded_optimized<D: Decode, R>(f: impl FnMut(Result<D>) -> R) -> R {
+    #[cfg(feature = "stack_buffer")]
+    return with_loaded(f);
+
+    #[cfg(not(feature = "stack_buffer"))]
+    return with_loaded(f);
 }
 
 /// Send a new message as a reply to the message being
@@ -111,6 +144,33 @@ pub fn load<D: Decode>() -> Result<D> {
 /// - [`send`] function sends a new message to the program or user.
 pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
     super::reply_bytes(payload.encode(), value)
+}
+
+/// +_+_+
+pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Result<MessageId> {
+    struct ConstSizeOutput<'a> {
+        buffer: &'a mut [u8],
+        offset: usize,
+    }
+
+    impl<'a> Output for ConstSizeOutput<'a> {
+        fn write(&mut self, bytes: &[u8]) {
+            let err_log = "Unexpected encoding behavior: too large input bytes size";
+            let end_offset = self.offset.checked_add(bytes.len()).expect(err_log);
+            if end_offset > self.buffer.len() {
+                panic!("{}", err_log);
+            }
+            self.buffer[self.offset..end_offset].copy_from_slice(bytes);
+            self.offset = end_offset;
+        }
+    }
+
+    gcore::with_byte_buffer(E::max_encoded_len(), |buffer| {
+        let mut output = ConstSizeOutput { buffer, offset: 0 };
+        payload.encode_to(&mut output);
+        let ConstSizeOutput { buffer, offset } = output;
+        super::reply_bytes(&buffer[..offset], value)
+    })
 }
 
 /// Same as [`reply`], but it spends gas from a reservation instead of

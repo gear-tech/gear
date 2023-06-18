@@ -18,13 +18,16 @@
 
 use crate::optimize;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
+use gsys::stack_buffer::{GET_STACK_BUFFER_GLOBAL_NAME, SET_STACK_BUFFER_GLOBAL_NAME};
 use pwasm_utils::parity_wasm::{
     builder,
     elements::{
-        ExportEntry, GlobalEntry, ImportCountType, Instruction, Instructions, Internal, Module,
-        ValueType,
+        ExportEntry, External, GlobalEntry, ImportCountType, Instruction, Instructions, Internal,
+        Module, ValueType,
     },
 };
+
+const STACK_POINTER_GLOBAL_SUFFIX: &str = "__stack_pointer";
 
 /// Insert the export with the stack end address in `module` if there is
 /// the global '__stack_pointer'.
@@ -34,24 +37,26 @@ use pwasm_utils::parity_wasm::{
 /// and skip its uploading to the storage.
 ///
 /// Returns error if cannot insert stack end export by some reasons.
-pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> {
+pub fn insert_stack_end_export(module: &mut Module, sub_offset: u32) -> Result<u32, &'static str> {
     let module_bytes = module
         .clone()
         .to_bytes()
         .map_err(|_| "cannot get code from module")?;
 
-    let stack_pointer_index =
-        get_global_index(&module_bytes, |name| name.ends_with("__stack_pointer"))
-            .ok_or("has no stack pointer global")?;
+    let stack_pointer_index = get_global_index(&module_bytes, |name| {
+        name.ends_with(STACK_POINTER_GLOBAL_SUFFIX)
+    })
+    .ok_or("cannot find stack pointer global")?;
 
     let glob_section = module
-        .global_section()
+        .global_section_mut()
         .ok_or("Cannot find globals section")?;
     let global = glob_section
         .entries()
         .iter()
         .nth(stack_pointer_index as usize)
-        .ok_or("there is no globals")?;
+        .ok_or("there is no globals")?
+        .clone();
     if global.global_type().content_type() != ValueType::I32 {
         return Err("has no i32 global 0");
     }
@@ -65,20 +70,143 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> 
         return Err("second init instruction is not end");
     }
 
-    if let Instruction::I32Const(literal) = init_code[0] {
+    let stack_end_offset = if let Instruction::I32Const(literal) = init_code[0] {
         log::debug!("stack pointer init == {:#x}", literal);
+        glob_section.entries_mut().push(global);
+        let index = glob_section.entries().len() as u32 - 1;
         let export_section = module
             .export_section_mut()
             .ok_or("Cannot find export section")?;
-        let x = export_section.entries_mut();
-        x.push(ExportEntry::new(
+        export_section.entries_mut().push(ExportEntry::new(
             STACK_END_EXPORT_NAME.to_string(),
-            Internal::Global(stack_pointer_index),
+            Internal::Global(index),
         ));
-        Ok(())
+        literal
     } else {
-        Err("has unexpected instr for init")
+        return Err("has unexpected instr for init");
+    };
+
+    let stack_pointer_new_offset = (stack_end_offset as u32)
+        .checked_sub(sub_offset)
+        .ok_or("sub offset is greater than stack end offset")?;
+
+    // +_+_+
+    *module
+        .global_section_mut()
+        .unwrap()
+        .entries_mut()
+        .iter_mut()
+        .nth(stack_pointer_index as usize)
+        .unwrap()
+        .init_expr_mut()
+        .code_mut()
+        .get_mut(0)
+        .unwrap() = Instruction::I32Const(stack_pointer_new_offset as i32);
+
+    Ok(stack_pointer_new_offset)
+}
+
+pub fn get_stack_buffer_export_indexes(module: &Module) -> (Option<u32>, Option<u32>) {
+    let import_entries = if let Some(import_section) = module.import_section() {
+        import_section.entries()
+    } else {
+        return (None, None);
+    };
+
+    let mut get_stack_buffer_index = None;
+    let mut set_stack_buffer_index = None;
+    let mut index = 0;
+    for entry in import_entries.iter() {
+        log::debug!("entry: {:?}", entry);
+        match (entry.module(), entry.field()) {
+            ("env", GET_STACK_BUFFER_GLOBAL_NAME) => {
+                if let External::Function(_) = entry.external() {
+                    get_stack_buffer_index = Some(index);
+                    index += 1;
+                }
+            }
+            ("env", SET_STACK_BUFFER_GLOBAL_NAME) => {
+                if let External::Function(_) = entry.external() {
+                    set_stack_buffer_index = Some(index);
+                    index += 1;
+                }
+            }
+            _ => {
+                if let External::Function(_) = entry.external() {
+                    index += 1;
+                }
+            }
+        }
     }
+
+    log::debug!(
+        "get_stack_buffer_index: {:?}, set_stack_buffer_index: {:?}",
+        get_stack_buffer_index,
+        set_stack_buffer_index
+    );
+
+    (get_stack_buffer_index, set_stack_buffer_index)
+}
+
+pub fn insert_stack_buffer_global(
+    module: &mut Module,
+    stack_buffer_offset: u32,
+    get_index: Option<u32>,
+    set_index: Option<u32>,
+) -> Result<(), &'static str> {
+    *module = builder::from_module(module.clone())
+        .global()
+        .mutable()
+        .init_expr(Instruction::I64Const(stack_buffer_offset as i64))
+        .value_type()
+        .i64()
+        .build()
+        .build();
+
+    let gear_flags_global_index = module
+        .global_section()
+        .ok_or("Cannot find global section, which must be.")?
+        .entries()
+        .len()
+        .checked_sub(1)
+        .ok_or("Globals section is empty, but must be at least one element.")?
+        .try_into()
+        .map_err(|_| "Globals index is too big")?;
+
+    for code in module
+        .code_section_mut()
+        .ok_or("Cannot find code section")?
+        .bodies_mut()
+    {
+        for instruction in code.code_mut().elements_mut() {
+            match instruction {
+                Instruction::Call(call_index) => {
+                    if get_index == Some(*call_index) {
+                        log::debug!(
+                            "Change `call {}` to `global.get {}`",
+                            call_index,
+                            gear_flags_global_index
+                        );
+                        *instruction = Instruction::GetGlobal(gear_flags_global_index);
+                    } else if set_index == Some(*call_index) {
+                        log::debug!(
+                            "Change `call {}` to `global.set {}`",
+                            call_index,
+                            gear_flags_global_index
+                        );
+                        *instruction = Instruction::SetGlobal(gear_flags_global_index);
+                    }
+                }
+                Instruction::CallIndirect(_, _) => {
+                    // TODO: make handling for call_indirect also.
+                    // log::trace!("lol");
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// If `_start` export function exists, then insert this function call in the beginning of
@@ -412,7 +540,7 @@ mod test {
 
         let mut module =
             elements::deserialize_buffer(binary.as_ref()).expect("failed to deserialize binary");
-        insert_stack_end_export(&mut module).expect("insert_stack_end_export failed");
+        insert_stack_end_export(&mut module, 0).expect("insert_stack_end_export failed");
 
         let gear_stack_end = module
             .export_section()
@@ -422,9 +550,10 @@ mod test {
             .find(|e| e.field() == STACK_END_EXPORT_NAME)
             .expect("export entry should exist");
 
+        // `2` because we insert new global in wasm, which const and equal to stack pointer start offset.
         assert!(matches!(
             gear_stack_end.internal(),
-            elements::Internal::Global(1)
+            elements::Internal::Global(2)
         ));
     }
 

@@ -22,6 +22,9 @@
 
 use core::mem;
 
+#[cfg(feature = "stack_buffer")]
+pub mod stack_buffer;
+
 /// Represents block number type.
 pub type BlockNumber = u32;
 
@@ -82,7 +85,7 @@ impl HashWithValue {
 
 /// Represents type defining concatenated status code with length. 8 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct LengthWithCode {
     pub length: Length,
     pub code: StatusCode,
