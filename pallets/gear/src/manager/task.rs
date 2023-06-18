@@ -20,6 +20,7 @@ use crate::{
     manager::ExtManager, Config, CurrencyOf, DispatchStashOf, Event, Pallet, ProgramStorageOf,
     QueueOf, WaitlistOf,
 };
+use alloc::string::ToString;
 use common::{
     event::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, ProgramChangeKind, RuntimeReason,
