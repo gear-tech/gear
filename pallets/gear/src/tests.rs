@@ -3592,9 +3592,9 @@ fn events_logging_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let mut next_block = 2;
+        let mut next_block = 2u32;
 
-        let tests: [(_, _, Option<AssertFailedError>); 4] = [
+        let tests: [(_, _, Option<AssertFailedError>); 5] = [
             // Code, init failure reason, handle succeed flag
             (ProgramCodeKind::Default, None, None),
             (
@@ -3609,17 +3609,28 @@ fn events_logging_works() {
                 Some(ActorExecutionErrorReason::Trap(TrapExplanation::Unknown)),
                 Some(ErrorReason::InactiveProgram.into()),
             ),
+            // First try asserts by status code.
             (
                 ProgramCodeKind::Custom(wat_trap_in_handle),
                 None,
                 Some(ErrorReason::Execution(SimpleExecutionError::UnreachableInstruction).into()),
+            ),
+            // Second similar try asserts by error payload explanation.
+            (
+                ProgramCodeKind::Custom(wat_trap_in_handle),
+                None,
+                Some(ActorExecutionErrorReason::Trap(TrapExplanation::Unknown).into()),
             ),
         ];
 
         for (code_kind, init_failure_reason, handle_failure_reason) in tests {
             System::reset_events();
             let program_id = {
-                let res = upload_program_default(USER_1, code_kind);
+                let res = upload_program_default_with_salt(
+                    USER_1,
+                    next_block.to_le_bytes().to_vec(),
+                    code_kind,
+                );
                 assert_ok!(res);
                 res.expect("submit result was asserted")
             };
@@ -11340,8 +11351,17 @@ mod utils {
         user: AccountId,
         code_kind: ProgramCodeKind,
     ) -> DispatchCustomResult<ProgramId> {
+        upload_program_default_with_salt(user, DEFAULT_SALT.to_vec(), code_kind)
+    }
+
+    // Submits program with default options (gas limit, value, payload)
+    #[track_caller]
+    pub(super) fn upload_program_default_with_salt(
+        user: AccountId,
+        salt: Vec<u8>,
+        code_kind: ProgramCodeKind,
+    ) -> DispatchCustomResult<ProgramId> {
         let code = code_kind.to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
 
         Gear::upload_program(
             RuntimeOrigin::signed(user),
@@ -11454,20 +11474,24 @@ mod utils {
         assert_eq!(status, DispatchStatus::Failed, "Expected: {error}");
 
         let (mut actual_error, reply_code) = get_last_event_error_and_reply_code(message_id);
-        let mut expectations = error.to_string();
 
-        // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
-        // This check handles display of the error inside.
-        if actual_error.starts_with('\'') {
-            let j = actual_error.rfind('\'').expect("Checked above");
-            actual_error = String::from(&actual_error[..(j + 1)]);
-            expectations = format!("'{expectations}'");
-        }
+        match error {
+            AssertFailedError::Execution(error) => {
+                let mut expectations = error.to_string();
 
-        assert_eq!(expectations, actual_error);
+                // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
+                // This check handles display of the error inside.
+                if actual_error.starts_with('\'') {
+                    let j = actual_error.rfind('\'').expect("Checked above");
+                    actual_error = String::from(&actual_error[..(j + 1)]);
+                    expectations = format!("'{expectations}'");
+                }
 
-        if let AssertFailedError::SimpleReply(err) = error {
-            assert_eq!(reply_code, ReplyCode::error(err));
+                assert_eq!(expectations, actual_error);
+            }
+            AssertFailedError::SimpleReply(error) => {
+                assert_eq!(reply_code, ReplyCode::error(error));
+            }
         }
     }
 
