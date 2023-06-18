@@ -94,9 +94,8 @@ impl InitMessage {
         self.destination
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        // todo [sab] rename payload bytes
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
         self.payload.inner()
     }
 
@@ -178,7 +177,7 @@ impl InitPacket {
 }
 
 impl Packet for InitPacket {
-    fn payload(&self) -> &[u8] {
+    fn payload_bytes(&self) -> &[u8] {
         self.payload.inner()
     }
 

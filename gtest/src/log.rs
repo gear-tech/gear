@@ -61,7 +61,7 @@ impl From<StoredMessage> for CoreLog {
             id: other.id(),
             source: other.source(),
             destination: other.destination(),
-            payload: other.payload().to_vec().try_into().unwrap(),
+            payload: other.payload_bytes().to_vec().try_into().unwrap(),
             status_code: other.status_code(),
         }
     }
@@ -180,7 +180,7 @@ impl PartialEq<StoredMessage> for Log {
         if matches!(self.destination, Some(dest) if dest != other.destination()) {
             return false;
         }
-        if matches!(&self.payload, Some(payload) if payload.get() != other.payload()) {
+        if matches!(&self.payload, Some(payload) if payload.get() != other.payload_bytes()) {
             return false;
         }
         true

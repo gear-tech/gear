@@ -137,9 +137,8 @@ impl ReplyMessage {
         self.id
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        // todo [sab] rename payload bytes
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
         self.payload.inner()
     }
 
@@ -226,7 +225,7 @@ impl ReplyPacket {
 }
 
 impl Packet for ReplyPacket {
-    fn payload(&self) -> &[u8] {
+    fn payload_bytes(&self) -> &[u8] {
         self.payload.inner()
     }
 

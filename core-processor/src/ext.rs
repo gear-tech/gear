@@ -737,7 +737,7 @@ impl Externalities for Ext {
     }
 
     fn size(&self) -> Result<usize, Self::Error> {
-        Ok(self.context.message_context.current().payload().len())
+        Ok(self.context.message_context.current().payload_bytes().len())
     }
 
     fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error> {

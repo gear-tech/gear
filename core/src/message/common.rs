@@ -102,9 +102,8 @@ impl Message {
         self.destination
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        // todo [sab] payload bytes
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
         self.payload.inner()
     }
 

@@ -97,9 +97,8 @@ impl StoredMessage {
         self.destination
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        // todo [sab] payload_bytes
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
         self.payload.inner()
     }
 

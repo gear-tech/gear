@@ -96,9 +96,8 @@ impl HandleMessage {
         self.destination
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        // todo [sab] payload_bytes
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
         self.payload.inner()
     }
 
@@ -166,7 +165,7 @@ impl HandlePacket {
 }
 
 impl Packet for HandlePacket {
-    fn payload(&self) -> &[u8] {
+    fn payload_bytes(&self) -> &[u8] {
         self.payload.inner()
     }
 

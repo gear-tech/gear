@@ -611,7 +611,7 @@ where
 
     for (dispatch, _, _) in info.generated_dispatches {
         if matches!(dispatch.kind(), DispatchKind::Reply) {
-            return Ok(dispatch.payload().to_vec());
+            return Ok(dispatch.payload_bytes().to_vec());
         }
     }
 
