@@ -300,7 +300,7 @@ where
     let delay = 1u32;
     let salt = vec![];
     Gear::<T>::upload_program(
-        RawOrigin::Signed(caller.clone()).into(),
+        RawOrigin::Signed(caller).into(),
         WASM_BINARY.to_vec(),
         salt,
         delay.encode(),
@@ -2800,7 +2800,7 @@ benchmarks! {
 
         let salt = vec![];
         let program_id = ProgramId::generate(CodeId::generate(WASM_BINARY), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(),
+        Gear::<T>::upload_program(RawOrigin::Signed(caller).into(),
             WASM_BINARY.to_vec(),
             salt,
             InitAction::Normal(vec![(50_000, 100),])
