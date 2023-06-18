@@ -849,7 +849,7 @@ impl ExtManager {
 
         let journal = core_processor::process::<WasmiEnvironment<Ext>>(
             &block_config,
-            (context, code, balance, self.origin).into(),
+            (context, code, balance).into(),
             self.random_data.clone(),
             memory_pages,
         )

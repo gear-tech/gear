@@ -395,25 +395,6 @@ pub fn program_id() -> ActorId {
     program_id
 }
 
-/// Return the identifier of the original user who initiated communication with
-/// the blockchain, during which the currently processing message was created.
-///
-/// # Examples
-///
-/// ```
-/// use gcore::exec;
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let user = exec::origin();
-/// }
-/// ```
-pub fn origin() -> ActorId {
-    let mut origin = ActorId::default();
-    unsafe { gsys::gr_origin(origin.as_mut_ptr()) }
-    origin
-}
-
 /// Pay specified rent for the program. The result contains the remainder of
 /// rent value and the count of paid blocks.
 ///
