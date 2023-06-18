@@ -181,10 +181,10 @@ mod test {
         let _ = TestBuffer::try_from(v2).expect_err("Must be err because of size overflow");
         let z = TestBuffer::try_from(v3).unwrap();
 
-        assert_eq!(x.get().len(), N);
-        assert_eq!(z.get().len(), N - 1);
-        assert_eq!(x.get()[N / 2], 1);
-        assert_eq!(z.get()[N / 2], 1);
+        assert_eq!(x.inner().len(), N);
+        assert_eq!(z.inner().len(), N - 1);
+        assert_eq!(x.inner()[N / 2], 1);
+        assert_eq!(z.inner()[N / 2], 1);
     }
 
     #[test]
@@ -196,9 +196,9 @@ mod test {
         );
         let z = LimitedVec::<Vec<u8>, RuntimeBufferSizeError, N>::try_new_default(0).unwrap();
 
-        assert_eq!(x.get().len(), N);
-        assert_eq!(z.get().len(), 0);
-        assert_eq!(x.get()[N / 2], "");
+        assert_eq!(x.inner().len(), N);
+        assert_eq!(z.inner().len(), 0);
+        assert_eq!(x.inner()[N / 2], "");
     }
 
     #[test]
@@ -207,7 +207,7 @@ mod test {
         let prepend_buf = TestBuffer::try_from(vec![6, 7, 8]).unwrap();
         buf.try_prepend(prepend_buf).unwrap();
 
-        assert_eq!(buf.get(), &[6, 7, 8, 1, 2, 3, 4, 5]);
+        assert_eq!(buf.inner(), &[6, 7, 8, 1, 2, 3, 4, 5]);
     }
 
     #[test]
@@ -229,7 +229,7 @@ mod test {
         y.try_prepend(vec![1, 2, 3].try_into().unwrap()).unwrap();
         z.try_prepend(vec![1, 2, 3].try_into().unwrap()).unwrap();
 
-        z.get_mut()[0] = 0;
+        z.inner_mut()[0] = 0;
 
         assert_eq!(&z.into_vec(), &[0, 2, 3, 42, 1, 2, 3]);
         assert_eq!(TestBuffer::max_len(), N);

@@ -715,7 +715,7 @@ mod tests {
         .expect("cannot init logger");
 
         let mut data = PageBufInner::filled_with(199u8);
-        data.get_mut()[1] = 2;
+        data.inner_mut()[1] = 2;
         let page_buf = PageBuf::from_inner(data);
         log::debug!("page buff = {:?}", page_buf);
     }

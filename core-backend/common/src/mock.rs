@@ -239,11 +239,11 @@ impl Externalities for MockExt {
         Ok(MessageId::default())
     }
 
-    fn lend_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error> {
+    fn lend_payload(&mut self, _at: u32, _len: u32) -> Result<PayloadSliceHolder, Self::Error> {
         unimplemented!()
     }
 
-    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) -> ReclaimBoundResult {
+    fn reclaim_payload(&mut self, _payload_holder: &mut PayloadSliceHolder) -> ReclaimBoundResult {
         unimplemented!()
     }
 }

@@ -47,7 +47,7 @@ impl CoreLog {
     }
 
     pub fn payload(&self) -> &[u8] {
-        self.payload.get()
+        self.payload.inner()
     }
 
     pub fn status_code(&self) -> Option<StatusCode> {
@@ -78,7 +78,7 @@ pub struct DecodedCoreLog<T: Codec + Debug> {
 
 impl<T: Codec + Debug> DecodedCoreLog<T> {
     pub(crate) fn try_from_log(log: CoreLog) -> Option<Self> {
-        let payload = T::decode(&mut log.payload.get()).ok()?;
+        let payload = T::decode(&mut log.payload.inner()).ok()?;
 
         Some(Self {
             id: log.id,
@@ -180,7 +180,7 @@ impl PartialEq<StoredMessage> for Log {
         if matches!(self.destination, Some(dest) if dest != other.destination()) {
             return false;
         }
-        if matches!(&self.payload, Some(payload) if payload.get() != other.payload_bytes()) {
+        if matches!(&self.payload, Some(payload) if payload.inner() != other.payload_bytes()) {
             return false;
         }
         true
@@ -229,7 +229,7 @@ impl PartialEq<CoreLog> for Log {
 
         if self.status_code == 0 {
             if let Some(payload) = &self.payload {
-                if payload.get() != other.payload.get() {
+                if payload.inner() != other.payload.inner() {
                     return false;
                 }
             }
