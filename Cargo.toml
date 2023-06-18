@@ -463,9 +463,9 @@ wasm-instrument = { version = "0.3.0", git = "https://github.com/gear-tech/wasm-
 #
 # 2. subxt v0.29.0 upgrades the substrate dependencies which are not
 # compatible with our current dependencies.
-subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "cl/v0.29.0" }
-subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "cl/v0.29.0" }
-subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "cl/v0.29.0" }
+subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
+subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
+subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 
 # TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
 blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "fix-clang-cl-cross" }
