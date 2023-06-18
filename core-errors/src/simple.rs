@@ -27,7 +27,17 @@ use scale_info::{
 
 #[repr(u8)]
 #[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    derive_more::Display,
+    derive_more::From,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Enum representing reply code with reason of its creation.
@@ -45,18 +55,6 @@ pub enum ReplyCode {
     #[default]
     #[display(fmt = "<unsupported reply code>")]
     Unsupported = 255,
-}
-
-impl From<SuccessReason> for ReplyCode {
-    fn from(reason: SuccessReason) -> Self {
-        Self::Success(reason)
-    }
-}
-
-impl From<ErrorReason> for ReplyCode {
-    fn from(reason: ErrorReason) -> Self {
-        Self::Error(reason)
-    }
 }
 
 impl ReplyCode {
@@ -154,7 +152,17 @@ impl SuccessReason {
 
 #[repr(u8)]
 #[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    derive_more::Display,
+    derive_more::From,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Reason of error reply creation.
@@ -180,12 +188,6 @@ pub enum ErrorReason {
     #[default]
     #[display(fmt = "<unsupported reason>")]
     Unsupported = 255,
-}
-
-impl From<SimpleExecutionError> for ErrorReason {
-    fn from(error: SimpleExecutionError) -> Self {
-        Self::Execution(error)
-    }
 }
 
 impl ErrorReason {
@@ -315,7 +317,17 @@ impl SimpleProgramCreationError {
 }
 
 #[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    derive_more::Display,
+    derive_more::From,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Enum representing signal code and reason of its creation.
@@ -328,12 +340,6 @@ pub enum SignalCode {
     #[default]
     #[display(fmt = "Signal message sent due to removal from waitlist")]
     RemovedFromWaitlist,
-}
-
-impl From<SimpleExecutionError> for SignalCode {
-    fn from(error: SimpleExecutionError) -> Self {
-        Self::Execution(error)
-    }
 }
 
 impl SignalCode {
