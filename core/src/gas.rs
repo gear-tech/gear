@@ -276,9 +276,6 @@ pub enum ChargeError {
     /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
-    /// An error occurs in attempt to refund more gas than burned one.
-    #[display(fmt = "Too many gas refunded")]
-    TooManyGasAdded,
     /// Gas allowance exceeded
     #[display(fmt = "Gas allowance exceeded")]
     GasAllowanceExceeded,
@@ -292,8 +289,6 @@ pub trait CountersOwner {
     fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError>;
     /// Charge gas if enough, else just returns error.
     fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError>;
-    /// Refund gas limit and gas allowance.
-    fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError>;
     /// Returns gas limit and gas allowance left.
     fn gas_left(&self) -> GasLeft;
     /// Set gas limit and gas allowance left.

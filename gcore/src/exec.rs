@@ -162,7 +162,7 @@ pub fn exit(inheritor_id: ActorId) -> ! {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     exec::unreserve_gas(unsafe { RESERVED });
+///     exec::unreserve_gas(unsafe { RESERVED }).expect("Unable to unreserve");
 /// }
 /// ```
 ///
@@ -382,7 +382,7 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 /// # Examples
 ///
 /// ```
-/// use gcore::{exec, ActorId};
+/// use gcore::exec;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
@@ -420,7 +420,7 @@ pub fn origin() -> ActorId {
 /// # Examples
 ///
 /// ```
-/// use gcore::{exec, ActorId};
+/// use gcore::exec;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {

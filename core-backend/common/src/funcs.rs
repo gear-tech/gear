@@ -19,10 +19,9 @@
 //! Syscall implementations generic over wasmi and sandbox backends.
 
 use crate::{
-    memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    runtime::Runtime,
-    syscall_trace, ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError,
-    BackendState, MessageWaitedType, TerminationReason, TrapExplanation, PTR_SPECIAL,
+    memory::MemoryAccessError, runtime::Runtime, syscall_trace, ActorTerminationReason,
+    BackendAllocExternalitiesError, BackendExternalities, BackendExternalitiesError,
+    MessageWaitedType, TerminationReason, TrapExplanation, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
@@ -31,7 +30,7 @@ use gear_backend_codegen::host;
 use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
-    env::Ext,
+    env::Externalities,
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
@@ -43,17 +42,16 @@ use gsys::{
 };
 use parity_scale_codec::Encode;
 
-pub struct FuncsHandler<E: Ext + 'static, R> {
-    _phantom_ext: PhantomData<E>,
-    _phantom_runtime: PhantomData<R>,
+pub struct FuncsHandler<Ext: Externalities + 'static, Runtime> {
+    _phantom: PhantomData<(Ext, Runtime)>,
 }
 
-impl<E, R> FuncsHandler<E, R>
+impl<Ext, R> FuncsHandler<Ext, R>
 where
-    E: BackendExt + 'static,
-    E::Error: BackendExtError,
-    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
-    R: Runtime<E> + MemoryOwner + MemoryAccessRecorder + BackendState,
+    Ext: BackendExternalities + 'static,
+    Ext::Error: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
+    R: Runtime<Ext>,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,
     /// because it may contain registered read.

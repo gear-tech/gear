@@ -40,9 +40,10 @@ use crate::{
         USER_2,
         USER_3,
     },
-    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasBalanceOf, GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, QueueOf, RentCostPerBlockOf,
-    RentFreePeriodOf, Schedule, TaskPoolOf, WaitlistOf,
+    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, Error, Event,
+    GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, MailboxOf, ProgramStorageOf, QueueOf,
+    RentCostPerBlockOf, RentFreePeriodOf, ReservableCurrency, ResumeMinimalPeriodOf,
+    ResumeSessionDurationOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
@@ -2310,12 +2311,12 @@ fn upload_program_expected_failure() {
                 DEFAULT_GAS_LIMIT,
                 balance + 1
             ),
-            Error::<Test>::InsufficientBalanceForReserve
+            Error::<Test>::InsufficientBalance
         );
 
         assert_noop!(
             upload_program_default(LOW_BALANCE_USER, ProgramCodeKind::Default),
-            Error::<Test>::InsufficientBalanceForReserve
+            Error::<Test>::InsufficientBalance
         );
 
         // Gas limit is too high
@@ -2570,7 +2571,7 @@ fn send_message_expected_failure() {
 
         assert_noop!(
             call_default_message(program_id).dispatch(RuntimeOrigin::signed(LOW_BALANCE_USER)),
-            Error::<Test>::InsufficientBalanceForReserve
+            Error::<Test>::InsufficientBalance
         );
 
         let low_balance_user_balance = Balances::free_balance(LOW_BALANCE_USER);
@@ -5868,6 +5869,409 @@ fn test_pausing_programs_works() {
 }
 
 #[test]
+fn resume_session_init_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let program_id = {
+            let res = upload_program_default(USER_2, ProgramCodeKind::Default);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        run_to_next_block(None);
+
+        assert!(!ProgramStorageOf::<Test>::paused_program_exists(
+            &program_id
+        ));
+
+        // attempt to resume an active program should fail
+        assert_err!(
+            Gear::resume_session_init(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                Default::default(),
+                Default::default(),
+            ),
+            pallet_gear_program::Error::<Test>::ProgramNotFound,
+        );
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
+
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number(expected_block - 1);
+
+        run_to_next_block(None);
+
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
+
+        assert_ok!(Gear::resume_session_init(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            Default::default(),
+            Default::default(),
+        ));
+
+        let (session_id, session_end_block, resume_program_id, _) = get_last_session();
+        assert_eq!(resume_program_id, program_id);
+        assert_eq!(
+            session_end_block,
+            Gear::block_number().saturating_add(ResumeSessionDurationOf::<Test>::get())
+        );
+
+        assert!(TaskPoolOf::<Test>::contains(
+            &session_end_block,
+            &ScheduledTask::RemoveResumeSession(session_id)
+        ));
+
+        // another user can start resume session
+        assert_ok!(Gear::resume_session_init(
+            RuntimeOrigin::signed(USER_2),
+            program_id,
+            Default::default(),
+            Default::default(),
+        ));
+
+        let (session_id_2, ..) = get_last_session();
+        assert_ne!(session_id, session_id_2);
+
+        // user is able to start several resume sessions
+        assert_ok!(Gear::resume_session_init(
+            RuntimeOrigin::signed(USER_2),
+            program_id,
+            Default::default(),
+            Default::default(),
+        ));
+
+        let (session_id_3, ..) = get_last_session();
+        assert_ne!(session_id, session_id_3);
+        assert_ne!(session_id_2, session_id_3);
+
+        System::set_block_number(session_end_block - 1);
+        Gear::set_block_number(session_end_block - 1);
+
+        run_to_next_block(None);
+
+        // the session should be removed since it wasn't finished
+        assert!(!TaskPoolOf::<Test>::contains(
+            &session_end_block,
+            &ScheduledTask::RemoveResumeSession(session_id)
+        ));
+
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
+    })
+}
+
+#[test]
+fn resume_session_push_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_btree::Request;
+
+        let code = demo_btree::WASM_BINARY;
+        let program_id = generate_program_id(code, DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        ));
+
+        let request = Request::Insert(0, 1).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            request,
+            1_000_000_000,
+            0
+        ));
+
+        run_to_next_block(None);
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
+
+        let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
+            program_id,
+            program.pages_with_data.iter(),
+        )
+        .unwrap();
+
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number(expected_block - 1);
+
+        run_to_next_block(None);
+
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
+
+        assert_ok!(Gear::resume_session_init(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            Default::default(),
+            Default::default(),
+        ));
+
+        let (session_id, session_end_block, ..) = get_last_session();
+
+        // another user may not append memory pages to the session
+        assert_err!(
+            Gear::resume_session_push(
+                RuntimeOrigin::signed(USER_2),
+                session_id,
+                Default::default()
+            ),
+            pallet_gear_program::Error::<Test>::NotSessionOwner,
+        );
+
+        // append to inexistent session fails
+        assert_err!(
+            Gear::resume_session_push(
+                RuntimeOrigin::signed(USER_1),
+                session_id.wrapping_add(1),
+                Default::default()
+            ),
+            pallet_gear_program::Error::<Test>::ResumeSessionNotFound,
+        );
+
+        assert_ok!(Gear::resume_session_push(
+            RuntimeOrigin::signed(USER_1),
+            session_id,
+            memory_pages.clone().into_iter().collect()
+        ));
+        assert_eq!(
+            ProgramStorageOf::<Test>::resume_session_page_count(&session_id).unwrap(),
+            memory_pages.len() as u32
+        );
+
+        System::set_block_number(session_end_block - 1);
+        Gear::set_block_number(session_end_block - 1);
+
+        run_to_next_block(None);
+
+        assert_err!(
+            Gear::resume_session_push(
+                RuntimeOrigin::signed(USER_1),
+                session_id,
+                memory_pages.into_iter().collect()
+            ),
+            pallet_gear_program::Error::<Test>::ResumeSessionNotFound,
+        );
+        assert!(ProgramStorageOf::<Test>::resume_session_page_count(&session_id).is_none());
+        assert!(ProgramStorageOf::<Test>::get_program_data_for_pages(
+            program_id,
+            program.pages_with_data.iter(),
+        )
+        .is_err());
+
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
+    })
+}
+
+#[test]
+fn resume_program_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_btree::{Reply, Request};
+
+        let code = demo_btree::WASM_BINARY;
+        let program_id = generate_program_id(code, DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        ));
+
+        let request = Request::Insert(0, 1).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            request,
+            1_000_000_000,
+            0
+        ));
+
+        run_to_next_block(None);
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        let expected_block = program.expiration_block;
+
+        let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
+            program_id,
+            program.pages_with_data.iter(),
+        )
+        .unwrap();
+
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number(expected_block - 1);
+
+        run_to_next_block(None);
+
+        assert!(ProgramStorageOf::<Test>::paused_program_exists(&program_id));
+
+        let block_count = ResumeMinimalPeriodOf::<Test>::get();
+        assert_ok!(Gear::resume_session_init(
+            RuntimeOrigin::signed(USER_3),
+            program_id,
+            program.allocations.clone(),
+            CodeId::from_origin(program.code_hash),
+        ));
+
+        let (session_id, session_end_block, ..) = get_last_session();
+
+        // start another session
+        assert_ok!(Gear::resume_session_init(
+            RuntimeOrigin::signed(USER_2),
+            program_id,
+            program.allocations,
+            CodeId::from_origin(program.code_hash),
+        ));
+
+        let (session_id_2, session_end_block_2, ..) = get_last_session();
+        assert_ne!(session_id, session_id_2);
+
+        assert_ok!(Gear::resume_session_push(
+            RuntimeOrigin::signed(USER_3),
+            session_id,
+            memory_pages.into_iter().collect()
+        ));
+
+        // access to finish session by another user is denied
+        assert_err!(
+            Gear::resume_session_commit(RuntimeOrigin::signed(USER_1), session_id, block_count),
+            pallet_gear_program::Error::<Test>::NotSessionOwner,
+        );
+
+        // attempt to resume for the amount of blocks that is less than the minimum should fail
+        assert_err!(
+            Gear::resume_session_commit(RuntimeOrigin::signed(USER_3), session_id, 0,),
+            Error::<Test>::ResumePeriodLessThanMinimal,
+        );
+
+        // attempt to finish session with abscent binary code should fail
+        assert!(<Test as Config>::CodeStorage::remove_code(
+            CodeId::generate(code)
+        ));
+        assert_err!(
+            Gear::resume_session_commit(RuntimeOrigin::signed(USER_3), session_id, block_count,),
+            pallet_gear_program::Error::<Test>::ProgramCodeNotFound
+        );
+
+        // resubmit binary code
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            code.to_vec(),
+        ));
+
+        // if user doesn't have enough funds the extrinsic should fail
+        let to_reserve = Balances::free_balance(USER_3);
+        CurrencyOf::<Test>::reserve(&USER_3, to_reserve).unwrap();
+
+        assert_err!(
+            Gear::resume_session_commit(RuntimeOrigin::signed(USER_3), session_id, block_count,),
+            Error::<Test>::InsufficientBalance,
+        );
+
+        let _ = CurrencyOf::<Test>::unreserve(&USER_3, to_reserve);
+
+        // successful execution
+        let balance_before = Balances::free_balance(BLOCK_AUTHOR);
+        assert_ok!(Gear::resume_session_commit(
+            RuntimeOrigin::signed(USER_3),
+            session_id,
+            block_count,
+        ));
+
+        let rent_fee = Gear::rent_fee_for(block_count);
+        assert_eq!(
+            Balances::free_balance(BLOCK_AUTHOR),
+            rent_fee + balance_before
+        );
+
+        assert!(!TaskPoolOf::<Test>::contains(
+            &session_end_block,
+            &ScheduledTask::RemoveResumeSession(session_id)
+        ));
+
+        let program_change = match get_last_event() {
+            MockRuntimeEvent::Gear(Event::ProgramChanged { id, change }) => {
+                assert_eq!(id, program_id);
+
+                change
+            }
+            _ => unreachable!(),
+        };
+        let expiration_block = match program_change {
+            ProgramChangeKind::Active { expiration } => expiration,
+            _ => unreachable!(),
+        };
+        assert!(TaskPoolOf::<Test>::contains(
+            &expiration_block,
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
+        let program = ProgramStorageOf::<Test>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        assert_eq!(program.expiration_block, expiration_block);
+
+        // finishing the second session should succeed too.
+        // In the same time the user isn't charged
+        let balance_before = Balances::free_balance(BLOCK_AUTHOR);
+        assert_ok!(Gear::resume_session_commit(
+            RuntimeOrigin::signed(USER_2),
+            session_id_2,
+            block_count,
+        ));
+
+        assert_eq!(Balances::free_balance(BLOCK_AUTHOR), balance_before);
+
+        assert!(!TaskPoolOf::<Test>::contains(
+            &session_end_block_2,
+            &ScheduledTask::RemoveResumeSession(session_id_2)
+        ));
+
+        // finish inexistent session fails
+        assert_err!(
+            Gear::resume_session_commit(RuntimeOrigin::signed(USER_1), session_id, block_count),
+            pallet_gear_program::Error::<Test>::ResumeSessionNotFound,
+        );
+
+        // check that program operates properly after it was resumed
+        run_to_next_block(None);
+
+        System::reset_events();
+
+        let request = Request::List.encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            request,
+            1_000_000_000,
+            0
+        ));
+
+        run_to_next_block(None);
+
+        let message = maybe_any_last_message().expect("message to user should be sent");
+        let reply = Reply::decode(&mut message.payload()).unwrap();
+        assert!(matches!(reply, Reply::List(vec) if vec == vec![(0, 1)]));
+    })
+}
+
+#[test]
 fn test_no_messages_to_paused_program() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -6277,7 +6681,7 @@ fn pay_program_rent_extrinsic_works() {
         // attempt to pay rent for not existing program
         assert_err!(
             Gear::pay_program_rent(RuntimeOrigin::signed(USER_1), [0u8; 32].into(), block_count),
-            pallet::Error::<Test>::ProgramNotFound
+            pallet_gear_program::Error::<Test>::ProgramNotFound,
         );
 
         // attempt to pay rent that is greater than payer's balance
@@ -6291,7 +6695,7 @@ fn pay_program_rent_extrinsic_works() {
                 program_id,
                 block_count
             ),
-            pallet::Error::<Test>::InsufficientBalanceForReserve
+            pallet::Error::<Test>::InsufficientBalance
         );
 
         // attempt to pay for u32::MAX blocks. Some value should be refunded because of the overflow.
@@ -10660,6 +11064,7 @@ mod utils {
     };
     use common::{
         event::*,
+        paused_program_storage::SessionId,
         storage::{CountedByKey, Counter, IterableByKeyMap},
         Origin, ProgramStorage,
     };
@@ -11232,6 +11637,24 @@ mod utils {
             .expect("Failed to find appropriate MessageWaited event");
 
         (message_id.unwrap(), exp.unwrap())
+    }
+
+    #[track_caller]
+    pub(super) fn get_last_session() -> (
+        SessionId,
+        BlockNumberFor<Test>,
+        ProgramId,
+        <Test as frame_system::Config>::AccountId,
+    ) {
+        match get_last_event() {
+            MockRuntimeEvent::Gear(Event::ProgramResumeSessionStarted {
+                session_id,
+                session_end_block,
+                account_id,
+                program_id,
+            }) => (session_id, session_end_block, program_id, account_id),
+            _ => unreachable!(),
+        }
     }
 
     #[track_caller]

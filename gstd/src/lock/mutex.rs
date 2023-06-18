@@ -45,7 +45,7 @@ use super::access::AccessQueue;
 /// the `PONG` reply from program B and unlocks the mutex.
 ///
 /// ```
-/// use gstd::{lock::Mutex, msg, prelude::*, ActorId};
+/// use gstd::{lock::Mutex, msg, ActorId};
 ///
 /// static mut DEST: ActorId = ActorId::zero();
 /// static MUTEX: Mutex<()> = Mutex::new(());
@@ -75,7 +75,6 @@ use super::access::AccessQueue;
 ///         }
 ///     }
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct Mutex<T> {
@@ -182,7 +181,6 @@ unsafe impl<T> Sync for Mutex<T> {}
 ///     let value: i32 = *guard;
 ///     assert_eq!(value, 42);
 /// }
-///
 /// # fn main() {}
 /// ```
 pub struct MutexLockFuture<'a, T> {
