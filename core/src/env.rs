@@ -19,24 +19,16 @@
 //! Environment for running a module.
 
 use crate::{
-    buffer::LimitedVec,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPage},
     message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket, StatusCode},
 };
 use alloc::collections::BTreeSet;
 use core::{
-    fmt::{Debug, Display},
+    fmt::Display,
     mem,
-    ops::Deref,
 };
 use gear_wasm_instrument::syscalls::SysCallName;
-use scale_info::scale::{Decode, Encode};
-
-pub enum Either<L, R> {
-    Left(L),
-    Right(R),
-}
 
 pub struct PayloadSliceHolder {
     // todo [sab] add message id to check whether the same message context has come
@@ -92,7 +84,6 @@ impl PayloadSliceHolder {
     where
         Job: FnMut(PayloadToSlice<'_>) -> ReleaseBoundResult<JobErr>,
     {
-        let (start, end) = self.range;
         let held_range = PayloadToSlice(&mut self);
         job(held_range)
     }
@@ -251,7 +242,6 @@ pub trait Externalities {
     /// This should be no-op in release builds.
     fn debug(&self, data: &str) -> Result<(), Self::Error>;
 
-    // todo [sab] #[must_use]
     fn hold_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error>;
 
     fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) -> ReclaimResult;

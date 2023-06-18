@@ -45,7 +45,7 @@ use core::{
 };
 use gear_core::{
     buffer::RuntimeBufferSizeError,
-    env::{Either, Externalities, ReleaseBoundResult},
+    env::Externalities,
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{GearPage, Memory, MemoryInterval, PageBuf, WasmPage},
@@ -73,15 +73,6 @@ pub enum TerminationReason {
     Actor(ActorTerminationReason),
     System(SystemTerminationReason),
 }
-
-// impl<L: Into<TerminationReason>, R: Into<TerminationReason>> From<Either<L, R>> for TerminationReason {
-//     fn from(either_err: Either<L, R>) -> Self {
-//         match either_err {
-//             Either::Left(l) => l.into(),
-//             Either::Right(r) => r.into()
-//         }
-//     }
-// }
 
 impl From<PayloadSizeError> for TerminationReason {
     fn from(_err: PayloadSizeError) -> Self {

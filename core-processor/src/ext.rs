@@ -21,7 +21,6 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use core::mem;
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
@@ -31,7 +30,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
-    env::{Either, Externalities, PayloadSliceHolder, ReclaimResult},
+    env::{Externalities, PayloadSliceHolder, ReclaimResult},
     gas::{
         ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
         GasLeft, Token, ValueCounter,
@@ -42,7 +41,7 @@ use gear_core::{
         NoopGrowHandler, PageBuf, PageU32Size, WasmPage,
     },
     message::{
-        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, Payload,
+        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
         ReplyPacket, StatusCode,
     },
     reservation::GasReserver,
@@ -144,18 +143,6 @@ pub enum ExtError {
     #[display(fmt = "Charge error: {_0}")]
     Charge(ChargeError),
 }
-
-// impl<R> From<ExtError> for Either<ExtError, R> {
-//     fn from(err: ExtError) -> Self {
-//         Self::Left(err)
-//     }
-// }
-
-// impl<R> From<R> for Either<ExtError, R> {
-//     fn from(err: R) -> Self {
-//         Either::Right(err)
-//     }
-// }
 
 impl From<MessageError> for ExtError {
     fn from(err: MessageError) -> Self {

@@ -92,7 +92,7 @@ impl IncomingMessage {
 
     /// Message payload reference.
     pub fn payload(&self) -> &[u8] {
-        // payload_raw
+        // todo [sab] rename payload bytes
         self.payload.get()
     }
 
