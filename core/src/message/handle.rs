@@ -98,7 +98,8 @@ impl HandleMessage {
 
     /// Message payload reference.
     pub fn payload(&self) -> &[u8] {
-        self.payload.get()
+        // todo [sab] payload_bytes
+        self.payload.inner()
     }
 
     /// Message optional gas limit.
@@ -166,7 +167,7 @@ impl HandlePacket {
 
 impl Packet for HandlePacket {
     fn payload(&self) -> &[u8] {
-        self.payload.get()
+        self.payload.inner()
     }
 
     fn gas_limit(&self) -> Option<GasLimit> {

@@ -42,7 +42,7 @@ where
     [T]: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.get()))
+        write!(f, "0x{}", hex::encode(self.inner()))
     }
 }
 
@@ -111,13 +111,12 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
     }
 
     /// Returns ref to the internal data.
-    pub fn get(&self) -> &[T] {
-        // todo [sab] inner"
+    pub fn inner(&self) -> &[T] {
         &self.0
     }
 
     /// Returns mut ref to the internal data slice.
-    pub fn get_mut(&mut self) -> &mut [T] {
+    pub fn inner_mut(&mut self) -> &mut [T] {
         &mut self.0
     }
 
