@@ -208,7 +208,7 @@ where
             .map_err(Into::into)
     }
 
-    // TODO (breathx): change cost.
+    // TODO: write proper benchmark #2825
     #[host(fallible, cost = RuntimeCosts::ReplyCode, err_len = LengthWithSignalCode)]
     pub fn signal_code(ctx: &mut R) -> Result<(), R::Error> {
         ctx.ext_mut()
@@ -372,6 +372,7 @@ where
         ctx.ext_mut().reply_to().map_err(Into::into)
     }
 
+    // TODO: write proper benchmark #2825
     #[host(fallible, cost = RuntimeCosts::SignalFrom)]
     pub fn signal_from(ctx: &mut R) -> Result<(), R::Error> {
         ctx.ext_mut().signal_from().map_err(Into::into)
