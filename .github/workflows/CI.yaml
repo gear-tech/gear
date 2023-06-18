@@ -72,10 +72,6 @@ jobs:
         run: |
           tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
 
-      - name: "Cache: Clean"
-        if: ${{ github.event_name == 'pull_request' && contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
-        run: sudo git clean -fdx
-
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
 
@@ -158,10 +154,6 @@ jobs:
         continue-on-error: true
         run: |
           tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
-
-      - name: "Cache: Clean"
-        if: ${{ github.event_name == 'pull_request' && contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
-        run: sudo git clean -fdx
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
