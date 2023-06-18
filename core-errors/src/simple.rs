@@ -64,7 +64,7 @@ impl ReplyCode {
         // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)` `union`
         // between `repr(C)` structs, each of which has the `u8` discriminant as its first
         // field, so we can read the discriminant without offsetting the pointer.
-        unsafe { *<*const _>::from(&self).cast::<u8>() }
+        unsafe { *<*const _>::from(self).cast::<u8>() }
     }
 
     /// Converts `ReplyCode` to 4 bytes array.
@@ -193,7 +193,7 @@ impl ErrorReason {
         // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)` `union`
         // between `repr(C)` structs, each of which has the `u8` discriminant as its first
         // field, so we can read the discriminant without offsetting the pointer.
-        unsafe { *<*const _>::from(&self).cast::<u8>() }
+        unsafe { *<*const _>::from(self).cast::<u8>() }
     }
 
     fn to_bytes(self) -> [u8; 3] {

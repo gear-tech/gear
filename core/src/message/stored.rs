@@ -24,8 +24,8 @@ use crate::{
     },
 };
 use alloc::string::ToString;
-use gear_core_errors::ReplyCode;
 use core::{convert::TryInto, ops::Deref};
+use gear_core_errors::ReplyCode;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -146,7 +146,9 @@ impl StoredMessage {
 
     /// Returns `ReplyCode` of message if reply.
     pub fn reply_code(&self) -> Option<ReplyCode> {
-        self.details.and_then(|d| d.to_reply_details()).map(ReplyCode::from)
+        self.details
+            .and_then(|d| d.to_reply_details())
+            .map(ReplyCode::from)
     }
 }
 

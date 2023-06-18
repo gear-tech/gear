@@ -57,7 +57,7 @@ pub type Value = u128;
 
 /// Represents type defining concatenated block number with hash. 36 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct BlockNumberWithHash {
     pub bn: BlockNumber,
     pub hash: Hash,
@@ -71,7 +71,7 @@ impl BlockNumberWithHash {
 
 /// Represents type defining concatenated hash with value. 48 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct HashWithValue {
     pub hash: Hash,
     pub value: Value,
@@ -85,7 +85,7 @@ impl HashWithValue {
 
 /// Represents type defining concatenated reply code with length. 8 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthWithReplyCode {
     pub length: Length,
     pub code: ReplyCode,
@@ -112,7 +112,7 @@ impl From<Result<ReplyCode, Length>> for LengthWithReplyCode {
 
 /// Represents type defining concatenated signal code with length. 8 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthWithSignalCode {
     pub length: Length,
     pub code: SignalCode,
@@ -139,7 +139,7 @@ impl From<Result<SignalCode, Length>> for LengthWithSignalCode {
 
 /// Represents type defining concatenated length with gas. 12 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthWithGas {
     pub length: Length,
     pub gas: Gas,
@@ -166,7 +166,7 @@ impl From<Result<Gas, Length>> for LengthWithGas {
 
 /// Represents type defining concatenated length with handle. 8 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthWithHandle {
     pub length: Length,
     pub handle: Handle,
@@ -192,7 +192,7 @@ impl From<Result<Handle, Length>> for LengthWithHandle {
 }
 
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthBytes([u8; mem::size_of::<Length>()]);
 
 impl From<Result<(), Length>> for LengthBytes {
@@ -203,7 +203,7 @@ impl From<Result<(), Length>> for LengthBytes {
 
 /// Represents type defining concatenated hash with length. 36 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthWithHash {
     pub length: Length,
     pub hash: Hash,
@@ -230,7 +230,7 @@ impl<T: Into<[u8; 32]>> From<Result<T, Length>> for LengthWithHash {
 
 /// Represents type defining concatenated two hashes with length. 68 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthWithTwoHashes {
     pub length: Length,
     pub hash1: Hash,
@@ -265,7 +265,7 @@ where
 
 /// Represents type defining concatenated block number and value with length. 24 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthWithBlockNumberAndValue {
     pub length: Length,
     pub bn: BlockNumber,
@@ -296,7 +296,7 @@ impl From<Result<(Value, BlockNumber), Length>> for LengthWithBlockNumberAndValu
 
 /// Represents type defining concatenated two hashes. 64 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct TwoHashes {
     pub hash1: Hash,
     pub hash2: Hash,
@@ -310,7 +310,7 @@ impl TwoHashes {
 
 /// Represents type defining concatenated two hashes with value. 80 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct TwoHashesWithValue {
     pub hash1: Hash,
     pub hash2: Hash,
