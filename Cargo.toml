@@ -466,6 +466,11 @@ wasm-instrument = { version = "0.3.0", git = "https://github.com/gear-tech/wasm-
 subxt = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-metadata = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
 subxt-codegen = { version = "0.29.0", git = "https://github.com/gear-tech/subxt", branch = "v0.29.0" }
+sp-application-crypto = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch="gear-polkadot-v0.9.41-canary" }
+sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch="gear-polkadot-v0.9.41-canary" }
+sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch="gear-polkadot-v0.9.41-canary" }
+sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch="gear-polkadot-v0.9.41-canary" }
+sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch="gear-polkadot-v0.9.41-canary" }
 
 # TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
 blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "fix-clang-cl-cross" }
