@@ -31,21 +31,21 @@ use gear_wasm_instrument::syscalls::SysCallName;
 ///
 /// The type was mainly introduced to establish type safety mechanics
 /// for the read of the payload from externalities. To type's purposes
-/// see [`Externalities::hold_payload`] docs.
+/// see [`Externalities::lend_payload`] docs.
 ///
 /// ### Usage
 /// This type gives access to some slice of the currently executing message
 /// payload, but doesn't do it directly. It gives to the caller the [`PayloadToSlice`]
 /// wrapper, which actually can return the slice of the payload. But this wrapper
-/// is instantiated only inside the [`Self::release_with_job`] method.
+/// is instantiated only inside the [`Self::use_with_job`] method.
 /// This is actually done to prevent a user of the type from holding payload of the
 /// message, which actually moves it, from forgetting to release it back, because
 /// if access to the slice buffer was granted directly from the holder, the type user
 /// could have written the data to memory and then have dropped the holder. As a result
-/// the executing message payload wouldn't have been returned. So [`PayloadSliceHolder::release_with_job`]
+/// the executing message payload wouldn't have been returned. So [`PayloadSliceHolder::use_with_job`]
 /// is a kind of scope-guard for the data and the [`PayloadToSlice`] is a data access guard.
 ///
-/// For more usage info read [`Self::release_with_job`] docs.
+/// For more usage info read [`Self::use_with_job`] docs.
 
 pub struct PayloadSliceHolder {
     /// Held payload
@@ -316,7 +316,7 @@ pub trait Externalities {
     /// "de-allocated" or just zeroed. To prevent from the risk of payload being
     /// not "returned" back to the message a [`Externalities::reclaim_payload`] is
     /// introduced. For more info, read docs to [`PayloadSliceHolder`], [`ReleaseBoundResult`],
-    /// [`ReclaimResult`], [`PayloadToSlice`] types and their methods.
+    /// [`ReclaimBoundResult`], [`PayloadToSlice`] types and their methods.
     fn lend_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error>;
 
     /// Reclaims ownership from the payload holder over previously taken payload from the
