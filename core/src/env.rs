@@ -46,7 +46,6 @@ use gear_wasm_instrument::syscalls::SysCallName;
 /// is a kind of scope-guard for the data and the [`PayloadToSlice`] is a data access guard.
 ///
 /// For more usage info read [`Self::drop_with_job`] docs.
-
 pub struct PayloadSliceLock {
     /// Locked payload
     payload: Payload,
@@ -77,7 +76,7 @@ impl PayloadSliceLock {
     /// The method actually performs [`mem::swap`] under the hood. It's supposed
     /// to be called from [`Externalities::unlock_payload`], implementor of which
     /// owns provided message context.
-    pub fn unlock_back(&mut self, msg_ctx: &mut MessageContext) {
+    fn unlock_back(&mut self, msg_ctx: &mut MessageContext) {
         mem::swap(msg_ctx.payload_mut(), &mut self.payload);
     }
 
@@ -314,9 +313,9 @@ pub trait Externalities {
     /// to prevent additional memory allocation on payload read op, we give
     /// ownership over payload to the caller. Giving ownership over payload actually
     /// means, that the payload value in the currently executed message will become
-    /// "de-allocated" or just zeroed. To prevent from the risk of payload being
-    /// not "returned" back to the message a [`Externalities::unlock_payload`] is
-    /// introduced. For more info, read docs to [`PayloadSliceLock`], [`DropPayloadLockBoundResult`],
+    /// empty. To prevent from the risk of payload being not "returned" back to the
+    /// message a [`Externalities::unlock_payload`] is introduced. For more info,
+    /// read docs to [`PayloadSliceLock`], [`DropPayloadLockBoundResult`],
     /// [`UnlockPayloadBound`], [`PayloadToSlice`] types and their methods.
     fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::Error>;
 
