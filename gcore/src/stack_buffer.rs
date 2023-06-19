@@ -31,8 +31,8 @@ fn with_byte_array<T, const N: usize>(size: usize, f: impl FnOnce(&mut [u8]) -> 
 /// ### IMPORTANT
 /// If buffer size is too big (currently bigger than 0x4000 bytes),
 /// then allocation will be on heap.
-/// If buffer is small enough to be allocated on stack, then real allocated buffer
-/// size will be `size` aligned to upper power of 2.
+/// If buffer is small enough to be allocated on stack, then real allocated
+/// buffer size will be `size` aligned to upper power of 2.
 pub fn with_byte_buffer<T>(size: usize, f: impl FnOnce(&mut [u8]) -> T) -> T {
     match size {
         size if size <= 0x1 => with_byte_array::<_, 0x1>(size, f),

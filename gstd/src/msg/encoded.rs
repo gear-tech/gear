@@ -62,9 +62,9 @@ pub fn load<D: Decode>() -> Result<D> {
     D::decode(&mut super::load_bytes()?.as_ref()).map_err(Error::Decode)
 }
 
-/// Same as [`load`](self::load), but reads current message payload to allocated on stack buffer.
-/// Decoded object will be also on stack, but if it contains any
-/// fields, with heap allocations inside (for example vec), then
+/// Same as [`load`](self::load), but reads current message payload to allocated
+/// on stack buffer. Decoded object will be also on stack, but if it contains
+/// any fields, with heap allocations inside (for example vec), then
 /// this decoding may lead to heap allocations.
 pub fn load_on_stack<D: Decode>() -> Result<D> {
     let wrapper = |read_result: Result<&mut [u8]>| -> Result<D> {
