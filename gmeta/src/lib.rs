@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Crate for providing metadata for smart contracts.
+//! Crate for providing metadata for Gear programs.
 //!
-//! Metadata is used to describe the interface of a smart contract. For example,
+//! Metadata is used to describe the interface of a Gear program. For example,
 //! it can be used when uploading a contract using <https://idea.gear-tech.io>.
 //! The metadata informs the user about the contract's interface and allows them
 //! to interact with it using custom types on web applications UI.
@@ -26,7 +26,7 @@
 //! Another use case is to parse metadata in JavaScript using the `gear-js`
 //! library and get the metadata details for some custom UI.
 //!
-//! Note that metadata is not required for a smart contract to work. It is only
+//! Note that metadata is not required for a Gear program to work. It is only
 //! used to provide additional information about the contract. Also, metadata
 //! can be used for various purposes but we will focus on the use cases related
 //! to the <https://idea.gear-tech.io>.
@@ -46,7 +46,7 @@
 //!
 //! In this example we will create a simple ping-pong contract. Let's define
 //! message types and metadata in a separate `ping-io` crate to be able to use
-//! it in both smart contract and `build.rs` files.
+//! it in both program and `build.rs` files.
 //!
 //! We will define message types for `handle()` and `state()` functions.
 //!
@@ -86,7 +86,7 @@
 //! }
 //! ```
 //!
-//! - `ping` smart contract crate:
+//! - `ping` program crate:
 //!
 //! ```
 //! #[no_std]
