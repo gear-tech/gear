@@ -25,6 +25,11 @@ use core::mem;
 /// Represents error code type.
 pub type ErrorCode = u32;
 
+/// Successful error code.
+///
+/// Set by default during error decoding to check sys-call implementation is sound.
+pub const SUCCESS_ERROR_CODE: ErrorCode = u32::MAX;
+
 /// Represents block number type.
 pub type BlockNumber = u32;
 
@@ -99,7 +104,10 @@ impl ErrorWithStatus {
 
 impl From<Result<StatusCode, ErrorCode>> for ErrorWithStatus {
     fn from(result: Result<StatusCode, ErrorCode>) -> Self {
-        let mut res: Self = Default::default();
+        let mut res: Self = ErrorWithStatus {
+            error_code: SUCCESS_ERROR_CODE,
+            ..Default::default()
+        };
 
         match result {
             Ok(code) => res.status_code = code,
@@ -126,7 +134,10 @@ impl ErrorWithGas {
 
 impl From<Result<Gas, ErrorCode>> for ErrorWithGas {
     fn from(result: Result<Gas, ErrorCode>) -> Self {
-        let mut res: Self = Default::default();
+        let mut res: Self = ErrorWithGas {
+            error_code: SUCCESS_ERROR_CODE,
+            ..Default::default()
+        };
 
         match result {
             Ok(gas) => res.gas = gas,
@@ -153,7 +164,10 @@ impl ErrorWithHandle {
 
 impl From<Result<Handle, ErrorCode>> for ErrorWithHandle {
     fn from(result: Result<Handle, ErrorCode>) -> Self {
-        let mut res: Self = Default::default();
+        let mut res: Self = ErrorWithHandle {
+            error_code: SUCCESS_ERROR_CODE,
+            ..Default::default()
+        };
 
         match result {
             Ok(handle) => res.handle = handle,
@@ -190,7 +204,10 @@ impl ErrorWithHash {
 
 impl<T: Into<[u8; 32]>> From<Result<T, ErrorCode>> for ErrorWithHash {
     fn from(result: Result<T, ErrorCode>) -> Self {
-        let mut res: Self = Default::default();
+        let mut res: Self = ErrorWithHash {
+            error_code: SUCCESS_ERROR_CODE,
+            ..Default::default()
+        };
 
         match result {
             Ok(v) => res.hash = v.into(),
@@ -222,7 +239,10 @@ where
     T2: Into<[u8; 32]>,
 {
     fn from(result: Result<(T1, T2), ErrorCode>) -> Self {
-        let mut res: Self = Default::default();
+        let mut res: Self = ErrorWithTwoHashes {
+            error_code: SUCCESS_ERROR_CODE,
+            ..Default::default()
+        };
 
         match result {
             Ok((v1, v2)) => {
@@ -253,7 +273,10 @@ impl ErrorWithBlockNumberAndValue {
 
 impl From<Result<(Value, BlockNumber), ErrorCode>> for ErrorWithBlockNumberAndValue {
     fn from(result: Result<(Value, BlockNumber), ErrorCode>) -> Self {
-        let mut res: Self = Default::default();
+        let mut res: Self = ErrorWithBlockNumberAndValue {
+            error_code: SUCCESS_ERROR_CODE,
+            ..Default::default()
+        };
 
         match result {
             Ok((v, bn)) => {

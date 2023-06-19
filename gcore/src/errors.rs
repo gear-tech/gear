@@ -34,7 +34,7 @@ pub struct SyscallError(pub(crate) u32);
 impl From<SyscallError> for Result<()> {
     fn from(value: SyscallError) -> Self {
         match value.0 {
-            0 => Ok(()),
+            gsys::SUCCESS_ERROR_CODE => Ok(()),
             code => Err(ExtError::decode(code)
                 .unwrap_or_else(|| unreachable!("Failed to decode error code: {}", code))),
         }
