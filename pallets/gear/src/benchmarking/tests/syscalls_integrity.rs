@@ -32,7 +32,6 @@ use super::*;
 use crate::{Event, RentCostPerBlockOf, WaitlistOf};
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
-use gear_core_errors::{ExtError, MessageError};
 use gear_wasm_instrument::syscalls::SysCallName;
 use pallet_timestamp::Pallet as TimestampPallet;
 use parity_scale_codec::Decode;
@@ -92,7 +91,6 @@ where
             SysCallName::Alloc => check_mem::<T>(false),
             SysCallName::Free => check_mem::<T>(true),
             SysCallName::OutOfGas | SysCallName::OutOfAllowance => { /*no need for tests */}
-            SysCallName::Error => check_gr_err::<T>(),
             SysCallName::Random => check_gr_random::<T>(),
             SysCallName::ReserveGas => check_gr_reserve_gas::<T>(),
             SysCallName::UnreserveGas => check_gr_unreserve_gas::<T>(),
@@ -341,27 +339,6 @@ where
     }
 
     Gear::<T>::reset();
-}
-
-fn check_gr_err<T>()
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let message_value = u128::MAX;
-        let expected_err = ExtError::Message(MessageError::NotEnoughValue {
-            message_value,
-            value_left: 0,
-        });
-        let expected_err = ::alloc::format!("API error: {expected_err}");
-
-        let mp = vec![Kind::Error(message_value, expected_err)]
-            .encode()
-            .into();
-
-        (TestCall::send_message(mp), None::<DefaultPostCheck>)
-    });
 }
 
 fn check_gr_size<T>()

@@ -1247,40 +1247,6 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn gr_error(r: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
-        let res_offset = COMMON_OFFSET;
-        let err_data_buffer_offset = res_offset + ERR_LEN_SIZE;
-
-        let mut handle_body = body::fallible_syscall(
-            repetitions,
-            res_offset,
-            &[
-                // error encoded data buffer offset
-                InstrI32Const(err_data_buffer_offset),
-            ],
-        );
-
-        // Insert first `gr_error` call, which returns error, so all other `gr_error` calls will be Ok.
-        handle_body.code_mut().elements_mut().splice(
-            0..0,
-            [
-                Instruction::I32Const(0),
-                Instruction::I32Const(0),
-                Instruction::Call(0),
-            ],
-        );
-
-        let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::Error],
-            handle_body: Some(handle_body),
-            ..Default::default()
-        };
-
-        Self::prepare_handle(module, 0)
-    }
-
     pub fn termination_bench(
         name: SysCallName,
         param: Option<u32>,

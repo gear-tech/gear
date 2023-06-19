@@ -382,14 +382,6 @@ extern "C" {
     /// Infallible `gr_oom_panic` control syscall.
     pub fn gr_oom_panic() -> !;
 
-    // TODO: issue #1859
-    /// Fallible `gr_error` get syscall.
-    ///
-    /// Arguments type:
-    /// - `buf`: `mut ptr` for buffer to store previously occurred error.
-    /// - `len`: `mut ptr` for `u32` current error length.
-    pub fn gr_error(buf: *mut BufferStart, len: *mut Length);
-
     /// Fallible `gr_status_code` get syscall.
     ///
     /// Arguments type:
