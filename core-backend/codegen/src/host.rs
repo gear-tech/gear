@@ -115,7 +115,7 @@ impl HostFn {
         }
 
         let cost = self.meta.runtime_costs.clone();
-        let err_len = self.meta.err_len.clone();
+        let err = self.meta.err.clone();
         let inner_block = self.item.block.clone();
         let inputs = self.build_inputs();
 
@@ -129,7 +129,7 @@ impl HostFn {
             }
             CallType::Fallible => {
                 parse_quote! {
-                    ctx.run_fallible::<_, _, #err_len>(err_mid_ptr, #cost, |ctx| {
+                    ctx.run_fallible::<_, _, #err>(err_mid_ptr, #cost, |ctx| {
                         #inner_block
                     })
                 }
@@ -186,7 +186,7 @@ pub struct HostFnMeta {
     /// The runtime costs of the host function.
     runtime_costs: Expr,
     /// The length of the error.
-    pub err_len: Expr,
+    pub err: Expr,
 }
 
 impl Parse for HostFnMeta {
@@ -194,7 +194,7 @@ impl Parse for HostFnMeta {
         let mut call_type = Default::default();
         let mut wgas = false;
         let mut runtime_costs = parse_quote!(RuntimeCosts::Null);
-        let mut err_len = parse_quote!(ErrorWithHash);
+        let mut err = parse_quote!(ErrorWithHash);
 
         let meta_list = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
         for meta in meta_list {
@@ -203,7 +203,7 @@ impl Parse for HostFnMeta {
                 "fallible" => call_type = CallType::Fallible,
                 "wgas" => wgas = true,
                 "cost" => runtime_costs = meta.require_name_value()?.value.clone(),
-                "err_len" => err_len = meta.require_name_value()?.value.clone(),
+                "err" => err = meta.require_name_value()?.value.clone(),
                 _ => {}
             }
         }
@@ -212,7 +212,7 @@ impl Parse for HostFnMeta {
             call_type,
             wgas,
             runtime_costs,
-            err_len,
+            err,
         })
     }
 }
