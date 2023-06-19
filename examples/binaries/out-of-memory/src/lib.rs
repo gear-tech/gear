@@ -35,6 +35,10 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn init() {
+        unsafe {
+            // Force rustc not to remove memory import
+            *(10usize as *mut u8) = 10;
+        }
         alloc::alloc::handle_alloc_error(Layout::new::<[u8; 64 * 1024]>());
     }
 }

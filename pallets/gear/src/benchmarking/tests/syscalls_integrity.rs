@@ -77,7 +77,6 @@ where
             SysCallName::Value => check_gr_value::<T>(),
             SysCallName::BlockHeight => check_gr_block_height::<T>(),
             SysCallName::BlockTimestamp => check_gr_block_timestamp::<T>(),
-            SysCallName::Origin => check_gr_origin::<T>(),
             SysCallName::GasAvailable => check_gr_gas_available::<T>(),
             SysCallName::ValueAvailable => check_gr_value_available::<T>(),
             SysCallName::Exit
@@ -794,60 +793,6 @@ where
         .expect("failed to put timestamp");
 
         let mp = vec![Kind::BlockTimestamp(block_timestamp)].encode().into();
-
-        (TestCall::send_message(mp), None::<DefaultPostCheck>)
-    })
-}
-
-fn check_gr_origin<T>()
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    run_tester::<T, _, _, T::AccountId>(|tester_id, _| {
-        use demo_proxy::{InputArgs, WASM_BINARY as PROXY_WASM_BINARY};
-
-        let default_sender = utils::default_account::<T::AccountId>();
-        let message_sender = benchmarking::account::<T::AccountId>("some_user", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(
-            &message_sender,
-            100_000_000_000_000_u128.unique_saturated_into(),
-        );
-
-        let payload = vec![Kind::Origin(
-            message_sender.clone().into_origin().to_fixed_bytes(),
-        )]
-        .encode();
-
-        // Upload proxy
-        Gear::<T>::upload_program(
-            RawOrigin::Signed(default_sender).into(),
-            PROXY_WASM_BINARY.to_vec(),
-            b"".to_vec(),
-            InputArgs {
-                destination: tester_id.into_origin().into(),
-            }
-            .encode(),
-            50_000_000_000,
-            0u128.unique_saturated_into(),
-        )
-        .expect("failed deploying proxy");
-        let proxy_pid = ProgramId::generate(CodeId::generate(PROXY_WASM_BINARY), b"");
-        utils::run_to_next_block::<T>(None);
-
-        // Set origin in the tester program through origin
-        Gear::<T>::send_message(
-            RawOrigin::Signed(message_sender.clone()).into(),
-            proxy_pid,
-            payload.clone(),
-            50_000_000_000,
-            0u128.unique_saturated_into(),
-        )
-        .expect("failed setting origin");
-        utils::run_to_next_block::<T>(None);
-
-        // Check the origin
-        let mp = MessageParamsBuilder::new(payload).with_sender(message_sender);
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })

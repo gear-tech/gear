@@ -107,9 +107,6 @@ impl Externalities for MockExt {
     fn block_timestamp(&self) -> Result<u64, Self::Error> {
         Ok(0)
     }
-    fn origin(&self) -> Result<ProgramId, Self::Error> {
-        Ok(ProgramId::from(0))
-    }
     fn send_init(&mut self) -> Result<u32, Self::Error> {
         Ok(0)
     }
