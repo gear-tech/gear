@@ -134,10 +134,12 @@ mod v1 {
     use frame_support::{
         codec::{self, Decode, Encode},
         scale_info::{self, TypeInfo},
+        storage_alias, Identity,
     };
 
     // Pay attention that these types were taken from
     // actual codebase due to changes absence.
+    use common::storage::{Interval, LinkedNode};
     use gear_core::{
         ids::{MessageId, ProgramId},
         message::{ContextStore, DispatchKind, Payload},
@@ -188,6 +190,51 @@ mod v1 {
         pub message: StoredMessage,
         pub context: Option<ContextStore>,
     }
+
+    #[storage_alias]
+    pub type Dispatches<T: crate::Config> = CountedStorageMap<
+        crate::Pallet<T>,
+        Identity,
+        MessageId,
+        LinkedNode<MessageId, StoredDispatch>,
+    >;
+
+    #[storage_alias]
+    pub type Mailbox<T: crate::Config> = StorageDoubleMap<
+        crate::Pallet<T>,
+        Identity,
+        <T as frame_system::Config>::AccountId,
+        Identity,
+        MessageId,
+        (
+            StoredMessage,
+            Interval<<T as frame_system::Config>::BlockNumber>,
+        ),
+    >;
+
+    #[storage_alias]
+    pub type Waitlist<T: crate::Config> = StorageDoubleMap<
+        crate::Pallet<T>,
+        Identity,
+        ProgramId,
+        Identity,
+        MessageId,
+        (
+            StoredDispatch,
+            Interval<<T as frame_system::Config>::BlockNumber>,
+        ),
+    >;
+
+    #[storage_alias]
+    pub type DispatchStash<T: crate::Config> = StorageMap<
+        crate::Pallet<T>,
+        Identity,
+        MessageId,
+        (
+            StoredDispatch,
+            Interval<<T as frame_system::Config>::BlockNumber>,
+        ),
+    >;
 }
 
 mod transition {
@@ -291,5 +338,169 @@ mod transition {
         old_value: (v1::StoredDispatch, Interval<T::BlockNumber>),
     ) -> (StoredDispatch, Interval<T::BlockNumber>) {
         (stored_dispatch(old_value.0), old_value.1)
+    }
+}
+
+#[cfg(all(test, feature = "try-runtime"))]
+mod tests {
+    use super::v1;
+    use crate::mock;
+    use common::{
+        storage::{Interval, LinkedNode},
+        Origin as _,
+    };
+    use frame_support::{
+        traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
+        weights::RuntimeDbWeight,
+    };
+    use gear_core::{
+        ids::{MessageId, ProgramId},
+        message::DispatchKind,
+    };
+    use primitive_types::H256;
+
+    fn generate_dispatch() -> v1::StoredDispatch {
+        let id = H256::random();
+        let byte: u8 = id.as_ref()[0];
+
+        v1::StoredDispatch {
+            kind: match byte % 4 {
+                0 => DispatchKind::Init,
+                1 => DispatchKind::Handle,
+                2 => DispatchKind::Reply,
+                _ => DispatchKind::Signal,
+            },
+            message: v1::StoredMessage {
+                id: MessageId::from_origin(id),
+                source: ProgramId::from_origin(H256::random()),
+                destination: ProgramId::from_origin(H256::random()),
+                payload: H256::random()
+                    .as_ref()
+                    .to_vec()
+                    .try_into()
+                    .expect("Infallible"),
+                value: byte as u128 * 12_345,
+                details: match byte % 4 {
+                    0 | 1 => None,
+                    2 => Some(v1::MessageDetails::Reply(v1::ReplyDetails {
+                        reply_to: MessageId::from_origin(H256::random()),
+                        status_code: byte as i32 % 2,
+                    })),
+                    _ => Some(v1::MessageDetails::Signal(v1::SignalDetails {
+                        from: MessageId::from_origin(H256::random()),
+                        status_code: byte as i32,
+                    })),
+                },
+            },
+            context: (byte % 2 == 0).then(Default::default),
+        }
+    }
+
+    #[test]
+    fn migrate_v1_to_v2() {
+        let _ = env_logger::try_init();
+
+        mock::new_test_ext().execute_with(|| {
+            // Setting previous storage version.
+            StorageVersion::new(1).put::<mock::GearMessenger>();
+
+            let interval = Interval::<<mock::Test as frame_system::Config>::BlockNumber> {
+                start: 1,
+                finish: 101,
+            };
+
+            // `Dispatches` insertion.
+            let dispatches = (0..10).map(|_| generate_dispatch()).collect::<Vec<_>>();
+
+            for dispatch in dispatches.clone() {
+                v1::Dispatches::<mock::Test>::insert(
+                    dispatch.message.id,
+                    LinkedNode {
+                        next: None,
+                        value: dispatch,
+                    },
+                );
+            }
+
+            // `Waitlist` insertion.
+            let waitlisted = (0..10).map(|_| generate_dispatch()).collect::<Vec<_>>();
+
+            for dispatch in waitlisted.clone() {
+                v1::Waitlist::<mock::Test>::insert(
+                    dispatch.message.destination,
+                    dispatch.message.id,
+                    (dispatch, interval.clone()),
+                );
+            }
+
+            // `DispatchStash` insertion.
+            let stashed = (0..10).map(|_| generate_dispatch()).collect::<Vec<_>>();
+
+            for dispatch in stashed.clone() {
+                v1::DispatchStash::<mock::Test>::insert(
+                    dispatch.message.id,
+                    (dispatch, interval.clone()),
+                );
+            }
+
+            // `Mailbox` insertion.
+            let mailboxed = (0..40)
+                .filter_map(|_| {
+                    let dispatch = generate_dispatch();
+                    (dispatch.kind == DispatchKind::Handle).then_some(dispatch.message)
+                })
+                .collect::<Vec<_>>();
+
+            for message in mailboxed.clone() {
+                v1::Mailbox::<mock::Test>::insert(
+                    <mock::Test as frame_system::Config>::AccountId::from_origin(
+                        message.id.into_origin(),
+                    ),
+                    message.id,
+                    (message, interval.clone()),
+                );
+            }
+
+            // Total count of messages.
+            let transmuted = dispatches.len() + waitlisted.len() + stashed.len() + mailboxed.len();
+            // Total amount of read writes equals total count of messages and version read and write.
+            let total = (transmuted + 1)
+                .try_into()
+                .expect("Read-writes count overflow");
+            let expected_weight =
+                <<mock::Test as frame_system::Config>::DbWeight as Get<RuntimeDbWeight>>::get()
+                    .reads_writes(total, total);
+
+            let state =
+                super::MigrateToV2::<mock::Test>::pre_upgrade().expect("pre_upgrade failed");
+            let weight = super::MigrateToV2::<mock::Test>::on_runtime_upgrade();
+
+            assert_eq!(weight.ref_time(), expected_weight.ref_time());
+
+            super::MigrateToV2::<mock::Test>::post_upgrade(state).unwrap();
+
+            // Asserting amount of messages.
+            assert_eq!(
+                crate::Dispatches::<mock::Test>::iter().count(),
+                dispatches.len()
+            );
+            assert_eq!(
+                crate::Waitlist::<mock::Test>::iter().count(),
+                waitlisted.len()
+            );
+            assert_eq!(
+                crate::DispatchStash::<mock::Test>::iter().count(),
+                stashed.len()
+            );
+            assert_eq!(
+                crate::Mailbox::<mock::Test>::iter().count(),
+                mailboxed.len()
+            );
+            // Asserting version set.
+            assert_eq!(
+                mock::GearMessenger::on_chain_storage_version(),
+                crate::MESSENGER_STORAGE_VERSION
+            );
+        });
     }
 }
