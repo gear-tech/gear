@@ -252,9 +252,13 @@ where
         builder.add_func(Wake, wrap_common_func!(FuncsHandler::wake, (3) -> ()));
         builder.add_func(SystemReserveGas, wrap_common_func!(FuncsHandler::system_reserve_gas, (2) -> ()));
         builder.add_func(ReservationReply, wrap_common_func!(FuncsHandler::reservation_reply, (5) -> ()));
+        builder.add_func(ReservationReplyWGas, wrap_common_func!(FuncsHandler::reservation_reply_wgas, (6) -> ()));
         builder.add_func(ReservationReplyCommit, wrap_common_func!(FuncsHandler::reservation_reply_commit, (3) -> ()));
+        builder.add_func(ReservationReplyCommitWGas, wrap_common_func!(FuncsHandler::reservation_reply_commit_wgas, (4) -> ()));
         builder.add_func(ReservationSend, wrap_common_func!(FuncsHandler::reservation_send, (5) -> ()));
+        builder.add_func(ReservationSendWGas, wrap_common_func!(FuncsHandler::reservation_send_wgas, (6) -> ()));
         builder.add_func(ReservationSendCommit, wrap_common_func!(FuncsHandler::reservation_send_commit, (4) -> ()));
+        builder.add_func(ReservationSendCommitWGas, wrap_common_func!(FuncsHandler::reservation_send_commit_wgas, (5) -> ()));
         builder.add_func(OutOfGas, wrap_common_func!(FuncsHandler::out_of_gas, () -> ()));
         builder.add_func(OutOfAllowance, wrap_common_func!(FuncsHandler::out_of_allowance, () -> ()));
 

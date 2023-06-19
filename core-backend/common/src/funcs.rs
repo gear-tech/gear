@@ -122,7 +122,7 @@ where
             .map_err(Into::into)
     }
 
-    #[host(fallible, cost = RuntimeCosts::ReservationSend(len))]
+    #[host(fallible, wgas, cost = RuntimeCosts::ReservationSend(len))]
     pub fn reservation_send(
         ctx: &mut R,
         rid_pid_value_ptr: u32,
@@ -148,7 +148,7 @@ where
             .map_err(Into::into)
     }
 
-    #[host(fallible, cost = RuntimeCosts::ReservationSendCommit)]
+    #[host(fallible, wgas, cost = RuntimeCosts::ReservationSendCommit)]
     pub fn reservation_send_commit(
         ctx: &mut R,
         handle: u32,
@@ -305,7 +305,7 @@ where
             .map_err(Into::into)
     }
 
-    #[host(fallible, cost = RuntimeCosts::ReservationReply(len))]
+    #[host(fallible, wgas, cost = RuntimeCosts::ReservationReply(len))]
     pub fn reservation_reply(
         ctx: &mut R,
         rid_value_ptr: u32,
@@ -326,7 +326,7 @@ where
             .map_err(Into::into)
     }
 
-    #[host(fallible, cost = RuntimeCosts::ReservationReplyCommit)]
+    #[host(fallible, wgas, cost = RuntimeCosts::ReservationReplyCommit)]
     pub fn reservation_reply_commit(
         ctx: &mut R,
         rid_value_ptr: u32,
