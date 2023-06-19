@@ -171,7 +171,7 @@ pub fn read_at(offset: usize, buffer: &mut [u8]) -> Result<()> {
         unsafe {
             gsys::gr_read(
                 offset as u32,
-                size as u32,
+                buffer.len() as u32,
                 buffer.as_mut_ptr(),
                 &mut len as *mut u32,
             )
