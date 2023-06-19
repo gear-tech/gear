@@ -119,21 +119,6 @@ impl MessageId {
 /// processing message can be obtained using the
 /// [`msg::source`](crate::msg::source) function. Also, each send function has
 /// an `ActorId` target as one of the arguments.
-///
-/// # Examples
-///
-/// ```
-/// use gcore::{exec, msg};
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let sender = msg::source();
-///     let user = exec::origin();
-///     if sender == user {
-///         msg::reply(b"Hello, user!", 0).expect("Unable to reply");
-///     }
-/// }
-/// ```
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct ActorId(pub [u8; 32]);
 

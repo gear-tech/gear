@@ -262,15 +262,6 @@ where
             .map_err(Into::into)
     }
 
-    #[host(cost = RuntimeCosts::Origin)]
-    pub fn origin(ctx: &mut R, origin_ptr: u32) -> Result<(), R::Error> {
-        let origin = ctx.ext_mut().origin()?;
-
-        let write_origin = ctx.register_write_as(origin_ptr);
-        ctx.write_as(write_origin, origin.into_bytes())
-            .map_err(Into::into)
-    }
-
     #[host(cost = RuntimeCosts::Random)]
     pub fn random(ctx: &mut R, subject_ptr: u32, bn_random_ptr: u32) -> Result<(), R::Error> {
         let read_subject = ctx.register_read_decoded(subject_ptr);
