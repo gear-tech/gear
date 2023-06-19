@@ -49,7 +49,7 @@ where
             T::GasPrice::gas_price(initial_gas) + value.unique_saturated_into();
         CurrencyOf::<T>::deposit_creating(&account, max_balance.saturating_sub(balance));
 
-        let who = frame_support::dispatch::RawOrigin::Signed(account.clone());
+        let who = frame_support::dispatch::RawOrigin::Signed(account);
         let value: BalanceOf<T> = value.unique_saturated_into();
 
         QueueOf::<T>::clear();
@@ -146,7 +146,6 @@ where
                 gas_limit,
                 dispatch: queued_dispatch,
                 balance: actor.balance,
-                external: account.clone(),
                 get_actor_data: |dispatch| Ok((dispatch, actor.executable_data)),
             };
             let journal = step.execute().unwrap_or_else(|e| unreachable!("{e:?}"));

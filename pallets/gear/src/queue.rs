@@ -26,7 +26,6 @@ pub(crate) struct QueueStep<'a, T: Config, F> {
     pub gas_limit: GasBalanceOf<T>,
     pub dispatch: StoredDispatch,
     pub balance: u128,
-    pub external: T::AccountId,
     pub get_actor_data: F,
 }
 
@@ -52,7 +51,6 @@ where
             gas_limit,
             dispatch,
             balance,
-            external,
             get_actor_data,
         } = self;
 
@@ -147,11 +145,10 @@ where
         .ok_or(QueueStepError::NoMemoryPages)?;
 
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-        let origin = ProgramId::from_origin(external.into_origin());
 
         let journal = core_processor::process::<ExecutionEnvironment>(
             block_config,
-            (context, code, balance, origin).into(),
+            (context, code, balance).into(),
             (random.encode(), bn.unique_saturated_into()),
             memory_pages,
         )
@@ -190,10 +187,6 @@ where
 
             // Querying gas limit. Fails in cases of `GasTree` invalidations.
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-            // Querying external id. Fails in cases of `GasTree` invalidations.
-            let external = GasHandlerOf::<T>::get_external(dispatch.id())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             log::debug!(
@@ -238,7 +231,6 @@ where
                 gas_limit,
                 dispatch,
                 balance: balance.unique_saturated_into(),
-                external,
                 get_actor_data,
             };
             match step.execute() {

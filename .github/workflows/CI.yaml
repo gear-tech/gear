@@ -39,6 +39,7 @@ jobs:
 
   check:
     # needs: spec_version
+    needs: check-commit-message
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
@@ -66,7 +67,7 @@ jobs:
           sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
         continue-on-error: true
         run: |
           tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -98,6 +99,7 @@ jobs:
 
   build:
     # needs: spec_version
+    needs: check-commit-message
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
@@ -148,7 +150,7 @@ jobs:
           ./rust-covfix --version
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -429,6 +431,7 @@ jobs:
           --release
 
   build-win-cross:
+    needs: check-commit-message
     runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       XWIN_ARCH: x86_64
@@ -511,7 +514,7 @@ jobs:
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && !contains(needs.check-commit-message.outputs.commit-message, '[skip-cache]') }}
         continue-on-error: true
         run: |
           tar -xf /cache/build_win_cross_cargo_registry_${{ github.base_ref }}.tar -C /
@@ -689,3 +692,17 @@ jobs:
 
       - name: "Check fuzzer with mutation test"
         run: ./scripts/check-fuzzer.sh
+
+  check-commit-message:
+    name: check commit message
+    runs-on: ubuntu-latest
+    outputs:
+      commit-message: ${{ steps.commit_message.outputs.commitMsg }}
+    steps:
+      - name: Get repo
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Print head git commit message
+        id: commit_message
+        run: echo "commitMsg=$(git show -s --format=%s)" >> $GITHUB_OUTPUT
