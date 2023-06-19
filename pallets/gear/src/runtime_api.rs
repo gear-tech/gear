@@ -248,11 +248,10 @@ where
                 };
 
                 let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-                let origin = ProgramId::from_origin(source);
 
                 core_processor::process::<ExecutionEnvironment>(
                     &block_config,
-                    (context, code, balance, origin).into(),
+                    (context, code, balance).into(),
                     (random.encode(), bn.unique_saturated_into()),
                     memory_pages,
                 )

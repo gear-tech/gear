@@ -119,7 +119,6 @@ where
         f.build(BlockTimestamp, |forbidden| wrap_common_func!(CommonFuncsHandler::block_timestamp, (1) -> ())(store, forbidden, memory)),
         f.build(ReservationSend, |forbidden| wrap_common_func!(CommonFuncsHandler::reservation_send, (5) -> ())(store, forbidden, memory)),
         f.build(ReservationSendCommit, |forbidden| wrap_common_func!(CommonFuncsHandler::reservation_send_commit, (4) -> ())(store, forbidden, memory)),
-        f.build(Origin, |forbidden| wrap_common_func!(CommonFuncsHandler::origin, (1) -> ())(store, forbidden, memory)),
         f.build(Reply, |forbidden| wrap_common_func!(CommonFuncsHandler::reply, (5) -> ())(store, forbidden, memory)),
         f.build(ReplyWGas, |forbidden| wrap_common_func!(CommonFuncsHandler::reply_wgas, (6) -> ())(store, forbidden, memory)),
         f.build(ReplyCommit, |forbidden| wrap_common_func!(CommonFuncsHandler::reply_commit, (3) -> ())(store, forbidden, memory)),

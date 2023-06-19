@@ -310,7 +310,6 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     free,
                     gr_gas_available,
                     gr_message_id,
-                    gr_origin,
                     gr_pay_program_rent,
                     gr_program_id,
                     gr_source,

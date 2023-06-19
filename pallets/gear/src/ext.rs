@@ -176,10 +176,6 @@ impl Externalities for LazyPagesExt {
         self.inner.block_timestamp()
     }
 
-    fn origin(&self) -> Result<ProgramId, Self::Error> {
-        self.inner.origin()
-    }
-
     fn send_init(&mut self) -> Result<u32, Self::Error> {
         self.inner.send_init()
     }

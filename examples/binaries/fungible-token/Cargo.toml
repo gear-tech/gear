@@ -13,8 +13,13 @@ gmeta = { workspace = true }
 ft-io = { path = "io" }
 
 [dev-dependencies]
+gstd = { workspace = true, features = ["debug"] }
+gear-core.workspace = true
 tokio = { workspace = true, features = ["full", "test-util"] }
 gclient = { workspace = true }
+futures = "0.3"
+rand = { version = "0.8" }
+statrs = "0.16"
 
 [build-dependencies]
 gear-wasm-builder = { workspace = true }

@@ -218,7 +218,6 @@ where
         builder.add_func(GasAvailable, wrap_common_func!(FuncsHandler::gas_available, (1) -> ()));
         builder.add_func(Leave, wrap_common_func!(FuncsHandler::leave, () -> ()));
         builder.add_func(MessageId, wrap_common_func!(FuncsHandler::message_id, (1) -> ()));
-        builder.add_func(Origin, wrap_common_func!(FuncsHandler::origin, (1) -> ()));
         builder.add_func(PayProgramRent, wrap_common_func!(FuncsHandler::pay_program_rent, (2) -> ()));
         builder.add_func(ProgramId, wrap_common_func!(FuncsHandler::program_id, (1) -> ()));
         builder.add_func(Random, wrap_common_func!(FuncsHandler::random, (2) -> ()));
