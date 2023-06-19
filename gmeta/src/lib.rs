@@ -400,10 +400,12 @@ pub trait Metadata {
     ///
     /// Describes incoming type for the `hanle_reply()` function.
     type Reply: Types;
-    /// Asynchronous handle message type.
+    /// Message types for miscellaneous purposes.
     ///
-    /// Describes incoming/outgoing types for the `main()` function in case of
-    /// asynchronous interaction.
+    /// Here we can define types used in some specific functions. For example,
+    /// the outgoing message type in `Others` is used as a ordinary message
+    /// sent by the program using the
+    /// [`msg::send`](https://docs.gear.rs/gstd/msg/fn.send.html) function.
     type Others: Types;
     /// Signal message type.
     ///
