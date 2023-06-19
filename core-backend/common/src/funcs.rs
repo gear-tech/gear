@@ -176,7 +176,7 @@ where
     pub fn read(ctx: &mut R, at: u32, len: u32, buffer_ptr: u32) -> Result<(), R::Error> {
         let payload_lock = ctx.ext_mut().lock_payload(at, len)?;
         payload_lock
-            .unlock_with_job::<MemoryAccessError, _>(|payload_slice| {
+            .drop_with::<MemoryAccessError, _>(|payload_slice| {
                 let write_buffer = ctx.register_write(buffer_ptr, len);
                 let write_res = ctx.write(write_buffer, payload_slice.as_slice());
                 let reclaim_res = ctx.ext_mut().unlock_payload(payload_slice.into_lock());
