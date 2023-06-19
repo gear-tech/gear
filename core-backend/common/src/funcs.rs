@@ -431,6 +431,26 @@ where
             .map_err(Into::into)
     }
 
+    #[host(fallible, cost = RuntimeCosts::Cost, err_len = LengthBytes)]
+    pub fn cost(
+        ctx: &mut R,
+        cost_name_ptr: u32,
+        cost_name_len: u32,
+        cost_ptr: u32,
+        err_len_ptr: u32,
+    ) -> Result<(), R::Error> {
+        let read_name = ctx.register_read_decoded(cost_name_ptr);
+        let name = ctx.read_decoded(read_name)?;
+
+        let cost = ctx.ext_mut().cost(name)?;
+
+        let write_cost = ctx.register_write_as(cost_ptr);
+        ctx.write_as(write_cost, cost.to_le_bytes())?;
+        // .map_err(Into::into)?;
+
+        Ok(())
+    }
+
     #[host(cost = RuntimeCosts::Debug(data_len))]
     pub fn debug(ctx: &mut R, data_ptr: u32, data_len: u32) -> Result<(), R::Error> {
         let read_data = ctx.register_read(data_ptr, data_len);
