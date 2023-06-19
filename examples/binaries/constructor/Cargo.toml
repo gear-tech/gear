@@ -16,5 +16,6 @@ gear-wasm-builder.workspace = true
 
 [features]
 debug = ["gstd/debug"]
-std = []
+wasm-wrapper = []
+std = ["wasm-wrapper"]
 default = ["std"]

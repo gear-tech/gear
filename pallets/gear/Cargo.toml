@@ -59,6 +59,7 @@ test-syscalls = { workspace = true, optional = true }
 demo-proxy = { workspace = true, optional = true }
 demo-reserve-gas = { workspace = true, optional = true }
 demo-delayed-sender = { workspace = true, optional = true }
+demo-constructor = { workspace = true, optional = true }
 
 [dev-dependencies]
 wabt.workspace = true
@@ -151,6 +152,7 @@ std = [
 	"demo-proxy?/std",
 	"demo-reserve-gas?/std",
 	"demo-delayed-sender?/std",
+	"demo-constructor?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -169,6 +171,7 @@ runtime-benchmarks = [
 	"gsys",
 	"demo-reserve-gas/wasm-wrapper",
 	"demo-delayed-sender/wasm-wrapper",
+	"demo-constructor/wasm-wrapper",
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]

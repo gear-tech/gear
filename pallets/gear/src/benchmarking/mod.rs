@@ -2826,6 +2826,55 @@ benchmarks! {
         ext_manager.send_user_message(message_id, false);
     }
 
+    tasks_send_dispatch {
+        use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
+
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+
+        init_block::<T>(None);
+
+        let salt = vec![];
+        let program_id = ProgramId::generate(CodeId::generate(WASM_BINARY), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(),
+            WASM_BINARY.to_vec(),
+            salt,
+            Scheme::empty().encode(),
+            10_000_000_000, 0u32.into()).expect("submit program failed");
+
+        let delay = 1u32;
+        let calls = Calls::builder().add_call(Call::Send(
+            <[u8; 32]>::from(program_id.into_origin()).into(),
+            [].into(),
+            Some(0u64.into()),
+            0u128.into(),
+            delay.into(),
+        ));
+        Gear::<T>::send_message(
+            RawOrigin::Signed(caller).into(),
+            program_id,
+            calls.encode(),
+            10_000_000_000,
+            0u32.into(),
+        ).expect("failed to send message");
+
+        Gear::<T>::process_queue(Default::default());
+    
+        let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
+            .next()
+            .unwrap();
+        let message_id = match task {
+            ScheduledTask::SendDispatch (
+                message_id,
+            ) => message_id,
+            _ => unreachable!(),
+        };
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.send_dispatch(message_id);
+    }
+
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently
     // configured `Schedule` during benchmark development.
     // It can be outputted using the following command:

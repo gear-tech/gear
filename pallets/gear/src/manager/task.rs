@@ -50,7 +50,7 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
         RemoveFromWaitlist(_, _) => 0,
         RemovePausedProgram(_) => todo!("#646"),
         WakeMessage(_, _) => 0,
-        SendDispatch(_) => 0,
+        SendDispatch(_) => <T as Config>::WeightInfo::tasks_send_dispatch().ref_time(),
         SendUserMessage { .. } => core::cmp::max(
             <T as Config>::WeightInfo::tasks_send_user_message_to_mailbox().ref_time(),
             <T as Config>::WeightInfo::tasks_send_user_message().ref_time(),
@@ -320,7 +320,7 @@ where
         QueueOf::<T>::queue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
-        0
+        <T as Config>::WeightInfo::tasks_send_dispatch().ref_time()
     }
 
     fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: bool) -> Gas {
