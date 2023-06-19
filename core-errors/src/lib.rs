@@ -25,13 +25,15 @@ extern crate alloc;
 
 mod simple;
 
-use alloc::vec::Vec;
 use core::fmt::Debug;
 use enum_iterator::Sequence;
 #[cfg(feature = "codec")]
-use scale_info::{
-    scale::{Decode, Encode, Error, Input},
-    TypeInfo,
+use {
+    alloc::vec::Vec,
+    scale_info::{
+        scale::{Decode, Encode, Error, Input},
+        TypeInfo,
+    },
 };
 
 pub use simple::*;
