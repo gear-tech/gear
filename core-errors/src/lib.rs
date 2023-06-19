@@ -38,6 +38,62 @@ use {
 
 pub use simple::*;
 
+/// Execution error.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, derive_more::Display,
+)]
+#[non_exhaustive]
+#[repr(u32)]
+pub enum ExecutionError {
+    /// An error occurs in attempt to wait duration greater than could be paid.
+    #[display(fmt = "Not enough gas to cover holding in waitlist")]
+    NotEnoughGas = 100,
+
+    /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
+    #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
+    InvalidDebugString = 101,
+
+    /// Overflow in 'gr_read'
+    #[display(fmt = "Length is overflowed to read payload")]
+    TooBigReadLen = 102,
+
+    /// Cannot take data in payload range
+    #[display(fmt = "Cannot take data in payload range from message with size")]
+    ReadWrongRange = 103,
+
+    /// The error occurs when functions related to reply context, used without it.
+    #[display(fmt = "Not running in reply context")]
+    NoReplyContext = 104,
+
+    /// The error occurs when functions related to signal context, used without it.
+    #[display(fmt = "Not running in signal context")]
+    NoSignalContext = 105,
+
+    /// The error occurs when functions related to status code, used without required context.
+    #[display(fmt = "No status code in reply/signal context")]
+    NoStatusCodeContext = 106,
+
+    /// An error occurs in attempt to send or push reply while reply function is banned.
+    #[display(fmt = "Reply sending is only allowed in `init` and `handle` functions")]
+    IncorrectEntryForReply = 107,
+}
+
+/// Memory error.
+#[derive(
+    Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, Sequence, derive_more::Display,
+)]
+#[cfg_attr(feature = "codec", derive(TypeInfo), codec(crate = scale))]
+#[non_exhaustive]
+#[repr(u32)]
+pub enum MemoryError {
+    /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
+    #[display(fmt = "Trying to allocate more memory in block-chain runtime than allowed")]
+    RuntimeAllocOutOfBounds = 200,
+    /// The error occurs in attempt to access memory outside wasm program memory.
+    #[display(fmt = "Trying to access memory outside wasm program memory")]
+    AccessOutOfBounds = 201,
+}
+
 /// Error using messages.
 #[derive(
     Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Sequence, derive_more::Display,
@@ -128,22 +184,6 @@ pub enum WaitError {
     WaitAfterReply = 401,
 }
 
-/// Memory error.
-#[derive(
-    Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, Sequence, derive_more::Display,
-)]
-#[cfg_attr(feature = "codec", derive(TypeInfo), codec(crate = scale))]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum MemoryError {
-    /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
-    #[display(fmt = "Trying to allocate more memory in block-chain runtime than allowed")]
-    RuntimeAllocOutOfBounds = 200,
-    /// The error occurs in attempt to access memory outside wasm program memory.
-    #[display(fmt = "Trying to access memory outside wasm program memory")]
-    AccessOutOfBounds = 201,
-}
-
 /// Reservation error.
 #[derive(
     Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, Sequence, derive_more::Display,
@@ -183,46 +223,6 @@ pub enum ProgramRentError {
     /// The error occurs when program's paid block count is maximum.
     #[display(fmt = "Rent block count limit has been reached")]
     MaximumBlockCountPaid = 601,
-}
-
-/// Execution error.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, derive_more::Display,
-)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum ExecutionError {
-    /// An error occurs in attempt to wait duration greater than could be paid.
-    #[display(fmt = "Not enough gas to cover holding in waitlist")]
-    NotEnoughGas = 100,
-
-    /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
-    #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
-    InvalidDebugString = 101,
-
-    /// Overflow in 'gr_read'
-    #[display(fmt = "Length is overflowed to read payload")]
-    TooBigReadLen = 102,
-
-    /// Cannot take data in payload range
-    #[display(fmt = "Cannot take data in payload range from message with size")]
-    ReadWrongRange = 103,
-
-    /// The error occurs when functions related to reply context, used without it.
-    #[display(fmt = "Not running in reply context")]
-    NoReplyContext = 104,
-
-    /// The error occurs when functions related to signal context, used without it.
-    #[display(fmt = "Not running in signal context")]
-    NoSignalContext = 105,
-
-    /// The error occurs when functions related to status code, used without required context.
-    #[display(fmt = "No status code in reply/signal context")]
-    NoStatusCodeContext = 106,
-
-    /// An error occurs in attempt to send or push reply while reply function is banned.
-    #[display(fmt = "Reply sending is only allowed in `init` and `handle` functions")]
-    IncorrectEntryForReply = 107,
 }
 
 /// An error occurred in API.
