@@ -459,13 +459,8 @@ where
         ctx.ext_mut().reserve_gas(gas, duration).map_err(Into::into)
     }
 
-    #[host(faillible, cost = RuntimeCosts::ReplyDeposit, err = ErrorBytes)]
-    pub fn reply_deposit(
-        ctx: &mut R,
-        message_id_ptr: u32,
-        gas: u64,
-        err_mid_ptr: u32,
-    ) -> Result<(), R::Error> {
+    #[host(fallible, cost = RuntimeCosts::ReplyDeposit, err = ErrorBytes)]
+    pub fn reply_deposit(ctx: &mut R, message_id_ptr: u32, gas: u64) -> Result<(), R::Error> {
         let read_message_id = ctx.register_read_decoded(message_id_ptr);
         let message_id = ctx.read_decoded(read_message_id)?;
 
