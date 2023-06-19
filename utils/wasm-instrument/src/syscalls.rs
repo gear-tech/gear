@@ -79,7 +79,6 @@ pub enum SysCallName {
     // Execution environmental data
     BlockHeight,
     BlockTimestamp,
-    Origin,
     GasAvailable,
     ValueAvailable,
 
@@ -128,7 +127,6 @@ impl SysCallName {
             SysCallName::GasAvailable => "gr_gas_available",
             SysCallName::Leave => "gr_leave",
             SysCallName::MessageId => "gr_message_id",
-            SysCallName::Origin => "gr_origin",
             SysCallName::OutOfAllowance => "gr_out_of_allowance",
             SysCallName::OutOfGas => "gr_out_of_gas",
             SysCallName::PayProgramRent => "gr_pay_program_rent",
@@ -200,7 +198,6 @@ impl SysCallName {
             Self::GasAvailable,
             Self::PayProgramRent,
             Self::ProgramId,
-            Self::Origin,
             Self::Leave,
             Self::ValueAvailable,
             Self::Wait,
@@ -263,7 +260,6 @@ impl SysCallName {
             Self::GasAvailable => SysCallSignature::gr([Ptr]),
             Self::PayProgramRent => SysCallSignature::gr([Ptr, Ptr]),
             Self::ProgramId => SysCallSignature::gr([Ptr]),
-            Self::Origin => SysCallSignature::gr([Ptr]),
             Self::Leave => SysCallSignature::gr([]),
             Self::ValueAvailable => SysCallSignature::gr([Ptr]),
             Self::Wait => SysCallSignature::gr([]),

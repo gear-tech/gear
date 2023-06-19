@@ -70,10 +70,6 @@ pub trait Externalities {
     /// Get the current block timestamp.
     fn block_timestamp(&self) -> Result<u64, Self::Error>;
 
-    /// Get the id of the user who initiated communication with blockchain,
-    /// during which, currently processing message was created.
-    fn origin(&self) -> Result<ProgramId, Self::Error>;
-
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<u32, Self::Error>;
 
