@@ -33,7 +33,10 @@ use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
     Perbill,
 };
-use sp_std::convert::{TryFrom, TryInto};
+use sp_std::{
+    cell::RefCell,
+    convert::{TryFrom, TryInto},
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -151,11 +154,53 @@ parameter_types! {
     pub const BlockGasLimit: u64 = MAX_BLOCK;
     pub const OutgoingLimit: u32 = 1024;
     pub ReserveThreshold: BlockNumber = 1;
-    pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
+}
+
+thread_local! {
+    static SCHEDULE: RefCell<Option<Schedule<Test>>> = RefCell::new(None);
+}
+
+#[derive(Debug)]
+pub struct DynamicSchedule;
+
+impl DynamicSchedule {
+    pub fn mutate<F>(f: F) -> DynamicScheduleReset
+    where
+        F: FnOnce(&mut Schedule<Test>),
+    {
+        SCHEDULE.with(|schedule| f(schedule.borrow_mut().as_mut().unwrap()));
+        DynamicScheduleReset(())
+    }
+
+    pub fn get() -> Schedule<Test> {
+        SCHEDULE.with(|schedule| {
+            schedule
+                .borrow_mut()
+                .get_or_insert_with(Default::default)
+                .clone()
+        })
+    }
+}
+
+impl Get<Schedule<Test>> for DynamicSchedule {
+    fn get() -> Schedule<Test> {
+        Self::get()
+    }
+}
+
+#[must_use]
+pub struct DynamicScheduleReset(());
+
+impl Drop for DynamicScheduleReset {
+    fn drop(&mut self) {
+        SCHEDULE.with(|schedule| {
+            *schedule.borrow_mut() = Some(Default::default());
+        })
+    }
 }
 
 impl pallet_gear::Config for Test {
@@ -164,7 +209,7 @@ impl pallet_gear::Config for Test {
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
-    type Schedule = GearSchedule;
+    type Schedule = DynamicSchedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
