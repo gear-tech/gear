@@ -24,4 +24,4 @@ subxt-codegen.workspace = true
 # TODO: inherit from workspace
 #
 # use "2.0.15" because subxt-codegen-0.29.0 requires it.
-syn = { version = "^2.0.15", features = ["full", "parsing"] }
+syn = { version = "2.0.15", features = ["full", "parsing"] }
