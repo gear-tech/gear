@@ -197,7 +197,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
             // the emitted hash is always of the same length; otherwise
             // it can (and will!) vary between different build environments.
             match Command::new("git")
-                .args(&["rev-parse", "--short=11", "HEAD"])
+                .args(["rev-parse", "--short=11", "HEAD"])
                 .output()
             {
                 Ok(o) if o.status.success() => {
