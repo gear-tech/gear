@@ -120,7 +120,7 @@ fn out_of_rent_reply_exists(
             let err = ErrorReason::RemovedFromWaitlist;
             msg.destination() == src
                 && msg.source() == pid
-                && msg.reply() == Some(ReplyDetails::new(mid, err.into()))
+                && msg.details() == Some(ReplyDetails::new(mid, err.into()))
                 && msg.payload() == err.to_string().as_bytes()
         } else {
             false

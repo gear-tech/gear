@@ -66,6 +66,7 @@ use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageU32Size, WasmPage},
+    message::UserMessage,
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
@@ -693,7 +694,7 @@ fn reply_deposit_gstd_async() {
         assert_succeed(handle_id);
 
         let reply = maybe_any_last_message().expect("Should be");
-        let (mid, code): (MessageId, ReplyCode) = reply.reply().expect("Should be").into();
+        let (mid, code): (MessageId, ReplyCode) = reply.details().expect("Should be").into();
         assert_eq!(mid, handle_id);
         assert_eq!(code, ReplyCode::Success(SuccessReason::Manual));
         assert_eq!(reply.payload(), hello_reply);
@@ -8066,7 +8067,7 @@ fn delayed_sending() {
         assert!(Gear::is_active(prog));
 
         let auto_reply = maybe_last_message(USER_1).expect("Should be");
-        assert!(auto_reply.is_reply());
+        assert!(auto_reply.details().is_some());
         assert!(auto_reply.payload().is_empty());
         assert_eq!(
             auto_reply.reply_code().expect("Should be"),
@@ -11096,7 +11097,7 @@ mod utils {
     use gear_backend_common::TrapExplanation;
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
-        message::{Message, Payload, ReplyDetails, StoredMessage},
+        message::{Message, Payload, ReplyDetails, UserMessage},
         reservation::GasReservationMap,
     };
     use gear_core_errors::*;
@@ -11444,7 +11445,7 @@ mod utils {
 
         System::events().into_iter().for_each(|e| {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                if let Some(details) = message.reply() {
+                if let Some(details) = message.details() {
                     let (mid, code) = details.into();
                     if mid == message_id && code.is_error() {
                         actual_error = Some((
@@ -11686,7 +11687,7 @@ mod utils {
     }
 
     #[track_caller]
-    pub(super) fn maybe_last_message(account: AccountId) -> Option<StoredMessage> {
+    pub(super) fn maybe_last_message(account: AccountId) -> Option<UserMessage> {
         System::events().into_iter().rev().find_map(|e| {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 if message.destination() == account.into() {
@@ -11715,7 +11716,7 @@ mod utils {
     }
 
     #[track_caller]
-    pub(super) fn maybe_any_last_message() -> Option<StoredMessage> {
+    pub(super) fn maybe_any_last_message() -> Option<UserMessage> {
         System::events().into_iter().rev().find_map(|e| {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 Some(message)
@@ -11726,7 +11727,7 @@ mod utils {
     }
 
     #[track_caller]
-    pub(super) fn get_last_mail(account: AccountId) -> StoredMessage {
+    pub(super) fn get_last_mail(account: AccountId) -> UserMessage {
         MailboxOf::<Test>::iter_key(account)
             .last()
             .map(|(msg, _bn)| msg)
@@ -12164,7 +12165,7 @@ fn check_random_works() {
 
         assert_eq!(random_data.len(), MailboxOf::<Test>::len(&USER_1));
 
-        let mut sorted_mailbox: Vec<(gear_core::message::StoredMessage, Interval<BlockNumber>)> =
+        let mut sorted_mailbox: Vec<(UserMessage, Interval<BlockNumber>)> =
             MailboxOf::<Test>::iter_key(USER_1).collect();
         sorted_mailbox.sort_by(|a, b| a.1.finish.cmp(&b.1.finish));
 

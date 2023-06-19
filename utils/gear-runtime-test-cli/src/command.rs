@@ -566,7 +566,7 @@ macro_rules! command {
                 log::trace!("mailbox: {:?}", &mailbox);
 
                 let messages: Vec<(StoredMessage, GasLimit)> =
-                    mailbox.into_iter().map(|msg| (msg, 0)).collect();
+                    mailbox.into_iter().map(|msg| (msg.into(), 0)).collect();
 
                 for (message, _) in &messages {
                     if let Ok(utf8) = core::str::from_utf8(message.payload()) {
