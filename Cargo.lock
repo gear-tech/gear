@@ -11801,7 +11801,7 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 [[package]]
 name = "subxt"
 version = "0.29.0"
-source = "git+https://github.com/gear-tech/subxt?branch=v0.29.0#c2da3934143466173004997073131271608e720d"
+source = "git+https://github.com/gear-tech/subxt?branch=v0.29.0#266ce4eff8987e1efc48fe3471808398c2ca9185"
 dependencies = [
  "base58",
  "blake2",
@@ -11834,7 +11834,7 @@ dependencies = [
 [[package]]
 name = "subxt-codegen"
 version = "0.29.0"
-source = "git+https://github.com/gear-tech/subxt?branch=v0.29.0#c2da3934143466173004997073131271608e720d"
+source = "git+https://github.com/gear-tech/subxt?branch=v0.29.0#266ce4eff8987e1efc48fe3471808398c2ca9185"
 dependencies = [
  "frame-metadata",
  "heck",
@@ -11853,7 +11853,7 @@ dependencies = [
 [[package]]
 name = "subxt-macro"
 version = "0.29.0"
-source = "git+https://github.com/gear-tech/subxt?branch=v0.29.0#c2da3934143466173004997073131271608e720d"
+source = "git+https://github.com/gear-tech/subxt?branch=v0.29.0#266ce4eff8987e1efc48fe3471808398c2ca9185"
 dependencies = [
  "darling 0.20.1",
  "proc-macro-error",
@@ -11864,7 +11864,7 @@ dependencies = [
 [[package]]
 name = "subxt-metadata"
 version = "0.29.0"
-source = "git+https://github.com/gear-tech/subxt?branch=v0.29.0#c2da3934143466173004997073131271608e720d"
+source = "git+https://github.com/gear-tech/subxt?branch=v0.29.0#266ce4eff8987e1efc48fe3471808398c2ca9185"
 dependencies = [
  "frame-metadata",
  "parity-scale-codec",
