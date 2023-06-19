@@ -37,12 +37,11 @@ async fn listen_events(tx: Sender<subxt::events::Events<GearConfig>>, node: Stri
     let api = gsdk::Api::new(Some(&node)).await?;
     let mut event_listener = api.finalized_blocks().await?;
 
-    loop {
-        while let Some(events) = event_listener.next_events().await {
-            tx.send(events?)?;
-        }
-        break Err(anyhow!("Can't get new events"));
+    while let Some(events) = event_listener.next_events().await {
+        tx.send(events?)?;
     }
+
+    Err(anyhow!("Listen events: Can't get new events"))
 }
 
 async fn load_node(params: LoadParams) -> Result<()> {
