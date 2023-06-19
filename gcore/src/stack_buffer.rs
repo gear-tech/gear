@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! +_+_+
+//! Stack allocations utils.
 
 use alloc::vec;
 
@@ -27,7 +27,12 @@ fn with_byte_array<T, const N: usize>(size: usize, f: impl FnOnce(&mut [u8]) -> 
     f(sub_buffer)
 }
 
-/// +_+_+
+/// Calls function `f` with provided byte buffer allocated on stack.
+/// ### IMPORTANT
+/// If buffer size is too big (currently bigger than 0x4000 bytes),
+/// then allocation will be on heap.
+/// If buffer is small enough to be allocated on stack, then real allocated buffer
+/// size will be `size` aligned to upper power of 2.
 pub fn with_byte_buffer<T>(size: usize, f: impl FnOnce(&mut [u8]) -> T) -> T {
     match size {
         size if size <= 0x1 => with_byte_array::<_, 0x1>(size, f),

@@ -573,6 +573,50 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
     .into()
 }
 
+/// Allow user to make external function code with already loaded
+/// current message payload to stack buffer.
+///
+/// # Usage
+///
+/// ```ignore
+/// #[gstd::message_read_on_stack]
+/// fn handle(read_result: Result<&mut [u8]>) {
+///     let payload: &mut [u8] = read_result.expect("Unable to read");
+///     // Do something with `payload`
+/// }
+///
+/// #[gstd::message_read_on_stack]
+/// fn init(read_result: Result<&mut [u8]>) {
+///     let payload: &mut [u8] = read_result.expect("Unable to read");
+///     // Do something with `payload`
+/// }
+/// ```
+///
+/// #### Output:
+///
+/// ```ignore
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     gstd::with_read_on_stack(|read_result: Result<&mut [u8]>| {
+///         let payload: &mut [u8] = read_result.expect("Unable to read");
+///         // Do something with `payload`
+///     });
+/// }
+///
+/// #[no_mangle]
+/// extern "C" fn init(read_result: Result<&mut [u8]>) {
+///     gstd::with_read_on_stack(|read_result: Result<&mut [u8]>| {
+///         let payload: &mut [u8] = read_result.expect("Unable to read");
+///         // Do something with `payload`
+///     });
+/// }
+/// ```
+///
+/// # IMPORTANT:
+/// 1) Input function must not have another attributes.
+/// 2) Input function return type must be `()`.
+/// 3) Because of `1)` cannot be used with async macros.
+///
 #[proc_macro_attribute]
 pub fn message_read_on_stack(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(item as ItemFn);

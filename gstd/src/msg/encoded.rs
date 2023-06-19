@@ -62,8 +62,10 @@ pub fn load<D: Decode>() -> Result<D> {
     D::decode(&mut super::load_bytes()?.as_ref()).map_err(Error::Decode)
 }
 
-/// Reads current message payload to buffer on program stack, .
-/// +_+_+ ??
+/// Same as [`load`](self::load), but reads current message payload to allocated on stack buffer.
+/// Decoded object will be also on stack, but if it contains any
+/// fields, with heap allocations inside (for example vec), then
+/// this decoding may lead to heap allocations.
 pub fn load_on_stack<D: Decode>() -> Result<D> {
     let wrapper = |read_result: Result<&mut [u8]>| -> Result<D> {
         match read_result.map(|buffer| {
@@ -129,7 +131,8 @@ pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
     super::reply_bytes(payload.encode(), value)
 }
 
-/// +_+_+
+/// Same as [reply], but encodes payload to stack allocated buffer.
+/// Buffer size for encoding is at least `E::max_encoded_len()`.
 pub fn reply_on_stack<E: Encode + MaxEncodedLen>(payload: E, value: u128) -> Result<MessageId> {
     struct ExternalBufferOutput<'a> {
         buffer: &'a mut [u8],

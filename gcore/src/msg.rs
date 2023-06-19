@@ -140,7 +140,23 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
     SyscallError(len).into_result()
 }
 
-/// +_+_+
+/// Executes function `f` with provided message payload allocated on stack.
+///
+/// Returns function `f` call result `T`.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::msg;
+///
+/// #[no_mangle]
+/// extern "C" fn handle() {
+///     msg::with_read_on_stack(|read_res| {
+///         let payload: &mut [u8] = read_res.expect("Unable to read");
+///         // do something with `payload`
+///     });
+/// }
+/// ```
 pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
     let size = size();
     stack_buffer::with_byte_buffer(size, |buffer| {
