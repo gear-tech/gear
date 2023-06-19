@@ -59,7 +59,6 @@ pub trait WeightInfo {
     fn gr_unreserve_gas(r: u32, ) -> Weight;
     fn gr_system_reserve_gas(r: u32, ) -> Weight;
     fn gr_message_id(r: u32, ) -> Weight;
-    fn gr_origin(r: u32, ) -> Weight;
     fn gr_pay_program_rent(r: u32, ) -> Weight;
     fn gr_program_id(r: u32, ) -> Weight;
     fn gr_source(r: u32, ) -> Weight;
@@ -486,16 +485,6 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(87_482_719, 0)
             // Standard Error: 241_209
             .saturating_add(Weight::from_parts(225_074_263, 0).saturating_mul(r.into()))
-    }
-    /// The range of component `r` is `[0, 20]`.
-    fn gr_origin(r: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 84_424_000 picoseconds.
-        Weight::from_parts(87_457_891, 0)
-            // Standard Error: 343_654
-            .saturating_add(Weight::from_parts(223_972_467, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_pay_program_rent(r: u32, ) -> Weight {
@@ -2367,16 +2356,6 @@ impl WeightInfo for () {
         Weight::from_parts(87_482_719, 0)
             // Standard Error: 241_209
             .saturating_add(Weight::from_parts(225_074_263, 0).saturating_mul(r.into()))
-    }
-    /// The range of component `r` is `[0, 20]`.
-    fn gr_origin(r: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 84_424_000 picoseconds.
-        Weight::from_parts(87_457_891, 0)
-            // Standard Error: 343_654
-            .saturating_add(Weight::from_parts(223_972_467, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 20]`.
     fn gr_pay_program_rent(r: u32, ) -> Weight {

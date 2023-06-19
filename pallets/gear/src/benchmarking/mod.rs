@@ -74,7 +74,7 @@ use common::{
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
-    ProcessExecutionContext, ProcessorContext, ProcessorExt,
+    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::{
@@ -185,7 +185,6 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         max_pages: TESTS_MAX_PAGES_NUMBER.into(),
         page_costs: PageCosts::new_for_tests(),
         existential_deposit: 0,
-        origin: Default::default(),
         program_id: Default::default(),
         program_candidates_data: Default::default(),
         program_rents: Default::default(),
@@ -868,17 +867,6 @@ benchmarks! {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = Benches::<T>::getter(SysCallName::MessageId, r)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
-    gr_origin {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::Origin, r)?;
     }: {
         res.replace(run_process(exec));
     }

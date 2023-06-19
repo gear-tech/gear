@@ -40,11 +40,13 @@ pub enum PageAction {
     None,
 }
 
-/// External api for managing memory, messages, and gas-counting.
-pub trait Ext {
-    /// An error issued in api
+/// External api and data for managing memory and messages,
+/// use by an executing program to trigger state transition
+/// in runtime.
+pub trait Externalities {
+    /// An error issued in api.
     type Error;
-    /// An error issued during allocation
+    /// An error issued during allocation.
     type AllocError: Display;
 
     /// Allocate number of pages.
@@ -67,10 +69,6 @@ pub trait Ext {
 
     /// Get the current block timestamp.
     fn block_timestamp(&self) -> Result<u64, Self::Error>;
-
-    /// Get the id of the user who initiated communication with blockchain,
-    /// during which, currently processing message was created.
-    fn origin(&self) -> Result<ProgramId, Self::Error>;
 
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<u32, Self::Error>;
