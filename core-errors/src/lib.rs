@@ -42,7 +42,7 @@ pub use simple::*;
 #[non_exhaustive]
 #[repr(u32)]
 pub enum ExecutionError {
-    /// An error occurs in attempt to wait duration greater than could be paid.
+    /// An error occurs in attempt to charge more gas than available for operation.
     #[display(fmt = "Not enough gas to cover holding in waitlist")]
     NotEnoughGas = 100,
 
