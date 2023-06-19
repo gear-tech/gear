@@ -19,6 +19,7 @@
 //! command `info`
 use crate::result::{Error, Result};
 use clap::Parser;
+use gear_core_errors::ReplyCode;
 use gsdk::{
     ext::{
         sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
@@ -26,10 +27,7 @@ use gsdk::{
     },
     metadata::runtime_types::{
         gear_common::storage::primitives::Interval,
-        gear_core::message::{
-            common::{MessageDetails, ReplyDetails, SignalDetails},
-            stored::StoredMessage,
-        },
+        gear_core::message::{common::ReplyDetails, user::UserMessage},
     },
     signer::Signer,
 };
@@ -102,12 +100,12 @@ impl Info {
 }
 
 struct Mail {
-    message: StoredMessage,
+    message: UserMessage,
     interval: Interval<u32>,
 }
 
-impl From<(StoredMessage, Interval<u32>)> for Mail {
-    fn from(t: (StoredMessage, Interval<u32>)) -> Self {
+impl From<(UserMessage, Interval<u32>)> for Mail {
+    fn from(t: (UserMessage, Interval<u32>)) -> Self {
         Self {
             message: t.0,
             interval: t.1,
@@ -134,23 +132,10 @@ impl fmt::Debug for Mail {
             .field("value", &self.message.value)
             .field(
                 "details",
-                &self.message.details.as_ref().map(DebugMessageDestination),
+                &self.message.details.as_ref().map(DebugReplyDetails),
             )
             .field("interval", &self.interval)
             .finish()
-    }
-}
-
-struct DebugMessageDestination<'d>(pub &'d MessageDetails);
-
-impl<'d> fmt::Debug for DebugMessageDestination<'d> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let mut d = fmt.debug_tuple("MessageDetails");
-        match self.0 {
-            MessageDetails::Reply(reply) => d.field(&DebugReplyDetails(reply)),
-            MessageDetails::Signal(signal) => d.field(&DebugSignalDestination(signal)),
-        };
-        d.finish()
     }
 }
 
@@ -159,19 +144,8 @@ struct DebugReplyDetails<'d>(pub &'d ReplyDetails);
 impl<'d> fmt::Debug for DebugReplyDetails<'d> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("ReplyDetails")
-            .field("reply_to", &hex::encode(self.0.reply_to.0))
-            .field("status_code", &self.0.status_code.to_string())
-            .finish()
-    }
-}
-
-struct DebugSignalDestination<'d>(pub &'d SignalDetails);
-
-impl<'d> fmt::Debug for DebugSignalDestination<'d> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("SignalDetails")
-            .field("from", &hex::encode(self.0.from.0))
-            .field("status_code", &self.0.status_code.to_string())
+            .field("to", &hex::encode(self.0.to.0))
+            .field("code", &ReplyCode::from(self.0.code.clone()).to_string())
             .finish()
     }
 }

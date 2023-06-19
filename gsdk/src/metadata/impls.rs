@@ -149,7 +149,8 @@ macro_rules! impl_basic {
 impl_basic! {
     ApiEvent, generated_ids::MessageId,
     generated_ids::ProgramId, generated_ids::CodeId, generated_ids::ReservationId,
-    Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>
+    Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>,
+    generated_core_errors::simple::ReplyCode
 }
 
 impl From<RuntimeCall> for Value {

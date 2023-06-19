@@ -279,7 +279,7 @@ impl GearApi {
         let src_program_reserved_gas_node_ids: Vec<types::GearGasNodeId> = src_program
             .gas_reservation_map
             .iter()
-            .map(|gr| gr.0.into())
+            .map(|gr| gr.0.clone().into())
             .collect();
 
         let src_program_reserved_gas_nodes = self
