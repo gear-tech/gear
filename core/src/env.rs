@@ -76,7 +76,7 @@ impl PayloadSliceLock {
     /// The method actually performs [`mem::swap`] under the hood. It's supposed
     /// to be called from [`Externalities::unlock_payload`], implementor of which
     /// owns provided message context.
-    fn unlock_back(&mut self, msg_ctx: &mut MessageContext) {
+    fn release(&mut self, msg_ctx: &mut MessageContext) {
         mem::swap(msg_ctx.payload_mut(), &mut self.payload);
     }
 
@@ -161,7 +161,7 @@ pub struct UnlockPayloadBound(());
 
 impl From<(&mut MessageContext, &mut PayloadSliceLock)> for UnlockPayloadBound {
     fn from((msg_ctx, payload_holder): (&mut MessageContext, &mut PayloadSliceLock)) -> Self {
-        payload_holder.unlock_back(msg_ctx);
+        payload_holder.release(msg_ctx);
 
         UnlockPayloadBound(())
     }
@@ -322,7 +322,7 @@ pub trait Externalities {
     /// Reclaims ownership from the payload lock over previously taken payload from the
     /// currently executing message..
     ///
-    /// It's supposed, that the implementation of the method calls `PayloadSliceLock::unlock_back`.
+    /// It's supposed, that the implementation of the method calls `PayloadSliceLock::release`.
     fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound;
 
     /// Size of currently handled message payload.
