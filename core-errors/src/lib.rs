@@ -30,10 +30,7 @@ use enum_iterator::Sequence;
 #[cfg(feature = "codec")]
 use {
     alloc::vec::Vec,
-    scale_info::{
-        scale::{Decode, Encode, Error, Input},
-        TypeInfo,
-    },
+    scale_info::scale::{Decode, Encode, Error, Input},
 };
 
 pub use simple::*;
@@ -82,7 +79,6 @@ pub enum ExecutionError {
 #[derive(
     Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, Sequence, derive_more::Display,
 )]
-#[cfg_attr(feature = "codec", derive(TypeInfo), codec(crate = scale))]
 #[non_exhaustive]
 #[repr(u32)]
 pub enum MemoryError {
