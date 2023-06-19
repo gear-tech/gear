@@ -41,12 +41,12 @@ async fn listen_events(tx: Sender<subxt::events::Events<GearConfig>>, node: Stri
         while let Some(events) = event_listener.next_events().await {
             tx.send(events?)?;
         }
+        break Err(anyhow!("Can't get new events"));
     }
 }
 
 async fn load_node(params: LoadParams) -> Result<()> {
     let (tx, rx) = tokio::sync::broadcast::channel(16);
-    tokio::spawn(listen_events(tx, params.node.clone()));
     let mut name_gen = Generator::default();
     let run_name = name_gen
         .next()
@@ -63,11 +63,13 @@ async fn load_node(params: LoadParams) -> Result<()> {
 
     let api = GearApiFacade::try_new(params.node.clone(), params.user.clone()).await?;
 
-    let batch_pool = BatchPool::<SmallRng>::new(
-        api.clone(),
-        params.batch_size,
-        params.workers,
-        rx.resubscribe(),
-    );
-    tokio::spawn(batch_pool.run(params, rx)).await?
+    let batch_pool =
+        BatchPool::<SmallRng>::new(api, params.batch_size, params.workers, rx.resubscribe());
+
+    let run_result = tokio::select! {
+        r = tokio::spawn(listen_events(tx, params.node.clone())) => r?,
+        r = tokio::spawn(batch_pool.run(params, rx)) => r?,
+    };
+
+    run_result
 }
