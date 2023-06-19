@@ -446,7 +446,6 @@ where
 
         let write_cost = ctx.register_write_as(cost_ptr);
         ctx.write_as(write_cost, cost.to_le_bytes())?;
-        // .map_err(Into::into)?;
 
         Ok(())
     }

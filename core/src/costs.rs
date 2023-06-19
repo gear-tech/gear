@@ -22,7 +22,10 @@ use crate::{gas::Token, memory::PageU32Size};
 use core::{fmt::Debug, marker::PhantomData};
 use parity_scale_codec::MaxEncodedLen;
 use paste::paste;
-use scale_info::{scale::{Decode, Encode}, TypeInfo};
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Cost per one memory page.
 #[derive(Clone, Copy, PartialEq, Eq, Encode, Decode)]
@@ -534,6 +537,7 @@ impl RuntimeCosts {
 
 /// Cost identifier for various user costs.
 #[derive(Clone, Encode, Decode, PartialEq, Eq, Copy, TypeInfo, MaxEncodedLen)]
+#[allow(clippy::unnecessary_cast)]
 pub enum CostIdentifier {
     /// Dispatch hold cost.
     DispatchHold = 0,
