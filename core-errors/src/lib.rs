@@ -372,4 +372,13 @@ mod tests {
             assert_eq!(err, decoded);
         }
     }
+
+    #[test]
+    fn error_code_no_specific_value() {
+        for err in enum_iterator::all::<ExtError>() {
+            let code = err.encode();
+            assert_ne!(code, 0); // zeroed structures, variables, etc
+            assert_ne!(code, u32::MAX); // success code
+        }
+    }
 }
