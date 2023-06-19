@@ -107,7 +107,7 @@ pub fn block_timestamp() -> u64 {
 /// ```
 pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
     let mut error_code = 0u32;
-    unsafe { gsys::gr_reply_deposit(message_id.as_ptr(), amount, &mut error_code as *mut u32) };
+    unsafe { gsys::gr_reply_deposit(message_id.as_ptr(), amount, &mut error_code) };
     SyscallError(error_code).into_result()
 }
 
@@ -202,7 +202,7 @@ pub fn reserve_gas(amount: u64, duration: u32) -> Result<ReservationId> {
 /// - [`reserve_gas`] function reserves gas for further usage.
 pub fn system_reserve_gas(amount: u64) -> Result<()> {
     let mut error_code = 0u32;
-    unsafe { gsys::gr_system_reserve_gas(amount, &mut error_code as *mut u32) };
+    unsafe { gsys::gr_system_reserve_gas(amount, &mut error_code) };
     SyscallError(error_code).into_result()
 }
 
@@ -372,7 +372,7 @@ pub fn wake(message_id: MessageId) -> Result<()> {
 /// Same as [`wake`], but executes after the `delay` expressed in block count.
 pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
     let mut error_code = 0u32;
-    unsafe { gsys::gr_wake(message_id.as_ptr(), delay, &mut error_code as *mut u32) };
+    unsafe { gsys::gr_wake(message_id.as_ptr(), delay, &mut error_code) };
     SyscallError(error_code).into_result()
 }
 

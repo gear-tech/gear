@@ -134,14 +134,7 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
     let mut error_code = 0u32;
 
     if size > 0 {
-        unsafe {
-            gsys::gr_read(
-                0,
-                size as u32,
-                buffer.as_mut_ptr(),
-                &mut error_code as *mut u32,
-            )
-        }
+        unsafe { gsys::gr_read(0, size as u32, buffer.as_mut_ptr(), &mut error_code) }
     }
 
     SyscallError(error_code).into_result()
@@ -180,7 +173,7 @@ pub fn read_at(offset: usize, buffer: &mut [u8]) -> Result<()> {
                 offset as u32,
                 size as u32,
                 buffer.as_mut_ptr(),
-                &mut error_code as *mut u32,
+                &mut error_code,
             )
         }
     }
@@ -466,7 +459,7 @@ pub fn reply_push(payload: &[u8]) -> Result<()> {
         .map_err(|_| ExtError::SyscallUsage)?;
 
     let mut error_code = 0u32;
-    unsafe { gsys::gr_reply_push(payload.as_ptr(), payload_len, &mut error_code as *mut u32) };
+    unsafe { gsys::gr_reply_push(payload.as_ptr(), payload_len, &mut error_code) };
     SyscallError(error_code).into_result()
 }
 
@@ -1171,14 +1164,7 @@ pub fn send_push(handle: MessageHandle, payload: &[u8]) -> Result<()> {
         .map_err(|_| ExtError::SyscallUsage)?;
 
     let mut error_code = 0u32;
-    unsafe {
-        gsys::gr_send_push(
-            handle.0,
-            payload.as_ptr(),
-            payload_len,
-            &mut error_code as *mut u32,
-        )
-    };
+    unsafe { gsys::gr_send_push(handle.0, payload.as_ptr(), payload_len, &mut error_code) };
     SyscallError(error_code).into_result()
 }
 
