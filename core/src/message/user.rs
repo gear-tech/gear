@@ -49,6 +49,25 @@ pub struct UserMessage {
 }
 
 impl UserMessage {
+    /// Create new UserMessage.
+    pub fn new(
+        id: MessageId,
+        source: ProgramId,
+        destination: ProgramId,
+        payload: Payload,
+        value: Value,
+        details: Option<ReplyDetails>,
+    ) -> Self {
+        Self {
+            id,
+            source,
+            destination,
+            payload,
+            value,
+            details,
+        }
+    }
+
     /// Message id.
     pub fn id(&self) -> MessageId {
         self.id

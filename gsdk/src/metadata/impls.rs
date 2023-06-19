@@ -25,13 +25,14 @@ use super::{
             gas_provider::node::{GasNodeId, NodeLock},
         },
         gear_core::{ids as generated_ids, message as generated_message},
+        gear_core_errors as generated_core_errors,
         pallet_balances::pallet::Call as BalancesCall,
         pallet_gear::pallet::Call as GearCall,
         pallet_sudo::pallet::Call as SudoCall,
     },
 };
 use core::ops::{Index, IndexMut};
-use gear_core::{ids, message, message::StoredMessage};
+use gear_core::{ids, message, message::UserMessage};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::MultiAddress;
 use subxt::dynamic::Value;
@@ -80,34 +81,21 @@ impl From<generated_ids::ReservationId> for ids::ReservationId {
     }
 }
 
+impl From<generated_core_errors::simple::ReplyCode> for gear_core_errors::ReplyCode {
+    fn from(value: generated_core_errors::simple::ReplyCode) -> Self {
+        Self::decode(&mut value.encode().as_ref()).expect("Incompatible metadata")
+    }
+}
+
 impl From<generated_message::common::ReplyDetails> for message::ReplyDetails {
     fn from(other: generated_message::common::ReplyDetails) -> Self {
-        // TODO (breathx)
-        message::ReplyDetails::new(other.reply_to.into(), Default::default())
+        message::ReplyDetails::new(other.to.into(), other.code.into())
     }
 }
 
-impl From<generated_message::common::SignalDetails> for message::SignalDetails {
-    fn from(other: generated_message::common::SignalDetails) -> Self {
-        // TODO (breathx)
-        message::SignalDetails::new(other.from.into(), Default::default())
-    }
-}
-
-impl From<generated_message::common::MessageDetails> for message::MessageDetails {
-    fn from(other: generated_message::common::MessageDetails) -> Self {
-        match other {
-            generated_message::common::MessageDetails::Reply(reply) => Self::Reply(reply.into()),
-            generated_message::common::MessageDetails::Signal(signal) => {
-                Self::Signal(signal.into())
-            }
-        }
-    }
-}
-
-impl From<generated_message::stored::StoredMessage> for message::StoredMessage {
-    fn from(other: generated_message::stored::StoredMessage) -> Self {
-        StoredMessage::new(
+impl From<generated_message::user::UserMessage> for message::UserMessage {
+    fn from(other: generated_message::user::UserMessage) -> Self {
+        UserMessage::new(
             other.id.into(),
             other.source.into(),
             other.destination.into(),

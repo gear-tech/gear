@@ -15,7 +15,6 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-
 #[allow(rustdoc::broken_intra_doc_links)] //subxt-codegen produces incorrect docs
 #[allow(dead_code, unused_imports, non_camel_case_types)]
 #[allow(clippy::all)]
@@ -498,6 +497,7 @@ pub mod runtime_types {
                             system_reserve: _2,
                             refs: runtime_types::gear_common::gas_provider::node::ChildrenRefs,
                             consumed: ::core::primitive::bool,
+                            deposit: ::core::primitive::bool,
                         },
                         #[codec(index = 1)]
                         Cut {
@@ -540,6 +540,18 @@ pub mod runtime_types {
                     pub struct NodeLock<_0>(pub [_0; 4usize]);
                 }
             }
+            pub mod paused_program_storage {
+                use super::runtime_types;
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
+                pub struct ResumeSession<_0, _1> {
+                    pub page_count: _1,
+                    pub user: _0,
+                    pub program_id: runtime_types::gear_core::ids::ProgramId,
+                    pub allocations: ::std::vec::Vec<runtime_types::gear_core::memory::WasmPage>,
+                    pub code_hash: runtime_types::gear_core::ids::CodeId,
+                    pub end_block: _1,
+                }
+            }
             pub mod scheduler {
                 use super::runtime_types;
                 pub mod task {
@@ -576,6 +588,8 @@ pub mod runtime_types {
                             runtime_types::gear_core::ids::ProgramId,
                             runtime_types::gear_core::ids::ReservationId,
                         ),
+                        #[codec(index = 9)]
+                        RemoveResumeSession(::core::primitive::u128),
                     }
                 }
             }
@@ -665,13 +679,13 @@ pub mod runtime_types {
             }
             pub mod ids {
                 use super::runtime_types;
-                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug, Copy)]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct CodeId(pub [::core::primitive::u8; 32usize]);
-                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug, Copy)]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct MessageId(pub [::core::primitive::u8; 32usize]);
-                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug, Copy)]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct ProgramId(pub [::core::primitive::u8; 32usize]);
-                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug, Copy)]
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub struct ReservationId(pub [::core::primitive::u8; 32usize]);
             }
             pub mod memory {
@@ -708,13 +722,13 @@ pub mod runtime_types {
                     }
                     #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct ReplyDetails {
-                        pub reply_to: runtime_types::gear_core::ids::MessageId,
-                        pub status_code: ::core::primitive::i32,
+                        pub to: runtime_types::gear_core::ids::MessageId,
+                        pub code: runtime_types::gear_core_errors::simple::ReplyCode,
                     }
                     #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                     pub struct SignalDetails {
-                        pub from: runtime_types::gear_core::ids::MessageId,
-                        pub status_code: ::core::primitive::i32,
+                        pub to: runtime_types::gear_core::ids::MessageId,
+                        pub code: runtime_types::gear_core_errors::simple::SignalCode,
                     }
                 }
                 pub mod context {
@@ -769,6 +783,24 @@ pub mod runtime_types {
                         >,
                     }
                 }
+                pub mod user {
+                    use super::runtime_types;
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
+                    pub struct UserMessage {
+                        pub id: runtime_types::gear_core::ids::MessageId,
+                        pub source: runtime_types::gear_core::ids::ProgramId,
+                        pub destination: runtime_types::gear_core::ids::ProgramId,
+                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
+                            ::core::primitive::u8,
+                            runtime_types::gear_core::message::PayloadSizeError,
+                        >,
+                        #[codec(compact)]
+                        pub value: ::core::primitive::u128,
+                        pub details: ::core::option::Option<
+                            runtime_types::gear_core::message::common::ReplyDetails,
+                        >,
+                    }
+                }
                 #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum DispatchKind {
                     #[codec(index = 0)]
@@ -790,6 +822,74 @@ pub mod runtime_types {
                     pub amount: ::core::primitive::u64,
                     pub start: ::core::primitive::u32,
                     pub finish: ::core::primitive::u32,
+                }
+            }
+        }
+        pub mod gear_core_errors {
+            use super::runtime_types;
+            pub mod simple {
+                use super::runtime_types;
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
+                pub enum ErrorReason {
+                    #[codec(index = 0)]
+                    Execution(runtime_types::gear_core_errors::simple::SimpleExecutionError),
+                    #[codec(index = 1)]
+                    FailedToCreateProgram(
+                        runtime_types::gear_core_errors::simple::SimpleProgramCreationError,
+                    ),
+                    #[codec(index = 2)]
+                    InactiveProgram,
+                    #[codec(index = 3)]
+                    RemovedFromWaitlist,
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
+                pub enum ReplyCode {
+                    #[codec(index = 0)]
+                    Success(runtime_types::gear_core_errors::simple::SuccessReason),
+                    #[codec(index = 1)]
+                    Error(runtime_types::gear_core_errors::simple::ErrorReason),
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
+                pub enum SignalCode {
+                    #[codec(index = 0)]
+                    Execution(runtime_types::gear_core_errors::simple::SimpleExecutionError),
+                    #[codec(index = 1)]
+                    RemovedFromWaitlist,
+                }
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
+                pub enum SimpleExecutionError {
+                    #[codec(index = 0)]
+                    RanOutOfGas,
+                    #[codec(index = 1)]
+                    MemoryOverflow,
+                    #[codec(index = 2)]
+                    BackendError,
+                    #[codec(index = 3)]
+                    UserspacePanic,
+                    #[codec(index = 4)]
+                    UnreachableInstruction,
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
+                pub enum SimpleProgramCreationError {
+                    #[codec(index = 0)]
+                    CodeNotExists,
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
+                pub enum SuccessReason {
+                    #[codec(index = 0)]
+                    Auto,
+                    #[codec(index = 1)]
+                    Manual,
+                    #[codec(index = 255)]
+                    Unsupported,
                 }
             }
         }
@@ -817,6 +917,32 @@ pub mod runtime_types {
                         dest: sp_runtime::AccountId32,
                         amount: ::core::primitive::u128,
                     },
+                    #[codec(index = 1)]
+                    #[doc = "Remove vesting for `source` account and transfer tokens to `dest` account."]
+                    #[doc = ""]
+                    #[doc = "The origin must be the root."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `source`: the account with vesting running,"]
+                    #[doc = "- `dest`: the beneficiary account,"]
+                    #[doc = "- `schedule_index`: the index of `VestingInfo` for source account."]
+                    #[doc = "- `amount`: the amount to be unlocked and transfered from `VestingInfo`."]
+                    #[doc = ""]
+                    #[doc = "Emits the following events:"]
+                    #[doc = "- `VestingScheduleRemoved{ who, schedule_index }`"]
+                    transfer_vested {
+                        source: sp_runtime::AccountId32,
+                        dest: sp_runtime::AccountId32,
+                        schedule_index: ::core::primitive::u32,
+                        amount: ::core::option::Option<::core::primitive::u128>,
+                    },
+                }
+                #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
+                #[doc = "Error for the airdrop pallet."]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    #[doc = "Amount to being transferred is bigger than vested."]
+                    AmountBigger,
                 }
                 #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
@@ -825,6 +951,11 @@ pub mod runtime_types {
                     TokensDeposited {
                         account: sp_runtime::AccountId32,
                         amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 1)]
+                    VestingScheduleRemoved {
+                        who: sp_runtime::AccountId32,
+                        schedule_index: ::core::primitive::u32,
                     },
                 }
             }
@@ -1671,6 +1802,47 @@ pub mod runtime_types {
                         program_id: runtime_types::gear_core::ids::ProgramId,
                         block_count: ::core::primitive::u32,
                     },
+                    #[codec(index = 9)]
+                    #[doc = "Starts a resume session of the previously paused program."]
+                    #[doc = ""]
+                    #[doc = "The origin must be Signed."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `program_id`: id of the program to resume."]
+                    #[doc = "- `allocations`: memory allocations of program prior to stop."]
+                    #[doc = "- `code_hash`: id of the program binary code."]
+                    resume_session_init {
+                        program_id: runtime_types::gear_core::ids::ProgramId,
+                        allocations: ::std::vec::Vec<runtime_types::gear_core::memory::WasmPage>,
+                        code_hash: runtime_types::gear_core::ids::CodeId,
+                    },
+                    #[codec(index = 10)]
+                    #[doc = "Appends memory pages to the resume session."]
+                    #[doc = ""]
+                    #[doc = "The origin must be Signed and should be the owner of the session."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `session_id`: id of the resume session."]
+                    #[doc = "- `memory_pages`: program memory (or its part) before it was paused."]
+                    resume_session_push {
+                        session_id: ::core::primitive::u128,
+                        memory_pages: ::std::vec::Vec<(
+                            runtime_types::gear_core::memory::GearPage,
+                            runtime_types::gear_core::memory::PageBuf,
+                        )>,
+                    },
+                    #[codec(index = 11)]
+                    #[doc = "Finishes the program resume session."]
+                    #[doc = ""]
+                    #[doc = "The origin must be Signed and should be the owner of the session."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `session_id`: id of the resume session."]
+                    #[doc = "- `block_count`: the specified period of rent."]
+                    resume_session_commit {
+                        session_id: ::core::primitive::u128,
+                        block_count: ::core::primitive::u32,
+                    },
                 }
                 #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
@@ -1679,7 +1851,7 @@ pub mod runtime_types {
                     #[doc = "Message wasn't found in the mailbox."]
                     MessageNotFound,
                     #[codec(index = 1)]
-                    #[doc = "Not enough balance to reserve."]
+                    #[doc = "Not enough balance to execute an action."]
                     #[doc = ""]
                     #[doc = "Usually occurs when the gas_limit specified is such that the origin account can't afford the message."]
                     InsufficientBalance,
@@ -1730,8 +1902,8 @@ pub mod runtime_types {
                     #[doc = "Message queue processing is disabled."]
                     MessageQueueProcessingDisabled,
                     #[codec(index = 13)]
-                    #[doc = "Program with the specified id is not found."]
-                    ProgramNotFound,
+                    #[doc = "Block count doesn't cover MinimalResumePeriod."]
+                    ResumePeriodLessThanMinimal,
                 }
                 #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
@@ -1748,7 +1920,7 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     #[doc = "Somebody sent a message to the user."]
                     UserMessageSent {
-                        message: runtime_types::gear_core::message::stored::StoredMessage,
+                        message: runtime_types::gear_core::message::user::UserMessage,
                         expiration: ::core::option::Option<::core::primitive::u32>,
                     },
                     #[codec(index = 2)]
@@ -1818,6 +1990,14 @@ pub mod runtime_types {
                     #[codec(index = 8)]
                     #[doc = "The pseudo-inherent extrinsic that runs queue processing rolled back or not executed."]
                     QueueProcessingReverted,
+                    #[codec(index = 9)]
+                    #[doc = "Program resume session has been started."]
+                    ProgramResumeSessionStarted {
+                        session_id: ::core::primitive::u128,
+                        account_id: sp_runtime::AccountId32,
+                        program_id: runtime_types::gear_core::ids::ProgramId,
+                        session_end_block: ::core::primitive::u32,
+                    },
                 }
             }
             pub mod schedule {
@@ -1843,6 +2023,7 @@ pub mod runtime_types {
                     pub gr_block_height: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_block_timestamp: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_random: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_deposit: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_send: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_send_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_send_wgas: runtime_types::sp_weights::weight_v2::Weight,
@@ -1929,6 +2110,11 @@ pub mod runtime_types {
                     pub i32popcnt: ::core::primitive::u32,
                     pub i64eqz: ::core::primitive::u32,
                     pub i32eqz: ::core::primitive::u32,
+                    pub i32extend8s: ::core::primitive::u32,
+                    pub i32extend16s: ::core::primitive::u32,
+                    pub i64extend8s: ::core::primitive::u32,
+                    pub i64extend16s: ::core::primitive::u32,
+                    pub i64extend32s: ::core::primitive::u32,
                     pub i64extendsi32: ::core::primitive::u32,
                     pub i64extendui32: ::core::primitive::u32,
                     pub i32wrapi64: ::core::primitive::u32,
@@ -2225,6 +2411,16 @@ pub mod runtime_types {
                     NotActiveProgram,
                     #[codec(index = 3)]
                     CannotFindDataForPage,
+                    #[codec(index = 4)]
+                    ResumeSessionNotFound,
+                    #[codec(index = 5)]
+                    NotSessionOwner,
+                    #[codec(index = 6)]
+                    ResumeSessionFailed,
+                    #[codec(index = 7)]
+                    ProgramCodeNotFound,
+                    #[codec(index = 8)]
+                    DuplicateResumeSession,
                 }
             }
         }
@@ -6890,8 +7086,6 @@ pub mod runtime_types {
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Call),
                 #[codec(index = 198)]
                 Airdrop(runtime_types::pallet_airdrop::pallet::Call),
-                #[codec(index = 199)]
-                GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
             }
             #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum RuntimeEvent {
@@ -6947,8 +7141,6 @@ pub mod runtime_types {
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Event),
                 #[codec(index = 198)]
                 Airdrop(runtime_types::pallet_airdrop::pallet::Event),
-                #[codec(index = 199)]
-                GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
             #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct SessionKeys {
