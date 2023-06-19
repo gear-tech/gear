@@ -23,6 +23,14 @@
 //! The metadata informs the user about the contract's interface and allows them
 //! to interact with it using custom types on web applications UI.
 //!
+//! Another use case is to parse metadata in JavaScript using the `gear-js`
+//! library and get the metadata details for some custom UI.
+//!
+//! Note that metadata is not required for a smart contract to work. It is only
+//! used to provide additional information about the contract. Also, metadata
+//! can be used for various purposes but we will focus on the use cases related
+//! to the <https://idea.gear-tech.io>.
+//!
 //! To generate a metadata output file for a contract, you need:
 //!
 //! - Add `gmeta` crate to your `Cargo.toml` file.
