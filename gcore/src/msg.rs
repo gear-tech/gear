@@ -131,13 +131,13 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
         return Err(ExtError::SyscallUsage);
     }
 
-    let mut error_code = 0u32;
-
     if size > 0 {
+        let mut error_code = 0u32;
         unsafe { gsys::gr_read(0, size as u32, buffer.as_mut_ptr(), &mut error_code) }
+        SyscallError(error_code).into_result()?;
     }
 
-    SyscallError(error_code).into_result()
+    Ok(())
 }
 
 // TODO: issue #1859
