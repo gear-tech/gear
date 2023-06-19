@@ -382,7 +382,7 @@ async fn create_renew_balance_task(
     // to target values.
     Ok(async move {
         loop {
-            tokio::time::sleep(Duration::from_millis(duration_millis as u32)).await;
+            tokio::time::sleep(Duration::from_millis(duration_millis)).await;
 
             let user_balance_demand = {
                 let current = root_api.free_balance(&user_address).await?;
