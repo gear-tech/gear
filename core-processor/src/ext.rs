@@ -700,7 +700,7 @@ impl Externalities for Ext {
         let end = at.checked_add(len).ok_or(ExecutionError::TooBigReadLen)?;
         self.charge_gas_runtime_if_enough(RuntimeCosts::ReadPerByte(len))?;
         PayloadSliceLock::try_new((at, end), &mut self.context.message_context)
-            .map_err(|_msg_len| MessageError::ReadWrongRange.into())
+            .ok_or_else(|| ExecutionError::ReadWrongRange.into())
     }
 
     fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
