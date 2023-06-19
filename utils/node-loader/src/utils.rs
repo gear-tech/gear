@@ -4,6 +4,16 @@ use futures_timer::Delay;
 use gclient::{Event, GearApi, GearEvent, WSAddress};
 use gear_call_gen::GearProgGenConfig;
 use gear_core::ids::{MessageId, ProgramId};
+use gsdk::metadata::runtime_types::{
+    gear_common::event::DispatchStatus as GenDispatchStatus,
+    gear_core::{
+        ids::MessageId as GenMId,
+        message::{
+            common::{MessageDetails, ReplyDetails},
+            stored::StoredMessage as GenStoredMessage,
+        },
+    },
+};
 use rand::rngs::SmallRng;
 use reqwest::Client;
 use std::{
@@ -137,4 +147,61 @@ pub async fn capture_mailbox_messages(
     }
 
     Ok(ret)
+}
+/// Check whether processing batch of messages identified by corresponding
+/// `message_ids` resulted in errors or has been successful.
+///
+/// This function returns a vector of statuses with an associated message
+/// identifier ([`MessageId`]). Each status can be an error message in case
+/// of an error.
+pub fn err_or_succeed_batch(
+    event_source: &mut [gsdk::metadata::Event],
+    message_ids: impl IntoIterator<Item = MessageId>,
+) -> Vec<(MessageId, Option<String>)> {
+    let message_ids: Vec<GenMId> = message_ids.into_iter().map(Into::into).collect();
+
+    event_source
+        .iter_mut()
+        .filter_map(|e| match e {
+            Event::Gear(GearEvent::UserMessageSent {
+                message:
+                    GenStoredMessage {
+                        payload,
+                        details:
+                            Some(MessageDetails::Reply(ReplyDetails {
+                                reply_to,
+                                status_code,
+                            })),
+                        ..
+                    },
+                ..
+            }) => {
+                if message_ids.contains(reply_to) && *status_code != 0 {
+                    Some(vec![(
+                        (*reply_to).into(),
+                        Some(String::from_utf8(payload.0.to_vec()).expect("Infallible")),
+                    )])
+                } else {
+                    None
+                }
+            }
+            Event::Gear(GearEvent::MessagesDispatched { statuses, .. }) => {
+                let requested: Vec<_> = statuses
+                    .iter_mut()
+                    .filter_map(|(mid, status)| {
+                        if message_ids.contains(mid) && !matches!(status, GenDispatchStatus::Failed)
+                        {
+                            Some((MessageId::from(*mid), None))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                (!requested.is_empty()).then_some(requested)
+            }
+            _ => None,
+        })
+        .flatten()
+        .collect()
 }

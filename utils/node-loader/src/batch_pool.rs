@@ -6,7 +6,7 @@ use anyhow::{anyhow, Result};
 use api::GearApiFacade;
 use context::Context;
 use futures::{stream::FuturesUnordered, Future, StreamExt};
-use gclient::{Error as GClientError, EventProcessor, GearApi, Result as GClientResult};
+use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{MessageId, ProgramId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
@@ -256,7 +256,7 @@ async fn process_events(
 
     let mut mailbox_added = BTreeSet::new();
 
-    let results = loop {
+    let results = {
         let mut events = rx.recv().await?;
         while events.block_hash() != block_hash {
             tokio::time::sleep(Duration::new(0, 500)).await;
@@ -271,52 +271,41 @@ async fn process_events(
             })??;
         }
 
-        let r = {
-            let mut v = Vec::new();
-            let mut current_bh = events.block_hash();
-            let mut i = 0;
-            while i < wait_for_events_blocks {
-                if events.block_hash() != current_bh {
-                    current_bh = events.block_hash();
-                    i += 1;
-                }
-                for event in events.iter() {
-                    let event = event?.as_root_event::<gsdk::metadata::Event>()?;
-                    v.push(event);
-                }
-                tokio::time::sleep(Duration::new(0, 100)).await;
-                events = tokio::time::timeout(
-                    Duration::from_millis(wait_for_events_millisec as u64),
-                    rx.recv(),
-                )
-                .await
-                .map_err(|_| {
-                    tracing::debug!("Timeout is reached while waiting for events");
-                    anyhow!(utils::EVENTS_TIMEOUT_ERR_STR)
-                })??;
+        let mut v = Vec::new();
+        let mut current_bh = events.block_hash();
+        let mut i = 0;
+        while i < wait_for_events_blocks {
+            if events.block_hash() != current_bh {
+                current_bh = events.block_hash();
+                i += 1;
             }
-
-            let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &mut v)
-                .await
-                .expect("always valid by definition");
-            mailbox_added.append(&mut mailbox_from_events);
-
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current()
-                    .block_on(async { v.err_or_succeed_batch(messages.keys().copied()).await })
-            })
-        };
-
-        if matches!(r, Err(GClientError::EventNotFoundInIterator)) {
-            continue;
-        } else {
-            break r;
+            for event in events.iter() {
+                let event = event?.as_root_event::<gsdk::metadata::Event>()?;
+                v.push(event);
+            }
+            tokio::time::sleep(Duration::new(0, 100)).await;
+            events = tokio::time::timeout(
+                Duration::from_millis(wait_for_events_millisec as u64),
+                rx.recv(),
+            )
+            .await
+            .map_err(|_| {
+                tracing::debug!("Timeout is reached while waiting for events");
+                anyhow!(utils::EVENTS_TIMEOUT_ERR_STR)
+            })??;
         }
+
+        let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &mut v)
+            .await
+            .expect("always valid by definition");
+        mailbox_added.append(&mut mailbox_from_events);
+
+        utils::err_or_succeed_batch(&mut v, messages.keys().copied())
     };
 
     let mut program_ids = BTreeSet::new();
 
-    for (mid, maybe_err) in results? {
+    for (mid, maybe_err) in results {
         let (pid, call_id) = messages.remove(&mid).expect("Infallible");
 
         if let Some(expl) = maybe_err {
