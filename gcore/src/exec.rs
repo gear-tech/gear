@@ -26,8 +26,7 @@ use crate::{
     ActorId, MessageId, ReservationId,
 };
 use gsys::{
-    BlockNumberWithHash, HashWithValue, LengthWithBlockNumberAndValue, LengthWithGas,
-    LengthWithHash,
+    BlockNumberWithHash, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHash, HashWithValue,
 };
 
 /// Get the current block height.
@@ -107,9 +106,9 @@ pub fn block_timestamp() -> u64 {
 /// }
 /// ```
 pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
-    let mut len = 0u32;
-    unsafe { gsys::gr_reply_deposit(message_id.as_ptr(), amount, &mut len as *mut u32) };
-    SyscallError(len).into_result()
+    let mut error_code = 0u32;
+    unsafe { gsys::gr_reply_deposit(message_id.as_ptr(), amount, &mut error_code as *mut u32) };
+    SyscallError(error_code).into_result()
 }
 
 /// Terminate the execution of a program.
@@ -171,10 +170,10 @@ pub fn exit(inheritor_id: ActorId) -> ! {
 /// - [`unreserve_gas`] function unreserves gas identified by [`ReservationId`].
 /// - [`system_reserve_gas`] function reserves gas for system usage.
 pub fn reserve_gas(amount: u64, duration: u32) -> Result<ReservationId> {
-    let mut res: LengthWithHash = Default::default();
+    let mut res: ErrorWithHash = Default::default();
 
     unsafe { gsys::gr_reserve_gas(amount, duration, res.as_mut_ptr()) };
-    SyscallError(res.length).into_result()?;
+    SyscallError(res.error_code).into_result()?;
 
     Ok(res.hash.into())
 }
@@ -202,9 +201,9 @@ pub fn reserve_gas(amount: u64, duration: u32) -> Result<ReservationId> {
 ///
 /// - [`reserve_gas`] function reserves gas for further usage.
 pub fn system_reserve_gas(amount: u64) -> Result<()> {
-    let mut len = 0u32;
-    unsafe { gsys::gr_system_reserve_gas(amount, &mut len as *mut u32) };
-    SyscallError(len).into_result()
+    let mut error_code = 0u32;
+    unsafe { gsys::gr_system_reserve_gas(amount, &mut error_code as *mut u32) };
+    SyscallError(error_code).into_result()
 }
 
 /// Unreserve gas identified by [`ReservationId`].
@@ -219,10 +218,10 @@ pub fn system_reserve_gas(amount: u64) -> Result<()> {
 ///
 /// - [`reserve_gas`] function reserves gas for further usage.
 pub fn unreserve_gas(id: ReservationId) -> Result<u64> {
-    let mut res: LengthWithGas = Default::default();
+    let mut res: ErrorWithGas = Default::default();
 
     unsafe { gsys::gr_unreserve_gas(id.as_ptr(), res.as_mut_ptr()) };
-    SyscallError(res.length).into_result()?;
+    SyscallError(res.error_code).into_result()?;
 
     Ok(res.gas)
 }
@@ -372,9 +371,9 @@ pub fn wake(message_id: MessageId) -> Result<()> {
 
 /// Same as [`wake`], but executes after the `delay` expressed in block count.
 pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
-    let mut len = 0u32;
-    unsafe { gsys::gr_wake(message_id.as_ptr(), delay, &mut len as *mut u32) };
-    SyscallError(len).into_result()
+    let mut error_code = 0u32;
+    unsafe { gsys::gr_wake(message_id.as_ptr(), delay, &mut error_code as *mut u32) };
+    SyscallError(error_code).into_result()
 }
 
 /// Return the identifier of the current program.
@@ -434,11 +433,11 @@ pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)>
         value,
     };
 
-    let mut res: LengthWithBlockNumberAndValue = Default::default();
+    let mut res: ErrorWithBlockNumberAndValue = Default::default();
 
     unsafe { gsys::gr_pay_program_rent(&rent_pid, res.as_mut_ptr()) }
 
-    SyscallError(res.length).into_result()?;
+    SyscallError(res.error_code).into_result()?;
     Ok((res.value, res.bn))
 }
 

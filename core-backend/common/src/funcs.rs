@@ -35,8 +35,8 @@ use gear_core::{
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
 use gsys::{
-    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberAndValue,
-    LengthWithCode, LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithTwoHashes,
+    BlockNumberWithHash, ErrorWithBlockNumberAndValue, ErrorWithHash, ErrorWithStatus,
+    ErrorWithTwoHashes, Hash, HashWithValue, LengthBytes, LengthWithGas, LengthWithHandle,
     TwoHashesWithValue,
 };
 
@@ -198,7 +198,7 @@ where
         Err(ActorTerminationReason::Exit(inheritor_id).into())
     }
 
-    #[host(fallible, cost = RuntimeCosts::StatusCode, err_len = LengthWithCode)]
+    #[host(fallible, cost = RuntimeCosts::StatusCode, err_len = ErrorWithStatus)]
     pub fn status_code(ctx: &mut R) -> Result<(), R::Error> {
         ctx.ext_mut().status_code().map_err(Into::into)
     }
@@ -527,7 +527,7 @@ where
             .map_err(Into::into)
     }
 
-    #[host(fallible, cost = RuntimeCosts::PayProgramRent, err_len = LengthWithBlockNumberAndValue)]
+    #[host(fallible, cost = RuntimeCosts::PayProgramRent, err_len = ErrorWithBlockNumberAndValue)]
     pub fn pay_program_rent(ctx: &mut R, rent_pid_ptr: u32) -> Result<(), R::Error> {
         let read_rent_pid = ctx.register_read_as(rent_pid_ptr);
 
@@ -604,7 +604,7 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[host(fallible, wgas, cost = RuntimeCosts::CreateProgram(payload_len, salt_len), err_len = LengthWithTwoHashes)]
+    #[host(fallible, wgas, cost = RuntimeCosts::CreateProgram(payload_len, salt_len), err_len = ErrorWithTwoHashes)]
     pub fn create_program(
         ctx: &mut R,
         cid_value_ptr: u32,

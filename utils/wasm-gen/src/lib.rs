@@ -38,7 +38,7 @@ use gear_wasm_instrument::{
     STACK_END_EXPORT_NAME,
 };
 pub use gsys;
-use gsys::{HashWithValue, Length, LengthWithHash};
+use gsys::{ErrorWithHash, HashWithValue, Length};
 use wasm_smith::{InstructionKind::*, InstructionKinds, Module as ModuleSmith, SwarmConfig};
 
 mod syscalls;
@@ -914,7 +914,7 @@ impl<'a> WasmGen<'a> {
         let memory_size_in_bytes = memory_pages.memory_size();
         let reserve_gas_result_ptr = memory_size_in_bytes.saturating_sub(MEMORY_VALUE_SIZE) as i32; // Pointer to the LengthWithHash struct
         let rid_pid_value_ptr = reserve_gas_result_ptr + size_of::<Length>() as i32;
-        let pid_value_ptr = reserve_gas_result_ptr + size_of::<LengthWithHash>() as i32;
+        let pid_value_ptr = reserve_gas_result_ptr + size_of::<ErrorWithHash>() as i32;
         let reservation_send_result_ptr = pid_value_ptr + size_of::<HashWithValue>() as i32;
 
         let func_instructions = Instructions::new(vec![

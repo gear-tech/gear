@@ -194,7 +194,7 @@ impl Parse for HostFnMeta {
         let mut call_type = Default::default();
         let mut wgas = false;
         let mut runtime_costs = parse_quote!(RuntimeCosts::Null);
-        let mut err_len = parse_quote!(LengthWithHash);
+        let mut err_len = parse_quote!(ErrorWithHash);
 
         let meta_list = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
         for meta in meta_list {
