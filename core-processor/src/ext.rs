@@ -562,7 +562,7 @@ impl Externalities for Ext {
         self.check_forbidden_destination(msg.destination())?;
         self.check_message_value(msg.value())?;
         self.check_gas_limit(msg.gas_limit())?;
-        // TODO: gasful sending (#1828)
+        self.safe_gasfull_sends(&msg)?;
         self.charge_message_value(msg.value())?;
         self.charge_sending_fee(delay)?;
 
@@ -600,7 +600,8 @@ impl Externalities for Ext {
     ) -> Result<MessageId, Self::Error> {
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
         self.check_message_value(msg.value())?;
-        // TODO: gasful sending (#1828)
+        self.check_gas_limit(msg.gas_limit())?;
+        self.safe_gasfull_sends(&msg)?;
         self.charge_message_value(msg.value())?;
         self.charge_sending_fee(0)?;
 

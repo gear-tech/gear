@@ -314,11 +314,16 @@ where
                     dispatch.is_reply(),
                 ),
                 (None, None) => Pallet::<T>::split(message_id, dispatch.id(), dispatch.is_reply()),
-                (Some(_gas_limit), Some(_reservation_id)) => {
-                    // TODO: #1828
-                    unreachable!(
-                        "Sending dispatch with gas limit from reservation \
-                    is currently unimplemented and there is no way to send such dispatch"
+                (Some(gas_limit), Some(reservation_id)) => {
+                    Pallet::<T>::split_with_value(
+                        reservation_id,
+                        dispatch.id(),
+                        gas_limit,
+                        dispatch.is_reply(),
+                    );
+                    Pallet::<T>::remove_gas_reservation_with_task(
+                        dispatch.source(),
+                        reservation_id,
                     );
                 }
                 (None, Some(reservation_id)) => {
