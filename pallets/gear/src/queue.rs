@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -57,10 +57,6 @@ where
 
             // Querying gas limit. Fails in cases of `GasTree` invalidations.
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-            // Querying external id. Fails in cases of `GasTree` invalidations.
-            let external = GasHandlerOf::<T>::get_external(dispatch.id())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             log::debug!(
@@ -227,11 +223,10 @@ where
             .unique_saturated_into();
 
             let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-            let origin = ProgramId::from_origin(external.into_origin());
 
             let journal = core_processor::process::<ExecutionEnvironment>(
                 &block_config,
-                (context, code, balance, origin).into(),
+                (context, code, balance).into(),
                 (random.encode(), bn.unique_saturated_into()),
                 memory_pages,
             )

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -849,7 +849,7 @@ impl ExtManager {
 
         let journal = core_processor::process::<WasmiEnvironment<Ext>>(
             &block_config,
-            (context, code, balance, self.origin).into(),
+            (context, code, balance).into(),
             self.random_data.clone(),
             memory_pages,
         )
@@ -919,7 +919,7 @@ impl JournalHandler for ExtManager {
         } else {
             let message = dispatch.into_stored().into_parts().1;
 
-            let message = match message.status_code() {
+            let message = match message.status_code().map(|code| code.to_le_bytes()[0]) {
                 Some(0) | None => message,
                 _ => message
                     .with_string_payload::<ActorExecutionErrorReason>()
@@ -1128,4 +1128,7 @@ impl JournalHandler for ExtManager {
     }
 
     fn pay_program_rent(&mut self, _payer: ProgramId, _program_id: ProgramId, _block_count: u32) {}
+
+    fn reply_deposit(&mut self, _message_id: MessageId, _future_reply_id: MessageId, _amount: u64) {
+    }
 }

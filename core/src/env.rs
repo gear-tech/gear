@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -41,11 +41,13 @@ pub enum PageAction {
     None,
 }
 
-/// External api for managing memory, messages, and gas-counting.
-pub trait Ext {
-    /// An error issued in api
+/// External api and data for managing memory and messages,
+/// use by an executing program to trigger state transition
+/// in runtime.
+pub trait Externalities {
+    /// An error issued in api.
     type Error;
-    /// An error issued during allocation
+    /// An error issued during allocation.
     type AllocError: Display;
 
     /// Allocate number of pages.
@@ -71,10 +73,6 @@ pub trait Ext {
 
     /// Get various cost.
     fn cost(&self, name: CostIdentifier) -> Result<u128, Self::Error>;
-
-    /// Get the id of the user who initiated communication with blockchain,
-    /// during which, currently processing message was created.
-    fn origin(&self) -> Result<ProgramId, Self::Error>;
 
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<u32, Self::Error>;
@@ -220,12 +218,15 @@ pub trait Ext {
     /// Wake the waiting message and move it to the processing queue.
     fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::Error>;
 
-    /// Send init message to create a new program
+    /// Send init message to create a new program.
     fn create_program(
         &mut self,
         packet: InitPacket,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::Error>;
+
+    /// Create deposit to handle reply on given message.
+    fn reply_deposit(&mut self, message_id: MessageId, amount: u64) -> Result<(), Self::Error>;
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName>;

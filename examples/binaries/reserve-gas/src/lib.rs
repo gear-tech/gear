@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -39,6 +39,7 @@ pub enum InitAction {
     Normal(Vec<(u64, u32)>),
     Wait,
     CheckArgs { mailbox_threshold: u64 },
+    FreshReserveUnreserve,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -46,6 +47,10 @@ pub enum HandleAction {
     Unreserve,
     Exit,
     ReplyFromReservation,
+    AddReservationToList(GasAmount, BlockCount),
+    ConsumeReservationsFromList,
+    RunInifitely,
+    SendFromReservationAndUnreserve,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -54,17 +59,21 @@ pub enum ReplyAction {
     Exit,
 }
 
+pub type GasAmount = u64;
+pub type BlockCount = u32;
+
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::*;
     use gstd::{
-        errors::{ContractError, ExtError, ReservationError},
+        errors::{Error, ExtError, ReservationError},
         exec, msg,
         prelude::*,
         MessageId, ReservationId,
     };
 
     static mut RESERVATION_ID: Option<ReservationId> = None;
+    static mut RESERVATIONS: Vec<ReservationId> = Vec::new();
     static mut INIT_MSG: MessageId = MessageId::new([0; 32]);
     static mut WAKE_STATE: WakeState = WakeState::Initial;
 
@@ -117,36 +126,52 @@ mod wasm {
             InitAction::CheckArgs { mailbox_threshold } => {
                 assert_eq!(
                     ReservationId::reserve(0, 10),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::ReservationBelowMailboxThreshold
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(50_000, 0),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::ZeroReservationDuration
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(mailbox_threshold - 1, 1),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::ReservationBelowMailboxThreshold
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(mailbox_threshold, u32::MAX),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::InsufficientGasForReservation
                     )))
                 );
 
                 assert_eq!(
                     ReservationId::reserve(u64::MAX, 1),
-                    Err(ContractError::Ext(ExtError::Reservation(
+                    Err(Error::Ext(ExtError::Reservation(
                         ReservationError::InsufficientGasForReservation
+                    )))
+                );
+            }
+            InitAction::FreshReserveUnreserve => {
+                let id = ReservationId::reserve(10_000, 10).unwrap();
+                gstd::msg::send_from_reservation(
+                    id.clone(),
+                    msg::source(),
+                    b"fresh_reserve_unreserve",
+                    0,
+                )
+                .unwrap();
+                assert_eq!(
+                    id.unreserve(),
+                    Err(Error::Ext(ExtError::Reservation(
+                        ReservationError::InvalidReservationId
                     )))
                 );
             }
@@ -168,6 +193,51 @@ mod wasm {
                 let id = unsafe { RESERVATION_ID.take().unwrap() };
                 msg::reply_from_reservation(id, REPLY_FROM_RESERVATION_PAYLOAD, 0)
                     .expect("unable to reply from reservation");
+            }
+            HandleAction::AddReservationToList(amount, block_count) => {
+                let reservation_id =
+                    ReservationId::reserve(amount, block_count).expect("Unable to reserve gas");
+                unsafe {
+                    RESERVATIONS.push(reservation_id);
+                }
+            }
+            HandleAction::ConsumeReservationsFromList => {
+                let reservations = unsafe { mem::take(&mut RESERVATIONS) };
+                for reservation_id in reservations {
+                    msg::send_from_reservation(
+                        reservation_id,
+                        exec::program_id(),
+                        HandleAction::RunInifitely,
+                        0,
+                    )
+                    .expect("Unable to send using reservation");
+                }
+            }
+            HandleAction::RunInifitely => {
+                if msg::source() != exec::program_id() {
+                    panic!(
+                        "Invalid caller, this is a private method reserved for the program itself."
+                    );
+                }
+                loop {
+                    let _msg_source = msg::source();
+                }
+            }
+            HandleAction::SendFromReservationAndUnreserve => {
+                let id = unsafe { RESERVATION_ID.take().unwrap() };
+                gstd::msg::send_from_reservation(
+                    id.clone(),
+                    msg::source(),
+                    b"existing_reserve_unreserve",
+                    0,
+                )
+                .unwrap();
+                assert_eq!(
+                    id.unreserve(),
+                    Err(Error::Ext(ExtError::Reservation(
+                        ReservationError::InvalidReservationId
+                    )))
+                );
             }
         }
     }

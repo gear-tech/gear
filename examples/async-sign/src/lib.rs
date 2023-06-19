@@ -49,7 +49,7 @@ async fn main() {
     let request = SignRequest { message };
 
     let sign_response: Result<SignResponse, _> =
-        msg::send_for_reply_as(unsafe { SIGNATORY }, &request, 0)
+        msg::send_for_reply_as(unsafe { SIGNATORY }, &request, 0, 0)
             .unwrap()
             .await;
 

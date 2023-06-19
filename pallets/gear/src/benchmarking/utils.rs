@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -286,12 +286,10 @@ where
     )
     .map_err(|_| "core_processor::precharge_for_memory failed")?;
 
-    let origin = ProgramId::from_origin(source);
-
     Ok(Exec {
         ext_manager,
         block_config,
-        context: (context, code, balance, origin).into(),
+        context: (context, code, balance).into(),
         random_data: (vec![0u8; 32], 0),
         memory_pages: Default::default(),
     })

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -260,6 +260,11 @@ pub struct InstructionWeights<T: Config> {
     pub i32popcnt: u32,
     pub i64eqz: u32,
     pub i32eqz: u32,
+    pub i32extend8s: u32,
+    pub i32extend16s: u32,
+    pub i64extend8s: u32,
+    pub i64extend16s: u32,
+    pub i64extend32s: u32,
     pub i64extendsi32: u32,
     pub i64extendui32: u32,
     pub i32wrapi64: u32,
@@ -344,9 +349,6 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_message_id`.
     pub gr_message_id: Weight,
 
-    /// Weight of calling `gr_origin`.
-    pub gr_origin: Weight,
-
     /// Weight of calling `gr_pay_program_rent`.
     pub gr_pay_program_rent: Weight,
 
@@ -379,6 +381,9 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight of calling `gr_random`.
     pub gr_random: Weight,
+
+    /// Weight of calling `gr_reply_deposit`.
+    pub gr_reply_deposit: Weight,
 
     /// Weight of calling `gr_send`.
     pub gr_send: Weight,
@@ -743,7 +748,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 6,
+            version: 7,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),
@@ -773,6 +778,11 @@ impl<T: Config> Default for InstructionWeights<T> {
             i32popcnt: cost_instr!(instr_i32popcnt, 1),
             i64eqz: cost_instr!(instr_i64eqz, 1),
             i32eqz: cost_instr!(instr_i32eqz, 1),
+            i32extend8s: cost_instr!(instr_i32extend8s, 0),
+            i32extend16s: cost_instr!(instr_i32extend16s, 0),
+            i64extend8s: cost_instr!(instr_i64extend8s, 1),
+            i64extend16s: cost_instr!(instr_i64extend16s, 1),
+            i64extend32s: cost_instr!(instr_i64extend32s, 1),
             i64extendsi32: cost_instr!(instr_i64extendsi32, 0),
             i64extendui32: cost_instr!(instr_i64extendui32, 0),
             i32wrapi64: cost_instr!(instr_i32wrapi64, 1),
@@ -841,7 +851,6 @@ impl<T: Config> HostFnWeights<T> {
             gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
             gr_gas_available: self.gr_gas_available.ref_time(),
             gr_message_id: self.gr_message_id.ref_time(),
-            gr_origin: self.gr_origin.ref_time(),
             gr_pay_program_rent: self.gr_pay_program_rent.ref_time(),
             gr_program_id: self.gr_program_id.ref_time(),
             gr_source: self.gr_source.ref_time(),
@@ -853,6 +862,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_block_height: self.gr_block_height.ref_time(),
             gr_block_timestamp: self.gr_block_timestamp.ref_time(),
             gr_random: self.gr_random.ref_time(),
+            gr_reply_deposit: self.gr_reply_deposit.ref_time(),
             gr_send: self.gr_send.ref_time(),
             gr_send_per_byte: self.gr_send_per_byte.ref_time(),
             gr_send_wgas: self.gr_send_wgas.ref_time(),
@@ -914,6 +924,9 @@ impl<T: Config> HostFnWeights<T> {
 impl<T: Config> Default for HostFnWeights<T> {
     fn default() -> Self {
         Self {
+            gr_reply_deposit: to_weight!(cost_batched!(gr_reply_deposit))
+                .saturating_sub(to_weight!(cost_batched!(gr_send))),
+
             gr_send: to_weight!(cost_batched!(gr_send)),
             gr_send_per_byte: to_weight!(cost_byte_batched!(gr_send_per_kb)),
             gr_send_wgas: to_weight!(cost_batched!(gr_send_wgas)),
@@ -956,7 +969,6 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
             gr_gas_available: to_weight!(cost_batched!(gr_gas_available)),
             gr_message_id: to_weight!(cost_batched!(gr_message_id)),
-            gr_origin: to_weight!(cost_batched!(gr_origin)),
             gr_pay_program_rent: to_weight!(cost_batched!(gr_pay_program_rent)),
             gr_program_id: to_weight!(cost_batched!(gr_program_id)),
             gr_source: to_weight!(cost_batched!(gr_source)),
@@ -1193,14 +1205,12 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
             I64Rotl => w.i64rotl,
             I32Rotr => w.i32rotr,
             I64Rotr => w.i64rotr,
-
-            // TODO: Correct weights for sign extension instructions. (#2523)
             SignExt(ref s) => match s {
-                I32Extend8S => w.i64extendsi32,
-                I32Extend16S => w.i64extendsi32,
-                I64Extend8S => w.i64extendsi32,
-                I64Extend16S => w.i64extendsi32,
-                I64Extend32S => w.i64extendsi32,
+                I32Extend8S => w.i32extend8s,
+                I32Extend16S => w.i32extend16s,
+                I64Extend8S => w.i64extend8s,
+                I64Extend16S => w.i64extend16s,
+                I64Extend32S => w.i64extend32s,
             },
             // Returning None makes the gas instrumentation fail which we intend for
             // unsupported or unknown instructions.
@@ -1223,6 +1233,7 @@ mod test {
     use super::*;
     use crate::mock::Test;
     use gas_metering::Rules;
+    use gear_wasm_instrument::rules::CustomConstantCostRules;
 
     fn all_measured_instructions() -> Vec<elements::Instruction> {
         use elements::{BlockType, BrTableData, Instruction::*};
@@ -1366,9 +1377,16 @@ mod test {
     #[test]
     fn instructions_backward_compatibility() {
         let schedule = Schedule::<Test>::default();
-        let rules = schedule.rules(&default_wasm_module());
-        all_measured_instructions()
-            .iter()
-            .for_each(|i| assert!(rules.instruction_cost(i).is_some()))
+
+        // used in `pallet-gear` to estimate the gas used by the program
+        let schedule_rules = schedule.rules(&default_wasm_module());
+
+        // used in `gear-wasm-builder` to check program code at an early stage
+        let custom_cost_rules = CustomConstantCostRules::default();
+
+        all_measured_instructions().iter().for_each(|i| {
+            assert!(schedule_rules.instruction_cost(i).is_some());
+            assert!(custom_cost_rules.instruction_cost(i).is_some());
+        })
     }
 }

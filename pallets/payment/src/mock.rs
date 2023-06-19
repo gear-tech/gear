@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -169,7 +169,8 @@ parameter_types! {
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
-    pub RentResumePeriod: BlockNumber = 100;
+    pub ResumeMinimalPeriod: BlockNumber = 100;
+    pub ResumeSessionDuration: BlockNumber = 1_000;
 }
 
 impl pallet_gear::Config for Test {
@@ -191,8 +192,9 @@ impl pallet_gear::Config for Test {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type ProgramRentFreePeriod = RentFreePeriod;
-    type ProgramRentMinimalResumePeriod = RentResumePeriod;
+    type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
     type ProgramRentCostPerBlock = RentCostPerBlock;
+    type ProgramResumeSessionDuration = ResumeSessionDuration;
 }
 
 impl pallet_gear_program::Config for Test {

@@ -5,82 +5,53 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  BINARYEN_VERSION: version_111
 
 jobs:
-
   build-gear-loader:
-    runs-on: [self-hosted, sccache, epyc-4, k8s-runner]
+    runs-on: [self-hosted, epyc-4, k8s-runner]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: Nightly toolchain"
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          components: clippy, rustfmt
-          targets: wasm32-unknown-unknown
-          
-      - name: "Install: Show specific nightly version"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
 
-      - name: "Install: Specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
-          targets: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Pin to specific nightly toolchain"
-        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
-        run: |
-          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
-          
       - name: "Install: Build deps"
         run: |
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_111/binaryen-version_111-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-version_111/bin/wasm-opt /usr/bin/
-          sudo wget -c https://github.com/mozilla/sccache/releases/download/v0.3.3/sccache-v0.3.3-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
-          sudo cp sccache-v0.3.3-x86_64-unknown-linux-musl/sccache /usr/bin/
-          sudo chmod +x /usr/bin/sccache
-          mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
-          
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
+
       - name: "Build gear-loader"
         run: |
-          cargo build --locked --package gear-node-loader
+          cargo build --release --locked --package gear-node-loader
 
       - name: Archive production artifacts
         uses: actions/upload-artifact@v3
         with:
           name: gear-loader
           path: |
-            target/debug/gear-node-loader
+            target/release/gear-node-loader
 
-
-  update-gear-laoder:
+  update-gear-loader:
     runs-on: ubuntu-latest
     needs: build-gear-loader
     steps:
-    
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
-        
-      - name: Upload artificat  
+
+      - name: Download artifact
         uses: actions/download-artifact@v3
         with:
           name: gear-loader
-    
+
       - name: Run playbook
         uses: dawidd6/action-ansible-playbook@v2
         with:

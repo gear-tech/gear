@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -83,8 +83,6 @@ pub enum Kind {
     BlockHeight(u32),
     // Expected(block timestamp)
     BlockTimestamp(u64),
-    // Expected(msg origin)
-    Origin(ActorId),
     // Expected(id)
     Reserve(Vec<u8>),
     // Expected(amount)
@@ -103,6 +101,8 @@ pub enum Kind {
     ReservationReplyCommit(Vec<u8>, MessageId),
     // Param(reserve amount)
     SystemReserveGas(u64),
+    // Param(deposit amount)
+    ReplyDeposit(u64),
 }
 
 pub const PAY_PROGRAM_RENT_EXPECT: &str = "Unable to pay rent";
@@ -119,7 +119,6 @@ mod wasm {
     };
 
     static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);
-    static mut ORIGIN: Option<ActorId> = None;
     static mut SIGNAL_DETAILS: (MessageId, SimpleSignalError, ActorId) = (
         MessageId::new([0; 32]),
         SimpleSignalError::Execution(SimpleExecutionError::Unknown),
@@ -378,21 +377,6 @@ mod wasm {
                     "Kind::BlockTimestamp:: block timestamp test failed"
                 );
             }
-            Kind::Origin(expected_actor) => {
-                // The origin is set by the first call and then checked with the second
-                if unsafe { ORIGIN.is_some() } {
-                    // is ser, perform check
-                    let actual_actor: [u8; 32] = exec::origin().into();
-                    assert_eq!(
-                        expected_actor, actual_actor,
-                        "Kind::Origin: actor test failed"
-                    );
-                } else {
-                    unsafe { ORIGIN = Some(exec::origin()) };
-                    // To prevent from sending to mailbox "ok" message
-                    exec::leave();
-                }
-            }
             Kind::Reserve(expected_id) => {
                 // do 2 reservations to increase internal nonce
                 let _ = ReservationId::reserve(10_000, 3);
@@ -495,6 +479,12 @@ mod wasm {
                 msg::send_delayed(msg::source(), b"ok", 0, 0)
                     .expect("internal error: report send failed");
                 exec::wait_for(2);
+            }
+            Kind::ReplyDeposit(amount) => {
+                let mid = msg::send_bytes(ActorId::zero(), [], 0)
+                    .expect("internal error: failed to send message");
+
+                exec::reply_deposit(mid, amount).expect("Kind::ReplyDeposit: call test failed");
             }
         }
     }

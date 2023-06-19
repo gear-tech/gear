@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -445,7 +445,7 @@ where
             return Err(InternalError::node_already_exists().into());
         }
 
-        let node = GasNode::new(origin, amount);
+        let node = GasNode::new(origin, amount, false);
 
         // Save value node to storage
         StorageMap::insert(key, node);
@@ -744,8 +744,30 @@ where
         )
     }
 
+    fn create_deposit(
+        key: impl Into<Self::NodeId>,
+        new_key: impl Into<Self::NodeId>,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error> {
+        Self::create_from_with_value(
+            key,
+            new_key,
+            amount,
+            |key, value, _parent_node, _parent_id| {
+                let id = Self::get_external(key)?;
+                Ok(GasNode::new(id, value, true))
+            },
+        )
+    }
+
     fn exists(key: impl Into<Self::NodeId>) -> bool {
         Self::get_node(key).is_some()
+    }
+
+    fn exists_and_deposit(key: impl Into<Self::NodeId>) -> bool {
+        Self::get_node(key)
+            .map(|node| matches!(node, GasNode::External { deposit: true, .. }))
+            .unwrap_or(false)
     }
 
     fn clear() {

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -58,7 +58,7 @@ impl GearApi {
         Ok(data.map(|(m, i)| (m.into(), i)))
     }
 
-    /// Get up to `count` messages from the mailbox from
+    /// Get up to `count` messages from the mailbox for
     /// the provided `account_id`.
     pub async fn get_mailbox_account_messages(
         &self,

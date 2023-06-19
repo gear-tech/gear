@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -110,9 +110,6 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_message_id`.
     pub gr_message_id: u64,
 
-    /// Weight of calling `gr_origin`.
-    pub gr_origin: u64,
-
     /// Weight of calling `gr_pay_program_rent`.
     pub gr_pay_program_rent: u64,
 
@@ -145,6 +142,9 @@ pub struct HostFnWeights {
 
     /// Weight of calling `gr_random`.
     pub gr_random: u64,
+
+    /// Weight of calling `gr_reply_deposit`.
+    pub gr_reply_deposit: u64,
 
     /// Weight of calling `gr_send`
     pub gr_send: u64,
@@ -334,8 +334,6 @@ pub enum RuntimeCosts {
     GasAvailable,
     /// Weight of calling `gr_message_id`.
     MsgId,
-    /// Weight of calling `gr_origin`.
-    Origin,
     /// Weight of calling `gr_pay_program_rent`.
     PayProgramRent,
     /// Weight of calling `gr_program_id`.
@@ -358,6 +356,8 @@ pub enum RuntimeCosts {
     BlockTimestamp,
     /// Weight of calling `gr_random`.
     Random,
+    /// Weight of calling `gr_reply_deposit`.
+    ReplyDeposit,
     /// Weight of calling `gr_send`.
     Send(u32),
     /// Weight of calling `gr_send_wgas`.
@@ -466,7 +466,6 @@ impl RuntimeCosts {
             SystemReserveGas => s.gr_system_reserve_gas,
             GasAvailable => s.gr_gas_available,
             MsgId => s.gr_message_id,
-            Origin => s.gr_origin,
             PayProgramRent => s.gr_pay_program_rent,
             ProgramId => s.gr_program_id,
             Source => s.gr_source,
@@ -478,6 +477,7 @@ impl RuntimeCosts {
             BlockHeight => s.gr_block_height,
             BlockTimestamp => s.gr_block_timestamp,
             Random => s.gr_random,
+            ReplyDeposit => s.gr_reply_deposit,
             Send(len) => cost_with_weight_per_byte!(gr_send, len),
             SendWGas(len) => cost_with_weight_per_byte!(gr_send_wgas, len),
             SendInit => s.gr_send_init,

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -111,9 +111,7 @@ impl<'a> MessageReplier<'a> {
             raw_payload.as_ref().to_vec().try_into().unwrap(),
             None,
             value,
-            self.log
-                .status_code()
-                .map(|status_code| ReplyDetails::new(self.log.id(), status_code).into()),
+            Some(ReplyDetails::new(self.log.id(), 0).into()),
         );
 
         self.manager

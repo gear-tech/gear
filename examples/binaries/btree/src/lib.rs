@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -121,7 +121,7 @@ mod tests {
         let system = System::new();
         system.init_logger();
 
-        let program = Program::current(&system);
+        let program = Program::current_opt(&system);
 
         let from = 42;
 

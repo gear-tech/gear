@@ -40,7 +40,7 @@ workspace_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz "$@" --no-fail-fast
   else
-    cargo +nightly nextest run --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz "$@" --profile ci --no-fail-fast
+    cargo nextest run --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz "$@" --profile ci --no-fail-fast
   fi
 }
 
@@ -50,8 +50,8 @@ gsdk_test() {
 }
 
 gcli_test() {
-  cargo +nightly nextest run -p gcli "$@" --profile ci --no-fail-fast
-  cargo +nightly nextest run -p gcli "$@" --features vara-testing --profile ci --no-fail-fast
+  cargo nextest run -p gcli "$@" --profile ci --no-fail-fast
+  cargo nextest run -p gcli "$@" --features vara-testing --profile ci --no-fail-fast
 }
 
 # $1 - ROOT DIR
@@ -126,7 +126,7 @@ run_fuzzer() {
 
   # Run fuzzer
   RUST_LOG="debug,runtime_fuzzer_fuzz=debug,wasmi,libfuzzer_sys,node_fuzzer=debug,gear,pallet_gear,gear-core-processor,gear-backend-wasmi,gwasm'" \
-  cargo +nightly fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192
+  cargo fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192
 }
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
@@ -138,5 +138,5 @@ doc_test() {
   MANIFEST="$1"
   shift
 
-  cargo test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" -- "$@"
+  __GEAR_WASM_BUILDER_NO_BUILD=1 cargo test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" -- "$@"
 }

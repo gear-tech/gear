@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022 Gear Technologies Inc.
+// Copyright (C) 2022-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -75,7 +75,6 @@ pub enum SysCallName {
     // Execution environmental data
     BlockHeight,
     BlockTimestamp,
-    Origin,
     GasAvailable,
     ValueAvailable,
 
@@ -97,6 +96,7 @@ pub enum SysCallName {
 
     // Miscellaneous
     Cost,
+    ReplyDeposit,
     Debug,
     Error,
     Random,
@@ -115,6 +115,7 @@ impl SysCallName {
             SysCallName::Cost => "gr_cost",
             SysCallName::CreateProgram => "gr_create_program",
             SysCallName::CreateProgramWGas => "gr_create_program_wgas",
+            SysCallName::ReplyDeposit => "gr_reply_deposit",
             SysCallName::Debug => "gr_debug",
             SysCallName::Panic => "gr_panic",
             SysCallName::OomPanic => "gr_oom_panic",
@@ -124,7 +125,6 @@ impl SysCallName {
             SysCallName::GasAvailable => "gr_gas_available",
             SysCallName::Leave => "gr_leave",
             SysCallName::MessageId => "gr_message_id",
-            SysCallName::Origin => "gr_origin",
             SysCallName::OutOfAllowance => "gr_out_of_allowance",
             SysCallName::OutOfGas => "gr_out_of_gas",
             SysCallName::PayProgramRent => "gr_pay_program_rent",
@@ -192,7 +192,6 @@ impl SysCallName {
             Self::GasAvailable,
             Self::PayProgramRent,
             Self::ProgramId,
-            Self::Origin,
             Self::Leave,
             Self::ValueAvailable,
             Self::Wait,
@@ -230,6 +229,7 @@ impl SysCallName {
             Self::Value,
             Self::CreateProgram,
             Self::CreateProgramWGas,
+            Self::ReplyDeposit,
             Self::ReserveGas,
             Self::UnreserveGas,
             Self::Random,
@@ -254,7 +254,6 @@ impl SysCallName {
             Self::GasAvailable => SysCallSignature::gr([Ptr]),
             Self::PayProgramRent => SysCallSignature::gr([Ptr, Ptr]),
             Self::ProgramId => SysCallSignature::gr([Ptr]),
-            Self::Origin => SysCallSignature::gr([Ptr]),
             Self::Leave => SysCallSignature::gr([]),
             Self::ValueAvailable => SysCallSignature::gr([Ptr]),
             Self::Wait => SysCallSignature::gr([]),
@@ -294,6 +293,7 @@ impl SysCallName {
             Self::CreateProgramWGas => {
                 SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Gas, Delay, Ptr])
             }
+            Self::ReplyDeposit => SysCallSignature::gr([Ptr, Gas, Ptr]),
             Self::ReserveGas => SysCallSignature::gr([Gas, Duration, Ptr]),
             Self::UnreserveGas => SysCallSignature::gr([Ptr, Ptr]),
             Self::SystemReserveGas => SysCallSignature::gr([Gas, Ptr]),

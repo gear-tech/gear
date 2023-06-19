@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -54,6 +54,7 @@ use pallet_grandpa::{
 };
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
 pub use runtime_common::{
+    constants::{RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR},
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, GasConverter,
     AVERAGE_ON_INITIALIZE_RATIO, GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO,
     VALUE_PER_GAS,
@@ -109,7 +110,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 160,
+    spec_version: 200,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -460,8 +461,9 @@ impl pallet_gear::Config for Runtime {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type ProgramRentFreePeriod = ConstU32<RENT_FREE_PERIOD>;
-    type ProgramRentMinimalResumePeriod = ConstU32<RENT_RESUME_PERIOD>;
+    type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
+    type ProgramResumeSessionDuration = ConstU32<{ HOURS * RESUME_SESSION_DURATION_HOUR_FACTOR }>;
 }
 
 #[cfg(feature = "debug-mode")]

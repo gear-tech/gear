@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -119,21 +119,6 @@ impl MessageId {
 /// processing message can be obtained using the
 /// [`msg::source`](crate::msg::source) function. Also, each send function has
 /// an `ActorId` target as one of the arguments.
-///
-/// # Examples
-///
-/// ```
-/// use gcore::{exec, msg};
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let sender = msg::source();
-///     let user = exec::origin();
-///     if sender == user {
-///         msg::reply(b"Hello, user!", 0).expect("Unable to reply");
-///     }
-/// }
-/// ```
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct ActorId(pub [u8; 32]);
 

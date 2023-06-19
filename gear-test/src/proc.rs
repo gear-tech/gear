@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -164,7 +164,7 @@ where
 
     let journal = core_processor::process::<E>(
         &block_config,
-        (context, code, 0u128, ProgramId::default()).into(),
+        (context, code, 0u128).into(),
         (random.to_vec(), block_config.block_info.height),
         Default::default(),
     )
@@ -382,7 +382,7 @@ where
 
         core_processor::process::<E>(
             &block_config,
-            (context, code, balance, ProgramId::default()).into(),
+            (context, code, balance).into(),
             (random.to_vec(), block_config.block_info.height),
             memory_pages,
         )
