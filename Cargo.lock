@@ -689,7 +689,6 @@ dependencies = [
  "cc",
  "cfg-if",
  "constant_time_eq 0.1.5",
- "digest 0.10.7",
 ]
 
 [[package]]
@@ -3956,6 +3955,8 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "clap 4.3.11",
+ "demo-calc-hash",
+ "demo-calc-hash-in-one-block",
  "dyn-clonable",
  "futures",
  "futures-timer",
@@ -13647,18 +13648,6 @@ dependencies = [
  "thiserror",
  "wasmer-compiler",
  "wasmer-types",
-]
-
-[[package]]
-name = "wasmer-cache"
-version = "2.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0def391ee1631deac5ac1e6ce919c07a5ccb936ad0fd44708cdc2365c49561a4"
-dependencies = [
- "blake3",
- "hex",
- "thiserror",
- "wasmer",
 ]
 
 [[package]]
