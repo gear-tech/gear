@@ -1943,10 +1943,10 @@ pub mod pallet {
 
             let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
-            // We want to charge the expenses on the voucher issued for the tx sender
-            // First we reserve enough funds on the account to pay for `gas_limit`.
-            // Note: this time around the cost of gas is covered by the voucher.
-            // Currency will be reserved on the voucher's account as a result of this call.
+            // We attempt to reserve enough funds using the voucher that should have been issued
+            // for the transaction sender to pay for the gas. If no such voucher exists, the call
+            // will fail.
+            // If successful, Currency will be reserved on the voucher's account.
             let voucher_id =
                 VoucherOf::<T>::redeem_with_id(who.clone(), destination, gas_limit_reserve)
                     .map_err(|_| {
@@ -1958,15 +1958,9 @@ pub mod pallet {
                         Error::<T>::FailureRedeemingVoucher
                     })?;
 
-            // # Safety
-            //
-            // The `unreachable` clause is due to the `message_id` being newly generated
-            // with `Self::next_message_id`.
-            //
-            // Note: using the `voucher_id` as the external parent of the gas node in order for
+            // Using the `voucher_id` as the external origin to create the gas node in order for
             // the leftover being refunded back to the voucher account and not the user's account.
-            GasHandlerOf::<T>::create(voucher_id, message.id(), gas_limit)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            Self::create(voucher_id, message.id(), gas_limit, false);
 
             let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
 

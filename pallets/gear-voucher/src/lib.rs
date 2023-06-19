@@ -46,26 +46,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::items_after_test_module)]
 
-use common::PaymentVoucher;
-use frame_support::{
-    pallet_prelude::*,
-    traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
-    PalletId,
-};
-use gear_core::ids::ProgramId;
-pub use pallet::*;
-pub use primitive_types::H256;
-use sp_io::hashing::blake2_256;
-use sp_runtime::traits::{StaticLookup, TrailingZeroInput};
-use sp_std::convert::TryInto;
-
-pub use pallet::*;
-pub use weights::WeightInfo;
-
-pub mod weights;
-
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+
+pub mod migration;
+pub mod weights;
 
 #[cfg(test)]
 mod mock;
@@ -73,7 +58,20 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-pub mod migration;
+use common::PaymentVoucher;
+use frame_support::{
+    pallet_prelude::*,
+    traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
+    PalletId,
+};
+use gear_core::ids::ProgramId;
+pub use primitive_types::H256;
+use sp_io::hashing::blake2_256;
+use sp_runtime::traits::{StaticLookup, TrailingZeroInput};
+use sp_std::convert::TryInto;
+pub use weights::WeightInfo;
+
+pub use pallet::*;
 
 pub(crate) type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
