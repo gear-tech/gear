@@ -24,7 +24,7 @@ use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
     costs::RuntimeCosts,
-    env::{Externalities, PayloadSliceHolder, ReclaimBoundResult},
+    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{ChargeError, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval, PageU32Size, WasmPage, WASM_PAGE_SIZE},
@@ -239,11 +239,11 @@ impl Externalities for MockExt {
         Ok(MessageId::default())
     }
 
-    fn lend_payload(&mut self, _at: u32, _len: u32) -> Result<PayloadSliceHolder, Self::Error> {
+    fn lock_payload(&mut self, _at: u32, _len: u32) -> Result<PayloadSliceLock, Self::Error> {
         unimplemented!()
     }
 
-    fn reclaim_payload(&mut self, _payload_holder: &mut PayloadSliceHolder) -> ReclaimBoundResult {
+    fn unlock_payload(&mut self, _payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
         unimplemented!()
     }
 }

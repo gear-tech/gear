@@ -30,7 +30,7 @@ use gear_backend_codegen::host;
 use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
-    env::{Externalities, UsePayloadHolderBoundResult},
+    env::{DropPayloadLockBoundResult, Externalities},
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
@@ -174,16 +174,14 @@ where
 
     #[host(fallible, cost = RuntimeCosts::Read, err_len = LengthBytes)]
     pub fn read(ctx: &mut R, at: u32, len: u32, buffer_ptr: u32) -> Result<(), R::Error> {
-        let payload_holder = ctx.ext_mut().lend_payload(at, len)?;
+        let payload_holder = ctx.ext_mut().lock_payload(at, len)?;
         payload_holder
-            .use_with_job::<MemoryAccessError, _>(|payload_to_slice| {
+            .drop_with_job::<MemoryAccessError, _>(|payload_to_slice| {
                 let write_buffer = ctx.register_write(buffer_ptr, len);
                 let write_res = ctx.write(write_buffer, payload_to_slice.to_slice());
-                let reclaim_res = ctx
-                    .ext_mut()
-                    .reclaim_payload(payload_to_slice.into_holder());
+                let reclaim_res = ctx.ext_mut().unlock_payload(payload_to_slice.into_holder());
 
-                UsePayloadHolderBoundResult::from((reclaim_res, write_res))
+                DropPayloadLockBoundResult::from((reclaim_res, write_res))
             })
             .into_inner()
             .map_err(Into::into)

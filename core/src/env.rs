@@ -27,35 +27,35 @@ use alloc::collections::BTreeSet;
 use core::{fmt::Display, mem};
 use gear_wasm_instrument::syscalls::SysCallName;
 
-/// Holder for the payload of the incoming/currently executing message.
+/// Lock for the payload of the incoming/currently executing message.
 ///
 /// The type was mainly introduced to establish type safety mechanics
 /// for the read of the payload from externalities. To type's purposes
-/// see [`Externalities::lend_payload`] docs.
+/// see [`Externalities::lock_payload`] docs.
 ///
 /// ### Usage
 /// This type gives access to some slice of the currently executing message
 /// payload, but doesn't do it directly. It gives to the caller the [`PayloadToSlice`]
 /// wrapper, which actually can return the slice of the payload. But this wrapper
-/// is instantiated only inside the [`Self::use_with_job`] method.
-/// This is actually done to prevent a user of the type from holding payload of the
-/// message, which actually moves it, from forgetting to release it back, because
+/// is instantiated only inside the [`Self::drop_with_job`] method.
+/// This is actually done to prevent a user of the type from locking payload of the
+/// message, which actually moves it, and forgetting to unlock it back, because
 /// if access to the slice buffer was granted directly from the holder, the type user
 /// could have written the data to memory and then have dropped the holder. As a result
-/// the executing message payload wouldn't have been returned. So [`PayloadSliceHolder::use_with_job`]
+/// the executing message payload wouldn't have been returned. So [`PayloadSliceLock::drop_with_job`]
 /// is a kind of scope-guard for the data and the [`PayloadToSlice`] is a data access guard.
 ///
-/// For more usage info read [`Self::use_with_job`] docs.
+/// For more usage info read [`Self::drop_with_job`] docs.
 
-pub struct PayloadSliceHolder {
-    /// Held payload
+pub struct PayloadSliceLock {
+    /// Locked payload
     payload: Payload,
     /// Range values indicating slice bounds.
     range: (usize, usize),
 }
 
-impl PayloadSliceHolder {
-    /// Creates a new [`PayloadSliceHolder`] from the currently executed message context.
+impl PayloadSliceLock {
+    /// Creates a new [`PayloadSliceLock`] from the currently executed message context.
     ///
     /// The method checks whether received range (slice) is correct, i.e., the end is lower
     /// than payload's length. If the check goes well, the ownership over payload will be
@@ -72,33 +72,33 @@ impl PayloadSliceHolder {
         })
     }
 
-    /// Releases back ownership of the held payload to the message context.
+    /// Releases back ownership of the locked payload to the message context.
     ///
     /// The method actually performs [`mem::swap`] under the hood. It's supposed
-    /// to be called from [`Externalities::reclaim_payload`], implementor of which
+    /// to be called from [`Externalities::unlock_payload`], implementor of which
     /// owns provided message context.
-    pub fn release_back(&mut self, msg_ctx: &mut MessageContext) {
+    pub fn unlock_back(&mut self, msg_ctx: &mut MessageContext) {
         mem::swap(msg_ctx.payload_mut(), &mut self.payload);
     }
 
-    /// Uses the holder in the provided `job` and drops the holder after running it.
+    /// Uses the lock in the provided `job` and drops the lock after running it.
     ///
-    /// [`PayloadSliceHolder`]'s main purpose is to provide safe access to the payload's
+    /// [`PayloadSliceLock`]'s main purpose is to provide safe access to the payload's
     /// slice and ensure it will be returned back to the message.
     ///
     /// Type docs explain how safe access is designed with [`PayloadToSlice`].
     ///
-    /// We ensure that the payload is released back by returning the [`UsePayloadHolderBoundResult`]
+    /// We ensure that the payload is released back by returning the [`DropPayloadLockBoundResult`]
     /// from the `job`. This type can actually be instantiated only from tuple of two:
-    /// [`ReclaimBoundResult`] and some result with err variant type to be `JobErr`.
-    /// The first is returned from [`Externalities::reclaim_payload`], so it means that
+    /// [`UnlockPayloadBound`] and some result with err variant type to be `JobErr`.
+    /// The first is returned from [`Externalities::unlock_payload`], so it means that
     /// that payload was reclaimed by the original owner. The other result stores actual
     /// error of the `Job` as it could have called fallible actions inside it. So,
-    /// [`UsePayloadHolderBoundResult`] gives an opportunity to store the actual result of the job,
+    /// [`DropPayloadLockBoundResult`] gives an opportunity to store the actual result of the job,
     /// but also gives guarantee that payload was reclaimed.
-    pub fn use_with_job<JobErr, Job>(mut self, mut job: Job) -> UsePayloadHolderBoundResult<JobErr>
+    pub fn drop_with_job<JobErr, Job>(mut self, mut job: Job) -> DropPayloadLockBoundResult<JobErr>
     where
-        Job: FnMut(PayloadToSlice<'_>) -> UsePayloadHolderBoundResult<JobErr>,
+        Job: FnMut(PayloadToSlice<'_>) -> DropPayloadLockBoundResult<JobErr>,
     {
         let held_range = PayloadToSlice(&mut self);
         job(held_range)
@@ -111,11 +111,11 @@ impl PayloadSliceHolder {
     }
 }
 
-/// A wrapper over mutable reference to [`PayloadSliceHolder`]
+/// A wrapper over mutable reference to [`PayloadSliceLock`]
 /// which can give to the caller the slice of the held payload.
 ///
-/// For more information read [`PayloadSliceHolder`] docs.
-pub struct PayloadToSlice<'a>(&'a mut PayloadSliceHolder);
+/// For more information read [`PayloadSliceLock`] docs.
+pub struct PayloadToSlice<'a>(&'a mut PayloadSliceLock);
 
 impl<'a> PayloadToSlice<'a> {
     /// Returns slice of the held payload.
@@ -123,50 +123,48 @@ impl<'a> PayloadToSlice<'a> {
         self.0.in_range()
     }
 
-    /// Converts the wrapper into [`PayloadSliceHolder`].
-    pub fn into_holder(self) -> &'a mut PayloadSliceHolder {
+    /// Converts the wrapper into [`PayloadSliceLock`].
+    pub fn into_holder(self) -> &'a mut PayloadSliceLock {
         self.0
     }
 }
 
-/// Result of calling a `job` within [`PayloadSliceHolder::use_with_job`].
+/// Result of calling a `job` within [`PayloadSliceLock::drop_with_job`].
 ///
 /// This is a "bound" type which means it's main purpose is to give
 /// some type-level guarantees. More precisely, it gives guarantee
 /// that payload value was reclaimed by the owner. Also it stores the error
 /// of the `job`, which gives opportunity to handle the actual job's runtime
 /// error, but not bound wrappers.
-pub struct UsePayloadHolderBoundResult<JobError> {
+pub struct DropPayloadLockBoundResult<JobError> {
     job_result: Result<(), JobError>,
 }
 
-impl<JobErr> UsePayloadHolderBoundResult<JobErr> {
-    /// Convert into inner job of the [`PayloadSliceHolder::use_with_job`] result.
+impl<JobErr> DropPayloadLockBoundResult<JobErr> {
+    /// Convert into inner job of the [`PayloadSliceLock::drop_with_job`] result.
     pub fn into_inner(self) -> Result<(), JobErr> {
         self.job_result
     }
 }
 
-impl<JobErr> From<(ReclaimBoundResult, Result<(), JobErr>)>
-    for UsePayloadHolderBoundResult<JobErr>
-{
-    fn from((_token, job_result): (ReclaimBoundResult, Result<(), JobErr>)) -> Self {
-        UsePayloadHolderBoundResult { job_result }
+impl<JobErr> From<(UnlockPayloadBound, Result<(), JobErr>)> for DropPayloadLockBoundResult<JobErr> {
+    fn from((_token, job_result): (UnlockPayloadBound, Result<(), JobErr>)) -> Self {
+        DropPayloadLockBoundResult { job_result }
     }
 }
 
-/// Result of calling [`Externalities::reclaim_payload`].
+/// Result of calling [`Externalities::unlock_payload`].
 ///
 /// This is a "bound" type which means it doesn't store
-/// anything, but gives type-level guarantees that [`PayloadSliceHolder`]
+/// anything, but gives type-level guarantees that [`PayloadSliceLock`]
 /// released the payload back to the message context.
-pub struct ReclaimBoundResult(());
+pub struct UnlockPayloadBound(());
 
-impl From<(&mut MessageContext, &mut PayloadSliceHolder)> for ReclaimBoundResult {
-    fn from((msg_ctx, payload_holder): (&mut MessageContext, &mut PayloadSliceHolder)) -> Self {
-        payload_holder.release_back(msg_ctx);
+impl From<(&mut MessageContext, &mut PayloadSliceLock)> for UnlockPayloadBound {
+    fn from((msg_ctx, payload_holder): (&mut MessageContext, &mut PayloadSliceLock)) -> Self {
+        payload_holder.unlock_back(msg_ctx);
 
-        ReclaimBoundResult(())
+        UnlockPayloadBound(())
     }
 }
 
@@ -308,7 +306,8 @@ pub trait Externalities {
     fn debug(&self, data: &str) -> Result<(), Self::Error>;
 
     /// Takes ownership over payload of the executing message and
-    /// returns it in the wrapper [`PayloadSliceHolder`].
+    /// returns it in the wrapper [`PayloadSliceLock`], which acts
+    /// like lock.
     ///
     /// Due to details of implementation of the runtime which executes gear
     /// sys-calls inside wasm execution environment (either wasmi or sp_sandbox),
@@ -316,14 +315,16 @@ pub trait Externalities {
     /// ownership over payload to the caller. Giving ownership over payload actually
     /// means, that the payload value in the currently executed message will become
     /// "de-allocated" or just zeroed. To prevent from the risk of payload being
-    /// not "returned" back to the message a [`Externalities::reclaim_payload`] is
-    /// introduced. For more info, read docs to [`PayloadSliceHolder`], [`UsePayloadHolderBoundResult`],
-    /// [`ReclaimBoundResult`], [`PayloadToSlice`] types and their methods.
-    fn lend_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error>;
+    /// not "returned" back to the message a [`Externalities::unlock_payload`] is
+    /// introduced. For more info, read docs to [`PayloadSliceLock`], [`DropPayloadLockBoundResult`],
+    /// [`UnlockPayloadBound`], [`PayloadToSlice`] types and their methods.
+    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::Error>;
 
-    /// Reclaims ownership from the payload holder over previously taken payload from the
-    /// currently executing message.
-    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) -> ReclaimBoundResult;
+    /// Reclaims ownership from the payload lock over previously taken payload from the
+    /// currently executing message..
+    ///
+    /// It's supposed, that the implementation of the method calls [`PayloadSliceLock::unlock_back`].
+    fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound;
 
     /// Size of currently handled message payload.
     fn size(&self) -> Result<usize, Self::Error>;

@@ -30,7 +30,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
-    env::{Externalities, PayloadSliceHolder, ReclaimBoundResult},
+    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{
         ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
         GasLeft, Token, ValueCounter,
@@ -714,25 +714,23 @@ impl Externalities for Ext {
         Ok(())
     }
 
-    fn lend_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceHolder, Self::Error> {
+    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::Error> {
         let end = at
             .checked_add(len)
             .ok_or(MessageError::TooBigReadLen { at, len })?;
         self.charge_gas_runtime_if_enough(RuntimeCosts::ReadPerByte(len))?;
-        PayloadSliceHolder::try_new((at, end), &mut self.context.message_context).map_err(
-            |msg_len| {
-                MessageError::ReadWrongRange {
-                    start: at,
-                    end,
-                    msg_len: msg_len as u32,
-                }
-                .into()
-            },
-        )
+        PayloadSliceLock::try_new((at, end), &mut self.context.message_context).map_err(|msg_len| {
+            MessageError::ReadWrongRange {
+                start: at,
+                end,
+                msg_len: msg_len as u32,
+            }
+            .into()
+        })
     }
 
-    fn reclaim_payload(&mut self, payload_holder: &mut PayloadSliceHolder) -> ReclaimBoundResult {
-        ReclaimBoundResult::from((&mut self.context.message_context, payload_holder))
+    fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
+        UnlockPayloadBound::from((&mut self.context.message_context, payload_holder))
     }
 
     fn size(&self) -> Result<usize, Self::Error> {
