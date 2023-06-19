@@ -335,7 +335,7 @@ fn auto_reply_out_of_rent_mailbox() {
             .expect("Infallible")
             .expect("Should be");
         let err = SimpleReplyError::OutOfRent;
-        assert_eq!(dispatch.payload(), err.to_string().into_bytes());
+        assert_eq!(dispatch.payload_bytes(), err.to_string().into_bytes());
         assert_eq!(
             dispatch.status_code().expect("Should be"),
             err.into_status_code()
@@ -473,7 +473,10 @@ fn reply_deposit_to_user_reply() {
         assert_total_dequeued(2);
 
         let mail = get_last_mail(USER_2);
-        assert_eq!(mail.payload(), demo_reply_deposit::DESTINATION_MESSAGE);
+        assert_eq!(
+            mail.payload_bytes(),
+            demo_reply_deposit::DESTINATION_MESSAGE
+        );
 
         let user_2_balance = Balances::total_balance(&USER_2);
         assert_balance(USER_2, user_2_balance, 0u128);
@@ -545,7 +548,10 @@ fn reply_deposit_to_user_claim() {
         assert_total_dequeued(2);
 
         let mail = get_last_mail(USER_2);
-        assert_eq!(mail.payload(), demo_reply_deposit::DESTINATION_MESSAGE);
+        assert_eq!(
+            mail.payload_bytes(),
+            demo_reply_deposit::DESTINATION_MESSAGE
+        );
 
         let user_2_balance = Balances::total_balance(&USER_2);
         assert_balance(USER_2, user_2_balance, 0u128);
@@ -611,7 +617,10 @@ fn reply_deposit_to_user_out_of_rent() {
             .next()
             .expect("Element should be");
 
-        assert_eq!(mail.payload(), demo_reply_deposit::DESTINATION_MESSAGE);
+        assert_eq!(
+            mail.payload_bytes(),
+            demo_reply_deposit::DESTINATION_MESSAGE
+        );
 
         let user_2_balance = Balances::total_balance(&USER_2);
         assert_balance(USER_2, user_2_balance, 0u128);
@@ -679,7 +688,7 @@ fn reply_deposit_gstd_async() {
         assert!(Gear::is_active(program_id));
 
         let mail = get_last_mail(USER_2);
-        assert_eq!(mail.payload(), hello);
+        assert_eq!(mail.payload_bytes(), hello);
 
         let hello_reply = b"U2";
         assert_ok!(Gear::send_reply(
@@ -699,7 +708,7 @@ fn reply_deposit_gstd_async() {
             reply.reply().expect("Should be").into_parts(),
             (handle_id, 0)
         );
-        assert_eq!(reply.payload(), hello_reply);
+        assert_eq!(reply.payload_bytes(), hello_reply);
     });
 }
 
@@ -4355,7 +4364,7 @@ fn defer_program_initialization() {
         assert_eq!(
             maybe_last_message(USER_1)
                 .expect("Event should be")
-                .payload(),
+                .payload_bytes(),
             b"Hello, world!".encode()
         );
     })
@@ -4418,7 +4427,7 @@ fn wake_messages_after_program_inited() {
                 MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. })
                     if message.destination().into_origin() == USER_3.into_origin() =>
                 {
-                    assert_eq!(message.payload().to_vec(), b"Hello, world!".encode());
+                    assert_eq!(message.payload_bytes().to_vec(), b"Hello, world!".encode());
                     Some(())
                 }
                 _ => None,
@@ -4885,7 +4894,7 @@ fn test_requeue_after_wait_for_timeout() {
         }));
 
         // Message processed.
-        assert_eq!(get_last_mail(USER_1).payload(), b"ping");
+        assert_eq!(get_last_mail(USER_1).payload_bytes(), b"ping");
     })
 }
 
@@ -5044,7 +5053,7 @@ fn test_wait_timeout() {
 
         // Timeout still works.
         assert!(MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload().to_vec() == b"timeout"));
+            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
     })
 }
 
@@ -5095,14 +5104,14 @@ fn test_join_wait_timeout() {
         // The timeout message has not been triggered yet.
         run_to_target(targets[0]);
         assert!(!MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload().to_vec() == b"timeout"));
+            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
 
         // Run to the end of the second duration.
         //
         // The timeout message has been triggered.
         run_to_target(targets[1]);
         assert!(MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload().to_vec() == b"timeout"));
+            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
     })
 }
 
@@ -5149,7 +5158,7 @@ fn test_select_wait_timeout() {
         run_to_next_block(None);
 
         assert!(MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload().to_vec() == b"timeout"));
+            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
     })
 }
 
@@ -5185,7 +5194,7 @@ fn test_wait_lost() {
         run_to_next_block(None);
 
         assert!(MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| {
-            if msg.payload() == b"ping" {
+            if msg.payload_bytes() == b"ping" {
                 assert_ok!(Gear::send_reply(
                     RuntimeOrigin::signed(USER_1),
                     msg.id(),
@@ -5212,17 +5221,21 @@ fn test_wait_lost() {
         //
         // The timeout message has been triggered.
         run_to_target(targets[0]);
-        assert!(
-            !MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload() == b"unreachable")
-        );
+        assert!(!MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload_bytes() == b"unreachable"));
 
         // Run to the end of the second duration.
         //
         // The timeout message has been triggered.
         run_to_target(targets[1]);
-        assert!(MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload() == b"timeout"));
-        assert!(MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload() == b"timeout2"));
-        assert!(MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload() == b"success"));
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload_bytes() == b"timeout")
+        );
+        assert!(MailboxOf::<Test>::iter_key(USER_1)
+            .any(|(msg, _bn)| msg.payload_bytes() == b"timeout2"));
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload_bytes() == b"success")
+        );
     })
 }
 
@@ -6267,7 +6280,7 @@ fn resume_program_works() {
         run_to_next_block(None);
 
         let message = maybe_any_last_message().expect("message to user should be sent");
-        let reply = Reply::decode(&mut message.payload()).unwrap();
+        let reply = Reply::decode(&mut message.payload_bytes()).unwrap();
         assert!(matches!(reply, Reply::List(vec) if vec == vec![(0, 1)]));
     })
 }
@@ -7813,7 +7826,7 @@ fn demo_constructor_works() {
         let message_id = MessageId::generate_outgoing(message_id, 0);
 
         let last_mail = maybe_any_last_message().expect("Element should be");
-        assert_eq!(last_mail.payload(), message_id.as_ref());
+        assert_eq!(last_mail.payload_bytes(), message_id.as_ref());
 
         let (first_mail, _bn) = {
             let res = MailboxOf::<Test>::remove(USER_1, message_id);
@@ -7822,7 +7835,7 @@ fn demo_constructor_works() {
         };
 
         assert_eq!(first_mail.value(), 100_000);
-        assert_eq!(first_mail.payload(), b"Hello, user!");
+        assert_eq!(first_mail.payload_bytes(), b"Hello, user!");
 
         let calls = Calls::builder().panic("I just panic every time");
 
@@ -7886,7 +7899,7 @@ fn demo_constructor_value_eq() {
         run_to_next_block(None);
 
         let last_mail = maybe_any_last_message().expect("Element should be");
-        assert_eq!(last_mail.payload(), b"Eq");
+        assert_eq!(last_mail.payload_bytes(), b"Eq");
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -7899,7 +7912,7 @@ fn demo_constructor_value_eq() {
         run_to_next_block(None);
 
         let last_mail = maybe_any_last_message().expect("Element should be");
-        assert_eq!(last_mail.payload(), b"Ne");
+        assert_eq!(last_mail.payload_bytes(), b"Ne");
     });
 }
 
@@ -7931,7 +7944,7 @@ fn demo_constructor_is_demo_ping() {
         let (_init_mid, constructor_id) = utils::init_constructor(scheme);
 
         let init_reply = maybe_any_last_message().expect("Element should be");
-        assert_eq!(init_reply.payload(), b"PING");
+        assert_eq!(init_reply.payload_bytes(), b"PING");
 
         let mut message_id_to_reply = None;
 
@@ -7948,7 +7961,7 @@ fn demo_constructor_is_demo_ping() {
             run_to_next_block(None);
 
             let last_mail = maybe_any_last_message().expect("Element should be");
-            assert_eq!(last_mail.payload(), b"PONG");
+            assert_eq!(last_mail.payload_bytes(), b"PONG");
             message_id_to_reply = Some(last_mail.id());
         }
 
@@ -8059,7 +8072,7 @@ fn delayed_sending() {
 
         let auto_reply = maybe_last_message(USER_1).expect("Should be");
         assert!(auto_reply.is_reply());
-        assert!(auto_reply.payload().is_empty());
+        assert!(auto_reply.payload_bytes().is_empty());
 
         System::reset_events();
 
@@ -8072,7 +8085,7 @@ fn delayed_sending() {
         assert_eq!(
             maybe_last_message(USER_1)
                 .expect("Event should be")
-                .payload(),
+                .payload_bytes(),
             b"Delayed hello!".encode()
         );
     });
@@ -8325,7 +8338,8 @@ fn execution_over_blocks() {
         use demo_calc_hash::verify_result;
 
         let last_message = maybe_last_message(USER_1).expect("Get last message failed.");
-        let result = <[u8; 32]>::decode(&mut last_message.payload()).expect("Decode result failed");
+        let result =
+            <[u8; 32]>::decode(&mut last_message.payload_bytes()).expect("Decode result failed");
 
         assert!(verify_result(src, count, result));
 
@@ -8462,7 +8476,7 @@ fn execution_over_blocks() {
         loop {
             let lm = maybe_last_message(USER_1);
 
-            if !(lm.is_none() || lm.unwrap().payload().is_empty()) {
+            if !(lm.is_none() || lm.unwrap().payload_bytes().is_empty()) {
                 break;
             }
 
@@ -8560,7 +8574,7 @@ fn test_async_messages() {
             // check the message sent from the program
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
-            assert_eq!(Kind::decode(&mut last_mail.payload()), Ok(*kind));
+            assert_eq!(Kind::decode(&mut last_mail.payload_bytes()), Ok(*kind));
 
             // reply to the message
             let message_id = last_mail.id();
@@ -8575,7 +8589,7 @@ fn test_async_messages() {
             // check the reply from the program
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
-            assert_eq!(last_mail.payload(), b"PONG");
+            assert_eq!(last_mail.payload_bytes(), b"PONG");
             assert_ok!(Gear::claim_value(
                 RuntimeOrigin::signed(USER_1),
                 last_mail.id()
@@ -8953,7 +8967,7 @@ fn send_from_reservation() {
 
             let msg = get_last_mail(USER_1);
             assert_eq!(msg.value(), 500);
-            assert_eq!(msg.payload(), b"send_to_user");
+            assert_eq!(msg.payload_bytes(), b"send_to_user");
             let map = get_reservation_map(pid).unwrap();
             assert!(map.is_empty());
         }
@@ -8981,7 +8995,7 @@ fn send_from_reservation() {
 
             let msg = get_last_mail(USER_1);
             assert_eq!(msg.value(), 700);
-            assert_eq!(msg.payload(), b"receive_from_program");
+            assert_eq!(msg.payload_bytes(), b"receive_from_program");
             let map = get_reservation_map(pid).unwrap();
             assert!(map.is_empty());
         }
@@ -9005,7 +9019,7 @@ fn send_from_reservation() {
 
             let msg = get_last_mail(USER_1);
             assert_eq!(msg.value(), 600);
-            assert_eq!(msg.payload(), b"send_to_user_delayed");
+            assert_eq!(msg.payload_bytes(), b"send_to_user_delayed");
             let map = get_reservation_map(pid).unwrap();
             assert!(map.is_empty());
         }
@@ -9036,7 +9050,7 @@ fn send_from_reservation() {
 
             let msg = get_last_mail(USER_1);
             assert_eq!(msg.value(), 800);
-            assert_eq!(msg.payload(), b"receive_from_program_delayed");
+            assert_eq!(msg.payload_bytes(), b"receive_from_program_delayed");
             let map = get_reservation_map(pid).unwrap();
             assert!(map.is_empty());
         }
@@ -9086,7 +9100,7 @@ fn reply_from_reservation() {
 
             let msg = maybe_last_message(USER_1).expect("Should be");
             assert_eq!(msg.value(), 900);
-            assert_eq!(msg.payload(), b"reply_to_user");
+            assert_eq!(msg.payload_bytes(), b"reply_to_user");
             let map = get_reservation_map(pid).unwrap();
             assert!(map.is_empty());
         }
@@ -9114,7 +9128,7 @@ fn reply_from_reservation() {
 
             let msg = maybe_last_message(USER_1).expect("Should be");
             assert_eq!(msg.value(), 900);
-            assert_eq!(msg.payload(), b"reply");
+            assert_eq!(msg.payload_bytes(), b"reply");
             let map = get_reservation_map(pid).unwrap();
             assert!(map.is_empty());
         }
@@ -9434,7 +9448,7 @@ fn signal_gas_limit_exceeded_works() {
 
         // check signal dispatch executed
         let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload(), b"handle_signal");
+        assert_eq!(mail_msg.payload_bytes(), b"handle_signal");
     });
 }
 
@@ -9576,7 +9590,7 @@ fn system_reservation_panic_works() {
 
         // check signal dispatch executed
         let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload(), b"handle_signal");
+        assert_eq!(mail_msg.payload_bytes(), b"handle_signal");
     });
 }
 
@@ -9617,7 +9631,7 @@ fn system_reservation_exit_works() {
         // check signal dispatch was not executed but `gr_exit` did
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 0);
         let msg = maybe_last_message(USER_1).expect("Should be");
-        assert_eq!(msg.payload(), b"exit");
+        assert_eq!(msg.payload_bytes(), b"exit");
     });
 }
 
@@ -9778,7 +9792,7 @@ fn system_reservation_wait_and_exit_works() {
 
         // check `gr_exit` occurs
         let msg = get_last_mail(USER_1);
-        assert_eq!(msg.payload(), b"wait_and_exit");
+        assert_eq!(msg.payload_bytes(), b"wait_and_exit");
     });
 }
 
@@ -9833,7 +9847,7 @@ fn system_reservation_wait_and_reserve_with_panic_works() {
 
         // check signal dispatch executed
         let mail_msg = get_last_mail(USER_1);
-        assert_eq!(mail_msg.payload(), b"handle_signal");
+        assert_eq!(mail_msg.payload_bytes(), b"handle_signal");
     });
 }
 
@@ -10155,7 +10169,7 @@ fn gas_reservations_fresh_reserve_unreserve() {
 
         assert_succeed(mid);
         let msg = get_last_mail(USER_1);
-        assert_eq!(msg.payload(), b"fresh_reserve_unreserve");
+        assert_eq!(msg.payload_bytes(), b"fresh_reserve_unreserve");
     });
 }
 
@@ -10194,7 +10208,7 @@ fn gas_reservations_existing_reserve_unreserve() {
 
         assert_succeed(mid);
         let msg = get_last_mail(USER_1);
-        assert_eq!(msg.payload(), b"existing_reserve_unreserve");
+        assert_eq!(msg.payload_bytes(), b"existing_reserve_unreserve");
     });
 }
 
@@ -10228,7 +10242,7 @@ fn custom_async_entrypoint_works() {
         run_to_block(3, None);
 
         let msg = get_last_mail(USER_1);
-        assert_eq!(msg.payload(), b"my_handle_signal");
+        assert_eq!(msg.payload_bytes(), b"my_handle_signal");
 
         assert_ok!(Gear::send_reply(
             RuntimeOrigin::signed(USER_1),
@@ -10241,7 +10255,7 @@ fn custom_async_entrypoint_works() {
         run_to_block(4, None);
 
         let msg = get_last_mail(USER_1);
-        assert_eq!(msg.payload(), b"my_handle_reply");
+        assert_eq!(msg.payload_bytes(), b"my_handle_reply");
     });
 }
 
@@ -10461,7 +10475,7 @@ fn signal_on_uninitialized_program() {
         assert_ok!(GasHandlerOf::<Test>::get_system_reserve(init_mid));
 
         let msg = get_last_mail(USER_1);
-        assert_eq!(msg.payload(), b"init");
+        assert_eq!(msg.payload_bytes(), b"init");
 
         assert_ok!(Gear::send_reply(
             RuntimeOrigin::signed(USER_1),
@@ -10579,7 +10593,7 @@ fn async_does_not_duplicate_sync() {
 
         let mail = maybe_any_last_message().expect("Element should be");
         assert_eq!(mail.destination().into_origin(), USER_1.into_origin());
-        assert_eq!(mail.payload(), 1i32.to_le_bytes());
+        assert_eq!(mail.payload_bytes(), 1i32.to_le_bytes());
     })
 }
 
@@ -11475,7 +11489,7 @@ mod utils {
                         && details.status_code().to_le_bytes()[0] != 0
                     {
                         actual_error = Some((
-                            String::from_utf8(message.payload().to_vec())
+                            String::from_utf8(message.payload_bytes().to_vec())
                                 .expect("Unable to decode string from error reply"),
                             details.status_code(),
                         ));
@@ -11927,7 +11941,7 @@ mod utils {
                 if message.destination() == user_id.into() {
                     match assertions[res.len()] {
                         Assertion::Payload(_) => {
-                            res.push(Assertion::Payload(message.payload().to_vec()))
+                            res.push(Assertion::Payload(message.payload_bytes().to_vec()))
                         }
                         Assertion::StatusCode(_) => {
                             res.push(Assertion::StatusCode(message.status_code()))
@@ -12192,7 +12206,10 @@ fn check_random_works() {
             .iter()
             .zip(random_data.iter())
             .for_each(|((msg, _bn), random_data)| {
-                assert_eq!(blake2b(32, &[], random_data).as_bytes(), msg.payload());
+                assert_eq!(
+                    blake2b(32, &[], random_data).as_bytes(),
+                    msg.payload_bytes()
+                );
             });
 
         // // assert_last_dequeued(1);
@@ -12239,7 +12256,9 @@ fn reply_with_small_non_zero_gas() {
         run_to_next_block(None);
         assert_succeed(message_id);
         assert_eq!(
-            maybe_last_message(USER_1).expect("Should be").payload(),
+            maybe_last_message(USER_1)
+                .expect("Should be")
+                .payload_bytes(),
             payload
         );
     });
@@ -12358,7 +12377,7 @@ fn relay_messages() {
                     let Expected { user, payload } = &expected[r];
 
                     if message.destination().into_origin() == user.into_origin() {
-                        assert_eq!(message.payload(), payload, "{label}");
+                        assert_eq!(message.payload_bytes(), payload, "{label}");
                         r + 1
                     } else {
                         r
@@ -12873,5 +12892,41 @@ fn check_mutable_global_exports_restriction() {
             upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(wat_incorrect)),
             Error::<Test>::ProgramConstructionFailed
         );
+    });
+}
+
+/// Tests whether calling `gr_read` 2 times returns same result.
+/// Test purpose is to check, that payload is given back to the
+/// message.
+#[test]
+fn double_read_works() {
+    use demo_constructor::{Calls, Scheme};
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let noop_branch = Calls::builder().noop();
+        let panic_branch = Calls::builder().panic("Read payloads aren't equal");
+        let handle = Calls::builder()
+            .load("read1")
+            .load("read2")
+            .bytes_eq("is_eq", "read1", "read2")
+            .if_else("is_eq", noop_branch, panic_branch);
+        let predefined_scheme = Scheme::predefined(Default::default(), handle, Default::default());
+
+        let (_, constructor_id) = utils::init_constructor(predefined_scheme);
+
+        // Resetting events to check the result of the last message.
+        System::reset_events();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            b"PAYLOAD".to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            100_000,
+        ));
+
+        run_to_next_block(None);
+
+        assert_responses_to_user(USER_1, vec![Assertion::StatusCode(Some(0))]);
     });
 }

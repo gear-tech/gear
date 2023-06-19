@@ -122,7 +122,7 @@ fn out_of_rent_reply_exists(
             msg.destination() == src
                 && msg.source() == pid
                 && msg.reply() == Some(ReplyDetails::new(mid, err.into_status_code()))
-                && msg.payload() == err.to_string().as_bytes()
+                && msg.payload_bytes() == err.to_string().as_bytes()
         } else {
             false
         }

@@ -661,7 +661,7 @@ impl ExtManager {
         let message_id = dispatch.id();
         let source = dispatch.source();
         let program_id = dispatch.destination();
-        let payload = dispatch.payload().to_vec();
+        let payload = dispatch.payload_bytes().to_vec();
 
         let response = match dispatch.kind() {
             DispatchKind::Init => mock.init(payload).map(Mocked::Reply),
