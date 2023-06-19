@@ -43,7 +43,6 @@ struct FungibleToken {
 static mut FUNGIBLE_TOKEN: Option<FungibleToken> = None;
 
 impl FungibleToken {
-    /// Executed on receiving `fungible-token-messages::MintInput`.
     fn test_set(&mut self, user_ids: Range<u64>, amount: u128) {
         let len = user_ids.end - user_ids.start;
         self.total_supply += amount * len as u128;
@@ -53,7 +52,7 @@ impl FungibleToken {
             self.balances.insert(arr.into(), amount);
         }
     }
-    /// Executed on receiving `fungible-token-messages::MintInput`.
+
     fn mint(&mut self, amount: u128) {
         self.balances
             .entry(msg::source())
@@ -70,7 +69,7 @@ impl FungibleToken {
         )
         .unwrap();
     }
-    /// Executed on receiving `fungible-token-messages::BurnInput`.
+
     fn burn(&mut self, amount: u128) {
         if self.balances.get(&msg::source()).unwrap_or(&0) < &amount {
             panic!("Amount exceeds account balance");
@@ -90,7 +89,7 @@ impl FungibleToken {
         )
         .unwrap();
     }
-    /// Executed on receiving `fungible-token-messages::TransferInput` or `fungible-token-messages::TransferFromInput`.
+
     /// Transfers `amount` tokens from `sender` account to `recipient` account.
     fn transfer(&mut self, from: &ActorId, to: &ActorId, amount: u128) {
         if from == &ZERO_ID || to == &ZERO_ID {
@@ -120,7 +119,6 @@ impl FungibleToken {
         .unwrap();
     }
 
-    /// Executed on receiving `fungible-token-messages::ApproveInput`.
     fn approve(&mut self, to: &ActorId, amount: u128) {
         if to == &ZERO_ID {
             panic!("Approve to zero address");
@@ -203,9 +201,9 @@ fn reply(payload: impl Encode) -> GstdResult<MessageId> {
     msg::reply(payload, 0)
 }
 
-#[gstd::message_loaded_on_stack]
-fn handle(action: Result<FTAction>) {
-    let action: FTAction = action.expect("Could not load Action");
+#[no_mangle]
+extern "C" fn handle() {
+    let action: FTAction = msg::load_on_stack().expect("Could not load Action");
     let ft: &mut FungibleToken = unsafe { FUNGIBLE_TOKEN.get_or_insert(Default::default()) };
     match action {
         FTAction::Mint(amount) => {
@@ -231,9 +229,9 @@ fn handle(action: Result<FTAction>) {
     }
 }
 
-#[gstd::message_loaded_on_stack]
-fn init(config: Result<InitConfig>) {
-    let config: InitConfig = config.expect("Unable to decode InitConfig");
+#[no_mangle]
+extern "C" fn init() {
+    let config: InitConfig = msg::load_on_stack().expect("Unable to decode InitConfig");
     let ft = FungibleToken {
         name: config.name,
         symbol: config.symbol,

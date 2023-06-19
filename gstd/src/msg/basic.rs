@@ -316,7 +316,7 @@ pub fn load_bytes() -> Result<Vec<u8>> {
 }
 
 /// +_+_+
-pub fn with_read_bytes<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
+pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
     gcore::msg::with_read_on_stack(|read_res| f(read_res.map_err(Error::Ext)))
 }
 

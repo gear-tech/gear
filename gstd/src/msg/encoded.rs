@@ -64,19 +64,18 @@ pub fn load<D: Decode>() -> Result<D> {
 
 /// Reads current message payload to buffer on program stack, .
 /// +_+_+ ??
-pub fn with_loaded_on_stack<D: Decode, R>(mut f: impl FnMut(Result<D>) -> R) -> R {
-    let wrapper = |read_result: Result<&mut [u8]>| -> R {
-        let arg = match read_result.map(|buffer| {
+pub fn load_on_stack<D: Decode>() -> Result<D> {
+    let wrapper = |read_result: Result<&mut [u8]>| -> Result<D> {
+        match read_result.map(|buffer| {
             let mut buffer: &[u8] = buffer;
             D::decode(&mut buffer).map_err(Error::Decode)
         }) {
             Err(err) => Err(err),
             Ok(Err(err)) => Err(err),
             Ok(Ok(res)) => Ok(res),
-        };
-        f(arg)
+        }
     };
-    super::basic::with_read_bytes(wrapper)
+    super::basic::with_read_on_stack(wrapper)
 }
 
 /// Send a new message as a reply to the message being
