@@ -238,7 +238,9 @@ pub fn inject<R: Rules>(
         None => return Err(mbuilder.build()),
     };
 
-    let cost = cost_push_arg + cost_call + cost_blocks;
+    let cost_local_var = rules.call_per_local_cost() as u64;
+
+    let cost = cost_push_arg + cost_call + cost_local_var + cost_blocks;
     // the cost is added to gas_to_charge which cannot
     // exceed u32::MAX value. This check ensures
     // there is no u64 overflow.
