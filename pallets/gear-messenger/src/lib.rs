@@ -160,7 +160,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::{MessageId, ProgramId},
-        message::{StoredDispatch, StoredMessage},
+        message::{StoredDispatch, UserMessage},
     };
     use sp_std::{convert::TryInto, marker::PhantomData};
 
@@ -340,7 +340,7 @@ pub mod pallet {
         T::AccountId,
         Identity,
         MessageId,
-        (StoredMessage, Interval<T::BlockNumber>),
+        (UserMessage, Interval<T::BlockNumber>),
     >;
 
     // Public wrap of the mailbox elements.
@@ -349,7 +349,7 @@ pub mod pallet {
         name: MailboxWrap,
         key1: T::AccountId,
         key2: MessageId,
-        value: (StoredMessage, Interval<T::BlockNumber>),
+        value: (UserMessage, Interval<T::BlockNumber>),
         length: usize
     );
 
@@ -588,7 +588,7 @@ pub mod pallet {
 
         type MailboxFirstKey = T::AccountId;
         type MailboxSecondKey = MessageId;
-        type MailboxedMessage = StoredMessage;
+        type MailboxedMessage = UserMessage;
         type QueuedDispatch = StoredDispatch;
         type WaitlistFirstKey = ProgramId;
         type WaitlistSecondKey = MessageId;

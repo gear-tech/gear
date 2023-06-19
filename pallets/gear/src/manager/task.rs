@@ -221,6 +221,9 @@ where
                 // and funds to pay mailbox rent for it.
                 let trap_reply =
                     trap_reply.into_stored(program_id, waitlisted.source(), message_id);
+                let trap_reply = trap_reply
+                    .try_into()
+                    .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
 
                 // Depositing appropriate event.
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
@@ -272,6 +275,10 @@ where
         // Charge gas for message save.
         Pallet::<T>::charge_for_hold(message.id(), hold_interval, StorageType::DispatchStash);
 
+        // Cast message type.
+        let message = message
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
         Pallet::<T>::send_user_message_after_delay(message, to_mailbox);
     }
 

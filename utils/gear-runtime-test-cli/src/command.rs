@@ -28,7 +28,7 @@ use gear_common::{storage::*, GasPrice, GasTree, Origin as _, ProgramStorage};
 use gear_core::{
     ids::{CodeId, ProgramId},
     memory::PageU32Size,
-    message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
+    message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage, UserMessage},
 };
 use gear_core_processor::common::ExecutableActorData;
 use gear_test::{
@@ -147,7 +147,7 @@ macro_rules! command {
         fn init_fixture(
             test: &'_ sample::Test,
             snapshots: &mut Vec<DebugData>,
-            mailbox: &mut Vec<StoredMessage>,
+            mailbox: &mut Vec<UserMessage>,
         ) -> anyhow::Result<()> {
             if let Some(codes) = &test.codes {
                 for code in codes {
@@ -259,7 +259,7 @@ macro_rules! command {
             // Enable remapping of the source and destination of messages
             pallet_gear_debug::ProgramsMap::<Runtime>::put(programs_map);
             pallet_gear_debug::RemapId::<Runtime>::put(true);
-            let mut mailbox: Vec<StoredMessage> = vec![];
+            let mut mailbox: Vec<UserMessage> = vec![];
 
             if let Err(err) = init_fixture(test, &mut snapshots, &mut mailbox) {
                 return format!("Initialization error ({})", err).bright_red();

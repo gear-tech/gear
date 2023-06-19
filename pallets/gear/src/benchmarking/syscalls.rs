@@ -978,6 +978,9 @@ where
             None,
         )
         .into_stored();
+        let msg = msg
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
 
@@ -1191,6 +1194,9 @@ where
             None,
         )
         .into_stored();
+        let msg = msg
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
         MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into())
             .expect("Error during mailbox insertion");
 

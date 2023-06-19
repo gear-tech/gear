@@ -20,13 +20,15 @@ use crate::{
     ids::{MessageId, ProgramId},
     message::{Payload, ReplyDetails, Value},
 };
+use alloc::string::ToString;
 use core::convert::TryFrom;
+use gear_core_errors::ReplyCode;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
 
-use super::StoredMessage;
+use super::{MessageDetails, StoredMessage};
 
 /// Message sent to user's mailbox.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
@@ -76,6 +78,27 @@ impl UserMessage {
     pub fn details(&self) -> Option<ReplyDetails> {
         self.details
     }
+
+    #[allow(clippy::result_large_err)]
+    /// Consumes self in order to create new `StoredMessage`, which payload
+    /// contains string representation of initial bytes,
+    /// decoded into given type.
+    pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
+        if let Ok(decoded) = D::decode(&mut self.payload.get()) {
+            if let Ok(payload) = decoded.to_string().into_bytes().try_into() {
+                Ok(Self { payload, ..self })
+            } else {
+                Err(self)
+            }
+        } else {
+            Err(self)
+        }
+    }
+
+    /// Returns `ReplyCode` of message if reply.
+    pub fn reply_code(&self) -> Option<ReplyCode> {
+        self.details.map(Into::into)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
@@ -100,5 +123,20 @@ impl TryFrom<StoredMessage> for UserMessage {
             value: stored.value,
             details,
         })
+    }
+}
+
+impl From<UserMessage> for StoredMessage {
+    fn from(user: UserMessage) -> Self {
+        let details = user.details.map(MessageDetails::Reply);
+
+        StoredMessage {
+            id: user.id,
+            source: user.source,
+            destination: user.destination,
+            payload: user.payload,
+            value: user.value,
+            details,
+        }
     }
 }
