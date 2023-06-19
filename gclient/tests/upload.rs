@@ -212,8 +212,8 @@ async fn get_mailbox() -> anyhow::Result<()> {
     assert_eq!(mailbox.len(), 5);
 
     for msg in mailbox {
-        assert_eq!(msg.0.payload().len(), 1000 * 1024); // 1MB payload
-        assert!(msg.0.payload().starts_with(b"PONG"));
+        assert_eq!(msg.0.payload_bytes().len(), 1000 * 1024); // 1MB payload
+        assert!(msg.0.payload_bytes().starts_with(b"PONG"));
     }
 
     Ok(())

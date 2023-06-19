@@ -224,7 +224,7 @@ where
         let post_test = move || {
             assert!(
                 MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_mid && m.payload() == payload.to_vec()),
+                    .any(|(m, _)| m.id() == expected_mid && m.payload_bytes() == payload.to_vec()),
                 "No message with expected id found in queue"
             );
         };
@@ -274,7 +274,7 @@ where
             assert!(SystemPallet::<T>::events().into_iter().any(|e| {
                 let bytes = e.event.encode();
                 let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
-                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_mid && message.payload() == payload && message.destination() == source)
+                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_mid && message.payload_bytes() == payload && message.destination() == source)
             }), "No message with expected id found in events");
         };
 
@@ -495,7 +495,7 @@ where
         let post_test = move || {
             assert!(
                 MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_mid && m.payload() == payload.to_vec()),
+                    .any(|(m, _)| m.id() == expected_mid && m.payload_bytes() == payload.to_vec()),
                 "No message with expected id found in queue"
             );
         };
@@ -525,7 +525,7 @@ where
         let post_test = move || {
             assert!(
                 MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_message_id && m.payload() == payload),
+                    .any(|(m, _)| m.id() == expected_message_id && m.payload_bytes() == payload),
                 "No message with expected id found in queue"
             );
         };
@@ -553,7 +553,7 @@ where
         let post_test = move || {
             assert!(
                 MailboxOf::<T>::iter_key(default_sender)
-                    .any(|(m, _)| m.id() == expected_message_id && m.payload() == payload),
+                    .any(|(m, _)| m.id() == expected_message_id && m.payload_bytes() == payload),
                 "No message with expected id found in queue"
             );
         };
@@ -596,7 +596,7 @@ where
             assert!(SystemPallet::<T>::events().into_iter().any(|e| {
                 let bytes = e.event.encode();
                 let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
-                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_mid && message.payload() == payload && message.destination() == source)
+                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_mid && message.payload_bytes() == payload && message.destination() == source)
             }), "No message with expected id found in events");
         };
 
@@ -627,7 +627,7 @@ where
             assert!(SystemPallet::<T>::events().into_iter().any(|e| {
                 let bytes = e.event.encode();
                 let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
-                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_message_id && message.payload() == payload && message.destination() == source)
+                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_message_id && message.payload_bytes() == payload && message.destination() == source)
             }), "No message with expected id found in events");
         };
 
@@ -654,7 +654,7 @@ where
             assert!(SystemPallet::<T>::events().into_iter().any(|e| {
                 let bytes = e.event.encode();
                 let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
-                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_message_id && message.payload() == payload && message.destination() == source)
+                matches!(gear_event, Event::UserMessageSent { message, .. } if message.id() == expected_message_id && message.payload_bytes() == payload && message.destination() == source)
             }), "No message with expected id found in events");
         };
 
@@ -941,7 +941,7 @@ where
     // let user_mid = get_last_message_id();
     utils::run_to_next_block::<T>(None);
     let ok_mails = MailboxOf::<T>::iter_key(sender)
-        .filter(|(m, _)| m.payload() == b"ok")
+        .filter(|(m, _)| m.payload_bytes() == b"ok")
         .count();
     assert_eq!(ok_mails, 1);
 

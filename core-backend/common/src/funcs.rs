@@ -30,7 +30,7 @@ use gear_backend_codegen::host;
 use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
-    env::Externalities,
+    env::{DropPayloadLockBound, Externalities},
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
@@ -171,14 +171,17 @@ where
 
     #[host(fallible, cost = RuntimeCosts::Read, err = ErrorBytes)]
     pub fn read(ctx: &mut R, at: u32, len: u32, buffer_ptr: u32) -> Result<(), R::Error> {
-        let (buffer, mut gas_left) = ctx.ext_mut().read(at, len)?;
-        let buffer = buffer.to_vec();
+        let payload_lock = ctx.ext_mut().lock_payload(at, len)?;
+        payload_lock
+            .drop_with::<MemoryAccessError, _>(|payload_access| {
+                let write_buffer = ctx.register_write(buffer_ptr, len);
+                let write_res = ctx.write(write_buffer, payload_access.as_slice());
+                let unlock_bound = ctx.ext_mut().unlock_payload(payload_access.into_lock());
 
-        let write_buffer = ctx.register_write(buffer_ptr, len);
-        ctx.memory_manager_write(write_buffer, &buffer, &mut gas_left)?;
-
-        ctx.ext_mut().set_gas_left(gas_left);
-        Ok(())
+                DropPayloadLockBound::from((unlock_bound, write_res))
+            })
+            .into_inner()
+            .map_err(Into::into)
     }
 
     #[host(cost = RuntimeCosts::Size)]

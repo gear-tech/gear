@@ -59,7 +59,6 @@ use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
-    ContextChargedForInstrumentation,
 };
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
@@ -983,6 +982,22 @@ pub mod pallet {
                 }
 
                 FirstIncompleteTasksBlockOf::<T>::put(stopped_at);
+            }
+        }
+
+        pub(crate) fn enable_lazy_pages() -> bool {
+            #[cfg(feature = "lazy-pages")]
+            {
+                let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+                if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+                    unreachable!("By some reasons we cannot run lazy-pages on this machine");
+                }
+                true
+            }
+
+            #[cfg(not(feature = "lazy-pages"))]
+            {
+                false
             }
         }
 
