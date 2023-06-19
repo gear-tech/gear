@@ -157,7 +157,7 @@ static_assertions = "1"
 # 2. subxt v0.29.0 upgrades the substrate dependencies which are not
 # compatible with our current dependencies.
 #
-# 3. changing but pactching the source here for making these work out of
+# 3. changing but patching the source here for making these work out of
 # workspace.
 #
 # 4. subxt-metadata and subxt-codegen are just used by gsdk-codegen for now
