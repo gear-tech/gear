@@ -27,7 +27,7 @@ use gear_backend_common::{
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::Runtime,
-    ActorTerminationReason, BackendExt, BackendState, TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendExternalities, BackendState, TerminationReason, TrapExplanation,
 };
 use gear_core::{costs::RuntimeCosts, gas::GasLeft, memory::WasmPage};
 use gear_core_errors::ExtError;
@@ -39,32 +39,34 @@ use wasmi::{
 
 use crate::state::State;
 
-pub(crate) fn caller_host_state_mut<'a, 'b: 'a, E>(
-    caller: &'a mut Caller<'b, Option<E>>,
-) -> &'a mut E {
+pub(crate) fn caller_host_state_mut<'a, 'b: 'a, Ext>(
+    caller: &'a mut Caller<'b, Option<Ext>>,
+) -> &'a mut Ext {
     caller
         .host_data_mut()
         .as_mut()
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
-pub(crate) fn caller_host_state_take<'a, 'b: 'a, E>(caller: &'a mut Caller<'b, Option<E>>) -> E {
+pub(crate) fn caller_host_state_take<'a, 'b: 'a, Ext>(
+    caller: &'a mut Caller<'b, Option<Ext>>,
+) -> Ext {
     caller
         .host_data_mut()
         .take()
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
-pub(crate) struct CallerWrap<'a, E> {
-    pub caller: Caller<'a, HostState<E>>,
-    pub manager: MemoryAccessManager<E>,
+pub(crate) struct CallerWrap<'a, Ext> {
+    pub caller: Caller<'a, HostState<Ext>>,
+    pub manager: MemoryAccessManager<Ext>,
     pub memory: WasmiMemory,
 }
 
-impl<'a, E: BackendExt + 'static> Runtime<E> for CallerWrap<'a, E> {
+impl<'a, Ext: BackendExternalities + 'static> Runtime<Ext> for CallerWrap<'a, Ext> {
     type Error = Trap;
 
-    fn ext_mut(&mut self) -> &mut E {
+    fn ext_mut(&mut self) -> &mut Ext {
         &mut self
             .caller
             .host_data_mut()
@@ -119,7 +121,7 @@ impl<'a, E: BackendExt + 'static> Runtime<E> for CallerWrap<'a, E> {
         })
     }
 
-    fn alloc(&mut self, pages: u32) -> Result<WasmPage, <E>::AllocError> {
+    fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
         let mut state = caller_host_state_take(&mut self.caller);
         let mut mem = CallerWrap::memory(&mut self.caller, self.memory);
         let res = state.ext.alloc(pages, &mut mem);
@@ -138,10 +140,10 @@ impl<'a, E: BackendExt + 'static> Runtime<E> for CallerWrap<'a, E> {
     }
 }
 
-impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
+impl<'a, Ext: BackendExternalities + 'static> CallerWrap<'a, Ext> {
     #[track_caller]
     pub fn prepare(
-        caller: Caller<'a, HostState<E>>,
+        caller: Caller<'a, HostState<Ext>>,
         forbidden: bool,
         memory: WasmiMemory,
     ) -> Result<Self, Trap> {
@@ -181,15 +183,15 @@ impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
     }
 
     #[track_caller]
-    pub fn host_state_mut(&mut self) -> &mut State<E> {
+    pub fn host_state_mut(&mut self) -> &mut State<Ext> {
         caller_host_state_mut(&mut self.caller)
     }
 
     #[track_caller]
     pub fn memory<'b, 'c: 'b>(
-        caller: &'b mut Caller<'c, Option<State<E>>>,
+        caller: &'b mut Caller<'c, Option<State<Ext>>>,
         memory: WasmiMemory,
-    ) -> MemoryWrapRef<'b, E> {
+    ) -> MemoryWrapRef<'b, Ext> {
         MemoryWrapRef::<'b, _> {
             memory,
             store: caller.as_context_mut(),
@@ -222,8 +224,8 @@ impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
     fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>
     where
         F: FnOnce(
-            &mut MemoryAccessManager<E>,
-            &mut MemoryWrapRef<E>,
+            &mut MemoryAccessManager<Ext>,
+            &mut MemoryWrapRef<Ext>,
             &mut GasLeft,
         ) -> Result<R, MemoryAccessError>,
     {
@@ -253,7 +255,7 @@ impl<'a, E: BackendExt + 'static> CallerWrap<'a, E> {
     }
 }
 
-impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E> {
+impl<'a, Ext> MemoryAccessRecorder for CallerWrap<'a, Ext> {
     fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         self.manager.register_read(ptr, size)
     }
@@ -278,7 +280,7 @@ impl<'a, E> MemoryAccessRecorder for CallerWrap<'a, E> {
     }
 }
 
-impl<E> BackendState for CallerWrap<'_, E> {
+impl<Ext> BackendState for CallerWrap<'_, Ext> {
     fn set_termination_reason(&mut self, reason: TerminationReason) {
         caller_host_state_mut(&mut self.caller).set_termination_reason(reason);
     }
@@ -288,7 +290,7 @@ impl<E> BackendState for CallerWrap<'_, E> {
     }
 }
 
-impl<'a, E: BackendExt + 'static> MemoryOwner for CallerWrap<'a, E> {
+impl<'a, Ext: BackendExternalities + 'static> MemoryOwner for CallerWrap<'a, Ext> {
     fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         self.with_memory(|manager, memory, gas_left| manager.read(memory, read, gas_left))
     }

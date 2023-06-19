@@ -24,12 +24,13 @@ use alloc::{
 use gear_backend_common::{
     lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
     memory::ProcessAccessError,
-    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, ExtInfo,
-    SystemReservationContext, TerminationReason, TrapExplanation,
+    ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
+    BackendExternalitiesError, ExtInfo, SystemReservationContext, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
-    env::Ext as EnvExt,
+    env::Externalities,
     gas::{
         ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
         GasLeft, Token, ValueCounter,
@@ -46,7 +47,8 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{
-    ExecutionError, ExtError, MemoryError, MessageError, ReservationError, WaitError,
+    ExecutionError, ExtError as ExtErrorCore, MemoryError, MessageError, ReservationError,
+    WaitError,
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -74,8 +76,6 @@ pub struct ProcessorContext {
     pub page_costs: PageCosts,
     /// Account existential deposit
     pub existential_deposit: u128,
-    /// Communication origin
-    pub origin: ProgramId,
     /// Current program id
     pub program_id: ProgramId,
     /// Map of code hashes to program ids of future programs, which are planned to be
@@ -105,7 +105,7 @@ pub struct ProcessorContext {
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
-pub trait ProcessorExt {
+pub trait ProcessorExternalities {
     /// Whether this extension works with lazy pages.
     const LAZY_PAGES_ENABLED: bool;
 
@@ -128,12 +128,12 @@ pub trait ProcessorExt {
     fn lazy_pages_status() -> Status;
 }
 
-/// [`Ext`](Ext)'s error
+/// [`Ext`](Ext)'s api error.
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
-pub enum ProcessorError {
+pub enum ExtError {
     /// Basic error
     #[display(fmt = "{_0}")]
-    Core(ExtError),
+    Core(ExtErrorCore),
     /// An error occurs in attempt to call forbidden sys-call.
     #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
@@ -142,53 +142,51 @@ pub enum ProcessorError {
     Charge(ChargeError),
 }
 
-impl From<MessageError> for ProcessorError {
+impl From<MessageError> for ExtError {
     fn from(err: MessageError) -> Self {
-        Self::Core(ExtError::Message(err))
+        Self::Core(ExtErrorCore::Message(err))
     }
 }
 
-impl From<MemoryError> for ProcessorError {
+impl From<MemoryError> for ExtError {
     fn from(err: MemoryError) -> Self {
-        Self::Core(ExtError::Memory(err))
+        Self::Core(ExtErrorCore::Memory(err))
     }
 }
 
-impl From<WaitError> for ProcessorError {
+impl From<WaitError> for ExtError {
     fn from(err: WaitError) -> Self {
-        Self::Core(ExtError::Wait(err))
+        Self::Core(ExtErrorCore::Wait(err))
     }
 }
 
-impl From<ReservationError> for ProcessorError {
+impl From<ReservationError> for ExtError {
     fn from(err: ReservationError) -> Self {
-        Self::Core(ExtError::Reservation(err))
+        Self::Core(ExtErrorCore::Reservation(err))
     }
 }
 
-impl From<ExecutionError> for ProcessorError {
+impl From<ExecutionError> for ExtError {
     fn from(err: ExecutionError) -> Self {
-        Self::Core(ExtError::Execution(err))
+        Self::Core(ExtErrorCore::Execution(err))
     }
 }
 
-impl BackendExtError for ProcessorError {
+impl BackendExternalitiesError for ExtError {
     fn into_termination_reason(self) -> TerminationReason {
         match self {
-            ProcessorError::Core(err) => {
-                ActorTerminationReason::Trap(TrapExplanation::Ext(err)).into()
-            }
-            ProcessorError::ForbiddenFunction => {
+            ExtError::Core(err) => ActorTerminationReason::Trap(TrapExplanation::Ext(err)).into(),
+            ExtError::ForbiddenFunction => {
                 ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into()
             }
-            ProcessorError::Charge(err) => err.into(),
+            ExtError::Charge(err) => err.into(),
         }
     }
 }
 
-/// [`Ext`](Ext)'s error
+/// [`Ext`](Ext)'s memory management (calls to allocate and free) error.
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
-pub enum ProcessorAllocError {
+pub enum ExtAllocError {
     /// Charge error
     #[display(fmt = "{_0}")]
     Charge(ChargeError),
@@ -197,8 +195,8 @@ pub enum ProcessorAllocError {
     Alloc(AllocError),
 }
 
-impl BackendAllocExtError for ProcessorAllocError {
-    type ExtError = ProcessorError;
+impl BackendAllocExternalitiesError for ExtAllocError {
+    type ExtError = ExtError;
 
     fn into_backend_error(self) -> Result<Self::ExtError, Self> {
         match self {
@@ -218,7 +216,7 @@ pub struct Ext {
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
-impl ProcessorExt for Ext {
+impl ProcessorExternalities for Ext {
     const LAZY_PAGES_ENABLED: bool = false;
 
     fn new(context: ProcessorContext) -> Self {
@@ -247,7 +245,7 @@ impl ProcessorExt for Ext {
     }
 }
 
-impl BackendExt for Ext {
+impl BackendExternalities for Ext {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
         let pages_for_data =
             |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
@@ -275,7 +273,7 @@ impl BackendExt for Ext {
 }
 
 impl Ext {
-    fn check_message_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
+    fn check_message_value(&mut self, message_value: u128) -> Result<(), ExtError> {
         let existential_deposit = self.context.existential_deposit;
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
         if message_value != 0 && message_value < existential_deposit {
@@ -289,7 +287,7 @@ impl Ext {
         }
     }
 
-    fn check_gas_limit(&mut self, gas_limit: Option<GasLimit>) -> Result<GasLimit, ProcessorError> {
+    fn check_gas_limit(&mut self, gas_limit: Option<GasLimit>) -> Result<GasLimit, ExtError> {
         let mailbox_threshold = self.context.mailbox_threshold;
         let gas_limit = gas_limit.unwrap_or(0);
 
@@ -305,7 +303,7 @@ impl Ext {
         }
     }
 
-    fn reduce_gas(&mut self, gas_limit: GasLimit) -> Result<(), ProcessorError> {
+    fn reduce_gas(&mut self, gas_limit: GasLimit) -> Result<(), ExtError> {
         if self.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
             Err(MessageError::NotEnoughGas.into())
         } else {
@@ -313,7 +311,7 @@ impl Ext {
         }
     }
 
-    fn charge_message_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
+    fn charge_message_value(&mut self, message_value: u128) -> Result<(), ExtError> {
         if self.context.value_counter.reduce(message_value) != ChargeResult::Enough {
             Err(MessageError::NotEnoughValue {
                 message_value,
@@ -326,7 +324,7 @@ impl Ext {
     }
 
     // It's temporary fn, used to solve `core-audit/issue#22`.
-    fn safe_gasfull_sends<T: Packet>(&mut self, packet: &T) -> Result<(), ProcessorError> {
+    fn safe_gasfull_sends<T: Packet>(&mut self, packet: &T) -> Result<(), ExtError> {
         let outgoing_gasless = self.outgoing_gasless;
 
         match packet.gas_limit() {
@@ -349,7 +347,7 @@ impl Ext {
         &mut self,
         packet: &T,
         check_gas_limit: bool,
-    ) -> Result<(), ProcessorError> {
+    ) -> Result<(), ExtError> {
         self.check_message_value(packet.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         let gas_limit = if check_gas_limit {
@@ -362,9 +360,9 @@ impl Ext {
         Ok(())
     }
 
-    fn check_forbidden_destination(&mut self, id: ProgramId) -> Result<(), ProcessorError> {
+    fn check_forbidden_destination(&mut self, id: ProgramId) -> Result<(), ExtError> {
         if id == ProgramId::SYSTEM {
-            Err(ProcessorError::ForbiddenFunction)
+            Err(ExtError::ForbiddenFunction)
         } else {
             Ok(())
         }
@@ -383,7 +381,7 @@ impl Ext {
         }
     }
 
-    fn charge_for_dispatch_stash_hold(&mut self, delay: u32) -> Result<(), ProcessorError> {
+    fn charge_for_dispatch_stash_hold(&mut self, delay: u32) -> Result<(), ExtError> {
         if delay != 0 {
             // Take delay and get cost of block.
             // reserve = wait_cost * (delay + reserve_for).
@@ -446,15 +444,6 @@ impl CountersOwner for Ext {
         )
     }
 
-    fn refund_gas(&mut self, amount: u64) -> Result<(), ChargeError> {
-        if self.context.gas_counter.refund(amount) == ChargeResult::Enough {
-            self.context.gas_allowance_counter.refund(amount);
-            Ok(())
-        } else {
-            Err(ChargeError::TooManyGasAdded)
-        }
-    }
-
     fn gas_left(&self) -> GasLeft {
         GasLeft {
             gas: self.context.gas_counter.left(),
@@ -494,9 +483,9 @@ impl CountersOwner for Ext {
     }
 }
 
-impl EnvExt for Ext {
-    type Error = ProcessorError;
-    type AllocError = ProcessorAllocError;
+impl Externalities for Ext {
+    type Error = ExtError;
+    type AllocError = ExtAllocError;
 
     fn alloc(
         &mut self,
@@ -519,10 +508,6 @@ impl EnvExt for Ext {
 
     fn block_timestamp(&self) -> Result<u64, Self::Error> {
         Ok(self.context.block_info.timestamp)
-    }
-
-    fn origin(&self) -> Result<gear_core::ids::ProgramId, Self::Error> {
-        Ok(self.context.origin)
     }
 
     fn send_init(&mut self) -> Result<u32, Self::Error> {
@@ -772,12 +757,12 @@ impl EnvExt for Ext {
     fn unreserve_gas(&mut self, id: ReservationId) -> Result<u64, Self::Error> {
         let amount = self.context.gas_reserver.unreserve(id)?;
 
-        // this statement is like in `Self::refund_gas()` but it won't affect "burned" counter
-        // because we don't actually refund we just rise "left" counter during unreservation
+        // This statement is like an op that increases "left" counter, but do not affect "burned" counter,
+        // because we don't actually refund, we just rise "left" counter during unreserve
         // and it won't affect gas allowance counter because we don't make any actual calculations
         // TODO: uncomment when unreserving in current message features is discussed
         /*if !self.context.gas_counter.increase(amount) {
-            return Err(ExecutionError::TooManyGasAdded.into());
+            return Err(some_charge_error.into());
         }*/
 
         Ok(amount)
@@ -941,7 +926,7 @@ impl Ext {
         &mut self,
         pages_num: u32,
         mem: &mut impl Memory,
-    ) -> Result<WasmPage, ProcessorAllocError> {
+    ) -> Result<WasmPage, ExtAllocError> {
         let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
 
         self.context
@@ -1052,7 +1037,6 @@ mod tests {
                 max_pages: 512.into(),
                 page_costs: PageCosts::new_for_tests(),
                 existential_deposit: 0,
-                origin: Default::default(),
                 program_id: Default::default(),
                 program_candidates_data: Default::default(),
                 program_rents: Default::default(),
@@ -1134,7 +1118,7 @@ mod tests {
         // Counters shouldn't be changed.
         assert_eq!(
             ext.free(non_existing_page),
-            Err(ProcessorAllocError::Alloc(AllocError::InvalidFree(
+            Err(ExtAllocError::Alloc(AllocError::InvalidFree(
                 non_existing_page.raw()
             )))
         );
@@ -1267,9 +1251,9 @@ mod tests {
         }
 
         #[track_caller]
-        fn assert_alloc_error(err: <Ext as EnvExt>::AllocError) {
+        fn assert_alloc_error(err: <Ext as Externalities>::AllocError) {
             match err {
-                ProcessorAllocError::Alloc(
+                ExtAllocError::Alloc(
                     AllocError::IncorrectAllocationData(_) | AllocError::ProgramAllocOutOfBounds,
                 ) => {}
                 err => Err(err).unwrap(),
@@ -1277,9 +1261,9 @@ mod tests {
         }
 
         #[track_caller]
-        fn assert_free_error(err: <Ext as EnvExt>::AllocError) {
+        fn assert_free_error(err: <Ext as Externalities>::AllocError) {
             match err {
-                ProcessorAllocError::Alloc(AllocError::InvalidFree(_)) => {}
+                ExtAllocError::Alloc(AllocError::InvalidFree(_)) => {}
                 err => Err(err).unwrap(),
             }
         }

@@ -209,7 +209,6 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// async fn main() {
 ///     gstd::debug!("Hello world!");
 /// }
-///
 /// # fn main() {}
 /// ```
 ///
@@ -225,7 +224,6 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// fn my_handle_reply() {
 ///     // ...
 /// }
-///
 /// # fn main() {}
 /// ```
 #[proc_macro_attribute]
@@ -321,7 +319,7 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```ignore
 /// #[wait_for_reply]
 /// pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
-///   gcore::msg::send(program.into(), payload.as_ref(), value).into_contract_result()
+///   gcore::msg::send(program.into(), payload.as_ref(), value).into_result()
 /// }
 /// ```
 ///

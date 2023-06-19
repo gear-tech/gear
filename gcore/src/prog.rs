@@ -73,6 +73,7 @@ use gsys::{HashWithValue, LengthWithTwoHashes};
 ///     let (message_id, new_program_id) =
 ///         prog::create_program(submitted_code, &get().to_le_bytes(), b"", 0)
 ///             .expect("Unable to create a program");
+///     increase();
 /// }
 /// ```
 ///

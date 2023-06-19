@@ -143,6 +143,7 @@ rand = { version = "0.8", default-features = false }
 rayon = "1.7"
 regex = "^1.7"
 region = "3.0.0"
+reqwest = { version = "0.11.16", default-features = false }
 scale-info = { version = "2.5.0", default-features = false }
 serde = "^1"
 serde_json = "^1"
@@ -157,6 +158,7 @@ wat = "1.0.61"
 wabt = "0.10.0"
 wasmi = { version = "0.14.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
+which = "4.4.0"
 winapi = "0.3.9"
 paste = "1.0"
 
@@ -391,7 +393,6 @@ keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.34", default-features = false }               # node/cli
 nacl = "0.5.3"                                                            # gcli
-etc = "0.1.6"                                                             # gcli
 nix = "0.26.2"                                                            # gear-lazy-pages
 nonempty = "0.8.1"                                                        # utils/utils
 libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
@@ -399,7 +400,6 @@ pwasm-utils = "0.19.0"                                                    # util
 page_size = { version = "0.5", default-features = false }                 # pallets/gear
 pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
 rand_pcg = "0.3.1"                                                        # pallets/gear
-reqwest = { version = "0.11.16", default-features = false }               # utils/node-loder
 schnorrkel = "0.9.1"                                                      # gcli
 scopeguard = { version = "1.1.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
@@ -412,8 +412,8 @@ trybuild = "1"                                                            # gstd
 wasm-opt = "0.111.0"                                                      # utils/wasm-builder
 wasmprinter = "0.2"                                                       # utils/wasm-gen
 whoami = "1.4.0"                                                          # gcli
-which = "4.4.0"                                                           # utils/wasm-builder
 fail = "0.5"                                                              # gear-common
+etc = "0.1.16"                                                            # gcli
 
 [profile.release]
 panic = "unwind"

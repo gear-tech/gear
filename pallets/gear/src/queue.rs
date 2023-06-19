@@ -59,10 +59,6 @@ where
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-            // Querying external id. Fails in cases of `GasTree` invalidations.
-            let external = GasHandlerOf::<T>::get_external(dispatch.id())
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
             log::debug!(
                 "QueueProcessing message ({:?}): {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
                 dispatch.kind(),
@@ -227,11 +223,10 @@ where
             .unique_saturated_into();
 
             let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
-            let origin = ProgramId::from_origin(external.into_origin());
 
             let journal = core_processor::process::<ExecutionEnvironment>(
                 &block_config,
-                (context, code, balance, origin).into(),
+                (context, code, balance).into(),
                 (random.encode(), bn.unique_saturated_into()),
                 memory_pages,
             )

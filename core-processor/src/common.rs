@@ -553,8 +553,6 @@ pub struct ExecutableActorData {
 /// Execution context.
 #[derive(Debug)]
 pub struct WasmExecutionContext {
-    /// Original user.
-    pub origin: ProgramId,
     /// A counter for gas.
     pub gas_counter: GasCounter,
     /// A counter for gas allowance.
