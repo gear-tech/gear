@@ -27,7 +27,7 @@ pub struct TypesRepr {
 pub struct MetadataRepr {
     pub init: TypesRepr,
     pub handle: TypesRepr,
-    pub reply: TypesRepr,
+    pub reply: Option<u32>,
     pub others: TypesRepr,
     pub signal: Option<u32>,
     pub state: Option<u32>,
@@ -121,7 +121,7 @@ pub enum MetadataParseError {
 pub trait Metadata {
     type Init: Types;
     type Handle: Types;
-    type Reply: Types;
+    type Reply: Type;
     type Others: Types;
     type Signal: Type;
     type State: Type;
