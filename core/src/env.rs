@@ -19,12 +19,13 @@
 //! Environment for running a module.
 
 use crate::{
+    costs::CostIdentifier,
     gas::GasLeft,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
 };
-use alloc::{collections::BTreeSet, string::String};
+use alloc::collections::BTreeSet;
 use core::fmt::{Debug, Display};
 use gear_wasm_instrument::syscalls::SysCallName;
 use scale_info::scale::{Decode, Encode};
@@ -69,7 +70,7 @@ pub trait Ext {
     fn block_timestamp(&self) -> Result<u64, Self::Error>;
 
     /// Get various cost.
-    fn cost(&self, name: String) -> Result<u128, Self::Error>;
+    fn cost(&self, name: CostIdentifier) -> Result<u128, Self::Error>;
 
     /// Get the id of the user who initiated communication with blockchain,
     /// during which, currently processing message was created.

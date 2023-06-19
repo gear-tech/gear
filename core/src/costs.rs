@@ -20,8 +20,9 @@
 
 use crate::{gas::Token, memory::PageU32Size};
 use core::{fmt::Debug, marker::PhantomData};
+use parity_scale_codec::MaxEncodedLen;
 use paste::paste;
-use scale_info::scale::{Decode, Encode};
+use scale_info::{scale::{Decode, Encode}, TypeInfo};
 
 /// Cost per one memory page.
 #[derive(Clone, Copy, PartialEq, Eq, Encode, Decode)]
@@ -529,4 +530,19 @@ impl RuntimeCosts {
         };
         RuntimeToken { weight }
     }
+}
+
+/// Cost identifier for various user costs.
+#[derive(Clone, Encode, Decode, PartialEq, Eq, Copy, TypeInfo, MaxEncodedLen)]
+pub enum CostIdentifier {
+    /// Dispatch hold cost.
+    DispatchHold = 0,
+    /// Mailbox threshold cost.
+    MailboxThreshold = 1,
+    /// Rent cost.
+    Rent = 2,
+    /// Reservation cost.
+    Reservation = 3,
+    /// Wailist cost.
+    Wailist = 4,
 }

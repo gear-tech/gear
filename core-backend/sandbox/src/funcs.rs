@@ -768,16 +768,16 @@ where
         })
     }
 
-    /// Infallible `gr_cost` syscall.
+    /// Fallible `gr_cost` syscall.
     pub fn cost(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let (cost_name_ptr, cost_name_len, cost_ptr) = args.iter().read_3();
+        let (cost_name_ptr, cost_name_len, cost_ptr, err_len_ptr): (u32, u32, u32, u32) =
+            args.iter().read_4();
 
-        syscall_trace!("cost", cost_name_ptr, cost_name_len, cost_ptr);
+        syscall_trace!("cost", cost_name_ptr, cost_name_len, cost_ptr, err_len_ptr);
 
-        ctx.run(RuntimeCosts::Cost, |ctx| {
-            let read_cost_name = ctx.register_read(cost_name_ptr, cost_name_len);
-            let name: RuntimeBuffer = ctx.read(read_cost_name)?.try_into()?;
-            let name = String::from_utf8(name.into_vec())?;
+        ctx.run_fallible::<_, _, LengthBytes>(err_len_ptr, RuntimeCosts::Cost, |ctx| {
+            let read_name = ctx.register_read_decoded(cost_name_ptr);
+            let name = ctx.read_decoded(read_name)?;
 
             let cost = ctx.ext.cost(name)?;
 

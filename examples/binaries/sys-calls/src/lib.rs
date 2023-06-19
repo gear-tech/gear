@@ -33,14 +33,14 @@ type ActorId = [u8; 32];
 #[cfg(feature = "wasm-wrapper")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 
 // Instead of proper gstd primitives we use their raw versions to make this contract
 // compilable as a dependency for the build of the `gear` with `runtime-benchmarking` feature.
 #[derive(Debug, Encode, Decode)]
 pub enum Kind {
     // Params(name), Expected(cost)
-    Cost(String, u128),
+    Cost(u8, u128),
     // Params(salt, gas), Expected(message id, actor id)
     CreateProgram(u64, Option<u64>, (MessageId, ActorId)),
     // Params(value), Expected(error message)
