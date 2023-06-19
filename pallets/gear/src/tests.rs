@@ -12843,3 +12843,39 @@ fn check_mutable_global_exports_restriction() {
         );
     });
 }
+
+/// Tests whether calling `gr_read` 2 times returns same result.
+/// Test purpose is to check, that payload is given back to the
+/// message.
+#[test]
+fn double_read_works() {
+    use demo_constructor::{Calls, Scheme};
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let noop_branch = Calls::builder().noop();
+        let panic_branch = Calls::builder().panic("Read payloads aren't equal");
+        let handle = Calls::builder()
+            .load("read1")
+            .load("read2")
+            .bytes_eq("is_eq", "read1", "read2")
+            .if_else("is_eq", noop_branch, panic_branch);
+        let predefined_scheme = Scheme::predefined(Default::default(), handle, Default::default());
+
+        let (_, constructor_id) = utils::init_constructor(predefined_scheme);
+
+        // Resetting events to check the result of the last message.
+        System::reset_events();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            constructor_id,
+            b"PAYLOAD".to_vec(),
+            BlockGasLimitOf::<Test>::get(),
+            100_000,
+        ));
+
+        run_to_next_block(None);
+
+        assert_responses_to_user(USER_1, vec![Assertion::StatusCode(Some(0))]);
+    });
+}
