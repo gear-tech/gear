@@ -469,13 +469,6 @@ parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-w
 wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }
 wasm-instrument = { version = "0.3.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.3.0-sign-ext" }
 
-# sp-application-crypto = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch="gear-polkadot-v0.9.41-canary" }
-# sp-io = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch="gear-polkadot-v0.9.41-canary" }
-# sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch="gear-polkadot-v0.9.41-canary" }
-# sp-core-hashing = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch="gear-polkadot-v0.9.41-canary" }
-# sp-runtime = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch="gear-polkadot-v0.9.41-canary" }
-# sp-std = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch="gear-polkadot-v0.9.41-canary" }
-
 # TODO: remove after https://github.com/BLAKE3-team/BLAKE3/pull/230
 blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "fix-clang-cl-cross" }
 
