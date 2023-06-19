@@ -6536,10 +6536,7 @@ fn pay_program_rent_syscall_works() {
             format!(
                 "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
                 TrapExplanation::Ext(ExtError::ProgramRent(
-                    ProgramRentError::NotEnoughValueForRent {
-                        rent: program_value,
-                        value_left: balance_before
-                    }
+                    ProgramRentError::NotEnoughValueForRent
                 ))
             )
         } else {
@@ -7695,10 +7692,7 @@ fn test_create_program_with_value_lt_ed() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "Failed to create program: {:?}",
-                TrapExplanation::Ext(ExtError::Message(MessageError::InsufficientValue {
-                    message_value: 499,
-                    existential_deposit: 500
-                }))
+                TrapExplanation::Ext(ExtError::Message(MessageError::InsufficientValue))
             )
         } else {
             String::from("no info")
@@ -7751,10 +7745,7 @@ fn test_create_program_with_exceeding_value() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "Failed to create program: {:?}",
-                TrapExplanation::Ext(ExtError::Message(MessageError::NotEnoughValue {
-                    message_value: msg_value,
-                    value_left: msg_value - 1
-                }))
+                TrapExplanation::Ext(ExtError::Message(MessageError::NotEnoughValue))
             )
         } else {
             String::from("no info")

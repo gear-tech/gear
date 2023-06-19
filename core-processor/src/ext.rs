@@ -285,11 +285,7 @@ impl Ext {
         let existential_deposit = self.context.existential_deposit;
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
         if message_value != 0 && message_value < existential_deposit {
-            Err(MessageError::InsufficientValue {
-                message_value,
-                existential_deposit,
-            }
-            .into())
+            Err(MessageError::InsufficientValue.into())
         } else {
             Ok(())
         }
@@ -301,11 +297,7 @@ impl Ext {
 
         // Sending gas should apply the range {0} ∪ [mailbox_threshold; +inf)
         if gas_limit < mailbox_threshold && gas_limit != 0 {
-            Err(MessageError::InsufficientGasLimit {
-                message_gas_limit: gas_limit,
-                mailbox_threshold,
-            }
-            .into())
+            Err(MessageError::InsufficientGasLimit.into())
         } else {
             Ok(gas_limit)
         }
@@ -321,11 +313,7 @@ impl Ext {
 
     fn charge_message_value(&mut self, message_value: u128) -> Result<(), ExtError> {
         if self.context.value_counter.reduce(message_value) != ChargeResult::Enough {
-            Err(MessageError::NotEnoughValue {
-                message_value,
-                value_left: self.context.value_counter.left(),
-            }
-            .into())
+            Err(MessageError::NotEnoughValue.into())
         } else {
             Ok(())
         }
@@ -699,13 +687,7 @@ impl Externalities for Ext {
             ChargeResult::Enough => {
                 self.context.program_rents.insert(program_id, paid_blocks);
             }
-            ChargeResult::NotEnough => {
-                return Err(ProgramRentError::NotEnoughValueForRent {
-                    rent,
-                    value_left: self.context.value_counter.left(),
-                }
-                .into())
-            }
+            ChargeResult::NotEnough => return Err(ProgramRentError::NotEnoughValueForRent.into()),
         }
 
         Ok((rent.saturating_sub(cost), blocks_to_pay))
@@ -722,18 +704,11 @@ impl Externalities for Ext {
 
     fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
         // Verify read is correct
-        let end = at
-            .checked_add(len)
-            .ok_or(ExecutionError::TooBigReadLen { at, len })?;
+        let end = at.checked_add(len).ok_or(ExecutionError::TooBigReadLen)?;
         self.charge_gas_runtime_if_enough(RuntimeCosts::ReadPerByte(len))?;
         let msg = self.context.message_context.current().payload();
         if end as usize > msg.len() {
-            return Err(ExecutionError::ReadWrongRange {
-                start: at,
-                end,
-                msg_len: msg.len() as u32,
-            }
-            .into());
+            return Err(ExecutionError::ReadWrongRange.into());
         }
 
         Ok((&msg[at as usize..end as usize], self.gas_left()))

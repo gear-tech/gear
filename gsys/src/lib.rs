@@ -22,6 +22,9 @@
 
 use core::mem;
 
+/// Represents error code type.
+pub struct ErrorCode(pub u32);
+
 /// Represents block number type.
 pub type BlockNumber = u32;
 

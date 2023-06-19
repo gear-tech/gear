@@ -40,10 +40,7 @@ use gear_core::{
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{MemoryError, SimpleExecutionError, SimpleSignalError};
-use scale_info::{
-    scale::{self, Decode, Encode},
-    TypeInfo,
-};
+use scale_info::scale::{self, Decode, Encode};
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -461,7 +458,7 @@ pub struct ActorExecutionError {
 }
 
 /// Reason of execution error
-#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+#[derive(Encode, Decode, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 #[codec(crate = scale)]
 pub enum ActorExecutionErrorReason {
     /// Not enough gas to perform an operation during precharge.

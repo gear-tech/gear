@@ -34,13 +34,11 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::ExtError;
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberAndValue,
     LengthWithCode, LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithTwoHashes,
     TwoHashesWithValue,
 };
-use parity_scale_codec::Encode;
 
 pub struct FuncsHandler<Ext: Externalities + 'static, Runtime> {
     _phantom: PhantomData<(Ext, Runtime)>,
@@ -629,19 +627,6 @@ where
         ctx.ext_mut()
             .create_program(InitPacket::new(code_id.into(), salt, payload, value), delay)
             .map_err(Into::into)
-    }
-
-    // `error_bytes_ptr` is ptr for buffer of an error
-    #[host(fallible, cost = RuntimeCosts::Error, err_len = LengthBytes)]
-    pub fn error(ctx: &mut R, error_bytes_ptr: u32) -> Result<(), R::Error> {
-        if let Some(err) = ctx.fallible_syscall_error().as_ref() {
-            let err = err.encode();
-            let write_error_bytes = ctx.register_write(error_bytes_ptr, err.len() as u32);
-            ctx.write(write_error_bytes, err.as_ref())?;
-            Ok(())
-        } else {
-            Err(ActorTerminationReason::Trap(TrapExplanation::Ext(ExtError::SyscallUsage)).into())
-        }
     }
 
     pub fn forbidden(ctx: &mut R) -> Result<(), R::Error> {
