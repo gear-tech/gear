@@ -7227,6 +7227,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-core-errors",
  "log",
  "pallet-authorship",
  "pallet-balances",
