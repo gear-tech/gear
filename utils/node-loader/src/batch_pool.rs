@@ -56,6 +56,13 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         }
     }
 
+    /// Consume `BatchPool` and spawn tasks.
+    ///
+    /// - `run_pool_task` - the main task for sending and processing batches.
+    /// - `inpect_crash_task` - background task monitors when message processing stops.
+    /// - `renew_balance_task` - periodically setting a new balance for the user account.
+    ///
+    /// Wait for any task to return result with `tokio::select!`.
     pub async fn run(mut self, params: LoadParams, rx: EventsReciever) -> Result<()> {
         let gear_api = self.api.clone().into_gear_api();
         let run_pool_task = self.run_pool_loop(params.loader_seed, params.code_seed_type);
@@ -77,6 +84,9 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         run_result
     }
 
+    /// The main `BatchPool` logic.
+    ///
+    /// Creates a new `BatchGenerator` with the provided `loader_seed`.
     #[instrument(skip_all)]
     async fn run_pool_loop(
         &mut self,
@@ -121,6 +131,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
     }
 }
 
+/// Runs the generated `BatchWithSeed` with the provided `GearApiFacade` and `EventsReciever` to handle produced events.
 #[instrument(skip_all, fields(seed = batch.seed, batch_type = batch.batch_str()))]
 async fn run_batch(
     api: GearApiFacade,
@@ -243,6 +254,7 @@ fn process_ex_results<Key: Ord, Value>(
     res
 }
 
+/// Waiting for the new events since provided `block_hash`.
 async fn process_events(
     api: GearApi,
     mut messages: BTreeMap<MessageId, (ProgramId, usize)>,
@@ -258,6 +270,8 @@ async fn process_events(
 
     let results = {
         let mut events = rx.recv().await?;
+
+        // Wait with a timeout until the `EventsReciever` receives the expected block hash.
         while events.block_hash() != block_hash {
             tokio::time::sleep(Duration::new(0, 500)).await;
             events = tokio::time::timeout(
@@ -271,6 +285,7 @@ async fn process_events(
             })??;
         }
 
+        // Wait for next n blocks and push new events.
         let mut v = Vec::new();
         let mut current_bh = events.block_hash();
         let mut i = 0;
@@ -367,7 +382,7 @@ async fn create_renew_balance_task(
     // to target values.
     Ok(async move {
         loop {
-            tokio::time::sleep(Duration::new(0, duration_millis as u32)).await;
+            tokio::time::sleep(Duration::from_millis(duration_millis as u32)).await;
 
             let user_balance_demand = {
                 let current = root_api.free_balance(&user_address).await?;
