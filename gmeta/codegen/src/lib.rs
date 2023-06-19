@@ -73,6 +73,7 @@ fn validate_if_has_no_attributes(
 /// Generates metawasm functions.
 ///
 /// An example of the expected structure:
+///
 /// ```
 /// use gstd::prelude::*;
 ///
@@ -119,7 +120,7 @@ fn validate_if_has_no_attributes(
 /// `State` identifier. The type for which `State` will be an alias **must**
 /// implement [`Decode`] trait.
 ///
-/// Usually the state type should be imported from the implemented associative
+/// Usually the state type should be imported from the implemented associated
 /// [`Metadata::State`](../gmeta/trait.Metadata.html#associatedtype.State) type
 /// from the contract's `io` crate.
 ///

@@ -358,7 +358,12 @@ pub enum MetadataParseError {
 pub trait Metadata {
     /// Init message type.
     ///
-    /// Describes incoming/outgoing types for the `init()` function.
+    /// Describes incoming/outgoing types for the `init()` function. Incoming
+    /// message can be read by calling
+    /// [`msg::load`](https://docs.gear.rs/gstd/msg/fn.load.html)
+    /// function. Outgoing message is a reply to the incoming message and
+    /// can be sent by calling the
+    /// [`msg::reply`](https://docs.gear.rs/gstd/msg/fn.reply.html) function.
     ///
     /// - Use unit tuple `()` if neither incoming nor outgoing messages are
     ///   expected in the `init()` function.
@@ -368,14 +373,24 @@ pub trait Metadata {
     ///   `init()` function.
     /// - Use [`InOut`] type alias if both incoming and outgoing messages are
     ///   expected in the `init()` function.
+    ///
+    /// # Note
+    ///
+    /// If an outgoing message has been sent using the
+    /// [`msg::send`](https://docs.gear.rs/gstd/msg/fn.send.html) function,
+    /// then it is supposed to be parsed by the another type metadata.
+    /// See [`Others`](Self::Others) type for more details.
     type Init: Types;
     /// Handle message type.
     ///
     /// Describes incoming/outgoing types for the `handle()` function.
+    ///
+    /// This type is similar to the [`Init`](Self::Init) type, but it is used
+    /// for the `handle()` function.
     type Handle: Types;
     /// Reply message type.
     ///
-    /// Describes incoming/outgoing types for the `reply()` function.
+    /// Describes incoming type for the `hanle_reply()` function.
     type Reply: Types;
     /// Asynchronous handle message type.
     ///
