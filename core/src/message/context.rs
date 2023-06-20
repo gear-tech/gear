@@ -378,7 +378,7 @@ impl MessageContext {
             excluded_end,
         } = range;
 
-        data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
+        data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
 
         Ok(())
@@ -389,7 +389,7 @@ impl MessageContext {
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> CheckedRange {
-        let input = self.current.payload();
+        let input = self.current.payload_bytes();
         let offset = offset as usize;
         if offset >= input.len() {
             return CheckedRange {
@@ -473,7 +473,7 @@ impl MessageContext {
             } = range;
 
             let data = self.store.reply.get_or_insert_with(Default::default);
-            data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
+            data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
                 .map_err(|_| Error::MaxMessageSizeExceed)?;
 
             Ok(())
@@ -530,6 +530,11 @@ impl MessageContext {
     /// Current processing incoming message.
     pub fn current(&self) -> &IncomingMessage {
         &self.current
+    }
+
+    /// Mutable reference to currently processed incoming message.
+    pub fn payload_mut(&mut self) -> &mut Payload {
+        self.current.payload_mut()
     }
 
     /// Current program's id.
@@ -722,14 +727,28 @@ mod tests {
 
         // Checking that the `ReplyMessage` matches the passed one
         assert_eq!(
-            context.outcome.reply.as_ref().unwrap().0.payload().to_vec(),
+            context
+                .outcome
+                .reply
+                .as_ref()
+                .unwrap()
+                .0
+                .payload_bytes()
+                .to_vec(),
             vec![1, 2, 3, 0, 0],
         );
 
         // Checking that repeated call `reply_push(...)` returns error and does not do anything
         assert_err!(context.reply_push(&[1]), Error::LateAccess);
         assert_eq!(
-            context.outcome.reply.as_ref().unwrap().0.payload().to_vec(),
+            context
+                .outcome
+                .reply
+                .as_ref()
+                .unwrap()
+                .0
+                .payload_bytes()
+                .to_vec(),
             vec![1, 2, 3, 0, 0],
         );
 
@@ -805,14 +824,14 @@ mod tests {
         // Checking that reply message not lost and matches our initial
         assert!(context.outcome.reply.is_some());
         assert_eq!(
-            context.outcome.reply.as_ref().unwrap().0.payload(),
+            context.outcome.reply.as_ref().unwrap().0.payload_bytes(),
             vec![1, 2, 3, 0, 0]
         );
 
         // Checking that on drain we get only messages that were fully formed (directly sent or committed)
         let (expected_result, _) = context.drain();
         assert_eq!(expected_result.handle.len(), 1);
-        assert_eq!(expected_result.handle[0].0.payload(), vec![5, 7, 9]);
+        assert_eq!(expected_result.handle[0].0.payload_bytes(), vec![5, 7, 9]);
     }
 
     #[test]

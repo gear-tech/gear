@@ -326,7 +326,7 @@ impl Api {
         Ok(data.map(|(m, i)| (m, i)))
     }
 
-    /// Get all mailbox messages or from the provided `address`.
+    /// Get all mailbox messages or for the provided `address`.
     pub async fn mailbox(
         &self,
         account_id: Option<AccountId32>,

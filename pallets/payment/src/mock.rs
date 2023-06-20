@@ -16,13 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gear_payment;
+use crate::{self as pallet_gear_payment, Config, DelegateFee};
+use common::storage::Messenger;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
         ConstU128, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced,
     },
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, ConstantMultiplier, Weight},
+    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
@@ -44,7 +46,10 @@ type BlockNumber = u64;
 type Balance = u128;
 
 pub const ALICE: AccountId = 1;
+pub const BOB: AccountId = 2;
 pub const BLOCK_AUTHOR: AccountId = 255;
+pub const FEE_PAYER: AccountId = 201;
+pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -64,6 +69,7 @@ construct_runtime!(
         GearScheduler: pallet_gear_scheduler,
         GearPayment: pallet_gear_payment,
         GearProgram: pallet_gear_program,
+        GearVoucher: pallet_gear_voucher,
     }
 );
 
@@ -191,6 +197,7 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type Voucher = ();
     type ProgramRentFreePeriod = RentFreePeriod;
     type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
     type ProgramRentCostPerBlock = RentCostPerBlock;
@@ -252,9 +259,41 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
     }
 }
 
+pub struct DelegateFeeAccountBuilder;
+// We want to test the way the fee delegate is calculated in real runtime
+// for the `send_reply_with_voucher` call. Hence, the actual trait implementation is used.
+// For the `send_message_with_voucher` call, a mock implementation is used.
+impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
+    fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
+        match call {
+            RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher { .. }) => {
+                Some(FEE_PAYER)
+            }
+            RuntimeCall::Gear(pallet_gear::Call::send_reply_with_voucher {
+                reply_to_id, ..
+            }) => <MailboxOf<Test> as common::storage::Mailbox>::peek(who, reply_to_id).map(
+                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
+            ),
+            _ => None,
+        }
+    }
+}
+
 impl pallet_gear_payment::Config for Test {
     type ExtraFeeCallFilter = ExtraFeeFilter;
+    type DelegateFee = DelegateFeeAccountBuilder;
     type Messenger = GearMessenger;
+}
+
+parameter_types! {
+    pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+}
+
+impl pallet_gear_voucher::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type PalletId = VoucherPalletId;
+    type WeightInfo = ();
 }
 
 // Build genesis storage according to the mock runtime.
@@ -264,7 +303,12 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(ALICE, 100_000_000_000u128), (BLOCK_AUTHOR, 1_000u128)],
+        balances: vec![
+            (ALICE, 100_000_000_000u128),
+            (BOB, 1_000u128),
+            (BLOCK_AUTHOR, 1_000u128),
+            (FEE_PAYER, 10_000_000u128),
+        ],
     }
     .assimilate_storage(&mut t)
     .unwrap();

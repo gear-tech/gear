@@ -53,21 +53,20 @@ use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
     storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasPrice, GasProvider, GasTree, Origin,
-    PausedProgramStorage, Program, ProgramState, ProgramStorage, QueueRunner,
+    PausedProgramStorage, PaymentVoucher, Program, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
-    ContextChargedForInstrumentation,
 };
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
     pallet_prelude::*,
     traits::{
-        BalanceStatus, ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency,
-        Randomness, ReservableCurrency, StorageVersion,
+        ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
+        ReservableCurrency, StorageVersion,
     },
     weights::Weight,
 };
@@ -133,6 +132,7 @@ pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
 pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
 pub type ResumeMinimalPeriodOf<T> = <T as Config>::ProgramResumeMinimalRentPeriod;
 pub type ResumeSessionDurationOf<T> = <T as Config>::ProgramResumeSessionDuration;
+pub(crate) type VoucherOf<T> = <T as Config>::Voucher;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -270,6 +270,14 @@ pub mod pallet {
 
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
+
+        /// Type that allows to check calller's eligibility for using voucher for payment.
+        type Voucher: PaymentVoucher<
+            Self::AccountId,
+            ProgramId,
+            BalanceOf<Self>,
+            VoucherId = Self::AccountId,
+        >;
 
         /// The free of charge period of rent.
         #[pallet::constant]
@@ -464,6 +472,10 @@ pub mod pallet {
         MessageQueueProcessingDisabled,
         /// Block count doesn't cover MinimalResumePeriod.
         ResumePeriodLessThanMinimal,
+        /// Program with the specified id is not found.
+        ProgramNotFound,
+        /// Voucher can't be redemmed
+        FailureRedeemingVoucher,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -983,6 +995,22 @@ pub mod pallet {
                 }
 
                 FirstIncompleteTasksBlockOf::<T>::put(stopped_at);
+            }
+        }
+
+        pub(crate) fn enable_lazy_pages() -> bool {
+            #[cfg(feature = "lazy-pages")]
+            {
+                let prefix = ProgramStorageOf::<T>::pages_final_prefix();
+                if !lazy_pages::try_to_enable_lazy_pages(prefix) {
+                    unreachable!("By some reasons we cannot run lazy-pages on this machine");
+                }
+                true
+            }
+
+            #[cfg(not(feature = "lazy-pages"))]
+            {
+                false
             }
         }
 
@@ -1871,6 +1899,203 @@ pub mod pallet {
 
             Ok(().into())
         }
+
+        /// Sends a message to a program using pre-allocated funds.
+        ///
+        /// The origin must be Signed and the sender must have been issued a `voucher` -
+        /// a record for the (`AccountId`, `ProgramId`) pair exists in the `Voucher` pallet
+        /// and the respective synthesize account for such pair has funds in it.
+        /// The `gas` and transaction fees will, therefore, be paid from this synthesize account.
+        ///
+        /// Parameters:
+        /// - `destination`: the message destination (must be an initialized program).
+        /// - `payload`: in case of a program destination, parameters of the `handle` function.
+        /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
+        /// - `value`: balance to be transferred to the program once it's been created.
+        ///
+        /// Emits the following events:
+        /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
+        #[pallet::call_index(12)]
+        #[pallet::weight(<T as Config>::WeightInfo::send_message_with_voucher(payload.len() as u32))]
+        pub fn send_message_with_voucher(
+            origin: OriginFor<T>,
+            destination: ProgramId,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+            let who = ensure_signed(origin)?;
+            let origin = who.clone().into_origin();
+
+            Self::check_gas_limit_and_value(gas_limit, value)?;
+
+            let message = HandleMessage::from_packet(
+                Self::next_message_id(origin),
+                HandlePacket::new_with_gas(
+                    destination,
+                    payload,
+                    gas_limit,
+                    value.unique_saturated_into(),
+                ),
+            );
+
+            ensure!(
+                Self::program_exists(destination) && Self::is_active(destination),
+                Error::<T>::InactiveProgram
+            );
+
+            // Message is not guaranteed to be executed, that's why value is not immediately
+            // transferred. That's because destination can fail to be initialized by the time
+            // this dispatch message is next in the queue.
+            //
+            // Note: reservaton is made from the user's account as voucher can only be used
+            // to pay for gas or settle transaction fees, but not as source for value transfer.
+            CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
+
+            let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
+
+            // We attempt to reserve enough funds using the voucher that should have been issued
+            // for the transaction sender to pay for the gas. If no such voucher exists, the call
+            // will fail.
+            // If successful, Currency will be reserved on the voucher's account.
+            let voucher_id =
+                VoucherOf::<T>::redeem_with_id(who.clone(), destination, gas_limit_reserve)
+                    .map_err(|_| {
+                        log::debug!(
+                            "Failed to redeem voucher for user {:?} and program {:?}",
+                            who,
+                            destination,
+                        );
+                        Error::<T>::FailureRedeemingVoucher
+                    })?;
+
+            // Using the `voucher_id` as the external origin to create the gas node in order for
+            // the leftover being refunded back to the voucher account and not the user's account.
+            Self::create(voucher_id, message.id(), gas_limit, false);
+
+            let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
+
+            Self::deposit_event(Event::MessageQueued {
+                id: message.id(),
+                source: who,
+                destination: message.destination(),
+                entry: MessageEntry::Handle,
+            });
+
+            QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+
+            Ok(().into())
+        }
+
+        /// Sends the reply to a message in `Mailbox` using pre-allocated funds.
+        ///
+        /// Removes message by given `MessageId` from callers `Mailbox`:
+        /// rent funds become free, associated with the message value
+        /// transfers from message sender to extrinsic caller.
+        ///
+        /// Generates reply on removed message with given parameters
+        /// and pushes it in `MessageQueue`.
+        ///
+        /// NOTE: source of the message in mailbox must be a program.
+        #[pallet::call_index(13)]
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
+        pub fn send_reply_with_voucher(
+            origin: OriginFor<T>,
+            reply_to_id: MessageId,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            // Validating origin.
+            let origin = ensure_signed(origin)?;
+
+            let payload = payload
+                .try_into()
+                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+
+            // Reason for reading from mailbox.
+            let reason = UserMessageReadRuntimeReason::MessageReplied.into_reason();
+
+            // Reading message, if found, or failing extrinsic.
+            let mailboxed = Self::read_message(origin.clone(), reply_to_id, reason)
+                .ok_or(Error::<T>::MessageNotFound)?;
+
+            Self::check_gas_limit_and_value(gas_limit, value)?;
+
+            let destination = mailboxed.source();
+
+            // Checking that program, origin replies to, is not terminated.
+            ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
+
+            // Reserving funds for sending `value`. The funds are reserved on the
+            // account of the reply sender.
+            //
+            // Note, that message is not guaranteed to be successfully executed,
+            // that's why value is not immediately transferred.
+            CurrencyOf::<T>::reserve(&origin, value)
+                .map_err(|_| Error::<T>::InsufficientBalance)?;
+
+            let reply_id = MessageId::generate_reply(mailboxed.id());
+
+            // Set zero gas limit if reply deposit exists.
+            let gas_limit = if GasHandlerOf::<T>::exists_and_deposit(reply_id) {
+                0
+            } else {
+                gas_limit
+            };
+
+            // Converting applied gas limit into value to reserve.
+            let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
+
+            // Redeeming voucher to pay for gas.
+            // Currency will be reserved on the voucher's account as a result of this call.
+            let voucher_id =
+                VoucherOf::<T>::redeem_with_id(origin.clone(), destination, gas_limit_reserve)
+                    .map_err(|_| {
+                        log::debug!(
+                            "Failed to redeem voucher for user {:?} and program {:?}",
+                            origin,
+                            destination,
+                        );
+                        Error::<T>::FailureRedeemingVoucher
+                    })?;
+
+            // Creating reply message.
+            let message = ReplyMessage::from_packet(
+                reply_id,
+                ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into()),
+            );
+
+            Self::create(voucher_id, message.id(), gas_limit, true);
+
+            // Converting reply message into appropriate type for queueing.
+            let dispatch = message.into_stored_dispatch(
+                ProgramId::from_origin(origin.clone().into_origin()),
+                destination,
+                mailboxed.id(),
+            );
+
+            // Pre-generating appropriate event to avoid dispatch cloning.
+            let event = Event::MessageQueued {
+                id: dispatch.id(),
+                source: origin,
+                destination: dispatch.destination(),
+                entry: MessageEntry::Reply(mailboxed.id()),
+            };
+
+            // Queueing dispatch.
+            QueueOf::<T>::queue(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+
+            // Depositing pre-generated event.
+            Self::deposit_event(event);
+
+            Ok(().into())
+        }
     }
 
     impl<T: Config> QueueRunner for Pallet<T>
@@ -1896,39 +2121,6 @@ pub mod pallet {
 
             // Calculating weight burned within the block.
             initial_gas.saturating_sub(GasAllowanceOf::<T>::get())
-        }
-    }
-
-    impl<T: Config> common::PaymentProvider<T::AccountId> for Pallet<T>
-    where
-        T::AccountId: Origin,
-    {
-        type Balance = BalanceOf<T>;
-
-        fn withhold_reserved(
-            source: H256,
-            dest: &T::AccountId,
-            amount: Self::Balance,
-        ) -> Result<(), DispatchError> {
-            let leftover = CurrencyOf::<T>::repatriate_reserved(
-                &<T::AccountId as Origin>::from_origin(source),
-                dest,
-                amount,
-                BalanceStatus::Free,
-            )?;
-
-            if !leftover.is_zero() {
-                log::debug!(
-                    target: "essential",
-                    "Reserved funds not fully repatriated from {} to 0x{:?} : amount = {:?}, leftover = {:?}",
-                    source,
-                    dest,
-                    amount,
-                    leftover,
-                );
-            }
-
-            Ok(())
         }
     }
 }

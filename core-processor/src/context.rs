@@ -106,17 +106,14 @@ pub struct ProcessExecutionContext {
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
     pub(crate) gas_reserver: GasReserver,
     pub(crate) dispatch: IncomingDispatch,
-    pub(crate) origin: ProgramId,
     pub(crate) balance: u128,
     pub(crate) program: Program,
     pub(crate) memory_size: WasmPage,
 }
 
-impl From<(ContextChargedForMemory, InstrumentedCode, u128, ProgramId)>
-    for ProcessExecutionContext
-{
-    fn from(args: (ContextChargedForMemory, InstrumentedCode, u128, ProgramId)) -> Self {
-        let (context, code, balance, origin) = args;
+impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutionContext {
+    fn from(args: (ContextChargedForMemory, InstrumentedCode, u128)) -> Self {
+        let (context, code, balance) = args;
 
         let ContextChargedForMemory {
             data:
@@ -146,7 +143,6 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128, ProgramId)>
             gas_allowance_counter,
             gas_reserver,
             dispatch,
-            origin,
             balance,
             program,
             memory_size,

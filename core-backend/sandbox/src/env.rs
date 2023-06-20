@@ -27,13 +27,14 @@ use core::{convert::Infallible, fmt::Display};
 use gear_backend_common::{
     funcs::FuncsHandler,
     lazy_pages::{GlobalsAccessConfig, GlobalsAccessMod},
-    ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError, BackendReport,
-    BackendTermination, Environment, EnvironmentExecutionError, EnvironmentExecutionResult,
+    ActorTerminationReason, BackendAllocExternalitiesError, BackendExternalities,
+    BackendExternalitiesError, BackendReport, BackendTermination, Environment, EnvironmentError,
+    EnvironmentExecutionResult,
 };
 use gear_core::{
     gas::GasLeft,
     memory::{PageU32Size, WasmPage},
-    message::{DispatchKind, WasmEntry},
+    message::{DispatchKind, WasmEntryPoint},
 };
 use gear_wasm_instrument::{
     syscalls::SysCallName::{self, *},
@@ -141,32 +142,32 @@ pub enum SandboxEnvironmentError {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct SandboxEnvironment<E, EP = DispatchKind>
+pub struct SandboxEnvironment<Ext, EntryPoint = DispatchKind>
 where
-    E: BackendExt,
-    EP: WasmEntry,
+    Ext: BackendExternalities,
+    EntryPoint: WasmEntryPoint,
 {
-    instance: Instance<Runtime<E>>,
-    runtime: Runtime<E>,
+    instance: Instance<Runtime<Ext>>,
+    runtime: Runtime<Ext>,
     entries: BTreeSet<DispatchKind>,
-    entry_point: EP,
+    entry_point: EntryPoint,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<E: BackendExt> {
-    env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
+struct EnvBuilder<Ext: BackendExternalities> {
+    env_def_builder: EnvironmentDefinitionBuilder<Runtime<Ext>>,
     forbidden_funcs: BTreeSet<SysCallName>,
     funcs_count: usize,
 }
 
-impl<E> EnvBuilder<E>
+impl<Ext> EnvBuilder<Ext>
 where
-    E: BackendExt + 'static,
-    E::Error: BackendExtError,
-    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
+    Ext: BackendExternalities + 'static,
+    Ext::Error: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
 {
-    fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<E>>) {
+    fn add_func(&mut self, name: SysCallName, f: HostFuncType<Runtime<Ext>>) {
         if self.forbidden_funcs.contains(&name) {
             self.env_def_builder.add_host_func(
                 "env",
@@ -185,21 +186,23 @@ where
     }
 }
 
-impl<E: BackendExt> From<EnvBuilder<E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
-    fn from(builder: EnvBuilder<E>) -> Self {
+impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
+    for EnvironmentDefinitionBuilder<Runtime<Ext>>
+{
+    fn from(builder: EnvBuilder<Ext>) -> Self {
         builder.env_def_builder
     }
 }
 
-impl<E, EP> SandboxEnvironment<E, EP>
+impl<Ext, EntryPoint> SandboxEnvironment<Ext, EntryPoint>
 where
-    E: BackendExt + 'static,
-    E::Error: BackendExtError,
-    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
-    EP: WasmEntry,
+    Ext: BackendExternalities + 'static,
+    Ext::Error: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
+    EntryPoint: WasmEntryPoint,
 {
     #[rustfmt::skip]
-    fn bind_funcs(builder: &mut EnvBuilder<E>) {
+    fn bind_funcs(builder: &mut EnvBuilder<Ext>) {
         builder.add_func(BlockHeight, wrap_common_func!(FuncsHandler::block_height, (1) -> ()));
         builder.add_func(BlockTimestamp,wrap_common_func!(FuncsHandler::block_timestamp, (1) -> ()));
         builder.add_func(CreateProgram, wrap_common_func!(FuncsHandler::create_program, (7) -> ()));
@@ -216,21 +219,20 @@ where
         builder.add_func(GasAvailable, wrap_common_func!(FuncsHandler::gas_available, (1) -> ()));
         builder.add_func(Leave, wrap_common_func!(FuncsHandler::leave, () -> ()));
         builder.add_func(MessageId, wrap_common_func!(FuncsHandler::message_id, (1) -> ()));
-        builder.add_func(Origin, wrap_common_func!(FuncsHandler::origin, (1) -> ()));
         builder.add_func(PayProgramRent, wrap_common_func!(FuncsHandler::pay_program_rent, (2) -> ()));
         builder.add_func(ProgramId, wrap_common_func!(FuncsHandler::program_id, (1) -> ()));
         builder.add_func(Random, wrap_common_func!(FuncsHandler::random, (2) -> ()));
         builder.add_func(Read, wrap_common_func!(FuncsHandler::read, (4) -> ()));
-        builder.add_func(Reply, wrap_common_func!(FuncsHandler::reply, (5) -> ()));
-        builder.add_func(ReplyCommit, wrap_common_func!(FuncsHandler::reply_commit, (3) -> ()));
-        builder.add_func(ReplyCommitWGas, wrap_common_func!(FuncsHandler::reply_commit_wgas, (4) -> ()));
+        builder.add_func(Reply, wrap_common_func!(FuncsHandler::reply, (4) -> ()));
+        builder.add_func(ReplyCommit, wrap_common_func!(FuncsHandler::reply_commit, (2) -> ()));
+        builder.add_func(ReplyCommitWGas, wrap_common_func!(FuncsHandler::reply_commit_wgas, (3) -> ()));
         builder.add_func(ReplyPush, wrap_common_func!(FuncsHandler::reply_push, (3) -> ()));
         builder.add_func(ReplyTo, wrap_common_func!(FuncsHandler::reply_to, (1) -> ()));
         builder.add_func(SignalFrom, wrap_common_func!(FuncsHandler::signal_from, (1) -> ()));
-        builder.add_func(ReplyWGas, wrap_common_func!(FuncsHandler::reply_wgas, (6) -> ()));
-        builder.add_func(ReplyInput, wrap_common_func!(FuncsHandler::reply_input, (5) -> ()));
+        builder.add_func(ReplyWGas, wrap_common_func!(FuncsHandler::reply_wgas, (5) -> ()));
+        builder.add_func(ReplyInput, wrap_common_func!(FuncsHandler::reply_input, (4) -> ()));
         builder.add_func(ReplyPushInput, wrap_common_func!(FuncsHandler::reply_push_input, (3) -> ()));
-        builder.add_func(ReplyInputWGas, wrap_common_func!(FuncsHandler::reply_input_wgas, (6) -> ()));
+        builder.add_func(ReplyInputWGas, wrap_common_func!(FuncsHandler::reply_input_wgas, (5) -> ()));
         builder.add_func(Send, wrap_common_func!(FuncsHandler::send, (5) -> ()));
         builder.add_func(SendCommit, wrap_common_func!(FuncsHandler::send_commit, (4) -> ()));
         builder.add_func(SendCommitWGas, wrap_common_func!(FuncsHandler::send_commit_wgas, (5) -> ()));
@@ -249,8 +251,8 @@ where
         builder.add_func(WaitUpTo, wrap_common_func!(FuncsHandler::wait_up_to, (1) -> ()));
         builder.add_func(Wake, wrap_common_func!(FuncsHandler::wake, (3) -> ()));
         builder.add_func(SystemReserveGas, wrap_common_func!(FuncsHandler::system_reserve_gas, (2) -> ()));
-        builder.add_func(ReservationReply, wrap_common_func!(FuncsHandler::reservation_reply, (5) -> ()));
-        builder.add_func(ReservationReplyCommit, wrap_common_func!(FuncsHandler::reservation_reply_commit, (3) -> ()));
+        builder.add_func(ReservationReply, wrap_common_func!(FuncsHandler::reservation_reply, (4) -> ()));
+        builder.add_func(ReservationReplyCommit, wrap_common_func!(FuncsHandler::reservation_reply_commit, (2) -> ()));
         builder.add_func(ReservationSend, wrap_common_func!(FuncsHandler::reservation_send, (5) -> ()));
         builder.add_func(ReservationSendCommit, wrap_common_func!(FuncsHandler::reservation_send_commit, (4) -> ()));
         builder.add_func(OutOfGas, wrap_common_func!(FuncsHandler::out_of_gas, () -> ()));
@@ -261,25 +263,25 @@ where
     }
 }
 
-impl<E, EP> Environment<EP> for SandboxEnvironment<E, EP>
+impl<EnvExt, EntryPoint> Environment<EntryPoint> for SandboxEnvironment<EnvExt, EntryPoint>
 where
-    E: BackendExt + 'static,
-    E::Error: BackendExtError,
-    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
-    EP: WasmEntry,
+    EnvExt: BackendExternalities + 'static,
+    EnvExt::Error: BackendExternalitiesError,
+    EnvExt::AllocError: BackendAllocExternalitiesError<ExtError = EnvExt::Error>,
+    EntryPoint: WasmEntryPoint,
 {
-    type Ext = E;
+    type Ext = EnvExt;
     type Memory = MemoryWrap;
-    type Error = SandboxEnvironmentError;
+    type SystemError = SandboxEnvironmentError;
 
     fn new(
         ext: Self::Ext,
         binary: &[u8],
-        entry_point: EP,
+        entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPage,
-    ) -> Result<Self, EnvironmentExecutionError<Self::Error, Infallible>> {
-        use EnvironmentExecutionError::*;
+    ) -> Result<Self, EnvironmentError<Self::SystemError, Infallible>> {
+        use EnvironmentError::*;
         use SandboxEnvironmentError::*;
 
         let entry_forbidden = entry_point
@@ -288,7 +290,7 @@ where
             .map(DispatchKind::forbidden_funcs)
             .unwrap_or_default();
 
-        let mut builder = EnvBuilder::<E> {
+        let mut builder = EnvBuilder::<EnvExt> {
             env_def_builder: EnvironmentDefinitionBuilder::new(),
             forbidden_funcs: ext
                 .forbidden_funcs()
@@ -339,12 +341,19 @@ where
         }
     }
 
-    fn execute<F, T>(self, pre_execution_handler: F) -> EnvironmentExecutionResult<T, Self, EP>
+    fn execute<PrepareMemory, PrepareMemoryError>(
+        self,
+        prepare_memory: PrepareMemory,
+    ) -> EnvironmentExecutionResult<PrepareMemoryError, Self, EntryPoint>
     where
-        F: FnOnce(&mut Self::Memory, Option<u32>, GlobalsAccessConfig) -> Result<(), T>,
-        T: Display,
+        PrepareMemory: FnOnce(
+            &mut Self::Memory,
+            Option<u32>,
+            GlobalsAccessConfig,
+        ) -> Result<(), PrepareMemoryError>,
+        PrepareMemoryError: Display,
     {
-        use EnvironmentExecutionError::*;
+        use EnvironmentError::*;
         use SandboxEnvironmentError::*;
 
         let Self {
@@ -384,7 +393,7 @@ where
             unreachable!("We cannot use sandbox backend in std environment currently");
         };
 
-        match pre_execution_handler(&mut runtime.memory, stack_end, globals_config) {
+        match prepare_memory(&mut runtime.memory, stack_end, globals_config) {
             Ok(_) => (),
             Err(e) => {
                 return Err(PrepareMemory(runtime.ext.gas_amount(), e));

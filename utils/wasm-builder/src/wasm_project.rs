@@ -229,7 +229,6 @@ mod fake_gsys {{
             payload: *const u8,
             len: u32,
             value: *const u128,
-            _delay: u32,
             err_mid: *mut [u8; 36],
         );
     }}
@@ -244,7 +243,6 @@ extern "C" fn metahash() {{
             METAHASH.as_ptr(),
             METAHASH.len() as _,
             u32::MAX as _,
-            0,
             &mut res as _,
         );
     }}
@@ -261,6 +259,119 @@ extern "C" fn metahash() {{
         Ok(())
     }
 
+    /// Generate output wasm meta file and wasm binary informational file.
+    pub fn postprocess_meta(
+        &self,
+        original_wasm_path: &PathBuf,
+        file_base_name: &String,
+    ) -> Result<()> {
+        let meta_wasm_path = self
+            .wasm_target_dir
+            .join([file_base_name, ".meta.wasm"].concat());
+
+        if smart_fs::check_if_newer(original_wasm_path, &meta_wasm_path)? {
+            fs::write(
+                meta_wasm_path.clone(),
+                Optimizer::new(original_wasm_path.clone())?.optimize(OptType::Meta)?,
+            )?;
+        }
+
+        smart_fs::write(
+            self.out_dir.join("wasm_binary.rs"),
+            format!(
+                r#"#[allow(unused)]
+                       pub const WASM_BINARY: &[u8] = include_bytes!("{}");
+                       #[allow(unused)]
+                       pub const WASM_EXPORTS: &[&str] = &{:?};"#,
+                display_path(meta_wasm_path.clone()),
+                Self::get_exports(&meta_wasm_path)?,
+            ),
+        )
+        .context("unable to write `wasm_binary.rs`")
+        .map_err(Into::into)
+    }
+
+    /// Generates output optimized wasm file, `.binpath` file for our tests system
+    /// and wasm binaries informational file.
+    /// Makes a copy of original wasm file in `self.wasm_target_dir`.
+    pub fn postprocess_opt(
+        &self,
+        original_wasm_path: &PathBuf,
+        file_base_name: &String,
+    ) -> Result<()> {
+        let [original_copy_wasm_path, opt_wasm_path] = [".wasm", ".opt.wasm"]
+            .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
+
+        // Copy original file to `self.wasm_target_dir`
+        smart_fs::copy_if_newer(original_wasm_path, &original_copy_wasm_path)
+            .context("unable to copy WASM file")?;
+
+        // Optimize wasm using and `wasm-opt` and our optimizations.
+        if smart_fs::check_if_newer(original_wasm_path, &opt_wasm_path)? {
+            let path = optimize::optimize_wasm(
+                original_copy_wasm_path.clone(),
+                opt_wasm_path.clone(),
+                "s",
+                true,
+            )
+            .map(|res| {
+                log::info!(
+                    "Wasm-opt reduced wasm size: {} -> {}",
+                    res.original_size,
+                    res.optimized_size
+                );
+                opt_wasm_path.clone()
+            })
+            .unwrap_or_else(|err| {
+                println!("cargo:warning=wasm-opt optimizations error: {}", err);
+                original_copy_wasm_path.clone()
+            });
+
+            let mut optimizer = Optimizer::new(path)?;
+            optimizer
+                .insert_stack_end_export()
+                .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
+            optimizer.strip_custom_sections();
+            fs::write(opt_wasm_path.clone(), optimizer.optimize(OptType::Opt)?)?;
+        }
+
+        // Create path string in `.binpath` file.
+        let relative_path_to_wasm = pathdiff::diff_paths(&self.wasm_target_dir, &self.original_dir)
+            .expect("Unable to calculate relative path")
+            .join(file_base_name);
+        smart_fs::write(
+            self.original_dir.join(".binpath"),
+            format!("{}", relative_path_to_wasm.display()),
+        )
+        .context("unable to write `.binpath`")?;
+
+        // Create `wasm_binary.rs`
+        let metadata = self
+            .project_type
+            .metadata()
+            .map(|m| {
+                format!(
+                    "#[allow(unused)] pub const WASM_METADATA: &[u8] = &{:?};\n",
+                    m.bytes()
+                )
+            })
+            .unwrap_or_default();
+        smart_fs::write(
+            self.out_dir.join("wasm_binary.rs"),
+            format!(
+                r#"#[allow(unused)]
+                       pub const WASM_BINARY: &[u8] = include_bytes!("{}");
+                       #[allow(unused)]
+                       pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
+                       {}"#,
+                display_path(original_copy_wasm_path),
+                display_path(opt_wasm_path),
+                metadata,
+            ),
+        )
+        .context("unable to write `wasm_binary.rs`")
+    }
+
     /// Post-processing after the WASM binary has been built.
     ///
     /// - Copy WASM binary from `OUT_DIR` to `target/wasm32-unknown-unknown/<profile>`
@@ -272,7 +383,7 @@ extern "C" fn metahash() {{
             .as_ref()
             .expect("Run `WasmProject::generate()` first");
 
-        let from_path = self
+        let original_wasm_path = self
             .target_dir
             .join(format!("wasm32-unknown-unknown/{}", self.profile))
             .join(format!("{}.wasm", &file_base_name));
@@ -280,115 +391,13 @@ extern "C" fn metahash() {{
         fs::create_dir_all(&self.target_dir)?;
         fs::create_dir_all(&self.wasm_target_dir)?;
 
-        let [to_path, to_opt_path, to_meta_path] = [".wasm", ".opt.wasm", ".meta.wasm"]
-            .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
-
-        // Optimize source.
-        if !self.project_type.is_metawasm()
-            && smart_fs::copy_if_newer(&from_path, &to_path).context("unable to copy WASM file")?
-        {
-            _ = optimize::optimize_wasm(to_path.clone(), to_path.clone(), "s", false);
-        }
-
-        let metadata = self
-            .project_type
-            .metadata()
-            .map(|m| {
-                format!(
-                    "#[allow(unused)] pub const WASM_METADATA: &[u8] = &{:?};\n",
-                    m.bytes()
-                )
-            })
-            .unwrap_or_default();
-
-        // Generate wasm binaries
-        Self::generate_wasm(
-            from_path.clone(),
-            (!self.project_type.is_metawasm()).then_some(&to_opt_path),
-            self.project_type.is_metawasm().then_some(&to_meta_path),
-        )?;
-
-        let wasm_binary_path = self.original_dir.join(".binpath");
-
-        let mut relative_path = pathdiff::diff_paths(&to_path, &self.original_dir)
-            .expect("Unable to calculate relative path");
-
-        // Remove extension
-        relative_path.set_extension("");
-
-        if !self.project_type.is_metawasm() {
-            smart_fs::write(wasm_binary_path, format!("{}", relative_path.display()))
-                .context("unable to write `.binpath`")?;
-        }
-
-        let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
-
-        if !self.project_type.is_metawasm() {
-            smart_fs::write(
-                wasm_binary_rs,
-                format!(
-                    r#"#[allow(unused)]
-pub const WASM_BINARY: &[u8] = include_bytes!("{}");
-#[allow(unused)]
-pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
-{}
-"#,
-                    display_path(to_path),
-                    display_path(to_opt_path),
-                    metadata,
-                ),
-            )
-            .context("unable to write `wasm_binary.rs`")?;
+        if self.project_type.is_metawasm() {
+            self.postprocess_meta(&original_wasm_path, file_base_name)?;
         } else {
-            smart_fs::write(
-                wasm_binary_rs,
-                format!(
-                    r#"#[allow(unused)]
-pub const WASM_BINARY: &[u8] = include_bytes!("{}");
-#[allow(unused)]
-pub const WASM_EXPORTS: &[&str] = &{:?};
-
-"#,
-                    display_path(to_meta_path.clone()),
-                    Self::get_exports(&to_meta_path)?,
-                ),
-            )
-            .context("unable to write `wasm_binary.rs`")?;
+            self.postprocess_opt(&original_wasm_path, file_base_name)?;
         }
 
-        self.force_rerun_on_next_run(&from_path)
-    }
-
-    fn generate_wasm(from: PathBuf, to_opt: Option<&Path>, to_meta: Option<&Path>) -> Result<()> {
-        let generate_opt = to_opt
-            .map(|to_opt| smart_fs::check_if_newer(&from, to_opt))
-            .unwrap_or(Ok(false))?;
-        let generate_meta = to_meta
-            .map(|to_meta| smart_fs::check_if_newer(&from, to_meta))
-            .unwrap_or(Ok(false))?;
-        if !generate_opt && !generate_meta {
-            return Ok(());
-        }
-
-        let mut optimizer = Optimizer::new(from)?;
-        optimizer
-            .insert_stack_end_export()
-            .unwrap_or_else(|err| log::debug!("Cannot insert stack end export: {}", err));
-        optimizer.strip_custom_sections();
-
-        // Generate *.opt.wasm.
-        if let Some(to_opt) = to_opt {
-            let opt = optimizer.optimize(OptType::Opt)?;
-            fs::write(to_opt, opt)?;
-        }
-
-        // Generate *.meta.wasm.
-        if let Some(to_meta) = to_meta {
-            let meta = optimizer.optimize(OptType::Meta)?;
-            fs::write(to_meta, meta)?;
-        }
-
-        Ok(())
+        self.force_rerun_on_next_run(&original_wasm_path)
     }
 
     fn get_exports(file: &PathBuf) -> Result<Vec<String>> {
