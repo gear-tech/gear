@@ -164,7 +164,7 @@ where
 
     let journal = core_processor::process::<E>(
         &block_config,
-        (context, code, 0u128, ProgramId::default()).into(),
+        (context, code, 0u128).into(),
         (random.to_vec(), block_config.block_info.height),
         Default::default(),
     )
@@ -382,7 +382,7 @@ where
 
         core_processor::process::<E>(
             &block_config,
-            (context, code, balance, ProgramId::default()).into(),
+            (context, code, balance).into(),
             (random.to_vec(), block_config.block_info.height),
             memory_pages,
         )

@@ -10,12 +10,12 @@ env:
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
   COUNT: 100
-  SCCACHE_VERSION: v0.5.3
   BINARYEN_VERSION: version_111
 
 jobs:
   build:
     runs-on: [ k8s-runner ]
+    timeout-minutes: 720
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
@@ -43,16 +43,11 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake protobuf-compiler wget bzip2
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
-          sudo wget -c https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz -O - | sudo tar -xz -C .
-          sudo cp sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl/sccache /usr/bin/
-          sudo chmod +x /usr/bin/sccache
-          mkdir -p ~/.config/sccache/ && cp /root/sccache/client.toml ~/.config/sccache/config
 
       - name: "Cache: Unpack"
         continue-on-error: true
         run: |
-          tar -xf /root/cache/check_cache_${{ github.ref_name }}.tar -C /
-          tar -xf /root/cache/check_cargo_registry_${{ github.ref_name }}.tar -C /
+          tar -xf /cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked --features=runtime-test,runtime-benchmarks,lazy-pages
@@ -149,8 +144,3 @@ jobs:
           file: ./target/action-extrinsic-weights.json
           ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: "Cache: collected data"
-        run: |
-          mv ./target/pallet-tests.json /root/cache/
-          mv ./target/runtime-tests.json /root/cache/

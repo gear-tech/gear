@@ -162,7 +162,7 @@ pub fn exit(inheritor_id: ActorId) -> ! {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     exec::unreserve_gas(unsafe { RESERVED });
+///     exec::unreserve_gas(unsafe { RESERVED }).expect("Unable to unreserve");
 /// }
 /// ```
 ///
@@ -382,7 +382,7 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 /// # Examples
 ///
 /// ```
-/// use gcore::{exec, ActorId};
+/// use gcore::exec;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
@@ -395,32 +395,13 @@ pub fn program_id() -> ActorId {
     program_id
 }
 
-/// Return the identifier of the original user who initiated communication with
-/// the blockchain, during which the currently processing message was created.
-///
-/// # Examples
-///
-/// ```
-/// use gcore::exec;
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let user = exec::origin();
-/// }
-/// ```
-pub fn origin() -> ActorId {
-    let mut origin = ActorId::default();
-    unsafe { gsys::gr_origin(origin.as_mut_ptr()) }
-    origin
-}
-
 /// Pay specified rent for the program. The result contains the remainder of
 /// rent value and the count of paid blocks.
 ///
 /// # Examples
 ///
 /// ```
-/// use gcore::{exec, ActorId};
+/// use gcore::exec;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {

@@ -414,12 +414,6 @@ extern "C" {
     /// - `message_id`: `const ptr` for message id.
     pub fn gr_message_id(message_id: *mut Hash);
 
-    /// Infallible `gr_origin` get syscall.
-    ///
-    /// Arguments type:
-    /// - `program_id`: `const ptr` for program id.
-    pub fn gr_origin(program_id: *mut Hash);
-
     /// Fallible `gr_pay_program_rent` syscall.
     ///
     /// Arguments type:

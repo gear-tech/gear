@@ -138,5 +138,5 @@ doc_test() {
   MANIFEST="$1"
   shift
 
-  cargo test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" -- "$@"
+  __GEAR_WASM_BUILDER_NO_BUILD=1 cargo test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" -- "$@"
 }

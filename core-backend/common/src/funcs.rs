@@ -19,10 +19,9 @@
 //! Syscall implementations generic over wasmi and sandbox backends.
 
 use crate::{
-    memory::{MemoryAccessError, MemoryAccessRecorder, MemoryOwner},
-    runtime::Runtime,
-    syscall_trace, ActorTerminationReason, BackendAllocExtError, BackendExt, BackendExtError,
-    BackendState, MessageWaitedType, TerminationReason, TrapExplanation, PTR_SPECIAL,
+    memory::MemoryAccessError, runtime::Runtime, syscall_trace, ActorTerminationReason,
+    BackendAllocExternalitiesError, BackendExternalities, BackendExternalitiesError,
+    MessageWaitedType, TerminationReason, TrapExplanation, PTR_SPECIAL,
 };
 use alloc::string::{String, ToString};
 use blake2_rfc::blake2b::blake2b;
@@ -31,7 +30,7 @@ use gear_backend_codegen::host;
 use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
-    env::Ext,
+    env::{DropPayloadLockBound, Externalities},
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
@@ -43,17 +42,16 @@ use gsys::{
 };
 use parity_scale_codec::Encode;
 
-pub struct FuncsHandler<E: Ext + 'static, R> {
-    _phantom_ext: PhantomData<E>,
-    _phantom_runtime: PhantomData<R>,
+pub struct FuncsHandler<Ext: Externalities + 'static, Runtime> {
+    _phantom: PhantomData<(Ext, Runtime)>,
 }
 
-impl<E, R> FuncsHandler<E, R>
+impl<Ext, R> FuncsHandler<Ext, R>
 where
-    E: BackendExt + 'static,
-    E::Error: BackendExtError,
-    E::AllocError: BackendAllocExtError<ExtError = E::Error>,
-    R: Runtime<E> + MemoryOwner + MemoryAccessRecorder + BackendState,
+    Ext: BackendExternalities + 'static,
+    Ext::Error: BackendExternalitiesError,
+    Ext::AllocError: BackendAllocExternalitiesError<ExtError = Ext::Error>,
+    R: Runtime<Ext>,
 {
     /// !!! Usage warning: make sure to do it before any other read/write,
     /// because it may contain registered read.
@@ -176,14 +174,17 @@ where
 
     #[host(fallible, cost = RuntimeCosts::Read, err_len = LengthBytes)]
     pub fn read(ctx: &mut R, at: u32, len: u32, buffer_ptr: u32) -> Result<(), R::Error> {
-        let (buffer, mut gas_left) = ctx.ext_mut().read(at, len)?;
-        let buffer = buffer.to_vec();
+        let payload_lock = ctx.ext_mut().lock_payload(at, len)?;
+        payload_lock
+            .drop_with::<MemoryAccessError, _>(|payload_access| {
+                let write_buffer = ctx.register_write(buffer_ptr, len);
+                let write_res = ctx.write(write_buffer, payload_access.as_slice());
+                let unlock_bound = ctx.ext_mut().unlock_payload(payload_access.into_lock());
 
-        let write_buffer = ctx.register_write(buffer_ptr, len);
-        ctx.memory_manager_write(write_buffer, &buffer, &mut gas_left)?;
-
-        ctx.ext_mut().set_gas_left(gas_left);
-        Ok(())
+                DropPayloadLockBound::from((unlock_bound, write_res))
+            })
+            .into_inner()
+            .map_err(Into::into)
     }
 
     #[host(cost = RuntimeCosts::Size)]
@@ -261,15 +262,6 @@ where
 
         let write_timestamp = ctx.register_write_as(timestamp_ptr);
         ctx.write_as(write_timestamp, timestamp.to_le_bytes())
-            .map_err(Into::into)
-    }
-
-    #[host(cost = RuntimeCosts::Origin)]
-    pub fn origin(ctx: &mut R, origin_ptr: u32) -> Result<(), R::Error> {
-        let origin = ctx.ext_mut().origin()?;
-
-        let write_origin = ctx.register_write_as(origin_ptr);
-        ctx.write_as(write_origin, origin.into_bytes())
             .map_err(Into::into)
     }
 

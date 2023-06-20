@@ -125,11 +125,11 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 /// # Examples
 ///
 /// ```
-/// use gstd::{exec, ActorId};
+/// use gstd::exec;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
-///     let (unused_value, paid_block_count) =
+///     let (_unused_value, paid_block_count) =
 ///         exec::pay_program_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
@@ -142,7 +142,7 @@ pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)>
 /// # Examples
 ///
 /// ```
-/// use gstd::{exec, ActorId};
+/// use gstd::exec;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
@@ -151,21 +151,4 @@ pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)>
 /// ```
 pub fn program_id() -> ActorId {
     gcore::exec::program_id().into()
-}
-
-/// Return the identifier of the original user who initiated communication with
-/// the blockchain, during which the present processing message was created.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::exec;
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let user = exec::origin();
-/// }
-/// ```
-pub fn origin() -> ActorId {
-    gcore::exec::origin().into()
 }

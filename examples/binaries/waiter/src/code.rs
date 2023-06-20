@@ -1,6 +1,6 @@
 use crate::{Command, WaitSubcommand};
 
-use gstd::{errors::ContractError, exec, msg, MessageId};
+use gstd::{errors::Error, exec, msg, MessageId};
 
 fn process_wait_subcommand(subcommand: WaitSubcommand) {
     match subcommand {
