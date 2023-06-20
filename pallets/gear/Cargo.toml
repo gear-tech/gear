@@ -58,6 +58,8 @@ rand_pcg = { workspace = true, optional = true }
 sp-consensus-slots = { workspace = true, optional = true }
 test-syscalls = { workspace = true, optional = true }
 demo-proxy = { workspace = true, optional = true }
+# used by example binaries and required to be configured to not conflict with sp-io
+gstd = { workspace = true, optional = true }
 
 [dev-dependencies]
 wabt.workspace = true
@@ -150,6 +152,7 @@ std = [
 	"sp-consensus-babe/std",
 	"test-syscalls?/std",
 	"demo-proxy?/std",
+	"gstd?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -166,6 +169,8 @@ runtime-benchmarks = [
 	"test-syscalls/wasm-wrapper",
 	"demo-proxy/wasm-wrapper",
 	"gsys",
+	"gstd/disable_allocator",
+	"gstd/disable_panic_handler",
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]

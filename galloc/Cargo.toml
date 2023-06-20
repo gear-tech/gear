@@ -10,4 +10,9 @@ license.workspace = true
 dlmalloc = { workspace = true, features = ["global"] }
 
 [features]
+default = []
 debug = ["dlmalloc/debug"]
+# The feature is used for `no_std` builds for the environments which already provide
+# `#[global_allocator]`.
+disable_allocator = []
+std = []

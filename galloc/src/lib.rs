@@ -16,12 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 
 // until https://github.com/alexcrichton/dlmalloc-rs/pull/26 is merged
 #[cfg(not(windows))]
+#[cfg(all(target_arch = "wasm32", not(feature = "disable_allocator"), not(feature = "std")))]
 #[global_allocator]
 pub static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 

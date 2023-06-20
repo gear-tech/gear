@@ -21,4 +21,18 @@ futures = { workspace = true, features = ["alloc"] }
 static_assertions.workspace = true
 
 [features]
+default = []
 debug = ["galloc/debug", "gcore/debug"]
+# These features are used for `no_std` builds for the environments which already provide
+# `#[panic_handler]` and `#[global_allocator]`.
+disable_panic_handler = []
+disable_allocator = ["galloc/disable_allocator"]
+std = [
+    "galloc/std",
+    "bs58/std",
+    "hex/std",
+    "parity-scale-codec/std",
+    "primitive-types/std",
+    "scale-info/std",
+    "futures/std",
+]

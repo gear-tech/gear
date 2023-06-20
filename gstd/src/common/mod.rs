@@ -19,5 +19,6 @@
 //! Common modules for each Gear smart contract.
 
 pub mod errors;
+#[cfg(all(not(feature = "disable_panic_handler"), not(feature = "std")))]
 mod handlers;
 pub mod primitives;
