@@ -4847,7 +4847,7 @@ fn test_requeue_after_wait_for_timeout() {
         run_to_next_block(None);
 
         let duration = 10;
-        let payload = Command::SendAndWaitFor(duration, USER_1.into()).encode();
+        let payload = Command::SendAndWaitFor(duration, USER_1.into_origin().into()).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -4917,7 +4917,7 @@ fn test_sending_waits() {
         //
         // Send message and then wait_for.
         let duration = 5;
-        let payload = Command::SendFor(USER_1.into(), duration).encode();
+        let payload = Command::SendFor(USER_1.into_origin().into(), duration).encode();
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -4936,7 +4936,7 @@ fn test_sending_waits() {
         //
         // Send message and then wait_up_to.
         let duration = 10;
-        let payload = Command::SendUpTo(USER_1.into(), duration).encode();
+        let payload = Command::SendUpTo(USER_1.into_origin().into(), duration).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -4954,7 +4954,7 @@ fn test_sending_waits() {
         //
         // Send message and then wait no_more, wake, wait no_more again.
         let duration = 10;
-        let payload = Command::SendUpToWait(USER_2.into(), duration).encode();
+        let payload = Command::SendUpToWait(USER_2.into_origin().into(), duration).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,

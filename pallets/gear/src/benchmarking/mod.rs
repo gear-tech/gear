@@ -2875,6 +2875,55 @@ benchmarks! {
         ext_manager.send_dispatch(message_id);
     }
 
+    tasks_wake_message {
+        use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+
+        init_block::<T>(None);
+
+        let salt = vec![];
+        let program_id = ProgramId::generate(CodeId::generate(WASM_BINARY), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(),
+            WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            10_000_000_000, 0u32.into()).expect("submit program failed");
+
+        let delay = 10u32;
+        Gear::<T>::send_message(
+            RawOrigin::Signed(caller).into(),
+            program_id,
+            Command::Wait(WaitSubcommand::WaitFor(delay)).encode(),
+            10_000_000_000,
+            0u32.into(),
+        ).expect("failed to send message");
+
+        Gear::<T>::process_queue(Default::default());
+
+        let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
+            .next()
+            .unwrap();
+        let (_program_id, message_id) = match task {
+            ScheduledTask::WakeMessage (
+                program_id,
+                message_id,
+            ) => (program_id, message_id),
+            _ => unreachable!(),
+        };
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.wake_message(program_id, message_id);
+    }
+
+    tasks_wake_message_no_wake {
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.wake_message(Default::default(), Default::default());
+    }
+
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently
     // configured `Schedule` during benchmark development.
     // It can be outputted using the following command:

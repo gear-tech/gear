@@ -31,7 +31,7 @@ use common::{
     storage::*,
     Origin, PausedProgramStorage, Program, ProgramStorage,
 };
-use core::convert::TryInto;
+use core::{cmp, convert::TryInto};
 use frame_support::traits::{Currency, ExistenceRequirement};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -49,7 +49,10 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
         RemoveFromMailbox(_, _) => 0,
         RemoveFromWaitlist(_, _) => 0,
         RemovePausedProgram(_) => todo!("#646"),
-        WakeMessage(_, _) => 0,
+        WakeMessage(_, _) => cmp::max(
+            <T as Config>::WeightInfo::tasks_wake_message().ref_time(),
+            <T as Config>::WeightInfo::tasks_wake_message_no_wake().ref_time(),
+        ),
         SendDispatch(_) => <T as Config>::WeightInfo::tasks_send_dispatch().ref_time(),
         SendUserMessage { .. } => core::cmp::max(
             <T as Config>::WeightInfo::tasks_send_user_message_to_mailbox().ref_time(),
@@ -296,16 +299,19 @@ where
     }
 
     fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas {
-        if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+        match Pallet::<T>::wake_dispatch(
             program_id,
             message_id,
             MessageWokenRuntimeReason::WakeCalled.into_reason(),
         ) {
-            QueueOf::<T>::queue(dispatch)
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-        }
+            Some(dispatch) => {
+                QueueOf::<T>::queue(dispatch)
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
-        0
+                <T as Config>::WeightInfo::tasks_wake_message().ref_time()
+            }
+            None => <T as Config>::WeightInfo::tasks_wake_message_no_wake().ref_time(),
+        }
     }
 
     fn send_dispatch(&mut self, stashed_message_id: MessageId) -> Gas {

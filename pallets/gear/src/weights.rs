@@ -219,6 +219,8 @@ pub trait WeightInfo {
     fn tasks_send_user_message_to_mailbox() -> Weight;
     fn tasks_send_user_message() -> Weight;
     fn tasks_send_dispatch() -> Weight;
+    fn tasks_wake_message() -> Weight;
+    fn tasks_wake_message_no_wake() -> Weight;
     fn allocation_cost() -> Weight;
     fn grow_cost() -> Weight;
     fn initial_cost() -> Weight;
@@ -2105,6 +2107,23 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(7_u64))
             .saturating_add(T::DbWeight::get().writes(6_u64))
     }
+    fn tasks_wake_message() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `823`
+        //  Estimated: `25565`
+        // Minimum execution time: 20_000_000 picoseconds.
+        Weight::from_parts(21_000_000, 25565)
+            .saturating_add(T::DbWeight::get().reads(8_u64))
+            .saturating_add(T::DbWeight::get().writes(6_u64))
+    }
+    fn tasks_wake_message_no_wake() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `80`
+        //  Estimated: `3545`
+        // Minimum execution time: 2_000_000 picoseconds.
+        Weight::from_parts(2_000_000, 3545)
+            .saturating_add(T::DbWeight::get().reads(1_u64))
+    }
 }
 
 // For backwards compatibility and tests
@@ -3984,5 +4003,22 @@ impl WeightInfo for () {
         Weight::from_parts(16_000_000, 19705)
             .saturating_add(RocksDbWeight::get().reads(7_u64))
             .saturating_add(RocksDbWeight::get().writes(6_u64))
+    }
+    fn tasks_wake_message() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `823`
+        //  Estimated: `25565`
+        // Minimum execution time: 20_000_000 picoseconds.
+        Weight::from_parts(21_000_000, 25565)
+            .saturating_add(RocksDbWeight::get().reads(8_u64))
+            .saturating_add(RocksDbWeight::get().writes(6_u64))
+    }
+    fn tasks_wake_message_no_wake() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `80`
+        //  Estimated: `3545`
+        // Minimum execution time: 2_000_000 picoseconds.
+        Weight::from_parts(2_000_000, 3545)
+            .saturating_add(RocksDbWeight::get().reads(1_u64))
     }
 }

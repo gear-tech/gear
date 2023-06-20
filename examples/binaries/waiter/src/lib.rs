@@ -15,29 +15,33 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-#![no_std]
+
+#![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use gstd::ActorId;
 
-#[cfg(feature = "std")]
+type ActorId = [u8; 32];
+
+#[cfg(feature = "wasm-wrapper")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "wasm-wrapper"))]
 mod wasm {
     include! {"./code.rs"}
 }
 
+#[cfg(feature = "std")]
 pub fn system_reserve() -> u64 {
     gstd::Config::system_reserve()
 }
 
 // Re-exports for testing
+#[cfg(feature = "std")]
 pub fn default_wait_up_to_duration() -> u32 {
     gstd::Config::wait_up_to()
 }

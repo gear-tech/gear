@@ -2,8 +2,8 @@
 name = "demo-waiter"
 version = "0.1.0"
 authors.workspace = true
-edition = "2021"
-license = "GPL-3.0"
+edition.workspace = true
+license.workspace = true
 workspace = "../../../"
 
 [dependencies]
@@ -13,11 +13,8 @@ gstd.workspace = true
 [build-dependencies]
 gear-wasm-builder.workspace = true
 
-[dev-dependencies]
-
-[lib]
-
 [features]
 debug = ["gstd/debug"]
-std = ["codec/std"]
+wasm-wrapper = []
+std = ["codec/std", "wasm-wrapper"]
 default = ["std"]

@@ -142,7 +142,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     let salt = vec![];
     let pid = ProgramId::generate(CodeId::generate(demo_waiter::WASM_BINARY), &salt);
-    let payload = demo_waiter::Command::SendUpTo(alice.into(), 10);
+    let payload = demo_waiter::Command::SendUpTo(alice, 10);
 
     // 1. upload program.
     let signer = Api::new(Some(&node_uri(&node)))
