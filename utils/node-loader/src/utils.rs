@@ -124,7 +124,7 @@ pub async fn capture_mailbox_messages(
                 message,
                 expiration: Some(exp_bn),
             }) if exp_bn >= &bn_threshold && message.destination == to.into() => {
-                Some(message.id.clone().into())
+                Some(message.id.into())
             }
             _ => None,
         })
@@ -172,7 +172,7 @@ pub fn err_or_succeed_batch(
             }) => {
                 if message_ids.contains(to) && ReplyCode::from(code.clone()).is_success() {
                     Some(vec![(
-                        to.clone().into(),
+                        (*to).into(),
                         Some(String::from_utf8(payload.0.to_vec()).expect("Infallible")),
                     )])
                 } else {
@@ -185,7 +185,7 @@ pub fn err_or_succeed_batch(
                     .filter_map(|(mid, status)| {
                         if message_ids.contains(mid) && !matches!(status, GenDispatchStatus::Failed)
                         {
-                            Some((MessageId::from(mid.clone()), None))
+                            Some((MessageId::from(*mid), None))
                         } else {
                             None
                         }

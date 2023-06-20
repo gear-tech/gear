@@ -141,8 +141,8 @@ impl GearApi {
     pub async fn rpc_nonce(&self) -> Result<u32> {
         self.0
             .api()
-            .rpc()
-            .system_account_next_index(self.0.account_id())
+            .tx()
+            .account_nonce(self.0.account_id())
             .await
             .map_err(Into::into)
     }

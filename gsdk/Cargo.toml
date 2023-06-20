@@ -18,7 +18,6 @@ gear-core-errors.workspace = true
 hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 log.workspace = true
-parity-scale-codec.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 subxt.workspace = true
@@ -26,6 +25,11 @@ thiserror.workspace = true
 sp-runtime = { workspace = true, features = [ "std" ] }
 sp-core.workspace = true
 gsdk-codegen = { path = "codegen" }
+
+# Importing these two libraries for trimming
+# the the size of the generated file.
+scale-decode.workspace = true
+parity-scale-codec.workspace = true
 
 # deps for feature `testing`
 rand = { workspace = true, optional = true }

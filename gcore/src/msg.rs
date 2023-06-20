@@ -186,6 +186,10 @@ pub fn read(buffer: &mut [u8]) -> Result<()> {
 /// }
 /// ```
 pub fn read_at(offset: usize, buffer: &mut [u8]) -> Result<()> {
+    if buffer.is_empty() {
+        return SyscallError(0).into_result();
+    }
+
     let size = size();
 
     if size > buffer.len() + offset {
@@ -193,16 +197,13 @@ pub fn read_at(offset: usize, buffer: &mut [u8]) -> Result<()> {
     }
 
     let mut len = 0u32;
-
-    if size > 0 {
-        unsafe {
-            gsys::gr_read(
-                offset as u32,
-                size as u32,
-                buffer.as_mut_ptr(),
-                &mut len as *mut u32,
-            )
-        }
+    unsafe {
+        gsys::gr_read(
+            offset as u32,
+            buffer.len() as u32,
+            buffer.as_mut_ptr(),
+            &mut len as *mut u32,
+        )
     }
 
     SyscallError(len).into_result()
