@@ -6558,9 +6558,7 @@ fn pay_program_rent_syscall_works() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                TrapExplanation::Ext(ExtError::ProgramRent(
-                    ProgramRentError::NotEnoughValueForRent
-                ))
+                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
             )
         } else {
             String::from("no info")
@@ -7768,7 +7766,7 @@ fn test_create_program_with_exceeding_value() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "Failed to create program: {:?}",
-                TrapExplanation::Ext(ExtError::Message(MessageError::NotEnoughValue))
+                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
             )
         } else {
             String::from("no info")

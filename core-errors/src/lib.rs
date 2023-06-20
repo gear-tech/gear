@@ -43,36 +43,40 @@ pub use simple::*;
 #[repr(u32)]
 pub enum ExecutionError {
     /// An error occurs in attempt to charge more gas than available for operation.
-    #[display(fmt = "Not enough gas to cover holding in waitlist")]
+    #[display(fmt = "Not enough gas for operation")]
     NotEnoughGas = 100,
+
+    /// The error occurs when balance is less than required by operation.
+    #[display(fmt = "Not enough value for operation")]
+    NotEnoughValue = 101,
 
     /// An error occurs in attempt to parse invalid string in `gr_debug` sys-call.
     #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
-    InvalidDebugString = 101,
+    InvalidDebugString = 102,
 
     /// Overflow in 'gr_read'
     #[display(fmt = "Length is overflowed to read payload")]
-    TooBigReadLen = 102,
+    TooBigReadLen = 103,
 
     /// Cannot take data in payload range
     #[display(fmt = "Cannot take data in payload range from message with size")]
-    ReadWrongRange = 103,
+    ReadWrongRange = 104,
 
     /// The error occurs when functions related to reply context, used without it.
     #[display(fmt = "Not running in reply context")]
-    NoReplyContext = 104,
+    NoReplyContext = 105,
 
     /// The error occurs when functions related to signal context, used without it.
     #[display(fmt = "Not running in signal context")]
-    NoSignalContext = 105,
+    NoSignalContext = 106,
 
     /// The error occurs when functions related to status code, used without required context.
     #[display(fmt = "No status code in reply/signal context")]
-    NoStatusCodeContext = 106,
+    NoStatusCodeContext = 107,
 
     /// An error occurs in attempt to send or push reply while reply function is banned.
     #[display(fmt = "Reply sending is only allowed in `init` and `handle` functions")]
-    IncorrectEntryForReply = 107,
+    IncorrectEntryForReply = 108,
 }
 
 /// Memory error.
@@ -143,26 +147,22 @@ pub enum MessageError {
     )]
     InsufficientGasLimit = 308,
 
-    /// The error occurs when program's balance is less than value in message it tries to send.
-    #[display(fmt = "Existing value is not enough to send a message with value")]
-    NotEnoughValue = 309,
-
-    // TODO: remove after delay refactoring is done
-    /// An error occurs in attempt to charge gas for dispatch stash hold.
-    #[display(fmt = "Not enough gas to hold dispatch message")]
-    InsufficientGasForDelayedSending = 399,
-
     /// The error occurs when program tries to create reply deposit for message
     /// that already been created within the execution.
     #[display(fmt = "Reply deposit already exists for given message")]
-    DuplicateReplyDeposit = 310,
+    DuplicateReplyDeposit = 309,
 
     /// The error occurs when program tries to create reply deposit for message
     /// that wasn't sent within the execution or for reply.
     #[display(
         fmt = "Reply deposit could be only created for init or handle message sent within the execution"
     )]
-    IncorrectMessageForReplyDeposit = 311,
+    IncorrectMessageForReplyDeposit = 310,
+
+    // TODO: remove after delay refactoring is done
+    /// An error occurs in attempt to charge gas for dispatch stash hold.
+    #[display(fmt = "Not enough gas to hold dispatch message")]
+    InsufficientGasForDelayedSending = 399,
 }
 
 /// Error using waiting syscalls.
@@ -212,13 +212,9 @@ pub enum ReservationError {
 #[non_exhaustive]
 #[repr(u32)]
 pub enum ProgramRentError {
-    /// The error occurs when program's balance is less than rent it tries to pay.
-    #[display(fmt = "Existing value is not enough to pay rent")]
-    NotEnoughValueForRent = 600,
-
     /// The error occurs when program's paid block count is maximum.
     #[display(fmt = "Rent block count limit has been reached")]
-    MaximumBlockCountPaid = 601,
+    MaximumBlockCountPaid = 600,
 }
 
 /// An error occurred in API.
@@ -265,6 +261,9 @@ pub enum ExtError {
     /// Program rent error.
     #[display(fmt = "Program rent error: {_0}")]
     ProgramRent(ProgramRentError),
+
+    /// There is a new error variant old program don't support.
+    Unsupported,
 }
 
 impl ExtError {
@@ -278,20 +277,23 @@ impl ExtError {
             ExtError::Wait(err) => err as u32,
             ExtError::Reservation(err) => err as u32,
             ExtError::ProgramRent(err) => err as u32,
+            ExtError::Unsupported => 1,
         }
     }
 
     /// Convert code into error.
     pub fn from_u32(code: u32) -> Option<Self> {
         match code {
+            1 => Some(ExtError::Unsupported),
             100 => Some(ExecutionError::NotEnoughGas.into()),
-            101 => Some(ExecutionError::InvalidDebugString.into()),
-            102 => Some(ExecutionError::TooBigReadLen.into()),
-            103 => Some(ExecutionError::ReadWrongRange.into()),
-            104 => Some(ExecutionError::NoReplyContext.into()),
-            105 => Some(ExecutionError::NoSignalContext.into()),
-            106 => Some(ExecutionError::NoStatusCodeContext.into()),
-            107 => Some(ExecutionError::IncorrectEntryForReply.into()),
+            101 => Some(ExecutionError::NotEnoughValue.into()),
+            102 => Some(ExecutionError::InvalidDebugString.into()),
+            103 => Some(ExecutionError::TooBigReadLen.into()),
+            104 => Some(ExecutionError::ReadWrongRange.into()),
+            105 => Some(ExecutionError::NoReplyContext.into()),
+            106 => Some(ExecutionError::NoSignalContext.into()),
+            107 => Some(ExecutionError::NoStatusCodeContext.into()),
+            108 => Some(ExecutionError::IncorrectEntryForReply.into()),
             //
             200 => Some(MemoryError::RuntimeAllocOutOfBounds.into()),
             201 => Some(MemoryError::AccessOutOfBounds.into()),
@@ -305,10 +307,9 @@ impl ExtError {
             306 => Some(MessageError::DuplicateInit.into()),
             307 => Some(MessageError::InsufficientValue.into()),
             308 => Some(MessageError::InsufficientGasLimit.into()),
-            309 => Some(MessageError::NotEnoughValue.into()),
+            309 => Some(MessageError::DuplicateReplyDeposit.into()),
+            310 => Some(MessageError::IncorrectMessageForReplyDeposit.into()),
             399 => Some(MessageError::InsufficientGasForDelayedSending.into()),
-            310 => Some(MessageError::DuplicateReplyDeposit.into()),
-            311 => Some(MessageError::IncorrectMessageForReplyDeposit.into()),
             //
             400 => Some(WaitError::ZeroDuration.into()),
             401 => Some(WaitError::WaitAfterReply.into()),
@@ -319,8 +320,7 @@ impl ExtError {
             503 => Some(ReservationError::ZeroReservationAmount.into()),
             504 => Some(ReservationError::ReservationBelowMailboxThreshold.into()),
             //
-            600 => Some(ProgramRentError::NotEnoughValueForRent.into()),
-            601 => Some(ProgramRentError::MaximumBlockCountPaid.into()),
+            600 => Some(ProgramRentError::MaximumBlockCountPaid.into()),
             //
             0xffff => Some(ExtError::SyscallUsage),
             _ => None,

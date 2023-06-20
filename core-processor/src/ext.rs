@@ -311,7 +311,7 @@ impl Ext {
 
     fn charge_message_value(&mut self, message_value: u128) -> Result<(), ExtError> {
         if self.context.value_counter.reduce(message_value) != ChargeResult::Enough {
-            Err(MessageError::NotEnoughValue.into())
+            Err(ExecutionError::NotEnoughValue.into())
         } else {
             Ok(())
         }
@@ -681,7 +681,7 @@ impl Externalities for Ext {
             ChargeResult::Enough => {
                 self.context.program_rents.insert(program_id, paid_blocks);
             }
-            ChargeResult::NotEnough => return Err(ProgramRentError::NotEnoughValueForRent.into()),
+            ChargeResult::NotEnough => return Err(ExecutionError::NotEnoughValue.into()),
         }
 
         Ok((rent.saturating_sub(cost), blocks_to_pay))
