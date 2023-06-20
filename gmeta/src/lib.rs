@@ -15,8 +15,13 @@ use alloc::{vec, vec::Vec};
 use blake2_rfc::blake2b;
 use core::{any::TypeId, mem};
 
-const RUST_LANG_ID: u8 = 0;
 const METADATA_VERSION: u16 = 1;
+
+#[repr(u8)]
+pub enum LanguageId {
+    Rust = 0,
+    AssemblyScript,
+}
 
 #[derive(Encode, Debug, Decode, Eq, PartialEq)]
 #[codec(crate = scale)]
@@ -90,16 +95,31 @@ impl MetadataRepr {
     pub fn bytes(&self) -> Vec<u8> {
         // Append language ID and version as a preamble
         let version_bytes = METADATA_VERSION.to_le_bytes();
-        let mut bytes = vec![RUST_LANG_ID, version_bytes[0], version_bytes[1]];
+        let mut bytes = vec![LanguageId::Rust as u8, version_bytes[0], version_bytes[1]];
 
         bytes.extend(self.encode());
         bytes
     }
 
     pub fn from_bytes(data: impl AsRef<[u8]>) -> Result<Self, MetadataParseError> {
+        let preamble_len = mem::size_of::<LanguageId>() | mem::size_of_val(&METADATA_VERSION);
+        let data = data.as_ref();
+        if data.len() < preamble_len {
+            return Err(MetadataParseError::InvalidMetadata);
+        }
+
+        // Check language ID and version
+        let lang_id = data[0];
+        if lang_id != LanguageId::Rust as u8 {
+            return Err(MetadataParseError::UnsupportedLanguageId(lang_id));
+        }
+        let version = u16::from_le_bytes([data[1], data[2]]);
+        if version != METADATA_VERSION {
+            return Err(MetadataParseError::UnsupportedVersion(version));
+        }
+
         // Remove preamble before decoding
-        let preamble_len = mem::size_of_val(&RUST_LANG_ID) | mem::size_of_val(&METADATA_VERSION);
-        let mut data = &data.as_ref()[preamble_len..];
+        let mut data = &data[preamble_len..];
 
         let this = Self::decode(&mut data)?;
         Ok(this)
@@ -131,6 +151,9 @@ impl MetadataRepr {
 pub enum MetadataParseError {
     Codec(scale_info::scale::Error),
     FromHex(hex::FromHexError),
+    InvalidMetadata,
+    UnsupportedLanguageId(u8),
+    UnsupportedVersion(u16),
 }
 
 pub trait Metadata {
