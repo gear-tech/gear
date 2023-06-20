@@ -46,7 +46,9 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
     match task {
         PauseProgram(_) => 0,
         RemoveCode(_) => todo!("#646"),
-        RemoveFromMailbox(_, _) => 0,
+        RemoveFromMailbox(_, _) => {
+            <T as Config>::WeightInfo::tasks_remove_from_mailbox().ref_time()
+        }
         RemoveFromWaitlist(_, _) => {
             <T as Config>::WeightInfo::tasks_remove_from_waitlist().ref_time()
         }
@@ -56,7 +58,7 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
             <T as Config>::WeightInfo::tasks_wake_message_no_wake().ref_time(),
         ),
         SendDispatch(_) => <T as Config>::WeightInfo::tasks_send_dispatch().ref_time(),
-        SendUserMessage { .. } => core::cmp::max(
+        SendUserMessage { .. } => cmp::max(
             <T as Config>::WeightInfo::tasks_send_user_message_to_mailbox().ref_time(),
             <T as Config>::WeightInfo::tasks_send_user_message().ref_time(),
         ),
@@ -220,7 +222,7 @@ where
         QueueOf::<T>::queue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
-        0
+        <T as Config>::WeightInfo::tasks_remove_from_mailbox().ref_time()
     }
 
     fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas {

@@ -247,13 +247,6 @@ fn get_last_session_id_if_any<T: Config>() -> Option<SessionId> {
     })
 }
 
-fn get_last_waited_expiration_if_any<T: Config>() -> Option<T::BlockNumber> {
-    filter_event_reverse::<T, _, _>(|event| match event {
-        Event::MessageWaited { expiration, .. } => Some(expiration),
-        _ => None,
-    })
-}
-
 pub fn filter_event_reverse<T, F, R>(mapping_filter: F) -> Option<R>
 where
     T: Config,
@@ -303,7 +296,7 @@ where
     (get_last_session_id_if_any::<T>().unwrap(), memory_pages)
 }
 
-fn tasks_send_user_message_prepare<T: Config>() -> (MessageId, bool)
+fn tasks_send_user_message_prepare<T: Config>(delay: u32)
 where
     T::AccountId: Origin,
 {
@@ -317,7 +310,6 @@ where
 
     init_block::<T>(None);
 
-    let delay = 1u32;
     let salt = vec![];
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller).into(),
@@ -330,17 +322,6 @@ where
     .expect("submit program failed");
 
     Gear::<T>::process_queue(Default::default());
-
-    let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
-        .next()
-        .unwrap();
-    match task {
-        ScheduledTask::SendUserMessage {
-            message_id,
-            to_mailbox,
-        } => (message_id, to_mailbox),
-        _ => unreachable!(),
-    }
 }
 
 /// An instantiated and deployed program.
@@ -2831,7 +2812,19 @@ benchmarks! {
     }
 
     tasks_send_user_message_to_mailbox {
-        let (message_id, to_mailbox) = tasks_send_user_message_prepare::<T>();
+        let delay = 1u32;
+        tasks_send_user_message_prepare::<T>(delay);
+
+        let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
+            .next()
+            .expect("task should be scheduled");
+        let (message_id, to_mailbox) = match task {
+            ScheduledTask::SendUserMessage {
+                message_id,
+                to_mailbox,
+            } => (message_id, to_mailbox),
+            _ => unreachable!("task should be SendUserMessage"),
+        };
         assert!(to_mailbox);
 
         let mut ext_manager = ExtManager::<T>::default();
@@ -2840,7 +2833,20 @@ benchmarks! {
     }
 
     tasks_send_user_message {
-        let (message_id, to_mailbox) = tasks_send_user_message_prepare::<T>();
+        let delay = 1u32;
+        tasks_send_user_message_prepare::<T>(delay);
+
+        let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
+            .next()
+            .expect("task should be scheduled");
+        let (message_id, to_mailbox) = match task {
+            ScheduledTask::SendUserMessage {
+                message_id,
+                to_mailbox,
+            } => (message_id, to_mailbox),
+            _ => unreachable!("task should be SendUserMessage"),
+        };
+        assert!(to_mailbox);
 
         let mut ext_manager = ExtManager::<T>::default();
     }: {
@@ -2971,7 +2977,10 @@ benchmarks! {
 
         Gear::<T>::process_queue(Default::default());
 
-        let expiration = get_last_waited_expiration_if_any::<T>().expect("message should be waited");
+        let expiration = filter_event_reverse::<T, _, _>(|event| match event {
+            Event::MessageWaited { expiration, .. } => Some(expiration),
+            _ => None,
+        }).expect("message should be waited");
 
         let task = TaskPoolOf::<T>::iter_prefix_keys(expiration)
             .next()
@@ -2987,6 +2996,22 @@ benchmarks! {
         let mut ext_manager = ExtManager::<T>::default();
     }: {
         ext_manager.remove_from_waitlist(program_id, message_id);
+    }
+
+    tasks_remove_from_mailbox {
+        tasks_send_user_message_prepare::<T>(0u32);
+
+        let (user, message_id) = filter_event_reverse::<T, _, _>(|event| match event {
+            Event::UserMessageSent {
+                message,
+                ..
+            } => Some((message.destination(), message.id())),
+            _ => None,
+        }).expect("message should be sent");
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_from_mailbox(T::AccountId::from_origin(user.into_origin()), message_id);
     }
 
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently
