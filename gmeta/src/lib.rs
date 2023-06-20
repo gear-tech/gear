@@ -96,14 +96,17 @@ impl MetadataRepr {
         bytes
     }
 
-    pub fn from_hex<T: AsRef<[u8]>>(data: T) -> Result<Self, MetadataParseError> {
-        let data = hex::decode(data)?;
+    pub fn from_bytes(data: impl AsRef<[u8]>) -> Result<Self, MetadataParseError> {
         // Remove preamble before decoding
         let preamble_len = mem::size_of_val(&RUST_LANG_ID) | mem::size_of_val(&METADATA_VERSION);
-        let mut data = &data[preamble_len..];
+        let mut data = &data.as_ref()[preamble_len..];
 
         let this = Self::decode(&mut data)?;
         Ok(this)
+    }
+
+    pub fn from_hex<T: AsRef<[u8]>>(data: T) -> Result<Self, MetadataParseError> {
+        Self::from_bytes(hex::decode(data)?)
     }
 
     pub fn hex(&self) -> String {

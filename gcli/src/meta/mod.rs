@@ -143,18 +143,17 @@ impl Meta {
         )?))
     }
 
-    /// Decode matdata from hex bytes.
+    /// Decode metadata from hex bytes.
     pub fn decode_hex(hex: &[u8]) -> Result<Self> {
-        Ok(Self::Data(MetadataRepr::decode(
-            &mut ::hex::decode(hex)?.as_ref(),
-        )?))
+        let meta = MetadataRepr::from_hex(hex).map_err(Error::MetaParseError)?;
+        Ok(Self::Data(meta))
     }
 
     /// Decode program meta.
     ///
     /// Either program metadata or state reading functions.
-    pub fn decode(mut encoded: &[u8]) -> Result<Self> {
-        MetadataRepr::decode(&mut encoded)
+    pub fn decode(encoded: &[u8]) -> Result<Self> {
+        MetadataRepr::from_bytes(encoded)
             .map(Meta::Data)
             .or_else(|_| -> Result<Meta> { Self::decode_wasm(encoded) })
             .map_err(Into::into)
