@@ -46,7 +46,6 @@ use gear_core::{
         UserStoredMessage,
     },
 };
-use gear_core_errors::ReplyCode;
 use sp_runtime::{
     traits::{
         Bounded, CheckedAdd, Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero,

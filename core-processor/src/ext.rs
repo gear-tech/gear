@@ -47,8 +47,8 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{
-    ExecutionError, ExtError as ExtErrorCore, MemoryError, MessageError, ReplyCode,
-    ReservationError, SignalCode, WaitError,
+    ExecutionError, ExtError as ExtErrorCore, MemoryError, MessageError, ProgramRentError,
+    ReplyCode, ReservationError, SignalCode, WaitError,
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 

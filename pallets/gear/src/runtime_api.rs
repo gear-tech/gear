@@ -21,7 +21,6 @@ use crate::queue::QueueStep;
 use common::ActiveProgram;
 use core::convert::TryFrom;
 use gear_core::memory::WasmPage;
-use gear_core_errors::ReplyCode;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 pub(crate) struct CodeWithMemoryData {

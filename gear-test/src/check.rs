@@ -37,7 +37,6 @@ use gear_core::{
     memory::{GearPage, PageBuf, PageU32Size, WasmPage},
     message::*,
 };
-use gear_core_errors::ReplyCode;
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
 use std::{

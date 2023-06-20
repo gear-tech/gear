@@ -32,7 +32,7 @@ use super::*;
 use crate::{Event, RentCostPerBlockOf, WaitlistOf};
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
-use gear_core_errors::{ExtError, MessageError, ReplyCode, SuccessReplyReason};
+use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::syscalls::SysCallName;
 use pallet_timestamp::Pallet as TimestampPallet;
 use parity_scale_codec::Decode;
