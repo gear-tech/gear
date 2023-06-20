@@ -3503,7 +3503,7 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dlmalloc",
 ]
@@ -3590,7 +3590,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "galloc",
  "gear-core-errors",
@@ -4429,7 +4429,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blake2-rfc",
  "derive_more",
@@ -4518,7 +4518,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bs58",
  "futures",
@@ -4547,7 +4547,7 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "gtest"
