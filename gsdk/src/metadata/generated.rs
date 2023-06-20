@@ -2182,7 +2182,6 @@ pub mod runtime_types {
                     pub gr_send_push_input_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_debug: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_debug_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_error: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reply_code: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_exit: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_leave: runtime_types::sp_weights::weight_v2::Weight,

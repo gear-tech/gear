@@ -153,7 +153,6 @@ where
         f.build(Wake, |forbidden| wrap_common_func!(CommonFuncsHandler::wake, (3) -> ())(store, forbidden, memory)),
         f.build(CreateProgram, |forbidden| wrap_common_func!(CommonFuncsHandler::create_program, (7) -> ())(store, forbidden, memory)),
         f.build(CreateProgramWGas, |forbidden| wrap_common_func!(CommonFuncsHandler::create_program_wgas, (8) -> ())(store, forbidden, memory)),
-        f.build(Error, |forbidden| wrap_common_func!(CommonFuncsHandler::error, (2) -> ())(store, forbidden, memory)),
         f.build(ReserveGas, |forbidden| wrap_common_func!(CommonFuncsHandler::reserve_gas, (3) -> ())(store, forbidden, memory)),
         f.build(ReplyDeposit, |forbidden| wrap_common_func!(CommonFuncsHandler::reply_deposit, (3) -> ())(store, forbidden, memory)),
         f.build(UnreserveGas, |forbidden| wrap_common_func!(CommonFuncsHandler::unreserve_gas, (2) -> ())(store, forbidden, memory)),

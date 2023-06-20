@@ -4649,8 +4649,8 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::NotEnoughGas,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Execution(
+                ExecutionError::NotEnoughGas,
             ))),
         );
 
@@ -4685,8 +4685,8 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::NotEnoughGas,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Execution(
+                ExecutionError::NotEnoughGas,
             ))),
         );
 
@@ -4721,8 +4721,8 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_gas,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::NotEnoughGas,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Execution(
+                ExecutionError::NotEnoughGas,
             ))),
         );
 
@@ -4759,7 +4759,7 @@ fn test_different_waits_fail() {
         assert_failed(
             wait_for_arg,
             ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::InvalidArgument,
+                WaitError::ZeroDuration,
             ))),
         );
 
@@ -4796,7 +4796,7 @@ fn test_different_waits_fail() {
         assert_failed(
             wait_up_to_arg,
             ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
-                WaitError::InvalidArgument,
+                WaitError::ZeroDuration,
             ))),
         );
     });
@@ -6568,10 +6568,7 @@ fn pay_program_rent_syscall_works() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValueForRent {
-                    rent: program_value,
-                    value_left: balance_before
-                }))
+                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
             )
         } else {
             String::from("no info")
@@ -6616,7 +6613,9 @@ fn pay_program_rent_syscall_works() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                TrapExplanation::Ext(ExtError::Execution(ExecutionError::MaximumBlockCountPaid))
+                TrapExplanation::Ext(ExtError::ProgramRent(
+                    ProgramRentError::MaximumBlockCountPaid
+                ))
             )
         } else {
             String::from("no info")
@@ -7724,10 +7723,7 @@ fn test_create_program_with_value_lt_ed() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "Failed to create program: {:?}",
-                TrapExplanation::Ext(ExtError::Message(MessageError::InsufficientValue {
-                    message_value: 499,
-                    existential_deposit: 500
-                }))
+                TrapExplanation::Ext(ExtError::Message(MessageError::InsufficientValue))
             )
         } else {
             String::from("no info")
@@ -7780,10 +7776,7 @@ fn test_create_program_with_exceeding_value() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "Failed to create program: {:?}",
-                TrapExplanation::Ext(ExtError::Message(MessageError::NotEnoughValue {
-                    message_value: msg_value,
-                    value_left: msg_value - 1
-                }))
+                TrapExplanation::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
             )
         } else {
             String::from("no info")

@@ -210,7 +210,6 @@ where
         builder.add_func(Debug, wrap_common_func!(FuncsHandler::debug, (2) -> ()));
         builder.add_func(Panic, wrap_common_func!(FuncsHandler::panic, (2) -> ()));
         builder.add_func(OomPanic, wrap_common_func!(FuncsHandler::oom_panic, () -> ()));
-        builder.add_func(Error, wrap_common_func!(FuncsHandler::error, (2) -> ()));
         builder.add_func(Exit, wrap_common_func!(FuncsHandler::exit, (1) -> ()));
         builder.add_func(ReplyCode, wrap_common_func!(FuncsHandler::reply_code, (1) -> ()));
         builder.add_func(SignalCode, wrap_common_func!(FuncsHandler::signal_code, (1) -> ()));

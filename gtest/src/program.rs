@@ -716,7 +716,7 @@ mod tests {
         prog.send_bytes(signer, b"15");
 
         // Charge capacitor with CHARGE = 10
-        let response = prog.send_bytes(signer, b"10");
+        let response = dbg!(prog.send_bytes(signer, b"10"));
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)

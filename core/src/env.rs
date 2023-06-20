@@ -60,13 +60,13 @@ impl PayloadSliceLock {
     /// The method checks whether received range (slice) is correct, i.e., the end is lower
     /// than payload's length. If the check goes well, the ownership over payload will be
     /// taken from the message context by [`mem::take`].
-    pub fn try_new((start, end): (u32, u32), msg_ctx: &mut MessageContext) -> Result<Self, usize> {
+    pub fn try_new((start, end): (u32, u32), msg_ctx: &mut MessageContext) -> Option<Self> {
         let payload_len = msg_ctx.payload_mut().inner().len();
         if end as usize > payload_len {
-            return Err(payload_len);
+            return None;
         }
 
-        Ok(Self {
+        Some(Self {
             payload: mem::take(msg_ctx.payload_mut()),
             range: (start as usize, end as usize),
         })
