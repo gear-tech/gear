@@ -207,6 +207,7 @@ where
         builder.add_func(BlockTimestamp,wrap_common_func!(FuncsHandler::block_timestamp, (1) -> ()));
         builder.add_func(CreateProgram, wrap_common_func!(FuncsHandler::create_program, (7) -> ()));
         builder.add_func(CreateProgramWGas, wrap_common_func!(FuncsHandler::create_program_wgas, (8) -> ()));
+        builder.add_func(Cost, wrap_common_func!(FuncsHandler::cost, (5) -> ()));
         builder.add_func(Debug, wrap_common_func!(FuncsHandler::debug, (2) -> ()));
         builder.add_func(Panic, wrap_common_func!(FuncsHandler::panic, (2) -> ()));
         builder.add_func(OomPanic, wrap_common_func!(FuncsHandler::oom_panic, () -> ()));

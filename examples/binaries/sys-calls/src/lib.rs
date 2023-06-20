@@ -20,6 +20,7 @@
 
 extern crate alloc;
 
+use alloc::string::String;
 use codec::{Decode, Encode};
 
 #[cfg(feature = "wasm-wrapper")]
@@ -39,8 +40,8 @@ use alloc::vec::Vec;
 // compilable as a dependency for the build of the `gear` with `runtime-benchmarking` feature.
 #[derive(Debug, Encode, Decode)]
 pub enum Kind {
-    // Params(name)
-    Cost(u8),
+    // Params(name), Expected(cost)
+    Cost(u32, u128),
     // Params(salt, gas), Expected(message id, actor id)
     CreateProgram(u64, Option<u64>, (MessageId, ActorId)),
     // Params(value), Expected(error message)

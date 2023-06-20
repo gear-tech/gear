@@ -31,7 +31,10 @@ use super::*;
 
 use crate::{Event, RentCostPerBlockOf, WaitlistOf};
 use frame_support::traits::Randomness;
-use gear_core::ids::{CodeId, ReservationId};
+use gear_core::{
+    costs::CostIdentifier,
+    ids::{CodeId, ReservationId},
+};
 use gear_core_errors::{ExtError, MessageError};
 use gear_wasm_instrument::syscalls::SysCallName;
 use pallet_timestamp::Pallet as TimestampPallet;
@@ -298,9 +301,14 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let cost = 1;
+        let cost = CostIdentifier::Rent as u32;
 
-        let mp = vec![Kind::Cost(cost)].encode().into();
+        let mp = vec![Kind::Cost(
+            cost,
+            RentCostPerBlockOf::<T>::get().unique_saturated_into(),
+        )]
+        .encode()
+        .into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });

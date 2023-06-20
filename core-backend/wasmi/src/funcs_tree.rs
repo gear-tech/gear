@@ -132,6 +132,7 @@ where
         f.build(SendInput, |forbidden| wrap_common_func!(CommonFuncsHandler::send_input, (5) -> ())(store, forbidden, memory)),
         f.build(SendPushInput, |forbidden| wrap_common_func!(CommonFuncsHandler::send_push_input, (4) -> ())(store, forbidden, memory)),
         f.build(SendInputWGas, |forbidden| wrap_common_func!(CommonFuncsHandler::send_input_wgas, (6) -> ())(store, forbidden, memory)),
+        f.build(Cost, |forbidden| wrap_common_func!(CommonFuncsHandler::cost, (5) -> ())(store, forbidden, memory)),
         f.build(Debug, |forbidden| wrap_common_func!(CommonFuncsHandler::debug, (2) -> ())(store, forbidden, memory)),
         f.build(Panic, |forbidden| wrap_common_func!(CommonFuncsHandler::panic, (2) -> ())(store, forbidden, memory)),
         f.build(OomPanic, |forbidden| wrap_common_func!(CommonFuncsHandler::oom_panic, () -> ())(store, forbidden, memory)),

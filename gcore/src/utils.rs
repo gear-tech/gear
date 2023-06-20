@@ -18,8 +18,6 @@
 
 /// Extensions for additional features.
 pub mod ext {
-    use alloc::string::String;
-
     use crate::errors::{ExtError, Result};
 
     /// Gets the cost of something.
@@ -34,12 +32,14 @@ pub mod ext {
     ///     let cost = ext::cost(String::from("waitlist")).expect("Unable to get cost");
     /// }
     /// ```
-    pub fn cost(name: String) -> Result<u128> {
+    pub fn cost(name: u32) -> Result<u128> {
         let mut cost = 0u128;
         let cost_ptr = &mut cost as *mut u128;
-        let name_len = name.len().try_into().map_err(|_| ExtError::SyscallUsage)?;
 
-        unsafe { gsys::gr_cost(name.as_ptr(), name_len, cost_ptr) }
+        let name_ptr = &name as *const u32;
+        let name_len = 1;
+
+        unsafe { gsys::gr_cost(name_ptr, name_len, cost_ptr) }
 
         Ok(cost)
     }

@@ -310,14 +310,10 @@ extern "C" {
     /// Fallible `gr_cost` get syscall.
     ///
     /// Arguments type:
-    /// - `cost_name_ptr`: `const ptr` for the beggining of the cost name buffer.
-    /// - `cost_name_len`: `u32` length of the cost name buffer.
+    /// - `cost_name_ptr`: `const ptr` for the cost name identifier.
+    /// - `cost_name_len`: `u32` length of the cost name.
     /// - `cost_ptr`: `mut ptr` for `u128`.
-    pub fn gr_cost(
-        cost_name_ptr: *const BufferStart,
-        cost_name_len: Length,
-        cost_ptr: *const Value,
-    );
+    pub fn gr_cost(cost_name_ptr: *const u32, cost_name_len: Length, cost_ptr: *const Value);
 
     /// Fallible `gr_create_program_wgas` send syscall.
     ///

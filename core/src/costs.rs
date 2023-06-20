@@ -538,6 +538,7 @@ impl RuntimeCosts {
 /// Cost identifier for various user costs.
 #[derive(Clone, Encode, Decode, PartialEq, Eq, Copy, TypeInfo, MaxEncodedLen)]
 #[allow(clippy::unnecessary_cast)]
+#[repr(u32)]
 pub enum CostIdentifier {
     /// Dispatch hold cost.
     DispatchHold = 0,
