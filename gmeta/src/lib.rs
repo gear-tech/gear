@@ -11,9 +11,9 @@ pub use scale_info::{
     MetaType, PortableRegistry, Registry, TypeInfo,
 };
 
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use blake2_rfc::blake2b;
-use core::any::TypeId;
+use core::{any::TypeId, mem};
 
 const RUST_LANG_ID: u8 = 0;
 const METADATA_VERSION: u16 = 1;
@@ -28,8 +28,6 @@ pub struct TypesRepr {
 #[derive(Encode, Debug, Decode, Eq, PartialEq)]
 #[codec(crate = scale)]
 pub struct MetadataRepr {
-    pub lang_id: u8,
-    pub version: u16,
     pub init: TypesRepr,
     pub handle: TypesRepr,
     pub reply: Option<u32>,
@@ -90,12 +88,21 @@ impl Types for () {
 
 impl MetadataRepr {
     pub fn bytes(&self) -> Vec<u8> {
-        self.encode()
+        // Append language ID and version as a preamble
+        let version_bytes = METADATA_VERSION.to_le_bytes();
+        let mut bytes = vec![RUST_LANG_ID, version_bytes[0], version_bytes[1]];
+
+        bytes.extend(self.encode());
+        bytes
     }
 
     pub fn from_hex<T: AsRef<[u8]>>(data: T) -> Result<Self, MetadataParseError> {
         let data = hex::decode(data)?;
-        let this = Self::decode(&mut data.as_ref())?;
+        // Remove preamble before decoding
+        let preamble_len = mem::size_of_val(&RUST_LANG_ID) | mem::size_of_val(&METADATA_VERSION);
+        let mut data = &data[preamble_len..];
+
+        let this = Self::decode(&mut data)?;
         Ok(this)
     }
 
@@ -135,8 +142,6 @@ pub trait Metadata {
         let mut registry = Registry::new();
 
         MetadataRepr {
-            lang_id: RUST_LANG_ID,
-            version: METADATA_VERSION,
             init: Self::Init::register(&mut registry),
             handle: Self::Handle::register(&mut registry),
             reply: Self::Reply::register(&mut registry),
