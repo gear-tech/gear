@@ -812,7 +812,7 @@ pub fn send_delayed_from_reservation(
     Ok(MessageId(res.hash))
 }
 
-/// Same as [`send_with_delayed_from_reservation`] but with gas.
+/// Same as [`send_delayed_from_reservation`] but with gas.
 pub fn send_with_gas_delayed_from_reservation(
     reservation_id: ReservationId,
     destination: ActorId,

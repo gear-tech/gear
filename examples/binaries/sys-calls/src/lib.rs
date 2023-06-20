@@ -89,14 +89,14 @@ pub enum Kind {
     Random([u8; 32], ([u8; 32], u32)),
     // Expected(lower bound, upper bound )-> estimated gas level
     GasAvailable(u64, u64),
-    // Expected(message id)
-    ReservationSend(MessageId),
+    // Param(gas), Expected(message id)
+    ReservationSend(Option<u64>, MessageId),
     // Param(payload), Expected(message id)
-    ReservationSendRaw(Vec<u8>, MessageId),
-    // Expected(message id)
-    ReservationReply(MessageId),
-    // Param(payload), Expected(message id)
-    ReservationReplyCommit(Vec<u8>, MessageId),
+    ReservationSendRaw(Option<u64>, Vec<u8>, MessageId),
+    // Param(gas), Expected(message id)
+    ReservationReply(Option<u64>, MessageId),
+    // Params(gas, payload), Expected(message id)
+    ReservationReplyCommit(Option<u64>, Vec<u8>, MessageId),
     // Param(reserve amount)
     SystemReserveGas(u64),
     // Param(deposit amount)
@@ -407,23 +407,35 @@ mod wasm {
                     "Kind::GasAvailable: upper bound test failed"
                 );
             }
-            Kind::ReservationSend(expected_mid) => {
+            Kind::ReservationSend(gas_opt, expected_mid) => {
                 let reservation_id =
                     ReservationId::reserve(25_000_000_000, 1).expect("reservation failed");
-                let actual_mid = msg::send_bytes_delayed_from_reservation(
-                    reservation_id,
-                    msg::source(),
-                    b"",
-                    0,
-                    0,
-                );
+                let actual_mid = if let Some(gas) = gas_opt {
+                    msg::send_bytes_with_gas_delayed_from_reservation(
+                        reservation_id,
+                        msg::source(),
+                        b"",
+                        0,
+                        0,
+                        gas,
+                    )
+                } else {
+                    msg::send_bytes_delayed_from_reservation(
+                        reservation_id,
+                        msg::source(),
+                        b"",
+                        0,
+                        0,
+                    )
+                };
+
                 assert_eq!(
                     Ok(expected_mid.into()),
                     actual_mid,
                     "Kind::ReservationSend: mid test failed"
                 );
             }
-            Kind::ReservationSendRaw(payload, expected_mid) => {
+            Kind::ReservationSendRaw(gas_opt, payload, expected_mid) => {
                 let _ = msg::send_delayed(msg::source(), b"payload", 0, 0);
                 let reservation_id =
                     ReservationId::reserve(25_000_000_000, 1).expect("reservation failed");
@@ -433,29 +445,51 @@ mod wasm {
                 handle
                     .push(payload)
                     .expect("internal error: failed send_push");
-                let actual_mid =
-                    handle.commit_delayed_from_reservation(reservation_id, msg::source(), 0, 0);
+
+                let actual_mid = if let Some(gas) = gas_opt {
+                    handle.commit_with_gas_delayed_from_reservation(
+                        reservation_id,
+                        msg::source(),
+                        0,
+                        0,
+                        gas,
+                    )
+                } else {
+                    handle.commit_delayed_from_reservation(reservation_id, msg::source(), 0, 0)
+                };
+
                 assert_eq!(
                     Ok(expected_mid.into()),
                     actual_mid,
                     "Kind::ReservationSendRaw: mid test failed"
                 );
             }
-            Kind::ReservationReply(expected_mid) => {
+            Kind::ReservationReply(gas_opt, expected_mid) => {
                 let reservation_id =
                     ReservationId::reserve(25_000_000_000, 1).expect("reservation failed");
-                let actual_mid = msg::reply_bytes_from_reservation(reservation_id, b"", 0);
+                let actual_mid = if let Some(gas) = gas_opt {
+                    msg::reply_bytes_with_gas_from_reservation(reservation_id, b"", 0, gas)
+                } else {
+                    msg::reply_bytes_from_reservation(reservation_id, b"", 0)
+                };
+
                 assert_eq!(
                     Ok(expected_mid.into()),
                     actual_mid,
                     "Kind::ReservationReply: mid test failed"
                 );
             }
-            Kind::ReservationReplyCommit(payload, expected_mid) => {
+            Kind::ReservationReplyCommit(gas_opt, payload, expected_mid) => {
                 let reservation_id =
                     ReservationId::reserve(25_000_000_000, 1).expect("reservation failed");
                 msg::reply_push(payload).expect("internal error: failed reply push");
-                let actual_mid = msg::reply_commit_from_reservation(reservation_id, 0);
+
+                let actual_mid = if let Some(gas) = gas_opt {
+                    msg::reply_commit_with_gas_from_reservation(reservation_id, 0, gas)
+                } else {
+                    msg::reply_commit_from_reservation(reservation_id, 0)
+                };
+
                 assert_eq!(
                     Ok(expected_mid.into()),
                     actual_mid,

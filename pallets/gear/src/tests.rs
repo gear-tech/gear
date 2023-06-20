@@ -6461,7 +6461,7 @@ fn pay_program_rent_syscall_works() {
             TEST_SYSCALLS_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             pay_rent_id.into_bytes().to_vec(),
-            20_000_000_000,
+            50_000_000_000,
             program_value,
         ));
 

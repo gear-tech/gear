@@ -142,7 +142,7 @@ where
         f.build(ReservationReply, |forbidden| wrap_common_func!(CommonFuncsHandler::reservation_reply, (5) -> ())(store, forbidden, memory)),
         f.build(ReservationReplyWGas, |forbidden| wrap_common_func!(CommonFuncsHandler::reservation_reply_wgas, (6) -> ())(store, forbidden, memory)),
         f.build(ReservationReplyCommit, |forbidden| wrap_common_func!(CommonFuncsHandler::reservation_reply_commit, (3) -> ())(store, forbidden, memory)),
-        f.build(ReservationReplyCommitWGas, |forbidden| wrap_common_func!(CommonFuncsHandler::reservation_reply_commit, (3) -> ())(store, forbidden, memory)),
+        f.build(ReservationReplyCommitWGas, |forbidden| wrap_common_func!(CommonFuncsHandler::reservation_reply_commit_wgas, (4) -> ())(store, forbidden, memory)),
         f.build(PayProgramRent, |forbidden| wrap_common_func!(CommonFuncsHandler::pay_program_rent, (2) -> ())(store, forbidden, memory)),
         f.build(ProgramId, |forbidden| wrap_common_func!(CommonFuncsHandler::program_id, (1) -> ())(store, forbidden, memory)),
         f.build(Source, |forbidden| wrap_common_func!(CommonFuncsHandler::source, (1) -> ())(store, forbidden, memory)),

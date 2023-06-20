@@ -95,18 +95,14 @@ where
             SysCallName::Random => check_gr_random::<T>(),
             SysCallName::ReserveGas => check_gr_reserve_gas::<T>(),
             SysCallName::UnreserveGas => check_gr_unreserve_gas::<T>(),
-            SysCallName::ReservationSend => check_gr_reservation_send::<T>(),
-            // TODO: add benchmark
-            SysCallName::ReservationSendWGas => check_gr_reservation_send::<T>(),
-            SysCallName::ReservationSendCommit => check_gr_reservation_send_commit::<T>(),
-            // TODO: add benchmark
-            SysCallName::ReservationSendCommitWGas => check_gr_reservation_send_commit::<T>(),
-            SysCallName::ReservationReply => check_gr_reservation_reply::<T>(),
-            // TODO: add benchmark
-            SysCallName::ReservationReplyWGas => check_gr_reservation_reply::<T>(),
-            SysCallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
-            // TODO: add benchmark
-            SysCallName::ReservationReplyCommitWGas => check_gr_reservation_reply_commit::<T>(),
+            SysCallName::ReservationSend => check_gr_reservation_send::<T>(None),
+            SysCallName::ReservationSendWGas => check_gr_reservation_send::<T>(Some(25_000_000_000)),
+            SysCallName::ReservationSendCommit => check_gr_reservation_send_commit::<T>(None),
+            SysCallName::ReservationSendCommitWGas => check_gr_reservation_send_commit::<T>(Some(25_000_000_000)),
+            SysCallName::ReservationReply => check_gr_reservation_reply::<T>(None),
+            SysCallName::ReservationReplyWGas => check_gr_reservation_reply::<T>(Some(25_000_000_000)),
+            SysCallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(None),
+            SysCallName::ReservationReplyCommitWGas => check_gr_reservation_reply_commit::<T>(Some(25_000_000_000)),
             SysCallName::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
             SysCallName::PayProgramRent => check_gr_pay_program_rent::<T>(),
         }
@@ -201,7 +197,7 @@ where
     });
 }
 
-fn check_gr_reservation_send<T>()
+fn check_gr_reservation_send<T>(gas: Option<u64>)
 where
     T: Config,
     T::AccountId: Origin,
@@ -211,7 +207,7 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
 
-        let mp = vec![Kind::ReservationSend(expected_mid.into())]
+        let mp = vec![Kind::ReservationSend(gas, expected_mid.into())]
             .encode()
             .into();
 
@@ -219,7 +215,7 @@ where
     });
 }
 
-fn check_gr_reservation_send_commit<T>()
+fn check_gr_reservation_send_commit<T>(gas: Option<u64>)
 where
     T: Config,
     T::AccountId: Origin,
@@ -240,6 +236,7 @@ where
         };
 
         let mp = vec![Kind::ReservationSendRaw(
+            gas,
             payload.to_vec(),
             expected_mid.into(),
         )]
@@ -250,7 +247,7 @@ where
     });
 }
 
-fn check_gr_reservation_reply<T>()
+fn check_gr_reservation_reply<T>(gas: Option<u64>)
 where
     T: Config,
     T::AccountId: Origin,
@@ -260,7 +257,7 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let expected_mid = MessageId::generate_reply(next_user_mid);
 
-        let mp = vec![Kind::ReservationReply(expected_mid.into())]
+        let mp = vec![Kind::ReservationReply(gas, expected_mid.into())]
             .encode()
             .into();
 
@@ -268,7 +265,7 @@ where
     })
 }
 
-fn check_gr_reservation_reply_commit<T>()
+fn check_gr_reservation_reply_commit<T>(gas: Option<u64>)
 where
     T: Config,
     T::AccountId: Origin,
@@ -289,6 +286,7 @@ where
         };
 
         let mp = vec![Kind::ReservationReplyCommit(
+            gas,
             payload.to_vec(),
             expected_mid.into(),
         )]
