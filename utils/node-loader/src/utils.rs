@@ -126,7 +126,7 @@ pub async fn capture_mailbox_messages(
                 message,
                 expiration: Some(exp_bn),
             }) if exp_bn >= &bn_threshold && message.destination == to.into() => {
-                Some(message.id.clone().into())
+                Some(message.id.into())
             }
             _ => None,
         })

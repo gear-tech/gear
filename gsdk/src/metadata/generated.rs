@@ -18,6 +18,7 @@
 #[allow(rustdoc::broken_intra_doc_links)] //subxt-codegen produces incorrect docs
 #[allow(dead_code, unused_imports, non_camel_case_types)]
 #[allow(clippy::all)]
+#[allow(rustdoc::broken_intra_doc_links)]
 pub mod runtime_types {
     #[allow(unused_imports)]
     mod root_mod {
@@ -718,13 +719,21 @@ pub mod runtime_types {
             }
             pub mod ids {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                )]
                 pub struct CodeId(pub [::core::primitive::u8; 32usize]);
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                )]
                 pub struct MessageId(pub [::core::primitive::u8; 32usize]);
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                )]
                 pub struct ProgramId(pub [::core::primitive::u8; 32usize]);
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[derive(
+                    Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                )]
                 pub struct ReservationId(pub [::core::primitive::u8; 32usize]);
             }
             pub mod memory {

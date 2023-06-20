@@ -137,6 +137,15 @@ fn generate_runtime_types(metadata: Metadata) -> TokenStream {
         [],
     );
 
+    for ty in [
+        parse_quote!(gear_core::ids::CodeId),
+        parse_quote!(gear_core::ids::MessageId),
+        parse_quote!(gear_core::ids::ProgramId),
+        parse_quote!(gear_core::ids::ReservationId),
+    ] {
+        derives.extend_for_type(ty, [parse_quote!(Copy)], []);
+    }
+
     generator
         .generate_runtime_types(
             runtime_types_mod,
