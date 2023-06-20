@@ -95,7 +95,7 @@ impl From<generated_message::common::ReplyDetails> for message::ReplyDetails {
 
 impl From<generated_message::user::UserMessage> for message::UserMessage {
     fn from(other: generated_message::user::UserMessage) -> Self {
-        UserMessage::new(
+        message::UserMessage::new(
             other.id.into(),
             other.source.into(),
             other.destination.into(),
@@ -103,6 +103,19 @@ impl From<generated_message::user::UserMessage> for message::UserMessage {
             other.payload.0.try_into().expect("Infallible"),
             other.value,
             other.details.map(Into::into),
+        )
+    }
+}
+
+impl From<generated_message::user::UserStoredMessage> for message::UserStoredMessage {
+    fn from(other: generated_message::user::UserStoredMessage) -> Self {
+        message::UserStoredMessage::new(
+            other.id.into(),
+            other.source.into(),
+            other.destination.into(),
+            // converting data from the same type
+            other.payload.0.try_into().expect("Infallible"),
+            other.value,
         )
     }
 }

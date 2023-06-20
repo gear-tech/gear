@@ -800,6 +800,18 @@ pub mod runtime_types {
                             runtime_types::gear_core::message::common::ReplyDetails,
                         >,
                     }
+                    #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
+                    pub struct UserStoredMessage {
+                        pub id: runtime_types::gear_core::ids::MessageId,
+                        pub source: runtime_types::gear_core::ids::ProgramId,
+                        pub destination: runtime_types::gear_core::ids::ProgramId,
+                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
+                            ::core::primitive::u8,
+                            runtime_types::gear_core::message::PayloadSizeError,
+                        >,
+                        #[codec(compact)]
+                        pub value: ::core::primitive::u128,
+                    }
                 }
                 #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
                 pub enum DispatchKind {
@@ -7086,6 +7098,8 @@ pub mod runtime_types {
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Call),
                 #[codec(index = 198)]
                 Airdrop(runtime_types::pallet_airdrop::pallet::Call),
+                #[codec(index = 199)]
+                GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
             }
             #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub enum RuntimeEvent {
@@ -7141,6 +7155,8 @@ pub mod runtime_types {
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Event),
                 #[codec(index = 198)]
                 Airdrop(runtime_types::pallet_airdrop::pallet::Event),
+                #[codec(index = 199)]
+                GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
             #[derive(::subxt::ext::codec::Decode, ::subxt::ext::codec::Encode, Debug)]
             pub struct SessionKeys {

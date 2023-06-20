@@ -24,7 +24,7 @@ pub use block::*;
 use super::{GearApi, Result};
 use crate::Error;
 use account_id::IntoAccountId32;
-use gear_core::{ids::*, message::UserMessage};
+use gear_core::{ids::*, message::UserStoredMessage};
 use gsdk::{
     ext::sp_core::{crypto::Ss58Codec, H256},
     metadata::runtime_types::{
@@ -38,7 +38,7 @@ impl GearApi {
     pub async fn get_mailbox_message(
         &self,
         message_id: MessageId,
-    ) -> Result<Option<(UserMessage, Interval<u32>)>> {
+    ) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
         self.get_mailbox_account_message(self.0.account_id(), message_id)
             .await
     }
@@ -49,8 +49,8 @@ impl GearApi {
         &self,
         account_id: impl IntoAccountId32,
         message_id: MessageId,
-    ) -> Result<Option<(UserMessage, Interval<u32>)>> {
-        let data: Option<(user::UserMessage, Interval<u32>)> = self
+    ) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
+        let data: Option<(user::UserStoredMessage, Interval<u32>)> = self
             .0
             .api()
             .get_mailbox_account_message(account_id.into_account_id(), message_id)
@@ -64,7 +64,7 @@ impl GearApi {
         &self,
         account_id: impl IntoAccountId32,
         count: u32,
-    ) -> Result<Vec<(UserMessage, Interval<u32>)>> {
+    ) -> Result<Vec<(UserStoredMessage, Interval<u32>)>> {
         let data = self
             .0
             .api()
@@ -77,7 +77,7 @@ impl GearApi {
     pub async fn get_mailbox_messages(
         &self,
         count: u32,
-    ) -> Result<Vec<(UserMessage, Interval<u32>)>> {
+    ) -> Result<Vec<(UserStoredMessage, Interval<u32>)>> {
         self.get_mailbox_account_messages(self.0.account_id(), count)
             .await
     }

@@ -19,15 +19,13 @@
 //! command `info`
 use crate::result::{Error, Result};
 use clap::Parser;
-use gear_core_errors::ReplyCode;
 use gsdk::{
     ext::{
         sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
         sp_runtime::AccountId32,
     },
     metadata::runtime_types::{
-        gear_common::storage::primitives::Interval,
-        gear_core::message::{common::ReplyDetails, user::UserMessage},
+        gear_common::storage::primitives::Interval, gear_core::message::user::UserStoredMessage,
     },
     signer::Signer,
 };
@@ -100,12 +98,12 @@ impl Info {
 }
 
 struct Mail {
-    message: UserMessage,
+    message: UserStoredMessage,
     interval: Interval<u32>,
 }
 
-impl From<(UserMessage, Interval<u32>)> for Mail {
-    fn from(t: (UserMessage, Interval<u32>)) -> Self {
+impl From<(UserStoredMessage, Interval<u32>)> for Mail {
+    fn from(t: (UserStoredMessage, Interval<u32>)) -> Self {
         Self {
             message: t.0,
             interval: t.1,
@@ -130,22 +128,7 @@ impl fmt::Debug for Mail {
                 &["0x", &hex::encode(&self.message.payload.0)].concat(),
             )
             .field("value", &self.message.value)
-            .field(
-                "details",
-                &self.message.details.as_ref().map(DebugReplyDetails),
-            )
             .field("interval", &self.interval)
-            .finish()
-    }
-}
-
-struct DebugReplyDetails<'d>(pub &'d ReplyDetails);
-
-impl<'d> fmt::Debug for DebugReplyDetails<'d> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("ReplyDetails")
-            .field("to", &hex::encode(self.0.to.0))
-            .field("code", &ReplyCode::from(self.0.code.clone()).to_string())
             .finish()
     }
 }
