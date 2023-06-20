@@ -22,14 +22,9 @@ EOF
 gear_clippy() {
   EXCLUDE_PACKAGES="--exclude gear-runtime --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz"
   INCLUDE_PACKAGES="-p gear-runtime -p runtime-fuzzer -p runtime-fuzzer-fuzz"
-  ALLOW_LINTS="-A clippy::redundant-closure-call -A clippy::needless-return"
   # `nightly`` is used for the workspace as the clippy check is run with `--all-features`.
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo clippy --workspace "$@" $EXCLUDE_PACKAGES -- --no-deps \
-    $ALLOW_LINTS \
-    -D warnings
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 cargo clippy $INCLUDE_PACKAGES --all-features -- --no-deps \
-    $ALLOW_LINTS \
-    -D warnings
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 cargo clippy --workspace "$@" $EXCLUDE_PACKAGES -- --no-deps -D warnings
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 cargo clippy $INCLUDE_PACKAGES --all-features -- --no-deps -D warnings
 }
 
 # $1 - ROOT DIR
