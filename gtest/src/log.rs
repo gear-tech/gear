@@ -20,8 +20,9 @@ use crate::program::{Gas, ProgramIdWrapper};
 use codec::{Codec, Encode};
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{Payload, StatusCode, StoredMessage},
+    message::{Payload, StoredMessage},
 };
+use gear_core_errors::{ErrorReason, ReplyCode};
 use std::{convert::TryInto, fmt::Debug};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -30,7 +31,7 @@ pub struct CoreLog {
     source: ProgramId,
     destination: ProgramId,
     payload: Payload,
-    status_code: Option<StatusCode>,
+    reply_code: Option<ReplyCode>,
 }
 
 impl CoreLog {
@@ -50,8 +51,8 @@ impl CoreLog {
         self.payload.inner()
     }
 
-    pub fn status_code(&self) -> Option<StatusCode> {
-        self.status_code
+    pub fn reply_code(&self) -> Option<ReplyCode> {
+        self.reply_code
     }
 }
 
@@ -62,7 +63,9 @@ impl From<StoredMessage> for CoreLog {
             source: other.source(),
             destination: other.destination(),
             payload: other.payload_bytes().to_vec().try_into().unwrap(),
-            status_code: other.status_code(),
+            reply_code: other
+                .details()
+                .and_then(|d| d.to_reply_details().map(Into::into)),
         }
     }
 }
@@ -73,7 +76,7 @@ pub struct DecodedCoreLog<T: Codec + Debug> {
     source: ProgramId,
     destination: ProgramId,
     payload: T,
-    status_code: Option<i32>,
+    reply_code: Option<ReplyCode>,
 }
 
 impl<T: Codec + Debug> DecodedCoreLog<T> {
@@ -85,7 +88,7 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
             source: log.source,
             destination: log.destination,
             payload,
-            status_code: log.status_code,
+            reply_code: log.reply_code,
         })
     }
 }
@@ -95,7 +98,7 @@ pub struct Log {
     source: Option<ProgramId>,
     destination: Option<ProgramId>,
     payload: Option<Payload>,
-    status_code: i32,
+    reply_code: Option<ReplyCode>,
 }
 
 impl<ID, T> From<(ID, T)> for Log
@@ -127,10 +130,16 @@ impl Log {
         Default::default()
     }
 
-    pub fn error_builder(status_code: StatusCode) -> Self {
+    pub fn error_builder(error_reason: ErrorReason) -> Self {
         let mut log = Self::builder();
-        log.status_code = status_code;
-        log.payload = Some(Default::default());
+        log.reply_code = Some(error_reason.into());
+        log.payload = Some(
+            error_reason
+                .to_string()
+                .into_bytes()
+                .try_into()
+                .expect("Infallible"),
+        );
 
         log
     }
@@ -171,7 +180,7 @@ impl Log {
 
 impl PartialEq<StoredMessage> for Log {
     fn eq(&self, other: &StoredMessage) -> bool {
-        if matches!(other.reply(), Some(reply) if reply.status_code() != self.status_code) {
+        if matches!(other.reply(), Some(reply) if Some(ReplyCode::from(reply)) != self.reply_code) {
             return false;
         }
         if matches!(self.source, Some(source) if source != other.source()) {
@@ -194,7 +203,7 @@ impl<T: Codec + Debug> PartialEq<DecodedCoreLog<T>> for Log {
             source: other.source,
             destination: other.destination,
             payload: other.payload.encode().try_into().unwrap(),
-            status_code: other.status_code,
+            reply_code: other.reply_code,
         };
 
         core_log.eq(self)
@@ -209,10 +218,9 @@ impl<T: Codec + Debug> PartialEq<Log> for DecodedCoreLog<T> {
 
 impl PartialEq<CoreLog> for Log {
     fn eq(&self, other: &CoreLog) -> bool {
-        if let Some(status_code) = other.status_code {
-            if status_code != self.status_code {
-                return false;
-            }
+        // Asserting the field if only reply code specified for `Log`.
+        if self.reply_code.is_some() && self.reply_code != other.reply_code {
+            return false;
         }
 
         if let Some(source) = self.source {
@@ -227,7 +235,7 @@ impl PartialEq<CoreLog> for Log {
             }
         }
 
-        if self.status_code == 0 {
+        if self.reply_code.map(|c| c.is_success()).unwrap_or(false) {
             if let Some(payload) = &self.payload {
                 if payload.inner() != other.payload.inner() {
                     return false;

@@ -776,15 +776,15 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct ReplyDetails {
-                        pub reply_to: runtime_types::gear_core::ids::MessageId,
-                        pub status_code: ::core::primitive::i32,
+                        pub to: runtime_types::gear_core::ids::MessageId,
+                        pub code: runtime_types::gear_core_errors::simple::ReplyCode,
                     }
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct SignalDetails {
-                        pub from: runtime_types::gear_core::ids::MessageId,
-                        pub status_code: ::core::primitive::i32,
+                        pub to: runtime_types::gear_core::ids::MessageId,
+                        pub code: runtime_types::gear_core_errors::simple::SignalCode,
                     }
                 }
                 pub mod context {
@@ -845,6 +845,40 @@ pub mod runtime_types {
                         >,
                     }
                 }
+                pub mod user {
+                    use super::runtime_types;
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct UserMessage {
+                        pub id: runtime_types::gear_core::ids::MessageId,
+                        pub source: runtime_types::gear_core::ids::ProgramId,
+                        pub destination: runtime_types::gear_core::ids::ProgramId,
+                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
+                            ::core::primitive::u8,
+                            runtime_types::gear_core::message::PayloadSizeError,
+                        >,
+                        #[codec(compact)]
+                        pub value: ::core::primitive::u128,
+                        pub details: ::core::option::Option<
+                            runtime_types::gear_core::message::common::ReplyDetails,
+                        >,
+                    }
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct UserStoredMessage {
+                        pub id: runtime_types::gear_core::ids::MessageId,
+                        pub source: runtime_types::gear_core::ids::ProgramId,
+                        pub destination: runtime_types::gear_core::ids::ProgramId,
+                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
+                            ::core::primitive::u8,
+                            runtime_types::gear_core::message::PayloadSizeError,
+                        >,
+                        #[codec(compact)]
+                        pub value: ::core::primitive::u128,
+                    }
+                }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum DispatchKind {
                     #[codec(index = 0)]
@@ -866,6 +900,74 @@ pub mod runtime_types {
                     pub amount: ::core::primitive::u64,
                     pub start: ::core::primitive::u32,
                     pub finish: ::core::primitive::u32,
+                }
+            }
+        }
+        pub mod gear_core_errors {
+            use super::runtime_types;
+            pub mod simple {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum ErrorReason {
+                    #[codec(index = 0)]
+                    Execution(runtime_types::gear_core_errors::simple::SimpleExecutionError),
+                    #[codec(index = 1)]
+                    FailedToCreateProgram(
+                        runtime_types::gear_core_errors::simple::SimpleProgramCreationError,
+                    ),
+                    #[codec(index = 2)]
+                    InactiveProgram,
+                    #[codec(index = 3)]
+                    RemovedFromWaitlist,
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum ReplyCode {
+                    #[codec(index = 0)]
+                    Success(runtime_types::gear_core_errors::simple::SuccessReason),
+                    #[codec(index = 1)]
+                    Error(runtime_types::gear_core_errors::simple::ErrorReason),
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum SignalCode {
+                    #[codec(index = 0)]
+                    Execution(runtime_types::gear_core_errors::simple::SimpleExecutionError),
+                    #[codec(index = 1)]
+                    RemovedFromWaitlist,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum SimpleExecutionError {
+                    #[codec(index = 0)]
+                    RanOutOfGas,
+                    #[codec(index = 1)]
+                    MemoryOverflow,
+                    #[codec(index = 2)]
+                    BackendError,
+                    #[codec(index = 3)]
+                    UserspacePanic,
+                    #[codec(index = 4)]
+                    UnreachableInstruction,
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum SimpleProgramCreationError {
+                    #[codec(index = 0)]
+                    CodeNotExists,
+                    #[codec(index = 255)]
+                    Unsupported,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum SuccessReason {
+                    #[codec(index = 0)]
+                    Auto,
+                    #[codec(index = 1)]
+                    Manual,
+                    #[codec(index = 255)]
+                    Unsupported,
                 }
             }
         }
@@ -1820,6 +1922,45 @@ pub mod runtime_types {
                         session_id: ::core::primitive::u128,
                         block_count: ::core::primitive::u32,
                     },
+                    #[codec(index = 12)]
+                    #[doc = "Sends a message to a program using pre-allocated funds."]
+                    #[doc = ""]
+                    #[doc = "The origin must be Signed and the sender must have been issued a `voucher` -"]
+                    #[doc = "a record for the (`AccountId`, `ProgramId`) pair exists in the `Voucher` pallet"]
+                    #[doc = "and the respective synthesize account for such pair has funds in it."]
+                    #[doc = "The `gas` and transaction fees will, therefore, be paid from this synthesize account."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `destination`: the message destination (must be an initialized program)."]
+                    #[doc = "- `payload`: in case of a program destination, parameters of the `handle` function."]
+                    #[doc = "- `gas_limit`: maximum amount of gas the program can spend before it is halted."]
+                    #[doc = "- `value`: balance to be transferred to the program once it's been created."]
+                    #[doc = ""]
+                    #[doc = "Emits the following events:"]
+                    #[doc = "- `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue."]
+                    send_message_with_voucher {
+                        destination: runtime_types::gear_core::ids::ProgramId,
+                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                        gas_limit: ::core::primitive::u64,
+                        value: ::core::primitive::u128,
+                    },
+                    #[codec(index = 13)]
+                    #[doc = "Sends the reply to a message in `Mailbox` using pre-allocated funds."]
+                    #[doc = ""]
+                    #[doc = "Removes message by given `MessageId` from callers `Mailbox`:"]
+                    #[doc = "rent funds become free, associated with the message value"]
+                    #[doc = "transfers from message sender to extrinsic caller."]
+                    #[doc = ""]
+                    #[doc = "Generates reply on removed message with given parameters"]
+                    #[doc = "and pushes it in `MessageQueue`."]
+                    #[doc = ""]
+                    #[doc = "NOTE: source of the message in mailbox must be a program."]
+                    send_reply_with_voucher {
+                        reply_to_id: runtime_types::gear_core::ids::MessageId,
+                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                        gas_limit: ::core::primitive::u64,
+                        value: ::core::primitive::u128,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
@@ -1881,6 +2022,12 @@ pub mod runtime_types {
                     #[codec(index = 13)]
                     #[doc = "Block count doesn't cover MinimalResumePeriod."]
                     ResumePeriodLessThanMinimal,
+                    #[codec(index = 14)]
+                    #[doc = "Program with the specified id is not found."]
+                    ProgramNotFound,
+                    #[codec(index = 15)]
+                    #[doc = "Voucher can't be redemmed"]
+                    FailureRedeemingVoucher,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
@@ -1897,7 +2044,7 @@ pub mod runtime_types {
                     #[codec(index = 1)]
                     #[doc = "Somebody sent a message to the user."]
                     UserMessageSent {
-                        message: runtime_types::gear_core::message::stored::StoredMessage,
+                        message: runtime_types::gear_core::message::user::UserMessage,
                         expiration: ::core::option::Option<::core::primitive::u32>,
                     },
                     #[codec(index = 2)]
@@ -2035,7 +2182,7 @@ pub mod runtime_types {
                     pub gr_send_push_input_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_debug: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_debug_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_status_code: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_code: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_exit: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_leave: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_wait: runtime_types::sp_weights::weight_v2::Weight,
@@ -2462,6 +2609,54 @@ pub mod runtime_types {
                     #[codec(index = 2)]
                     #[doc = "Burned from the pool."]
                     Burned { amount: ::core::primitive::u128 },
+                }
+            }
+        }
+        pub mod pallet_gear_voucher {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+                pub enum Call {
+                    #[codec(index = 0)]
+                    #[doc = "Issue a new voucher for a `user` to be used to pay for sending messages"]
+                    #[doc = "to `program_id` program."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin for this call must be _Signed_."]
+                    #[doc = ""]
+                    #[doc = "- `to`: The voucher holder account id."]
+                    #[doc = "- `program`: The program id, messages to whom can be paid with the voucher."]
+                    #[doc = "NOTE: the fact a program with such id exists in storage is not checked - it's"]
+                    #[doc = "a caller's responsibility to ensure the consistency of the input parameters."]
+                    #[doc = "- `amount`: The voucher amount."]
+                    #[doc = ""]
+                    #[doc = "## Complexity"]
+                    #[doc = "O(Z + C) where Z is the length of the call and C its execution weight."]
+                    issue {
+                        to: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        program: runtime_types::gear_core::ids::ProgramId,
+                        value: ::core::primitive::u128,
+                    },
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    FailureToCreateVoucher,
+                    #[codec(index = 1)]
+                    FailureToRedeemVoucher,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+                pub enum Event {
+                    #[codec(index = 0)]
+                    #[doc = "A new voucher issued."]
+                    VoucherIssued {
+                        holder: ::subxt::utils::AccountId32,
+                        program: runtime_types::gear_core::ids::ProgramId,
+                        value: ::core::primitive::u128,
+                    },
                 }
             }
         }
@@ -7349,6 +7544,8 @@ pub mod runtime_types {
                 Gear(runtime_types::pallet_gear::pallet::Call),
                 #[codec(index = 106)]
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Call),
+                #[codec(index = 107)]
+                GearVoucher(runtime_types::pallet_gear_voucher::pallet::Call),
                 #[codec(index = 198)]
                 Airdrop(runtime_types::pallet_airdrop::pallet::Call),
                 #[codec(index = 199)]
@@ -7406,6 +7603,8 @@ pub mod runtime_types {
                 Gear(runtime_types::pallet_gear::pallet::Event),
                 #[codec(index = 106)]
                 StakingRewards(runtime_types::pallet_gear_staking_rewards::pallet::Event),
+                #[codec(index = 107)]
+                GearVoucher(runtime_types::pallet_gear_voucher::pallet::Event),
                 #[codec(index = 198)]
                 Airdrop(runtime_types::pallet_airdrop::pallet::Event),
                 #[codec(index = 199)]
@@ -7656,6 +7855,15 @@ pub mod impls {
                     )?,
                 ));
             }
+            if pallet_name == "GearVoucher" {
+                return Ok(Event::GearVoucher(
+                    crate::metadata::gear_voucher::Event::decode_with_metadata(
+                        &mut &*pallet_bytes,
+                        pallet_ty,
+                        metadata,
+                    )?,
+                ));
+            }
             if pallet_name == "Airdrop" {
                 return Ok(Event::Airdrop(
                     crate::metadata::airdrop::Event::decode_with_metadata(
@@ -7758,6 +7966,9 @@ pub mod exports {
     }
     pub mod staking_rewards {
         pub use super::runtime_types::pallet_gear_staking_rewards::pallet::Event;
+    }
+    pub mod gear_voucher {
+        pub use super::runtime_types::pallet_gear_voucher::pallet::Event;
     }
     pub mod airdrop {
         pub use super::runtime_types::pallet_airdrop::pallet::Event;

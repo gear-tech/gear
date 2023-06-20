@@ -20,11 +20,12 @@ use crate::{
     ids::{MessageId, ProgramId},
     message::{
         common::MessageDetails, ContextStore, DispatchKind, GasLimit, IncomingDispatch,
-        IncomingMessage, Payload, ReplyDetails, StatusCode, Value,
+        IncomingMessage, Payload, ReplyDetails, Value,
     },
 };
 use alloc::string::ToString;
 use core::{convert::TryInto, ops::Deref};
+use gear_core_errors::ReplyCode;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -36,18 +37,18 @@ use scale_info::{
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct StoredMessage {
     /// Message id.
-    id: MessageId,
+    pub(super) id: MessageId,
     /// Message source.
-    source: ProgramId,
+    pub(super) source: ProgramId,
     /// Message destination.
-    destination: ProgramId,
+    pub(super) destination: ProgramId,
     /// Message payload.
-    payload: Payload,
+    pub(super) payload: Payload,
     /// Message value.
     #[codec(compact)]
-    value: Value,
+    pub(super) value: Value,
     /// Message details like reply message ID, status code, etc.
-    details: Option<MessageDetails>,
+    pub(super) details: Option<MessageDetails>,
 }
 
 impl StoredMessage {
@@ -117,11 +118,6 @@ impl StoredMessage {
         self.details.and_then(|d| d.to_reply_details())
     }
 
-    /// Status code of the message, if reply.
-    pub fn status_code(&self) -> Option<StatusCode> {
-        self.details.map(|d| d.status_code())
-    }
-
     #[allow(clippy::result_large_err)]
     /// Consumes self in order to create new `StoredMessage`, which payload
     /// contains string representation of initial bytes,
@@ -146,6 +142,13 @@ impl StoredMessage {
     /// Returns bool defining if message is reply.
     pub fn is_reply(&self) -> bool {
         self.details.map(|d| d.is_reply_details()).unwrap_or(false)
+    }
+
+    /// Returns `ReplyCode` of message if reply.
+    pub fn reply_code(&self) -> Option<ReplyCode> {
+        self.details
+            .and_then(|d| d.to_reply_details())
+            .map(ReplyCode::from)
     }
 }
 

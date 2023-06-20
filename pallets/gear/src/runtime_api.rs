@@ -21,6 +21,7 @@ use crate::queue::QueueStep;
 use common::ActiveProgram;
 use core::convert::TryFrom;
 use gear_core::memory::WasmPage;
+use gear_core_errors::ReplyCode;
 use gear_wasm_instrument::syscalls::SysCallName;
 
 pub(crate) struct CodeWithMemoryData {
@@ -132,8 +133,8 @@ where
             let dispatch_id = queued_dispatch.id();
             let success_reply = queued_dispatch
                 .reply()
-                .map(|rd| rd.status_code().to_le_bytes()[0] == 0)
-                .unwrap_or_default();
+                .map(|rd| ReplyCode::from(rd).is_success())
+                .unwrap_or(false);
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 

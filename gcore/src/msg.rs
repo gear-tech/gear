@@ -44,8 +44,11 @@ use crate::{
     errors::{Result, SyscallError},
     ActorId, MessageHandle, MessageId, ReservationId,
 };
-use gear_core_errors::ExtError;
-use gsys::{ErrorWithHandle, ErrorWithHash, ErrorWithStatus, HashWithValue, TwoHashesWithValue};
+use gear_core_errors::{ExtError, ReplyCode, SignalCode};
+use gsys::{
+    ErrorWithHandle, ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, HashWithValue,
+    TwoHashesWithValue,
+};
 
 const PTR_SPECIAL: *const u128 = u32::MAX as *const u128;
 
@@ -57,7 +60,7 @@ fn value_ptr(value: &u128) -> *const u128 {
     }
 }
 
-/// Get the status code of the message being processed.
+/// Get the reply code of the message being processed.
 ///
 /// This function is used in the reply handler to check whether the message was
 /// processed successfully or not.
@@ -69,16 +72,40 @@ fn value_ptr(value: &u128) -> *const u128 {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle_reply() {
-///     let status_code = msg::status_code().expect("Unable to get status code");
+///     let reply_code = msg::reply_code().expect("Unable to get reply code");
 /// }
 /// ```
-pub fn status_code() -> Result<i32> {
-    let mut res: ErrorWithStatus = Default::default();
+pub fn reply_code() -> Result<ReplyCode> {
+    let mut res: ErrorWithReplyCode = Default::default();
 
-    unsafe { gsys::gr_status_code(res.as_mut_ptr()) }
+    unsafe { gsys::gr_reply_code(res.as_mut_ptr()) }
     SyscallError(res.error_code).into_result()?;
 
-    Ok(res.status_code)
+    Ok(ReplyCode::from_bytes(res.reply_code))
+}
+
+/// Get the reply code of the message being processed.
+///
+/// This function is used in the reply handler to check whether the message was
+/// processed successfully or not.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::msg;
+///
+/// #[no_mangle]
+/// extern "C" fn handle_signal() {
+///     let signal_code = msg::signal_code().expect("Unable to get signal code");
+/// }
+/// ```
+pub fn signal_code() -> Result<Option<SignalCode>> {
+    let mut res: ErrorWithSignalCode = Default::default();
+
+    unsafe { gsys::gr_signal_code(res.as_mut_ptr()) }
+    SyscallError(res.error_code).into_result()?;
+
+    Ok(SignalCode::from_u32(res.signal_code))
 }
 
 /// Get an identifier of the message that is currently being processed.

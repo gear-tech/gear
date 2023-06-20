@@ -34,9 +34,11 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
+use gear_core_errors::{ReplyCode, SignalCode};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
-    ErrorWithHash, ErrorWithStatus, ErrorWithTwoHashes, Hash, HashWithValue, TwoHashesWithValue,
+    ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Hash,
+    HashWithValue, TwoHashesWithValue,
 };
 
 pub struct FuncsHandler<Ext: Externalities + 'static, Runtime> {
@@ -200,9 +202,21 @@ where
         Err(ActorTerminationReason::Exit(inheritor_id).into())
     }
 
-    #[host(fallible, cost = RuntimeCosts::StatusCode, err = ErrorWithStatus)]
-    pub fn status_code(ctx: &mut R) -> Result<(), R::Error> {
-        ctx.ext_mut().status_code().map_err(Into::into)
+    #[host(fallible, cost = RuntimeCosts::ReplyCode, err = ErrorWithReplyCode)]
+    pub fn reply_code(ctx: &mut R) -> Result<(), R::Error> {
+        ctx.ext_mut()
+            .reply_code()
+            .map(ReplyCode::to_bytes)
+            .map_err(Into::into)
+    }
+
+    // TODO: write proper benchmark #2825
+    #[host(fallible, cost = RuntimeCosts::ReplyCode, err = ErrorWithSignalCode)]
+    pub fn signal_code(ctx: &mut R) -> Result<(), R::Error> {
+        ctx.ext_mut()
+            .signal_code()
+            .map(SignalCode::to_u32)
+            .map_err(Into::into)
     }
 
     #[host(cost = RuntimeCosts::Alloc)]
@@ -340,6 +354,7 @@ where
         ctx.ext_mut().reply_to().map_err(Into::into)
     }
 
+    // TODO: write proper benchmark #2825
     #[host(fallible, cost = RuntimeCosts::SignalFrom)]
     pub fn signal_from(ctx: &mut R) -> Result<(), R::Error> {
         ctx.ext_mut().signal_from().map_err(Into::into)

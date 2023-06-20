@@ -41,8 +41,12 @@ use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, Reser
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
-    message::{Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, StoredMessage},
+    message::{
+        Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
+        UserStoredMessage,
+    },
 };
+use gear_core_errors::ReplyCode;
 use sp_runtime::{
     traits::{
         Bounded, CheckedAdd, Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero,
@@ -498,7 +502,7 @@ where
         user_id: T::AccountId,
         message_id: MessageId,
         reason: UserMessageReadReason,
-    ) -> Option<StoredMessage> {
+    ) -> Option<UserStoredMessage> {
         // Removing message from mailbox, doing read requirements if found.
         MailboxOf::<T>::remove(user_id, message_id)
             .map(|v| Self::read_message_requirements(v, reason))
@@ -509,9 +513,9 @@ where
     ///
     /// Note: message auto-consumes, if reason is claim or reply.
     pub(crate) fn read_message_requirements(
-        (mailboxed, hold_interval): (StoredMessage, Interval<BlockNumberFor<T>>),
+        (mailboxed, hold_interval): (UserStoredMessage, Interval<BlockNumberFor<T>>),
         reason: UserMessageReadReason,
-    ) -> StoredMessage {
+    ) -> UserStoredMessage {
         // Expected block number to finish task.
         let expected = hold_interval.finish;
 
@@ -787,8 +791,11 @@ where
             message
         };
 
-        // Converting message into stored one.
+        // Converting message into stored one and user one.
         let message = message.into_stored();
+        let message: UserMessage = message
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
 
         // Taking data for funds manipulations.
         let from = <T::AccountId as Origin>::from_origin(message.source().into_origin());
@@ -797,7 +804,7 @@ where
 
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
-        let expiration = if !message.is_reply() && gas_limit >= threshold {
+        let expiration = if message.details().is_none() && gas_limit >= threshold {
             // Figuring out hold bound for given gas limit.
             let hold = HoldBoundBuilder::<T>::new(StorageType::Mailbox).maximum_for(gas_limit);
 
@@ -819,13 +826,18 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Inserting message in mailbox.
-            MailboxOf::<T>::insert(message.clone(), hold.expected())
+            let message_id = message.id();
+            let message: UserStoredMessage = message
+                .clone()
+                .try_into()
+                .unwrap_or_else(|_| unreachable!("Replies are never added into mailbox"));
+            MailboxOf::<T>::insert(message, hold.expected())
                 .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
 
             // Adding removal request in task pool.
             TaskPoolOf::<T>::add(
                 hold.expected(),
-                ScheduledTask::RemoveFromMailbox(to, message.id()),
+                ScheduledTask::RemoveFromMailbox(to, message_id),
             )
             .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
@@ -836,7 +848,7 @@ where
             CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
                 .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
 
-            if !message.is_reply() {
+            if message.details().is_none() {
                 // Creating auto reply message.
                 let reply_message = ReplyMessage::auto(message.id());
 
@@ -873,7 +885,7 @@ where
     }
 
     /// Sends user message, once delay reached.
-    pub(crate) fn send_user_message_after_delay(message: StoredMessage, to_mailbox: bool) {
+    pub(crate) fn send_user_message_after_delay(message: UserMessage, to_mailbox: bool) {
         // Converting payload into string.
         //
         // Note: for users, trap replies always contain
@@ -881,7 +893,11 @@ where
         //
         // We don't plan to send delayed error replies yet,
         // but this logic appears here for future purposes.
-        let message = if message.is_error_reply() {
+        let message = if message
+            .details()
+            .map(|r_d| ReplyCode::from(r_d).is_error())
+            .unwrap_or(false)
+        {
             message
         } else {
             message
@@ -918,13 +934,18 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Inserting message in mailbox.
-            MailboxOf::<T>::insert(message.clone(), hold.expected())
+            let message_id = message.id();
+            let message: UserStoredMessage = message
+                .clone()
+                .try_into()
+                .unwrap_or_else(|_| unreachable!("Replies are never added into mailbox"));
+            MailboxOf::<T>::insert(message, hold.expected())
                 .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
 
             // Adding removal request in task pool.
             TaskPoolOf::<T>::add(
                 hold.expected(),
-                ScheduledTask::RemoveFromMailbox(to, message.id()),
+                ScheduledTask::RemoveFromMailbox(to, message_id),
             )
             .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
@@ -935,7 +956,7 @@ where
             Self::transfer_reserved(&from, &to, value);
 
             // Message is never reply here, because delayed reply sending forbidden.
-            if !message.is_reply() {
+            if message.details().is_none() {
                 // Creating reply message.
                 let reply_message = ReplyMessage::auto(message.id());
 

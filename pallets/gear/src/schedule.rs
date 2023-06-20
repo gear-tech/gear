@@ -490,8 +490,8 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per payload byte by `gr_debug_per_byte`.
     pub gr_debug_per_byte: Weight,
 
-    /// Weight of calling `gr_status_code`.
-    pub gr_status_code: Weight,
+    /// Weight of calling `gr_reply_code`.
+    pub gr_reply_code: Weight,
 
     /// Weight of calling `gr_exit`.
     pub gr_exit: Weight,
@@ -892,7 +892,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_debug_per_byte: self.gr_debug_per_byte.ref_time(),
             gr_reply_to: self.gr_reply_to.ref_time(),
             gr_signal_from: self.gr_signal_from.ref_time(),
-            gr_status_code: self.gr_status_code.ref_time(),
+            gr_reply_code: self.gr_reply_code.ref_time(),
             gr_exit: self.gr_exit.ref_time(),
             gr_leave: self.gr_leave.ref_time(),
             gr_wait: self.gr_wait.ref_time(),
@@ -976,7 +976,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_debug_per_byte: to_weight!(cost_byte_batched!(gr_debug_per_kb)),
             gr_reply_to: to_weight!(cost_batched!(gr_reply_to)),
             gr_signal_from: to_weight!(cost_batched!(gr_signal_from)),
-            gr_status_code: to_weight!(cost_batched!(gr_status_code)),
+            gr_reply_code: to_weight!(cost_batched!(gr_reply_code)),
             gr_exit: to_weight!(cost!(gr_exit)),
             gr_leave: to_weight!(cost!(gr_leave)),
             gr_wait: to_weight!(cost!(gr_wait)),

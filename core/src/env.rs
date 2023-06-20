@@ -21,10 +21,11 @@
 use crate::{
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPage},
-    message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket, StatusCode},
+    message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
 };
 use alloc::collections::BTreeSet;
 use core::{fmt::Display, mem};
+use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Lock for the payload of the incoming/currently executing message.
@@ -279,8 +280,11 @@ pub trait Externalities {
     /// Get the source of the message currently being handled.
     fn source(&self) -> Result<ProgramId, Self::Error>;
 
-    /// Get the status code of the message being processed.
-    fn status_code(&self) -> Result<StatusCode, Self::Error>;
+    /// Get the reply code if the message being processed.
+    fn reply_code(&self) -> Result<ReplyCode, Self::Error>;
+
+    /// Get the signal code if the message being processed.
+    fn signal_code(&self) -> Result<SignalCode, Self::Error>;
 
     /// Get the id of the message currently being handled.
     fn message_id(&self) -> Result<MessageId, Self::Error>;

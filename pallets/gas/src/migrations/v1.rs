@@ -354,204 +354,206 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
     }
 }
 
-#[cfg(feature = "try-runtime")]
-#[cfg(test)]
-pub mod test_v1 {
-    use super::*;
-    use crate::{mock::*, AccountIdOf, Balance, Pallet};
-    use common::{storage::*, Origin as _};
-    use frame_support::{
-        assert_ok,
-        codec::Encode,
-        storage::{storage_prefix, unhashed},
-        traits::{OnRuntimeUpgrade, PalletInfoAccess},
-        Identity, StorageHasher,
-    };
-    use gear_core::{
-        ids::{MessageId, ProgramId, ReservationId},
-        message::{DispatchKind, StoredDispatch, StoredMessage},
-    };
-    use sp_core::H256;
-    use sp_runtime::traits::Zero;
+// TODO: properly reintroduce migrations and tests (#2830).
+//
+// #[cfg(feature = "try-runtime")]
+// #[cfg(test)]
+// pub mod test_v1 {
+// use super::*;
+// use crate::{mock::*, AccountIdOf, Balance, Pallet};
+// use common::{storage::*, Origin as _};
+// use frame_support::{
+//     assert_ok,
+//     codec::Encode,
+//     storage::{storage_prefix, unhashed},
+//     traits::{OnRuntimeUpgrade, PalletInfoAccess},
+//     Identity, StorageHasher,
+// };
+// use gear_core::{
+//     ids::{MessageId, ProgramId, ReservationId},
+//     message::{DispatchKind, StoredDispatch, StoredMessage},
+// };
+// use sp_core::H256;
+// use sp_runtime::traits::Zero;
 
-    pub(crate) type MailboxOf<T> = <pallet_gear_messenger::Pallet<T> as Messenger>::Mailbox;
-    pub(crate) type WaitlistOf<T> = <pallet_gear_messenger::Pallet<T> as Messenger>::Waitlist;
-    pub(crate) type DispatchStashOf<T> =
-        <pallet_gear_messenger::Pallet<T> as Messenger>::DispatchStash;
+// pub(crate) type MailboxOf<T> = <pallet_gear_messenger::Pallet<T> as Messenger>::Mailbox;
+// pub(crate) type WaitlistOf<T> = <pallet_gear_messenger::Pallet<T> as Messenger>::Waitlist;
+// pub(crate) type DispatchStashOf<T> =
+//     <pallet_gear_messenger::Pallet<T> as Messenger>::DispatchStash;
 
-    fn gas_nodes_storage_map_final_key(key: &NodeId) -> Vec<u8> {
-        let storage_prefix = storage_prefix(<Pallet<Test>>::name().as_bytes(), b"GasNodes");
-        let key_hashed = key.using_encoded(Identity::hash);
+// fn gas_nodes_storage_map_final_key(key: &NodeId) -> Vec<u8> {
+//     let storage_prefix = storage_prefix(<Pallet<Test>>::name().as_bytes(), b"GasNodes");
+//     let key_hashed = key.using_encoded(Identity::hash);
 
-        [storage_prefix.as_ref(), key_hashed.as_ref()].concat()
-    }
+//     [storage_prefix.as_ref(), key_hashed.as_ref()].concat()
+// }
 
-    #[test]
-    fn migration_to_v1_works() {
-        let _ = env_logger::try_init();
+// #[test]
+// fn migration_to_v1_works() {
+//     let _ = env_logger::try_init();
 
-        new_test_ext().execute_with(|| {
-            StorageVersion::new(0).put::<crate::Pallet<Test>>();
+//     new_test_ext().execute_with(|| {
+//         StorageVersion::new(0).put::<crate::Pallet<Test>>();
 
-            let mut mailbox_ids = vec![];
-            for _i in 0_u32..25 {
-                mailbox_ids.push(MessageId::from_origin(H256::random()));
-            }
-            let mut waitlist_ids = vec![];
-            for _i in 0_u32..25 {
-                waitlist_ids.push(MessageId::from_origin(H256::random()));
-            }
-            let mut dispatch_stash_ids = vec![];
-            for _i in 0_u32..25 {
-                dispatch_stash_ids.push(MessageId::from_origin(H256::random()));
-            }
-            let mut reservation_ids = vec![];
-            for _i in 0_u32..25 {
-                reservation_ids.push(ReservationId::from(H256::random().as_ref()));
-            }
+//         let mut mailbox_ids = vec![];
+//         for _i in 0_u32..25 {
+//             mailbox_ids.push(MessageId::from_origin(H256::random()));
+//         }
+//         let mut waitlist_ids = vec![];
+//         for _i in 0_u32..25 {
+//             waitlist_ids.push(MessageId::from_origin(H256::random()));
+//         }
+//         let mut dispatch_stash_ids = vec![];
+//         for _i in 0_u32..25 {
+//             dispatch_stash_ids.push(MessageId::from_origin(H256::random()));
+//         }
+//         let mut reservation_ids = vec![];
+//         for _i in 0_u32..25 {
+//             reservation_ids.push(ReservationId::from(H256::random().as_ref()));
+//         }
 
-            // Populate mailbox
-            mailbox_ids.iter().for_each(|msg_id| {
-                assert_ok!(MailboxOf::<Test>::insert(
-                    StoredMessage::new(
-                        *msg_id,
-                        ProgramId::from_origin(H256::random()),
-                        ProgramId::from_origin(2_u64.into_origin()), // to Bob
-                        Default::default(),
-                        Default::default(),
-                        None,
-                    ),
-                    5_u64
-                ));
-            });
-            // Populate waitlist
-            waitlist_ids.iter().for_each(|msg_id| {
-                assert_ok!(WaitlistOf::<Test>::insert(
-                    StoredDispatch::new(
-                        DispatchKind::Handle,
-                        StoredMessage::new(
-                            *msg_id,
-                            ProgramId::from_origin(H256::random()),
-                            ProgramId::from_origin(H256::random()),
-                            Default::default(),
-                            Default::default(),
-                            None,
-                        ),
-                        None
-                    ),
-                    5_u64
-                ));
-            });
-            // Populate delayed messages stash
-            dispatch_stash_ids.iter().for_each(|msg_id| {
-                DispatchStashOf::<Test>::insert(
-                    *msg_id,
-                    (
-                        StoredDispatch::new(
-                            DispatchKind::Handle,
-                            StoredMessage::new(
-                                *msg_id,
-                                ProgramId::from_origin(H256::random()),
-                                ProgramId::from_origin(H256::random()),
-                                Default::default(),
-                                Default::default(),
-                                None,
-                            ),
-                            None,
-                        ),
-                        Interval {
-                            start: 1_u64,
-                            finish: 10_u64,
-                        },
-                    ),
-                );
-            });
+//         // Populate mailbox
+//         mailbox_ids.iter().for_each(|msg_id| {
+//             assert_ok!(MailboxOf::<Test>::insert(
+//                 StoredMessage::new(
+//                     *msg_id,
+//                     ProgramId::from_origin(H256::random()),
+//                     ProgramId::from_origin(2_u64.into_origin()), // to Bob
+//                     Default::default(),
+//                     Default::default(),
+//                     None,
+//                 ),
+//                 5_u64
+//             ));
+//         });
+//         // Populate waitlist
+//         waitlist_ids.iter().for_each(|msg_id| {
+//             assert_ok!(WaitlistOf::<Test>::insert(
+//                 StoredDispatch::new(
+//                     DispatchKind::Handle,
+//                     StoredMessage::new(
+//                         *msg_id,
+//                         ProgramId::from_origin(H256::random()),
+//                         ProgramId::from_origin(H256::random()),
+//                         Default::default(),
+//                         Default::default(),
+//                         None,
+//                     ),
+//                     None
+//                 ),
+//                 5_u64
+//             ));
+//         });
+//         // Populate delayed messages stash
+//         dispatch_stash_ids.iter().for_each(|msg_id| {
+//             DispatchStashOf::<Test>::insert(
+//                 *msg_id,
+//                 (
+//                     StoredDispatch::new(
+//                         DispatchKind::Handle,
+//                         StoredMessage::new(
+//                             *msg_id,
+//                             ProgramId::from_origin(H256::random()),
+//                             ProgramId::from_origin(H256::random()),
+//                             Default::default(),
+//                             Default::default(),
+//                             None,
+//                         ),
+//                         None,
+//                     ),
+//                     Interval {
+//                         start: 1_u64,
+//                         finish: 10_u64,
+//                     },
+//                 ),
+//             );
+//         });
 
-            // Populate gas nodes storage with old gas node type
-            let mut total_locked = Balance::zero();
-            mailbox_ids.iter().for_each(|msg_id| {
-                let node_id = NodeId::Node(*msg_id);
-                let key = gas_nodes_storage_map_final_key(&node_id);
-                // Mailboxed gas nodes have type `Cut`
-                unhashed::put(
-                    &key[..],
-                    &OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::Cut {
-                        id: 1_u64,
-                        value: Balance::zero(),
-                        lock: 1000,
-                    },
-                );
-                total_locked = total_locked.saturating_add(1000);
-            });
-            reservation_ids.iter().for_each(|reservation_id| {
-                let node_id = NodeId::Reservation(*reservation_id);
-                let key = gas_nodes_storage_map_final_key(&node_id);
-                // Mailboxed gas nodes have type `Cut`
-                unhashed::put(
-                    &key[..],
-                    &OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::Reserved {
-                        id: 1_u64,
-                        value: Balance::zero(),
-                        lock: 2000,
-                        refs: Default::default(),
-                        consumed: false,
-                    },
-                );
-                total_locked = total_locked.saturating_add(2000);
-            });
-            waitlist_ids
-                .iter()
-                .chain(dispatch_stash_ids.iter())
-                .for_each(|msg_id| {
-                    let node_id = NodeId::Node(*msg_id);
-                    let key = gas_nodes_storage_map_final_key(&node_id);
-                    let mut factor_bytes = [0_u8; 8];
-                    factor_bytes.copy_from_slice(&msg_id.as_ref()[0..8]);
-                    let random_factor = u64::from_le_bytes(factor_bytes);
-                    // Decide the node type
-                    let node = match random_factor % 3 {
-                        0 => OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::External {
-                            id: 1_u64,
-                            value: Balance::zero(),
-                            lock: 3000,
-                            system_reserve: Default::default(),
-                            refs: Default::default(),
-                            consumed: false,
-                        },
-                        1 => OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::SpecifiedLocal {
-                            parent: NodeId::Node(MessageId::from_origin(H256::random())),
-                            value: Balance::zero(),
-                            lock: 3000,
-                            system_reserve: Default::default(),
-                            refs: Default::default(),
-                            consumed: false,
-                        },
-                        _ => OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::UnspecifiedLocal {
-                            parent: NodeId::Node(MessageId::from_origin(H256::random())),
-                            lock: 3000,
-                            system_reserve: Default::default(),
-                        },
-                    };
-                    unhashed::put(&key[..], &node);
-                    total_locked = total_locked.saturating_add(3000);
-                });
+//         // Populate gas nodes storage with old gas node type
+//         let mut total_locked = Balance::zero();
+//         mailbox_ids.iter().for_each(|msg_id| {
+//             let node_id = NodeId::Node(*msg_id);
+//             let key = gas_nodes_storage_map_final_key(&node_id);
+//             // Mailboxed gas nodes have type `Cut`
+//             unhashed::put(
+//                 &key[..],
+//                 &OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::Cut {
+//                     id: 1_u64,
+//                     value: Balance::zero(),
+//                     lock: 1000,
+//                 },
+//             );
+//             total_locked = total_locked.saturating_add(1000);
+//         });
+//         reservation_ids.iter().for_each(|reservation_id| {
+//             let node_id = NodeId::Reservation(*reservation_id);
+//             let key = gas_nodes_storage_map_final_key(&node_id);
+//             // Mailboxed gas nodes have type `Cut`
+//             unhashed::put(
+//                 &key[..],
+//                 &OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::Reserved {
+//                     id: 1_u64,
+//                     value: Balance::zero(),
+//                     lock: 2000,
+//                     refs: Default::default(),
+//                     consumed: false,
+//                 },
+//             );
+//             total_locked = total_locked.saturating_add(2000);
+//         });
+//         waitlist_ids
+//             .iter()
+//             .chain(dispatch_stash_ids.iter())
+//             .for_each(|msg_id| {
+//                 let node_id = NodeId::Node(*msg_id);
+//                 let key = gas_nodes_storage_map_final_key(&node_id);
+//                 let mut factor_bytes = [0_u8; 8];
+//                 factor_bytes.copy_from_slice(&msg_id.as_ref()[0..8]);
+//                 let random_factor = u64::from_le_bytes(factor_bytes);
+//                 // Decide the node type
+//                 let node = match random_factor % 3 {
+//                     0 => OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::External {
+//                         id: 1_u64,
+//                         value: Balance::zero(),
+//                         lock: 3000,
+//                         system_reserve: Default::default(),
+//                         refs: Default::default(),
+//                         consumed: false,
+//                     },
+//                     1 => OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::SpecifiedLocal {
+//                         parent: NodeId::Node(MessageId::from_origin(H256::random())),
+//                         value: Balance::zero(),
+//                         lock: 3000,
+//                         system_reserve: Default::default(),
+//                         refs: Default::default(),
+//                         consumed: false,
+//                     },
+//                     _ => OldGasNode::<AccountIdOf<Test>, NodeId, Balance>::UnspecifiedLocal {
+//                         parent: NodeId::Node(MessageId::from_origin(H256::random())),
+//                         lock: 3000,
+//                         system_reserve: Default::default(),
+//                     },
+//                 };
+//                 unhashed::put(&key[..], &node);
+//                 total_locked = total_locked.saturating_add(3000);
+//             });
 
-            // run migration from v0 to v1.
-            let weight = MigrateToV1::<Test>::on_runtime_upgrade();
-            assert_ne!(weight.ref_time(), 0);
+//         // run migration from v0 to v1.
+//         let weight = MigrateToV1::<Test>::on_runtime_upgrade();
+//         assert_ne!(weight.ref_time(), 0);
 
-            let new_total_locked =
-                GasNodes::<Test>::iter().fold(Balance::zero(), |acc, (_k, v)| {
-                    let locked = match v {
-                        GasNode::External { lock, .. }
-                        | GasNode::Cut { lock, .. }
-                        | GasNode::Reserved { lock, .. }
-                        | GasNode::SpecifiedLocal { lock, .. }
-                        | GasNode::UnspecifiedLocal { lock, .. } => lock.total_locked(),
-                    };
-                    acc.saturating_add(locked)
-                });
-            assert_eq!(total_locked, new_total_locked);
-        });
-    }
-}
+//         let new_total_locked =
+//             GasNodes::<Test>::iter().fold(Balance::zero(), |acc, (_k, v)| {
+//                 let locked = match v {
+//                     GasNode::External { lock, .. }
+//                     | GasNode::Cut { lock, .. }
+//                     | GasNode::Reserved { lock, .. }
+//                     | GasNode::SpecifiedLocal { lock, .. }
+//                     | GasNode::UnspecifiedLocal { lock, .. } => lock.total_locked(),
+//                 };
+//                 acc.saturating_add(locked)
+//             });
+//         assert_eq!(total_locked, new_total_locked);
+//     });
+// }
+// }

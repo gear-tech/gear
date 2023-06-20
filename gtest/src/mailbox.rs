@@ -23,6 +23,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, StoredMessage},
 };
+use gear_core_errors::{ReplyCode, SuccessReason};
 use std::{cell::RefCell, convert::TryInto};
 
 pub struct Mailbox<'a> {
@@ -111,7 +112,9 @@ impl<'a> MessageReplier<'a> {
             raw_payload.as_ref().to_vec().try_into().unwrap(),
             None,
             value,
-            Some(ReplyDetails::new(self.log.id(), 0).into()),
+            Some(
+                ReplyDetails::new(self.log.id(), ReplyCode::Success(SuccessReason::Manual)).into(),
+            ),
         );
 
         self.manager

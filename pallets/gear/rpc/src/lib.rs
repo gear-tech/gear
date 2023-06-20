@@ -23,6 +23,7 @@
 
 use gear_common::Origin;
 use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core_errors::*;
 use jsonrpsee::{
     core::{async_trait, Error as JsonRpseeError, RpcResult},
     proc_macros::rpc,
@@ -86,7 +87,6 @@ pub trait GearApi<BlockHash, ResponseType> {
         &self,
         source: H256,
         message_id: H256,
-        status_code: i32,
         payload: Bytes,
         value: u128,
         allow_other_panics: bool,
@@ -281,7 +281,6 @@ where
         &self,
         source: H256,
         message_id: H256,
-        status_code: i32,
         payload: Bytes,
         value: u128,
         allow_other_panics: bool,
@@ -293,7 +292,10 @@ where
             api.calculate_gas_info(
                 at_hash,
                 source,
-                HandleKind::Reply(MessageId::from_origin(message_id), status_code),
+                HandleKind::Reply(
+                    MessageId::from_origin(message_id),
+                    ReplyCode::Success(SuccessReason::Manual),
+                ),
                 payload.to_vec(),
                 value,
                 allow_other_panics,
@@ -304,7 +306,10 @@ where
             api.calculate_gas_info(
                 at_hash,
                 source,
-                HandleKind::Reply(MessageId::from_origin(message_id), status_code),
+                HandleKind::Reply(
+                    MessageId::from_origin(message_id),
+                    ReplyCode::Success(SuccessReason::Manual),
+                ),
                 payload.to_vec(),
                 value,
                 allow_other_panics,

@@ -39,7 +39,7 @@ use gear_core::{
     program::Program,
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_errors::{MemoryError, SimpleExecutionError, SimpleSignalError};
+use gear_core_errors::{MemoryError, SignalCode, SimpleExecutionError};
 use scale_info::scale::{self, Decode, Encode};
 
 /// Kind of the dispatch result.
@@ -325,7 +325,7 @@ pub enum JournalNote {
         /// Program ID which signal will be sent to.
         destination: ProgramId,
         /// Simple signal error.
-        err: SimpleSignalError,
+        code: SignalCode,
     },
     /// Pay rent for the program.
     PayProgramRent {
@@ -424,12 +424,7 @@ pub trait JournalHandler {
     /// Do system unreservation.
     fn system_unreserve_gas(&mut self, message_id: MessageId);
     /// Send system signal.
-    fn send_signal(
-        &mut self,
-        message_id: MessageId,
-        destination: ProgramId,
-        err: SimpleSignalError,
-    );
+    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode);
     /// Pay rent for the program.
     fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32);
     /// Create deposit for future reply.
@@ -476,21 +471,21 @@ pub enum ActorExecutionErrorReason {
 }
 
 impl ActorExecutionErrorReason {
-    /// Convert self into [`SimpleExecutionError`]
+    /// Convert self into [`gear_core_errors::ExecutionError`]
     pub fn as_simple(&self) -> SimpleExecutionError {
         match self {
             ActorExecutionErrorReason::PreChargeGasLimitExceeded(_) => {
-                SimpleExecutionError::GasLimitExceeded
+                SimpleExecutionError::RanOutOfGas
             }
-            ActorExecutionErrorReason::PrepareMemory(_) => SimpleExecutionError::Unknown,
-            ActorExecutionErrorReason::Environment(_) => SimpleExecutionError::Unknown,
+            ActorExecutionErrorReason::PrepareMemory(_) => SimpleExecutionError::Unsupported,
+            ActorExecutionErrorReason::Environment(_) => SimpleExecutionError::Unsupported,
             ActorExecutionErrorReason::Trap(expl) => match expl {
-                TrapExplanation::GasLimitExceeded => SimpleExecutionError::GasLimitExceeded,
-                TrapExplanation::ForbiddenFunction => SimpleExecutionError::Unknown,
-                TrapExplanation::ProgramAllocOutOfBounds => SimpleExecutionError::MemoryExceeded,
-                TrapExplanation::Ext(_err) => SimpleExecutionError::Ext,
-                TrapExplanation::Panic(_) => SimpleExecutionError::Panic,
-                TrapExplanation::Unknown => SimpleExecutionError::Unknown,
+                TrapExplanation::GasLimitExceeded => SimpleExecutionError::RanOutOfGas,
+                TrapExplanation::ForbiddenFunction => SimpleExecutionError::BackendError,
+                TrapExplanation::ProgramAllocOutOfBounds => SimpleExecutionError::MemoryOverflow,
+                TrapExplanation::Ext(_err) => SimpleExecutionError::BackendError,
+                TrapExplanation::Panic(_) => SimpleExecutionError::UserspacePanic,
+                TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },
         }
     }

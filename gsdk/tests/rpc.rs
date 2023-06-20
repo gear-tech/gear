@@ -174,7 +174,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     // 3. calculate reply gas and send reply.
     let gas_info = signer
-        .calculate_reply_gas(None, message_id, 1, vec![], 0, true, None)
+        .calculate_reply_gas(None, message_id, vec![], 0, true, None)
         .await?;
 
     signer
