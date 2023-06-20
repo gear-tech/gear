@@ -430,20 +430,18 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 83_351_000 picoseconds.
-        Weight::from_parts(111_337_720, 0)
-            // Standard Error: 455_985
-            .saturating_add(Weight::from_parts(163_069_244, 0).saturating_mul(r.into()))
+        // Minimum execution time: 91_287_000 picoseconds.
+        Weight::from_parts(93_643_000, 0)
+            // Standard Error: 401_184
+            .saturating_add(Weight::from_parts(462_939_312, 0).saturating_mul(r.into()))
     }
     /// The range of component `p` is `[1, 512]`.
-    fn alloc_per_page(p: u32, ) -> Weight {
+    fn alloc_per_page(_p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 83_351_000 picoseconds.
-        Weight::from_parts(111_337_720, 0)
-            // Standard Error: 455_985
-            .saturating_add(Weight::from_parts(163_069_244, 0).saturating_mul(p.into()))
+        // Minimum execution time: 409_179_000 picoseconds.
+        Weight::from_parts(555_869_988, 0)
     }
     /// The range of component `r` is `[0, 20]`.
     fn free(r: u32, ) -> Weight {
@@ -460,10 +458,10 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 242_596_000 picoseconds.
-        Weight::from_parts(282_469_923, 0)
-            // Standard Error: 397_100
-            .saturating_add(Weight::from_parts(163_114_248, 0).saturating_mul(r.into()))
+        // Minimum execution time: 1_604_000 picoseconds.
+        Weight::from_parts(2_156_834, 0)
+            // Standard Error: 9_659
+            .saturating_add(Weight::from_parts(22_062_890, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
@@ -2295,20 +2293,18 @@ impl WeightInfo for () {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 83_351_000 picoseconds.
-        Weight::from_parts(111_337_720, 0)
-            // Standard Error: 455_985
-            .saturating_add(Weight::from_parts(163_069_244, 0).saturating_mul(r.into()))
+        // Minimum execution time: 91_287_000 picoseconds.
+        Weight::from_parts(93_643_000, 0)
+            // Standard Error: 401_184
+            .saturating_add(Weight::from_parts(462_939_312, 0).saturating_mul(r.into()))
     }
     /// The range of component `p` is `[1, 512]`.
-    fn alloc_per_page(p: u32, ) -> Weight {
+    fn alloc_per_page(_p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 83_351_000 picoseconds.
-        Weight::from_parts(111_337_720, 0)
-            // Standard Error: 455_985
-            .saturating_add(Weight::from_parts(163_069_244, 0).saturating_mul(p.into()))
+        // Minimum execution time: 409_179_000 picoseconds.
+        Weight::from_parts(555_869_988, 0)
     }
     /// The range of component `r` is `[0, 20]`.
     fn free(r: u32, ) -> Weight {
@@ -2320,14 +2316,15 @@ impl WeightInfo for () {
             // Standard Error: 397_100
             .saturating_add(Weight::from_parts(163_114_248, 0).saturating_mul(r.into()))
     }
+    /// The range of component `r` is `[0, 20]`.
     fn mem_grow(r: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 242_596_000 picoseconds.
-        Weight::from_parts(282_469_923, 0)
-            // Standard Error: 397_100
-            .saturating_add(Weight::from_parts(163_114_248, 0).saturating_mul(r.into()))
+        // Minimum execution time: 1_604_000 picoseconds.
+        Weight::from_parts(2_156_834, 0)
+            // Standard Error: 9_659
+            .saturating_add(Weight::from_parts(22_062_890, 0).saturating_mul(r.into()))
     }
     /// The range of component `r` is `[0, 256]`.
     fn gr_reserve_gas(r: u32, ) -> Weight {
