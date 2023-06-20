@@ -119,12 +119,12 @@ impl Message {
     }
 
     /// Message reply.
-    pub fn reply(&self) -> Option<ReplyDetails> {
+    pub fn reply_details(&self) -> Option<ReplyDetails> {
         self.details.and_then(|d| d.to_reply_details())
     }
 
     /// Message signal.
-    pub fn signal(&self) -> Option<SignalDetails> {
+    pub fn signal_details(&self) -> Option<SignalDetails> {
         self.details.and_then(|d| d.to_signal_details())
     }
 
@@ -132,6 +132,7 @@ impl Message {
     /// Consumes self in order to create new `StoredMessage`, which payload
     /// contains string representation of initial bytes,
     /// decoded into given type.
+    // TODO: issue #2849.
     pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
         if let Ok(decoded) = D::decode(&mut self.payload.inner()) {
             if let Ok(payload) = decoded.to_string().into_bytes().try_into() {
@@ -151,7 +152,7 @@ impl Message {
 
     /// Returns bool defining if message is reply.
     pub fn is_reply(&self) -> bool {
-        self.reply().is_some()
+        self.reply_details().is_some()
     }
 }
 
@@ -226,28 +227,25 @@ pub struct ReplyDetails {
     code: ReplyCode,
 }
 
-impl From<ReplyDetails> for MessageId {
-    fn from(details: ReplyDetails) -> MessageId {
-        details.to
-    }
-}
-
-impl From<ReplyDetails> for ReplyCode {
-    fn from(details: ReplyDetails) -> ReplyCode {
-        details.code
-    }
-}
-
-impl From<ReplyDetails> for (MessageId, ReplyCode) {
-    fn from(details: ReplyDetails) -> (MessageId, ReplyCode) {
-        (details.to, details.code)
-    }
-}
-
 impl ReplyDetails {
     /// Constructor for details.
     pub fn new(to: MessageId, code: ReplyCode) -> Self {
         Self { to, code }
+    }
+
+    /// Returns message id replied to.
+    pub fn to_message_id(&self) -> MessageId {
+        self.to
+    }
+
+    /// Returns reply code of reply details.
+    pub fn to_reply_code(&self) -> ReplyCode {
+        self.code
+    }
+
+    /// Destructs details into parts.
+    pub fn into_parts(self) -> (MessageId, ReplyCode) {
+        (self.to, self.code)
     }
 }
 
@@ -262,28 +260,25 @@ pub struct SignalDetails {
     code: SignalCode,
 }
 
-impl From<SignalDetails> for MessageId {
-    fn from(details: SignalDetails) -> MessageId {
-        details.to
-    }
-}
-
-impl From<SignalDetails> for SignalCode {
-    fn from(details: SignalDetails) -> SignalCode {
-        details.code
-    }
-}
-
-impl From<SignalDetails> for (MessageId, SignalCode) {
-    fn from(details: SignalDetails) -> (MessageId, SignalCode) {
-        (details.to, details.code)
-    }
-}
-
 impl SignalDetails {
     /// Constructor for details.
     pub fn new(to: MessageId, code: SignalCode) -> Self {
         Self { to, code }
+    }
+
+    /// Returns message id signal sent from.
+    pub fn to_message_id(&self) -> MessageId {
+        self.to
+    }
+
+    /// Returns signal code of signal details.
+    pub fn to_signal_code(&self) -> SignalCode {
+        self.code
+    }
+
+    /// Destructs details into parts.
+    pub fn into_parts(self) -> (MessageId, SignalCode) {
+        (self.to, self.code)
     }
 }
 

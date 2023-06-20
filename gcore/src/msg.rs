@@ -46,7 +46,7 @@ use crate::{
 };
 use gear_core_errors::{ExtError, ReplyCode, SignalCode};
 use gsys::{
-    ErrorWithHandle, ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, HashWithValue,
+    HashWithValue, LengthWithHandle, LengthWithHash, LengthWithReplyCode, LengthWithSignalCode,
     TwoHashesWithValue,
 };
 

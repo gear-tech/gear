@@ -23,7 +23,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, StoredMessage},
 };
-use gear_core_errors::{ReplyCode, SuccessReason};
+use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use std::{cell::RefCell, convert::TryInto};
 
 pub struct Mailbox<'a> {
@@ -113,7 +113,11 @@ impl<'a> MessageReplier<'a> {
             None,
             value,
             Some(
-                ReplyDetails::new(self.log.id(), ReplyCode::Success(SuccessReason::Manual)).into(),
+                ReplyDetails::new(
+                    self.log.id(),
+                    ReplyCode::Success(SuccessReplyReason::Manual),
+                )
+                .into(),
             ),
         );
 

@@ -132,8 +132,8 @@ where
 
             let dispatch_id = queued_dispatch.id();
             let success_reply = queued_dispatch
-                .reply()
-                .map(|rd| ReplyCode::from(rd).is_success())
+                .reply_details()
+                .map(|rd| rd.to_reply_code().is_success())
                 .unwrap_or(false);
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;

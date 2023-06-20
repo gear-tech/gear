@@ -36,7 +36,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, ReplyMessage},
 };
-use gear_core_errors::{ErrorReason, SignalCode};
+use gear_core_errors::{ErrorReplyReason, SignalCode};
 use sp_runtime::traits::Zero;
 
 impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
@@ -187,7 +187,7 @@ where
 
         if !waitlisted.is_reply() && waitlisted.kind() != DispatchKind::Signal {
             // Trap explanation.
-            let err = ErrorReason::RemovedFromWaitlist;
+            let err = ErrorReplyReason::RemovedFromWaitlist;
 
             // Trap reply payload.
             let err_payload = err

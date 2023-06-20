@@ -908,7 +908,7 @@ pub mod runtime_types {
             pub mod simple {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum ErrorReason {
+                pub enum ErrorReplyReason {
                     #[codec(index = 0)]
                     Execution(runtime_types::gear_core_errors::simple::SimpleExecutionError),
                     #[codec(index = 1)]
@@ -925,9 +925,9 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum ReplyCode {
                     #[codec(index = 0)]
-                    Success(runtime_types::gear_core_errors::simple::SuccessReason),
+                    Success(runtime_types::gear_core_errors::simple::SuccessReplyReason),
                     #[codec(index = 1)]
-                    Error(runtime_types::gear_core_errors::simple::ErrorReason),
+                    Error(runtime_types::gear_core_errors::simple::ErrorReplyReason),
                     #[codec(index = 255)]
                     Unsupported,
                 }
@@ -961,7 +961,7 @@ pub mod runtime_types {
                     Unsupported,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum SuccessReason {
+                pub enum SuccessReplyReason {
                     #[codec(index = 0)]
                     Auto,
                     #[codec(index = 1)]

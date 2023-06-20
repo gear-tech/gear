@@ -253,16 +253,16 @@ mod transition {
         },
     };
     use gear_core_errors::{
-        ErrorReason, ReplyCode, SignalCode, SimpleExecutionError, SuccessReason,
+        ErrorReplyReason, ReplyCode, SignalCode, SimpleExecutionError, SuccessReplyReason,
     };
 
     fn reply_details(old_details: v1::ReplyDetails) -> ReplyDetails {
         let to = old_details.reply_to;
 
         let code = if old_details.status_code == 0 {
-            ReplyCode::Success(SuccessReason::Unsupported)
+            ReplyCode::Success(SuccessReplyReason::Unsupported)
         } else {
-            ReplyCode::Error(ErrorReason::Unsupported)
+            ReplyCode::Error(ErrorReplyReason::Unsupported)
         };
 
         ReplyDetails::new(to, code)

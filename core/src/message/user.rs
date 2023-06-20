@@ -44,7 +44,7 @@ pub struct UserMessage {
     /// Message value.
     #[codec(compact)]
     value: Value,
-    /// Message details: reply message ID and reply code if exists.x
+    /// Message details: reply message ID and reply code if exists.
     details: Option<ReplyDetails>,
 }
 
@@ -102,6 +102,7 @@ impl UserMessage {
     /// Consumes self in order to create new `StoredMessage`, which payload
     /// contains string representation of initial bytes,
     /// decoded into given type.
+    // TODO: issue #2849.
     pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
         if let Ok(decoded) = D::decode(&mut self.payload.inner()) {
             if let Ok(payload) = decoded.to_string().into_bytes().try_into() {
@@ -116,22 +117,22 @@ impl UserMessage {
 
     /// Returns `ReplyCode` of message if reply.
     pub fn reply_code(&self) -> Option<ReplyCode> {
-        self.details.map(Into::into)
+        self.details.map(|d| d.to_reply_code())
     }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct UserMessageConvertError;
+pub struct FromStoredMessageError;
 
 impl TryFrom<StoredMessage> for UserMessage {
-    type Error = UserMessageConvertError;
+    type Error = FromStoredMessageError;
 
     fn try_from(stored: StoredMessage) -> Result<Self, Self::Error> {
         let some_details = stored.details.is_some();
         let details = stored.details.and_then(|d| d.to_reply_details());
 
         if details.is_none() && some_details {
-            return Err(UserMessageConvertError);
+            return Err(FromStoredMessageError);
         }
 
         Ok(Self {

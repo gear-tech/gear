@@ -34,11 +34,11 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::{ReplyCode, SignalCode};
+use gear_core_errors::{ExtError, ReplyCode, SignalCode};
 use gsys::{
-    BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
-    ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Hash,
-    HashWithValue, TwoHashesWithValue,
+    BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberAndValue,
+    LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithReplyCode, LengthWithSignalCode,
+    LengthWithTwoHashes, TwoHashesWithValue,
 };
 
 pub struct FuncsHandler<Ext: Externalities + 'static, Runtime> {

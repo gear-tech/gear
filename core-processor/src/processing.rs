@@ -18,7 +18,7 @@
 
 use crate::{
     common::{
-        ActorExecutionErrorReason, DispatchOutcome, DispatchResult, DispatchResultKind,
+        ActorExecutionErrorReplyReason, DispatchOutcome, DispatchResult, DispatchResultKind,
         ExecutionError, JournalNote, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
@@ -38,7 +38,7 @@ use gear_core::{
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };
-use gear_core_errors::{ErrorReason, SignalCode};
+use gear_core_errors::{ErrorReplyReason, SignalCode};
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<E>(
@@ -139,7 +139,7 @@ where
                 program_id,
                 res.gas_amount.burned(),
                 res.system_reservation_context,
-                ActorExecutionErrorReason::Trap(reason),
+                ActorExecutionErrorReplyReason::Trap(reason),
                 true,
             ),
             DispatchResultKind::Success => process_success(Success, res),
@@ -171,7 +171,7 @@ pub fn process_error(
     program_id: ProgramId,
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
-    err: ActorExecutionErrorReason,
+    err: ActorExecutionErrorReplyReason,
     executed: bool,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
@@ -512,7 +512,7 @@ pub fn process_non_executable(
 
     // Reply back to the message `source`
     if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
-        let err = ErrorReason::InactiveProgram;
+        let err = ErrorReplyReason::InactiveProgram;
         let err_payload = err
             .to_string()
             .into_bytes()

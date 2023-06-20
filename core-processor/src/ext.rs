@@ -47,8 +47,8 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::{
-    ExecutionError, ExtError as ExtErrorCore, MemoryError, MessageError, ProgramRentError,
-    ReplyCode, ReservationError, SignalCode, WaitError,
+    ExecutionError, ExtError as ExtErrorCore, MemoryError, MessageError, ReplyCode,
+    ReservationError, SignalCode, WaitError,
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -609,7 +609,7 @@ impl Externalities for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_reply_details().map(Into::into))
+            .and_then(|d| d.to_reply_details().map(|d| d.to_message_id()))
             .ok_or_else(|| ExecutionError::NoReplyContext.into())
     }
 
@@ -618,7 +618,7 @@ impl Externalities for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_signal_details().map(Into::into))
+            .and_then(|d| d.to_signal_details().map(|d| d.to_message_id()))
             .ok_or_else(|| ExecutionError::NoSignalContext.into())
     }
 
@@ -640,7 +640,7 @@ impl Externalities for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_reply_details().map(Into::into))
+            .and_then(|d| d.to_reply_details().map(|d| d.to_reply_code()))
             .ok_or_else(|| ExecutionError::NoReplyContext.into())
     }
 
@@ -649,7 +649,7 @@ impl Externalities for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_signal_details().map(Into::into))
+            .and_then(|d| d.to_signal_details().map(|d| d.to_signal_code()))
             .ok_or_else(|| ExecutionError::NoSignalContext.into())
     }
 

@@ -24,7 +24,7 @@ use crate::{mock::*, *};
 use common::{scheduler::*, storage::*, GasPrice as _, GasTree, LockId, LockableTree as _, Origin};
 use frame_support::traits::ReservableCurrency;
 use gear_core::{ids::*, message::*};
-use gear_core_errors::ErrorReason;
+use gear_core_errors::ErrorReplyReason;
 use pallet_gear::{GasAllowanceOf, GasHandlerOf};
 use sp_core::H256;
 
@@ -117,7 +117,7 @@ fn out_of_rent_reply_exists(
             expiration: None,
         }) = &e.event
         {
-            let err = ErrorReason::RemovedFromWaitlist;
+            let err = ErrorReplyReason::RemovedFromWaitlist;
             msg.destination() == src
                 && msg.source() == pid
                 && msg.details() == Some(ReplyDetails::new(mid, err.into()))

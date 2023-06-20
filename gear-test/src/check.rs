@@ -225,8 +225,8 @@ pub fn check_messages(
                 let is_init = exp.init.unwrap_or(false);
 
                 if msg
-                    .reply()
-                    .map(|d| ReplyCode::from(d).is_success())
+                    .reply_details()
+                    .map(|d| d.to_reply_code().is_success())
                     .unwrap_or(false)
                     && exp
                         .payload

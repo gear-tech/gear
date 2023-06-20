@@ -1,5 +1,5 @@
 use crate::{Arg, Call, Calls, Scheme};
-use gstd::errors::{ReplyCode, SuccessReason};
+use gstd::errors::{ReplyCode, SuccessReplyReason};
 use parity_scale_codec::Encode;
 
 pub const PROXIED_MESSAGE: &[u8] = b"proxied message";
@@ -55,7 +55,7 @@ pub fn handle_reply() -> Calls {
         .bytes_eq(
             equity_var,
             status_code_var,
-            ReplyCode::Success(SuccessReason::Manual).encode(),
+            ReplyCode::Success(SuccessReplyReason::Manual).encode(),
         )
         // Sending proxy message.
         .if_else(

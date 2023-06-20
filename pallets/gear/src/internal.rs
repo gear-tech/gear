@@ -36,7 +36,7 @@ use common::{
     ActiveProgram, GasPrice, GasTree, LockId, LockableTree, Origin,
 };
 use core::cmp::{Ord, Ordering};
-use core_processor::common::ActorExecutionErrorReason;
+use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -782,7 +782,7 @@ where
         // string explanation of the error.
         let message = if message.is_error_reply() {
             message
-                .with_string_payload::<ActorExecutionErrorReason>()
+                .with_string_payload::<ActorExecutionErrorReplyReason>()
                 .unwrap_or_else(|e| {
                     log::debug!("Failed to decode error to string");
                     e
@@ -895,13 +895,13 @@ where
         // but this logic appears here for future purposes.
         let message = if message
             .details()
-            .map(|r_d| ReplyCode::from(r_d).is_error())
+            .map(|r_d| r_d.to_reply_code().is_error())
             .unwrap_or(false)
         {
             message
         } else {
             message
-                .with_string_payload::<ActorExecutionErrorReason>()
+                .with_string_payload::<ActorExecutionErrorReplyReason>()
                 .unwrap_or_else(|e| {
                     log::debug!("Failed to decode error to string");
                     e

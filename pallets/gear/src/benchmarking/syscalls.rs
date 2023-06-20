@@ -981,7 +981,7 @@ where
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Reply(msg_id, ReplyCode::Success(SuccessReason::Manual)),
+            HandleKind::Reply(msg_id, ReplyCode::Success(SuccessReplyReason::Manual)),
             vec![],
             Default::default(),
         )
@@ -1195,7 +1195,7 @@ where
 
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Reply(msg_id, ReplyCode::Success(SuccessReason::Manual)),
+            HandleKind::Reply(msg_id, ReplyCode::Success(SuccessReplyReason::Manual)),
             vec![],
             Default::default(),
         )

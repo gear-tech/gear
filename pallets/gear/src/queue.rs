@@ -210,7 +210,7 @@ where
 
             let program_id = dispatch.destination();
             let dispatch_id = dispatch.id();
-            let dispatch_reply = dispatch.reply().is_some();
+            let dispatch_reply = dispatch.reply_details().is_some();
 
             let balance = CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
                 program_id.into_origin(),

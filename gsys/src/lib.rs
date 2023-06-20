@@ -415,14 +415,14 @@ extern "C" {
     /// Fallible `gr_reply_code` get syscall.
     ///
     /// Arguments type:
-    /// - `err_code`: `mut ptr` for concatenated error code and reply code.
-    pub fn gr_reply_code(err_code: *mut ErrorWithReplyCode);
+    /// - `err_code`: `mut ptr` for concatenated error length and reply code.
+    pub fn gr_reply_code(err_code: *mut LengthWithReplyCode);
 
     /// Fallible `gr_signal_code` get syscall.
     ///
     /// Arguments type:
-    /// - `err_code`: `mut ptr` for concatenated error code and signal code.
-    pub fn gr_signal_code(err_code: *mut ErrorWithSignalCode);
+    /// - `err_code`: `mut ptr` for concatenated error length and signal code.
+    pub fn gr_signal_code(err_code: *mut LengthWithSignalCode);
 
     /// Infallible `gr_exit` control syscall.
     ///

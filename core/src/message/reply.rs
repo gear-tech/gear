@@ -24,7 +24,7 @@ use crate::{
         Value,
     },
 };
-use gear_core_errors::{ErrorReason, ReplyCode, SuccessReason};
+use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -59,7 +59,11 @@ impl ReplyMessage {
     }
 
     /// Create new system generated ReplyMessage.
-    pub fn system(origin_msg_id: MessageId, payload: Payload, err: impl Into<ErrorReason>) -> Self {
+    pub fn system(
+        origin_msg_id: MessageId,
+        payload: Payload,
+        err: impl Into<ErrorReplyReason>,
+    ) -> Self {
         let id = MessageId::generate_reply(origin_msg_id);
         let packet = ReplyPacket::system(payload, err);
 
@@ -175,7 +179,7 @@ impl ReplyPacket {
             payload,
             gas_limit: None,
             value,
-            code: ReplyCode::Success(SuccessReason::Manual),
+            code: ReplyCode::Success(SuccessReplyReason::Manual),
         }
     }
 
@@ -185,14 +189,14 @@ impl ReplyPacket {
             payload,
             gas_limit: Some(gas_limit),
             value,
-            code: ReplyCode::Success(SuccessReason::Manual),
+            code: ReplyCode::Success(SuccessReplyReason::Manual),
         }
     }
 
     // TODO: consider using here `impl CoreError` and/or provide `AsStatusCode`
     // trait or append such functionality to `CoreError` (issue #1083).
     /// Create new system generated ReplyPacket.
-    pub fn system(payload: Payload, err: impl Into<ErrorReason>) -> Self {
+    pub fn system(payload: Payload, err: impl Into<ErrorReplyReason>) -> Self {
         Self {
             payload,
             code: ReplyCode::error(err),
@@ -204,7 +208,7 @@ impl ReplyPacket {
     pub fn auto() -> Self {
         Self {
             gas_limit: Some(0),
-            code: ReplyCode::Success(SuccessReason::Auto),
+            code: ReplyCode::Success(SuccessReplyReason::Auto),
             ..Default::default()
         }
     }
