@@ -25,7 +25,7 @@ use gsdk::{
     Api, Result,
 };
 use parity_scale_codec::Encode;
-use std::{borrow::Cow, process::Command};
+use std::{borrow::Cow, process::Command, str::FromStr};
 
 fn dev_node() -> Node {
     // Use release build because of performance reasons.
@@ -237,6 +237,30 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
     let wasm_blob_version_3 = api.runtime_wasm_blob_version(Some(block_hash_2)).await?;
     assert_ne!(block_hash_1, block_hash_2);
     assert_eq!(wasm_blob_version_2, wasm_blob_version_3);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_runtime_wasm_blob_version_history() -> Result<()> {
+    let api = Api::new(Some("wss://rpc.vara-network.io:443")).await?;
+
+    {
+        let no_method_block_hash = sp_core::H256::from_str(
+            "0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9",
+        )
+        .unwrap();
+
+        let wasm_blob_version_result = api
+            .runtime_wasm_blob_version(Some(no_method_block_hash))
+            .await;
+
+        assert!(wasm_blob_version_result.is_err());
+        let error_msg = wasm_blob_version_result.unwrap_err().to_string();
+        assert!(error_msg.starts_with(
+            "Rpc error: RPC error: RPC call failed: ErrorObject { code: MethodNotFound"
+        ));
+    }
 
     Ok(())
 }
