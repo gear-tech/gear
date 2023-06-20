@@ -81,8 +81,6 @@ pub enum Kind {
     BlockHeight(u32),
     // Expected(block timestamp)
     BlockTimestamp(u64),
-    // Expected(msg origin)
-    Origin(ActorId),
     // Expected(id)
     Reserve(Vec<u8>),
     // Expected(amount)
@@ -119,7 +117,6 @@ mod wasm {
     };
 
     static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);
-    static mut ORIGIN: Option<ActorId> = None;
     static mut SIGNAL_DETAILS: (MessageId, SignalCode, ActorId) = (
         MessageId::new([0; 32]),
         SignalCode::Execution(SimpleExecutionError::Unsupported),
@@ -370,21 +367,6 @@ mod wasm {
                     expected_timestamp, actual_timestamp,
                     "Kind::BlockTimestamp:: block timestamp test failed"
                 );
-            }
-            Kind::Origin(expected_actor) => {
-                // The origin is set by the first call and then checked with the second
-                if unsafe { ORIGIN.is_some() } {
-                    // is ser, perform check
-                    let actual_actor: [u8; 32] = exec::origin().into();
-                    assert_eq!(
-                        expected_actor, actual_actor,
-                        "Kind::Origin: actor test failed"
-                    );
-                } else {
-                    unsafe { ORIGIN = Some(exec::origin()) };
-                    // To prevent from sending to mailbox "ok" message
-                    exec::leave();
-                }
             }
             Kind::Reserve(expected_id) => {
                 // do 2 reservations to increase internal nonce

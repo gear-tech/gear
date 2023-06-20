@@ -92,7 +92,7 @@ fn vec() {
         run_to_next_block(None);
 
         let reply = maybe_last_message(1).expect("Should be");
-        assert_eq!(reply.payload(), 131072i32.encode());
+        assert_eq!(reply.payload_bytes(), 131072i32.encode());
 
         GearDebug::do_snapshot();
         let snapshot = get_last_snapshot();

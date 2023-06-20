@@ -92,7 +92,6 @@ where
     let balance = execution_context.balance;
     let program_id = execution_context.program.id();
     let execution_context = WasmExecutionContext {
-        origin: execution_context.origin,
         gas_counter: execution_context.gas_counter,
         gas_allowance_counter: execution_context.gas_allowance_counter,
         gas_reserver: execution_context.gas_reserver,

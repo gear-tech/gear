@@ -661,7 +661,7 @@ impl ExtManager {
         let message_id = dispatch.id();
         let source = dispatch.source();
         let program_id = dispatch.destination();
-        let payload = dispatch.payload().to_vec();
+        let payload = dispatch.payload_bytes().to_vec();
 
         let response = match dispatch.kind() {
             DispatchKind::Init => mock.init(payload).map(Mocked::Reply),
@@ -849,7 +849,7 @@ impl ExtManager {
 
         let journal = core_processor::process::<WasmiEnvironment<Ext>>(
             &block_config,
-            (context, code, balance, self.origin).into(),
+            (context, code, balance).into(),
             self.random_data.clone(),
             memory_pages,
         )
@@ -902,15 +902,19 @@ impl JournalHandler for ExtManager {
 
     fn send_dispatch(
         &mut self,
-        _message_id: MessageId,
+        message_id: MessageId,
         dispatch: Dispatch,
         bn: u32,
         _reservation: Option<ReservationId>,
     ) {
         if bn > 0 {
+            log::debug!(target: "gwasm", "[{}] new delayed dispatch#{}", message_id, dispatch.id());
+
             self.send_delayed_dispatch(dispatch, self.block_info.height.saturating_add(bn));
             return;
         }
+
+        log::debug!(target: "gwasm", "[{}] new dispatch#{}", message_id, dispatch.id());
 
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
@@ -945,6 +949,8 @@ impl JournalHandler for ExtManager {
         _duration: Option<u32>,
         _: MessageWaitedType,
     ) {
+        log::debug!(target: "gwasm", "[{}] wait", dispatch.id());
+
         self.message_consumed(dispatch.id());
         self.wait_list
             .insert((dispatch.destination(), dispatch.id()), dispatch);
@@ -952,11 +958,13 @@ impl JournalHandler for ExtManager {
 
     fn wake_message(
         &mut self,
-        _message_id: MessageId,
+        message_id: MessageId,
         program_id: ProgramId,
         awakening_id: MessageId,
         _delay: u32,
     ) {
+        log::debug!(target: "gwasm", "[{}] waked message#{}", message_id, awakening_id);
+
         if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatches.push_back(msg);
         }
@@ -1056,11 +1064,12 @@ impl JournalHandler for ExtManager {
                         Some(init_message_id),
                     );
                 } else {
-                    logger::debug!("Program with id {:?} already exists", candidate_id);
+                    log::debug!(target: "gwasm", "Program with id {:?} already exists", candidate_id);
                 }
             }
         } else {
-            logger::debug!(
+            log::debug!(
+                target: "gwasm",
                 "No referencing code with code hash {:?} for candidate programs",
                 code_id
             );

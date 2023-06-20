@@ -30,7 +30,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
-    env::Externalities,
+    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     gas::{
         ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
         GasLeft, Token, ValueCounter,
@@ -76,8 +76,6 @@ pub struct ProcessorContext {
     pub page_costs: PageCosts,
     /// Account existential deposit
     pub existential_deposit: u128,
-    /// Communication origin
-    pub origin: ProgramId,
     /// Current program id
     pub program_id: ProgramId,
     /// Map of code hashes to program ids of future programs, which are planned to be
@@ -512,10 +510,6 @@ impl Externalities for Ext {
         Ok(self.context.block_info.timestamp)
     }
 
-    fn origin(&self) -> Result<gear_core::ids::ProgramId, Self::Error> {
-        Ok(self.context.origin)
-    }
-
     fn send_init(&mut self) -> Result<u32, Self::Error> {
         let handle = self.context.message_context.send_init()?;
         Ok(handle)
@@ -721,27 +715,27 @@ impl Externalities for Ext {
         Ok(())
     }
 
-    fn read(&mut self, at: u32, len: u32) -> Result<(&[u8], GasLeft), Self::Error> {
-        // Verify read is correct
+    fn lock_payload(&mut self, at: u32, len: u32) -> Result<PayloadSliceLock, Self::Error> {
         let end = at
             .checked_add(len)
             .ok_or(MessageError::TooBigReadLen { at, len })?;
         self.charge_gas_runtime_if_enough(RuntimeCosts::ReadPerByte(len))?;
-        let msg = self.context.message_context.current().payload();
-        if end as usize > msg.len() {
-            return Err(MessageError::ReadWrongRange {
+        PayloadSliceLock::try_new((at, end), &mut self.context.message_context).map_err(|msg_len| {
+            MessageError::ReadWrongRange {
                 start: at,
                 end,
-                msg_len: msg.len() as u32,
+                msg_len: msg_len as u32,
             }
-            .into());
-        }
+            .into()
+        })
+    }
 
-        Ok((&msg[at as usize..end as usize], self.gas_left()))
+    fn unlock_payload(&mut self, payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
+        UnlockPayloadBound::from((&mut self.context.message_context, payload_holder))
     }
 
     fn size(&self) -> Result<usize, Self::Error> {
-        Ok(self.context.message_context.current().payload().len())
+        Ok(self.context.message_context.current().payload_bytes().len())
     }
 
     fn reserve_gas(&mut self, amount: u64, duration: u32) -> Result<ReservationId, Self::Error> {
@@ -1050,7 +1044,6 @@ mod tests {
                 max_pages: 512.into(),
                 page_costs: PageCosts::new_for_tests(),
                 existential_deposit: 0,
-                origin: Default::default(),
                 program_id: Default::default(),
                 program_candidates_data: Default::default(),
                 program_rents: Default::default(),

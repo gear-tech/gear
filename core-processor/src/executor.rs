@@ -265,7 +265,6 @@ where
         gas_counter,
         gas_allowance_counter,
         gas_reserver,
-        origin,
         program,
         mut pages_initial_data,
         memory_size,
@@ -310,7 +309,6 @@ where
         max_pages: settings.max_pages,
         page_costs: settings.page_costs,
         existential_deposit: settings.existential_deposit,
-        origin,
         program_id,
         program_candidates_data: Default::default(),
         program_rents: Default::default(),
@@ -526,7 +524,6 @@ where
         max_pages: 512.into(),
         page_costs: Default::default(),
         existential_deposit: Default::default(),
-        origin: Default::default(),
         program_id: program.id(),
         program_candidates_data: Default::default(),
         program_rents: Default::default(),
@@ -611,7 +608,7 @@ where
 
     for (dispatch, _, _) in info.generated_dispatches {
         if matches!(dispatch.kind(), DispatchKind::Reply) {
-            return Ok(dispatch.payload().to_vec());
+            return Ok(dispatch.payload_bytes().to_vec());
         }
     }
 
