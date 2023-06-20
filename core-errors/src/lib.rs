@@ -268,8 +268,8 @@ pub enum ExtError {
 }
 
 impl ExtError {
-    /// Encode error into code.
-    pub fn encode(self) -> u32 {
+    /// Convert error into code.
+    pub fn to_u32(self) -> u32 {
         match self {
             ExtError::SyscallUsage => 0xffff,
             ExtError::Execution(err) => err as u32,
@@ -281,8 +281,8 @@ impl ExtError {
         }
     }
 
-    /// Decode error from code.
-    pub fn decode(code: u32) -> Option<Self> {
+    /// Convert code into error.
+    pub fn from_u32(code: u32) -> Option<Self> {
         match code {
             100 => Some(ExecutionError::NotEnoughGas.into()),
             101 => Some(ExecutionError::InvalidDebugString.into()),
@@ -331,7 +331,7 @@ impl ExtError {
 #[cfg(feature = "codec")]
 impl Encode for ExtError {
     fn encode(&self) -> Vec<u8> {
-        ExtError::encode(*self).to_le_bytes().to_vec()
+        ExtError::to_u32(*self).to_le_bytes().to_vec()
     }
 }
 
@@ -341,7 +341,7 @@ impl Decode for ExtError {
         let mut code = [0; 4];
         input.read(&mut code)?;
         let err =
-            ExtError::decode(u32::from_le_bytes(code)).ok_or("Failed to decode error code")?;
+            ExtError::from_u32(u32::from_le_bytes(code)).ok_or("Failed to decode error code")?;
         Ok(err)
     }
 }
@@ -356,7 +356,7 @@ mod tests {
         let mut codes = BTreeMap::new();
 
         for err in enum_iterator::all::<ExtError>() {
-            let code = err.encode();
+            let code = err.to_u32();
             if let Some(same_code_err) = codes.insert(code, err) {
                 panic!("{:?} has same code {:?} as {:?}", same_code_err, code, err);
             }
@@ -366,8 +366,8 @@ mod tests {
     #[test]
     fn encode_decode() {
         for err in enum_iterator::all::<ExtError>() {
-            let code = err.encode();
-            let decoded = ExtError::decode(code)
+            let code = err.to_u32();
+            let decoded = ExtError::from_u32(code)
                 .unwrap_or_else(|| unreachable!("failed to decode error code: {}", code));
             assert_eq!(err, decoded);
         }
@@ -376,7 +376,7 @@ mod tests {
     #[test]
     fn error_code_no_specific_value() {
         for err in enum_iterator::all::<ExtError>() {
-            let code = err.encode();
+            let code = err.to_u32();
             assert_ne!(code, 0); // zeroed structures, variables, etc
             assert_ne!(code, u32::MAX); // success code
         }

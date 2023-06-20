@@ -356,7 +356,7 @@ pub trait BackendState {
                     TrapExplanation::Ext(ext_err),
                 )) = err
                 {
-                    let code = ext_err.encode();
+                    let code = ext_err.to_u32();
                     log::trace!(target: "syscalls", "fallible syscall error: {ext_err}");
                     self.set_fallible_syscall_error(ext_err);
                     Ok(Err(code))

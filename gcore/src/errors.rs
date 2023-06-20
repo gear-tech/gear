@@ -35,7 +35,7 @@ impl From<SyscallError> for Result<()> {
     fn from(value: SyscallError) -> Self {
         match value.0 {
             gsys::SUCCESS_ERROR_CODE => Ok(()),
-            code => Err(ExtError::decode(code)
+            code => Err(ExtError::from_u32(code)
                 .unwrap_or_else(|| unreachable!("Failed to decode error code: {}", code))),
         }
     }
