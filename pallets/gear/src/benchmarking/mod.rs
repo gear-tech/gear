@@ -241,13 +241,34 @@ where
 }
 
 fn get_last_session_id_if_any<T: Config>() -> Option<SessionId> {
-    let event_record = SystemPallet::<T>::events().pop()?;
-    let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
-    let event: Result<Event<T>, _> = event.try_into();
-    match event {
-        Ok(Event::ProgramResumeSessionStarted { session_id, .. }) => Some(session_id),
+    filter_event_reverse::<T, _, _>(|event| match event {
+        Event::ProgramResumeSessionStarted { session_id, .. } => Some(session_id),
         _ => None,
-    }
+    })
+}
+
+fn get_last_waited_expiration_if_any<T: Config>() -> Option<T::BlockNumber> {
+    filter_event_reverse::<T, _, _>(|event| match event {
+        Event::MessageWaited { expiration, .. } => Some(expiration),
+        _ => None,
+    })
+}
+
+pub fn filter_event_reverse<T, F, R>(mapping_filter: F) -> Option<R>
+where
+    T: Config,
+    F: Fn(Event<T>) -> Option<R>,
+{
+    SystemPallet::<T>::events()
+        .into_iter()
+        .rev()
+        .filter_map(|event_record| {
+            let event = <<T as pallet::Config>::RuntimeEvent as From<_>>::from(event_record.event);
+            let event: Result<Event<T>, _> = event.try_into();
+
+            event.ok()
+        })
+        .find_map(mapping_filter)
 }
 
 fn resume_session_prepare<T: Config>(
@@ -2922,6 +2943,50 @@ benchmarks! {
         let mut ext_manager = ExtManager::<T>::default();
     }: {
         ext_manager.wake_message(Default::default(), Default::default());
+    }
+
+    tasks_remove_from_waitlist {
+        use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+
+        let caller = benchmarking::account("caller", 0, 0);
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+
+        init_block::<T>(None);
+
+        let salt = vec![];
+        let program_id = ProgramId::generate(CodeId::generate(WASM_BINARY), &salt);
+        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(),
+            WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            10_000_000_000, 0u32.into()).expect("submit program failed");
+
+        Gear::<T>::send_message(
+            RawOrigin::Signed(caller).into(),
+            program_id,
+            Command::Wait(WaitSubcommand::Wait).encode(),
+            10_000_000_000,
+            0u32.into(),
+        ).expect("failed to send message");
+
+        Gear::<T>::process_queue(Default::default());
+
+        let expiration = get_last_waited_expiration_if_any::<T>().expect("message should be waited");
+
+        let task = TaskPoolOf::<T>::iter_prefix_keys(expiration)
+            .next()
+            .unwrap();
+        let (_program_id, message_id) = match task {
+            ScheduledTask::RemoveFromWaitlist (
+                program_id,
+                message_id,
+            ) => (program_id, message_id),
+            _ => unreachable!(),
+        };
+
+        let mut ext_manager = ExtManager::<T>::default();
+    }: {
+        ext_manager.remove_from_waitlist(program_id, message_id);
     }
 
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently

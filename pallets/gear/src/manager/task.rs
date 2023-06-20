@@ -47,7 +47,9 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
         PauseProgram(_) => 0,
         RemoveCode(_) => todo!("#646"),
         RemoveFromMailbox(_, _) => 0,
-        RemoveFromWaitlist(_, _) => 0,
+        RemoveFromWaitlist(_, _) => {
+            <T as Config>::WeightInfo::tasks_remove_from_waitlist().ref_time()
+        }
         RemovePausedProgram(_) => todo!("#646"),
         WakeMessage(_, _) => cmp::max(
             <T as Config>::WeightInfo::tasks_wake_message().ref_time(),
@@ -291,7 +293,7 @@ where
         // Consuming gas handler for waitlisted message.
         Pallet::<T>::consume_and_retrieve(waitlisted.id());
 
-        0
+        <T as Config>::WeightInfo::tasks_remove_from_waitlist().ref_time()
     }
 
     fn remove_paused_program(&mut self, _program_id: ProgramId) -> Gas {

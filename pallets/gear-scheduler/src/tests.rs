@@ -197,12 +197,14 @@ fn gear_handles_tasks() {
             GasPrice::gas_price(DEFAULT_GAS)
         );
 
+        let task = ScheduledTask::RemoveFromWaitlist(Default::default(), Default::default());
+        let task_gas = pallet_gear::manager::get_maximum_task_gas::<Test>(&task);
         // Check if task and message got processed in block `bn`.
         run_to_block(bn, Some(u64::MAX));
         // Read of the first block of incomplete tasks, read of the first task and write for removal of task.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
-            u64::MAX - db_r_w(2, 1).ref_time()
+            u64::MAX - db_r_w(2, 1).ref_time() - task_gas
         );
 
         // Storages checking.
@@ -311,7 +313,9 @@ fn gear_handles_outdated_tasks() {
 
         // Check if task and message got processed before start of block `bn`.
         // But due to the low gas allowance, we may process the only first task.
-        run_to_block(bn, Some(db_r_w(2, 2).ref_time() + 1));
+        let task = ScheduledTask::RemoveFromWaitlist(Default::default(), Default::default());
+        let task_gas = pallet_gear::manager::get_maximum_task_gas::<Test>(&task);
+        run_to_block(bn, Some(db_r_w(2, 2).ref_time() + task_gas + 1));
         // Read of the first block of incomplete tasks, write to it afterwards + single task processing.
         assert_eq!(GasAllowanceOf::<Test>::get(), 1);
 
@@ -342,7 +346,7 @@ fn gear_handles_outdated_tasks() {
         // Delete of the first block of incomplete tasks + single DB read (task) + single task processing.
         assert_eq!(
             GasAllowanceOf::<Test>::get(),
-            u64::MAX - db_r_w(1, 2).ref_time()
+            u64::MAX - db_r_w(1, 2).ref_time() - task_gas
         );
 
         let cost2 = wl_cost_for(bn + 1 - initial_block);

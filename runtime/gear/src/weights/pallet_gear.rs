@@ -222,6 +222,7 @@ pub trait WeightInfo {
     fn tasks_send_dispatch() -> Weight;
     fn tasks_wake_message() -> Weight;
     fn tasks_wake_message_no_wake() -> Weight;
+    fn tasks_remove_from_waitlist() -> Weight;
     fn allocation_cost() -> Weight;
     fn grow_cost() -> Weight;
     fn initial_cost() -> Weight;
@@ -2124,6 +2125,15 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 2_000_000 picoseconds.
         Weight::from_parts(2_000_000, 3545)
             .saturating_add(T::DbWeight::get().reads(1_u64))
+    }
+    fn tasks_remove_from_waitlist() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1200`
+        //  Estimated: `47840`
+        // Minimum execution time: 41_000_000 picoseconds.
+        Weight::from_parts(44_000_000, 47840)
+            .saturating_add(T::DbWeight::get().reads(14_u64))
+            .saturating_add(T::DbWeight::get().writes(11_u64))
     }
 }
 
@@ -4031,5 +4041,14 @@ impl WeightInfo for () {
         // Minimum execution time: 2_000_000 picoseconds.
         Weight::from_parts(2_000_000, 3545)
             .saturating_add(RocksDbWeight::get().reads(1_u64))
+    }
+    fn tasks_remove_from_waitlist() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1200`
+        //  Estimated: `47840`
+        // Minimum execution time: 41_000_000 picoseconds.
+        Weight::from_parts(44_000_000, 47840)
+            .saturating_add(RocksDbWeight::get().reads(14_u64))
+            .saturating_add(RocksDbWeight::get().writes(11_u64))
     }
 }
