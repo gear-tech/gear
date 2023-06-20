@@ -137,9 +137,9 @@ impl ReplyMessage {
         self.id
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.get()
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
     }
 
     /// Message optional gas limit.
@@ -225,8 +225,8 @@ impl ReplyPacket {
 }
 
 impl Packet for ReplyPacket {
-    fn payload(&self) -> &[u8] {
-        self.payload.get()
+    fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
     }
 
     fn gas_limit(&self) -> Option<GasLimit> {

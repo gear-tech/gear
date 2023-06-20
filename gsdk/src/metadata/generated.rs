@@ -1979,7 +1979,6 @@ pub mod runtime_types {
                     pub gr_system_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_gas_available: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_message_id: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_origin: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_pay_program_rent: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_program_id: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_source: runtime_types::sp_weights::weight_v2::Weight,
