@@ -142,20 +142,3 @@ pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)>
 pub fn program_id() -> ActorId {
     gcore::exec::program_id().into()
 }
-
-/// Return the identifier of the original user who initiated communication with
-/// the blockchain, during which the present processing message was created.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::exec;
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let user = exec::origin();
-/// }
-/// ```
-pub fn origin() -> ActorId {
-    gcore::exec::origin().into()
-}

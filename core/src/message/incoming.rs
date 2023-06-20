@@ -90,9 +90,14 @@ impl IncomingMessage {
         self.source
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.get()
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
+    }
+
+    /// Mutable reference to message payload.
+    pub fn payload_mut(&mut self) -> &mut Payload {
+        &mut self.payload
     }
 
     /// Message gas limit.

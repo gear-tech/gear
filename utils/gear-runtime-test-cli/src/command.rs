@@ -415,7 +415,7 @@ macro_rules! command {
                                 msg.id(),
                                 msg.source(),
                                 ProgramId::from(id.as_bytes()),
-                                msg.payload().to_vec().try_into().unwrap(),
+                                msg.payload_bytes().to_vec().try_into().unwrap(),
                                 msg.value(),
                                 msg.details(),
                             );
@@ -569,7 +569,7 @@ macro_rules! command {
                     mailbox.into_iter().map(|msg| (msg, 0)).collect();
 
                 for (message, _) in &messages {
-                    if let Ok(utf8) = core::str::from_utf8(message.payload()) {
+                    if let Ok(utf8) = core::str::from_utf8(message.payload_bytes()) {
                         log::trace!("log({})", utf8)
                     }
                 }

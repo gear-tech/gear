@@ -94,9 +94,9 @@ impl InitMessage {
         self.destination
     }
 
-    /// Message payload reference.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.get()
+    /// Message payload bytes.
+    pub fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
     }
 
     /// Message optional gas limit.
@@ -133,7 +133,7 @@ impl InitPacket {
     /// Create new InitPacket without gas.
     pub fn new(code_id: CodeId, salt: Salt, payload: Payload, value: Value) -> Self {
         Self {
-            program_id: ProgramId::generate(code_id, salt.get()),
+            program_id: ProgramId::generate(code_id, salt.inner()),
             code_id,
             salt,
             payload,
@@ -151,7 +151,7 @@ impl InitPacket {
         value: Value,
     ) -> Self {
         Self {
-            program_id: ProgramId::generate(code_id, salt.get()),
+            program_id: ProgramId::generate(code_id, salt.inner()),
             code_id,
             salt,
             payload,
@@ -172,13 +172,13 @@ impl InitPacket {
 
     /// Salt.
     pub fn salt(&self) -> &[u8] {
-        self.salt.get()
+        self.salt.inner()
     }
 }
 
 impl Packet for InitPacket {
-    fn payload(&self) -> &[u8] {
-        self.payload.get()
+    fn payload_bytes(&self) -> &[u8] {
+        self.payload.inner()
     }
 
     fn gas_limit(&self) -> Option<GasLimit> {
