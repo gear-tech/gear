@@ -116,7 +116,7 @@ pub async fn capture_mailbox_messages<T: EventProcessor>(
                     message,
                     expiration: Some(exp_bn),
                 }) if exp_bn >= bn_threshold && message.destination == to.into() => {
-                    Some(message.id.into())
+                    Some(message.id.clone().into())
                 }
                 _ => None,
             },
