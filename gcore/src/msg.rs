@@ -177,7 +177,7 @@ pub fn read_at(offset: usize, buffer: &mut [u8]) -> Result<()> {
             buffer.as_mut_ptr(),
             &mut error_code,
         );
-        SyscallError(len).into_result()?;
+        SyscallError(error_code).into_result()?;
     }
 
     Ok(())
