@@ -242,7 +242,7 @@ pub mod pallet {
             OutputError = DispatchError,
             MailboxFirstKey = Self::AccountId,
             MailboxSecondKey = MessageId,
-            MailboxedMessage = UserMessage,
+            MailboxedMessage = UserStoredMessage,
             QueuedDispatch = StoredDispatch,
             WaitlistFirstKey = ProgramId,
             WaitlistSecondKey = MessageId,

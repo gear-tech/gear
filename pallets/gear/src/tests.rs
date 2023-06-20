@@ -66,7 +66,7 @@ use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageU32Size, WasmPage},
-    message::UserMessage,
+    message::UserStoredMessage,
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
@@ -11097,7 +11097,7 @@ mod utils {
     use gear_backend_common::TrapExplanation;
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
-        message::{Message, Payload, ReplyDetails, UserMessage},
+        message::{Message, Payload, ReplyDetails, UserMessage, UserStoredMessage},
         reservation::GasReservationMap,
     };
     use gear_core_errors::*;
@@ -11727,7 +11727,7 @@ mod utils {
     }
 
     #[track_caller]
-    pub(super) fn get_last_mail(account: AccountId) -> UserMessage {
+    pub(super) fn get_last_mail(account: AccountId) -> UserStoredMessage {
         MailboxOf::<Test>::iter_key(account)
             .last()
             .map(|(msg, _bn)| msg)
@@ -12165,7 +12165,7 @@ fn check_random_works() {
 
         assert_eq!(random_data.len(), MailboxOf::<Test>::len(&USER_1));
 
-        let mut sorted_mailbox: Vec<(UserMessage, Interval<BlockNumber>)> =
+        let mut sorted_mailbox: Vec<(UserStoredMessage, Interval<BlockNumber>)> =
             MailboxOf::<Test>::iter_key(USER_1).collect();
         sorted_mailbox.sort_by(|a, b| a.1.finish.cmp(&b.1.finish));
 

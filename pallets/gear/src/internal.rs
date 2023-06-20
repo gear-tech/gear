@@ -41,7 +41,10 @@ use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, Reser
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
-    message::{Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage},
+    message::{
+        Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
+        UserStoredMessage,
+    },
 };
 use gear_core_errors::ReplyCode;
 use sp_runtime::{
@@ -499,7 +502,7 @@ where
         user_id: T::AccountId,
         message_id: MessageId,
         reason: UserMessageReadReason,
-    ) -> Option<UserMessage> {
+    ) -> Option<UserStoredMessage> {
         // Removing message from mailbox, doing read requirements if found.
         MailboxOf::<T>::remove(user_id, message_id)
             .map(|v| Self::read_message_requirements(v, reason))
@@ -510,9 +513,9 @@ where
     ///
     /// Note: message auto-consumes, if reason is claim or reply.
     pub(crate) fn read_message_requirements(
-        (mailboxed, hold_interval): (UserMessage, Interval<BlockNumberFor<T>>),
+        (mailboxed, hold_interval): (UserStoredMessage, Interval<BlockNumberFor<T>>),
         reason: UserMessageReadReason,
-    ) -> UserMessage {
+    ) -> UserStoredMessage {
         // Expected block number to finish task.
         let expected = hold_interval.finish;
 
@@ -823,13 +826,18 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Inserting message in mailbox.
-            MailboxOf::<T>::insert(message.clone(), hold.expected())
+            let message_id = message.id();
+            let message: UserStoredMessage = message
+                .clone()
+                .try_into()
+                .unwrap_or_else(|_| unreachable!("Replies are never added into mailbox"));
+            MailboxOf::<T>::insert(message, hold.expected())
                 .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
 
             // Adding removal request in task pool.
             TaskPoolOf::<T>::add(
                 hold.expected(),
-                ScheduledTask::RemoveFromMailbox(to, message.id()),
+                ScheduledTask::RemoveFromMailbox(to, message_id),
             )
             .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
@@ -926,13 +934,18 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Inserting message in mailbox.
-            MailboxOf::<T>::insert(message.clone(), hold.expected())
+            let message_id = message.id();
+            let message: UserStoredMessage = message
+                .clone()
+                .try_into()
+                .unwrap_or_else(|_| unreachable!("Replies are never added into mailbox"));
+            MailboxOf::<T>::insert(message, hold.expected())
                 .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
 
             // Adding removal request in task pool.
             TaskPoolOf::<T>::add(
                 hold.expected(),
-                ScheduledTask::RemoveFromMailbox(to, message.id()),
+                ScheduledTask::RemoveFromMailbox(to, message_id),
             )
             .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 

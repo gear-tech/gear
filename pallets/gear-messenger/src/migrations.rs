@@ -248,7 +248,8 @@ mod transition {
     use gear_core::{
         ids::MessageId,
         message::{
-            MessageDetails, ReplyDetails, SignalDetails, StoredDispatch, StoredMessage, UserMessage,
+            MessageDetails, ReplyDetails, SignalDetails, StoredDispatch, StoredMessage,
+            UserStoredMessage,
         },
     };
     use gear_core_errors::{
@@ -305,7 +306,7 @@ mod transition {
         )
     }
 
-    fn user_message(old_message: v1::StoredMessage) -> UserMessage {
+    fn user_stored_message(old_message: v1::StoredMessage) -> UserStoredMessage {
         let stored_message = stored_message(old_message);
 
         stored_message
@@ -324,8 +325,8 @@ mod transition {
 
     pub fn mailbox<T: Config>(
         old_value: (v1::StoredMessage, Interval<T::BlockNumber>),
-    ) -> (UserMessage, Interval<T::BlockNumber>) {
-        (user_message(old_value.0), old_value.1)
+    ) -> (UserStoredMessage, Interval<T::BlockNumber>) {
+        (user_stored_message(old_value.0), old_value.1)
     }
 
     pub fn waitlist<T: Config>(

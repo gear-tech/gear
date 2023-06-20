@@ -44,7 +44,7 @@ pub use init::{InitMessage, InitPacket};
 pub use reply::{ReplyMessage, ReplyPacket};
 pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
-pub use user::UserMessage;
+pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;
 use core::fmt::Display;

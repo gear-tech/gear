@@ -30,7 +30,7 @@ use scale_info::{
 
 use super::{MessageDetails, StoredMessage};
 
-/// Message sent to user's mailbox.
+/// Message sent to user and deposited as event.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct UserMessage {
     /// Message id.
@@ -156,6 +156,121 @@ impl From<UserMessage> for StoredMessage {
             payload: user.payload,
             value: user.value,
             details,
+        }
+    }
+}
+
+/// Message sent to user and added to mailbox.
+///
+/// May be represented only with `DispatchKind::Handle`,
+/// so does not contain message details.
+#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+pub struct UserStoredMessage {
+    /// Message id.
+    id: MessageId,
+    /// Message source.
+    source: ProgramId,
+    /// Message destination.
+    destination: ProgramId,
+    /// Message payload.
+    payload: Payload,
+    /// Message value.
+    #[codec(compact)]
+    value: Value,
+}
+
+impl UserStoredMessage {
+    /// Create new UserStoredMessage.
+    pub fn new(
+        id: MessageId,
+        source: ProgramId,
+        destination: ProgramId,
+        payload: Payload,
+        value: Value,
+    ) -> Self {
+        Self {
+            id,
+            source,
+            destination,
+            payload,
+            value,
+        }
+    }
+
+    /// Message id.
+    pub fn id(&self) -> MessageId {
+        self.id
+    }
+
+    /// Message source.
+    pub fn source(&self) -> ProgramId {
+        self.source
+    }
+
+    /// Message destination.
+    pub fn destination(&self) -> ProgramId {
+        self.destination
+    }
+
+    /// Message payload reference.
+    pub fn payload(&self) -> &[u8] {
+        self.payload.get()
+    }
+
+    /// Message value.
+    pub fn value(&self) -> Value {
+        self.value
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UserStoredMessageConvertError;
+
+impl TryFrom<StoredMessage> for UserStoredMessage {
+    type Error = UserStoredMessageConvertError;
+
+    fn try_from(stored: StoredMessage) -> Result<Self, Self::Error> {
+        if stored.details().is_some() {
+            return Err(UserStoredMessageConvertError);
+        }
+
+        Ok(Self {
+            id: stored.id,
+            source: stored.source,
+            destination: stored.destination,
+            payload: stored.payload,
+            value: stored.value,
+        })
+    }
+}
+
+impl TryFrom<UserMessage> for UserStoredMessage {
+    type Error = UserStoredMessageConvertError;
+
+    fn try_from(user: UserMessage) -> Result<Self, Self::Error> {
+        if user.details().is_some() {
+            return Err(UserStoredMessageConvertError);
+        }
+
+        Ok(Self {
+            id: user.id,
+            source: user.source,
+            destination: user.destination,
+            payload: user.payload,
+            value: user.value,
+        })
+    }
+}
+
+impl From<UserStoredMessage> for StoredMessage {
+    fn from(user_stored: UserStoredMessage) -> Self {
+        StoredMessage {
+            id: user_stored.id,
+            source: user_stored.source,
+            destination: user_stored.destination,
+            payload: user_stored.payload,
+            value: user_stored.value,
+            details: None,
         }
     }
 }
