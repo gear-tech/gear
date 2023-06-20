@@ -283,13 +283,7 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::Reply(len))]
-    pub fn reply(
-        ctx: &mut R,
-        payload_ptr: u32,
-        len: u32,
-        value_ptr: u32,
-        delay: u32,
-    ) -> Result<(), R::Error> {
+    pub fn reply(ctx: &mut R, payload_ptr: u32, len: u32, value_ptr: u32) -> Result<(), R::Error> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let value = Self::register_and_read_value(ctx, value_ptr)?;
         let payload = ctx.read(read_payload)?.try_into()?;
@@ -300,7 +294,7 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::ReplyCommit)]
-    pub fn reply_commit(ctx: &mut R, value_ptr: u32, delay: u32) -> Result<(), R::Error> {
+    pub fn reply_commit(ctx: &mut R, value_ptr: u32) -> Result<(), R::Error> {
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
         ctx.ext_mut()
@@ -314,7 +308,6 @@ where
         rid_value_ptr: u32,
         payload_ptr: u32,
         len: u32,
-        delay: u32,
     ) -> Result<(), R::Error> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let read_payload = ctx.register_read(payload_ptr, len);
@@ -330,11 +323,7 @@ where
     }
 
     #[host(fallible, cost = RuntimeCosts::ReservationReplyCommit)]
-    pub fn reservation_reply_commit(
-        ctx: &mut R,
-        rid_value_ptr: u32,
-        delay: u32,
-    ) -> Result<(), R::Error> {
+    pub fn reservation_reply_commit(ctx: &mut R, rid_value_ptr: u32) -> Result<(), R::Error> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let HashWithValue {
             hash: reservation_id,
@@ -368,13 +357,7 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::ReplyInput)]
-    pub fn reply_input(
-        ctx: &mut R,
-        offset: u32,
-        len: u32,
-        value_ptr: u32,
-        delay: u32,
-    ) -> Result<(), R::Error> {
+    pub fn reply_input(ctx: &mut R, offset: u32, len: u32, value_ptr: u32) -> Result<(), R::Error> {
         // Charge for `len` is inside `reply_push_input`
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
