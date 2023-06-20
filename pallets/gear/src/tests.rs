@@ -848,8 +848,6 @@ fn non_existent_code_id_zero_gas() {
         ;; validating syscall
         i32.const 111 ;; err_mid_pid ptr
         i32.load
-        i32.const 0xffffffff ;; success code
-        i32.ne
         (if
             (then unreachable)
             (else)
@@ -902,8 +900,6 @@ fn waited_with_zero_gas() {
         ;; validating syscall
         i32.const 333 ;; err_mid ptr
         i32.load
-        i32.const 0xffffffff ;; success code
-        i32.ne
         (if
             (then unreachable)
             (else)
@@ -1664,8 +1660,6 @@ fn delayed_program_creation_no_code() {
             ;; validating syscall
             i32.const 111 ;; err_mid_pid ptr
             i32.load
-            i32.const 0xffffffff ;; success code
-            i32.ne
             (if
                 (then unreachable)
                 (else)
@@ -3245,8 +3239,6 @@ fn block_gas_limit_works() {
 
             i32.const 333 ;; addr
             i32.load
-            i32.const 0xffffffff ;; success code
-            i32.ne
             (if
                 (then unreachable)
                 (else)
@@ -8623,8 +8615,6 @@ fn missing_functions_are_not_executed() {
 
             i32.const 333 ;; addr
             i32.load
-            i32.const 0xffffffff ;; success code
-            i32.ne
             (if
                 (then unreachable)
                 (else)
@@ -11868,8 +11858,6 @@ mod utils {
 
                             i32.const 333 ;; addr
                             i32.load
-                            i32.const 0xffffffff ;; success code
-                            i32.ne
                             (if
                                 (then unreachable)
                                 (else)
@@ -12164,8 +12152,7 @@ fn check_random_works() {
                 (call $send (i32.const 111) (i32.const 68) (i32.const 32) (i64.const 10000000) (i32.const 0) (i32.const 333))
 
                 (i32.load (i32.const 333))
-                i32.const 0xffffffff ;; success code
-                i32.eq
+                i32.eqz
                 br_if 0
                 unreachable
             )
