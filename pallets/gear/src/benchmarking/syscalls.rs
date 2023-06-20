@@ -731,8 +731,6 @@ where
             InstrI32Const(payload_len),
             // value offset
             InstrI32Const(value_offset),
-            // delay
-            InstrI32Const(10),
         ];
 
         let name = match wgas {
@@ -759,19 +757,22 @@ where
         let value_offset = COMMON_OFFSET;
         let res_offset = value_offset + VALUE_SIZE;
 
-        let mut params = vec![
-            // value offset
-            InstrI32Const(value_offset),
-            // delay
-            InstrI32Const(10),
-        ];
+        let (name, params) = if wgas {
+            let params = vec![
+                // gas_limit
+                InstrI64Const(100_000_000),
+                // value offset
+                InstrI32Const(value_offset),
+            ];
 
-        let name = match wgas {
-            true => {
-                params.insert(0, InstrI64Const(100_000_000));
-                SysCallName::ReplyCommitWGas
-            }
-            false => SysCallName::ReplyCommit,
+            (SysCallName::ReplyCommitWGas, params)
+        } else {
+            let params = vec![
+                // value offset
+                InstrI32Const(value_offset),
+            ];
+
+            (SysCallName::ReplyCommit, params)
         };
 
         let module = ModuleDefinition {
@@ -874,8 +875,6 @@ where
                     InstrI32Const(payload_offset),
                     // payload len
                     InstrI32Const(payload_len),
-                    // delay
-                    InstrI32Const(10),
                 ],
             )),
             ..Default::default()
@@ -913,8 +912,6 @@ where
                 &[
                     // rid_value ptr
                     Counter(rid_value_offset, RID_VALUE_SIZE),
-                    // delay
-                    InstrI32Const(10),
                 ],
             )),
             ..Default::default()
@@ -992,8 +989,6 @@ where
             InstrI32Const(input_len),
             // value offset
             InstrI32Const(value_offset),
-            // delay
-            InstrI32Const(10),
         ];
 
         let name = match wgas {

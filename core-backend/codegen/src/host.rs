@@ -79,12 +79,13 @@ impl HostFn {
 
         let mut injected = false;
         let mut new_inputs = vec![];
+        let gas_limit: FnArg = parse_quote!(gas_limit: u64);
         inputs.into_iter().for_each(|a| {
             if let FnArg::Typed(PatType { pat, .. }) = a.clone() {
                 if let Pat::Ident(ident) = pat.as_ref() {
                     // TODO #2722
                     if !injected && (ident.ident == "value_ptr" || ident.ident == "delay") {
-                        new_inputs.push(parse_quote!(gas_limit: u64));
+                        new_inputs.push(gas_limit.clone());
                         injected = true;
                     }
                 }
@@ -92,6 +93,13 @@ impl HostFn {
 
             new_inputs.push(a);
         });
+
+        // The order of gas_limit is before "value_ptr" or "delay", if
+        // there is no "value_ptr" or "delay", we will inject gas_limit
+        // at the end.
+        if !injected {
+            new_inputs.push(gas_limit);
+        }
 
         new_inputs
     }

@@ -24,6 +24,7 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+use common::storage::{Mailbox, Messenger};
 use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::weights::ConstantMultiplier;
 pub use frame_support::{
@@ -51,7 +52,7 @@ use frame_system::{
     EnsureRoot,
 };
 pub use pallet_gear::manager::{ExtManager, HandleKind};
-pub use pallet_gear_payment::CustomChargeTransactionPayment;
+pub use pallet_gear_payment::{CustomChargeTransactionPayment, DelegateFee};
 pub use pallet_gear_staking_rewards::StakingBlackList;
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
@@ -769,6 +770,7 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type Voucher = GearVoucher;
     type ProgramRentFreePeriod = ConstU32<RENT_FREE_PERIOD>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
@@ -822,9 +824,42 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
     }
 }
 
+pub struct DelegateFeeAccountBuilder;
+// TODO: in case of the `send_reply_with_voucher` call we have to iterate through the
+// user's mailbox to dig out the stored message source `program_id` to check if it has
+// issued a voucher to pay for the reply extrinsic transaction fee.
+// Isn't there a better way to do that?
+impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
+    fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
+        match call {
+            RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher {
+                destination, ..
+            }) => Some(GearVoucher::voucher_account_id(who, destination)),
+            RuntimeCall::Gear(pallet_gear::Call::send_reply_with_voucher {
+                reply_to_id, ..
+            }) => <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
+                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
+            ),
+            _ => None,
+        }
+    }
+}
+
 impl pallet_gear_payment::Config for Runtime {
     type ExtraFeeCallFilter = ExtraFeeFilter;
+    type DelegateFee = DelegateFeeAccountBuilder;
     type Messenger = GearMessenger;
+}
+
+parameter_types! {
+    pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+}
+
+impl pallet_gear_voucher::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type PalletId = VoucherPalletId;
+    type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
@@ -900,6 +935,7 @@ construct_runtime!(
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
         StakingRewards: pallet_gear_staking_rewards = 106,
+        GearVoucher: pallet_gear_voucher = 107,
 
         // TODO: remove from production version
         Airdrop: pallet_airdrop = 198,
@@ -957,6 +993,7 @@ construct_runtime!(
         Gear: pallet_gear = 104,
         GearPayment: pallet_gear_payment = 105,
         StakingRewards: pallet_gear_staking_rewards = 106,
+        GearVoucher: pallet_gear_voucher = 107,
 
         // TODO: remove from production version
         Airdrop: pallet_airdrop = 198,
@@ -1024,6 +1061,7 @@ mod benches {
         [pallet_utility, Utility]
         // Gear pallets
         [pallet_gear, Gear]
+        [pallet_gear_voucher, GearVoucher]
     );
 }
 

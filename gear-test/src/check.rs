@@ -278,7 +278,7 @@ pub fn check_messages(
                                     );
 
                                     let new_payload =
-                                        MetaData::CodecBytes((*msg.payload()).to_vec())
+                                        MetaData::CodecBytes((*msg.payload_bytes()).to_vec())
                                             .convert(&path, &meta_type)
                                             .expect("Unable to get bytes")
                                             .into_bytes();
@@ -293,9 +293,9 @@ pub fn check_messages(
                                     );
                                 };
 
-                                !payload.equals(msg.payload())
+                                !payload.equals(msg.payload_bytes())
                             }
-                            _ => !payload.equals(msg.payload()),
+                            _ => !payload.equals(msg.payload_bytes()),
                         })
                         .unwrap_or(false)
                 {
@@ -306,7 +306,7 @@ pub fn check_messages(
                             .expect("Checked above.")
                             .clone()
                             .into_raw(),
-                        (*msg.payload()).to_vec(),
+                        (*msg.payload_bytes()).to_vec(),
                     ))
                 }
 
@@ -561,7 +561,7 @@ where
         }
         if let Some(log) = &exp.log {
             for message in &final_state.log {
-                if let Ok(utf8) = std::str::from_utf8(message.payload()) {
+                if let Ok(utf8) = std::str::from_utf8(message.payload_bytes()) {
                     log::debug!("log(text: {})", utf8);
                 } else {
                     log::debug!("log(<binary>)");

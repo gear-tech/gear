@@ -30,7 +30,7 @@ use gear_backend_codegen::host;
 use gear_core::{
     buffer::RuntimeBuffer,
     costs::RuntimeCosts,
-    env::Externalities,
+    env::{DropPayloadLockBound, Externalities},
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
@@ -174,14 +174,17 @@ where
 
     #[host(fallible, cost = RuntimeCosts::Read, err_len = LengthBytes)]
     pub fn read(ctx: &mut R, at: u32, len: u32, buffer_ptr: u32) -> Result<(), R::Error> {
-        let (buffer, mut gas_left) = ctx.ext_mut().read(at, len)?;
-        let buffer = buffer.to_vec();
+        let payload_lock = ctx.ext_mut().lock_payload(at, len)?;
+        payload_lock
+            .drop_with::<MemoryAccessError, _>(|payload_access| {
+                let write_buffer = ctx.register_write(buffer_ptr, len);
+                let write_res = ctx.write(write_buffer, payload_access.as_slice());
+                let unlock_bound = ctx.ext_mut().unlock_payload(payload_access.into_lock());
 
-        let write_buffer = ctx.register_write(buffer_ptr, len);
-        ctx.memory_manager_write(write_buffer, &buffer, &mut gas_left)?;
-
-        ctx.ext_mut().set_gas_left(gas_left);
-        Ok(())
+                DropPayloadLockBound::from((unlock_bound, write_res))
+            })
+            .into_inner()
+            .map_err(Into::into)
     }
 
     #[host(cost = RuntimeCosts::Size)]
@@ -280,13 +283,7 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::Reply(len))]
-    pub fn reply(
-        ctx: &mut R,
-        payload_ptr: u32,
-        len: u32,
-        value_ptr: u32,
-        delay: u32,
-    ) -> Result<(), R::Error> {
+    pub fn reply(ctx: &mut R, payload_ptr: u32, len: u32, value_ptr: u32) -> Result<(), R::Error> {
         let read_payload = ctx.register_read(payload_ptr, len);
         let value = Self::register_and_read_value(ctx, value_ptr)?;
         let payload = ctx.read(read_payload)?.try_into()?;
@@ -297,7 +294,7 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::ReplyCommit)]
-    pub fn reply_commit(ctx: &mut R, value_ptr: u32, delay: u32) -> Result<(), R::Error> {
+    pub fn reply_commit(ctx: &mut R, value_ptr: u32) -> Result<(), R::Error> {
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
         ctx.ext_mut()
@@ -311,7 +308,6 @@ where
         rid_value_ptr: u32,
         payload_ptr: u32,
         len: u32,
-        delay: u32,
     ) -> Result<(), R::Error> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let read_payload = ctx.register_read(payload_ptr, len);
@@ -327,11 +323,7 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::ReservationReplyCommit)]
-    pub fn reservation_reply_commit(
-        ctx: &mut R,
-        rid_value_ptr: u32,
-        delay: u32,
-    ) -> Result<(), R::Error> {
+    pub fn reservation_reply_commit(ctx: &mut R, rid_value_ptr: u32) -> Result<(), R::Error> {
         let read_rid_value = ctx.register_read_as(rid_value_ptr);
         let HashWithValue {
             hash: reservation_id,
@@ -365,13 +357,7 @@ where
     }
 
     #[host(fallible, wgas, cost = RuntimeCosts::ReplyInput)]
-    pub fn reply_input(
-        ctx: &mut R,
-        offset: u32,
-        len: u32,
-        value_ptr: u32,
-        delay: u32,
-    ) -> Result<(), R::Error> {
+    pub fn reply_input(ctx: &mut R, offset: u32, len: u32, value_ptr: u32) -> Result<(), R::Error> {
         // Charge for `len` is inside `reply_push_input`
         let value = Self::register_and_read_value(ctx, value_ptr)?;
 
