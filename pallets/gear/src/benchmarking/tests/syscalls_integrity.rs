@@ -398,7 +398,7 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|id, _| {
-        let mp = vec![Kind::ProgramId(id.into())].encode().into();
+        let mp = vec![Kind::ProgramId(id.into_origin().into())].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -417,7 +417,7 @@ where
         );
         let mp = MessageParamsBuilder::new(
             vec![Kind::Source(
-                message_sender.clone().into_origin().to_fixed_bytes(),
+                message_sender.clone().into_origin().into(),
             )]
             .encode(),
         )
@@ -473,7 +473,7 @@ where
         let mp = vec![Kind::CreateProgram(
             salt,
             gas,
-            (expected_mid.into(), expected_pid.into()),
+            (expected_mid.into(), expected_pid.into_origin().into()),
         )]
         .encode()
         .into();

@@ -21,6 +21,7 @@
 extern crate alloc;
 
 use codec::{Decode, Encode};
+use gstd::ActorId;
 
 #[cfg(feature = "wasm-wrapper")]
 mod code {
@@ -28,7 +29,6 @@ mod code {
 }
 
 type MessageId = [u8; 32];
-type ActorId = [u8; 32];
 
 #[cfg(feature = "wasm-wrapper")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
@@ -159,7 +159,7 @@ mod wasm {
                 };
                 let (actual_mid, actual_pid) = res.expect("internal error: create program failed");
                 let actual_mid: [u8; 32] = actual_mid.into();
-                let actual_pid: [u8; 32] = actual_pid.into();
+                let actual_pid = actual_pid;
                 assert_eq!(
                     expected_mid, actual_mid,
                     "Kind::CreateProgram: mid test failed"
@@ -259,11 +259,11 @@ mod wasm {
                 }
             }
             Kind::ProgramId(expected_pid) => {
-                let actual_pid: [u8; 32] = exec::program_id().into();
+                let actual_pid = exec::program_id();
                 assert_eq!(expected_pid, actual_pid, "Kind::ProgramId: pid test failed");
             }
             Kind::Source(expected_actor) => {
-                let actual_actor: [u8; 32] = msg::source().into();
+                let actual_actor = msg::source();
                 assert_eq!(
                     expected_actor, actual_actor,
                     "Kind::Source: actor test failed"
