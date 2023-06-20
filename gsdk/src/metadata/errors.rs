@@ -52,12 +52,13 @@ macro_rules! export_module_error {
 
         impl From<subxt::error::ModuleError> for ModuleError {
             fn from(error: subxt::error::ModuleError) -> ModuleError {
-                match error.error_data.pallet_index {
-                     $($index => match $error::decode(&mut [error.error_data.error[0]].as_ref()) {
+                let raw = error.raw();
+                match raw.pallet_index {
+                     $($index => match $error::decode(&mut [raw.error[0]].as_ref()) {
                          Ok(e) => ModuleError::$error(e),
                          Err(_) => ModuleError::Unknown {
-                             pallet_index: error.error_data.pallet_index,
-                             error: error.error_data.error,
+                             pallet_index: raw.pallet_index,
+                             error: raw.error,
                          },
                      }),*,
                      // `pallet_fellowship_referenda => 19`
@@ -66,18 +67,18 @@ macro_rules! export_module_error {
                      //
                      // `pallet_fellowship_collective => 18`
                      19 => {
-                         let mb_error = RanckedCollective::decode(&mut error.error_data.error.as_ref());
+                         let mb_error = RanckedCollective::decode(&mut raw.error.as_ref());
                          match mb_error {
                              Ok(e) => ModuleError::RanckedCollective(e),
                              Err(_) => ModuleError::Unknown {
-                                 pallet_index: error.error_data.pallet_index,
-                                 error: error.error_data.error,
+                                 pallet_index: raw.pallet_index,
+                                 error: raw.error,
                              },
                          }
                      },
                      _ => ModuleError::Unknown {
-                         pallet_index: error.error_data.pallet_index,
-                         error: error.error_data.error,
+                         pallet_index: raw.pallet_index,
+                         error: raw.error,
                      }
                 }
             }
