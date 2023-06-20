@@ -13151,6 +13151,9 @@ fn double_read_works() {
 
         run_to_next_block(None);
 
-        assert_responses_to_user(USER_1, vec![Assertion::StatusCode(Some(0))]);
+        assert_responses_to_user(
+            USER_1,
+            vec![Assertion::ReplyCode(SuccessReason::Auto.into())],
+        );
     });
 }

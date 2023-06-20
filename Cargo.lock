@@ -3888,6 +3888,7 @@ dependencies = [
  "gclient",
  "gear-call-gen",
  "gear-core",
+ "gear-core-errors",
  "gear-utils",
  "gsdk",
  "hex",

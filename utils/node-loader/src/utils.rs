@@ -4,14 +4,12 @@ use futures_timer::Delay;
 use gclient::{Event, GearApi, GearEvent, WSAddress};
 use gear_call_gen::GearProgGenConfig;
 use gear_core::ids::{MessageId, ProgramId};
+use gear_core_errors::ReplyCode;
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
     gear_core::{
         ids::MessageId as GenMId,
-        message::{
-            common::{MessageDetails, ReplyDetails},
-            stored::StoredMessage as GenStoredMessage,
-        },
+        message::{common::ReplyDetails, user::UserMessage as GenUserMessage},
     },
 };
 use rand::rngs::SmallRng;
@@ -126,7 +124,7 @@ pub async fn capture_mailbox_messages(
                 message,
                 expiration: Some(exp_bn),
             }) if exp_bn >= &bn_threshold && message.destination == to.into() => {
-                Some(message.id.into())
+                Some(message.id.clone().into())
             }
             _ => None,
         })
@@ -165,20 +163,16 @@ pub fn err_or_succeed_batch(
         .filter_map(|e| match e {
             Event::Gear(GearEvent::UserMessageSent {
                 message:
-                    GenStoredMessage {
+                    GenUserMessage {
                         payload,
-                        details:
-                            Some(MessageDetails::Reply(ReplyDetails {
-                                reply_to,
-                                status_code,
-                            })),
+                        details: Some(ReplyDetails { to, code }),
                         ..
                     },
                 ..
             }) => {
-                if message_ids.contains(reply_to) && *status_code != 0 {
+                if message_ids.contains(to) && ReplyCode::from(code.clone()).is_success() {
                     Some(vec![(
-                        (*reply_to).into(),
+                        to.clone().into(),
                         Some(String::from_utf8(payload.0.to_vec()).expect("Infallible")),
                     )])
                 } else {
@@ -191,7 +185,7 @@ pub fn err_or_succeed_batch(
                     .filter_map(|(mid, status)| {
                         if message_ids.contains(mid) && !matches!(status, GenDispatchStatus::Failed)
                         {
-                            Some((MessageId::from(*mid), None))
+                            Some((MessageId::from(mid.clone()), None))
                         } else {
                             None
                         }
