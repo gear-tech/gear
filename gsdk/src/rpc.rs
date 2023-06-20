@@ -107,7 +107,6 @@ impl Api {
         &self,
         origin: H256,
         message_id: MessageId,
-        exit_code: i32,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -119,7 +118,6 @@ impl Api {
                 rpc_params![
                     origin,
                     H256(message_id.into()),
-                    exit_code,
                     hex::encode(payload),
                     value,
                     allow_other_panics,
