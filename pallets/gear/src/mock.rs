@@ -24,6 +24,7 @@ use frame_support::{
     parameter_types,
     traits::{ConstU64, FindAuthor, Get},
     weights::RuntimeDbWeight,
+    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
@@ -82,6 +83,7 @@ construct_runtime!(
         GearScheduler: pallet_gear_scheduler,
         Gear: pallet_gear,
         GearGas: pallet_gear_gas,
+        GearVoucher: pallet_gear_voucher,
         Balances: pallet_balances,
         Authorship: pallet_authorship,
         Timestamp: pallet_timestamp,
@@ -221,6 +223,7 @@ impl pallet_gear::Config for Test {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type Voucher = GearVoucher;
     type ProgramRentFreePeriod = RentFreePeriod;
     type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
     type ProgramRentCostPerBlock = RentCostPerBlock;
@@ -270,6 +273,17 @@ impl pallet_timestamp::Config for Test {
     type Moment = u64;
     type OnTimestampSet = ();
     type MinimumPeriod = MinimumPeriod;
+    type WeightInfo = ();
+}
+
+parameter_types! {
+    pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+}
+
+impl pallet_gear_voucher::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type PalletId = VoucherPalletId;
     type WeightInfo = ();
 }
 

@@ -1,12 +1,12 @@
 [package]
-name = "pallet-gear-gas"
-version = "2.0.0"
+name = "pallet-gear-voucher"
+version = "1.0.0"
 authors = ['Gear Technologies']
 edition = '2021'
 license.workspace = true
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-description = "Gear gas pallet"
+description = "Gear pallet implementing payment-voucher like functionality"
 readme = "README.md"
 
 [package.metadata.docs.rs]
@@ -27,24 +27,15 @@ gear-core.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
-sp-std.workspace = true
+sp-io = { workspace = true }
 sp-runtime.workspace = true
+sp-std.workspace = true
 pallet-balances.workspace = true
 
 [dev-dependencies]
 serde.workspace = true
 env_logger.workspace = true
-common = { workspace = true, features = ["std"] }
-gear-core.workspace = true
 sp-core = {workspace = true, features = ["std"] }
-sp-io = { workspace = true, features = ["std"] }
-frame-support-test = { workspace = true, features = ["std"] }
-pallet-authorship = { workspace = true, features = ["std"] }
-pallet-timestamp = { workspace = true, features = ["std"] }
-pallet-gear = { workspace = true, features = ["std"] }
-pallet-gear-program = { workspace = true, features = ["std"] }
-pallet-gear-messenger = { workspace = true, features = ["std"] }
-pallet-gear-scheduler = { workspace = true, features = ["std"] }
 
 [features]
 default = ['std']
@@ -65,7 +56,5 @@ runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
-	"parity-wasm",
 ]
 try-runtime = ["frame-support/try-runtime"]
-fuzz = ["common/fuzz"]
