@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gclient::GearApi;
-use subxt::error::{DispatchError, ModuleError};
+use gclient::{
+    errors::{self, ModuleError},
+    GearApi,
+};
 
 #[tokio::test]
 async fn set_code_succeed() {
@@ -39,13 +41,13 @@ async fn set_code_failed() {
         .set_code_by_path("../target/release/wbuild/gear-runtime/gear_runtime.wasm")
         .await
         .unwrap_err();
-    if let gclient::Error::GearSDK(gsdk::Error::Subxt(subxt::Error::Runtime(
-        DispatchError::Module(ModuleError { pallet, error, .. }),
-    ))) = err
-    {
-        assert_eq!(pallet, "System");
-        assert_eq!(error, "SpecVersionNeedsToIncrease");
-    } else {
+
+    if !matches!(
+        err,
+        gclient::Error::Module(ModuleError::System(
+            errors::System::SpecVersionNeedsToIncrease
+        ))
+    ) {
         panic!("Unexpected error: {:?}", err);
     }
 }
