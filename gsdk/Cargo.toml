@@ -34,7 +34,7 @@ gsdk = { path = ".", features = ["testing"] }
 tokio = { workspace = true, features = [ "full" ] }
 demo-messager.workspace = true
 demo-new-meta.workspace = true
-demo-waiter.workspace = true
+demo-waiter = { workspace = true, features = ["std"] }
 
 [features]
 testing = [ "rand" ]
