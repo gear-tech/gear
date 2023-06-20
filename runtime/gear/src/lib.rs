@@ -105,6 +105,7 @@ mod weights;
 // into the WASM runtime blob. This is used by the `runtime_wasmBlobVersion` RPC call.
 // The format of the version is `x.y.z-commit_hash`, where the `x.y.z` is the version of this crate,
 // and the `commit_hash` is the hash of the commit from which the WASM blob was built.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 #[link_section = "wasm_blob_version"]
 static _WASM_BLOB_VERSION: [u8; const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"))
     .len()] = const_str::to_byte_array!(env!("SUBSTRATE_CLI_IMPL_VERSION"));
