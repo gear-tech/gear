@@ -42,13 +42,13 @@ use gear_core::{
     },
     message::{
         ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
-        ReplyPacket, StatusCode,
+        ReplyPacket,
     },
     reservation::GasReserver,
 };
 use gear_core_errors::{
-    ExecutionError, ExtError as ExtErrorCore, MemoryError, MessageError, ReservationError,
-    WaitError,
+    ExecutionError, ExtError as ExtErrorCore, MemoryError, MessageError, ReplyCode,
+    ReservationError, SignalCode, WaitError,
 };
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -615,8 +615,7 @@ impl Externalities for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_reply_details())
-            .map(|d| d.into_reply_to())
+            .and_then(|d| d.to_reply_details().map(|d| d.to_message_id()))
             .ok_or_else(|| MessageError::NoReplyContext.into())
     }
 
@@ -625,8 +624,7 @@ impl Externalities for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_signal_details())
-            .map(|d| d.from())
+            .and_then(|d| d.to_signal_details().map(|d| d.to_message_id()))
             .ok_or_else(|| MessageError::NoSignalContext.into())
     }
 
@@ -643,13 +641,22 @@ impl Externalities for Ext {
         Ok(self.context.message_context.current().source())
     }
 
-    fn status_code(&self) -> Result<StatusCode, Self::Error> {
+    fn reply_code(&self) -> Result<ReplyCode, Self::Error> {
         self.context
             .message_context
             .current()
             .details()
-            .map(|d| d.status_code())
-            .ok_or_else(|| MessageError::NoStatusCodeContext.into())
+            .and_then(|d| d.to_reply_details().map(|d| d.to_reply_code()))
+            .ok_or_else(|| MessageError::NoReplyContext.into())
+    }
+
+    fn signal_code(&self) -> Result<SignalCode, Self::Error> {
+        self.context
+            .message_context
+            .current()
+            .details()
+            .and_then(|d| d.to_signal_details().map(|d| d.to_signal_code()))
+            .ok_or_else(|| MessageError::NoSignalContext.into())
     }
 
     fn message_id(&self) -> Result<MessageId, Self::Error> {

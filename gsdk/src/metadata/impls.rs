@@ -15,6 +15,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use super::{
     gear_runtime::{RuntimeCall, RuntimeEvent},
     runtime_types::{
@@ -24,13 +25,14 @@ use super::{
             gas_provider::node::{GasNodeId, NodeLock},
         },
         gear_core::{ids as generated_ids, message as generated_message},
+        gear_core_errors as generated_core_errors,
         pallet_balances::pallet::Call as BalancesCall,
         pallet_gear::pallet::Call as GearCall,
         pallet_sudo::pallet::Call as SudoCall,
     },
 };
 use core::ops::{Index, IndexMut};
-use gear_core::{ids, message, message::StoredMessage};
+use gear_core::{ids, message, message::UserMessage};
 use parity_scale_codec::{Decode, Encode};
 use subxt::{dynamic::Value, utils::MultiAddress};
 
@@ -78,32 +80,21 @@ impl From<generated_ids::ReservationId> for ids::ReservationId {
     }
 }
 
+impl From<generated_core_errors::simple::ReplyCode> for gear_core_errors::ReplyCode {
+    fn from(value: generated_core_errors::simple::ReplyCode) -> Self {
+        Self::decode(&mut value.encode().as_ref()).expect("Incompatible metadata")
+    }
+}
+
 impl From<generated_message::common::ReplyDetails> for message::ReplyDetails {
     fn from(other: generated_message::common::ReplyDetails) -> Self {
-        message::ReplyDetails::new(other.reply_to.into(), other.status_code)
+        message::ReplyDetails::new(other.to.into(), other.code.into())
     }
 }
 
-impl From<generated_message::common::SignalDetails> for message::SignalDetails {
-    fn from(other: generated_message::common::SignalDetails) -> Self {
-        message::SignalDetails::new(other.from.into(), other.status_code)
-    }
-}
-
-impl From<generated_message::common::MessageDetails> for message::MessageDetails {
-    fn from(other: generated_message::common::MessageDetails) -> Self {
-        match other {
-            generated_message::common::MessageDetails::Reply(reply) => Self::Reply(reply.into()),
-            generated_message::common::MessageDetails::Signal(signal) => {
-                Self::Signal(signal.into())
-            }
-        }
-    }
-}
-
-impl From<generated_message::stored::StoredMessage> for message::StoredMessage {
-    fn from(other: generated_message::stored::StoredMessage) -> Self {
-        StoredMessage::new(
+impl From<generated_message::user::UserMessage> for message::UserMessage {
+    fn from(other: generated_message::user::UserMessage) -> Self {
+        message::UserMessage::new(
             other.id.into(),
             other.source.into(),
             other.destination.into(),
@@ -111,6 +102,19 @@ impl From<generated_message::stored::StoredMessage> for message::StoredMessage {
             other.payload.0.try_into().expect("Infallible"),
             other.value,
             other.details.map(Into::into),
+        )
+    }
+}
+
+impl From<generated_message::user::UserStoredMessage> for message::UserStoredMessage {
+    fn from(other: generated_message::user::UserStoredMessage) -> Self {
+        message::UserStoredMessage::new(
+            other.id.into(),
+            other.source.into(),
+            other.destination.into(),
+            // converting data from the same type
+            other.payload.0.try_into().expect("Infallible"),
+            other.value,
         )
     }
 }
@@ -157,7 +161,8 @@ macro_rules! impl_basic {
 impl_basic! {
     ApiEvent, generated_ids::MessageId,
     generated_ids::ProgramId, generated_ids::CodeId, generated_ids::ReservationId,
-    Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>
+    Reason<UserMessageReadRuntimeReason, UserMessageReadSystemReason>,
+    generated_core_errors::simple::ReplyCode
 }
 
 impl From<RuntimeCall> for Value {

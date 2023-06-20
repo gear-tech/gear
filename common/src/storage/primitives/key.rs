@@ -26,7 +26,7 @@ use crate::Origin;
 use core::marker::PhantomData;
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{StoredDispatch, StoredMessage},
+    message::{StoredDispatch, UserStoredMessage},
 };
 
 /// Represents logic of providing key as specified
@@ -51,7 +51,7 @@ pub struct MailboxKeyGen<T>(PhantomData<T>);
 // destination parameter.
 impl<T: Origin> KeyFor for MailboxKeyGen<T> {
     type Key = (T, MessageId);
-    type Value = StoredMessage;
+    type Value = UserStoredMessage;
 
     fn key_for(value: &Self::Value) -> Self::Key {
         (

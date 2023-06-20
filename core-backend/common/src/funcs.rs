@@ -34,11 +34,11 @@ use gear_core::{
     memory::{PageU32Size, WasmPage},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::ExtError;
+use gear_core_errors::{ExtError, ReplyCode, SignalCode};
 use gsys::{
     BlockNumberWithHash, Hash, HashWithValue, LengthBytes, LengthWithBlockNumberAndValue,
-    LengthWithCode, LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithTwoHashes,
-    TwoHashesWithValue,
+    LengthWithGas, LengthWithHandle, LengthWithHash, LengthWithReplyCode, LengthWithSignalCode,
+    LengthWithTwoHashes, TwoHashesWithValue,
 };
 use parity_scale_codec::Encode;
 
@@ -203,9 +203,21 @@ where
         Err(ActorTerminationReason::Exit(inheritor_id).into())
     }
 
-    #[host(fallible, cost = RuntimeCosts::StatusCode, err_len = LengthWithCode)]
-    pub fn status_code(ctx: &mut R) -> Result<(), R::Error> {
-        ctx.ext_mut().status_code().map_err(Into::into)
+    #[host(fallible, cost = RuntimeCosts::ReplyCode, err_len = LengthWithReplyCode)]
+    pub fn reply_code(ctx: &mut R) -> Result<(), R::Error> {
+        ctx.ext_mut()
+            .reply_code()
+            .map(ReplyCode::to_bytes)
+            .map_err(Into::into)
+    }
+
+    // TODO: write proper benchmark #2825
+    #[host(fallible, cost = RuntimeCosts::ReplyCode, err_len = LengthWithSignalCode)]
+    pub fn signal_code(ctx: &mut R) -> Result<(), R::Error> {
+        ctx.ext_mut()
+            .signal_code()
+            .map(SignalCode::to_u32)
+            .map_err(Into::into)
     }
 
     #[host(cost = RuntimeCosts::Alloc)]
@@ -343,6 +355,7 @@ where
         ctx.ext_mut().reply_to().map_err(Into::into)
     }
 
+    // TODO: write proper benchmark #2825
     #[host(fallible, cost = RuntimeCosts::SignalFrom)]
     pub fn signal_from(ctx: &mut R) -> Result<(), R::Error> {
         ctx.ext_mut().signal_from().map_err(Into::into)

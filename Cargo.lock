@@ -3531,6 +3531,7 @@ dependencies = [
  "etc",
  "gear-backend-wasmi",
  "gear-core",
+ "gear-core-errors",
  "gear-core-processor",
  "gmeta",
  "gsdk",
@@ -3577,6 +3578,7 @@ dependencies = [
  "futures-timer",
  "gear-common",
  "gear-core",
+ "gear-core-errors",
  "gear-utils",
  "gmeta",
  "gsdk",
@@ -3893,6 +3895,7 @@ dependencies = [
  "gclient",
  "gear-call-gen",
  "gear-core",
+ "gear-core-errors",
  "gear-utils",
  "gsdk",
  "hex",
@@ -4485,6 +4488,7 @@ dependencies = [
  "futures",
  "futures-util",
  "gear-core",
+ "gear-core-errors",
  "gsdk",
  "gsdk-codegen",
  "hex",
@@ -7272,6 +7276,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-core-errors",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -7358,6 +7363,7 @@ version = "2.0.0"
 dependencies = [
  "gear-common",
  "gear-core",
+ "gear-core-errors",
  "jsonrpsee",
  "pallet-gear-rpc-runtime-api",
  "sp-api",
@@ -7461,7 +7467,7 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
- "sp-std 5.0.0",
+ "sp-std",
 ]
 
 [[package]]

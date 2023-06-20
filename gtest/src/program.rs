@@ -30,7 +30,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message, SignalMessage},
     program::Program as CoreProgram,
 };
-use gear_core_errors::SimpleSignalError;
+use gear_core_errors::SignalCode;
 use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use path_clean::PathClean;
 use std::{
@@ -381,11 +381,7 @@ impl<'a> Program<'a> {
         system.validate_and_run_dispatch(Dispatch::new(kind, message))
     }
 
-    pub fn send_signal<ID: Into<ProgramIdWrapper>>(
-        &self,
-        from: ID,
-        err: SimpleSignalError,
-    ) -> RunResult {
+    pub fn send_signal<ID: Into<ProgramIdWrapper>>(&self, from: ID, code: SignalCode) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
         let source = from.into().0;
@@ -395,7 +391,7 @@ impl<'a> Program<'a> {
             source,
             system.fetch_inc_message_nonce() as u128,
         );
-        let message = SignalMessage::new(origin_msg_id, err);
+        let message = SignalMessage::new(origin_msg_id, code);
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
 
@@ -531,6 +527,7 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
 mod tests {
     use super::Program;
     use crate::{Log, System};
+    use gear_core_errors::ErrorReplyReason;
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -548,14 +545,16 @@ mod tests {
 
         let init_msg_payload = String::from("InvalidInput");
         let run_result = prog.send(user_id, init_msg_payload);
-        assert!(run_result.main_failed);
+        assert!(run_result.main_failed());
 
         let log = run_result.log();
         assert!(log[0].payload().starts_with(b"'Failed to load destination"));
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 
-        let expected_log = Log::error_builder(2).source(prog.id()).dest(user_id);
+        let expected_log = Log::error_builder(ErrorReplyReason::InactiveProgram)
+            .source(prog.id())
+            .dest(user_id);
 
         assert!(!run_result.main_failed());
         assert!(run_result.contains(&expected_log));

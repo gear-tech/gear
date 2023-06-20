@@ -46,15 +46,18 @@ pub type Index = u32;
 /// Represents length type.
 pub type Length = u32;
 
-/// Represents status code type.
-pub type StatusCode = i32;
+/// Represents reply code type.
+pub type ReplyCode = [u8; 4];
+
+/// Represents signal code type.
+pub type SignalCode = u32;
 
 /// Represents value type.
 pub type Value = u128;
 
 /// Represents type defining concatenated block number with hash. 36 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct BlockNumberWithHash {
     pub bn: BlockNumber,
     pub hash: Hash,
@@ -68,7 +71,7 @@ impl BlockNumberWithHash {
 
 /// Represents type defining concatenated hash with value. 48 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct HashWithValue {
     pub hash: Hash,
     pub value: Value,
@@ -80,22 +83,49 @@ impl HashWithValue {
     }
 }
 
-/// Represents type defining concatenated status code with length. 8 bytes.
+/// Represents type defining concatenated reply code with length. 8 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
-pub struct LengthWithCode {
+#[derive(Default, Debug)]
+pub struct LengthWithReplyCode {
     pub length: Length,
-    pub code: StatusCode,
+    pub code: ReplyCode,
 }
 
-impl LengthWithCode {
+impl LengthWithReplyCode {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
     }
 }
 
-impl From<Result<StatusCode, Length>> for LengthWithCode {
-    fn from(result: Result<StatusCode, Length>) -> Self {
+impl From<Result<ReplyCode, Length>> for LengthWithReplyCode {
+    fn from(result: Result<ReplyCode, Length>) -> Self {
+        let mut res: Self = Default::default();
+
+        match result {
+            Ok(code) => res.code = code,
+            Err(length) => res.length = length,
+        }
+
+        res
+    }
+}
+
+/// Represents type defining concatenated signal code with length. 8 bytes.
+#[repr(C, packed)]
+#[derive(Default, Debug)]
+pub struct LengthWithSignalCode {
+    pub length: Length,
+    pub code: SignalCode,
+}
+
+impl LengthWithSignalCode {
+    pub fn as_mut_ptr(&mut self) -> *mut Self {
+        self as _
+    }
+}
+
+impl From<Result<SignalCode, Length>> for LengthWithSignalCode {
+    fn from(result: Result<SignalCode, Length>) -> Self {
         let mut res: Self = Default::default();
 
         match result {
@@ -109,7 +139,7 @@ impl From<Result<StatusCode, Length>> for LengthWithCode {
 
 /// Represents type defining concatenated length with gas. 12 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthWithGas {
     pub length: Length,
     pub gas: Gas,
@@ -136,7 +166,7 @@ impl From<Result<Gas, Length>> for LengthWithGas {
 
 /// Represents type defining concatenated length with handle. 8 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthWithHandle {
     pub length: Length,
     pub handle: Handle,
@@ -162,7 +192,7 @@ impl From<Result<Handle, Length>> for LengthWithHandle {
 }
 
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthBytes([u8; mem::size_of::<Length>()]);
 
 impl From<Result<(), Length>> for LengthBytes {
@@ -173,7 +203,7 @@ impl From<Result<(), Length>> for LengthBytes {
 
 /// Represents type defining concatenated hash with length. 36 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthWithHash {
     pub length: Length,
     pub hash: Hash,
@@ -200,7 +230,7 @@ impl<T: Into<[u8; 32]>> From<Result<T, Length>> for LengthWithHash {
 
 /// Represents type defining concatenated two hashes with length. 68 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthWithTwoHashes {
     pub length: Length,
     pub hash1: Hash,
@@ -235,7 +265,7 @@ where
 
 /// Represents type defining concatenated block number and value with length. 24 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LengthWithBlockNumberAndValue {
     pub length: Length,
     pub bn: BlockNumber,
@@ -266,7 +296,7 @@ impl From<Result<(Value, BlockNumber), Length>> for LengthWithBlockNumberAndValu
 
 /// Represents type defining concatenated two hashes. 64 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct TwoHashes {
     pub hash1: Hash,
     pub hash2: Hash,
@@ -280,7 +310,7 @@ impl TwoHashes {
 
 /// Represents type defining concatenated two hashes with value. 80 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct TwoHashesWithValue {
     pub hash1: Hash,
     pub hash2: Hash,
@@ -387,11 +417,17 @@ extern "C" {
     /// - `len`: `mut ptr` for `u32` current error length.
     pub fn gr_error(buf: *mut BufferStart, len: *mut Length);
 
-    /// Fallible `gr_status_code` get syscall.
+    /// Fallible `gr_reply_code` get syscall.
     ///
     /// Arguments type:
-    /// - `err_code`: `mut ptr` for concatenated error length and status code.
-    pub fn gr_status_code(err_code: *mut LengthWithCode);
+    /// - `err_code`: `mut ptr` for concatenated error length and reply code.
+    pub fn gr_reply_code(err_code: *mut LengthWithReplyCode);
+
+    /// Fallible `gr_signal_code` get syscall.
+    ///
+    /// Arguments type:
+    /// - `err_code`: `mut ptr` for concatenated error length and signal code.
+    pub fn gr_signal_code(err_code: *mut LengthWithSignalCode);
 
     /// Infallible `gr_exit` control syscall.
     ///
