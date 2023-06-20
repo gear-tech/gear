@@ -1221,6 +1221,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "520fbf3c07483f94e3e3ca9d0cfd913d7718ef2483d2cfd91c0d9e91474ab913"
 
 [[package]]
+name = "const-str"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce5cd0d05ad8032f6252503d4a61401b640ce9365082accf046c68c7a419339d"
+
+[[package]]
 name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3947,6 +3953,7 @@ dependencies = [
 name = "gear-runtime"
 version = "0.1.0"
 dependencies = [
+ "const-str",
  "frame-benchmarking",
  "frame-executive",
  "frame-support",
@@ -3996,6 +4003,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "static_assertions",
+ "substrate-build-script-utils",
  "substrate-validator-set",
  "substrate-wasm-builder",
 ]
@@ -4128,6 +4136,7 @@ dependencies = [
  "sc-consensus-grandpa-rpc",
  "sc-consensus-slots",
  "sc-executor",
+ "sc-executor-common",
  "sc-keystore",
  "sc-network",
  "sc-network-common",
@@ -12833,6 +12842,7 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 name = "vara-runtime"
 version = "0.1.0"
 dependencies = [
+ "const-str",
  "env_logger",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -12906,6 +12916,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "static_assertions",
+ "substrate-build-script-utils",
  "substrate-validator-set",
  "substrate-wasm-builder",
  "wat",
