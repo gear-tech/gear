@@ -49,7 +49,9 @@ pub trait WeightInfo {
     fn create_program(s: u32, ) -> Weight;
     fn upload_program(c: u32, s: u32, ) -> Weight;
     fn send_message(p: u32, ) -> Weight;
+    fn send_message_with_voucher(p: u32, ) -> Weight;
     fn send_reply(p: u32, ) -> Weight;
+    fn send_reply_with_voucher(p: u32, ) -> Weight;
     fn initial_allocation(q: u32, ) -> Weight;
     fn alloc_in_handle(q: u32, ) -> Weight;
     fn reinstrument_per_kb(c: u32, ) -> Weight;
@@ -378,6 +380,18 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(8_u64))
     }
     /// The range of component `p` is `[0, 2097152]`.
+    fn send_message_with_voucher(p: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `452`
+        //  Estimated: `27184`
+        // Minimum execution time: 86_807_000 picoseconds.
+        Weight::from_parts(53_717_791, 27184)
+            // Standard Error: 1
+            .saturating_add(Weight::from_parts(1_206, 0).saturating_mul(p.into()))
+            .saturating_add(T::DbWeight::get().reads(10_u64))
+            .saturating_add(T::DbWeight::get().writes(9_u64))
+    }
+    /// The range of component `p` is `[0, 2097152]`.
     fn send_reply(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `954`
@@ -388,6 +402,18 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(1_227, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads(13_u64))
             .saturating_add(T::DbWeight::get().writes(10_u64))
+    }
+    /// The range of component `p` is `[0, 2097152]`.
+    fn send_reply_with_voucher(p: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1153`
+        //  Estimated: `46405`
+        // Minimum execution time: 136_904_000 picoseconds.
+        Weight::from_parts(122_442_770, 46405)
+            // Standard Error: 1
+            .saturating_add(Weight::from_parts(1_232, 0).saturating_mul(p.into()))
+            .saturating_add(T::DbWeight::get().reads(14_u64))
+            .saturating_add(T::DbWeight::get().writes(11_u64))
     }
     /// The range of component `q` is `[1, 512]`.
     fn initial_allocation(q: u32, ) -> Weight {
@@ -2223,6 +2249,18 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(8_u64))
     }
     /// The range of component `p` is `[0, 2097152]`.
+    fn send_message_with_voucher(p: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `452`
+        //  Estimated: `27184`
+        // Minimum execution time: 86_807_000 picoseconds.
+        Weight::from_parts(53_717_791, 27184)
+            // Standard Error: 1
+            .saturating_add(Weight::from_parts(1_206, 0).saturating_mul(p.into()))
+            .saturating_add(RocksDbWeight::get().reads(10_u64))
+            .saturating_add(RocksDbWeight::get().writes(9_u64))
+    }
+    /// The range of component `p` is `[0, 2097152]`.
     fn send_reply(p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `954`
@@ -2233,6 +2271,18 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(1_227, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads(13_u64))
             .saturating_add(RocksDbWeight::get().writes(10_u64))
+    }
+    /// The range of component `p` is `[0, 2097152]`.
+    fn send_reply_with_voucher(p: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `1153`
+        //  Estimated: `46405`
+        // Minimum execution time: 136_904_000 picoseconds.
+        Weight::from_parts(122_442_770, 46405)
+            // Standard Error: 1
+            .saturating_add(Weight::from_parts(1_232, 0).saturating_mul(p.into()))
+            .saturating_add(RocksDbWeight::get().reads(14_u64))
+            .saturating_add(RocksDbWeight::get().writes(11_u64))
     }
     /// The range of component `q` is `[1, 512]`.
     fn initial_allocation(q: u32, ) -> Weight {

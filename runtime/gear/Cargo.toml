@@ -66,6 +66,7 @@ pallet-gear.workspace = true
 pallet-gear-debug = { workspace = true, optional = true }
 pallet-gear-gas.workspace = true
 pallet-gear-payment.workspace = true
+pallet-gear-voucher.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
 
@@ -133,6 +134,7 @@ runtime-benchmarks = [
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
 	"pallet-gear/runtime-benchmarks",
+	"pallet-gear-voucher/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
 fuzz = [
@@ -154,6 +156,7 @@ try-runtime = [
 	"pallet-gear-program/try-runtime",
 	"pallet-gear-gas/try-runtime",
 	"pallet-gear-scheduler/try-runtime",
+	"pallet-gear-voucher/try-runtime",
 	"pallet-gear-debug?/try-runtime",
 	"pallet-authorship/try-runtime",
 	"pallet-babe/try-runtime",

@@ -28,7 +28,7 @@ use frame_support::{
 };
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, StoredDispatch},
+    message::{Dispatch, DispatchKind, Message, StoredDispatch, StoredMessage},
 };
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
@@ -557,4 +557,148 @@ fn query_info_and_fee_details_work() {
             },
         );
     });
+}
+
+#[test]
+fn fee_payer_replacement_works() {
+    new_test_ext().execute_with(|| {
+        let alice_initial_balance = Balances::free_balance(ALICE);
+        let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
+        let synthesized_initial_balance = Balances::free_balance(FEE_PAYER);
+
+        let program_id = ProgramId::from_origin(H256::random());
+
+        let call: &<Test as frame_system::Config>::RuntimeCall =
+            &RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher {
+                destination: program_id,
+                payload: Default::default(),
+                gas_limit: 100_000,
+                value: 0,
+            });
+
+        let len = 100usize;
+        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len as u64, 0));
+
+        let weight = Weight::from_parts(1_000, 0);
+
+        let pre = CustomChargeTransactionPayment::<Test>::from(0)
+            .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
+            .unwrap();
+
+        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
+
+        // Alice hasn't paid fees
+        assert_eq!(Balances::free_balance(ALICE), alice_initial_balance);
+
+        // But the Synthesized account has
+        assert_eq!(
+            Balances::free_balance(FEE_PAYER),
+            synthesized_initial_balance - fee_weight - fee_length
+        );
+
+        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
+            Some(pre),
+            &info_from_weight(weight),
+            &default_post_info(),
+            len,
+            &Ok(())
+        ));
+        assert_eq!(Balances::free_balance(ALICE), alice_initial_balance);
+        assert_eq!(
+            Balances::free_balance(FEE_PAYER),
+            synthesized_initial_balance - fee_weight - fee_length
+        );
+        assert_eq!(
+            Balances::free_balance(BLOCK_AUTHOR),
+            author_initial_balance + fee_weight + fee_length
+        );
+    });
+}
+
+#[test]
+fn reply_with_voucher_pays_fee_from_voucher_ok() {
+    new_test_ext().execute_with(|| {
+        let alice_initial_balance = Balances::free_balance(ALICE);
+        let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
+        let bob_initial_balance = Balances::free_balance(BOB);
+
+        let msg_id = MessageId::from_origin(H256::random());
+        let program_id = ProgramId::from_origin(H256::random());
+        // Put message in BOB's mailbox
+        assert_ok!(MailboxOf::<Test>::insert(
+            StoredMessage::new(
+                msg_id,
+                program_id,
+                ProgramId::from_origin(BOB.into_origin()),
+                Default::default(),
+                Default::default(),
+                None,
+            ),
+            5_u64
+        ));
+
+        // ALICE issues a voucher to BOB
+        assert_ok!(GearVoucher::issue(
+            RuntimeOrigin::signed(ALICE),
+            BOB,
+            program_id,
+            200_000_000,
+        ));
+        let voucher_id = GearVoucher::voucher_account_id(&BOB, &program_id);
+
+        run_to_block(2);
+
+        // Balance check
+        assert_eq!(Balances::free_balance(voucher_id), 200_000_000);
+        assert_eq!(
+            Balances::free_balance(ALICE),
+            alice_initial_balance.saturating_sub(200_000_000)
+        );
+
+        // Preparing a call
+        let gas_limit = 100_000_u64;
+        let call: &<Test as frame_system::Config>::RuntimeCall =
+            &RuntimeCall::Gear(pallet_gear::Call::send_reply_with_voucher {
+                reply_to_id: msg_id,
+                payload: vec![],
+                gas_limit,
+                value: 0,
+            });
+
+        let len = 100_usize;
+        let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len as u64, 0));
+
+        let weight = Weight::from_parts(100_000, 0);
+
+        let voucher_initial_balance = Balances::free_balance(voucher_id);
+
+        let pre = CustomChargeTransactionPayment::<Test>::from(0)
+            .pre_dispatch(&BOB, call, &info_from_weight(weight), len)
+            .unwrap();
+
+        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
+
+        // BOB hasn't paid fees
+        assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
+
+        // But the voucher account has
+        assert_eq!(
+            Balances::free_balance(voucher_id),
+            voucher_initial_balance - fee_weight - fee_length
+        );
+
+        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
+            Some(pre),
+            &info_from_weight(weight),
+            &default_post_info(),
+            len,
+            &Ok(())
+        ));
+
+        // Block autho has got his cut
+        assert_eq!(
+            Balances::free_balance(BLOCK_AUTHOR),
+            author_initial_balance + fee_weight + fee_length
+        );
+    })
 }
