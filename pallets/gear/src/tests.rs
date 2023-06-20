@@ -8590,7 +8590,7 @@ fn async_sleep_for() {
                     "Asserting Waiter reply {}",
                     expected_reply
                 );
-                let waiter_reply = <String>::decode(&mut get_last_mail(USER_1).payload())
+                let waiter_reply = <String>::decode(&mut get_last_mail(USER_1).payload_bytes())
                     .expect("Failed to decode Waiter reply");
                 assert_eq!(
                     waiter_reply, expected_reply,
