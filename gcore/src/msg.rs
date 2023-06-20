@@ -297,9 +297,8 @@ pub fn reply_with_gas_from_reservation(
             rid_value.as_ptr(),
             payload.as_ptr(),
             payload_len,
-            gas_limit,
-            0,
             res.as_mut_ptr(),
+            gas_limit,
         )
     };
     SyscallError(res.length).into_result()?;
@@ -464,7 +463,7 @@ pub fn reply_commit_with_gas_from_reservation(
     let mut res: LengthWithHash = Default::default();
 
     unsafe {
-        gsys::gr_reservation_reply_commit_wgas(rid_value.as_ptr(), gas_limit, 0, res.as_mut_ptr())
+        gsys::gr_reservation_reply_commit_wgas(rid_value.as_ptr(), res.as_mut_ptr(), gas_limit)
     };
     SyscallError(res.length).into_result()?;
 
