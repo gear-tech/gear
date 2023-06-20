@@ -184,7 +184,7 @@ pub struct ErrorBytes([u8; mem::size_of::<ErrorCode>()]);
 
 impl From<Result<(), ErrorCode>> for ErrorBytes {
     fn from(value: Result<(), ErrorCode>) -> Self {
-        Self(value.err().unwrap_or(SUCCESS_ERROR_CODE).to_le_bytes())
+        Self(value.err().unwrap_or_default().to_le_bytes())
     }
 }
 
