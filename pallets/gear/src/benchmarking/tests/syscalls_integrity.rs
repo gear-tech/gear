@@ -32,7 +32,7 @@ use super::*;
 use crate::{Event, RentCostPerBlockOf, WaitlistOf};
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
-use gear_core_errors::{ExtError, MessageError, ReplyCode, SuccessReason};
+use gear_core_errors::{ExtError, MessageError, ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::syscalls::SysCallName;
 use pallet_timestamp::Pallet as TimestampPallet;
 use parity_scale_codec::Decode;
@@ -697,7 +697,7 @@ where
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
 
-        let reply_code = ReplyCode::Success(SuccessReason::Manual).to_bytes();
+        let reply_code = ReplyCode::Success(SuccessReplyReason::Manual).to_bytes();
 
         // trigger sending message to default_sender's mailbox
         Gear::<T>::send_message(

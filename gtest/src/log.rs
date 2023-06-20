@@ -22,7 +22,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Payload, StoredMessage},
 };
-use gear_core_errors::{ErrorReason, ReplyCode};
+use gear_core_errors::{ErrorReplyReason, ReplyCode};
 use std::{convert::TryInto, fmt::Debug};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -65,7 +65,7 @@ impl From<StoredMessage> for CoreLog {
             payload: other.payload_bytes().to_vec().try_into().unwrap(),
             reply_code: other
                 .details()
-                .and_then(|d| d.to_reply_details().map(Into::into)),
+                .and_then(|d| d.to_reply_details().map(|d| d.to_reply_code())),
         }
     }
 }
@@ -130,7 +130,7 @@ impl Log {
         Default::default()
     }
 
-    pub fn error_builder(error_reason: ErrorReason) -> Self {
+    pub fn error_builder(error_reason: ErrorReplyReason) -> Self {
         let mut log = Self::builder();
         log.reply_code = Some(error_reason.into());
         log.payload = Some(
@@ -180,7 +180,8 @@ impl Log {
 
 impl PartialEq<StoredMessage> for Log {
     fn eq(&self, other: &StoredMessage) -> bool {
-        if matches!(other.reply(), Some(reply) if Some(ReplyCode::from(reply)) != self.reply_code) {
+        if matches!(other.reply_details(), Some(reply) if Some(reply.to_reply_code()) != self.reply_code)
+        {
             return false;
         }
         if matches!(self.source, Some(source) if source != other.source()) {
@@ -235,7 +236,7 @@ impl PartialEq<CoreLog> for Log {
             }
         }
 
-        if self.reply_code.map(|c| c.is_success()).unwrap_or(false) {
+        if matches!(self.reply_code, Some(c) if c.is_success()) {
             if let Some(payload) = &self.payload {
                 if payload.inner() != other.payload.inner() {
                     return false;

@@ -294,7 +294,7 @@ where
                 source,
                 HandleKind::Reply(
                     MessageId::from_origin(message_id),
-                    ReplyCode::Success(SuccessReason::Manual),
+                    ReplyCode::Success(SuccessReplyReason::Manual),
                 ),
                 payload.to_vec(),
                 value,
@@ -308,7 +308,7 @@ where
                 source,
                 HandleKind::Reply(
                     MessageId::from_origin(message_id),
-                    ReplyCode::Success(SuccessReason::Manual),
+                    ReplyCode::Success(SuccessReplyReason::Manual),
                 ),
                 payload.to_vec(),
                 value,

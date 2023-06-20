@@ -114,7 +114,7 @@ impl StoredMessage {
     }
 
     /// Message reply.
-    pub fn reply(&self) -> Option<ReplyDetails> {
+    pub fn reply_details(&self) -> Option<ReplyDetails> {
         self.details.and_then(|d| d.to_reply_details())
     }
 
@@ -122,6 +122,7 @@ impl StoredMessage {
     /// Consumes self in order to create new `StoredMessage`, which payload
     /// contains string representation of initial bytes,
     /// decoded into given type.
+    // TODO: issue #2849.
     pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
         if let Ok(decoded) = D::decode(&mut self.payload.inner()) {
             if let Ok(payload) = decoded.to_string().into_bytes().try_into() {
@@ -147,8 +148,7 @@ impl StoredMessage {
     /// Returns `ReplyCode` of message if reply.
     pub fn reply_code(&self) -> Option<ReplyCode> {
         self.details
-            .and_then(|d| d.to_reply_details())
-            .map(ReplyCode::from)
+            .and_then(|d| d.to_reply_details().map(|d| d.to_reply_code()))
     }
 }
 

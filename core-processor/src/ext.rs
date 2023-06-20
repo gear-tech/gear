@@ -615,7 +615,7 @@ impl Externalities for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_reply_details().map(Into::into))
+            .and_then(|d| d.to_reply_details().map(|d| d.to_message_id()))
             .ok_or_else(|| MessageError::NoReplyContext.into())
     }
 
@@ -624,7 +624,7 @@ impl Externalities for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_signal_details().map(Into::into))
+            .and_then(|d| d.to_signal_details().map(|d| d.to_message_id()))
             .ok_or_else(|| MessageError::NoSignalContext.into())
     }
 
@@ -646,7 +646,7 @@ impl Externalities for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_reply_details().map(Into::into))
+            .and_then(|d| d.to_reply_details().map(|d| d.to_reply_code()))
             .ok_or_else(|| MessageError::NoReplyContext.into())
     }
 
@@ -655,7 +655,7 @@ impl Externalities for Ext {
             .message_context
             .current()
             .details()
-            .and_then(|d| d.to_signal_details().map(Into::into))
+            .and_then(|d| d.to_signal_details().map(|d| d.to_signal_code()))
             .ok_or_else(|| MessageError::NoSignalContext.into())
     }
 

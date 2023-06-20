@@ -452,13 +452,13 @@ pub struct ActorExecutionError {
     /// Gas amount of the execution.
     pub gas_amount: GasAmount,
     /// Error text.
-    pub reason: ActorExecutionErrorReason,
+    pub reason: ActorExecutionErrorReplyReason,
 }
 
 /// Reason of execution error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 #[codec(crate = scale)]
-pub enum ActorExecutionErrorReason {
+pub enum ActorExecutionErrorReplyReason {
     /// Not enough gas to perform an operation during precharge.
     #[display(fmt = "Not enough gas to {_0}")]
     PreChargeGasLimitExceeded(PreChargeGasOperation),
@@ -473,16 +473,16 @@ pub enum ActorExecutionErrorReason {
     Trap(TrapExplanation),
 }
 
-impl ActorExecutionErrorReason {
-    /// Convert self into [`gear_core_errors::ExecutionError`]
+impl ActorExecutionErrorReplyReason {
+    /// Convert self into [`gear_core_errors::SimpleExecutionError`].
     pub fn as_simple(&self) -> SimpleExecutionError {
         match self {
-            ActorExecutionErrorReason::PreChargeGasLimitExceeded(_) => {
+            ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(_) => {
                 SimpleExecutionError::RanOutOfGas
             }
-            ActorExecutionErrorReason::PrepareMemory(_) => SimpleExecutionError::Unsupported,
-            ActorExecutionErrorReason::Environment(_) => SimpleExecutionError::Unsupported,
-            ActorExecutionErrorReason::Trap(expl) => match expl {
+            ActorExecutionErrorReplyReason::PrepareMemory(_) => SimpleExecutionError::Unsupported,
+            ActorExecutionErrorReplyReason::Environment(_) => SimpleExecutionError::Unsupported,
+            ActorExecutionErrorReplyReason::Trap(expl) => match expl {
                 TrapExplanation::GasLimitExceeded => SimpleExecutionError::RanOutOfGas,
                 TrapExplanation::ForbiddenFunction => SimpleExecutionError::BackendError,
                 TrapExplanation::ProgramAllocOutOfBounds => SimpleExecutionError::MemoryOverflow,

@@ -468,7 +468,7 @@ benchmarks! {
     verify {
         let auto_reply = QueueOf::<T>::dequeue().expect("Error in algorithm").expect("Element should be");
         assert!(auto_reply.payload_bytes().is_empty());
-        assert_eq!(ReplyCode::from(auto_reply.reply().expect("Should be")), ReplyCode::Success(SuccessReason::Auto));
+        assert_eq!(auto_reply.reply_details().expect("Should be").to_reply_code(), ReplyCode::Success(SuccessReplyReason::Auto));
         assert!(MailboxOf::<T>::is_empty(&caller));
     }
 

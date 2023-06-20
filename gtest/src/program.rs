@@ -527,7 +527,7 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8]) -> ProgramId {
 mod tests {
     use super::Program;
     use crate::{Log, System};
-    use gear_core_errors::ErrorReason;
+    use gear_core_errors::ErrorReplyReason;
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -552,7 +552,7 @@ mod tests {
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 
-        let expected_log = Log::error_builder(ErrorReason::InactiveProgram)
+        let expected_log = Log::error_builder(ErrorReplyReason::InactiveProgram)
             .source(prog.id())
             .dest(user_id);
 
@@ -716,7 +716,7 @@ mod tests {
         prog.send_bytes(signer, b"15");
 
         // Charge capacitor with CHARGE = 10
-        let response = dbg!(prog.send_bytes(signer, b"10"));
+        let response = prog.send_bytes(signer, b"10");
         let log = Log::builder()
             .source(prog.id())
             .dest(signer)

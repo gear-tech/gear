@@ -44,11 +44,11 @@ use scale_info::{
 pub enum ReplyCode {
     /// Success reply.
     #[display(fmt = "Success reply sent due to {_0}")]
-    Success(SuccessReason) = 0,
+    Success(SuccessReplyReason) = 0,
 
     /// Error reply.
     #[display(fmt = "Error reply sent due to {_0}")]
-    Error(ErrorReason) = 1,
+    Error(ErrorReplyReason) = 1,
 
     /// Unsupported code.
     /// Variant exists for backward compatibility.
@@ -83,18 +83,18 @@ impl ReplyCode {
         match bytes[0] {
             b if Self::Success(Default::default()).discriminant() == b => {
                 let reason_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
-                Self::Success(SuccessReason::from_bytes(reason_bytes))
+                Self::Success(SuccessReplyReason::from_bytes(reason_bytes))
             }
             b if Self::Error(Default::default()).discriminant() == b => {
                 let reason_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
-                Self::Error(ErrorReason::from_bytes(reason_bytes))
+                Self::Error(ErrorReplyReason::from_bytes(reason_bytes))
             }
             _ => Self::Unsupported,
         }
     }
 
     /// Constructs `ReplyCode::Error(_)` variant from underlying reason.
-    pub fn error(reason: impl Into<ErrorReason>) -> Self {
+    pub fn error(reason: impl Into<ErrorReplyReason>) -> Self {
         Self::Error(reason.into())
     }
 
@@ -120,7 +120,7 @@ impl ReplyCode {
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Reason of success reply creation.
-pub enum SuccessReason {
+pub enum SuccessReplyReason {
     /// Success reply was created by system automatically.
     #[display(fmt = "automatic sending")]
     Auto = 0,
@@ -136,7 +136,7 @@ pub enum SuccessReason {
     Unsupported = 255,
 }
 
-impl SuccessReason {
+impl SuccessReplyReason {
     fn to_bytes(self) -> [u8; 3] {
         [self as u8, 0, 0]
     }
@@ -166,7 +166,7 @@ impl SuccessReason {
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Reason of error reply creation.
-pub enum ErrorReason {
+pub enum ErrorReplyReason {
     /// Error reply was created due to underlying execution error.
     #[display(fmt = "execution error ({_0})")]
     Execution(SimpleExecutionError) = 0,
@@ -190,7 +190,7 @@ pub enum ErrorReason {
     Unsupported = 255,
 }
 
-impl ErrorReason {
+impl ErrorReplyReason {
     fn discriminant(&self) -> u8 {
         // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)` `union`
         // between `repr(C)` structs, each of which has the `u8` discriminant as its first

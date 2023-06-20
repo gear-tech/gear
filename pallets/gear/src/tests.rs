@@ -51,7 +51,7 @@ use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice as _, GasTree, LockId,
     LockableTree, Origin as _, PausedProgramStorage, ProgramStorage, ReservableTree,
 };
-use core_processor::{common::ActorExecutionErrorReason, ActorPrepareMemoryError};
+use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
@@ -117,7 +117,7 @@ fn auto_reply_sent() {
                 {
                     message
                         .reply_code()
-                        .map(|code| code == ReplyCode::Success(SuccessReason::Auto))
+                        .map(|code| code == ReplyCode::Success(SuccessReplyReason::Auto))
                         .unwrap_or(false)
                 }
                 _ => false,
@@ -245,7 +245,7 @@ fn auto_reply_out_of_rent_waitlist() {
                     }) = &r.event
                     {
                         (message.destination().into_origin() == USER_1.into_origin()
-                            && message.reply_code() == Some(SuccessReason::Auto.into()))
+                            && message.reply_code() == Some(SuccessReplyReason::Auto.into()))
                         .then_some(())
                     } else {
                         None
@@ -339,7 +339,7 @@ fn auto_reply_out_of_rent_mailbox() {
         assert!(dispatch.payload_bytes().is_empty());
         assert_eq!(
             dispatch.reply_code().expect("Should be"),
-            ReplyCode::Success(SuccessReason::Auto)
+            ReplyCode::Success(SuccessReplyReason::Auto)
         );
     });
 }
@@ -705,9 +705,9 @@ fn reply_deposit_gstd_async() {
         assert_succeed(handle_id);
 
         let reply = maybe_any_last_message().expect("Should be");
-        let (mid, code): (MessageId, ReplyCode) = reply.details().expect("Should be").into();
+        let (mid, code): (MessageId, ReplyCode) = reply.details().expect("Should be").into_parts();
         assert_eq!(mid, handle_id);
-        assert_eq!(code, ReplyCode::Success(SuccessReason::Manual));
+        assert_eq!(code, ReplyCode::Success(SuccessReplyReason::Manual));
         assert_eq!(reply.payload_bytes(), hello_reply);
     });
 }
@@ -3381,12 +3381,12 @@ fn block_gas_limit_works() {
 
         assert_failed(
             failed1,
-            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
         );
 
         assert_failed(
             failed2,
-            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
         );
 
         // =========== BLOCK 4 ============
@@ -3503,7 +3503,7 @@ fn init_message_logging_works() {
             // Will fail, because tests use default gas limit, which is very low for successful greedy init
             (
                 ProgramCodeKind::GreedyInit,
-                Some(ActorExecutionErrorReason::Trap(
+                Some(ActorExecutionErrorReplyReason::Trap(
                     TrapExplanation::GasLimitExceeded,
                 )),
             ),
@@ -3613,27 +3613,32 @@ fn events_logging_works() {
             (ProgramCodeKind::Default, None, None),
             (
                 ProgramCodeKind::GreedyInit,
-                Some(ActorExecutionErrorReason::Trap(
+                Some(ActorExecutionErrorReplyReason::Trap(
                     TrapExplanation::GasLimitExceeded,
                 )),
-                Some(ErrorReason::InactiveProgram.into()),
+                Some(ErrorReplyReason::InactiveProgram.into()),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
-                Some(ActorExecutionErrorReason::Trap(TrapExplanation::Unknown)),
-                Some(ErrorReason::InactiveProgram.into()),
+                Some(ActorExecutionErrorReplyReason::Trap(
+                    TrapExplanation::Unknown,
+                )),
+                Some(ErrorReplyReason::InactiveProgram.into()),
             ),
             // First try asserts by status code.
             (
                 ProgramCodeKind::Custom(wat_trap_in_handle),
                 None,
-                Some(ErrorReason::Execution(SimpleExecutionError::UnreachableInstruction).into()),
+                Some(
+                    ErrorReplyReason::Execution(SimpleExecutionError::UnreachableInstruction)
+                        .into(),
+                ),
             ),
             // Second similar try asserts by error payload explanation.
             (
                 ProgramCodeKind::Custom(wat_trap_in_handle),
                 None,
-                Some(ActorExecutionErrorReason::Trap(TrapExplanation::Unknown).into()),
+                Some(ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown).into()),
             ),
         ];
 
@@ -4644,7 +4649,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_gas,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::NotEnoughGas,
             ))),
         );
@@ -4680,7 +4685,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_gas,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::NotEnoughGas,
             ))),
         );
@@ -4716,7 +4721,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_gas,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::NotEnoughGas,
             ))),
         );
@@ -4753,7 +4758,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_for_arg,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::InvalidArgument,
             ))),
         );
@@ -4790,7 +4795,7 @@ fn test_different_waits_fail() {
 
         assert_failed(
             wait_up_to_arg,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                 WaitError::InvalidArgument,
             ))),
         );
@@ -4832,7 +4837,7 @@ fn wait_after_reply() {
             run_to_next_block(None);
             assert_failed(
                 message_id,
-                ActorExecutionErrorReason::Trap(TrapExplanation::Ext(ExtError::Wait(
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Ext(ExtError::Wait(
                     WaitError::WaitAfterReply,
                 ))),
             );
@@ -5445,7 +5450,10 @@ fn terminated_locking_funds() {
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Reply(message_to_reply, ReplyCode::Success(SuccessReason::Manual)),
+            HandleKind::Reply(
+                message_to_reply,
+                ReplyCode::Success(SuccessReplyReason::Manual),
+            ),
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
@@ -5471,7 +5479,7 @@ fn terminated_locking_funds() {
         assert_succeed(reply_id);
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
         );
         assert!(Gear::is_terminated(program_id));
         assert_balance(program_id, 0u128, prog_reserve);
@@ -6571,7 +6579,7 @@ fn pay_program_rent_syscall_works() {
 
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.into())),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
         );
 
         assert_eq!(balance_before, Balances::free_balance(pay_rent_account_id));
@@ -6615,7 +6623,7 @@ fn pay_program_rent_syscall_works() {
         };
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.into())),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
         );
 
         // pay maximum possible rent
@@ -7727,7 +7735,7 @@ fn test_create_program_with_value_lt_ed() {
 
         assert_failed(
             msg_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.into())),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
         );
     })
 }
@@ -7783,7 +7791,7 @@ fn test_create_program_with_exceeding_value() {
 
         assert_failed(
             msg_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.into())),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
         );
     })
 }
@@ -7870,7 +7878,9 @@ fn demo_constructor_works() {
 
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Panic(error_text.to_string().into())),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                error_text.to_string().into(),
+            )),
         );
 
         let reply = maybe_any_last_message().expect("Should be");
@@ -8086,7 +8096,7 @@ fn delayed_sending() {
         assert!(auto_reply.payload_bytes().is_empty());
         assert_eq!(
             auto_reply.reply_code().expect("Should be"),
-            ReplyCode::Success(SuccessReason::Auto)
+            ReplyCode::Success(SuccessReplyReason::Auto)
         );
 
         System::reset_events();
@@ -8450,7 +8460,7 @@ fn execution_over_blocks() {
 
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
         );
     });
 
@@ -8705,7 +8715,7 @@ fn missing_functions_are_not_executed() {
 
         let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Reply(reply_to_id, ReplyCode::Success(SuccessReason::Manual)),
+            HandleKind::Reply(reply_to_id, ReplyCode::Success(SuccessReplyReason::Manual)),
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
@@ -10738,7 +10748,7 @@ fn incomplete_async_payloads_kept() {
         .iter()
         .map(|v| {
             v.map(|s| Assertion::Payload(s.as_bytes().to_vec()))
-                .unwrap_or_else(|| Assertion::ReplyCode(SuccessReason::Auto.into()))
+                .unwrap_or_else(|| Assertion::ReplyCode(SuccessReplyReason::Auto.into()))
         })
         .collect::<Vec<_>>();
         assert_responses_to_user(USER_1, to_assert);
@@ -10800,9 +10810,9 @@ fn rw_lock_works() {
 
         let to_assert = vec![
             Assertion::Payload(0u32.encode()),
-            Assertion::ReplyCode(SuccessReason::Auto.into()),
+            Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
             Assertion::Payload(1u32.encode()),
-            Assertion::ReplyCode(SuccessReason::Auto.into()),
+            Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
             Assertion::Payload(2u32.encode()),
         ];
         assert_responses_to_user(USER_1, to_assert);
@@ -10820,7 +10830,7 @@ fn rw_lock_works() {
         run_to_next_block(None);
 
         let to_assert = vec![
-            Assertion::ReplyCode(SuccessReason::Auto.into()),
+            Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
             Assertion::Payload(1u32.encode()),
         ];
         assert_responses_to_user(USER_1, to_assert);
@@ -10840,7 +10850,7 @@ fn rw_lock_works() {
         let to_assert = vec![
             Assertion::Payload(0i32.encode()),
             Assertion::Payload(0i32.encode()),
-            Assertion::ReplyCode(SuccessReason::Auto.into()),
+            Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
         ];
         assert_responses_to_user(USER_1, to_assert);
     });
@@ -11083,7 +11093,7 @@ fn async_recursion() {
             .collect::<Vec<_>>();
         to_assert.insert(
             to_assert.len() - 1,
-            Assertion::ReplyCode(SuccessReason::Auto.into()),
+            Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
         );
         assert_responses_to_user(USER_1, to_assert);
     });
@@ -11128,7 +11138,7 @@ fn async_init() {
         assert_responses_to_user(
             USER_1,
             vec![
-                Assertion::ReplyCode(SuccessReason::Auto.into()),
+                Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
                 Assertion::Payload(2u8.encode()),
             ],
         );
@@ -11152,7 +11162,7 @@ mod utils {
         Origin, ProgramStorage,
     };
     use core::fmt::Display;
-    use core_processor::common::ActorExecutionErrorReason;
+    use core_processor::common::ActorExecutionErrorReplyReason;
     use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use frame_support::{
         codec::Decode,
@@ -11512,7 +11522,7 @@ mod utils {
         System::events().into_iter().for_each(|e| {
             if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 if let Some(details) = message.details() {
-                    let (mid, code) = details.into();
+                    let (mid, code) = details.into_parts();
                     if mid == message_id && code.is_error() {
                         actual_error = Some((
                             String::from_utf8(message.payload_bytes().to_vec())
@@ -11539,8 +11549,8 @@ mod utils {
 
     #[derive(derive_more::Display, derive_more::From)]
     pub(super) enum AssertFailedError {
-        Execution(ActorExecutionErrorReason),
-        SimpleReply(ErrorReason),
+        Execution(ActorExecutionErrorReplyReason),
+        SimpleReply(ErrorReplyReason),
     }
 
     #[track_caller]
@@ -12025,7 +12035,7 @@ fn check_gear_stack_end_fail() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::PrepareMemory(
+            ActorExecutionErrorReplyReason::PrepareMemory(
                 ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
                     WasmPage::new(5).unwrap(),
                     WasmPage::new(4).unwrap(),
@@ -12051,9 +12061,9 @@ fn check_gear_stack_end_fail() {
         assert_last_dequeued(1);
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::PrepareMemory(ActorPrepareMemoryError::StackIsNotAligned(
-                65537,
-            )),
+            ActorExecutionErrorReplyReason::PrepareMemory(
+                ActorPrepareMemoryError::StackIsNotAligned(65537),
+            ),
         );
 
         // Check OK if stack end is suitable
@@ -12167,7 +12177,7 @@ fn check_reply_push_payload_exceed() {
 
         assert_failed(
             message_id,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown),
         );
     });
 }
@@ -12580,7 +12590,9 @@ fn module_instantiation_error() {
 
         assert!(Gear::is_terminated(prog_id));
         let err = get_last_event_error(mid);
-        assert!(err.starts_with(&ActorExecutionErrorReason::Environment("".into()).to_string()));
+        assert!(
+            err.starts_with(&ActorExecutionErrorReplyReason::Environment("".into()).to_string())
+        );
     });
 }
 
@@ -12612,7 +12624,9 @@ fn wrong_entry_type() {
 
         assert!(Gear::is_terminated(pid));
         let err = get_last_event_error(mid);
-        assert!(err.starts_with(&ActorExecutionErrorReason::Environment("".into()).to_string()));
+        assert!(
+            err.starts_with(&ActorExecutionErrorReplyReason::Environment("".into()).to_string())
+        );
     });
 }
 
@@ -12639,7 +12653,7 @@ fn oom_handler_works() {
         assert!(Gear::is_terminated(pid));
         assert_failed(
             mid,
-            ActorExecutionErrorReason::Trap(TrapExplanation::ProgramAllocOutOfBounds),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::ProgramAllocOutOfBounds),
         );
     });
 }
@@ -12681,7 +12695,7 @@ fn alloc_charge_error() {
         assert!(Gear::is_terminated(pid));
         assert_failed(
             mid,
-            ActorExecutionErrorReason::Trap(TrapExplanation::GasLimitExceeded),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
         );
     });
 }
@@ -12725,7 +12739,7 @@ fn free_usage_error() {
         assert!(Gear::is_terminated(pid));
         assert_failed(
             mid,
-            ActorExecutionErrorReason::Trap(TrapExplanation::Unknown),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown),
         );
     });
 }
@@ -12865,7 +12879,7 @@ fn reservation_manager() {
                 amount: 10_000,
                 duration: 100,
             },
-            vec![Assertion::ReplyCode(SuccessReason::Auto.into())],
+            vec![Assertion::ReplyCode(SuccessReplyReason::Auto.into())],
         );
         // Try to unreserve 50_000 gas.
         scenario(
@@ -12881,7 +12895,7 @@ fn reservation_manager() {
             Action::SendMessageFromReservation { gas_amount: 8_000 },
             vec![
                 // auto reply
-                Assertion::ReplyCode(SuccessReason::Auto.into()),
+                Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
                 // message with empty payload. not reply!
                 Assertion::Payload(vec![]),
             ],
@@ -13153,7 +13167,7 @@ fn double_read_works() {
 
         assert_responses_to_user(
             USER_1,
-            vec![Assertion::ReplyCode(SuccessReason::Auto.into())],
+            vec![Assertion::ReplyCode(SuccessReplyReason::Auto.into())],
         );
     });
 }
