@@ -9,10 +9,10 @@ license.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-backend-common.workspace = true
-gear-backend-wasmi = { workspace = true, features = [ "std" ] }
+gear-backend-wasmi = { workspace = true, features = ["std"] }
 core-processor.workspace = true
 gear-wasm-builder.workspace = true
-gear-common = { workspace = true, default-features = true }
+gear-utils.workspace = true
 
 anyhow.workspace = true
 codec = { workspace = true, features = ["derive"] }

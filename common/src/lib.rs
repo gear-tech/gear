@@ -25,9 +25,6 @@ pub mod event;
 pub mod scheduler;
 pub mod storage;
 
-#[cfg(feature = "std")]
-pub mod memory_dump;
-
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
