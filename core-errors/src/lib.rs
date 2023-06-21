@@ -377,8 +377,7 @@ mod tests {
     fn error_code_no_specific_value() {
         for err in enum_iterator::all::<ExtError>() {
             let code = err.to_u32();
-            assert_ne!(code, 0); // zeroed structures, variables, etc
-            assert_ne!(code, u32::MAX); // success code
+            assert_ne!(code, 0); // success code
         }
     }
 }
