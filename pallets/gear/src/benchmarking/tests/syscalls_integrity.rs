@@ -35,7 +35,7 @@ use gear_core::{
     costs::CostIdentifier,
     ids::{CodeId, ReservationId},
 };
-use gear_core_errors::{ExtError, MessageError};
+use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::syscalls::SysCallName;
 use pallet_timestamp::Pallet as TimestampPallet;
 use parity_scale_codec::Decode;
@@ -73,7 +73,8 @@ where
             SysCallName::ReplyDeposit => check_gr_reply_deposit::<T>(),
             SysCallName::Read => {/* checked in all the calls internally */},
             SysCallName::Size => check_gr_size::<T>(),
-            SysCallName::StatusCode => {/* checked in reply_to */},
+            SysCallName::ReplyCode => {/* checked in reply_to */},
+            SysCallName::SignalCode => {/* checked in signal_from */},
             SysCallName::MessageId => check_gr_message_id::<T>(),
             SysCallName::ProgramId => check_gr_program_id::<T>(),
             SysCallName::Source => check_gr_source::<T>(),
@@ -95,7 +96,6 @@ where
             SysCallName::Alloc => check_mem::<T>(false),
             SysCallName::Free => check_mem::<T>(true),
             SysCallName::OutOfGas | SysCallName::OutOfAllowance => { /*no need for tests */}
-            SysCallName::Error => check_gr_err::<T>(),
             SysCallName::Random => check_gr_random::<T>(),
             SysCallName::ReserveGas => check_gr_reserve_gas::<T>(),
             SysCallName::UnreserveGas => check_gr_unreserve_gas::<T>(),
@@ -363,27 +363,6 @@ where
     }
 
     Gear::<T>::reset();
-}
-
-fn check_gr_err<T>()
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let message_value = u128::MAX;
-        let expected_err = ExtError::Message(MessageError::NotEnoughValue {
-            message_value,
-            value_left: 0,
-        });
-        let expected_err = ::alloc::format!("API error: {expected_err}");
-
-        let mp = vec![Kind::Error(message_value, expected_err)]
-            .encode()
-            .into();
-
-        (TestCall::send_message(mp), None::<DefaultPostCheck>)
-    });
 }
 
 fn check_gr_size<T>()
@@ -708,7 +687,7 @@ where
     });
 }
 
-// Tests `gr_reply_to` and  `gr_status_code`
+// Tests `gr_reply_to` and `gr_reply_code`
 fn check_reply_details<T>()
 where
     T: Config,
@@ -719,12 +698,14 @@ where
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
 
+        let reply_code = ReplyCode::Success(SuccessReplyReason::Manual).to_bytes();
+
         // trigger sending message to default_sender's mailbox
         Gear::<T>::send_message(
             RawOrigin::Signed(default_sender.clone()).into(),
             tester_pid,
             // random params in ReplyDetails, because they aren't checked
-            vec![Kind::ReplyDetails([255u8; 32], 0)].encode(),
+            vec![Kind::ReplyDetails([255u8; 32], reply_code)].encode(),
             50_000_000_000,
             0u128.unique_saturated_into(),
         )
@@ -739,14 +720,15 @@ where
 
         assert_eq!(reply_to.id(), expected_mid, "mailbox check failed");
 
-        let mp = MessageParamsBuilder::new(Kind::ReplyDetails(expected_mid.into(), 0).encode())
-            .with_reply_id(reply_to.id());
+        let mp =
+            MessageParamsBuilder::new(Kind::ReplyDetails(expected_mid.into(), reply_code).encode())
+                .with_reply_id(reply_to.id());
 
         (TestCall::send_reply(mp), None::<DefaultPostCheck>)
     });
 }
 
-// Tests `gr_signal_from` and `gr_status_code`
+// Tests `gr_signal_from` and `gr_signal_code`
 fn check_signal_details<T>()
 where
     T: Config,

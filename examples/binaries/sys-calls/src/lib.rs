@@ -76,8 +76,8 @@ pub enum Kind {
     ReplyInput(Option<u64>, MessageId),
     // Expected(message id)
     ReplyPushInput(MessageId),
-    // Expected(reply to id, exit code)
-    ReplyDetails(MessageId, i32),
+    // Expected(reply to id, ReplyCode.to_bytes repr)
+    ReplyDetails(MessageId, [u8; 4]),
     SignalDetails,
     SignalDetailsWake,
     // Expected(block height)
@@ -113,16 +113,16 @@ mod wasm {
     use super::Kind;
     use codec::Encode;
     use gstd::{
-        errors::{SimpleCodec, SimpleExecutionError, SimpleSignalError},
+        errors::{ReplyCode, SignalCode, SimpleExecutionError},
         exec, format,
         msg::{self, MessageHandle},
         prog, ActorId, CodeId, MessageId, ReservationId, Vec,
     };
 
     static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);
-    static mut SIGNAL_DETAILS: (MessageId, SimpleSignalError, ActorId) = (
+    static mut SIGNAL_DETAILS: (MessageId, SignalCode, ActorId) = (
         MessageId::new([0; 32]),
-        SimpleSignalError::Execution(SimpleExecutionError::Unknown),
+        SignalCode::Execution(SimpleExecutionError::Unsupported),
         ActorId::zero(),
     );
     static mut DO_PANIC: bool = false;
@@ -351,7 +351,7 @@ mod wasm {
                     unsafe {
                         SIGNAL_DETAILS = (
                             msg::id(),
-                            SimpleSignalError::Execution(SimpleExecutionError::Panic),
+                            SignalCode::Execution(SimpleExecutionError::UserspacePanic),
                             msg::source(),
                         );
                         DO_PANIC = true;
@@ -473,8 +473,7 @@ mod wasm {
                 );
             }
             Kind::SystemReserveGas(amount) => {
-                let _ = exec::system_reserve_gas(amount)
-                    .expect("Kind::SystemReserveGas: call test failed");
+                exec::system_reserve_gas(amount).expect("Kind::SystemReserveGas: call test failed");
                 // The only case with wait, so we send report before ending execution, instead of
                 // waking the message
                 msg::send_delayed(msg::source(), b"ok", 0, 0)
@@ -493,18 +492,19 @@ mod wasm {
     #[no_mangle]
     extern "C" fn handle_reply() {
         match msg::load() {
-            Ok(Kind::ReplyDetails(expected_reply_to, expected_status_code)) => {
+            Ok(Kind::ReplyDetails(expected_reply_to, expected_reply_code_bytes)) => {
+                let expected_reply_code = ReplyCode::from_bytes(expected_reply_code_bytes);
                 let actual_reply_to = msg::reply_to();
                 assert_eq!(
                     Ok(expected_reply_to.into()),
                     actual_reply_to,
                     "Kind::ReplyDetails: reply_to test failed"
                 );
-                let actual_status_code = msg::status_code();
+                let actual_reply_code = msg::reply_code();
                 assert_eq!(
-                    Ok(expected_status_code),
-                    actual_status_code,
-                    "Kind::ReplyDetails: status test failed"
+                    Ok(expected_reply_code),
+                    actual_reply_code,
+                    "Kind::ReplyDetails: reply code test failed"
                 );
 
                 // Report test executed successfully
@@ -520,11 +520,11 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle_signal() {
-        let (signal_from, status_code, source) = unsafe { SIGNAL_DETAILS };
+        let (signal_from, signal_code, source) = unsafe { SIGNAL_DETAILS };
 
         assert_eq!(
-            <_>::from_status_code(msg::status_code().unwrap()),
-            Some(status_code),
+            msg::signal_code(),
+            Ok(Some(signal_code)),
             "Kind::SignalDetails: status code test failed"
         );
         assert_eq!(

@@ -242,7 +242,7 @@ pub mod pallet {
             OutputError = DispatchError,
             MailboxFirstKey = Self::AccountId,
             MailboxSecondKey = MessageId,
-            MailboxedMessage = StoredMessage,
+            MailboxedMessage = UserStoredMessage,
             QueuedDispatch = StoredDispatch,
             WaitlistFirstKey = ProgramId,
             WaitlistSecondKey = MessageId,
@@ -322,7 +322,7 @@ pub mod pallet {
         /// Somebody sent a message to the user.
         UserMessageSent {
             /// Message sent.
-            message: StoredMessage,
+            message: UserMessage,
             /// Block number of expiration from `Mailbox`.
             ///
             /// Equals `Some(_)` with block number when message
@@ -1530,6 +1530,9 @@ pub mod pallet {
                 QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
             } else {
                 let message = message.into_stored(ProgramId::from_origin(origin));
+                let message: UserMessage = message
+                    .try_into()
+                    .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
 
                 CurrencyOf::<T>::transfer(
                     &who,

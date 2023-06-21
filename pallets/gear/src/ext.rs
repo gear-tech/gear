@@ -29,9 +29,9 @@ use gear_core::{
     gas::{ChargeError, CountersOwner, GasAmount, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
     memory::{GearPage, GrowHandler, Memory, MemoryInterval, PageU32Size, WasmPage},
-    message::{HandlePacket, InitPacket, ReplyPacket, StatusCode},
+    message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{MemoryError, ReplyCode, SignalCode};
 use gear_lazy_pages_common as lazy_pages;
 use gear_wasm_instrument::syscalls::SysCallName;
 
@@ -243,8 +243,12 @@ impl Externalities for LazyPagesExt {
         self.inner.source()
     }
 
-    fn status_code(&self) -> Result<StatusCode, Self::Error> {
-        self.inner.status_code()
+    fn reply_code(&self) -> Result<ReplyCode, Self::Error> {
+        self.inner.reply_code()
+    }
+
+    fn signal_code(&self) -> Result<SignalCode, Self::Error> {
+        self.inner.signal_code()
     }
 
     fn message_id(&self) -> Result<MessageId, Self::Error> {

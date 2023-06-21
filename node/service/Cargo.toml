@@ -16,7 +16,7 @@ codec = { workspace = true, features = ["derive"] }
 futures.workspace = true
 futures-timer.workspace = true
 hex-literal.workspace = true
-jsonrpsee = { workspace = true, features = ["server"] }
+jsonrpsee = { workspace = true, features = ["server", "macros"] }
 log.workspace = true
 serde = { workspace = true, features = ["derive"] }
 
@@ -38,6 +38,7 @@ sc-block-builder.workspace = true
 sc-chain-spec.workspace = true
 sc-authority-discovery.workspace = true
 sc-executor = { workspace = true, features = [ "host-sandbox", "wasmer-cache" ] }
+sc-executor-common.workspace = true
 sc-service.workspace = true
 sc-telemetry.workspace = true
 sc-keystore.workspace = true

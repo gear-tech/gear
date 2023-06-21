@@ -25,7 +25,7 @@ use gear_core::memory::GearPage;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageU32Size, WasmPage},
-    message::{DispatchKind, StoredDispatch, StoredMessage},
+    message::{DispatchKind, StoredDispatch, StoredMessage, UserMessage},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pallet_gear::{DebugInfo, Event, Pallet as PalletGear};
@@ -363,7 +363,7 @@ fn get_last_program_id() -> ProgramId {
 }
 
 #[track_caller]
-fn maybe_last_message(account: u64) -> Option<StoredMessage> {
+fn maybe_last_message(account: u64) -> Option<UserMessage> {
     System::events().into_iter().rev().find_map(|e| {
         if let super::mock::RuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
             if message.destination() == account.into() {

@@ -22,6 +22,9 @@
 
 use core::mem;
 
+/// Represents error code type.
+pub type ErrorCode = u32;
+
 /// Represents block number type.
 pub type BlockNumber = u32;
 
@@ -46,15 +49,18 @@ pub type Index = u32;
 /// Represents length type.
 pub type Length = u32;
 
-/// Represents status code type.
-pub type StatusCode = i32;
+/// Represents reply code type.
+pub type ReplyCode = [u8; 4];
+
+/// Represents signal code type.
+pub type SignalCode = u32;
 
 /// Represents value type.
 pub type Value = u128;
 
 /// Represents type defining concatenated block number with hash. 36 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct BlockNumberWithHash {
     pub bn: BlockNumber,
     pub hash: Hash,
@@ -68,7 +74,7 @@ impl BlockNumberWithHash {
 
 /// Represents type defining concatenated hash with value. 48 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct HashWithValue {
     pub hash: Hash,
     pub value: Value,
@@ -80,54 +86,81 @@ impl HashWithValue {
     }
 }
 
-/// Represents type defining concatenated status code with length. 8 bytes.
+/// Represents type defining concatenated reply code with error code. 8 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
-pub struct LengthWithCode {
-    pub length: Length,
-    pub code: StatusCode,
+#[derive(Default, Debug)]
+pub struct ErrorWithReplyCode {
+    pub error_code: ErrorCode,
+    pub reply_code: ReplyCode,
 }
 
-impl LengthWithCode {
+impl ErrorWithReplyCode {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
     }
 }
 
-impl From<Result<StatusCode, Length>> for LengthWithCode {
-    fn from(result: Result<StatusCode, Length>) -> Self {
+impl From<Result<ReplyCode, ErrorCode>> for ErrorWithReplyCode {
+    fn from(result: Result<ReplyCode, ErrorCode>) -> Self {
         let mut res: Self = Default::default();
 
         match result {
-            Ok(code) => res.code = code,
-            Err(length) => res.length = length,
+            Ok(code) => res.reply_code = code,
+            Err(length) => res.error_code = length,
         }
 
         res
     }
 }
 
-/// Represents type defining concatenated length with gas. 12 bytes.
+/// Represents type defining concatenated signal code with length. 8 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
-pub struct LengthWithGas {
-    pub length: Length,
-    pub gas: Gas,
+#[derive(Default, Debug)]
+pub struct ErrorWithSignalCode {
+    pub error_code: ErrorCode,
+    pub signal_code: SignalCode,
 }
 
-impl LengthWithGas {
+impl ErrorWithSignalCode {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
     }
 }
 
-impl From<Result<Gas, Length>> for LengthWithGas {
-    fn from(result: Result<Gas, Length>) -> Self {
+impl From<Result<SignalCode, ErrorCode>> for ErrorWithSignalCode {
+    fn from(result: Result<SignalCode, ErrorCode>) -> Self {
+        let mut res: Self = Default::default();
+
+        match result {
+            Ok(code) => res.signal_code = code,
+            Err(code) => res.error_code = code,
+        }
+
+        res
+    }
+}
+
+/// Represents type defining concatenated error code with gas. 12 bytes.
+#[repr(C, packed)]
+#[derive(Default, Debug)]
+pub struct ErrorWithGas {
+    pub error_code: ErrorCode,
+    pub gas: Gas,
+}
+
+impl ErrorWithGas {
+    pub fn as_mut_ptr(&mut self) -> *mut Self {
+        self as _
+    }
+}
+
+impl From<Result<Gas, ErrorCode>> for ErrorWithGas {
+    fn from(result: Result<Gas, ErrorCode>) -> Self {
         let mut res: Self = Default::default();
 
         match result {
             Ok(gas) => res.gas = gas,
-            Err(length) => res.length = length,
+            Err(code) => res.error_code = code,
         }
 
         res
@@ -136,25 +169,25 @@ impl From<Result<Gas, Length>> for LengthWithGas {
 
 /// Represents type defining concatenated length with handle. 8 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
-pub struct LengthWithHandle {
-    pub length: Length,
+#[derive(Default, Debug)]
+pub struct ErrorWithHandle {
+    pub error_code: ErrorCode,
     pub handle: Handle,
 }
 
-impl LengthWithHandle {
+impl ErrorWithHandle {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
     }
 }
 
-impl From<Result<Handle, Length>> for LengthWithHandle {
-    fn from(result: Result<Handle, Length>) -> Self {
+impl From<Result<Handle, ErrorCode>> for ErrorWithHandle {
+    fn from(result: Result<Handle, ErrorCode>) -> Self {
         let mut res: Self = Default::default();
 
         match result {
             Ok(handle) => res.handle = handle,
-            Err(length) => res.length = length,
+            Err(code) => res.error_code = code,
         }
 
         res
@@ -162,63 +195,63 @@ impl From<Result<Handle, Length>> for LengthWithHandle {
 }
 
 #[repr(C, packed)]
-#[derive(Default)]
-pub struct LengthBytes([u8; mem::size_of::<Length>()]);
+#[derive(Default, Debug)]
+pub struct ErrorBytes([u8; mem::size_of::<ErrorCode>()]);
 
-impl From<Result<(), Length>> for LengthBytes {
-    fn from(value: Result<(), Length>) -> Self {
+impl From<Result<(), ErrorCode>> for ErrorBytes {
+    fn from(value: Result<(), ErrorCode>) -> Self {
         Self(value.err().unwrap_or_default().to_le_bytes())
     }
 }
 
-/// Represents type defining concatenated hash with length. 36 bytes.
+/// Represents type defining concatenated hash with error code. 36 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
-pub struct LengthWithHash {
-    pub length: Length,
+#[derive(Default, Debug)]
+pub struct ErrorWithHash {
+    pub error_code: ErrorCode,
     pub hash: Hash,
 }
 
-impl LengthWithHash {
+impl ErrorWithHash {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
     }
 }
 
-impl<T: Into<[u8; 32]>> From<Result<T, Length>> for LengthWithHash {
-    fn from(result: Result<T, Length>) -> Self {
+impl<T: Into<[u8; 32]>> From<Result<T, ErrorCode>> for ErrorWithHash {
+    fn from(result: Result<T, ErrorCode>) -> Self {
         let mut res: Self = Default::default();
 
         match result {
             Ok(v) => res.hash = v.into(),
-            Err(length) => res.length = length,
+            Err(code) => res.error_code = code,
         }
 
         res
     }
 }
 
-/// Represents type defining concatenated two hashes with length. 68 bytes.
+/// Represents type defining concatenated two hashes with error code. 68 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
-pub struct LengthWithTwoHashes {
-    pub length: Length,
+#[derive(Default, Debug)]
+pub struct ErrorWithTwoHashes {
+    pub error_code: ErrorCode,
     pub hash1: Hash,
     pub hash2: Hash,
 }
 
-impl LengthWithTwoHashes {
+impl ErrorWithTwoHashes {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
     }
 }
 
-impl<T1, T2> From<Result<(T1, T2), Length>> for LengthWithTwoHashes
+impl<T1, T2> From<Result<(T1, T2), ErrorCode>> for ErrorWithTwoHashes
 where
     T1: Into<[u8; 32]>,
     T2: Into<[u8; 32]>,
 {
-    fn from(result: Result<(T1, T2), Length>) -> Self {
+    fn from(result: Result<(T1, T2), ErrorCode>) -> Self {
         let mut res: Self = Default::default();
 
         match result {
@@ -226,30 +259,30 @@ where
                 res.hash1 = v1.into();
                 res.hash2 = v2.into();
             }
-            Err(length) => res.length = length,
+            Err(code) => res.error_code = code,
         }
 
         res
     }
 }
 
-/// Represents type defining concatenated block number and value with length. 24 bytes.
+/// Represents type defining concatenated block number and value with error code. 24 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
-pub struct LengthWithBlockNumberAndValue {
-    pub length: Length,
+#[derive(Default, Debug)]
+pub struct ErrorWithBlockNumberAndValue {
+    pub error_code: ErrorCode,
     pub bn: BlockNumber,
     pub value: Value,
 }
 
-impl LengthWithBlockNumberAndValue {
+impl ErrorWithBlockNumberAndValue {
     pub fn as_mut_ptr(&mut self) -> *mut Self {
         self as _
     }
 }
 
-impl From<Result<(Value, BlockNumber), Length>> for LengthWithBlockNumberAndValue {
-    fn from(result: Result<(Value, BlockNumber), Length>) -> Self {
+impl From<Result<(Value, BlockNumber), ErrorCode>> for ErrorWithBlockNumberAndValue {
+    fn from(result: Result<(Value, BlockNumber), ErrorCode>) -> Self {
         let mut res: Self = Default::default();
 
         match result {
@@ -257,7 +290,7 @@ impl From<Result<(Value, BlockNumber), Length>> for LengthWithBlockNumberAndValu
                 res.value = v;
                 res.bn = bn;
             }
-            Err(length) => res.length = length,
+            Err(code) => res.error_code = code,
         }
 
         res
@@ -266,7 +299,7 @@ impl From<Result<(Value, BlockNumber), Length>> for LengthWithBlockNumberAndValu
 
 /// Represents type defining concatenated two hashes. 64 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct TwoHashes {
     pub hash1: Hash,
     pub hash2: Hash,
@@ -280,7 +313,7 @@ impl TwoHashes {
 
 /// Represents type defining concatenated two hashes with value. 80 bytes.
 #[repr(C, packed)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct TwoHashesWithValue {
     pub hash1: Hash,
     pub hash2: Hash,
@@ -331,7 +364,7 @@ extern "C" {
     /// - `payload_len`: `u32` length of the payload buffer.
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid_pid`: `mut ptr` for concatenated error length, message id
+    /// - `err_mid_pid`: `mut ptr` for concatenated error code, message id
     ///   and program id.
     pub fn gr_create_program_wgas(
         cid_value: *const HashWithValue,
@@ -341,7 +374,7 @@ extern "C" {
         payload_len: Length,
         gas_limit: Gas,
         delay: BlockNumber,
-        err_mid_pid: *mut LengthWithTwoHashes,
+        err_mid_pid: *mut ErrorWithTwoHashes,
     );
 
     /// Fallible `gr_create_program` send syscall.
@@ -354,7 +387,7 @@ extern "C" {
     /// - `payload_len`: `u32` length of the payload buffer.
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid_pid`: `mut ptr` for concatenated error length, message id
+    /// - `err_mid_pid`: `mut ptr` for concatenated error code, message id
     ///   and program id.
     pub fn gr_create_program(
         cid_value: *const HashWithValue,
@@ -363,7 +396,7 @@ extern "C" {
         payload: *const BufferStart,
         payload_len: Length,
         delay: BlockNumber,
-        err_mid_pid: *mut LengthWithTwoHashes,
+        err_mid_pid: *mut ErrorWithTwoHashes,
     );
 
     /// Fallible `gr_reply_deposit` syscall.
@@ -371,8 +404,8 @@ extern "C" {
     /// Arguments type:
     /// - `message_id`: `const ptr` for message id.
     /// - `gas`: `u64` defining gas limit to deposit.
-    /// - `err`: `mut ptr` for error length.
-    pub fn gr_reply_deposit(message_id: *const Hash, gas: Gas, err: *mut Length);
+    /// - `err`: `mut ptr` for error code.
+    pub fn gr_reply_deposit(message_id: *const Hash, gas: Gas, err: *mut ErrorCode);
 
     /// Infallible `gr_debug` info syscall.
     ///
@@ -393,19 +426,17 @@ extern "C" {
     /// Infallible `gr_oom_panic` control syscall.
     pub fn gr_oom_panic() -> !;
 
-    // TODO: issue #1859
-    /// Fallible `gr_error` get syscall.
+    /// Fallible `gr_reply_code` get syscall.
     ///
     /// Arguments type:
-    /// - `buf`: `mut ptr` for buffer to store previously occurred error.
-    /// - `len`: `mut ptr` for `u32` current error length.
-    pub fn gr_error(buf: *mut BufferStart, len: *mut Length);
+    /// - `err_code`: `mut ptr` for concatenated error code and reply code.
+    pub fn gr_reply_code(err_code: *mut ErrorWithReplyCode);
 
-    /// Fallible `gr_status_code` get syscall.
+    /// Fallible `gr_signal_code` get syscall.
     ///
     /// Arguments type:
-    /// - `err_code`: `mut ptr` for concatenated error length and status code.
-    pub fn gr_status_code(err_code: *mut LengthWithCode);
+    /// - `err_code`: `mut ptr` for concatenated error code and signal code.
+    pub fn gr_signal_code(err_code: *mut ErrorWithSignalCode);
 
     /// Infallible `gr_exit` control syscall.
     ///
@@ -432,10 +463,10 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `rent_pid`: `const ptr` for program id and rent value.
-    /// - `err_bn_value`: `mut ptr` for concatenated error length, paid block count and unused rent value.
+    /// - `err_bn_value`: `mut ptr` for concatenated error code, paid block count and unused rent value.
     pub fn gr_pay_program_rent(
         rent_pid: *const HashWithValue,
-        err_bn_value: *mut LengthWithBlockNumberAndValue,
+        err_bn_value: *mut ErrorWithBlockNumberAndValue,
     );
 
     /// Infallible `gr_program_id` get syscall.
@@ -458,8 +489,8 @@ extern "C" {
     /// - `at`: `u32` defining offset to read from.
     /// - `len`: `u32` length of the buffer to read.
     /// - `buffer`: `mut ptr` for buffer to store requested data.
-    /// - `err`: `mut ptr` for `u32` error length.
-    pub fn gr_read(at: Length, len: Length, buffer: *mut BufferStart, err: *mut Length);
+    /// - `err`: `mut ptr` for `u32` error code.
+    pub fn gr_read(at: Length, len: Length, buffer: *mut BufferStart, err: *mut ErrorCode);
 
     /// Fallible `gr_reply_commit_wgas` send syscall.
     ///
@@ -467,53 +498,44 @@ extern "C" {
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
-    pub fn gr_reply_commit_wgas(
-        gas_limit: Gas,
-        value: *const Value,
-        _delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
-    );
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
+    pub fn gr_reply_commit_wgas(gas_limit: Gas, value: *const Value, err_mid: *mut ErrorWithHash);
 
     /// Fallible `gr_reply_commit` send syscall.
     ///
     /// Arguments type:
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
-    pub fn gr_reply_commit(value: *const Value, _delay: BlockNumber, err_mid: *mut LengthWithHash);
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
+    pub fn gr_reply_commit(value: *const Value, err_mid: *mut ErrorWithHash);
 
     /// Fallible `gr_reply_push` send syscall.
     ///
     /// Arguments type:
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
-    /// - `err`: `mut ptr` for error length.
-    pub fn gr_reply_push(payload: *const BufferStart, len: Length, err: *mut Length);
+    /// - `err`: `mut ptr` for error code.
+    pub fn gr_reply_push(payload: *const BufferStart, len: Length, err: *mut ErrorCode);
 
     /// Fallible `gr_reply_push_input` send syscall.
     ///
     /// Arguments type:
     /// - `offset`: `u32` defining start index of the input buffer to use.
     /// - `len`: `u32` defining slice length of the input buffer to use.
-    /// - `err`: `mut ptr` for error length.
-    pub fn gr_reply_push_input(offset: Index, len: Length, err: *mut Length);
+    /// - `err`: `mut ptr` for error code.
+    pub fn gr_reply_push_input(offset: Index, len: Length, err: *mut ErrorCode);
 
     /// Fallible `gr_reply_to` get syscall.
     ///
     /// Arguments type:
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
-    pub fn gr_reply_to(err_mid: *mut LengthWithHash);
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
+    pub fn gr_reply_to(err_mid: *mut ErrorWithHash);
 
     /// Fallible `gr_signal_from` get syscall.
     ///
     /// Arguments type:
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
-    pub fn gr_signal_from(err_mid: *mut LengthWithHash);
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
+    pub fn gr_signal_from(err_mid: *mut ErrorWithHash);
 
     /// Fallible `gr_reply_input_wgas` send syscall.
     ///
@@ -523,16 +545,13 @@ extern "C" {
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reply_input_wgas(
         offset: Index,
         len: Length,
         gas_limit: Gas,
         value: *const Value,
-        _delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_reply_wgas` send syscall.
@@ -543,16 +562,13 @@ extern "C" {
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reply_wgas(
         payload: *const BufferStart,
         len: Length,
         gas_limit: Gas,
         value: *const Value,
-        _delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_reply` send syscall.
@@ -562,15 +578,12 @@ extern "C" {
     /// - `len`: `u32` length of the payload buffer.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reply(
         payload: *const BufferStart,
         len: Length,
         value: *const Value,
-        _delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_reply_input` send syscall.
@@ -580,15 +593,12 @@ extern "C" {
     /// - `len`: `u32` defining slice length of the input buffer to use.
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reply_input(
         offset: Index,
         len: Length,
         value: *const Value,
-        _delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_reservation_reply_commit` send syscall.
@@ -597,13 +607,10 @@ extern "C" {
     /// - `rid_value`: `const ptr` for concatenated reservation id and value.
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reservation_reply_commit(
         rid_value: *const HashWithValue,
-        _delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_reservation_reply` send syscall.
@@ -612,15 +619,12 @@ extern "C" {
     /// - `rid_value`: `const ptr` for concatenated reservation id and value.
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
-    /// ### DEPRECATED: `delay` argument will be replaced with 0.
-    /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reservation_reply(
         rid_value: *const HashWithValue,
         payload: *const BufferStart,
         len: Length,
-        _delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_reservation_send_commit` send syscall.
@@ -630,12 +634,12 @@ extern "C" {
     /// - `rid_pid_value`: `const ptr` for concatenated reservation id,
     ///   program id and value.
     /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reservation_send_commit(
         handle: Handle,
         rid_pid_value: *const TwoHashesWithValue,
         delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_reservation_send` send syscall.
@@ -646,13 +650,13 @@ extern "C" {
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
     /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reservation_send(
         rid_pid_value: *const TwoHashesWithValue,
         payload: *const BufferStart,
         len: Length,
         delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_reserve_gas` control syscall.
@@ -660,8 +664,8 @@ extern "C" {
     /// Arguments type:
     /// - `gas`: `u64` defining amount of gas to reserve.
     /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_rid`: `mut ptr` for concatenated error length and reservation id.
-    pub fn gr_reserve_gas(gas: Gas, duration: BlockNumber, err_rid: *mut LengthWithHash);
+    /// - `err_rid`: `mut ptr` for concatenated error code and reservation id.
+    pub fn gr_reserve_gas(gas: Gas, duration: BlockNumber, err_rid: *mut ErrorWithHash);
 
     /// Fallible `gr_send_commit_wgas` send syscall.
     ///
@@ -670,13 +674,13 @@ extern "C" {
     /// - `pid_value`: `const ptr` for concatenated program id and value.
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_send_commit_wgas(
         handle: Handle,
         pid_value: *const HashWithValue,
         gas_limit: Gas,
         delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_send_commit` send syscall.
@@ -685,19 +689,19 @@ extern "C" {
     /// - `handle`: `u32` defining handle of the message to commit.
     /// - `pid_value`: `const ptr` for concatenated program id and value.
     /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_send_commit(
         handle: Handle,
         pid_value: *const HashWithValue,
         delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_send_init` send syscall.
     ///
     /// Arguments type:
-    /// - `err_handle`: `mut ptr` for concatenated error length and handle.
-    pub fn gr_send_init(err_handle: *mut LengthWithHandle);
+    /// - `err_handle`: `mut ptr` for concatenated error code and handle.
+    pub fn gr_send_init(err_handle: *mut ErrorWithHandle);
 
     /// Fallible `gr_send_push` send syscall.
     ///
@@ -705,8 +709,13 @@ extern "C" {
     /// - `handle`: `u32` defining handle of the message to push into.
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
-    /// - `err`: `mut ptr` for error length.
-    pub fn gr_send_push(handle: Handle, payload: *const BufferStart, len: Length, err: *mut Length);
+    /// - `err`: `mut ptr` for error code.
+    pub fn gr_send_push(
+        handle: Handle,
+        payload: *const BufferStart,
+        len: Length,
+        err: *mut ErrorCode,
+    );
 
     /// Fallible `gr_send_push_input` send syscall.
     ///
@@ -714,8 +723,8 @@ extern "C" {
     /// - `handle`: `u32` defining handle of the message to push into.
     /// - `offset`: `u32` defining start index of the input buffer to use.
     /// - `len`: `u32` defining slice length of the input buffer to use.
-    /// - `err`: `mut ptr` for error length.
-    pub fn gr_send_push_input(handle: Handle, offset: Index, len: Length, err: *mut Length);
+    /// - `err`: `mut ptr` for error code.
+    pub fn gr_send_push_input(handle: Handle, offset: Index, len: Length, err: *mut ErrorCode);
 
     /// Fallible `gr_send_input_wgas` send syscall.
     ///
@@ -725,14 +734,14 @@ extern "C" {
     /// - `len`: `u32` defining slice length of the input buffer to use.
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_send_input_wgas(
         pid_value: *const HashWithValue,
         offset: Index,
         len: Length,
         gas_limit: Gas,
         delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_send_wgas` send syscall.
@@ -743,14 +752,14 @@ extern "C" {
     /// - `len`: `u32` length of the payload buffer.
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_send_wgas(
         pid_value: *const HashWithValue,
         payload: *const BufferStart,
         len: Length,
         gas_limit: Gas,
         delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_send` send syscall.
@@ -760,13 +769,13 @@ extern "C" {
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
     /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_send(
         pid_value: *const HashWithValue,
         payload: *const BufferStart,
         len: Length,
         delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Fallible `gr_send_input` send syscall.
@@ -776,13 +785,13 @@ extern "C" {
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
     /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for concatenated error length and message id.
+    /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_send_input(
         pid_value: *const HashWithValue,
         offset: Index,
         len: Length,
         delay: BlockNumber,
-        err_mid: *mut LengthWithHash,
+        err_mid: *mut ErrorWithHash,
     );
 
     /// Infallible `gr_size` get syscall.
@@ -801,16 +810,16 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `gas`: `u64` defining amount of gas to reserve.
-    /// - `err`: `mut ptr` for error length.
-    pub fn gr_system_reserve_gas(gas: Gas, err: *mut Length);
+    /// - `err`: `mut ptr` for error code.
+    pub fn gr_system_reserve_gas(gas: Gas, err: *mut ErrorCode);
 
     /// Fallible `gr_unreserve_gas` control syscall.
     ///
     /// Arguments type:
     /// - `reservation_id`: `const ptr` for reservation id.
-    /// - `err_unreserved`: `mut ptr` for concatenated error length and
+    /// - `err_unreserved`: `mut ptr` for concatenated error code and
     ///   unreserved gas amount.
-    pub fn gr_unreserve_gas(reservation_id: *const Hash, err_unreserved: *mut LengthWithGas);
+    pub fn gr_unreserve_gas(reservation_id: *const Hash, err_unreserved: *mut ErrorWithGas);
 
     /// Infallible `gr_value_available` get syscall.
     ///
@@ -844,6 +853,6 @@ extern "C" {
     /// Arguments type:
     /// - `message_id`: `const ptr` for message id.
     /// - `delay`: `u32` amount of blocks to delay.
-    /// - `err_mid`: `mut ptr` for error length.
-    pub fn gr_wake(message_id: *const Hash, delay: BlockNumber, err: *mut Length);
+    /// - `err_mid`: `mut ptr` for error code.
+    pub fn gr_wake(message_id: *const Hash, delay: BlockNumber, err: *mut ErrorCode);
 }

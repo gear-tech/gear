@@ -60,7 +60,6 @@ const EXPECTED_MAILBOX: &str = r#"
     destination: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
     payload: "0x",
     value: 0,
-    details: None,
 "#;
 
 #[cfg(not(feature = "vara-testing"))]
@@ -68,7 +67,6 @@ const EXPECTED_MAILBOX: &str = r#"
     destination: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
     payload: "0x",
     value: 5000,
-    details: None,
 "#;
 
 #[tokio::test]

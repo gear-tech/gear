@@ -32,6 +32,7 @@ mod init;
 mod reply;
 mod signal;
 mod stored;
+mod user;
 
 pub use common::{Dispatch, Message, MessageDetails, ReplyDetails, SignalDetails};
 pub use context::{
@@ -43,6 +44,7 @@ pub use init::{InitMessage, InitPacket};
 pub use reply::{ReplyMessage, ReplyPacket};
 pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
+pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;
 use core::fmt::Display;
@@ -81,9 +83,6 @@ pub type GasLimit = u64;
 
 /// Value type for message.
 pub type Value = u128;
-
-/// Status code type for message replies.
-pub type StatusCode = i32;
 
 /// Salt type for init message.
 pub type Salt = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;

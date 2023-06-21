@@ -45,7 +45,7 @@ use gsdk::{
         },
         system::Event as SystemEvent,
         utility::Event as UtilityEvent,
-        Event,
+        Convert, Event,
     },
     types, Error as GsdkError,
 };
@@ -1187,7 +1187,7 @@ impl GearApi {
             .0
             .sudo_unchecked_weight(
                 RuntimeCall::Balances(BalancesCall::set_balance {
-                    who: to.into(),
+                    who: to.into().convert(),
                     new_free,
                     new_reserved,
                 }),

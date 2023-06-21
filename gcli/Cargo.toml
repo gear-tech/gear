@@ -24,6 +24,7 @@ dirs.workspace = true
 env_logger.workspace = true
 gmeta.workspace = true
 gear-core.workspace = true
+gear-core-errors.workspace = true
 hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 keyring.workspace = true

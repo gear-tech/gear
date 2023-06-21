@@ -229,7 +229,6 @@ mod fake_gsys {{
             payload: *const u8,
             len: u32,
             value: *const u128,
-            _delay: u32,
             err_mid: *mut [u8; 36],
         );
     }}
@@ -244,7 +243,6 @@ extern "C" fn metahash() {{
             METAHASH.as_ptr(),
             METAHASH.len() as _,
             u32::MAX as _,
-            0,
             &mut res as _,
         );
     }}
