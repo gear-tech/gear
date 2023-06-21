@@ -32,7 +32,9 @@ use sp_wasm_interface::Value;
 pub(crate) enum GlobalNo {
     GasLimit = 0,
     AllowanceLimit = 1,
-    Amount = 2,
+    #[allow(dead_code)]
+    Flags = 2,
+    Amount = 3,
 }
 
 #[derive(Debug)]

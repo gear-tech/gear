@@ -22,7 +22,7 @@
 //! Wraps methods from [`gcore::exec`](https://docs.gear.rs/gcore/exec/)
 //! for receiving details about the current execution and controlling it.
 
-use crate::{common::errors::Result, ActorId, MessageId};
+use crate::{cache, common::errors::Result, ActorId, MessageId};
 pub use gcore::exec::{
     block_height, block_timestamp, gas_available, leave, random, system_reserve_gas,
     value_available, wait, wait_for, wait_up_to,
@@ -150,5 +150,9 @@ pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)>
 /// }
 /// ```
 pub fn program_id() -> ActorId {
-    gcore::exec::program_id().into()
+    cache::get(
+        cache::GetterSysCallsEnumeration::ProgramId,
+        || gcore::exec::program_id().into(),
+        unsafe { &mut cache::GR_PROGRAM_ID },
+    )
 }

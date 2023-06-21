@@ -48,6 +48,27 @@ pub const GLOBAL_NAME_FLAGS: &str = "gear_flags";
 /// it indicates the end of program stack memory.
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
+fn get_import_index_by_bame(
+    module: &elements::Module,
+    gas_module_name: &str,
+    name: &str,
+) -> Option<u32> {
+    module.import_section().and_then(|section| {
+        section
+            .entries()
+            .iter()
+            .enumerate()
+            .find_map(|(i, entry)| match entry.external() {
+                elements::External::Function(_)
+                    if entry.module() == gas_module_name && entry.field() == name =>
+                {
+                    Some(i as u32)
+                }
+                _ => None,
+            })
+    })
+}
+
 pub fn inject<R: Rules>(
     module: elements::Module,
     rules: &R,
@@ -71,7 +92,9 @@ pub fn inject<R: Rules>(
         .export_section()
         .map(|section| {
             section.entries().iter().any(|entry| {
-                entry.field() == GLOBAL_NAME_ALLOWANCE || entry.field() == GLOBAL_NAME_GAS
+                entry.field() == GLOBAL_NAME_ALLOWANCE
+                    || entry.field() == GLOBAL_NAME_GAS
+                    || entry.field() == GLOBAL_NAME_FLAGS
             })
         })
         .unwrap_or(false)
@@ -79,10 +102,24 @@ pub fn inject<R: Rules>(
         return Err(module);
     }
 
+    let gr_is_getter_called = get_import_index_by_bame(
+        &module,
+        gas_module_name,
+        SysCallName::IsGetterCalled.to_str(),
+    );
+
+    let gr_set_getter_called = get_import_index_by_bame(
+        &module,
+        gas_module_name,
+        SysCallName::SetGetterCalled.to_str(),
+    );
+
     let mut mbuilder = builder::from_module(module);
 
     // fn out_of_...() -> ();
     let import_sig = mbuilder.push_signature(builder::signature().build_sig());
+
+    let mut inserted_count = 0;
 
     mbuilder.push_import(
         builder::import()
@@ -92,6 +129,7 @@ pub fn inject<R: Rules>(
             .func(import_sig)
             .build(),
     );
+    inserted_count += 1;
 
     mbuilder.push_import(
         builder::import()
@@ -101,6 +139,7 @@ pub fn inject<R: Rules>(
             .func(import_sig)
             .build(),
     );
+    inserted_count += 1;
 
     // back to plain module
     let module = mbuilder.build();
@@ -112,6 +151,7 @@ pub fn inject<R: Rules>(
     let gas_charge_index = module.functions_space();
     let gas_index = module.globals_space() as u32;
     let allowance_index = gas_index + 1;
+    let flags_index = allowance_index + 1;
 
     let mut mbuilder = builder::from_module(module);
 
@@ -146,6 +186,23 @@ pub fn inject<R: Rules>(
             .field(GLOBAL_NAME_ALLOWANCE)
             .internal()
             .global(allowance_index)
+            .build(),
+    );
+
+    mbuilder.push_global(
+        builder::global()
+            .value_type()
+            .i64()
+            .init_expr(Instruction::I64Const(0))
+            .mutable()
+            .build(),
+    );
+
+    mbuilder.push_export(
+        builder::export()
+            .field(GLOBAL_NAME_FLAGS)
+            .internal()
+            .global(flags_index)
             .build(),
     );
 
@@ -265,8 +322,92 @@ pub fn inject<R: Rules>(
             .build(),
     );
 
-    // back to plain module
-    let module = mbuilder.build();
+    if gr_is_getter_called.is_some() && gr_set_getter_called.is_some() {
+        // fn gr_is_getter_called(flag: u32) -> bool { GEAR_FLAGS_GLOBAL & (1 << flag) != 0 }
+        let elements = vec![
+            Instruction::GetGlobal(flags_index),
+            Instruction::GetLocal(0),
+            Instruction::I32Const(63),
+            Instruction::I32And,
+            Instruction::I64ExtendUI32,
+            Instruction::I64ShrU,
+            Instruction::I32WrapI64,
+            Instruction::I32Const(1),
+            Instruction::I32And,
+            Instruction::End,
+        ];
 
-    gas_metering::post_injection_handler(module, rules, gas_charge_index, out_of_gas_index, 2)
+        // fake gr_is_getter_called function
+        mbuilder.push_function(
+            builder::function()
+                .signature()
+                .with_param(ValueType::I32)
+                .with_result(ValueType::I32)
+                .build()
+                .body()
+                .with_instructions(elements::Instructions::new(elements))
+                .build()
+                .build(),
+        );
+
+        //fn gr_set_getter_called(flag: u32) { GEAR_FLAGS_GLOBAL |= 1 << flag; }
+        let elements = vec![
+            Instruction::GetGlobal(flags_index),
+            Instruction::I64Const(1),
+            Instruction::GetLocal(0),
+            Instruction::I32Const(63),
+            Instruction::I32And,
+            Instruction::I64ExtendUI32,
+            Instruction::I64Shl,
+            Instruction::I64Or,
+            Instruction::SetGlobal(flags_index),
+            Instruction::End,
+        ];
+
+        // fake gr_set_getter_called function
+        mbuilder.push_function(
+            builder::function()
+                .signature()
+                .with_param(ValueType::I32)
+                .build()
+                .body()
+                .with_instructions(elements::Instructions::new(elements))
+                .build()
+                .build(),
+        );
+    }
+
+    // back to plain module
+    let mut module = mbuilder.build();
+
+    // gr_is_getter_called => fake gr_is_getter_called
+    // gr_set_getter_called => fake gr_set_getter_called
+    if let (Some(gr_is_getter_called_index), Some(gr_set_getter_called_index)) =
+        (gr_is_getter_called, gr_set_getter_called)
+    {
+        let fake_gr_is_getter_called_index = gas_charge_index as u32 + 1;
+        let fakr_gr_set_getter_called_index = fake_gr_is_getter_called_index + 1;
+
+        if let Some(code_section) = module.code_section_mut() {
+            for func_body in code_section.bodies_mut().iter_mut() {
+                for instruction in func_body.code_mut().elements_mut().iter_mut() {
+                    if let Instruction::Call(call_index) = instruction {
+                        if *call_index == gr_is_getter_called_index {
+                            *call_index = fake_gr_is_getter_called_index - inserted_count;
+                        } else if *call_index == gr_set_getter_called_index {
+                            *call_index = fakr_gr_set_getter_called_index - inserted_count;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    gas_metering::post_injection_handler(
+        module,
+        rules,
+        gas_charge_index,
+        out_of_gas_index,
+        inserted_count,
+    )
 }

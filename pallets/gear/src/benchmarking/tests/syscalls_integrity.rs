@@ -91,7 +91,7 @@ where
             | SysCallName::OomPanic => {/* tests here aren't required, read module docs for more info */},
             SysCallName::Alloc => check_mem::<T>(false),
             SysCallName::Free => check_mem::<T>(true),
-            SysCallName::OutOfGas | SysCallName::OutOfAllowance => { /*no need for tests */}
+            SysCallName::OutOfGas | SysCallName::OutOfAllowance | SysCallName::IsGetterCalled | SysCallName::SetGetterCalled => { /*no need for tests */}
             SysCallName::Random => check_gr_random::<T>(),
             SysCallName::ReserveGas => check_gr_reserve_gas::<T>(),
             SysCallName::UnreserveGas => check_gr_unreserve_gas::<T>(),

@@ -18,6 +18,7 @@
 
 use crate::{
     async_runtime::signals,
+    cache,
     errors::{IntoResult, Result},
     msg::{utils, CodecMessageFuture, MessageFuture},
     prelude::{convert::AsRef, ops::RangeBounds, vec, Vec},
@@ -785,7 +786,11 @@ pub fn send_bytes_delayed_from_reservation<T: AsRef<[u8]>>(
 /// }
 /// ```
 pub fn size() -> usize {
-    gcore::msg::size()
+    cache::get(
+        cache::GetterSysCallsEnumeration::Size,
+        gcore::msg::size,
+        unsafe { &mut cache::GR_SIZE },
+    )
 }
 
 /// Get the identifier of the message source (256-bit address).
@@ -804,7 +809,11 @@ pub fn size() -> usize {
 /// }
 /// ```
 pub fn source() -> ActorId {
-    gcore::msg::source().into()
+    cache::get(
+        cache::GetterSysCallsEnumeration::Source,
+        || gcore::msg::source().into(),
+        unsafe { &mut cache::GR_SOURCE },
+    )
 }
 
 /// Get the value associated with the message that is being processed.
@@ -823,5 +832,9 @@ pub fn source() -> ActorId {
 /// }
 /// ```
 pub fn value() -> u128 {
-    gcore::msg::value()
+    cache::get(
+        cache::GetterSysCallsEnumeration::Value,
+        gcore::msg::value,
+        unsafe { &mut cache::GR_VALUE },
+    )
 }

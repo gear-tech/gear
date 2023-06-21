@@ -137,6 +137,7 @@ extern crate alloc;
 extern crate galloc;
 
 mod async_runtime;
+mod cache;
 mod common;
 mod config;
 pub mod exec;

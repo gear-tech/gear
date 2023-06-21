@@ -95,6 +95,10 @@ pub enum SysCallName {
     OutOfGas,
     OutOfAllowance,
 
+    // Helper functions will be replaced with raw instructions
+    IsGetterCalled,
+    SetGetterCalled,
+
     // Miscellaneous
     ReplyDeposit,
     Debug,
@@ -164,6 +168,8 @@ impl SysCallName {
             SysCallName::WaitFor => "gr_wait_for",
             SysCallName::WaitUpTo => "gr_wait_up_to",
             SysCallName::Wake => "gr_wake",
+            SysCallName::IsGetterCalled => "gr_is_getter_called",
+            SysCallName::SetGetterCalled => "gr_set_getter_called",
         }
     }
 

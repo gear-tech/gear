@@ -35,7 +35,7 @@ use gear_core::{
     memory::{GearPage, HostPointer, Memory, MemoryInterval, PageU32Size, WasmPage},
 };
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext, LazyPagesRuntimeContext};
-use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::{GLOBAL_NAME_ALLOWANCE, GLOBAL_NAME_FLAGS, GLOBAL_NAME_GAS};
 use sp_std::{vec, vec::Vec};
 
 fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
@@ -54,6 +54,7 @@ pub fn try_to_enable_lazy_pages(prefix: [u8; 32]) -> bool {
         global_names: vec![
             GLOBAL_NAME_GAS.to_string(),
             GLOBAL_NAME_ALLOWANCE.to_string(),
+            GLOBAL_NAME_FLAGS.to_string(),
         ],
         pages_storage_prefix: prefix.to_vec(),
     };

@@ -260,6 +260,8 @@ where
 
         builder.add_func(Alloc, wrap_common_func!(FuncsHandler::alloc, (1) -> (1)));
         builder.add_func(Free, wrap_common_func!(FuncsHandler::free, (1) -> (1)));
+        builder.add_func(IsGetterCalled, wrap_common_func!(FuncsHandler::forbidden, () -> ()));
+        builder.add_func(SetGetterCalled, wrap_common_func!(FuncsHandler::forbidden, () -> ()));
     }
 }
 
