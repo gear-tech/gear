@@ -151,7 +151,7 @@ pub mod util;
 pub use async_runtime::{handle_signal, message_loop, record_reply};
 pub use common::{errors, primitives::*};
 pub use config::Config;
-pub use gcore::ext;
+pub use gcore::{ext, CostIdentifier};
 pub use gstd_codegen::{async_init, async_main};
 pub use prelude::*;
 pub use reservations::*;

@@ -28,7 +28,6 @@ pub mod ext {
     /// # Examples
     ///
     /// ```
-    /// use gcore::ext;
     /// use gcore::{ext, CostIdentifier};
     ///
     /// #[no_mangle]

@@ -21,6 +21,8 @@
 //! This module contains definitions of common structures that are used to work
 //! with Gear API.
 
+use codec::{Decode, Encode};
+
 /// Message handle.
 ///
 /// Gear allows users and programs to interact with other users and programs via
@@ -223,7 +225,8 @@ impl CodeId {
 }
 
 /// Cost identifier for various user costs.
-#[derive(Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Encode, Decode)]
+#[codec(crate=codec)]
 #[allow(clippy::unnecessary_cast)]
 #[repr(u32)]
 pub enum CostIdentifier {

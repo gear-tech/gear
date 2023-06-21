@@ -301,7 +301,7 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
-        let cost = CostIdentifier::Rent as u32;
+        let cost = CostIdentifier::Rent;
 
         let mp = vec![Kind::Cost(
             cost,
