@@ -3602,6 +3602,7 @@ name = "gcore"
 version = "0.2.0"
 dependencies = [
  "galloc",
+ "gear-core",
  "gear-core-errors",
  "gsys",
  "hex-literal 0.3.4",

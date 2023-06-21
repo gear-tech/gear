@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+gear-core.workspace = true
 gsys.workspace = true
 gear-core-errors.workspace = true
 codec = { workspace = true, optional = true }

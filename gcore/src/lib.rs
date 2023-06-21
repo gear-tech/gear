@@ -72,6 +72,7 @@ mod general;
 pub use general::*;
 
 mod utils;
+pub use gear_core::costs::CostIdentifier;
 pub use utils::ext;
 
 use core::mem::size_of;

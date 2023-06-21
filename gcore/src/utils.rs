@@ -18,10 +18,8 @@
 
 /// Extensions for additional features.
 pub mod ext {
-    use crate::{
-        errors::{ExtError, Result, SyscallError},
-        CostIdentifier,
-    };
+    use crate::errors::{ExtError, Result, SyscallError};
+    use gear_core::costs::CostIdentifier;
 
     /// Gets the cost of something.
     ///
