@@ -29,7 +29,7 @@ pub mod ext {
     ///
     /// ```
     /// use gcore::ext;
-    /// use gcore::CostIdentifier;
+    /// use gcore::{ext, CostIdentifier};
     ///
     /// #[no_mangle]
     /// extern "C" fn handle() {
