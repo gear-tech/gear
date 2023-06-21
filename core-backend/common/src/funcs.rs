@@ -429,7 +429,7 @@ where
             .map_err(Into::into)
     }
 
-    #[host(fallible, cost = RuntimeCosts::Cost, err_len = LengthBytes)]
+    #[host(fallible, cost = RuntimeCosts::Cost, err = ErrorBytes)]
     pub fn cost(
         ctx: &mut R,
         cost_name_ptr: u32,
