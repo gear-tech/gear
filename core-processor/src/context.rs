@@ -135,6 +135,7 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutio
             actor_data.initialized,
         );
 
+        // Must be created once per taken from the queue dispatch by contract.
         let gas_reserver =
             GasReserver::new(&dispatch, actor_data.gas_reservation_map, max_reservations);
 
