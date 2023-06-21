@@ -342,9 +342,6 @@ pub trait BackendState {
     /// Set termination reason
     fn set_termination_reason(&mut self, reason: TerminationReason);
 
-    /// Set fallible syscall error
-    fn set_fallible_syscall_error(&mut self, err: ExtError);
-
     /// Process fallible syscall function result
     fn process_fallible_func_result<T: Sized>(
         &mut self,
@@ -358,7 +355,6 @@ pub trait BackendState {
                 {
                     let code = ext_err.to_u32();
                     log::trace!(target: "syscalls", "fallible syscall error: {ext_err}");
-                    self.set_fallible_syscall_error(ext_err);
                     Ok(Err(code))
                 } else {
                     Err(err)
